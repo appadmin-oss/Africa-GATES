@@ -1,0 +1,33 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ is_new ? 'New Opportunity' : 'Edit · ' ~ row.title }}{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/opportunities">← Back</a>{% endblock %}
+{% block content %}
+<form class="ad-form" method="post" action="{{ is_new ? '/admin/opportunities/new' : '/admin/opportunities/' ~ row.id }}">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="ad-card"><div class="ad-card__body">
+    <div class="ad-form">
+      <div class="row"><div><label>Title</label><input type="text" name="title" value="{{ row.title|default('') }}" required></div><div><label>Slug</label><input type="text" name="slug" value="{{ row.slug|default('') }}" required></div></div>
+      <div class="row">
+        <div><label>Type</label><select name="opportunity_type">{% for t in ['grant','mentorship','training','job','fellowship','competition'] %}<option value="{{ t }}" {% if row.opportunity_type == t %}selected{% endif %}>{{ t|capitalize }}</option>{% endfor %}</select></div>
+        <div><label>Scope</label><input type="text" name="scope" value="{{ row.scope|default('Pan-African') }}"></div>
+      </div>
+      <div><label>Provider</label><input type="text" name="provider" value="{{ row.provider|default('') }}" required></div>
+      <div><label>Description</label><textarea name="description" rows="4">{{ row.description|default('') }}</textarea></div>
+      <div><label>Eligibility</label><textarea name="eligibility" rows="2">{{ row.eligibility|default('') }}</textarea></div>
+      <div class="row">
+        <div><label>Value</label><input type="text" name="value" value="{{ row.value|default('') }}" placeholder="e.g. $25,000"></div>
+        <div><label>Deadline</label><input type="date" name="deadline" value="{{ row.deadline|default('') }}"></div>
+      </div>
+      <div class="row">
+        <div><label>Apply URL</label><input type="url" name="apply_url" value="{{ row.apply_url|default('') }}"></div>
+        <div><label>Min CPI tier</label><select name="min_cpi_tier"><option value="">Any</option>{% for t in ['bronze','silver','gold','platinum','diamond'] %}<option value="{{ t }}" {% if row.min_cpi_tier == t %}selected{% endif %}>{{ t|capitalize }}</option>{% endfor %}</select></div>
+      </div>
+      <div><label>Status</label><select name="status">{% for s in ['active','closed','draft'] %}<option value="{{ s }}" {% if row.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select></div>
+    </div>
+  </div></div>
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <a class="ad-btn" href="/admin/opportunities">Cancel</a>
+    <button class="ad-btn ad-btn--primary" type="submit">Save</button>
+  </div>
+</form>
+{% endblock %}

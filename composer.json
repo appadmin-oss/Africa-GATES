@@ -1,0 +1,44 @@
+{
+  "name": "afrovanguard/africa-gates",
+  "description": "Africa GATES — Continental Cultural Recognition Platform",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.4",
+    "slim/slim": "^4.12",
+    "slim/psr7": "^1.6",
+    "slim/twig-view": "^3.4",
+    "php-di/php-di": "^7.0",
+    "illuminate/database": "^12.0",
+    "phpmailer/phpmailer": "^6.9",
+    "vlucas/phpdotenv": "^5.6",
+    "monolog/monolog": "^3.5",
+    "intervention/image": "^3.7",
+    "respect/validation": "^2.3",
+    "symfony/console": "^6.4",
+    "ramsey/uuid": "^4.7",
+    "league/csv": "^9.11",
+    "guzzlehttp/guzzle": "^7.8"
+  },
+  "autoload": {
+    "psr-4": {
+      "AfricaGates\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "test": "phpunit"
+  },
+  "bin": ["bin/console"],
+  "config": {
+    "optimize-autoloader": true,
+    "allow-plugins": {}
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^10"
+  }
+}

@@ -1,0 +1,568 @@
+/*
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  AFRICA GATES — Nomination Form UX Layer                    ║
+  ║  Floating labels · section cards · real-time validation      ║
+  ╚══════════════════════════════════════════════════════════════╝
+*/
+
+/* ── Smooth focus ring ───────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--emerald-500);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FORM SECTION CARDS
+   Each of the 4 form sections sits in its own raised card.
+   The card glows green when any field inside it is focused.
+══════════════════════════════════════════════════════════════ */
+.form-section-card {
+  background: #fff;
+  border: 1.5px solid rgba(16, 41, 44, 0.08);
+  border-radius: 20px;
+  padding: 2rem;
+  margin-bottom: 1.25rem;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.form-section-card:focus-within {
+  border-color: rgba(51, 134, 50, 0.30);
+  box-shadow: 0 0 0 4px rgba(51, 134, 50, 0.06);
+}
+
+.form-section-card__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  margin-bottom: 1.75rem;
+}
+.form-section-card__num {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--kale-700, #10292C);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  flex-shrink: 0;
+}
+.form-section-card__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--kale-700, #10292C);
+  line-height: 1.3;
+}
+.form-section-card__sub {
+  font-size: 0.8125rem;
+  color: var(--neutral-500, #6b7280);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FIELD ROWS — Column grids inside the form cards
+══════════════════════════════════════════════════════════════ */
+.field-row {
+  display: grid;
+  gap: 1rem;
+}
+.field-row--2 { grid-template-columns: 1fr 1fr; }
+.field-row--3 { grid-template-columns: 1fr 1fr 1fr; }
+
+@media (max-width: 640px) {
+  .field-row--2,
+  .field-row--3 { grid-template-columns: 1fr; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FLOATING LABEL FIELDS
+   .field wraps the input + label so the label can float.
+   Input must have placeholder=" " (single space) for the
+   :not(:placeholder-shown) selector to detect filled state.
+══════════════════════════════════════════════════════════════ */
+.field {
+  position: relative;
+}
+
+/* Base input / select / textarea */
+.field__input {
+  width: 100%;
+  padding: 1.375rem 1rem 0.5rem;
+  border: 1.5px solid var(--neutral-200, #e5e7eb);
+  border-radius: 12px;
+  font-size: 1rem;
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  color: var(--kale-700, #10292C);
+  background: #fff;
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  display: block;
+}
+.field__input:focus {
+  border-color: var(--emerald-500, #22c55e);
+  box-shadow: 0 0 0 3px rgba(51, 134, 50, 0.12);
+  background: #f9fefb;
+}
+
+/* Textarea variant — taller padding at top so label has room */
+.field__input--textarea {
+  padding-top: 1.625rem;
+  resize: vertical;
+  min-height: 120px;
+}
+
+/* Select — keep the native arrow by not clipping with overflow */
+.field__input--select {
+  padding-right: 2.5rem;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.875rem center;
+  background-size: 16px;
+}
+
+/* Floating label */
+.field__label {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1rem;
+  color: var(--neutral-400, #9ca3af);
+  pointer-events: none;
+  transform-origin: left top;
+  transition: top 0.2s ease, transform 0.2s ease, font-size 0.2s ease, color 0.2s ease;
+  white-space: nowrap;
+}
+
+/* Float up when focused OR when the input has a value */
+.field__input:focus    ~ .field__label,
+.field__input:not(:placeholder-shown) ~ .field__label {
+  top: 0.5rem;
+  transform: translateY(0) scale(0.775);
+  font-size: 1rem;          /* scale() handles the visual size */
+  color: var(--emerald-600, #16a34a);
+  font-weight: 600;
+}
+
+/* Textarea label sits at top, not vertically centred */
+.field__label--textarea {
+  top: 1rem;
+  transform: none;
+}
+.field__input--textarea:focus    ~ .field__label--textarea,
+.field__input--textarea:not(:placeholder-shown) ~ .field__label--textarea {
+  top: 0.4rem;
+  transform: scale(0.775);
+  color: var(--emerald-600, #16a34a);
+  font-weight: 600;
+}
+
+/* ── Validation states ──────────────────────────────────────── */
+.field__input.is-valid {
+  border-color: var(--emerald-400, #4ade80);
+}
+.field__input.is-error {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.10);
+}
+
+/* Error message under the field */
+.field__error {
+  display: none;
+  font-size: 0.8125rem;
+  color: #ef4444;
+  margin-top: 0.375rem;
+  padding-left: 0.25rem;
+}
+.field__input.is-error ~ .field__error {
+  display: block;
+}
+
+/* Hint text */
+.field__hint {
+  font-size: 0.8125rem;
+  color: var(--neutral-500, #6b7280);
+  margin-top: 0.375rem;
+  padding-left: 0.25rem;
+  line-height: 1.4;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   VALIDATION JAVASCRIPT HOOK
+   Wired automatically for any .field__input with [required]
+   on the nominate form.
+══════════════════════════════════════════════════════════════ */
+/* (Styles above handle all visual states; JS in nominate.twig
+   adds/removes .is-valid and .is-error on blur/input events.) */
+
+/* ── Vote success done state ─────────────────────────────────── */
+@keyframes popIn {
+  0%   { transform: scale(0.5); opacity: 0; }
+  70%  { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INTEGRITY PAGE
+═══════════════════════════════════════════════════════════════ */
+.integrity-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-bottom: 3rem;
+}
+.integrity-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background: var(--bg-light-emerald);
+  border: 1px solid var(--emerald-200);
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--emerald-800);
+}
+.integrity-signal__icon { font-size: 1rem; }
+
+.integrity-section {
+  padding: 2.5rem 0;
+  border-top: 1px solid var(--color-border);
+}
+.integrity-section:first-of-type { border-top: none; }
+.integrity-h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--kale-700);
+  margin-bottom: 1rem;
+  font-family: var(--font-heading);
+}
+
+/* Lifecycle steps */
+.lifecycle-steps { display: flex; flex-direction: column; gap: 1px; margin-top: 1.5rem; }
+.lifecycle-step {
+  display: flex;
+  gap: 1.25rem;
+  padding: 1.25rem 0;
+  align-items: flex-start;
+}
+.lifecycle-step__num {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--kale-700);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.lifecycle-step__body h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--kale-700);
+  margin: 0 0 0.375rem;
+}
+.lifecycle-step__body p {
+  font-size: 0.9375rem;
+  color: var(--neutral-600);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* Integrity rules */
+.integrity-rules { display: flex; flex-direction: column; gap: 1.25rem; margin-top: 1rem; }
+.integrity-rule {
+  padding: 1.125rem 1.25rem;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+}
+.integrity-rule__head {
+  font-weight: 700;
+  font-size: 0.9375rem;
+  color: var(--kale-700);
+  margin-bottom: 0.5rem;
+}
+.integrity-rule p {
+  font-size: 0.9375rem;
+  color: var(--neutral-600);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* Scoring formula */
+.scoring-formula {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+}
+.scoring-formula__part {
+  flex: 1;
+  min-width: 180px;
+  padding: 1.5rem;
+  border-radius: 16px;
+  text-align: center;
+}
+.scoring-formula__part--public { background: var(--bg-light-emerald); border: 1.5px solid var(--emerald-200); }
+.scoring-formula__part--judges { background: linear-gradient(135deg,#fefce8,#fef9c3); border: 1.5px solid #fde047; }
+.scoring-formula__pct {
+  font-size: 2.5rem;
+  font-weight: 900;
+  font-family: var(--font-heading);
+  color: var(--kale-700);
+  line-height: 1;
+}
+.scoring-formula__label { font-weight: 700; font-size: 0.9375rem; color: var(--kale-700); margin: 0.25rem 0; }
+.scoring-formula__desc { font-size: 0.8125rem; color: var(--neutral-600); margin: 0; line-height: 1.45; }
+.scoring-formula__plus { font-size: 2rem; font-weight: 700; color: var(--neutral-400); }
+.scoring-formula__eq { font-size: 1.125rem; font-weight: 700; color: var(--kale-700); white-space: nowrap; }
+
+/* Criteria grid */
+.criteria-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+.criterion-card {
+  padding: 1.25rem;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+}
+.criterion-card__icon { font-size: 1.75rem; }
+.criterion-card__title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--kale-700);
+  margin: 0.5rem 0 0.375rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.criterion-card__weight {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--emerald-600);
+  font-family: var(--font-mono);
+}
+.criterion-card__desc { font-size: 0.875rem; color: var(--neutral-600); line-height: 1.5; margin: 0; }
+
+.integrity-callout {
+  padding: 1rem 1.25rem;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  border-radius: 0 12px 12px 0;
+  font-size: 0.9375rem;
+  color: #78350f;
+  line-height: 1.55;
+}
+.integrity-footer {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.integrity-footer p { font-size: 1rem; font-weight: 600; color: var(--kale-700); margin: 0; }
+
+/* ═══════════════════════════════════════════════════════════════
+   VOTE PAGE — Trust signals, social proof, progress
+═══════════════════════════════════════════════════════════════ */
+.vote-trust-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0.875rem 2rem;
+  background: #fff;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.8125rem;
+  color: var(--neutral-600);
+}
+.vote-trust-bar__item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-weight: 500;
+}
+.vote-trust-bar__item svg { color: var(--emerald-500); }
+.vote-trust-bar__divider { width: 1px; height: 14px; background: var(--color-border); }
+
+.vote-social-proof {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 1.5rem 0;
+  margin-bottom: 2rem;
+}
+.vote-proof-stat { text-align: center; }
+.vote-proof-stat__num {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--kale-700);
+  display: block;
+}
+.vote-proof-stat__label { font-size: 0.75rem; color: var(--neutral-500); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+
+.vote-progress-bar {
+  background: var(--neutral-100);
+  border-radius: 999px;
+  height: 6px;
+  overflow: hidden;
+  margin-bottom: 0.375rem;
+}
+.vote-progress-bar__fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--emerald-400), var(--emerald-600));
+  border-radius: inherit;
+  transition: width 1s var(--ease-silky);
+}
+
+/* Nominee card richness */
+.card--nominee .nominee-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+}
+.nominee-tag {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  background: var(--neutral-100);
+  color: var(--neutral-600);
+}
+
+/* Achievement badges in vote done state */
+.achievement-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--gold-100), var(--gold-200));
+  border: 1px solid var(--gold-300);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--gold-800);
+  margin: 0.25rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NOMINATE PAGE — Draft save, completion indicator
+═══════════════════════════════════════════════════════════════ */
+.draft-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  background: #fffbeb;
+  border: 1px solid #fde047;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  color: #713f12;
+  margin-bottom: 1.5rem;
+}
+.draft-banner__icon { font-size: 1.25rem; }
+.draft-banner__label { flex: 1; font-weight: 500; }
+.draft-banner__action {
+  font-weight: 700;
+  color: var(--emerald-700);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  text-decoration: underline;
+}
+
+.completion-ring {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  padding: 1rem 1.25rem;
+  background: #fff;
+  border: 1.5px solid var(--color-border);
+  border-radius: 14px;
+}
+.completion-ring__svg { flex-shrink: 0; }
+.completion-ring__text { flex: 1; }
+.completion-ring__pct {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--kale-700);
+  font-family: var(--font-mono);
+}
+.completion-ring__label { font-size: 0.8125rem; color: var(--neutral-500); }
+.completion-ring__hint { font-size: 0.8125rem; color: var(--emerald-600); font-weight: 500; margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   SOCIAL PROOF / ACTIVITY FEED on Home
+═══════════════════════════════════════════════════════════════ */
+.activity-feed { display: flex; flex-direction: column; gap: 0.75rem; }
+.activity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  font-size: 0.875rem;
+  color: var(--neutral-600);
+  transition: box-shadow 0.2s ease;
+}
+.activity-item:hover { box-shadow: var(--shadow-md); }
+.activity-item__icon {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+  background: var(--bg-light-emerald);
+}
+.activity-item__body { flex: 1; min-width: 0; }
+.activity-item__text { font-weight: 500; color: var(--kale-700); line-height: 1.4; }
+.activity-item__time { font-size: 0.75rem; color: var(--neutral-400); margin-top: 2px; font-family: var(--font-mono); }
+
+/* ═══════════════════════════════════════════════════════════════
+   ADMIN FRAUD DASHBOARD
+═══════════════════════════════════════════════════════════════ */
+.fraud-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.fraud-stat {
+  padding: 1.125rem;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+}
+.fraud-stat__num { font-size: 1.875rem; font-weight: 700; font-family: var(--font-mono); color: var(--kale-700); line-height: 1; }
+.fraud-stat__label { font-size: 0.8125rem; color: var(--neutral-500); margin-top: 4px; }
+.fraud-stat--warn .fraud-stat__num { color: #d97706; }
+.fraud-stat--danger .fraud-stat__num { color: #dc2626; }

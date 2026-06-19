@@ -1,0 +1,56 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Nominees{% endblock %}
+{% block content %}
+<form class="ad-filters" method="get" action="/admin/nominees">
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee name…">
+  <select name="cycle">
+    <option value="">All cycles</option>
+    {% for c in cycles %}<option value="{{ c.id }}" {% if filters.cycle == c.id %}selected{% endif %}>{{ c.title }} · {{ c.year }}</option>{% endfor %}
+  </select>
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for s in ['pending','approved','winner','runner_up'] %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|capitalize|replace({'_':' '}) }}</option>{% endfor %}
+  </select>
+  <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
+</form>
+
+<div class="ad-card"><div class="ad-table-wrap">
+  <table class="ad-table">
+    <thead><tr><th>Nominee</th><th>Programme · Category</th><th>Country</th><th>Votes</th><th>Profile (CPI link)</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><strong>{{ r.name }}</strong><div style="font-size:12px;color:var(--ad-text-soft)">{{ r.tagline }}</div></td>
+        <td>{{ r.programme }} · {{ r.category }}<div style="font-size:11px;color:var(--ad-text-mute)">Cycle {{ r.year }}</div></td>
+        <td><span style="font-family:'Space Mono',monospace">{{ r.country_code|default('—') }}</span></td>
+        <td><strong style="font-family:'Space Mono',monospace">{{ r.vote_count|number_format }}</strong></td>
+        <td>
+          {% if r.profile_id %}
+            <a href="/registry/{{ r.profile_slug }}" target="_blank" style="font-size:12px">{{ r.profile_name }}</a>
+            <form method="post" action="/admin/nominees/{{ r.id }}/link" style="display:inline">
+              <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="profile_slug" value="">
+              <button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" title="Unlink">unlink</button>
+            </form>
+          {% else %}
+            <form method="post" action="/admin/nominees/{{ r.id }}/link" style="display:flex;gap:4px">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <input type="text" name="profile_slug" placeholder="profile slug" style="width:110px;font-size:12px;padding:2px 6px">
+              <button class="ad-btn ad-btn--xs" type="submit">Link</button>
+            </form>
+          {% endif %}
+        </td>
+        <td>
+          {% set chip = {'winner':'gold','runner_up':'blue','approved':'green','pending':'grey'}[r.status]|default('grey') %}
+          <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|replace({'_':' '})|capitalize }}</span>
+        </td>
+        <td class="col-actions">
+          {% if r.status != 'winner' %}<form method="post" action="/admin/nominees/{{ r.id }}/winner" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--gold" type="submit">Winner</button></form>{% endif %}
+          {% if r.status != 'runner_up' %}<form method="post" action="/admin/nominees/{{ r.id }}/runner_up" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs" type="submit">Runner-up</button></form>{% endif %}
+          <form method="post" action="/admin/nominees/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" data-confirm="Delete nominee?">×</button></form>
+        </td>
+      </tr>
+      {% else %}<tr><td colspan="7" style="text-align:center;color:var(--ad-text-mute);padding:30px">No nominees.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

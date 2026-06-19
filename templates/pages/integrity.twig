@@ -1,0 +1,142 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
+  <div class="aurora aurora--soft" aria-hidden="true"></div>
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Awards integrity center</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">How Africa GATES <em style="color:var(--emerald-600)">works.</em></h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Transparent rules. Verified identities. Independent scoring. Every decision made here is defensible — this page is your reference if anything is ever disputed.</p>
+      {# Trust signals strip #}
+      <div class="r26-reveal r26-d4" style="margin-top:1.5rem;display:flex;flex-wrap:wrap;gap:0.6rem;justify-content:center">
+        {% for label in [
+          'OTP-verified voting',
+          'One vote per identity per category',
+          'Fraud detection on every vote',
+          'Independent judging panel',
+          'Weighted public + judge scoring',
+          'Full audit trail'
+        ] %}
+        <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ label }}</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<article class="r26-article wrap" style="padding-top:1.5rem">
+  <div class="r26-prose">
+
+    {# ── Section 1: Lifecycle ── #}
+    <h2>1 — Award lifecycle</h2>
+    <p>Every award programme runs through five mandatory stages. No stage can be skipped and stages cannot overlap — the platform enforces this at the database level.</p>
+    {% set stages = [
+      {num:'01', name:'Nomination', desc:'Anyone can nominate a person or organisation. Submissions are queued for moderation — they are not visible to the public until approved.'},
+      {num:'02', name:'Verification', desc:'The moderation team reviews each submission for eligibility, accuracy, and completeness. Nominees who do not meet criteria are rejected with a reason logged.'},
+      {num:'03', name:'Shortlist Published', desc:'Approved nominees appear publicly. The shortlist is frozen — no new entries are accepted once voting opens.'},
+      {num:'04', name:'Public Voting', desc:'Community votes are collected. Each email address can cast one vote per category per cycle. Every vote is OTP-verified and fraud-scored before recording.'},
+      {num:'05', name:'Judging', desc:'An independent panel scores each shortlisted nominee on four weighted criteria. Judge scores are recorded separately and combined with public votes at close.'},
+      {num:'06', name:'Results & Audit', desc:'A signed vote snapshot is generated at the moment voting closes. The weighted final score is calculated and winners are announced. The snapshot is permanently archived.'},
+    ] %}
+    <div style="display:flex;flex-direction:column;gap:0.75rem;margin:1.25rem 0 0" data-anim>
+      {% for s in stages %}
+      <div style="display:flex;gap:1rem;background:#fff;border:1px solid rgba(16,41,44,0.08);border-radius:16px;padding:1.1rem 1.25rem">
+        <div style="font-family:var(--font-mono);font-weight:700;color:var(--emerald-600);flex:none;font-size:0.95rem;line-height:1.6">{{ s.num }}</div>
+        <div>
+          <h3 class="r26-h3" style="margin:0 0 0.3rem;font-size:1.05rem">{{ s.name }}</h3>
+          <p style="margin:0;font-size:0.95rem">{{ s.desc }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── Section 2: Voting rules ── #}
+    <h2>2 — Voting rules</h2>
+    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">One vote per category per person</h3>
+    <p>Your email address is hashed using SHA-256 and stored against your vote. The plain-text email is never saved. Each hash can appear once per category per cycle — enforced by a database unique constraint that cannot be bypassed.</p>
+    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">OTP verification required</h3>
+    <p>Every vote requires a one-time 6-digit code delivered to the voter's email. The code expires in 10 minutes, can only be used once, and is cryptographically bound to the specific nominee it was requested for — it cannot be reused for a different nominee.</p>
+    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Fraud scoring on every vote</h3>
+    <p>Each vote attempt is assigned a risk score (0–100) based on device fingerprint, IP vote density, OTP request patterns, and behavioural signals. Scores below 30 are auto-approved. Scores 60–79 are flagged for manual review. Scores 80+ are blocked before the vote is recorded.</p>
+    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Disposable email addresses blocked</h3>
+    <p>Known temporary email domains (Mailinator, Guerrilla Mail, 10-minute mail, and 30+ others) are rejected at OTP request time — before any database write occurs.</p>
+    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Donation votes</h3>
+    <p>Supporters who donate to Africa GATES earn bonus votes (currently 5 per ₦1,000 donated, admin-configurable). Bonus votes are subject to the same OTP verification and fraud scoring as standard votes. They do not bypass any anti-fraud control.</p>
+
+    {# ── Section 3: Scoring formula ── #}
+    <h2>3 — How winners are scored</h2>
+    <p>The final CPI (Cultural Power Index) score is a weighted combination of community votes and judge scores. Neither alone determines the winner.</p>
+    <div class="r26-surface" style="padding:1.75rem;margin:1.25rem 0 0" data-anim>
+      <div class="r26-metrics" style="grid-template-columns:repeat(2,1fr);max-width:none">
+        <div class="r26-metric">
+          <div class="r26-metric__num">45%</div>
+          <div class="r26-metric__lbl"><strong>Public votes</strong> — community voice, normalised within each category against the category's highest vote count.</div>
+        </div>
+        <div class="r26-metric">
+          <div class="r26-metric__num">55%</div>
+          <div class="r26-metric__lbl"><strong>Judge panel</strong> — average of four criteria: Impact (25%), Originality (25%), Reach (25%), and Integrity (25%).</div>
+        </div>
+      </div>
+      <p style="text-align:center;margin:1.25rem 0 0;font-family:var(--font-mono);font-size:0.9rem;color:var(--r26-ink,#10292c)">45% public + 55% judges = CPI Score</p>
+    </div>
+    <div class="r26-note r26-note--gold" style="margin-top:1.25rem">
+      <strong>Why 45/55?</strong> Popularity alone should not determine the winner — a well-funded campaign can generate disproportionate vote volume. The slight tilt to the judge panel ensures that merit, not marketing, carries the decision.
+    </div>
+
+    {# ── Section 4: Judge criteria ── #}
+    <h2>4 — Judging criteria</h2>
+    <p>Every judge scores each nominee on four dimensions. Scores are 0–10 per criterion. The weighted average becomes the judge score.</p>
+    <div class="r26-cards" style="grid-template-columns:repeat(2,1fr);margin-top:1.25rem" data-anim>
+      {% for title,desc in {
+        'Impact': 'Measurable difference made for the community, industry, or continent.',
+        'Originality': 'Inventiveness and novelty — has this person introduced something genuinely new?',
+        'Reach': 'Breadth of influence: local, regional, continental, or global.',
+        'Integrity': 'Consistency of values, ethics, and accountability under pressure.'
+      } %}
+      <div class="r26-card">
+        <h3 class="r26-card__title" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">{{ title }} <span class="r26-chip2" style="font-size:0.78rem;padding:0.3rem 0.7rem">25%</span></h3>
+        <p style="margin:0;font-size:0.95rem">{{ desc }}</p>
+      </div>
+      {% endfor %}
+    </div>
+
+    {# ── Section 5: Nomination eligibility ── #}
+    <h2>5 — Nomination eligibility</h2>
+    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Who can nominate</h3>
+    <p>Any person with a valid, non-disposable email address. There is no fee to nominate. Nominators provide their full name, phone number, and location for accountability.</p>
+    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Who can be nominated</h3>
+    <p>Any African individual, school, choir, or business that meets the stated criteria for the specific award programme. Self-nominations are accepted.</p>
+    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Business Awards criteria</h3>
+    <p>Business nominees must have a minimum of 5 staff members, maintain a physical office presence in Alimosho, and demonstrate excellence worthy of emulation.</p>
+    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Grounds for rejection</h3>
+    <p>A nomination will be rejected if: the nominee does not meet the eligibility criteria, the reason provided is demonstrably false, the nomination is a duplicate of an existing approved entry, or the submission violates our community standards.</p>
+
+    {# ── Section 6: Dispute resolution ── #}
+    <h2>6 — Dispute resolution</h2>
+    <p>If you believe a result was manipulated, a nominee was improperly approved, or a fraud pattern was missed, contact us at <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>.</p>
+    <p>We will:</p>
+    <ol style="padding-left:1.5rem;display:flex;flex-direction:column;gap:0.5rem;font-size:0.9375rem;color:var(--neutral-600,#4a5256);margin:0 0 1.3rem">
+      <li>Acknowledge the complaint within 48 hours.</li>
+      <li>Export the relevant vote audit trail (timestamps, hashed identities, risk scores).</li>
+      <li>Engage an independent reviewer if the complaint is substantiated.</li>
+      <li>Publish a summary of findings if the dispute affected a final result.</li>
+    </ol>
+
+    {# ── Section 7: Data and privacy ── #}
+    <h2>7 — Your data</h2>
+    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">What we store</h3>
+    <p>A SHA-256 hash of your email. Your IP address (also hashed). A device fingerprint. The nominee ID and timestamp of your vote. We never store your plain-text email, name, or personal identifier against a vote.</p>
+    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">What we never sell</h3>
+    <p>We do not sell, share, or monetise voter data. Africa GATES products are ad-free. Data collected is used only for fraud prevention, vote integrity, and aggregate analytics.</p>
+    <p>Full details: <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Use</a></p>
+
+    <div style="margin-top:2.5rem;text-align:center" data-anim>
+      <p style="margin-bottom:1rem">Questions not answered here?</p>
+      <a href="mailto:integrity@afrovanguard.org.ng" class="btn btn--emerald">Contact the Integrity Team</a>
+    </div>
+
+  </div>
+</article>
+{% endblock %}

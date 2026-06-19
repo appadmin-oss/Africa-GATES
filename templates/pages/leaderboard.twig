@@ -1,0 +1,126 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+{% set FLAGS = {
+  'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮',
+  'CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','AO':'🇦🇴','CD':'🇨🇩','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪'
+} %}
+
+{% set has_entries = entries|default([])|length > 0 %}
+{% set rows = has_entries ? entries : [] %}
+{% set top = rows|length > 0 ? rows[0] : {cpi_score: 0} %}
+{% set max_score = top.cpi_score|default(1000) %}
+
+<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
+  <div class="aurora aurora--soft" aria-hidden="true"></div>
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">{{ has_entries ? 'Live · Cultural Power Index' : 'Cultural Power Index' }}</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">The continental <em style="color:var(--emerald-600)">ranking.</em></h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">
+        {% if has_entries %}{{ rows|length }} verified profiles. One transparent score. Recomputed every 6 hours from community votes and judge panels.
+        {% else %}One transparent score across community votes and judge panels. Recomputed every 6 hours once the first cycle is live.
+        {% endif %}
+      </p>
+      <div class="r26-cta r26-reveal r26-d3">
+        <a href="/register" class="btn btn--emerald">
+          Get on the board
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <a href="/vote" class="btn btn--white">
+          Cast a vote
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% if not has_entries %}
+{# No real rankings yet — honest empty state instead of demo data #}
+<section class="section" style="padding-top:1.5rem">
+  <div class="wrap">
+    <div class="r26-empty">
+      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+      <h3>The first cycle hasn’t been ranked yet</h3>
+      <p>The Cultural Power Index goes live once nominations are scored and the community votes are in. Get involved now and help shape the inaugural board.</p>
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;justify-content:center">
+        <a href="/nominate" class="btn btn--emerald">
+          Submit a nomination
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <a href="/vote" class="btn btn--white">Cast your vote</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% else %}
+
+{# Top-3 podium #}
+<section class="section" style="padding-top:1.5rem">
+  <div class="wrap">
+    <div class="r26-head r26-head--center" data-anim>
+      <p class="r26-eyebrow">The podium</p>
+      <h2 class="r26-h2" data-text-anim>Continental <em>champions</em> this cycle</h2>
+    </div>
+
+    <div class="card-grid" data-anim>
+      {% for e in rows|slice(0, 3) %}
+      <a href="/registry/{{ e.slug }}" class="card" data-hover-scale>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:2.25rem;line-height:1">{{ FLAGS[e.country_code]|default('🌍') }}</div>
+          <div style="font-family:var(--font-body);font-weight:800;font-size:3.25rem;line-height:1;letter-spacing:-.02em;color:rgba(16,41,44,0.12)">{{ loop.index }}</div>
+        </div>
+        <div>
+          <div style="font-weight:600;font-size:1.25rem;color:var(--kale-700);line-height:1.2">{{ e.display_name }}</div>
+          <div class="text-sm text-soft" style="margin-top:0.25rem">{{ e.category }}</div>
+        </div>
+        <div class="card__foot">
+          <span style="font-family:var(--font-mono);font-size:1.5rem;font-weight:700;color:var(--emerald-600)">{{ e.cpi_score }}</span>
+          <span class="tier-badge tier-badge--{{ e.cpi_tier }}">{{ e.cpi_tier }}</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# Long-list rankings #}
+<section class="section" style="padding-top:0">
+  <div class="wrap">
+    <div class="r26-surface">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.5rem;flex-wrap:wrap;gap:0.625rem" data-anim>
+      <h2 class="r26-h2" style="margin:0" data-text-anim>The long <em>list</em></h2>
+      <span class="text-sm text-soft" style="font-family:var(--font-mono)">{{ rows|length }} ranked profiles</span>
+    </div>
+
+    <div class="lb-list" data-anim>
+      {% for e in rows|slice(0, 24) %}
+        {% set rank = loop.index %}
+        {% set pct = ((e.cpi_score / max_score) * 100)|round %}
+        <a href="/registry/{{ e.slug }}" class="lb-row-2 {% if rank <= 3 %}lb-row-2--top{% endif %}">
+          <span class="rank">{{ rank }}</span>
+          <span class="flag">{{ FLAGS[e.country_code]|default('🌍') }}</span>
+          <div class="who">
+            <div class="who__name">{{ e.display_name }}</div>
+            <div class="who__meta">{{ e.category }} · <span class="tier-badge tier-badge--{{ e.cpi_tier }}" style="vertical-align:middle">{{ e.cpi_tier }}</span></div>
+          </div>
+          <div class="bar"><div class="bar__fill" style="width:{{ pct }}%"></div></div>
+          <div class="score">{{ e.cpi_score }}</div>
+        </a>
+      {% endfor %}
+    </div>
+
+    <div class="text-center" style="margin-top:2rem" data-anim>
+      <a href="/register" class="btn btn--emerald">
+        Add your profile
+        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% endblock %}

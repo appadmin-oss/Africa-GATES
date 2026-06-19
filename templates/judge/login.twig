@@ -1,0 +1,33 @@
+{% extends "judge/layout.twig" %}
+{% block content %}
+<section class="jd-auth">
+  <div class="aurora" aria-hidden="true"></div>
+  <div class="jd-auth__card">
+    <p class="jd-eyebrow">Judges Panel</p>
+    <h1 class="jd-auth__h">Sign in to <em>score</em></h1>
+    <p class="jd-auth__sub">Enter your judge email — we'll send you a 6-digit code.</p>
+
+    {% if error %}<div class="jd-flash jd-flash--err">{{ error }}</div>{% endif %}
+    {% if notice and sent %}<div class="jd-flash jd-flash--note">{{ notice }}</div>{% endif %}
+
+    {% if not sent %}
+    <form class="jd-auth__form" method="post" action="/judge/login/request">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <label for="email">Judge email</label>
+      <input id="email" type="email" name="email" autocomplete="email" required autofocus>
+      <button type="submit">Send code →</button>
+    </form>
+    {% else %}
+    <form class="jd-auth__form" method="post" action="/judge/login/verify">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <label for="otp">6-digit code</label>
+      <input class="jd-otp-input" id="otp" name="otp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required autofocus>
+      <button type="submit">Sign in →</button>
+    </form>
+    <p style="font-size:12.5px;color:var(--ink-500);margin-top:12px;text-align:center">
+      Didn't get a code? <a href="/judge/login" style="color:var(--g-700);font-weight:600">Send again</a>
+    </p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

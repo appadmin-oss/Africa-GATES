@@ -1,0 +1,37 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ is_new ? 'New Event' : 'Edit Event' }}{% endblock %}
+{% block content %}
+<div class="ad-card" style="max-width:760px">
+  <form method="post" action="{{ is_new ? '/admin/events/new' : '/admin/events/' ~ row.id }}" class="ad-form">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <div class="ad-form__row">
+      <label>Title *<input type="text" name="title" value="{{ row.title|default('') }}" required></label>
+      <label>Slug <small>(blank = from title)</small><input type="text" name="slug" value="{{ row.slug|default('') }}" placeholder="auto"></label>
+    </div>
+    <label>Tagline<input type="text" name="tagline" value="{{ row.tagline|default('') }}" maxlength="255"></label>
+    <label>Description<textarea name="description" rows="5">{{ row.description|default('') }}</textarea></label>
+    <div class="ad-form__row">
+      <label>Location<input type="text" name="location" value="{{ row.location|default('') }}" placeholder="Lagos · Nigeria"></label>
+      <label>Venue<input type="text" name="venue" value="{{ row.venue|default('') }}"></label>
+    </div>
+    <div class="ad-form__row">
+      <label>Starts *<input type="datetime-local" name="event_date" value="{{ row.event_date|default('')|replace({' ':'T'})|slice(0,16) }}" required></label>
+      <label>Ends<input type="datetime-local" name="end_date" value="{{ row.end_date|default('')|replace({' ':'T'})|slice(0,16) }}"></label>
+    </div>
+    <div class="ad-form__row">
+      <label>Cover image URL<input type="url" name="cover_image" value="{{ row.cover_image|default('') }}" placeholder="https://…"></label>
+      <label>RSVP / details URL<input type="text" name="rsvp_url" value="{{ row.rsvp_url|default('') }}" placeholder="/partner or https://…"></label>
+    </div>
+    <label>Status
+      <select name="status">
+        <option value="published" {% if row.status|default('draft') == 'published' %}selected{% endif %}>Published</option>
+        <option value="draft" {% if row.status|default('draft') == 'draft' %}selected{% endif %}>Draft</option>
+      </select>
+    </label>
+    <div class="ad-form__actions">
+      <button class="ad-btn ad-btn--primary" type="submit">Save event</button>
+      <a class="ad-btn" href="/admin/events">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

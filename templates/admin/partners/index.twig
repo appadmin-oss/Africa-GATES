@@ -1,0 +1,42 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Partner Enquiries{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/partners/export.csv">Export CSV</a>{% endblock %}
+{% block content %}
+<form class="ad-filters" method="get" action="/admin/partners">
+  <div style="margin-left:auto;display:flex;gap:6px">
+    <a class="ad-tab {% if not filters.status %}is-active{% endif %}" href="/admin/partners">All</a>
+    <a class="ad-tab {% if filters.status == 'new' %}is-active{% endif %}" href="?status=new">New <span class="n">{{ counts.new }}</span></a>
+    <a class="ad-tab {% if filters.status == 'in_review' %}is-active{% endif %}" href="?status=in_review">In Review <span class="n">{{ counts.in_review }}</span></a>
+    <a class="ad-tab {% if filters.status == 'converted' %}is-active{% endif %}" href="?status=converted">Converted <span class="n">{{ counts.converted }}</span></a>
+    <a class="ad-tab {% if filters.status == 'closed' %}is-active{% endif %}" href="?status=closed">Closed <span class="n">{{ counts.closed }}</span></a>
+  </div>
+</form>
+
+<div class="ad-card"><div class="ad-table-wrap">
+  <table class="ad-table">
+    <thead><tr><th>Organisation</th><th>Contact</th><th>Tier</th><th>When</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr x-data="{open:false}">
+        <td><strong>{{ r.org_name }}</strong>
+          <button class="ad-btn ad-btn--xs ad-btn--ghost" type="button" @click="open=!open" style="margin-top:4px"><span x-text="open?'Hide':'Show message'"></span></button>
+          <div x-show="open" x-cloak style="margin-top:8px;padding:10px;background:var(--ad-bg);border-radius:6px;font-size:12.5px;color:var(--ad-text-soft);max-width:480px">{{ r.message }}</div>
+        </td>
+        <td>{{ r.contact_name }}<div style="font-size:12px;color:var(--ad-text-soft)">{{ r.contact_email }}{% if r.contact_phone %} · {{ r.contact_phone }}{% endif %}</div></td>
+        <td><span class="ad-chip ad-chip--grey">{{ r.partnership_type|default('—')|capitalize }}</span></td>
+        <td style="font-size:12px;color:var(--ad-text-soft);font-family:'Space Mono',monospace">{{ r.created_at|slice(0,16) }}</td>
+        <td>
+          {% set chip = {'new':'blue','in_review':'gold','converted':'green','closed':'grey'}[r.status]|default('grey') %}
+          <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|replace({'_':' '})|capitalize }}</span>
+        </td>
+        <td class="col-actions">
+          {% if r.status != 'in_review' %}<form method="post" action="/admin/partners/{{ r.id }}/in_review" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs" type="submit">Review</button></form>{% endif %}
+          {% if r.status != 'converted' %}<form method="post" action="/admin/partners/{{ r.id }}/converted" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--primary" type="submit">Won</button></form>{% endif %}
+          {% if r.status != 'closed' %}<form method="post" action="/admin/partners/{{ r.id }}/closed" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--danger" type="submit">Close</button></form>{% endif %}
+        </td>
+      </tr>
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No enquiries yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

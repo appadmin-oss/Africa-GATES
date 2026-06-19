@@ -1,0 +1,103 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+{% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮','CM':'🇨🇲','SN':'🇸🇳','RW':'🇷🇼'} %}
+{% set p = profile %}
+
+<section class="r26-hero" style="padding-block:clamp(2.5rem,5vw,4rem) clamp(1.5rem,3vw,2.5rem);text-align:left">
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap" style="position:relative;z-index:1">
+    <div class="r26-reveal r26-d1" style="display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap">
+      <div style="width:88px;height:88px;border-radius:50%;background:linear-gradient(135deg,var(--kale-700),#1e4d52);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-body);font-weight:700;font-size:2.25rem;flex-shrink:0;box-shadow:var(--shadow-md)">
+        {{ p.display_name|slice(0,1) }}
+      </div>
+      <div style="min-width:0">
+        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.5rem">
+          <span class="flag-chip"><span class="flag-chip__icon">{{ FLAGS[p.country_code]|default('🌍') }}</span> {{ p.country_code }}</span>
+          <span class="tier-badge tier-badge--{{ p.cpi_tier }}">{{ p.cpi_tier }}</span>
+          {% if p.verification_tier and p.verification_tier != 'none' %}
+          <span class="pill" style="background:var(--bg-light-emerald);color:var(--emerald-700)">✓ {{ p.verification_tier|capitalize }} verified</span>
+          {% endif %}
+        </div>
+        <h1 class="r26-hl" style="font-size:clamp(1.875rem,4vw,2.75rem)">{{ p.display_name }}</h1>
+        <p class="r26-sub" style="margin:0.375rem 0 0;font-size:1.0625rem">{{ p.category }}</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:1rem">
+  <div class="wrap" style="display:grid;grid-template-columns:1fr;gap:2rem">
+    <div class="profile-layout" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:2.5rem">
+      {# Main column #}
+      <div data-anim>
+        {% if p.bio %}
+        <h2 class="r26-h3" style="margin-bottom:0.875rem">About</h2>
+        <p style="font-size:1.0625rem;line-height:1.65;color:var(--kale-700)">{{ p.bio }}</p>
+        {% endif %}
+
+        {% if p.achievements is iterable and p.achievements|length %}
+        <h2 class="r26-h3" style="margin:2rem 0 0.875rem">Achievements</h2>
+        <ul style="list-style:none;padding:0;display:flex;flex-direction:column;gap:0.625rem">
+          {% for a in p.achievements %}
+          <li style="display:flex;gap:0.625rem;align-items:flex-start"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;color:var(--emerald-600);margin-top:2px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="currentColor"/></svg> <span>{{ a }}</span></li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if p.tags is iterable and p.tags|length %}
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1.5rem">
+          {% for t in p.tags %}
+          <span class="chip">{{ t }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      {# CPI side card #}
+      <aside data-anim data-anim-delay="1">
+        <div class="card" style="padding:2rem;text-align:center;align-items:center">
+          <div class="cpi-ring" style="margin-bottom:1rem">
+            <svg class="cpi-ring__svg" width="180" height="180" viewBox="0 0 60 60" aria-hidden="true">
+              <defs>
+                <linearGradient id="cpiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#338632"/>
+                  <stop offset="100%" stop-color="#fbc329"/>
+                </linearGradient>
+              </defs>
+              <circle class="cpi-ring__track" cx="30" cy="30" r="26" stroke-width="3"/>
+              <circle class="cpi-ring__fill"  cx="30" cy="30" r="26" stroke-width="3"
+                      stroke-dasharray="163.4" stroke-dashoffset="{{ 163.4 - (163.4 * (p.cpi_score|default(0) / 1000)) }}"/>
+            </svg>
+            <div class="cpi-ring__label">
+              <span class="cpi-ring__score">{{ p.cpi_score|default(0) }}</span>
+              <span class="cpi-ring__max">/ 1000 · {{ p.cpi_tier|capitalize }}</span>
+            </div>
+          </div>
+          <div class="text-sm text-soft" style="line-height:1.5">Cultural Power Index<br>recomputed every 6 hours from votes + judge panels.</div>
+          <a href="/vote" class="btn btn--emerald btn--sm" style="margin-top:1rem">
+            Vote for {{ p.display_name|split(' ')|first }}
+            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+        </div>
+
+        {% if p.website or p.instagram_handle or p.twitter_handle %}
+        <div class="card" style="margin-top:1rem">
+          <h3 class="r26-eyebrow" style="margin:0 0 0.625rem">Connect</h3>
+          <div style="display:flex;flex-direction:column;gap:0.5rem;font-size:0.9375rem">
+            {% if p.website %}<a href="{{ p.website }}" target="_blank" rel="noopener" style="color:var(--emerald-600);font-weight:500">🌐 {{ p.website|replace({'https://':'','http://':''}) }}</a>{% endif %}
+            {% if p.instagram_handle %}<a href="https://instagram.com/{{ p.instagram_handle }}" target="_blank" rel="noopener" style="color:var(--emerald-600);font-weight:500">📸 @{{ p.instagram_handle }}</a>{% endif %}
+            {% if p.twitter_handle %}<a href="https://x.com/{{ p.twitter_handle }}" target="_blank" rel="noopener" style="color:var(--emerald-600);font-weight:500">𝕏 @{{ p.twitter_handle }}</a>{% endif %}
+          </div>
+        </div>
+        {% endif %}
+      </aside>
+    </div>
+
+    <div class="text-center" style="margin-top:2rem" data-anim>
+      <a href="/registry" class="btn btn--white">← All profiles</a>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

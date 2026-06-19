@@ -1,0 +1,78 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+{# DB-driven: OpportunityController passes `opportunities` (from gates_opportunities
+   via OpportunityService). No fabricated fallback — if there are no live listings
+   we show an honest empty state, never fake grants with dead apply links. #}
+{% set rows = opportunities|default([]) %}
+
+<section class="p-hero p-hero--image" style="--p-hero-image: url('https://images.unsplash.com/photo-1556761175-5973dc0f32e7?auto=format&fit=crop&w=2000&q=82')">
+  <div class="aurora aurora--dark" aria-hidden="true"></div>
+  <div class="wrap">
+    <p class="eyebrow" data-anim>Opportunities</p>
+    <h1 data-text-anim>Grants, fellowships &amp; <em>mentor circles</em></h1>
+    <p data-anim data-anim-delay="1">Hand-picked openings, open to every registered profile. New listings every cycle.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.5rem;flex-wrap:wrap;gap:0.5rem" data-anim>
+      <h2 data-text-anim>Open now</h2>
+      {% if rows|length %}<span class="text-sm text-soft">{{ rows|length }} listing{{ rows|length == 1 ? '' : 's' }} · refreshed weekly</span>{% endif %}
+    </div>
+
+    {% if rows|length %}
+    <div class="card-grid">
+      {% for o in rows %}
+      <article class="opp-card" data-anim data-anim-delay="{{ loop.index0 % 4 }}">
+        <div class="opp-card__type">{{ o.opportunity_type|capitalize }} · {{ o.scope|default('Pan-African') }}</div>
+        <h3 class="opp-card__title">{{ o.title }}</h3>
+        <div class="opp-card__provider">by {{ o.provider }}</div>
+        <p class="opp-card__deck">{{ o.description }}</p>
+        <div class="opp-card__meta">
+          <span>Value: <strong>{{ o.value|default('—') }}</strong></span>
+          {% if o.deadline %}<span>Closes: <strong>{{ o.deadline|date('d M Y') }}</strong></span>{% endif %}
+        </div>
+        <a href="{{ o.apply_url|default('#') }}" class="btn btn--emerald btn--sm" target="_blank" rel="noopener">
+          Apply
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="r26-surface" style="padding:clamp(2rem,5vw,3.5rem);text-align:center" data-anim>
+      <p style="font-size:1.1rem;font-weight:700;color:var(--kale-700,#10292c);margin:0 0 .5rem">No open listings right now</p>
+      <p class="text-soft" style="max-width:50ch;margin:0 auto 1.25rem">New grants, fellowships and mentor circles are posted each cycle — registered profiles are notified first. Register to be first in line.</p>
+      <a href="/register" class="btn btn--emerald btn--sm">Register your profile
+        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="section section--smoke">
+  <div class="wrap">
+    <div class="cta-card" data-anim="scale">
+      <div class="cta-card__content">
+        <h2 class="cta-card__title">Bring an <em>opportunity</em> to the registry</h2>
+        <p class="cta-card__deck">Hosting a grant, fellowship, or residency open to African excellence? Send it in — we surface it to every diamond, platinum, and gold profile that matches.</p>
+        <div class="button-group">
+          <a href="/partner" class="btn btn--primary">
+            Become a partner
+            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a href="mailto:opportunities@afrovanguard.org.ng" class="btn btn--white">
+            Submit an opportunity
+            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+        </div>
+      </div>
+      <div class="cta-card__image" style="background:url('https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=900&q=80') center/cover"></div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

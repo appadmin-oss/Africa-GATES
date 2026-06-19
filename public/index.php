@@ -1,0 +1,119 @@
+<?php
+declare(strict_types=1);
+
+require __DIR__ . '/../vendor/autoload.php';
+
+// Load environment — tolerate a malformed .env so the site doesn't go full
+// 500 if one line has unquoted whitespace; log the parse error and continue.
+try {
+    Dotenv\Dotenv::createImmutable(__DIR__ . '/../')->safeLoad();
+} catch (\Throwable $e) {
+    error_log('[.env parse] ' . $e->getMessage());
+    // Best-effort fallback parser: ignore broken lines, accept valid KEY=VALUE pairs.
+    $envFile = __DIR__ . '/../.env';
+    if (is_readable($envFile)) {
+        foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+            if ($line === '' || str_starts_with(ltrim($line), '#')) continue;
+            if (!preg_match('/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/i', $line, $m)) continue;
+            $val = trim($m[2]);
+            // Strip surrounding quotes if any
+            if ((str_starts_with($val, '"') && str_ends_with($val, '"')) ||
+                (str_starts_with($val, "'") && str_ends_with($val, "'"))) {
+                $val = substr($val, 1, -1);
+            }
+            $_ENV[$m[1]] = $val;
+            $_SERVER[$m[1]] ??= $val;
+        }
+    }
+}
+
+// Production hardening: never leak PHP warnings / notices / stack traces to the
+// browser outside genuine local development. The decision lives in one tested
+// seam (AfricaGates\Support\Environment) so no single stale value — e.g. a
+// shipped .env that still says APP_ENV=development — can open the door on a
+// real public host: details require debug ON, a non-prod/demo env, AND a local
+// hostname.
+$appEnv     = $_ENV['APP_ENV'] ?? 'production';
+$appDebug   = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$showErrors = \AfricaGates\Support\Environment::showErrorDetails(
+    $appEnv, $appDebug, $_SERVER['HTTP_HOST'] ?? null
+);
+if ($appEnv === 'production' && $appDebug) {
+    error_log('[africa-gates] APP_DEBUG=true is ignored in production; error details stay hidden.');
+}
+if (!$showErrors) {
+    @ini_set('display_errors', '0');
+    @ini_set('display_startup_errors', '0');
+    error_reporting(E_ALL & ~E_DEPRECATED & ~E_NOTICE);
+}
+
+// Session
+if (session_status() === PHP_SESSION_NONE) {
+    // Secure cookie on HTTPS / in production. Override with SESSION_SECURE=false
+    // only for local plain-HTTP development.
+    $isHttps  = (($_SERVER['HTTPS'] ?? '') !== '' && $_SERVER['HTTPS'] !== 'off')
+             || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $envSecure = strtolower((string)($_ENV['SESSION_SECURE'] ?? ''));
+    $secure = $envSecure !== ''
+        ? in_array($envSecure, ['1','true','yes'], true)
+        : ($isHttps || (($_ENV['APP_ENV'] ?? 'production') === 'production'));
+    session_set_cookie_params([
+        'lifetime' => 86400 * 7,
+        'path'     => '/',
+        'secure'   => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    session_start();
+}
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// Database (Eloquent)
+use Illuminate\Database\Capsule\Manager as DB;
+use Illuminate\Support\Carbon;
+
+$capsule = new DB();
+$capsule->addConnection(require __DIR__ . '/../config/database.php');
+$capsule->setAsGlobal();
+$capsule->bootEloquent();
+
+// App factory
+use DI\ContainerBuilder;
+use Slim\Factory\AppFactory;
+use Slim\Views\TwigMiddleware;
+use AfricaGates\Middleware\SecurityHeadersMiddleware;
+use AfricaGates\Middleware\CsrfMiddleware;
+use AfricaGates\Handlers\ErrorHandler;
+
+$builder = new ContainerBuilder();
+$builder->addDefinitions(require __DIR__ . '/../config/container.php');
+$container = $builder->build();
+
+AppFactory::setContainer($container);
+$app = AppFactory::create();
+
+// ── IMPORTANT: Set base path if app lives in a subdirectory ──────
+// e.g. if accessed via http://localhost/mysite/africa-gates/
+// Leave empty string '' if public/ IS the document root
+$basePath = $_ENV['APP_BASE_PATH'] ?? '';
+if ($basePath !== '') {
+    $app->setBasePath($basePath);
+}
+
+// Middleware (order matters — outermost added last)
+$app->addRoutingMiddleware();
+$app->add(TwigMiddleware::createFromContainer($app, \Slim\Views\Twig::class));
+$app->add(new SecurityHeadersMiddleware());
+$app->add(new CsrfMiddleware());
+$app->addBodyParsingMiddleware();
+
+// Error handler — reuse the single error-visibility decision computed above.
+$errMiddleware = $app->addErrorMiddleware($showErrors, true, true);
+$errMiddleware->setDefaultErrorHandler(new ErrorHandler($app));
+
+// Routes
+(require __DIR__ . '/../src/routes.php')($app);
+
+$app->run();

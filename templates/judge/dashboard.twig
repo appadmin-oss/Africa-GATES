@@ -1,0 +1,258 @@
+{% extends "judge/layout.twig" %}
+{% block content %}
+{% set first_name = (judge.name ?? judge_name ?? 'Judge')|split(' ')|first %}
+<section class="wrap jdh">
+
+  {# ── Identity hero ─────────────────────────────────────────────── #}
+  <div class="jdh-hero">
+    <div class="jdh-id">
+      <p class="jd-eyebrow">Judges Panel</p>
+      <h1 class="jd-h1">Welcome, <em>{{ first_name }}</em></h1>
+      <div class="jdh-id__meta">
+        {% if judge.title %}<span class="jdh-tag">{{ judge.title }}</span>{% endif %}
+        {% if judge.organisation %}<span class="jdh-tag jdh-tag--soft">{{ judge.organisation }}</span>{% endif %}
+        {% if judge.country_code %}<span class="jdh-tag jdh-tag--soft">{{ judge.country_code|upper }}</span>{% endif %}
+        {% if judge.created_at %}<span class="jdh-tag jdh-tag--ghost">Panellist since {{ judge.created_at|date('M Y') }}</span>{% endif %}
+      </div>
+      <p class="jd-sub" style="max-width:62ch;margin-top:12px">
+        Your expert scores are confidential and carry <strong>55%</strong> of every nominee's Cultural Power Index —
+        the public vote carries the other 45%. Drafts save automatically as you score.
+      </p>
+    </div>
+
+    {% if not no_assignments %}
+    <div class="jdh-ring" title="{{ overview.scored }} of {{ overview.total }} nominees fully scored">
+      {% set R = 27 %}{% set C = (R * 2 * 3.14159)|round(2) %}
+      <svg width="116" height="116" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="{{ R }}" fill="none" stroke="var(--bg-soft)" stroke-width="6"/>
+        <circle cx="32" cy="32" r="{{ R }}" fill="none" stroke="url(#jdhg)" stroke-width="6"
+                stroke-dasharray="{{ C }}" stroke-dashoffset="{{ ((1 - overview.pct/100) * C)|round(2) }}"
+                stroke-linecap="round" transform="rotate(-90 32 32)"/>
+        <defs><linearGradient id="jdhg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="var(--g-500)"/><stop offset="1" stop-color="var(--gold-400)"/>
+        </linearGradient></defs>
+        <text x="32" y="34" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ink-900)">{{ overview.pct }}%</text>
+        <text x="32" y="43" text-anchor="middle" font-size="5.5" fill="var(--ink-500)" letter-spacing="0.5">COMPLETE</text>
+      </svg>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if no_assignments %}
+    <div class="jd-empty" style="margin-top:24px">
+      <strong>You haven't been assigned to any programmes yet.</strong>
+      <p style="margin-top:6px;color:var(--ink-500)">An administrator will email you once you're rostered onto a judging panel.</p>
+    </div>
+  {% else %}
+
+  {# ── Overview stat band ────────────────────────────────────────── #}
+  <div class="jdh-stats">
+    <div class="jdh-stat">
+      <div class="jdh-stat__n">{{ overview.programmes }}</div>
+      <div class="jdh-stat__l">Programme{{ overview.programmes == 1 ? '' : 's' }}</div>
+    </div>
+    <div class="jdh-stat">
+      <div class="jdh-stat__n">{{ overview.total }}</div>
+      <div class="jdh-stat__l">Nominees to score</div>
+    </div>
+    <div class="jdh-stat jdh-stat--ok">
+      <div class="jdh-stat__n">{{ overview.scored }}</div>
+      <div class="jdh-stat__l">Fully scored</div>
+    </div>
+    <div class="jdh-stat {{ overview.remaining > 0 ? 'jdh-stat--warn' : '' }}">
+      <div class="jdh-stat__n">{{ overview.remaining }}</div>
+      <div class="jdh-stat__l">Remaining</div>
+    </div>
+    <div class="jdh-stat">
+      <div class="jdh-stat__n">{{ overview.open }}</div>
+      <div class="jdh-stat__l">Open for judging</div>
+    </div>
+    <div class="jdh-stat">
+      <div class="jdh-stat__n">{{ summary.total_marks }}</div>
+      <div class="jdh-stat__l">Marks recorded</div>
+    </div>
+  </div>
+
+  {% if overview.open > 0 %}
+  <div class="jdh-deadline">
+    <span class="jdh-deadline__dot"></span>
+    <div>
+      <strong>{{ overview.open }} programme{{ overview.open == 1 ? ' is' : 's are' }} open for judging now.</strong>
+      Scoring locks automatically for each programme when its results are published — finish before the deadline shown on each card.
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Programmes ────────────────────────────────────────────────── #}
+  <div class="jdh-section">
+    <div class="jdh-section__head"><h2 class="jdh-section__title">Your programmes</h2></div>
+    <div class="jd-grid">
+      {% for b in programmes %}
+        {% set pct = b.progress.total > 0 ? (b.progress.scored / b.progress.total * 100)|round : 0 %}
+        {% set recused = b.coi is not null %}
+        {% set tag = 'jd-card' ~ (recused ? ' jd-card--recused' : (b.judging_open ? ' jd-card--open' : '')) %}
+        {% set href = recused ? null : '/judge/ballot/' ~ b.programme.id %}
+        <{{ href ? 'a' : 'div' }} class="{{ tag }}" {{ href ? 'href="' ~ href ~ '"' : '' }}>
+          <div class="jd-card__head">
+            <span class="jd-card__ico" aria-hidden="true">{{ b.programme.icon_emoji|default('🏆') }}</span>
+            <div style="min-width:0;flex:1">
+              <h3 class="jd-card__title">{{ b.programme.title }}</h3>
+              <div class="jd-card__chip">{{ b.cycle.year ? b.cycle.year ~ ' · ' : '' }}{{ (b.status|default('—'))|upper }}</div>
+            </div>
+          </div>
+
+          {% if b.programme.subtitle %}<p class="jd-card__sub">{{ b.programme.subtitle }}</p>{% endif %}
+
+          <div class="jd-card__stats">
+            <span>{{ b.categories }} categor{{ b.categories == 1 ? 'y' : 'ies' }}</span>
+            <span aria-hidden="true">·</span>
+            <span>{{ b.progress.total }} nominee{{ b.progress.total == 1 ? '' : 's' }}</span>
+            {% if b.deadline %}
+              <span aria-hidden="true">·</span>
+              <span class="{{ b.judging_open and b.days_left is not null and b.days_left <= 3 ? 'jd-card__urgent' : '' }}">
+                {% if b.days_left is not null and b.days_left >= 0 %}
+                  closes in {{ b.days_left }} day{{ b.days_left == 1 ? '' : 's' }}
+                {% else %}
+                  closed {{ b.deadline|date('M j') }}
+                {% endif %}
+              </span>
+            {% endif %}
+          </div>
+
+          <div class="jd-progress"><div style="width:{{ pct }}%"></div></div>
+
+          <div class="jd-card__foot">
+            {% if recused %}
+              <span class="jd-card__badge jd-card__badge--recused">⚖ Recused — conflict declared</span>
+            {% else %}
+              <span style="font-size:12.5px;color:var(--ink-500)">{{ b.progress.scored }} / {{ b.progress.total }} scored</span>
+              <span class="jd-card__cta">
+                {{ b.judging_open ? 'Score now →' : 'View nominees →' }}
+              </span>
+            {% endif %}
+          </div>
+        </{{ href ? 'a' : 'div' }}>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── Activity + self-audit ─────────────────────────────────────── #}
+  <div class="jdh-cols">
+
+    {# Auditable activity trail #}
+    <div class="jdh-section">
+      <div class="jdh-section__head"><h2 class="jdh-section__title">Your recent scoring</h2>
+        <span class="jdh-section__hint">Auditable trail · newest first</span></div>
+      <div class="jdh-panel">
+        {% if activity|length %}
+          <div class="jdh-timeline">
+            {% for a in activity %}
+            <div class="jdh-tl">
+              <div class="jdh-tl__avg" title="Weighted average you gave">{{ a.avg }}</div>
+              <div class="jdh-tl__body">
+                <div class="jdh-tl__name">{{ a.nominee }}</div>
+                <div class="jdh-tl__meta">
+                  {{ a.category }}{% if a.programme %} · {{ a.programme }}{% endif %}
+                  · {{ a.criteria_scored }} criteri{{ a.criteria_scored == 1 ? 'on' : 'a' }}
+                </div>
+              </div>
+              <time class="jdh-tl__time">{{ a.last_at ? a.last_at|date('M j, H:i') : '' }}</time>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="jdh-muted">No scores recorded yet. Open a programme above to begin — every save appears here with a timestamp.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Self-audit scoring profile + conflicts #}
+    <div class="jdh-section">
+      <div class="jdh-section__head"><h2 class="jdh-section__title">Your scoring profile</h2>
+        <span class="jdh-section__hint">Self-audit</span></div>
+
+      <div class="jdh-panel">
+        {% if summary.total_marks > 0 %}
+          <div class="jdh-profile">
+            <div><div class="jdh-profile__n">{{ summary.avg }}</div><div class="jdh-profile__l">avg mark</div></div>
+            <div><div class="jdh-profile__n">{{ summary.min }}–{{ summary.max }}</div><div class="jdh-profile__l">range used</div></div>
+            <div><div class="jdh-profile__n">{{ summary.notes_written }}</div><div class="jdh-profile__l">notes written</div></div>
+          </div>
+          {% set t = summary.total_marks %}
+          <div class="jdh-dist">
+            {% set bands = [
+              {k:'low',  label:'0–3 · weak',     v:summary.bands.low,  c:'#ef4444'},
+              {k:'mid',  label:'4–6 · fair',     v:summary.bands.mid,  c:'#f59e0b'},
+              {k:'good', label:'7–8 · strong',   v:summary.bands.good, c:'var(--g-500)'},
+              {k:'high', label:'9–10 · standout',v:summary.bands.high, c:'var(--g-700)'}
+            ] %}
+            {% for band in bands %}
+            <div class="jdh-dist__row">
+              <span class="jdh-dist__label">{{ band.label }}</span>
+              <div class="jdh-dist__track"><div style="width:{{ t > 0 ? (band.v / t * 100)|round : 0 }}%;background:{{ band.c }}"></div></div>
+              <span class="jdh-dist__v">{{ band.v }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <p class="jdh-muted" style="margin-top:12px;font-size:11.5px">
+            Using the full 0–10 range and writing notes strengthens the audit record behind each award.
+          </p>
+        {% else %}
+          <p class="jdh-muted">Once you score nominees, your mark distribution appears here — a quick way to check your own consistency and use of the full scale.</p>
+        {% endif %}
+      </div>
+
+      {# Conflicts of interest #}
+      <div class="jdh-section__head" style="margin-top:22px"><h2 class="jdh-section__title">Conflicts of interest</h2></div>
+      <div class="jdh-panel">
+        {% if conflicts|length %}
+          {% for c in conflicts %}
+          <div class="jdh-coi">
+            <strong>{{ c.programme|default('Programme #' ~ c.programme_id) }}</strong>
+            <span class="jdh-coi__date">recused {{ c.created_at ? c.created_at|date('M j, Y') : '' }}</span>
+            {% if c.reason %}<p class="jdh-coi__reason">“{{ c.reason }}”</p>{% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="jdh-muted">No conflicts declared. You can recuse yourself from any programme on its scoring page if a relationship could affect your impartiality.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% endif %}
+
+  {# ── Scoring methodology (always shown) ────────────────────────── #}
+  {% if criteria|length %}
+  <div class="jdh-section">
+    <div class="jdh-section__head"><h2 class="jdh-section__title">How scoring works</h2>
+      <span class="jdh-section__hint">Transparency</span></div>
+    <div class="jdh-panel">
+      <p class="jdh-method-intro">
+        Each nominee is scored <strong>0–10</strong> on every criterion. Criteria are combined by weight into a panel
+        average, which becomes the <strong>55% expert</strong> half of the Cultural Power Index (CPI). The public vote,
+        cohort-normalised, is the other <strong>45%</strong>.
+      </p>
+      <div class="jdh-method-grid">
+        {% for c in criteria %}
+        <div class="jdh-crit">
+          <div class="jdh-crit__top">
+            <span class="jdh-crit__label">{{ c.label }}</span>
+            <span class="jdh-crit__w">×{{ c.weight }}%</span>
+          </div>
+          {% if c.description %}<p class="jdh-crit__desc">{{ c.description }}</p>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Support ───────────────────────────────────────────────────── #}
+  <div class="jdh-support">
+    Scores are private to the panel and the secretariat. Questions about an assignment, a deadline, or a conflict?
+    Email <a href="mailto:judges@africagates.org">judges@africagates.org</a>.
+  </div>
+
+</section>
+{% endblock %}

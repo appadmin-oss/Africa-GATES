@@ -1,0 +1,19 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ is_new ? 'Invite Admin' : 'Edit · ' ~ row.name }}{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/admins">← Back</a>{% endblock %}
+{% block content %}
+<form class="ad-form" method="post" action="{{ is_new ? '/admin/admins/new' : '/admin/admins/' ~ row.id }}">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="ad-card"><div class="ad-card__body">
+    <div class="ad-form">
+      <div class="row"><div><label>Name</label><input type="text" name="name" value="{{ row.name|default('') }}" required></div><div><label>Email</label><input type="email" name="email" value="{{ row.email|default('') }}" required></div></div>
+      <div class="row"><div><label>Role</label><select name="role">{% for r in ['superadmin','admin','editor','judge','viewer'] %}<option value="{{ r }}" {% if row.role == r %}selected{% endif %}>{{ r|capitalize }}</option>{% endfor %}</select></div><div style="display:flex;align-items:flex-end"><label class="checkbox"><input type="checkbox" name="is_active" {% if row.is_active is not defined or row.is_active %}checked{% endif %}> Active</label></div></div>
+      <div><label>{{ is_new ? 'Password' : 'New password' }} <span style="color:var(--ad-text-mute);font-weight:400">{{ is_new ? '— leave blank for a random one (they sign in via magic link)' : '— leave blank to keep current' }}</span></label><input type="password" name="password" autocomplete="new-password"></div>
+    </div>
+  </div></div>
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <a class="ad-btn" href="/admin/admins">Cancel</a>
+    <button class="ad-btn ad-btn--primary" type="submit">Save</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Moderation</small>{% endblock %}
+{% block topbar_title %}Profiles{% endblock %}
+
+{% block content %}
+<form class="ad-filters" method="get" action="/admin/profiles">
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search name, email, category…">
+  <select name="status">
+    <option value="">All statuses</option>
+    {% for s in ['pending','approved','suspended','rejected'] %}
+    <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+    {% endfor %}
+  </select>
+  <select name="tier">
+    <option value="">All tiers</option>
+    {% for t in ['diamond','platinum','gold','silver','bronze','unranked'] %}
+    <option value="{{ t }}" {% if filters.tier == t %}selected{% endif %}>{{ t|capitalize }}</option>
+    {% endfor %}
+  </select>
+  <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
+  {% if filters.q or filters.status or filters.tier %}<a class="ad-btn ad-btn--ghost" href="/admin/profiles">Reset</a>{% endif %}
+  <div style="margin-left:auto;display:flex;gap:6px">
+    <a class="ad-tab {% if not filters.status %}is-active{% endif %}" href="/admin/profiles">All <span class="n">{{ counts.all }}</span></a>
+    <a class="ad-tab {% if filters.status == 'pending' %}is-active{% endif %}" href="/admin/profiles?status=pending">Pending <span class="n">{{ counts.pending }}</span></a>
+    <a class="ad-tab {% if filters.status == 'approved' %}is-active{% endif %}" href="/admin/profiles?status=approved">Approved <span class="n">{{ counts.approved }}</span></a>
+    <a class="ad-tab {% if filters.status == 'suspended' %}is-active{% endif %}" href="/admin/profiles?status=suspended">Suspended <span class="n">{{ counts.suspended }}</span></a>
+  </div>
+</form>
+
+<div class="ad-card">
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <thead><tr><th>Profile</th><th>Type</th><th>Country</th><th>CPI</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>
+            <strong>{{ r.display_name }}</strong>
+            <div style="font-size:12px;color:var(--ad-text-soft)">{{ r.email }} · {{ r.category }}</div>
+          </td>
+          <td><span class="ad-chip ad-chip--grey">{{ r.profile_type|capitalize }}</span></td>
+          <td><span style="font-family:'Space Mono',monospace">{{ r.country_code }}</span> · {{ r.region|capitalize }}</td>
+          <td>
+            <strong style="font-family:'Space Mono',monospace">{{ r.cpi_score }}</strong>
+            <div style="font-size:11px;color:var(--ad-text-soft);text-transform:uppercase">{{ r.cpi_tier }}</div>
+          </td>
+          <td>
+            {% set chip = {'approved':'green','pending':'gold','suspended':'red','rejected':'red'}[r.status]|default('grey') %}
+            <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|capitalize }}</span>
+          </td>
+          <td class="col-actions">
+            <a class="ad-btn ad-btn--sm" href="/admin/profiles/{{ r.id }}">Edit</a>
+            {% if r.status != 'approved' %}<form method="post" action="/admin/profiles/{{ r.id }}/approve"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--primary" type="submit">Approve</button></form>{% endif %}
+            {% if r.status == 'approved' %}<form method="post" action="/admin/profiles/{{ r.id }}/suspend"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Suspend this profile?">Suspend</button></form>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No profiles match.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% set last_page = (total / (per ?: 1))|round(0, 'ceil') %}
+{% if last_page > 1 %}
+<div class="ad-pager">
+  {% for p in 1..last_page %}
+    {% if p == page %}<span class="is-current">{{ p }}</span>
+    {% else %}<a href="?page={{ p }}{% if filters.q %}&q={{ filters.q }}{% endif %}{% if filters.status %}&status={{ filters.status }}{% endif %}{% if filters.tier %}&tier={{ filters.tier }}{% endif %}">{{ p }}</a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

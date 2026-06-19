@@ -1,0 +1,56 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+{% set has_threads = (threads|default([])|length > 0) %}
+{% set rows = has_threads ? threads : [] %}
+{% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','RW':'🇷🇼'} %}
+
+<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
+  <div class="aurora aurora--soft" aria-hidden="true"></div>
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Community channels</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Where the <em style="color:var(--emerald-600)">conversation</em> lives.</h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Programme-specific channels, moderated for signal. Open to every verified profile.</p>
+      <div class="r26-reveal r26-d4" style="margin-top:1.5rem">
+        <a href="/community/new" class="btn btn--emerald">Start a thread</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:1rem">
+  <div class="wrap">
+    {% if rows is empty %}
+    <div class="r26-empty">
+      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+      <h3>No threads yet</h3>
+      <p>The community channels are open — be the first to start a conversation.</p>
+      <a href="/community/new" class="btn btn--emerald">Start a thread</a>
+    </div>
+    {% else %}
+    <div class="r26-surface">
+      <div class="r26-head">
+        <p class="r26-eyebrow">Latest</p>
+        <h2 class="r26-h2">Open <em>threads</em></h2>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.75rem" data-anim>
+        {% for t in rows %}
+        <a href="/community/{{ t.slug }}" style="display:flex;align-items:center;gap:1rem;background:#fff;border:1px solid var(--r26-hair,rgba(16,41,44,0.08));border-radius:16px;padding:1rem 1.25rem;text-decoration:none;color:inherit">
+          <span style="font-size:1.375rem;flex:none" aria-hidden="true">{{ FLAGS[t.country_code]|default('💬') }}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;color:var(--r26-ink,#10292c);line-height:1.3">{{ t.title }}</div>
+            <div style="font-size:0.85rem;color:var(--neutral-500,#6b7478);margin-top:0.2rem">{{ t.programme }} · {{ t.author }} · {{ t.last_at|date('d M, H:i') }}</div>
+          </div>
+          <span class="r26-chip2" style="flex:none">{{ t.replies }} replies</span>
+          <span class="r26-chip2" style="flex:none">♡ {{ t.cheers }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

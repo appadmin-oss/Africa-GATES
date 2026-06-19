@@ -1,0 +1,50 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Moderation</small>{% endblock %}
+{% block topbar_title %}Nominations{% endblock %}
+
+{% block content %}
+<form class="ad-filters" method="get" action="/admin/nominations">
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee or nominator…">
+  <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
+  <div style="margin-left:auto;display:flex;gap:6px">
+    <a class="ad-tab {% if filters.status == 'pending' %}is-active{% endif %}" href="/admin/nominations?status=pending">Pending <span class="n">{{ counts.pending }}</span></a>
+    <a class="ad-tab {% if filters.status == 'approved' %}is-active{% endif %}" href="/admin/nominations?status=approved">Approved <span class="n">{{ counts.approved }}</span></a>
+    <a class="ad-tab {% if filters.status == 'rejected' %}is-active{% endif %}" href="/admin/nominations?status=rejected">Rejected <span class="n">{{ counts.rejected }}</span></a>
+  </div>
+</form>
+
+<div class="ad-card"><div class="ad-table-wrap">
+  <table class="ad-table">
+    <thead><tr><th>Nominee</th><th>Programme</th><th>Submitted by</th><th>When</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr x-data="{open:false}">
+        <td>
+          <strong>{{ r.nominee_name }}</strong>
+          <div style="font-size:12px;color:var(--ad-text-soft)">{{ r.country_code|default('—') }} · {{ r.nominee_email|default('No email') }}</div>
+          <button class="ad-btn ad-btn--xs ad-btn--ghost" type="button" @click="open=!open" style="margin-top:4px">
+            <span x-text="open?'Hide reason':'Show reason'"></span>
+          </button>
+          <div x-show="open" x-cloak style="margin-top:8px;padding:10px;background:var(--ad-bg);border-radius:6px;font-size:12.5px;color:var(--ad-text-soft);max-width:520px">{{ r.reason }}</div>
+        </td>
+        <td>{{ r.programme_title|default('—') }}<div style="font-size:11px;color:var(--ad-text-mute)">{{ r.cycle_year }}</div></td>
+        <td>{{ r.nominator_name }}<div style="font-size:12px;color:var(--ad-text-soft)">{{ r.nominator_email }}</div></td>
+        <td style="font-size:12px;color:var(--ad-text-soft);font-family:'Space Mono',monospace">{{ r.created_at|slice(0, 16) }}</td>
+        <td>
+          {% set chip = {'approved':'green','pending':'gold','rejected':'red'}[r.status]|default('grey') %}
+          <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|capitalize }}</span>
+        </td>
+        <td class="col-actions">
+          <a class="ad-btn ad-btn--sm" href="/admin/nominations/{{ r.id }}">Review</a>
+          {% if r.status != 'rejected' %}
+          <form method="post" action="/admin/nominations/{{ r.id }}/reject" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Reject this nomination?">Reject</button></form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">Nothing here.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

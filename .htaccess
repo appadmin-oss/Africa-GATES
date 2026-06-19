@@ -1,0 +1,15 @@
+# ═══════════════════════════════════════════════════════════════
+#  Africa GATES — PROJECT ROOT.
+#  The web server DocumentRoot MUST point at the ./public subdirectory.
+#  This deny-all is defense-in-depth: if a host is ever misconfigured to
+#  serve the project root, it stops .env, the SQLite database, logs, and
+#  tooling/migration scripts from being downloaded over HTTP.
+#  (PHP's built-in dev server ignores .htaccess, so local dev is unaffected.)
+# ═══════════════════════════════════════════════════════════════
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

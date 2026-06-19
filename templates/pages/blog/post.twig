@@ -1,0 +1,42 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+<article class="r26-article wrap">
+  <p class="r26-article__kicker"><a href="/blog" style="color:inherit">Blog</a>{% if post.tag %} · {{ post.tag }}{% endif %}</p>
+  <h1>{{ post.title }}</h1>
+  <p class="r26-article__meta">{{ post.author }} · {{ post.published_at|date('j F Y') }}</p>
+  {% if post.cover_image %}
+  <figure class="r26-article__cover"><img src="{{ post.cover_image }}" alt="" fetchpriority="high" decoding="async"></figure>
+  {% endif %}
+  <div class="r26-prose">
+    {{ post.body|sanitize_html }}
+  </div>
+</article>
+
+{% if more is not empty %}
+<section class="section" style="padding-top:0">
+  <div class="wrap">
+    <div class="r26-surface">
+      <div class="r26-head">
+        <p class="r26-eyebrow">Keep reading</p>
+        <h2 class="r26-h2">More from the <em>blog</em></h2>
+      </div>
+      <div class="r26-mediagrid">
+        {% for p in more %}
+        <a class="r26-mcard" href="/blog/{{ p.slug }}">
+          <div class="r26-mcard__media {% if not p.cover_image %}r26-mcard__media--empty{% endif %}">
+            {% if p.cover_image %}<img src="{{ p.cover_image }}" alt="" loading="lazy" decoding="async">{% endif %}
+          </div>
+          <div class="r26-mcard__body">
+            <p class="r26-mcard__meta">{{ p.published_at|date('j F Y') }}</p>
+            <h3 class="r26-mcard__title">{{ p.title }}</h3>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% endblock %}

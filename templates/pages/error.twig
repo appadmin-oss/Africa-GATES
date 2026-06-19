@@ -1,0 +1,17 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+<section class="r26-hero" style="padding-block:clamp(3rem,7vw,5rem) clamp(2rem,4vw,3rem);text-align:center">
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex;font-family:var(--font-mono)">Error {{ code|default(404) }}</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">{{ heading|default('Something went sideways.') }}</h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">{{ message|default('The page you were after isn\'t here. Let\'s get you back on track.') }}</p>
+      <div class="r26-reveal r26-d4" style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;margin-top:1.9rem">
+        <a href="/" class="btn btn--emerald">Back home <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <a href="/leaderboard" class="btn btn--ghost">Leaderboard</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

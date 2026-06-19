@@ -1,0 +1,59 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+{% set e = event %}
+
+<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Legacy vault · {{ e.event_date|date('Y') }}</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">{{ e.title }}</h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">{{ e.tagline|default('A milestone cycle in the continental record.') }}</p>
+      <div class="r26-reveal r26-d4" style="margin-top:1.5rem;display:inline-flex;gap:0.6rem;flex-wrap:wrap;justify-content:center">
+        <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ e.location }}</span>
+        <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ e.event_date|date('d M Y') }}</span>
+        <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ e.attendee_count|number_format }} delegates</span>
+        <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ e.award_count }} awards</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<article class="r26-article wrap" style="padding-top:1rem">
+  {% if e.cover_path %}
+  <figure class="r26-article__cover"><img src="{{ e.cover_path }}" alt="{{ e.title }}" fetchpriority="high" decoding="async"></figure>
+  {% endif %}
+
+  <div class="r26-prose">
+    {% if e.recap_html %}
+      <div data-anim>{{ e.recap_html|sanitize_html }}</div>
+    {% else %}
+      <div data-anim>
+        <p>{{ e.title }} brought together {{ e.attendee_count|number_format }} delegates across {{ e.award_count }} category panels at {{ e.location }}.</p>
+        <p>{{ e.tagline|default('Programme highlights, jury rationales, and full winner attribution are preserved in the vault for posterity.') }}</p>
+      </div>
+    {% endif %}
+  </div>
+
+  {% set images = e.gallery_paths|default([]) %}
+  {% if images is iterable and images|length > 0 %}
+    <div class="r26-head" style="margin-top:2.5rem">
+      <p class="r26-eyebrow">From the floor</p>
+      <h2 class="r26-h2">Gallery</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:0.75rem">
+      {% for img in images %}
+      <a href="{{ img }}" target="_blank" rel="noopener" style="display:block;aspect-ratio:4/3;border-radius:16px;overflow:hidden;background:var(--r26-gray)" data-anim data-anim-delay="{{ loop.index0 % 4 }}">
+        <img src="{{ img }}" alt="" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;display:block">
+      </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div style="margin-top:3rem;text-align:center" data-anim>
+    <a href="/legacy" class="btn btn--white">All editions</a>
+  </div>
+</article>
+
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ is_new ? 'New Event' : 'Edit · ' ~ row.title }}{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/legacy">← Back</a>{% endblock %}
+
+{% block content %}
+<form class="ad-form" method="post" action="{{ is_new ? '/admin/legacy/new' : '/admin/legacy/' ~ row.id }}" enctype="multipart/form-data">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Event details</div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <div class="row">
+        <div><label>Title</label><input type="text" name="title" value="{{ row.title|default('') }}" required></div>
+        <div><label>Slug</label><input type="text" name="slug" value="{{ row.slug|default('') }}" required></div>
+      </div>
+      <div><label>Tagline</label><input type="text" name="tagline" value="{{ row.tagline|default('') }}"></div>
+      <div class="row">
+        <div><label>Date</label><input type="date" name="event_date" value="{{ row.event_date|default('') }}" required></div>
+        <div><label>Location</label><input type="text" name="location" value="{{ row.location|default('') }}"></div>
+      </div>
+      <div class="row">
+        <div><label>Icon emoji</label><input type="text" name="icon" value="{{ row.icon|default('🏆') }}"></div>
+        <div><label>Attendees</label><input type="number" name="attendee_count" value="{{ row.attendee_count|default(0) }}"></div>
+      </div>
+      <div class="row">
+        <div><label>Awards conferred</label><input type="number" name="award_count" value="{{ row.award_count|default(0) }}"></div>
+        <div style="display:flex;align-items:flex-end"><label class="checkbox"><input type="checkbox" name="is_published" {% if row.is_published %}checked{% endif %}> Published</label></div>
+      </div>
+      <div><label>Excerpt</label><textarea name="excerpt" rows="2">{{ row.excerpt|default('') }}</textarea></div>
+      <div><label>Full content (HTML allowed)</label><textarea name="full_content" rows="8">{{ row.full_content|default('') }}</textarea></div>
+    </div>
+  </div></div>
+
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Cover & gallery</div></div><div class="ad-card__body">
+    <div class="ad-form">
+      {% if row.cover_path %}
+        <div style="margin-bottom:10px"><img src="{{ row.cover_path }}" alt="Cover" style="width:200px;border-radius:8px;border:1px solid var(--ad-line)"></div>
+      {% endif %}
+      <div><label>Replace cover</label>
+        <label class="file-zone" data-file-zone>
+          <strong>Drop or click</strong> to choose a cover image (JPG/PNG/WebP, up to 10MB)
+          <input type="file" name="cover" accept="image/*">
+        </label>
+        <div class="preview-grid" data-file-preview></div>
+      </div>
+      <div><label>Append gallery images</label>
+        <label class="file-zone" data-file-zone>
+          Add up to 12 images
+          <input type="file" name="gallery[]" accept="image/*" multiple>
+        </label>
+        <div class="preview-grid" data-file-preview></div>
+      </div>
+      <div><label>Or paste image URLs (one per line)</label><textarea name="gallery_urls" rows="3" placeholder="https://…"></textarea></div>
+      {% if row.gallery_paths is iterable and row.gallery_paths|length > 0 %}
+      <div><label>Existing gallery</label>
+        <div class="preview-grid">{% for url in row.gallery_paths %}<img src="{{ url }}" alt="">{% endfor %}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div></div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <a class="ad-btn" href="/admin/legacy">Cancel</a>
+    <button class="ad-btn ad-btn--primary" type="submit">Save event</button>
+  </div>
+</form>
+{% endblock %}

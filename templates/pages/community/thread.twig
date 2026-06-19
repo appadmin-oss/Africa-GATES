@@ -1,0 +1,31 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+{% set t = thread %}
+
+<section class="r26-hero" style="padding-block:clamp(2rem,4.5vw,3.25rem) clamp(1.25rem,2.5vw,2rem);text-align:center">
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">{{ t.programme|default('Community') }} · Thread</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(1.7rem,3.6vw,2.5rem)">{{ t.title }}</h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto;font-size:0.95rem">Started by {{ t.author }} · {{ t.created_at|default(t.last_at)|date('d M Y, H:i') }}</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:1rem">
+  <div class="wrap" style="max-width:48rem">
+    <div class="r26-surface" data-anim>
+      <p style="font-size:1.0625rem;line-height:1.65;color:var(--r26-ink,#10292c);white-space:pre-wrap;margin:0">{{ t.body|default('—') }}</p>
+    </div>
+
+    {% include 'partials/comments.twig' with {target_type:'thread', target_id:t.id, comments:replies|default([]), cheer_count:t.cheers|default(0)} %}
+
+    <div style="margin-top:2rem;text-align:center">
+      <a href="/community" class="btn btn--white">All channels</a>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

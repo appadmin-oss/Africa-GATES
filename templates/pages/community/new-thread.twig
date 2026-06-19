@@ -1,0 +1,59 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Start a thread</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Open a <em style="color:var(--emerald-600)">conversation.</em></h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Threads are moderated for signal. Keep them specific, attributed, and useful to the next reader.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:1rem">
+  <div class="wrap" style="max-width:46rem">
+    <div class="r26-surface">
+      <form method="POST" action="/community/new" class="form-stack" data-anim>
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <div class="form-group">
+          <label class="form-label" for="tProg">Channel</label>
+          <select id="tProg" name="programme_id" class="form-select">
+            <option value="">— General —</option>
+            {% for p in channels|default([
+              {id:1, title:'Principals Awards'},
+              {id:2, title:'Incorruptible Awards'},
+              {id:3, title:'Carol Awards'},
+              {id:4, title:'Business Excellence'}
+            ]) %}
+            <option value="{{ p.id }}">{{ p.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="tTitle">Title</label>
+          <input id="tTitle" name="title" class="form-input" type="text" required maxlength="140" placeholder="A one-line question or claim">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="tBody">Body</label>
+          <textarea id="tBody" name="body" class="form-textarea" rows="6" required minlength="40" placeholder="Specifics, evidence, links. The first paragraph matters."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="tName">Your name</label>
+            <input id="tName" name="author_name" class="form-input" type="text" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="tEmail">Email <span class="text-soft" style="font-weight:400">(OTP)</span></label>
+            <input id="tEmail" name="author_email" class="form-input" type="email" required>
+          </div>
+        </div>
+        <button class="btn btn--emerald" type="submit" style="align-self:flex-start">Publish thread</button>
+      </form>
+    </div>
+    <div class="r26-note r26-note--emerald" style="margin-top:1.25rem"><strong>Before you post:</strong> threads are reviewed by moderators. Specific, evidenced posts surface faster — your email is used only for one-time verification.</div>
+  </div>
+</section>
+
+{% endblock %}

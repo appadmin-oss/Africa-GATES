@@ -1,0 +1,34 @@
+#!/usr/bin/env php
+<?php
+declare(strict_types=1);
+
+$root = dirname(__DIR__);
+require $root . '/vendor/autoload.php';
+
+$dotenv = Dotenv\Dotenv::createImmutable($root);
+$dotenv->safeLoad();
+
+use Illuminate\Database\Capsule\Manager as DB;
+use Symfony\Component\Console\Application;
+use AfricaGates\Console\Commands\{
+    AdminCreateCommand,
+    CacheClearCommand,
+    CollusionScanCommand,
+    CpiRecomputeCommand,
+    CycleAdvanceCommand,
+    MigrateCommand
+};
+
+$capsule = new DB();
+$capsule->addConnection(require $root . '/config/database.php');
+$capsule->setAsGlobal();
+$capsule->bootEloquent();
+
+$app = new Application('Africa GATES Console', '1.0.0');
+$app->add(new AdminCreateCommand());
+$app->add(new CacheClearCommand());
+$app->add(new CollusionScanCommand());
+$app->add(new CpiRecomputeCommand());
+$app->add(new CycleAdvanceCommand());
+$app->add(new MigrateCommand());
+$app->run();

@@ -1,0 +1,81 @@
+{# Reusable comments + cheers panel. Caller supplies target_type, target_id, comments, cheer_count. #}
+<section class="section--sm" x-data="{ cheers: {{ cheer_count|default(0) }}, cheered: false, sending: false, author_name:'', body:'', author_email:'', sent:false, errMsg:'' }" style="margin-top:2rem">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:0.625rem;margin-bottom:1.25rem">
+    <h3 style="font-size:1.25rem;font-weight:600;margin:0">Comments & cheers</h3>
+    <button type="button" class="btn btn--white btn--sm"
+            @click="if(!cheered){cheered=true;cheers++;fetch('/api/community/cheer',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:JSON.stringify({target_type:'{{ target_type }}',target_id:{{ target_id|default(0) }}})}).then(r=>r.json()).then(d=>{if(!d.success){cheered=false;cheers--;}}).catch(()=>{cheered=false;cheers--;})}">
+      <span x-text="cheered ? '♥' : '♡'" style="color:var(--gold-500)"></span>
+      <span x-text="cheers"></span>
+    </button>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:0.875rem;margin-bottom:1.5rem">
+    {% for c in comments|default([]) %}
+    <article class="card" style="padding:1.125rem">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;margin-bottom:0.375rem">
+        <strong style="font-size:0.9375rem;color:var(--kale-700)">{{ c.author_name }}</strong>
+        <span class="text-xs text-soft" style="font-family:var(--font-mono)">{{ c.created_at|date('d M, H:i') }}</span>
+      </div>
+      <p style="font-size:0.9375rem;line-height:1.55;color:var(--kale-700);margin:0;white-space:pre-wrap">{{ c.body }}</p>
+    </article>
+    {% endfor %}
+
+    {% if comments|default([])|length == 0 %}
+    <div class="empty-rich" style="padding:2rem">
+      <div class="empty-rich__icon">💬</div>
+      <h3 style="font-size:1.0625rem">No comments yet</h3>
+      <p style="margin-bottom:0">Be the first to add context, evidence, or a counter-point.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div x-show="errMsg" x-cloak style="background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:10px;padding:0.75rem 1rem;font-size:0.9rem;margin-bottom:1rem" x-text="errMsg"></div>
+
+  <form @submit.prevent="
+    errMsg = '';
+    if(!body || body.length < 6 || !author_name || !author_email) {
+      errMsg = 'Please fill in your name, a valid email, and at least 6 characters.';
+      return;
+    }
+    sending = true;
+    fetch('/api/community/comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ target_type: '{{ target_type }}', target_id: {{ target_id|default(0) }}, body, author_name, author_email })
+    })
+    .then(r => r.json())
+    .then(d => {
+      sending = false;
+      if (d && d.success) {
+        sent = true; body = ''; author_name = ''; author_email = '';
+      } else {
+        errMsg = (d && d.message) ? d.message : 'Could not post comment. Please try again.';
+      }
+    })
+    .catch(() => { sending = false; errMsg = 'Network error — please try again.'; })
+  " class="form-stack" x-show="!sent" x-cloak>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Your name</label>
+        <input class="form-input" type="text" x-model="author_name" required placeholder="e.g. Tunde Akinwande">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email <span class="text-soft" style="font-weight:400">(hashed, never displayed)</span></label>
+        <input class="form-input" type="email" x-model="author_email" required placeholder="you@example.com">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Your comment</label>
+      <textarea class="form-textarea" x-model="body" rows="3" required minlength="6" placeholder="Add context, evidence, or a counter-point (min. 6 characters)"></textarea>
+    </div>
+    <button class="btn btn--primary" type="submit" :disabled="sending" style="align-self:flex-start">
+      <span x-text="sending ? 'Sending…' : 'Post comment'"></span>
+      <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </form>
+
+  <div x-show="sent" x-cloak class="form-success is-show">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>
+    Thanks — your comment is queued for moderation and will appear shortly.
+  </div>
+</section>

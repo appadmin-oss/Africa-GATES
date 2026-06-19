@@ -1,0 +1,21 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Settings{% endblock %}
+{% block content %}
+<form class="ad-form" method="post" action="/admin/settings">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Public site<small>Surfaces on every page</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <div><label>Announcement banner text</label><input type="text" name="announce_text" value="{{ values.announce_text|default('') }}"></div>
+      <div class="row">
+        <div><label>Announcement link URL</label><input type="text" name="announce_url" value="{{ values.announce_url|default('') }}"></div>
+        <div><label>Link label</label><input type="text" name="announce_cta" value="{{ values.announce_cta|default('') }}"></div>
+      </div>
+      <div class="row">
+        <div><label>Site title</label><input type="text" name="site_title" value="{{ values.site_title|default('Africa GATES') }}"></div>
+        <div><label>Contact email</label><input type="email" name="contact_email" value="{{ values.contact_email|default('africa-gates@afrovanguard.org.ng') }}"></div>
+      </div>
+    </div>
+  </div></div>
+  <div style="display:flex;justify-content:flex-end"><button class="ad-btn ad-btn--primary" type="submit">Save settings</button></div>
+</form>
+{% endblock %}

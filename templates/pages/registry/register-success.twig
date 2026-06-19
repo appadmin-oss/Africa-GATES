@@ -1,0 +1,20 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+<section class="r26-hero" style="padding-block:clamp(3rem,7vw,5rem) clamp(2rem,4vw,3rem);text-align:center">
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <span class="r26-reveal r26-d1" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:66px;height:66px;border-radius:50%;background:var(--emerald-50,#effaf0);color:var(--emerald-600,#1f9d55);margin:0 auto 1.4rem">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </span>
+      <p class="r26-eyebrow r26-reveal r26-d2" style="justify-content:center;display:inline-flex">Profile pending review</p>
+      <h1 class="r26-hl r26-reveal r26-d3" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Welcome to <em style="color:var(--emerald-600)">the registry.</em></h1>
+      <p class="r26-sub r26-reveal r26-d4" style="margin-left:auto;margin-right:auto">Your profile is queued for review. The moment it's approved, your CPI score starts ticking and you're eligible for every cycle.</p>
+      <div class="r26-reveal r26-d5" style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;margin-top:1.9rem">
+        <a href="/leaderboard" class="btn btn--emerald">See the leaderboard <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <a href="/registry" class="btn btn--ghost">Browse profiles</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,129 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Overview</small>{% endblock %}
+{% block topbar_title %}Welcome back, {{ admin_name|split(' ')|first }}{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/" target="_blank">
+    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+    View site
+  </a>
+{% endblock %}
+
+{% block content %}
+
+<div class="ad-stat-grid">
+  <div class="ad-stat ad-stat--accent"><div class="ad-stat__lbl">Approved Profiles</div><div class="ad-stat__num">{{ stats.total_profiles|number_format }}</div><div class="ad-stat__hint">{{ stats.pending_profiles }} pending review</div></div>
+  <div class="ad-stat ad-stat--accent"><div class="ad-stat__lbl">Total Votes</div><div class="ad-stat__num">{{ stats.total_votes|number_format }}</div><div class="ad-stat__hint">+{{ stats.votes_24h }} in last 24h</div></div>
+  <div class="ad-stat"><div class="ad-stat__lbl">Open Nominations</div><div class="ad-stat__num">{{ stats.pending_nominations }}</div><div class="ad-stat__hint">{{ stats.approved_nominations }} approved this cycle</div></div>
+  <div class="ad-stat"><div class="ad-stat__lbl">Legacy Events</div><div class="ad-stat__num">{{ stats.legacy_events }}</div><div class="ad-stat__hint">Published</div></div>
+  <div class="ad-stat"><div class="ad-stat__lbl">Active Opportunities</div><div class="ad-stat__num">{{ stats.opportunities }}</div><div class="ad-stat__hint">Live for the community</div></div>
+  <div class="ad-stat"><div class="ad-stat__lbl">Partner Enquiries</div><div class="ad-stat__num">{{ stats.partner_enquiries }}</div><div class="ad-stat__hint">Need follow-up</div></div>
+  <div class="ad-stat"><div class="ad-stat__lbl">Judges</div><div class="ad-stat__num">{{ stats.judges }}</div><div class="ad-stat__hint">Active panel members</div></div>
+  <div class="ad-stat"><div class="ad-stat__lbl">Admins</div><div class="ad-stat__num">{{ stats.admins }}</div><div class="ad-stat__hint">With console access</div></div>
+</div>
+
+<div class="ad-grid-2" style="margin-bottom:18px">
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Votes — last 14 days<small>Daily totals</small></div></div>
+    <div class="ad-card__body"><canvas id="chartVotes" height="220"></canvas></div>
+  </div>
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Profiles by region<small>African continental spread</small></div></div>
+    <div class="ad-card__body"><canvas id="chartRegion" height="220"></canvas></div>
+  </div>
+</div>
+
+<div class="ad-grid-2" style="margin-bottom:18px">
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">CPI tier distribution<small>Of approved profiles</small></div></div>
+    <div class="ad-card__body"><canvas id="chartTiers" height="220"></canvas></div>
+  </div>
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Top nominees<small>Highest vote counts right now</small></div></div>
+    <div class="ad-card__body">
+      <table class="ad-table">
+        <thead><tr><th>Nominee</th><th>Category</th><th style="text-align:right">Votes</th></tr></thead>
+        <tbody>
+          {% for n in top_nominees %}
+          <tr>
+            <td>{{ n.name }}</td>
+            <td style="color:var(--ad-text-soft)">{{ n.category }}</td>
+            <td style="text-align:right;font-family:'Space Mono',monospace;font-weight:700">{{ n.vote_count|number_format }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" style="text-align:center;color:var(--ad-text-mute);padding:24px">No nominees yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Recent admin activity<small>Latest 12 actions</small></div></div>
+  <div class="ad-card__body">
+    <table class="ad-table">
+      <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th></tr></thead>
+      <tbody>
+        {% for e in recent_activity %}
+        <tr>
+          <td style="color:var(--ad-text-soft);font-family:'Space Mono',monospace;font-size:12px">{{ e.created_at }}</td>
+          <td>{{ e.admin_name|default('—') }}</td>
+          <td><span class="ad-chip ad-chip--grey">{{ e.action }}</span></td>
+          <td style="color:var(--ad-text-soft)">{{ e.target_type ?? '—' }}{% if e.target_id %} #{{ e.target_id }}{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center;color:var(--ad-text-mute);padding:24px">No activity yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block foot_scripts %}
+<script src="/assets/vendor/chart.min.js"></script>
+<script>
+(function(){
+  if (typeof Chart === 'undefined') return;
+  Chart.defaults.font.family = 'Montserrat, sans-serif';
+  Chart.defaults.color = '#5b667a';
+  Chart.defaults.borderColor = '#eef1f7';
+
+  const series = {{ vote_series|json_encode(JSON_SAFE)|raw }};
+  new Chart(document.getElementById('chartVotes'), {
+    type: 'line',
+    data: {
+      labels: series.map(s => s.date.slice(5)),
+      datasets: [{
+        label: 'Votes',
+        data: series.map(s => s.count),
+        fill: true,
+        borderColor: '#086411',
+        backgroundColor: 'rgba(8,100,17,0.12)',
+        tension: 0.32,
+        pointRadius: 2,
+        borderWidth: 2,
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  const regions = {{ region_dist|json_encode(JSON_SAFE)|raw }};
+  const REGION_COLORS = { west:'#086411', east:'#1d4ed8', north:'#d97706', south:'#7c3aed', central:'#dc2626' };
+  new Chart(document.getElementById('chartRegion'), {
+    type: 'bar',
+    data: { labels: regions.map(r => r.region.charAt(0).toUpperCase()+r.region.slice(1)), datasets: [{ label: 'Profiles', data: regions.map(r => r.count), backgroundColor: regions.map(r => REGION_COLORS[r.region]||'#086411'), borderRadius: 6 }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+  });
+
+  const tiers = {{ tier_dist|json_encode(JSON_SAFE)|raw }};
+  const TIER_COLORS = { diamond:'#7dd3fc', platinum:'#cbd5e1', gold:'#fbc329', silver:'#94a3b8', bronze:'#c89060', unranked:'#475569' };
+  new Chart(document.getElementById('chartTiers'), {
+    type: 'doughnut',
+    data: { labels: tiers.map(t => t.tier.charAt(0).toUpperCase()+t.tier.slice(1)), datasets: [{ data: tiers.map(t => t.count), backgroundColor: tiers.map(t => TIER_COLORS[t.tier]||'#475569'), borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }] },
+    options: { responsive: true, cutout: '64%', plugins: { legend: { position: 'right' } } }
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,324 @@
+{% extends "judge/layout.twig" %}
+{% block content %}
+<section class="wrap">
+  <a href="/judge/ballot" style="font-size:12px;color:var(--ink-500)">← All programmes</a>
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:14px">
+    <div>
+      <p class="jd-eyebrow">Score nominees</p>
+      <h1 class="jd-h1">{{ programme.icon_emoji }} {{ programme.title }} <em style="font-size:0.7em">·</em> <span class="tx-gradient" style="font-style:italic">{{ ballot.cycle.year }}</span></h1>
+    </div>
+    {# Progress ring #}
+    <div class="jd-progress-ring" title="{{ ballot.progress.scored }} of {{ ballot.progress.total }} nominees scored">
+      {% set pct = ballot.progress.total > 0 ? (ballot.progress.scored / ballot.progress.total * 100)|round : 0 %}
+      <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="27" fill="none" stroke="#e5e7eb" stroke-width="5"/>
+        <circle cx="32" cy="32" r="27" fill="none" stroke="var(--emerald-500)" stroke-width="5"
+                stroke-dasharray="{{ (27 * 2 * 3.14159)|round(1) }}"
+                stroke-dashoffset="{{ ((1 - pct/100) * 27 * 2 * 3.14159)|round(1) }}"
+                stroke-linecap="round" transform="rotate(-90 32 32)"/>
+        <text x="32" y="37" text-anchor="middle" font-size="13" font-weight="700" fill="var(--kale-700)">{{ pct }}%</text>
+      </svg>
+      <div style="font-size:11px;color:var(--ink-500);text-align:center;margin-top:2px">{{ ballot.progress.scored }}/{{ ballot.progress.total }}<br>scored</div>
+    </div>
+  </div>
+
+  {# Programme tabs if assigned to multiple #}
+  {% if programmes|length > 1 %}
+  <div class="jd-tabs" style="margin-top:20px">
+    {% for p in programmes %}
+    <a class="jd-tab {% if p.id == programme.id %}is-active{% endif %}" href="/judge/ballot/{{ p.id }}">{{ p.icon_emoji }} {{ p.title|split(' ')|first }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# Conflict of interest declaration — shown once per session #}
+  <div id="conflictBar" class="jd-conflict" x-data="{declared: sessionStorage.getItem('coi_declared_{{ programme.id }}') === '1'}" x-show="!declared" x-cloak>
+    <div class="jd-conflict__body">
+      <strong>⚖️ Conflict of interest check</strong>
+      <p>Do you have a personal, financial, or professional relationship with any nominee in this programme that could affect your impartiality?</p>
+    </div>
+    <div class="jd-conflict__actions">
+      <form method="post" action="/judge/conflict/{{ programme.id }}" style="display:inline">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="jd-conflict__btn jd-conflict__btn--yes" type="submit">Yes — declare a conflict</button>
+      </form>
+      <button class="jd-conflict__btn jd-conflict__btn--no" type="button"
+              @click="declared=true; sessionStorage.setItem('coi_declared_{{ programme.id }}','1')">No conflict — proceed to scoring</button>
+    </div>
+  </div>
+
+  {# Scoring criteria legend #}
+  {% if ballot.criteria %}
+  <div class="jd-legend" style="margin-top:24px">
+    <p class="jd-legend__title">Scoring criteria (0–10 each, weighted average)</p>
+    <div class="jd-legend__grid">
+      {% for c in ballot.criteria %}
+      <div class="jd-legend__item">
+        <span class="jd-legend__label">{{ c.label }}</span>
+        <span class="jd-legend__weight">×{{ c.weight }}%</span>
+        <span class="jd-legend__desc">{{ c.description }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# Main ballot app #}
+  <script id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }} }</script>
+
+  <div x-data="ballotApp(JSON.parse(document.getElementById('ballotData').textContent))" style="margin-top:28px">
+
+    {# View toggle #}
+    <div style="display:flex;gap:8px;margin-bottom:20px;align-items:center">
+      <span style="font-size:12px;color:var(--ink-500);margin-right:4px">View:</span>
+      <button type="button" class="jd-view-btn" :class="view==='score'?'is-active':''" @click="view='score'">📋 Score</button>
+      <button type="button" class="jd-view-btn" :class="view==='compare'?'is-active':''" @click="view='compare'">📊 Compare</button>
+    </div>
+
+    {# ── SCORE VIEW ────────────────────────────────────────────────── #}
+    <div x-show="view==='score'">
+      <template x-for="cat in groups" :key="cat.category.id">
+        <div class="jd-cat">
+          <div class="jd-cat__head">
+            <h2 class="jd-cat__title" x-text="cat.category.title"></h2>
+            <span class="jd-cat__count">
+              <span x-text="cat.scored" style="color:var(--emerald-600);font-weight:700"></span>/<span x-text="cat.nominees.length"></span> scored
+            </span>
+          </div>
+
+          <template x-for="n in cat.nominees" :key="n.id">
+            <article class="jd-nom" :class="n.complete ? 'is-complete' : ''">
+              <div class="jd-nom__head">
+                <div class="jd-nom__avatar" x-text="(n.name||'?').charAt(0).toUpperCase()"></div>
+                <div style="min-width:0;flex:1">
+                  <div class="jd-nom__name" x-text="n.name"></div>
+                  <div class="jd-nom__meta">
+                    <span x-text="n.country_code"></span>
+                    <span x-show="n.tagline" x-text="' · ' + (n.tagline||'').substring(0,60)"></span>
+                  </div>
+                </div>
+                <div class="jd-nom__avg">
+                  <div class="jd-nom__avg-n" x-text="n.complete ? n.avg.toFixed(1) : '—'"></div>
+                  <div class="jd-nom__avg-l">avg <span x-show="n.complete" style="color:var(--emerald-500)">✓</span></div>
+                </div>
+              </div>
+
+              {# Score inputs with live bar #}
+              <div class="jd-criteria">
+                <template x-for="c in criteria" :key="c.id">
+                  <div class="jd-crit">
+                    <div class="jd-crit__top">
+                      <label class="jd-crit__label" x-text="c.label"></label>
+                      <span class="jd-crit__val"
+                            :class="n.scores[c.id] >= 8 ? 'is-high' : (n.scores[c.id] <= 3 && n.scores[c.id] !== undefined ? 'is-low' : '')"
+                            x-text="n.scores[c.id] !== undefined ? n.scores[c.id] : '—'"></span>
+                    </div>
+                    <div class="jd-crit__track">
+                      <input class="jd-slider" type="range" min="0" max="10" step="1"
+                             :aria-label="c.label + ' score for ' + n.name"
+                             :aria-valuetext="(n.scores[c.id] !== undefined ? n.scores[c.id] : 'not scored') + ' out of 10'"
+                             :value="n.scores[c.id] !== undefined ? n.scores[c.id] : ''"
+                             @input="onScore(n, c.id, $event.target.value)">
+                      <div class="jd-crit__bar" :style="'width:' + ((n.scores[c.id]||0)/10*100) + '%'"></div>
+                    </div>
+                    <div class="jd-crit__scale"><span>0</span><span>5</span><span>10</span></div>
+                  </div>
+                </template>
+              </div>
+
+              {# Notes #}
+              <div class="jd-nom__notes">
+                <label style="font-size:11px;color:var(--ink-500);display:block;margin-bottom:4px">Private notes (only you see these)</label>
+                <textarea x-model="n.notes" @input.debounce.700ms="onNotes(n)"
+                          placeholder="Observations, context, justification for your scores…" rows="2"></textarea>
+              </div>
+
+              {# Save row #}
+              <div class="jd-nom__row">
+                <span class="jd-save-state"
+                      :class="{'is-ok': n._state==='ok', 'is-err': n._state==='err'}"
+                      x-text="n._state==='saving' ? 'Saving…' : (n._state==='ok' ? '✓ Saved' : (n._state==='err' ? '✗ Could not save' : (n.complete ? 'Fully scored' : 'Not yet scored')))">
+                </span>
+                <button type="button" class="jd-save-btn" @click="saveAll(n)" :disabled="n._state==='saving'">
+                  <span x-text="n.complete ? 'Update scores' : 'Save scores'"></span>
+                </button>
+              </div>
+            </article>
+          </template>
+
+          <div x-show="!cat.nominees.length" class="jd-empty" style="padding:1.5rem">
+            No nominees in this category yet.
+          </div>
+        </div>
+      </template>
+    </div>
+
+    {# ── COMPARE VIEW — ranked table of all nominees with their scores ── #}
+    <div x-show="view==='compare'" x-cloak>
+      <template x-for="cat in groups" :key="cat.category.id">
+        <div class="jd-cat" x-show="cat.nominees.length">
+          <div class="jd-cat__head">
+            <h2 class="jd-cat__title" x-text="cat.category.title"></h2>
+          </div>
+          <div class="jd-compare-table">
+            <div class="jd-compare-head">
+              <span style="flex:1">Nominee</span>
+              <template x-for="c in criteria" :key="c.id">
+                <span class="jd-compare-head__crit" x-text="c.label"></span>
+              </template>
+              <span style="width:60px;text-align:right">Avg</span>
+            </div>
+            <template x-for="(n, idx) in ranked(cat.nominees)" :key="n.id">
+              <div class="jd-compare-row" :class="idx===0 ? 'is-top' : ''">
+                <div style="flex:1;display:flex;align-items:center;gap:8px;min-width:0">
+                  <span class="jd-rank" x-text="n.complete ? (idx+1) : '—'"></span>
+                  <div>
+                    <div style="font-weight:600;font-size:13.5px" x-text="n.name"></div>
+                    <div style="font-size:11px;color:var(--ink-500)" x-text="n.country_code"></div>
+                  </div>
+                </div>
+                <template x-for="c in criteria" :key="c.id">
+                  <div class="jd-compare-cell">
+                    <span :class="n.scores[c.id] >= 8 ? 'is-high' : (n.scores[c.id] <= 3 && n.scores[c.id] !== undefined ? 'is-low' : '')"
+                          x-text="n.scores[c.id] !== undefined ? n.scores[c.id] : '—'"></span>
+                  </div>
+                </template>
+                <div style="width:60px;text-align:right">
+                  <strong :class="n.complete ? 'jd-avg-num' : ''" x-text="n.complete ? n.avg.toFixed(1) : '—'"></strong>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <div x-show="!groups.length" class="jd-empty">No nominees yet for this programme's current cycle.</div>
+  </div>
+</section>
+{% endblock %}
+
+{% block foot_scripts %}
+<style>
+/* ── Judge ballot extras ─────────────────────────────────────── */
+.jd-progress-ring { display:flex;flex-direction:column;align-items:center;gap:2px; }
+.jd-conflict { background:#fffbeb;border:1.5px solid #fde68a;border-radius:16px;padding:1.125rem 1.25rem;margin-top:24px;display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:space-between; }
+.jd-conflict__body { flex:1;min-width:220px; }
+.jd-conflict__body strong { font-size:0.9375rem;color:#92400e; }
+.jd-conflict__body p { font-size:0.875rem;color:#78350f;margin:4px 0 0; }
+.jd-conflict__actions { display:flex;gap:8px;flex-wrap:wrap; }
+.jd-conflict__btn { padding:0.5rem 0.875rem;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;border:1.5px solid transparent;transition:background-color .18s ease,transform .18s ease,box-shadow .18s ease; }
+.jd-conflict__btn:hover { transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,41,44,0.12); }
+.jd-conflict__btn:active { transform:translateY(0); }
+.jd-conflict__btn--yes { background:#fef2f2;color:#b91c1c;border-color:#fecaca; }
+.jd-conflict__btn--no { background:var(--emerald-600);color:#fff; }
+.jd-legend { background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:1rem 1.125rem; }
+.jd-legend__title { font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-500);margin:0 0 10px; }
+.jd-legend__grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px; }
+.jd-legend__item { display:flex;flex-direction:column;gap:2px; }
+.jd-legend__label { font-size:13px;font-weight:700;color:var(--kale-700); }
+.jd-legend__weight { font-size:11px;color:var(--emerald-600);font-weight:600; }
+.jd-legend__desc { font-size:11.5px;color:var(--ink-500);line-height:1.4; }
+.jd-view-btn { padding:5px 12px;border-radius:8px;font-size:12.5px;font-weight:600;background:#f3f4f6;border:1px solid #e5e7eb;cursor:pointer;transition:background-color .2s ease,color .2s ease,border-color .2s ease; }
+.jd-view-btn.is-active { background:var(--kale-700);color:#fff;border-color:var(--kale-700); }
+.jd-crit__top { display:flex;justify-content:space-between;align-items:center;margin-bottom:4px; }
+.jd-crit__label { font-size:12.5px;font-weight:600;color:var(--kale-700); }
+.jd-crit__val { font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--ink-500);min-width:20px;text-align:right; }
+.jd-crit__val.is-high { color:var(--emerald-600); }
+.jd-crit__val.is-low  { color:#ef4444; }
+.jd-crit__track { position:relative;height:28px;display:flex;align-items:center; }
+.jd-crit__bar { position:absolute;left:0;top:50%;transform:translateY(-50%);height:4px;background:var(--emerald-500);border-radius:2px;pointer-events:none;transition:width .15s; }
+.jd-crit__scale { display:flex;justify-content:space-between;font-size:10px;color:var(--ink-400);margin-top:-2px; }
+.jd-save-state { font-size:12px;color:var(--ink-500); }
+.jd-save-state.is-ok  { color:var(--emerald-600); }
+.jd-save-state.is-err { color:#ef4444; }
+/* Compare view */
+.jd-compare-table { border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;margin-bottom:12px; }
+.jd-compare-head { display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f9fafb;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-500); }
+.jd-compare-head__crit { width:64px;text-align:center;font-size:10.5px; }
+.jd-compare-row { display:flex;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid #f3f4f6;transition:background .15s; }
+.jd-compare-row:hover { background:#fafafa; }
+.jd-compare-row.is-top { background:linear-gradient(90deg,#f0fdf4,#fff); }
+.jd-compare-cell { width:64px;text-align:center;font-size:13px;font-weight:600;color:var(--ink-500); }
+.jd-compare-cell .is-high { color:var(--emerald-600); }
+.jd-compare-cell .is-low  { color:#ef4444; }
+.jd-rank { width:22px;height:22px;border-radius:50%;background:#e5e7eb;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink-500);flex-shrink:0; }
+.jd-compare-row.is-top .jd-rank { background:var(--gold-300);color:var(--kale-700); }
+.jd-avg-num { color:var(--kale-700);font-size:14px; }
+/* The criteria-column table can exceed a phone viewport — let it scroll
+   horizontally instead of crushing/overflowing the columns. */
+.jd-compare-table { overflow-x:auto; }
+.jd-compare-head, .jd-compare-row { min-width:480px; }
+</style>
+<script>
+function ballotApp(initial) {
+  return {
+    view: 'score',
+    criteria: initial.criteria || [],
+    groups: (initial.nominees || []).map(g => ({
+      category: g.category,
+      nominees: (g.nominees || []).map(n => ({ ...n, _state: '' })),
+      get scored() { return this.nominees.filter(x => x.complete).length; },
+    })),
+
+    ranked(nominees) {
+      return [...nominees].sort((a, b) => {
+        if (a.complete && b.complete) return b.avg - a.avg;
+        if (a.complete) return -1;
+        if (b.complete) return 1;
+        return 0;
+      });
+    },
+
+    onScore(n, critId, val) {
+      n.scores = { ...n.scores, [critId]: parseInt(val) };
+      n.complete = this.criteria.every(c => n.scores[c.id] !== undefined);
+      n.avg = this._avg(n.scores);
+      this._debouncedSave(n);
+    },
+    onNotes(n) { this._debouncedSave(n); },
+    saveAll(n) { this._save(n); },
+
+    _avg(scores) {
+      const weights = Object.fromEntries(this.criteria.map(c => [c.id, c.weight || 25]));
+      let ws = 0, wt = 0;
+      Object.entries(scores).forEach(([cid, s]) => { const w = weights[cid] || 25; ws += s * w; wt += w; });
+      return wt > 0 ? Math.round(ws / wt * 10) / 10 : 0;
+    },
+
+    _timers: {},
+    _debouncedSave(n) {
+      n._state = 'saving';
+      clearTimeout(this._timers[n.id]);
+      this._timers[n.id] = setTimeout(() => this._save(n), 800);
+    },
+
+    async _save(n) {
+      try {
+        n._state = 'saving';
+        const params = new URLSearchParams({ notes: n.notes || '' });
+        Object.entries(n.scores).forEach(([k, v]) => params.append(`scores[${k}]`, v));
+        const r = await fetch('/judge/score/' + n.id, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '',
+          },
+          body: params,
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d.ok) {
+          n._state = 'ok';
+          setTimeout(() => { if (n._state === 'ok') n._state = ''; }, 2500);
+        } else {
+          n._state = 'err';
+          console.error('Score save failed:', d.message);
+        }
+      } catch (e) {
+        n._state = 'err';
+      }
+    },
+  };
+}
+</script>
+{% endblock %}

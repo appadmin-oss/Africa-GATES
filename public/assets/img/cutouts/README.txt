@@ -1,0 +1,1 @@
+﻿Drop transparent-background PNG cut-outs here. Map slots: map-1.png (lead/left), map-2.png (mid/front), map-3.png (trail/right). Dark band slot: band-1.png. They fade in automatically; sections display cleanly until the files exist.

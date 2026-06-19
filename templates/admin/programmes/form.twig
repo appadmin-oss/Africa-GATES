@@ -1,0 +1,33 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ is_new ? 'New Programme' : 'Edit · ' ~ row.title }}{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/programmes">← Back</a>{% endblock %}
+
+{% block content %}
+<form class="ad-form" method="post" action="{{ is_new ? '/admin/programmes/new' : '/admin/programmes/' ~ row.id }}">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="ad-card"><div class="ad-card__body">
+    <div class="ad-form">
+      <div class="row">
+        <div><label>Title</label><input type="text" name="title" value="{{ row.title|default('') }}" required></div>
+        <div><label>Slug</label><input type="text" name="slug" value="{{ row.slug|default('') }}" required></div>
+      </div>
+      <div><label>Subtitle</label><input type="text" name="subtitle" value="{{ row.subtitle|default('') }}"></div>
+      <div><label>Description</label><textarea name="description" rows="4">{{ row.description|default('') }}</textarea></div>
+      <div class="row">
+        <div><label>Icon emoji</label><input type="text" name="icon_emoji" value="{{ row.icon_emoji|default('🏆') }}"></div>
+        <div><label>Scope</label>
+          <select name="scope">{% for s in ['continental','regional','national'] %}<option value="{{ s }}" {% if row.scope == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select>
+        </div>
+      </div>
+      <div class="row">
+        <div><label>Sort order</label><input type="number" name="sort_order" value="{{ row.sort_order|default(0) }}"></div>
+        <div style="display:flex;align-items:flex-end"><label class="checkbox"><input type="checkbox" name="is_active" {% if row.is_active is not defined or row.is_active %}checked{% endif %}> Active</label></div>
+      </div>
+    </div>
+  </div></div>
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <a class="ad-btn" href="/admin/programmes">Cancel</a>
+    <button class="ad-btn ad-btn--primary" type="submit">Save</button>
+  </div>
+</form>
+{% endblock %}

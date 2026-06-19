@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+  <title>{{ page_title|default('Africa GATES | Continental Cultural Recognition | Afrovanguard') }}</title>
+  <meta name="description" content="{{ meta_description|default('Africa GATES — the Cultural Power Index recognising African excellence. Live in Nigeria, building toward 54 nations. An Afrovanguard initiative.') }}">
+  <meta name="theme-color" content="#10292C">
+
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="author" content="Africa GATES — an Afrovanguard initiative">
+  <meta name="keywords" content="{{ meta_keywords|default('Africa GATES, African awards, Cultural Power Index, CPI, Afrovanguard, African excellence, continental awards, African creatives, African nominations, African leaderboard, African cultural recognition') }}">
+
+  {% set _site_url = site_url|default('https://africagates.org') %}
+  {% set _canonical = canonical_url|default(_site_url ~ (request_path|default('/'))) %}
+  <link rel="canonical" href="{{ _canonical }}">
+
+  <meta property="og:type" content="{{ og_type|default('website') }}">
+  <meta property="og:site_name" content="Africa GATES">
+  <meta property="og:url" content="{{ _canonical }}">
+  <meta property="og:title" content="{{ og_title|default(page_title|default('Africa GATES — Continental Cultural Recognition')) }}">
+  <meta property="og:description" content="{{ meta_description|default('Vote, nominate, and celebrate African excellence through the Cultural Power Index.') }}">
+  <meta property="og:image" content="{{ og_image|default('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200&q=80') }}">
+  <meta property="og:image:alt" content="{{ og_image_alt|default('Africa GATES — continental cultural recognition') }}">
+  <meta property="og:locale" content="en_NG">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ og_title|default(page_title|default('Africa GATES')) }}">
+  <meta name="twitter:description" content="{{ meta_description|default('Vote, nominate, and celebrate African excellence.') }}">
+  <meta name="twitter:image" content="{{ og_image|default('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=1200&q=80') }}">
+
+  {# Structured data — Organization + WebSite for richer SERP cards #}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "{{ _site_url }}#org",
+        "name": "Africa GATES",
+        "alternateName": "AGATES",
+        "url": "{{ _site_url }}",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "{{ _site_url }}/africa-gates-logo.svg"
+        },
+        "description": "Africa GATES — the Cultural Power Index recognising African excellence. Live in Nigeria, building toward 54 nations. An Afrovanguard initiative.",
+        "parentOrganization": {
+          "@type": "Organization",
+          "name": "Afrovanguard",
+          "url": "https://afrovanguard.org.ng"
+        },
+        "areaServed": "Africa",
+        "sameAs": [
+          "https://afrovanguard.org.ng"
+        ]
+      },
+      {
+        "@type": "WebSite",
+        "@id": "{{ _site_url }}#website",
+        "url": "{{ _site_url }}",
+        "name": "Africa GATES",
+        "description": "Vote, nominate, and celebrate African excellence through the Cultural Power Index.",
+        "publisher": { "@id": "{{ _site_url }}#org" },
+        "inLanguage": "en",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "{{ _site_url }}/registry?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
+      {% if structured_data is defined and structured_data %}
+      ,{{ structured_data|raw }}
+      {% endif %}
+    ]
+  }
+  </script>
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2310292C'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Georgia,serif' font-size='34' font-weight='700' fill='%237FC87C'%3EG%3C/text%3E%3C/svg%3E">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
+  <link rel="preconnect" href="https://r2.vidzflow.com" crossorigin>
+  {% if gates_page == 'home' or gates_page is empty %}
+  <link rel="preload" as="image"
+        href="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=78"
+        imagesrcset="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=800&q=72 800w,
+                     https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=78 1200w"
+        imagesizes="(max-width: 768px) 100vw, 1240px"
+        fetchpriority="high">
+  {% endif %}
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="preconnect" href="https://cdn.plyr.io">
+
+  {# Heritage typography (Playfair Display + DM Sans + JetBrains Mono).
+     One stylesheet with `display=swap` — no extra WebFont loader script. #}
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,700&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  {# Swiper 8 CSS — for talent slider + case-study mobile #}
+  <link rel="stylesheet" href="https://unpkg.com/swiper@8/swiper-bundle.min.css">
+  {# Splide CSS — for the partner marquee #}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css">
+  {# Plyr — accessible HTML5/YouTube player for video testimonials #}
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
+  {# Leaflet — continental CPI map on /registry and dashboards #}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+
+  {# Motion design tokens (Phase 2 seed — see resources/motion/motion.ts) #}
+  <link rel="stylesheet" href="/assets/css/tokens.motion.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/assets/css/main.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/assets/css/ui-overhaul.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/assets/css/professional.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/assets/css/redesign-2026.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/assets/css/aurora.css?v={{ asset_version }}">
+
+  {# Hide animated elements until JS prepares them (anti-FOUC) #}
+  <style>
+    html.wf-loading [data-anim],
+    html.wf-loading [text-anime],
+    html.wf-loading .scroll-highlight,
+    html.wf-loading [data-text-anim] { visibility: hidden; }
+  </style>
+
+  {% block head_styles %}{% endblock %}
+</head>
+<body data-page="{{ gates_page|default('') }}">
+<div id="scrollProg" class="scroll-prog" aria-hidden="true"></div>
+<a href="#main" class="skip-link">Skip to content</a>
+
+{% include 'layout/nav.twig' %}
+
+<main id="main" class="main-wrapper" tabindex="-1">
+  {% block content %}{% endblock %}
+</main>
+
+{% include 'layout/footer.twig' %}
+
+{# Always-on Community shortcut #}
+<a href="/community" class="community-fab" aria-label="Community channels">
+  <span class="community-fab__pulse" aria-hidden="true"></span>
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+</a>
+
+{# ── GATES Guide — floating scripted help panel (not an AI) ───────── #}
+<div id="aiAssistant" class="ai-assistant" aria-live="polite">
+  <button type="button" class="ai-assistant__fab" id="aiAssistantFab"
+          aria-controls="aiAssistantPanel" aria-expanded="false"
+          aria-label="Open GATES Guide">
+    <span class="ai-assistant__fab-glow" aria-hidden="true"></span>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 2v3M12 19v3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M19 12h3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/>
+      <circle cx="12" cy="12" r="4"/>
+    </svg>
+    <span class="ai-assistant__fab-label">Guide</span>
+  </button>
+  <section class="ai-assistant__panel" id="aiAssistantPanel" role="dialog" aria-label="GATES Guide" aria-modal="false" hidden>
+    <header class="ai-assistant__head">
+      <div class="ai-assistant__title">
+        <span class="ai-assistant__avatar" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </span>
+        <div>
+          <strong>GATES Guide</strong>
+          <small>Quick answers · links to the live pages</small>
+        </div>
+      </div>
+      <button type="button" class="ai-assistant__close" aria-label="Close" id="aiAssistantClose">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </header>
+    <div class="ai-assistant__log" id="aiAssistantLog" role="log">
+      <div class="ai-msg ai-msg--bot">
+        <p>Hi 👋 I'm the <strong>GATES Guide</strong> — a quick way to find the right page. Ask about the CPI score, voting, nominations, or partnerships and I'll point you there.</p>
+        <div class="ai-msg__chips">
+          <button type="button" data-ai-chip>How does CPI work?</button>
+          <button type="button" data-ai-chip>How do I nominate?</button>
+          <button type="button" data-ai-chip>How do I partner?</button>
+        </div>
+      </div>
+    </div>
+    <form class="ai-assistant__form" id="aiAssistantForm">
+      <input type="text" id="aiAssistantInput" class="ai-assistant__input" placeholder="Ask anything about GATES…" autocomplete="off" aria-label="Message">
+      <button type="submit" class="ai-assistant__send" aria-label="Send">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+      </button>
+    </form>
+    <footer class="ai-assistant__foot">
+      <span>A scripted guide — it links you to the live pages, it doesn't generate answers.</span>
+    </footer>
+  </section>
+</div>
+
+<a href="#main" id="backToTop" aria-label="Back to top" title="Back to top">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+</a>
+
+{# ── Library stack — deferred where safe ────────────────────────── #}
+{# jQuery — kept lightweight as a vendor compatibility shim #}
+<script defer src="https://code.jquery.com/jquery-3.7.1.slim.min.js"
+        integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
+{# Alpine.js — reactive bindings on /vote, /community, admin tables #}
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+{# GSAP + ScrollTrigger — cinematic scroll animations #}
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/gh/timothydesign/script/split-type.js"></script>
+{# Spline viewer is loaded lazily, desktop-only, from main.js (bindSpline) #}
+{# Tippy.js — micro-interactions for hover-tip UX polish #}
+<script defer src="https://unpkg.com/@popperjs/core@2"></script>
+<script defer src="https://unpkg.com/tippy.js@6"></script>
+{# Leaflet — continental map #}
+<script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script defer src="https://unpkg.com/swiper@8/swiper-bundle.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/js/splide.min.js"></script>
+<script defer src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
+
+<script>
+  // Lenis smooth-scroll — buttery momentum on desktop only.
+  // Disabled on touch, reduced-motion, narrow viewports, and any page that
+  // explicitly opts out via <html data-no-smooth>. This avoids trapping
+  // touch/wheel scrolling on hybrid laptops + iPads + Android.
+  (function () {
+    var disabled = document.documentElement.hasAttribute('data-no-smooth');
+    var fineOnly = window.matchMedia('(pointer: fine)').matches;
+    var hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    var motionOk = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
+    var wide     = window.matchMedia('(min-width: 992px)').matches;
+    if (disabled || !motionOk || !fineOnly || hasTouch || !wide) return;
+    document.addEventListener('DOMContentLoaded', function () {
+      if (!window.Lenis) return;
+      var lenis = new Lenis({ lerp: 0.12, smoothWheel: true, wheelMultiplier: 0.9 });
+      function raf(t) { lenis.raf(t); requestAnimationFrame(raf); }
+      requestAnimationFrame(raf);
+      // Keep GSAP ScrollTrigger in sync, if present.
+      if (window.gsap && window.ScrollTrigger) {
+        lenis.on('scroll', ScrollTrigger.update);
+      }
+    });
+  })();
+
+  // Plyr — initialize any embedded player on the page.
+  document.addEventListener('DOMContentLoaded', function () {
+    if (!window.Plyr) return;
+    document.querySelectorAll('.plyr__video-embed').forEach(function (el) {
+      try { new Plyr(el, { youtube: { noCookie: true, rel: 0 } }); }
+      catch (e) { /* ignore — fall back to native iframe */ }
+    });
+  });
+</script>
+<script defer src="/assets/js/afg-features.js?v={{ asset_version }}"></script>
+<script defer src="/assets/js/main.js?v={{ asset_version }}"></script>
+
+{# ── Aurora — the real Stripe WebGL liquid-mesh gradient ──────────── #}
+{# Loads stripe-gradient (Gradient + MiniGl WebGL mesh) via jsDelivr's
+   ESM endpoint and initialises every <canvas class="aurora-canvas">.
+   If WebGL or the module is unavailable, the section keeps its static
+   CSS gradient fallback so nothing ever looks empty. #}
+<script type="module">
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const canvases = Array.from(document.querySelectorAll('canvas.aurora-canvas'));
+  if (canvases.length) {
+    try {
+      const { Gradient } = await import('https://cdn.jsdelivr.net/npm/stripe-gradient@1.0.1/+esm');
+      document.documentElement.classList.add('has-aurora');
+      canvases.forEach((cv) => {
+        try {
+          const g = new Gradient();
+          g.initGradient('#' + cv.id);
+          if (reduce && typeof g.pause === 'function') {
+            // Render one static frame, then freeze for reduced-motion users.
+            setTimeout(() => { try { g.pause(); } catch (e) {} }, 60);
+          }
+        } catch (e) { /* per-canvas failure — fallback CSS remains */ }
+      });
+    } catch (e) {
+      /* module load failed — static CSS gradient fallback remains */
+    }
+  }
+</script>
+<script>
+/* Site-wide scroll reveal — sections rise in as they enter the viewport.
+   Only below-fold sections are pre-hidden, so content can never be stranded
+   if JS halts; reduced-motion users see everything immediately. */
+(function(){
+  if(!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var els=document.querySelectorAll('main .section, main > section');
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('io-in'); io.unobserve(en.target); } });
+  },{rootMargin:'0px 0px -7% 0px',threshold:.05});
+  els.forEach(function(el){
+    if(el.getBoundingClientRect().top > innerHeight*0.85) el.classList.add('io-pre');
+    io.observe(el);
+  });
+})();
+/* Island nav — round off the capsule's bottom while a mega sheet is open */
+(function(){
+  var nav=document.getElementById('afgNav'); if(!nav) return;
+  var sync=function(){ nav.classList.toggle('is-mega-open', !!nav.querySelector('.afg-mega-wrap.is-open')); };
+  nav.addEventListener('click', function(){ setTimeout(sync,0); });
+  document.addEventListener('click', function(){ setTimeout(sync,0); });
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') setTimeout(sync,0); });
+})();
+</script>
+{% block foot_scripts %}{% endblock %}
+</body>
+</html>

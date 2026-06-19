@@ -1,0 +1,283 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+{# Programme→categories map for JS — ALWAYS from real DB data (the controller passes
+   `all_programmes` on every render path, including errors). No hardcoded fallback:
+   stale category IDs here previously mismatched the DB and could misfile a nomination. #}
+{% set awards = all_programmes|default(awards_data|default([])) %}
+
+{# Hero #}
+<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
+  <div class="aurora aurora--soft" aria-hidden="true"></div>
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Nominations open · 2026 Cycle</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Put someone <em style="color:var(--emerald-600)">on the stage.</em></h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Free, OTP-verified, and live to voters the moment moderators approve. Takes under 3 minutes.</p>
+      <p class="r26-trust r26-reveal r26-d4" style="margin-top:1.6rem">Nominee details · Verify by email · Go live to voters</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:2rem;padding-bottom:4rem">
+  <div class="wrap" style="max-width:52rem">
+
+    {% if error is defined and error %}
+    <div class="form-alert form-alert--error" data-anim style="border-radius:14px;padding:1rem 1.25rem;display:flex;align-items:center;gap:0.75rem;background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;font-weight:500;margin-bottom:2rem">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <div id="draftBanner" hidden class="draft-banner" data-anim>
+      <span class="draft-banner__icon">💾</span>
+      <span class="draft-banner__label">You have a saved draft — your previous answers have been restored.</span>
+      <button class="draft-banner__action" id="draftClear" type="button">Clear draft</button>
+    </div>
+
+    <div class="completion-ring" id="completionRing" data-anim>
+      <svg class="completion-ring__svg" width="60" height="60" viewBox="0 0 60 60">
+        <circle cx="30" cy="30" r="26" fill="none" stroke="#e5e7eb" stroke-width="5"/>
+        <circle class="completion-circle" cx="30" cy="30" r="26" fill="none" stroke="#e5e7eb"
+                stroke-width="5" stroke-linecap="round" transform="rotate(-90 30 30)"
+                style="stroke-dasharray:163.4;stroke-dashoffset:163.4;transition:stroke-dashoffset .4s ease,stroke .3s ease"/>
+      </svg>
+      <div class="completion-ring__text">
+        <div class="completion-ring__pct">0%</div>
+        <div class="completion-ring__label">Form complete</div>
+        <div class="completion-ring__hint">Fill in the required fields to submit</div>
+      </div>
+    </div>
+
+    <form method="POST" action="/nominate" data-anim x-data="nominateForm()" x-init="init()" data-no-float id="nominationForm">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+      {# ── 01 Award Programme ───────────────────────────────── #}
+      <div class="form-section-card">
+        <div class="form-section-card__header">
+          <div class="form-section-card__num">01</div>
+          <div>
+            <div class="form-section-card__title">Award Programme</div>
+            <div class="form-section-card__sub">Choose the recognition track that best fits the nominee.</div>
+          </div>
+        </div>
+        <div class="field-row field-row--2">
+          <div class="field">
+            <select id="nProgramme" name="programme_id" class="field__input field__select" required
+                    x-model="selectedProg" @change="onProgChange()">
+              <option value=""> </option>
+              {% for a in awards %}
+              <option value="{{ a.id }}">{{ a.icon_emoji }} {{ a.title }}</option>
+              {% endfor %}
+            </select>
+            <label class="field__label" for="nProgramme">Programme <span style="color:var(--emerald-600)">*</span></label>
+          </div>
+          <div class="field" x-show="selectedProg" x-cloak x-transition>
+            <select id="nCategory" name="category_id" class="field__input field__select"
+                    :required="!!selectedProg" x-model="selectedCat" :disabled="!categories.length">
+              <option value=""> </option>
+              <template x-for="c in categories" :key="c.id">
+                <option :value="c.id" x-text="c.title"></option>
+              </template>
+            </select>
+            <label class="field__label" for="nCategory">Category <span style="color:var(--emerald-600)">*</span></label>
+          </div>
+        </div>
+      </div>
+
+      {# ── 02 Nominee Details ───────────────────────────────── #}
+      <div class="form-section-card">
+        <div class="form-section-card__header">
+          <div class="form-section-card__num">02</div>
+          <div>
+            <div class="form-section-card__title">Nominee Details</div>
+            <div class="form-section-card__sub">Full name and location — be as precise as possible.</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <input id="nName" name="nominee_name" class="field__input" type="text" required placeholder=" ">
+          <label class="field__label" for="nName">Nominee's Full Name <span style="color:var(--emerald-600)">*</span></label>
+        </div>
+
+        <div class="field-row field-row--3" style="margin-top:1rem">
+          <div class="field field__select-wrap">
+            <select id="nCountry" name="country_code" class="field__input field__select" required>
+              <option value=""> </option>
+              {% for code,name in {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':'Côte d\'Ivoire','CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','AO':'Angola','CD':'DR Congo'} %}
+              <option value="{{ code }}">{{ name }}</option>
+              {% endfor %}
+            </select>
+            <label class="field__label" for="nCountry">Country <span style="color:var(--emerald-600)">*</span></label>
+          </div>
+          <div class="field">
+            <input id="nState" name="nominee_state" class="field__input" type="text" placeholder=" ">
+            <label class="field__label" for="nState">State / Region</label>
+          </div>
+          <div class="field">
+            <input id="nLGA" name="nominee_lga" class="field__input" type="text" placeholder=" ">
+            <label class="field__label" for="nLGA">LGA / County</label>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:1rem">
+          <textarea id="nWhy" name="reason" class="field__input field__textarea" rows="5" required minlength="60" placeholder=" "></textarea>
+          <label class="field__label" for="nWhy" style="top:1.25rem;transform:none">Why do they deserve recognition? <span style="color:var(--emerald-600)">*</span></label>
+          <div class="field__hint">Be specific — concrete examples land better than adjectives. 80–600 characters.</div>
+        </div>
+      </div>
+
+      {# ── 03 Reference Links ───────────────────────────────── #}
+      <div class="form-section-card">
+        <div class="form-section-card__header">
+          <div class="form-section-card__num">03</div>
+          <div>
+            <div class="form-section-card__title">Reference Links <span style="font-weight:400;font-size:0.875rem;color:var(--neutral-500)">(Optional · up to 3)</span></div>
+            <div class="form-section-card__sub">News articles, social profiles, or school records that back this nomination.</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.875rem">
+          {% for i in [1,2,3] %}
+          {% set fname = i == 1 ? 'reference_url' : 'reference_url_' ~ i %}
+          <div class="field">
+            <input id="nLink{{ i }}" name="{{ fname }}" class="field__input" type="url" placeholder=" ">
+            <label class="field__label" for="nLink{{ i }}">Link {{ i }}</label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {# ── 04 Your Details ──────────────────────────────────── #}
+      <div class="form-section-card">
+        <div class="form-section-card__header">
+          <div class="form-section-card__num">04</div>
+          <div>
+            <div class="form-section-card__title">Your Details</div>
+            <div class="form-section-card__sub">The person making this nomination. We hash your email — plain text is never stored.</div>
+          </div>
+        </div>
+
+        <div class="field-row field-row--2">
+          <div class="field">
+            <input id="nByName" name="nominator_name" class="field__input" type="text" required placeholder=" ">
+            <label class="field__label" for="nByName">Your Full Name <span style="color:var(--emerald-600)">*</span></label>
+          </div>
+          <div class="field">
+            <input id="nByPhone" name="nominator_phone" class="field__input" type="tel" required placeholder=" ">
+            <label class="field__label" for="nByPhone">Your Phone <span style="color:var(--emerald-600)">*</span></label>
+          </div>
+        </div>
+
+        <div class="field-row field-row--3" style="margin-top:0.875rem">
+          <div class="field">
+            <select id="nByCountry" name="nominator_country" class="field__input field__input--select" required>
+              <option value=""> </option>
+              {% for code,name in {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':'Côte d\'Ivoire','CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','AO':'Angola','CD':'DR Congo'} %}
+              <option value="{{ code }}">{{ name }}</option>
+              {% endfor %}
+            </select>
+            <label class="field__label" for="nByCountry">Your Country <span style="color:var(--emerald-600)">*</span></label>
+          </div>
+          <div class="field">
+            <input id="nByState" name="nominator_state" class="field__input" type="text" required placeholder=" ">
+            <label class="field__label" for="nByState">State / Region <span style="color:var(--emerald-600)">*</span></label>
+          </div>
+          <div class="field">
+            <input id="nByLGA" name="nominator_lga" class="field__input" type="text" required placeholder=" ">
+            <label class="field__label" for="nByLGA">LGA / County <span style="color:var(--emerald-600)">*</span></label>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:0.875rem">
+          <input id="nEmail" name="nominator_email" class="field__input" type="email" required placeholder=" ">
+          <label class="field__label" for="nEmail">Your Email (for OTP verification) <span style="color:var(--emerald-600)">*</span></label>
+        </div>
+      </div>
+
+      <p class="text-xs" style="color:var(--neutral-500);margin-bottom:1.25rem">
+        By submitting you agree to the
+        <a href="/terms" style="color:var(--emerald-600);font-weight:600">terms</a> and
+        <a href="/privacy" style="color:var(--emerald-600);font-weight:600">privacy policy</a>.
+      </p>
+
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <button class="btn btn--emerald btn--lg" type="submit">
+          Submit nomination
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <p class="text-sm" style="color:var(--neutral-500)">Takes about 3 minutes</p>
+      </div>
+    </form>
+  </div>
+</section>
+
+{% endblock %}
+{% block foot_scripts %}
+<script>
+const AFG_PROG_CATS = {
+{% for a in awards %}
+  {{ a.id }}: [{% if a.categories is defined %}{% for c in a.categories %}{id:{{ c.id }},title:{{ c.title|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_HEX_AMP'))|raw }}},{% endfor %}{% endif %}],
+{% endfor %}
+};
+function nominateForm() {
+  return {
+    selectedProg: '', selectedCat: '', categories: [],
+    init() { const keys = Object.keys(AFG_PROG_CATS); if (keys.length===1){this.selectedProg=keys[0];this.onProgChange();} },
+    onProgChange() { this.selectedCat=''; this.categories = AFG_PROG_CATS[this.selectedProg]||[]; }
+  };
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const form = document.getElementById('nominationForm');
+  const ring = document.getElementById('completionRing');
+
+  // Draft auto-save via AFG feature layer
+  if (window.AFG && AFG.initDraftSave)
+    AFG.initDraftSave(form, (window.AFG_SESSION||'anon') + '_nominate');
+
+  // Re-sync Alpine with any draft-restored select values.
+  // initDraftSave sets el.value directly (no DOM event), so x-model / @change
+  // never fire — selectedProg stays '' and the category div stays hidden.
+  (function () {
+    var progEl = document.getElementById('nProgramme');
+    if (!progEl || !progEl.value) return;
+    var savedCat = document.getElementById('nCategory')?.value || '';
+    progEl.dispatchEvent(new Event('change', { bubbles: true }));
+    if (savedCat) requestAnimationFrame(function () {
+      var catEl = document.getElementById('nCategory');
+      if (catEl) catEl.value = savedCat;
+    });
+  })();
+
+  // Completion percentage ring
+  if (window.AFG && AFG.initCompletionRing)
+    AFG.initCompletionRing(form, ring);
+
+  // Funnel: nomination started
+  if (window.AFG && AFG.trackFunnel)
+    AFG.trackFunnel('nominate_start');
+
+  // Real-time floating-label validation
+  document.querySelectorAll('.field__input').forEach(function (el) {
+    el.addEventListener('blur', function () {
+      if (!el.value.trim()) {
+        if (el.required) { el.classList.add('is-error'); el.classList.remove('is-valid'); }
+      } else if (el.validity && !el.validity.valid) {
+        el.classList.add('is-error'); el.classList.remove('is-valid');
+      } else {
+        el.classList.add('is-valid'); el.classList.remove('is-error');
+      }
+    });
+    el.addEventListener('input', function () {
+      if (el.value.trim()) el.classList.remove('is-error');
+    });
+  });
+
+  // Funnel: submitted
+  if (form) form.addEventListener('submit', function () {
+    if (window.AFG && AFG.trackFunnel) AFG.trackFunnel('nominate_submitted');
+  });
+});
+</script>
+{% endblock %}

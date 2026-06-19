@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title|default('Sign in with a link') }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Montserrat:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/admin.css?v={{ asset_version }}">
+</head>
+<body class="ad-auth">
+  <div class="ad-auth__card">
+    <div class="ad-auth__brand"><span class="mark">G</span><span><span class="afro">AFRO</span><span class="van">VANGUARD</span> · Admin</span></div>
+    <h1 class="ad-auth__h1">Sign in with a link</h1>
+    <p class="ad-auth__sub">We'll email you a one-tap sign-in link valid for 15 minutes — no password needed.</p>
+
+    {% if error %}<div class="ad-auth__alert ad-auth__alert--err">{{ error }}</div>{% endif %}
+    {% if notice %}<div class="ad-auth__alert ad-auth__alert--note">{{ notice }}</div>{% endif %}
+
+    <form class="ad-auth__form" method="post" action="/admin/magic/request">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <label for="email">Your admin email</label>
+      <input id="email" type="email" name="email" autocomplete="email" required>
+      <button type="submit">Send sign-in link →</button>
+    </form>
+
+    <div class="ad-auth__hr"></div>
+    <p class="ad-auth__alt"><a href="/admin/login">← Back to password sign-in</a></p>
+  </div>
+</body>
+</html>

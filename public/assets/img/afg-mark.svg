@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <radialGradient id="corona" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="62%"  stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="74%"  stop-color="#f3b416" stop-opacity="0.55"/>
+      <stop offset="85%"  stop-color="#ffffff" stop-opacity="0.72"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="innerGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#338632" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#10292C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Corona glow -->
+  <circle cx="60" cy="60" r="58" fill="url(#corona)"/>
+  <!-- Dark core circle -->
+  <circle cx="60" cy="60" r="44" fill="#10292C"/>
+  <!-- Inner emerald glow -->
+  <circle cx="60" cy="60" r="44" fill="url(#innerGlow)"/>
+  <!-- AFG initials -->
+  <text x="60" y="67" text-anchor="middle" font-family="Georgia,serif"
+        font-size="22" font-weight="700" fill="#ffffff" letter-spacing="3">AFG</text>
+</svg>

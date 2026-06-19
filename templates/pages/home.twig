@@ -1,0 +1,352 @@
+{% extends "layout/gates.twig" %}
+
+{% block content %}
+
+{# ════ 1. HERO — Redesign 2026 (masked rotator · warm editorial) ══ #}
+<section class="r26-hero" aria-labelledby="hero-title">
+  <div class="aurora aurora--soft" aria-hidden="true"></div>
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1">Continental Cultural Power Index</p>
+      <h1 id="hero-title" class="r26-hl">
+        <span class="r26-hl__line r26-reveal r26-d2">African excellence,</span>
+        <span class="r26-rot r26-reveal r26-d3" aria-hidden="true"><span class="r26-rot__list" id="rotList"><span class="r26-rot__item">recognised.</span><span class="r26-rot__item">remembered.</span><span class="r26-rot__item">celebrated.</span><span class="r26-rot__item">immortalised.</span><span class="r26-rot__item">recognised.</span></span></span>
+        <span class="sr-only">recognised, remembered, celebrated, and immortalised.</span>
+      </h1>
+      <p class="r26-sub r26-reveal r26-d4">Africa GATES is the continental Cultural Power Index — the community nominates, expert panels score, and every cycle becomes part of the permanent record.</p>
+      <div class="r26-cta r26-reveal r26-d5">
+        <a class="btn btn--emerald" href="/nominate">Submit a nomination
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <a class="btn btn--white" href="/leaderboard">Explore the index
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+      <div class="r26-chip r26-reveal r26-d6"><span class="r26-chip__dot"></span>Live · CPI recomputed every 6 hours</div>
+      {% set _vp = site_stats.total_profiles|default(0) %}
+      <p class="r26-trust r26-reveal r26-d6">{% if _vp > 0 %}{{ _vp|number_format }} verified profile{{ _vp == 1 ? '' : 's' }} · {% endif %}An Afrovanguard initiative · live in Nigeria · building toward 54 nations</p>
+    </div>
+  </div>
+</section>
+
+{# ════ 2. CONTINENTAL FOOTPRINT — location chips ═══════════════════ #}
+<section class="section section--sm" style="padding-top:0">
+  <div class="wrap">
+    <p class="r26-eyebrow r26-reveal" style="justify-content:center;display:flex">Nominees, judges &amp; partners across the continent</p>
+    <div class="r26-strip r26-reveal">
+      {% for it in ['Lagos · NG','Accra · GH','Nairobi · KE','Johannesburg · ZA','Addis Ababa · ET','Cairo · EG','Dakar · SN','Kigali · RW','Kampala · UG','Abidjan · CI','Casablanca · MA','Lusaka · ZM','Maputo · MZ','Windhoek · NA'] %}
+      <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ it }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ════ 3. ONE PLATFORM — clean curved cards (Redesign 2026) ════════ #}
+<section class="section">
+  <div class="wrap">
+    <div class="r26-surface r26-reveal">
+      <div class="r26-head r26-head--center">
+        <p class="r26-eyebrow">One platform</p>
+        <h2 class="r26-h2">Nominate, vote, <em>and recognise.</em></h2>
+        <p class="r26-lead">Continental scope. Community input. Transparent scoring — every cycle part of the permanent record.</p>
+      </div>
+      <div class="r26-cards">
+        <article class="r26-card r26-reveal r26-d1">
+          <div class="r26-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg></div>
+          <span class="r26-card__step">01 · Nominate</span>
+          <h3 class="r26-card__title">Surface excellence wherever you find it</h3>
+          <ul class="r26-card__feat">
+            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>OTP-verified — no spam, no duplicates</li>
+            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Education, integrity, choral &amp; business excellence</li>
+            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Free and open to every African profile</li>
+          </ul>
+          <a href="/nominate" class="r26-card__link">Submit a nomination
+            <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </article>
+        <article class="r26-card r26-reveal r26-d2">
+          <div class="r26-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 3a9 9 0 1 0 9 9"/></svg></div>
+          <span class="r26-card__step">02 · Vote</span>
+          <h3 class="r26-card__title">A vote that actually counts</h3>
+          <ul class="r26-card__feat">
+            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>One verified voter, one vote per category</li>
+            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Cross-checked against fingerprint + email hash</li>
+            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Tallies recompute every 6 hours, publicly</li>
+          </ul>
+          <a href="/vote" class="r26-card__link">Cast a vote
+            <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </article>
+        <article class="r26-card r26-reveal r26-d3">
+          <div class="r26-card__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+          <span class="r26-card__step">03 · Recognise</span>
+          <h3 class="r26-card__title">Watch the continent rank itself</h3>
+          <ul class="r26-card__feat">
+            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Six-component transparent 0–1000 score</li>
+            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Filterable by region, tier, and category</li>
+            <li><svg viewBox="0 0 24 24" fill="none"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z" fill="currentColor"/></svg>Permanent legacy attribution for winners</li>
+          </ul>
+          <a href="/leaderboard" class="r26-card__link">Open the leaderboard
+            <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ════ 4. STATS — honest metrics + empty state (Redesign 2026) ═════ #}
+<section class="section r26-stats" id="numbers">
+  <div class="aurora aurora--soft" aria-hidden="true"></div>
+  <div class="wrap">
+    {% set _p = dash_stats.total_profiles|default(0) %}
+    {% set _v = dash_stats.total_votes|default(0) %}
+    {% set _e = dash_stats.events_count|default(0) %}
+    <div class="r26-stats__head" data-anim>
+      <p class="r26-eyebrow">The index, in the open</p>
+      <h2>Transparent recognition, <em>counted publicly.</em></h2>
+      <p>Every score traces back to community votes and expert panels — recomputed every six hours, archived every cycle.</p>
+    </div>
+    {% if _p > 0 or _v > 0 or _e > 0 %}
+      <div class="r26-metrics" data-anim>
+        <div class="r26-metric">
+          <div class="r26-metric__num"><span data-count="{{ _p }}">{{ _p|number_format }}</span></div>
+          <div class="r26-metric__lbl">Verified profiles</div>
+        </div>
+        <div class="r26-metric">
+          <div class="r26-metric__num"><span data-count="{{ _v }}">{{ _v|number_format }}</span></div>
+          <div class="r26-metric__lbl">Community votes cast</div>
+        </div>
+        <div class="r26-metric">
+          <div class="r26-metric__num"><span data-count="{{ _e }}">{{ _e|number_format }}</span></div>
+          <div class="r26-metric__lbl">Legacy editions archived</div>
+        </div>
+      </div>
+      <p class="r26-stats__context" data-anim>Live in Nigeria — <strong>building toward all 54 nations.</strong></p>
+    {% else %}
+      <div class="r26-empty" data-anim>
+        <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+        <h3>The inaugural index is being assembled</h3>
+        <p>No cycle has been scored yet. Be among the first verified profiles on the continental Cultural Power Index — and help shape the inaugural board.</p>
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;justify-content:center">
+          <a class="btn btn--emerald" href="/register">Register your profile
+            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          <a class="btn btn--white" href="/awards">How the CPI works</a>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+{# ════ 5. LIVING MAP — honest registry, cut-out ready (Redesign 2026) ══ #}
+<section class="section r26-map" id="faces">
+  <div class="wrap">
+    {% set _profiles = ticker_profiles|default([]) %}
+    {% set _pc = dash_stats.total_profiles|default(0) %}
+    <div class="r26-map__grid">
+      <div class="r26-map__copy" data-anim>
+        <p class="r26-eyebrow">The living registry</p>
+        <h2>A continent of <em>people</em>, not pixels.</h2>
+        <p>Africa GATES is a registry of real, verified African excellence — names and records, never stock photos. The map fills as the community grows.</p>
+        <div class="r26-faces-grid">
+          {% if _profiles is not empty %}
+            {% for e in _profiles|slice(0, 9) %}
+            <a class="r26-face" href="/registry/{{ e.slug }}" title="{{ e.display_name }}">{{ e.display_name|default('·')|first|upper }}</a>
+            {% endfor %}
+            {% if _pc > 9 %}<a class="r26-face r26-face--more" href="/registry" title="Browse all profiles">+{{ (_pc - 9)|number_format }}</a>{% endif %}
+          {% else %}
+            {# Seed slots until the first profiles arrive — the wall reads as "this fills up", never bare. #}
+            {% for i in 1..7 %}<span class="r26-face r26-face--ghost" aria-hidden="true"></span>{% endfor %}
+          {% endif %}
+        </div>
+        <p class="r26-map__count">
+          {% if _pc > 0 %}<strong>{{ _pc|number_format }}</strong> verified profile{{ _pc == 1 ? '' : 's' }} · live in Nigeria{% else %}<strong>The first faces appear here</strong> — be part of the founding registry{% endif %}
+        </p>
+        <div style="margin-top:1.5rem;display:flex;gap:.75rem;flex-wrap:wrap">
+          <a class="btn btn--emerald" href="/register">Register your profile
+            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          <a class="btn btn--white" href="/registry">Browse the registry
+            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+      </div>
+      {# Cut-out stage: drop transparent PNGs at /assets/img/cutouts/map-{1,2,3}.png and
+         they fade in over the map. Until then the outline map shows on its own. #}
+      <div class="r26-map__art r26-stage" data-anim="scale">
+        <img src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="Outline map of Africa" loading="lazy" decoding="async">
+        <img class="r26-cutout r26-cutout--lead"  data-cutout src="/assets/img/cutouts/map-1.png" alt="">
+        <img class="r26-cutout r26-cutout--mid"   data-cutout src="/assets/img/cutouts/map-2.png" alt="">
+        <img class="r26-cutout r26-cutout--trail" data-cutout src="/assets/img/cutouts/map-3.png" alt="">
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ════ 5b. EVENTS PREVIEW — next on the calendar ═══════════════════ #}
+{% set _events = site_events|default([]) %}
+{% if _events is not empty %}
+<section class="section" style="padding-top:0">
+  <div class="wrap">
+    <div class="r26-head r26-head--center">
+      <p class="r26-eyebrow">Events</p>
+      <h2 class="r26-h2">Next on the <em>calendar.</em></h2>
+      <p class="r26-lead">Ceremonies, webinars and community sessions across the cycle.</p>
+    </div>
+    <div class="r26-mediagrid">
+      {% for e in _events %}
+      <article class="r26-mcard">
+        <div class="r26-mcard__media {% if not e.cover_image %}r26-mcard__media--empty{% endif %}">
+          {% if e.cover_image %}<img src="{{ e.cover_image }}" alt="{{ e.title }}" loading="lazy" decoding="async">{% endif %}
+          <span class="r26-mcard__badge">{{ e.location|default('Africa GATES') }}</span>
+        </div>
+        <div class="r26-mcard__body">
+          <div class="r26-when">
+            <span class="r26-when__cal" aria-hidden="true">
+              <span class="r26-when__mon">{{ e.event_date|date('M') }}</span>
+              <span class="r26-when__day">{{ e.event_date|date('j') }}</span>
+            </span>
+            <span class="r26-mcard__meta" style="margin:0">{{ e.event_date|date('D, j M Y · H:i') }}</span>
+          </div>
+          <h3 class="r26-mcard__title">{{ e.title }}</h3>
+          <p class="r26-mcard__desc">{{ e.tagline }}</p>
+          <div class="r26-mcard__foot">
+            <span>{{ e.location }}</span>
+            <a class="r26-mcard__link" href="/events">Details
+              <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    <div class="text-center" style="margin-top:2rem">
+      <a class="btn btn--white" href="/events">All events
+        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# ════ 5c. BLOG PREVIEW — latest from the index ═════════════════════ #}
+{% set _posts = latest_posts|default([]) %}
+{% if _posts is not empty %}
+<section class="section" style="padding-top:0">
+  <div class="wrap">
+    <div class="r26-surface">
+      <div class="r26-head r26-head--center">
+        <p class="r26-eyebrow">Blog</p>
+        <h2 class="r26-h2">Notes from the <em>index.</em></h2>
+      </div>
+      <div class="r26-mediagrid">
+        {% for p in _posts %}
+        <a class="r26-mcard" href="/blog/{{ p.slug }}">
+          <div class="r26-mcard__media {% if not p.cover_image %}r26-mcard__media--empty{% endif %}">
+            {% if p.cover_image %}<img src="{{ p.cover_image }}" alt="" loading="lazy" decoding="async">{% endif %}
+            {% if p.tag %}<span class="r26-mcard__badge">{{ p.tag }}</span>{% endif %}
+          </div>
+          <div class="r26-mcard__body">
+            <p class="r26-mcard__meta">{{ p.published_at|date('j F Y') }}</p>
+            <h3 class="r26-mcard__title">{{ p.title }}</h3>
+            <p class="r26-mcard__desc">{{ p.excerpt|slice(0,120) }}{% if p.excerpt|length > 120 %}…{% endif %}</p>
+            <div class="r26-mcard__foot">
+              <span>{{ p.author }}</span>
+              <span class="r26-mcard__link">Read
+                <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+      <div class="text-center" style="margin-top:2rem">
+        <a class="btn btn--white" href="/blog">Browse the blog
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# ════ 6. LEGACY VAULT — clean editions + honest empty (Redesign 2026) ══ #}
+<section class="section">
+  <div class="wrap">
+    <div class="r26-surface r26-surface--tint r26-reveal">
+      <div class="r26-head r26-head--center">
+        <p class="r26-eyebrow">Legacy Vault</p>
+        <h2 class="r26-h2">Recognition is a record, <em>not a moment.</em></h2>
+        <p class="r26-lead">Every cycle becomes part of the permanent vault — searchable, attributed, and forever credited.</p>
+      </div>
+      {% set legacy = legacy_events|default([]) %}
+      {% if legacy is not empty %}
+        <div class="r26-legacy__grid">
+          {% for L in legacy %}
+          <a class="r26-edition" href="/legacy">
+            <div class="r26-edition__cover" style="background-image:url('{{ L.cover_path }}')">
+              <span class="r26-edition__yr">{{ L.event_date|date('Y') }}</span>
+            </div>
+            <div class="r26-edition__body">
+              <h3 class="r26-edition__title">{{ L.title }}</h3>
+              <p class="r26-edition__meta">{{ L.award_count }} awards conferred · {{ L.location }}</p>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+        <div class="text-center" style="margin-top:2rem">
+          <a href="/legacy" class="btn btn--emerald">Browse the full vault
+            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+      {% else %}
+        <div class="r26-empty" style="border:none;background:transparent;box-shadow:none">
+          <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+          <h3>The first edition hasn’t been archived yet</h3>
+          <p>When the inaugural cycle concludes, every winner and edition is preserved here — permanently credited and searchable.</p>
+          <a class="btn btn--white" href="/nominate">Help shape the first cycle</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{# ════ 7. FINAL CTA — dark statement band, cut-out ready (Redesign 2026) ══ #}
+<section class="section">
+  <div class="wrap">
+    <div class="r26-band">
+      <div class="r26-band__inner r26-stage">
+        <div class="r26-band__glow" aria-hidden="true"></div>
+        <img class="r26-band__wm" src="/assets/img/africa-watermark-light.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+        {# Cut-out slot: drop a transparent PNG at /assets/img/cutouts/band-1.png to populate. #}
+        <img class="r26-cutout r26-band__cutout" data-cutout src="/assets/img/cutouts/band-1.png" alt="">
+        <div class="r26-band__content">
+          <p class="r26-eyebrow">Join the index</p>
+          <h2 class="r26-band__title">Someone you know deserves <em>this stage.</em></h2>
+          <p class="r26-band__sub">Nominate them in 90 seconds — free, OTP-verified, and reviewed by a panel of African judges. Every nomination becomes part of the permanent record.</p>
+          <div class="r26-band__cta">
+            <a class="btn btn--white" href="/nominate">Submit a nomination
+              <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            <a class="btn btn--ghostlight" href="/register">Register a profile</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block foot_scripts %}
+<script>
+(function(){
+  /* Hero rotator — masked seamless slot (one word visible, single-direction glide) */
+  var list=document.getElementById('rotList');
+  if(list && !matchMedia('(prefers-reduced-motion: reduce)').matches){
+    var n=list.children.length-1, step=1.32, i=0;
+    list.classList.add('is-anim');
+    setInterval(function(){
+      i++; list.style.transform='translateY(-'+(i*step)+'em)';
+      if(i===n){ setTimeout(function(){
+        list.classList.remove('is-anim'); i=0; list.style.transform='translateY(0em)';
+        void list.offsetWidth; list.classList.add('is-anim');
+      },640); }
+    },2800);
+  }
+  /* Cut-out images — reveal only the ones that actually load (drop a PNG in to populate) */
+  document.querySelectorAll('img.r26-cutout[data-cutout]').forEach(function(img){
+    var show=function(){ if(img.naturalWidth>1) img.classList.add('is-loaded'); };
+    if(img.complete) show(); else img.addEventListener('load', show);
+  });
+})();
+</script>
+{% endblock %}

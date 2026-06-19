@@ -1,0 +1,134 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+{% set FLAGS = {
+  'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮',
+  'CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','AO':'🇦🇴','CD':'🇨🇩','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪'
+} %}
+
+{% set has_profiles = profiles|default([])|length > 0 %}
+{% set rows = has_profiles ? profiles : [] %}
+
+<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
+  <div class="aurora aurora--soft" aria-hidden="true"></div>
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">The registry</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Real people. <em style="color:var(--emerald-600)">Real rankings.</em></h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Every profile is OTP-verified, attributable, and tied to a transparent CPI score. Filter by region, tier, or category.</p>
+      <div class="r26-cta r26-reveal r26-d3">
+        <a href="/register" class="btn btn--emerald">
+          Register your profile
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <a href="/leaderboard" class="btn btn--white">
+          See the leaderboard
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:1rem">
+  <div class="wrap">
+
+    {% if has_profiles %}
+    <div class="r26-head">
+      <p class="r26-eyebrow">Verified profiles</p>
+      <h2 class="r26-h2">Browse the <em>registry</em></h2>
+    </div>
+    <div class="filter-row" data-anim>
+      <input id="regSearch" class="filter-search" type="search" placeholder="Search nominees by name, category, or country…" aria-label="Search registry">
+      <button class="filter-chip is-active" data-tier="">All tiers</button>
+      <button class="filter-chip" data-tier="diamond">Diamond</button>
+      <button class="filter-chip" data-tier="platinum">Platinum</button>
+      <button class="filter-chip" data-tier="gold">Gold</button>
+      <button class="filter-chip" data-tier="silver">Silver</button>
+    </div>
+
+    <div id="regGrid" class="card-grid">
+      {% for p in rows %}
+      <a href="/registry/{{ p.slug }}" class="profile-card" data-tier="{{ p.cpi_tier }}" data-anim data-anim-delay="{{ loop.index0 % 4 }}">
+        <div class="profile-card__media" style="background-image:url('{{ p.avatar_path }}')">
+          <div class="profile-card__top">
+            <span class="flag-chip"><span class="flag-chip__icon">{{ FLAGS[p.country_code]|default('🌍') }}</span> {{ p.country_code }}</span>
+            <span class="tier-badge tier-badge--{{ p.cpi_tier }}">{{ p.cpi_tier }}</span>
+          </div>
+          <div class="profile-card__bottom">
+            <div class="profile-card__name">{{ p.display_name }}</div>
+            <div class="profile-card__cat">{{ p.category }}</div>
+          </div>
+        </div>
+        <div class="profile-card__body">
+          <span class="text-xs text-soft" style="text-transform:uppercase;letter-spacing:0.08em;font-family:var(--font-mono)">CPI</span>
+          <span class="profile-card__score">{{ p.cpi_score }}</span>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    <div id="regEmpty" class="r26-empty" style="display:none;margin-top:2rem">
+      <div style="font-size:2.25rem;line-height:1;margin-bottom:1rem">🔍</div>
+      <h3>No profiles match that filter</h3>
+      <p>Try a different tier or clear the search to see every verified profile across the continent.</p>
+      <button type="button" class="btn btn--white" onclick="document.getElementById('regSearch').value='';document.querySelectorAll('.filter-chip').forEach(c=>c.classList.toggle('is-active',c.dataset.tier===''));window.__regFilter && window.__regFilter()">Clear filters</button>
+    </div>
+    {% else %}
+    {# Genuinely-empty registry (no verified profiles in the DB yet) #}
+    <div class="r26-empty" style="margin-top:1rem" data-anim>
+      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+      <h3>The registry is just getting started</h3>
+      <p>No verified profiles yet. Be among the first names on the continental record — registration is free and OTP-verified.</p>
+      <a href="/register" class="btn btn--emerald">
+        Get on the board
+        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+    {% endif %}
+
+    <div class="text-center" style="margin-top:2.5rem" data-anim>
+      <a href="/register" class="btn btn--emerald">
+        Get on the board
+        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block foot_scripts %}
+<script>
+(function(){
+  const grid = document.getElementById('regGrid');
+  const empty = document.getElementById('regEmpty');
+  const search = document.getElementById('regSearch');
+  let activeTier = '';
+  function apply() {
+    if (!grid) return;
+    const q = (search?.value || '').trim().toLowerCase();
+    let shown = 0;
+    grid.querySelectorAll('.profile-card').forEach(card => {
+      const tier = card.dataset.tier || '';
+      const text = card.textContent.toLowerCase();
+      const match = (!activeTier || activeTier === tier) && (!q || text.includes(q));
+      card.style.display = match ? '' : 'none';
+      if (match) shown++;
+    });
+    if (empty) empty.style.display = shown ? 'none' : 'block';
+  }
+  window.__regFilter = apply;
+  document.querySelectorAll('.filter-chip').forEach(c => {
+    c.addEventListener('click', () => {
+      document.querySelectorAll('.filter-chip').forEach(x => x.classList.remove('is-active'));
+      c.classList.add('is-active');
+      activeTier = c.dataset.tier || '';
+      apply();
+    });
+  });
+  if (search) search.addEventListener('input', apply);
+})();
+</script>
+{% endblock %}

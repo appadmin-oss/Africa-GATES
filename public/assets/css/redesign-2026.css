@@ -1,0 +1,538 @@
+/* ═══════════════════════════════════════════════════════════════
+   Africa GATES — Redesign 2026  (loaded LAST; wins the cascade)
+   Namespaced `r26-*`. Reuses existing tokens (--emerald-*, --kale-*,
+   --gold-*, --font-heading, --font-body) from main.css.
+   Strangler pattern: new sections replace legacy ones one at a time.
+═══════════════════════════════════════════════════════════════ */
+
+:root{
+  --r26-cream:#ffffff;            /* canvas: Apple white */
+  --r26-gray:#f5f5f7;             /* Apple alternate surface */
+  --r26-ink:#1a2b2e;              /* near-black with a breath of kale */
+  --r26-mute:#6e7673;             /* Apple #6e6e73, kale-warmed */
+  --r26-hair:rgba(16,41,44,.08);  /* hairline borders */
+  --r26-em:var(--emerald-600,#237b22);
+  --r26-em-2:var(--emerald-700,#1a6118);
+  --r26-gold:#C9A227;
+  --r26-e:cubic-bezier(.16,1,.3,1);
+}
+
+/* Apple/Amplitude canvas: white page, gray panels (all public pages) */
+body[data-page]{background:#fff}
+
+/* visually-hidden (the site CSS lacks one) — keeps a11y text out of view */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+/* Alpine cloak — the site CSS lacked a global rule, so x-show panels flashed on load */
+[x-cloak]{display:none}
+
+/* ───────── shared entrance ───────── */
+@media (prefers-reduced-motion:no-preference){
+  .r26-reveal{opacity:0;transform:translateY(20px);animation:r26rise .85s var(--r26-e) forwards}
+  .r26-d1{animation-delay:.04s}.r26-d2{animation-delay:.14s}.r26-d3{animation-delay:.24s}
+  .r26-d4{animation-delay:.36s}.r26-d5{animation-delay:.48s}.r26-d6{animation-delay:.6s}
+}
+@keyframes r26rise{to{opacity:1;transform:none}}
+
+/* Apple-clean label: small, quiet, no ornament */
+.r26-eyebrow{display:inline-flex;align-items:center;font-family:var(--font-body);
+  font-size:.85rem;font-weight:600;letter-spacing:.02em;text-transform:none;
+  color:var(--r26-em);margin:0 0 1.1rem}
+
+/* ═══════════ HERO ═══════════ */
+.r26-hero{position:relative;text-align:center;overflow:hidden;
+  padding-block:clamp(3rem,8vh,6.5rem) clamp(4rem,10vh,8rem)}
+.r26-hero__wm{position:absolute;z-index:0;right:-8%;top:48%;transform:translateY(-50%);
+  width:clamp(360px,46vw,700px);opacity:.07;pointer-events:none;user-select:none}
+.r26-hero__inner{position:relative;z-index:1;max-width:940px;margin:0 auto}
+
+.r26-hl{font-family:var(--font-body);font-weight:700;color:var(--r26-ink);
+  font-size:clamp(2.1rem,6.4vw,4.9rem);line-height:1.05;letter-spacing:-.032em;margin:0;overflow-wrap:break-word}
+.r26-hl__line{display:block}
+
+/* masked seamless slot rotator — one word visible, single-direction glide */
+.r26-rot{display:block;overflow:hidden;height:1.32em;margin-top:.04em}
+.r26-rot__list{display:block;will-change:transform}
+.r26-rot__list.is-anim{transition:transform .62s cubic-bezier(.16,1,.3,1)}
+.r26-rot__item{display:block;height:1.32em;line-height:1.32;text-align:center;
+  color:var(--r26-em);font-weight:700}
+
+.r26-sub{font-family:var(--font-body);font-size:clamp(1.06rem,1.5vw,1.28rem);
+  color:var(--neutral-600,#4a5256);line-height:1.55;max-width:620px;margin:1.7rem auto 0}
+.r26-cta{display:flex;gap:.85rem;justify-content:center;flex-wrap:wrap;margin-top:2.3rem}
+.r26-chip{display:inline-flex;align-items:center;gap:.55rem;margin-top:1.7rem;
+  padding:.5rem .95rem;border:0;border-radius:999px;
+  background:var(--r26-gray);font-family:var(--font-body);font-size:.82rem;color:var(--r26-mute);font-weight:500}
+.r26-chip__dot{width:8px;height:8px;border-radius:50%;background:var(--r26-em);position:relative}
+.r26-chip__dot::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1px solid var(--r26-em);animation:r26ping 2.4s var(--r26-e) infinite}
+@keyframes r26ping{0%{transform:scale(.6);opacity:.8}100%{transform:scale(1.8);opacity:0}}
+.r26-trust{margin-top:2.5rem;font-family:var(--font-body);font-size:.8rem;color:var(--neutral-600,#4a5256);letter-spacing:.02em}
+
+/* ═══════════ DARK STATEMENT BAND ═══════════ */
+.r26-band__inner{position:relative;overflow:hidden;border-radius:32px;background:var(--r26-ink);
+  color:#fff;padding:clamp(2.5rem,5vw,4.5rem);isolation:isolate}
+.r26-band__glow{position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(58% 90% at 86% 50%,rgba(51,134,50,.30),transparent 70%),
+             radial-gradient(40% 70% at 80% 38%,rgba(243,180,22,.14),transparent 70%)}
+.r26-band__wm{position:absolute;right:-3%;top:50%;transform:translateY(-50%);
+  width:min(440px,44%);opacity:.18;z-index:0;pointer-events:none}
+.r26-band__content{position:relative;z-index:1;max-width:640px}
+.r26-band .r26-eyebrow{color:var(--gold-300,#fbc329)}
+.r26-band .r26-eyebrow::before{background:var(--gold-400,#f3b416)}
+.r26-band__title{font-family:var(--font-heading);font-weight:700;color:#fff;
+  font-size:clamp(2rem,4.2vw,3.25rem);line-height:1.08;letter-spacing:-.02em;margin:0 0 1rem}
+.r26-band__title em{font-style:italic;color:var(--emerald-300,#7FC87C)}
+.r26-band__sub{font-family:var(--font-body);color:rgba(255,255,255,.74);
+  font-size:1.125rem;line-height:1.55;max-width:48ch;margin:0 0 1.85rem}
+.r26-band__cta{display:flex;gap:.85rem;flex-wrap:wrap}
+
+/* light-on-dark ghost button (pairs with the existing .btn--white) */
+.btn--ghostlight{background:transparent;color:#fff;border-color:rgba(255,255,255,.38)}
+.btn--ghostlight:hover{background:#fff;color:var(--r26-ink);border-color:#fff}
+
+@media (max-width:680px){
+  .r26-band__wm{opacity:.10}
+  .r26-band__sub{font-size:1.02rem}
+}
+
+/* ═══════════ STATS — honest metrics ═══════════ */
+.r26-stats{text-align:center}
+.r26-stats__head{max-width:680px;margin:0 auto 2.75rem}
+.r26-stats__head h2{font-family:var(--font-heading);font-weight:700;color:var(--r26-ink);font-size:clamp(1.9rem,3.6vw,2.9rem);line-height:1.1;letter-spacing:-.02em;margin:0 0 1rem}
+.r26-stats__head h2 em{font-style:italic;color:var(--r26-em)}
+.r26-stats__head p{color:var(--neutral-600,#4a5256);font-size:1.1rem;line-height:1.55;margin:0}
+.r26-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(1rem,3vw,2.5rem);max-width:880px;margin:0 auto}
+.r26-metric{padding:1.5rem 1rem;border-top:2px solid rgba(35,123,34,.20)}
+.r26-metric__num{font-family:var(--font-mono,monospace);font-variant-numeric:tabular-nums lining-nums;font-size:clamp(2.2rem,5vw,3.4rem);font-weight:700;color:var(--r26-ink);line-height:1}
+.r26-metric__lbl{margin-top:.6rem;font-size:.92rem;color:var(--neutral-600,#4a5256);font-weight:500}
+.r26-stats__context{margin-top:2.5rem;font-size:.95rem;color:var(--neutral-600,#4a5256)}
+.r26-stats__context strong{color:var(--r26-em);font-weight:600}
+@media(max-width:600px){.r26-metrics{grid-template-columns:1fr;gap:0;max-width:340px}}
+
+.r26-empty{max-width:560px;margin:0 auto;text-align:center;padding:3rem 1.75rem;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:24px}
+.r26-empty__icon{width:54px;height:54px;margin:0 auto 1.25rem;opacity:.9}
+.r26-empty h3{font-family:var(--font-heading);font-weight:700;color:var(--r26-ink);font-size:1.5rem;margin:0 0 .6rem}
+.r26-empty p{color:var(--neutral-600,#4a5256);line-height:1.55;margin:0 auto 1.6rem;max-width:42ch}
+
+/* ═══════════ LIVING MAP — honest "faces" (real profiles or invitation) ═══════════ */
+.r26-map__grid{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(2rem,5vw,4rem);align-items:center}
+.r26-map__copy h2{font-family:var(--font-heading);font-weight:700;color:var(--r26-ink);font-size:clamp(2rem,4vw,3.2rem);line-height:1.08;letter-spacing:-.02em;margin:0 0 1rem}
+.r26-map__copy h2 em{font-style:italic;color:var(--r26-em)}
+.r26-map__copy p{color:var(--neutral-600,#4a5256);font-size:1.1rem;line-height:1.6;margin:0 0 1.25rem;max-width:46ch}
+.r26-map__count{font-size:.92rem;color:var(--neutral-600,#4a5256)}
+.r26-map__count strong{color:var(--r26-ink);font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.r26-map__art{display:flex;justify-content:center;align-items:center;min-height:300px}
+.r26-map__art img{width:100%;max-width:440px;opacity:.85}
+.r26-faces-grid{display:flex;flex-wrap:wrap;gap:.55rem;margin:1.25rem 0 0}
+.r26-face{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-body);font-weight:700;font-size:1.02rem;color:#fff;background:linear-gradient(135deg,var(--kale-700,#10292C),#1e4d52);box-shadow:0 0 0 1px var(--r26-hair),0 4px 10px -5px rgba(16,41,44,.28);text-decoration:none;transition:transform .22s var(--r26-e),box-shadow .22s var(--r26-e)}
+/* Brand-varied tints so the wall reads as distinct people, not a monolith */
+.r26-face:nth-child(3n+2){background:linear-gradient(135deg,var(--emerald-600,#237b22),var(--emerald-400,#4caf4a))}
+.r26-face:nth-child(3n+3){background:linear-gradient(135deg,var(--gold-500,#d49a0e),var(--gold-300,#fbc329));color:var(--kale-700,#10292C)}
+.r26-face:hover{transform:translateY(-4px) scale(1.07);box-shadow:0 0 0 1px var(--r26-hair),0 14px 24px -8px rgba(16,41,44,.42);z-index:2}
+.r26-face.r26-face--more{background:var(--bg-soft,#fbfbfb);color:var(--kale-700,#10292C);font-size:.84rem;letter-spacing:-.01em}
+.r26-face.r26-face--ghost{background:transparent;border:1.5px dashed var(--r26-hair);box-shadow:none}
+.r26-face.r26-face--ghost:hover{transform:none;box-shadow:none}
+@media(max-width:840px){.r26-map__grid{grid-template-columns:1fr;text-align:center}.r26-map__copy p{margin-left:auto;margin-right:auto}.r26-faces-grid{justify-content:center}.r26-map__art{order:-1}}
+
+/* r26 sections self-reveal via CSS — never depend on the legacy JS
+   IntersectionObserver (which leaves [data-anim] stuck at opacity:0 if JS
+   is slow/blocked). Higher specificity than the base [data-anim] rule. */
+@media (prefers-reduced-motion:no-preference){
+  .r26-stats [data-anim], .r26-map [data-anim]{opacity:0;transform:translateY(20px);animation:r26rise .8s var(--r26-e) forwards}
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SECTIONS v2 — button hover · curved surfaces · cut-out images · cards
+═══════════════════════════════════════════════════════════════ */
+
+/* ---- Buttons: drop the dated shimmer sweep; clean lift + arrow nudge ---- */
+.btn::after{content:none}
+.btn{overflow:visible}
+.btn .btn__arrow,.btn>svg{transition:transform .22s var(--r26-e)}
+.btn:hover .btn__arrow,.btn:hover>svg{transform:translateX(3px)}
+/* Apple "tinted" secondary: gray pill, borderless */
+.btn--white{background:var(--r26-gray);border-color:transparent;color:var(--r26-ink)}
+.btn--white:hover{background:#ebebef;border-color:transparent;color:var(--r26-ink);box-shadow:none}
+.btn--ghostlight:hover{background:#fff;color:var(--r26-ink);border-color:#fff}
+
+/* ---- Apple bento surfaces: gray panel on white, no border, no shadow ---- */
+.r26-surface{position:relative;background:var(--r26-gray);border:0;
+  border-radius:clamp(22px,3vw,34px);box-shadow:none;padding:clamp(1.9rem,4vw,3.4rem)}
+.r26-surface--tint{background:var(--r26-gray)}
+
+/* ---- Cut-out image system: invisible until a transparent PNG loads at its path ---- */
+.r26-stage{position:relative}
+.r26-cutout{position:absolute;display:none;height:auto;pointer-events:none;filter:drop-shadow(0 26px 30px rgba(16,41,44,.30))}
+.r26-cutout.is-loaded{display:block;animation:r26rise .7s var(--r26-e) both}
+.r26-cutout--lead {width:52%;left:1%;  bottom:0;   max-width:300px;z-index:2}
+.r26-cutout--mid  {width:40%;left:33%; bottom:-2%; max-width:240px;z-index:3}
+.r26-cutout--trail{width:34%;right:0;  bottom:8%;  max-width:210px;z-index:1}
+.r26-band__cutout {width:30%;right:3%; bottom:0;   max-width:290px;z-index:1}
+@media(max-width:840px){.r26-cutout--trail{display:none}}
+@media(max-width:760px){.r26-band__cutout{display:none}}
+.r26-map__art{border-radius:clamp(20px,3vw,32px)}
+
+/* ---- Story cards (replaces the over-tall scrollytelling stack) ---- */
+.r26-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(1.1rem,2.4vw,1.8rem)}
+@media(max-width:900px){.r26-cards{grid-template-columns:1fr;max-width:440px;margin-inline:auto}}
+.r26-card{position:relative;display:flex;flex-direction:column;background:#fff;border:1px solid var(--r26-hair);
+  border-radius:20px;padding:1.9rem 1.6rem;transition:transform .35s var(--r26-e),box-shadow .35s var(--r26-e)}
+.r26-card:hover{transform:translateY(-4px);box-shadow:0 18px 44px rgba(16,41,44,.10)}
+.r26-card__ico{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:var(--emerald-50,#effaf0);color:var(--r26-em);margin-bottom:1.1rem}
+.r26-card__ico svg{width:23px;height:23px}
+.r26-card__step{font-family:var(--font-mono,monospace);font-size:.72rem;font-weight:700;letter-spacing:.14em;color:var(--r26-em);text-transform:uppercase}
+.r26-card__title{font-family:var(--font-heading);font-weight:700;color:var(--r26-ink);font-size:1.3rem;line-height:1.18;letter-spacing:-.01em;margin:.35rem 0 .9rem}
+.r26-card__feat{list-style:none;margin:0 0 1.5rem;padding:0;display:flex;flex-direction:column;gap:.6rem}
+.r26-card__feat li{display:flex;gap:.55rem;align-items:flex-start;font-size:.93rem;color:var(--neutral-600,#4a5256);line-height:1.45}
+.r26-card__feat svg{flex:none;width:17px;height:17px;margin-top:2px;color:var(--r26-em)}
+.r26-card__link{margin-top:auto;display:inline-flex;align-items:center;gap:.4rem;font-weight:600;color:var(--r26-em);font-size:.92rem}
+.r26-card__link svg{width:15px;height:15px;transition:transform .22s var(--r26-e)}
+.r26-card:hover .r26-card__link svg{transform:translateX(3px)}
+
+/* ---- Location chip strip (replaces the Splide marquee) ---- */
+.r26-strip{display:flex;flex-wrap:wrap;gap:.55rem;justify-content:center;max-width:900px;margin:0 auto}
+.r26-chip2{display:inline-flex;align-items:center;gap:.45rem;padding:.5rem .95rem;border-radius:999px;background:var(--r26-gray);border:0;font-size:.85rem;font-weight:500;color:var(--r26-ink)}
+.r26-chip2__dot{width:6px;height:6px;border-radius:50%;background:var(--r26-em);flex:none}
+
+/* ---- Legacy editions ---- */
+.r26-legacy__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.25rem}
+.r26-edition{display:block;background:#fff;border:1px solid rgba(16,41,44,.07);border-radius:20px;overflow:hidden;transition:transform .35s var(--r26-e),box-shadow .35s var(--r26-e)}
+.r26-edition:hover{transform:translateY(-5px);box-shadow:0 22px 46px rgba(16,41,44,.12)}
+.r26-edition__cover{height:130px;background:var(--kale-700) center/cover;position:relative}
+.r26-edition__yr{position:absolute;left:14px;bottom:10px;color:#fff;font-family:var(--font-heading);font-style:italic;font-weight:700;font-size:1.4rem;text-shadow:0 1px 8px rgba(0,0,0,.4)}
+.r26-edition__body{padding:1.05rem 1.2rem 1.3rem}
+.r26-edition__title{font-family:var(--font-heading);font-weight:700;font-size:1.1rem;color:var(--r26-ink);margin:0 0 .3rem}
+.r26-edition__meta{font-size:.85rem;color:var(--neutral-600,#4a5256)}
+
+/* ════════════════════════════════════════════════════════════════
+   FLOATING BUTTONS — one clean stack (was 3 overlapping in one corner)
+═══════════════════════════════════════════════════════════════ */
+.community-fab{display:none}                 /* redundant with the nav → remove clutter */
+.ai-assistant{right:clamp(1rem,3.2vw,1.5rem);bottom:clamp(1rem,3.2vw,1.5rem)}
+.ai-assistant__fab-glow{animation:none;opacity:0}   /* calm the spinning conic glow */
+.ai-assistant__fab{padding:.7rem 1.15rem;box-shadow:0 14px 28px -12px rgba(16,41,44,.5)}
+#backToTop{right:clamp(1rem,3.2vw,1.5rem);bottom:calc(clamp(1rem,3.2vw,1.5rem) + 60px);z-index:var(--z-fab)}
+@media(max-width:860px){
+  .ai-assistant{bottom:calc(env(safe-area-inset-bottom,0px) + 80px)}   /* clear the bottom tab bar */
+  #backToTop{bottom:calc(env(safe-area-inset-bottom,0px) + 142px)}
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PARTNER PAGE
+═══════════════════════════════════════════════════════════════ */
+.r26-tabs{position:sticky;top:var(--header-h,80px);z-index:20;background:rgba(255,255,255,.88);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);border-bottom:1px solid var(--r26-hair)}
+.r26-tabs__row{display:flex;gap:.25rem;overflow-x:auto;scrollbar-width:none;max-width:var(--wrap-max,1280px);margin:0 auto;padding:0 clamp(1.25rem,4vw,2.5rem)}
+.r26-tabs__row::-webkit-scrollbar{display:none}
+.r26-tab{padding:1rem 1.1rem;font-family:var(--font-body);font-size:.92rem;font-weight:600;white-space:nowrap;border:0;background:none;cursor:pointer;color:var(--neutral-500,#717a7e);border-bottom:2px solid transparent;transition:color .2s,border-color .2s}
+.r26-tab:hover{color:var(--r26-ink)}
+.r26-tab.is-active{color:var(--r26-ink);border-bottom-color:var(--r26-em)}
+.r26-pricegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:1rem}
+.r26-price{position:relative;display:flex;flex-direction:column;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:1.6rem 1.4rem;transition:transform .3s var(--r26-e),box-shadow .3s var(--r26-e),border-color .3s}
+.r26-price:hover{transform:translateY(-5px);box-shadow:0 22px 46px rgba(16,41,44,.10);border-color:rgba(35,123,34,.28)}
+.r26-price--featured{border-color:var(--r26-em);box-shadow:0 0 0 1px var(--r26-em)}
+.r26-price__amt{font-family:var(--font-mono,monospace);font-size:1.55rem;font-weight:700;color:var(--r26-ink);letter-spacing:-.02em}
+.r26-price__tier{font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--r26-em);margin:.2rem 0 .9rem}
+.r26-price__big{font-family:var(--font-heading);font-weight:700;font-size:2.3rem;color:var(--r26-em);line-height:1}
+.r26-price__note{font-size:.8rem;color:var(--neutral-500,#717a7e);margin:.4rem 0 1.2rem;line-height:1.5}
+.r26-badge{position:absolute;top:1rem;right:1rem;font-size:.6rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--r26-em);color:#fff;padding:.25rem .55rem;border-radius:999px}
+.r26-prow{display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:1.05rem 1.3rem;transition:border-color .25s,box-shadow .25s}
+.r26-prow:hover{border-color:rgba(35,123,34,.3);box-shadow:0 12px 30px rgba(16,41,44,.07)}
+.r26-prow--dark{background:var(--r26-ink);color:#fff;border-color:var(--r26-ink)}
+.r26-prow__price{font-family:var(--font-mono,monospace);font-weight:700;font-size:1.3rem;color:var(--r26-ink)}
+.r26-prow--dark .r26-prow__price{color:var(--gold-300,#fbc329)}
+.r26-note{border-radius:16px;padding:1.05rem 1.4rem;font-size:.9rem;line-height:1.55}
+.r26-note--emerald{background:var(--emerald-50,#effaf0);border:1px solid var(--emerald-200,#a6e3aa);color:var(--emerald-800,#144a13)}
+.r26-note--gold{background:#fffbeb;border:1px solid #fde68a;color:#854d0e}
+
+/* ════════════════════════════════════════════════════════════════
+   MODULAR SECTION PRIMITIVES — reusable header/heading/lead
+   (replaces repeated inline-style section headers across templates)
+═══════════════════════════════════════════════════════════════ */
+.r26-head{max-width:44rem;margin:0 0 2.4rem}
+.r26-head--center{margin-left:auto;margin-right:auto;text-align:center}
+/* Apple-scale sans headings, tracking-tight; accent = color, not italics.
+   The selector list pulls every r26 section heading onto the same voice. */
+.r26-h2,.r26-stats__head h2,.r26-map__copy h2,.r26-band__title,.r26-empty h3{
+  font-family:var(--font-body);font-weight:700;color:var(--r26-ink);
+  font-size:clamp(1.9rem,3.8vw,3.1rem);line-height:1.08;letter-spacing:-.028em;margin:0 0 .85rem}
+.r26-h2 em,.r26-stats__head h2 em,.r26-map__copy h2 em,.r26-band__title em{font-style:normal;color:var(--r26-em)}
+.r26-empty h3{font-size:1.35rem}
+/* dark band: white title, light-emerald accent (the shared heading rule paints ink) */
+.r26-band__title{color:#fff}
+.r26-band__title em{color:var(--emerald-300,#7FC87C)}
+/* on gray bento panels the secondary pill must be white to keep affordance */
+.r26-surface .btn--white{background:#fff}
+.r26-surface .btn--white:hover{background:#fff;box-shadow:0 8px 22px rgba(16,41,44,.10)}
+/* card + edition titles join the sans voice */
+.r26-card__title,.r26-edition__title{font-family:var(--font-body);letter-spacing:-.015em}
+
+/* ════════════════════════════════════════════════════════════════
+   MEDIA CARDS — events & blog (image top, Apple hairline body)
+═══════════════════════════════════════════════════════════════ */
+.r26-mediagrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:clamp(1rem,2.2vw,1.6rem)}
+.r26-mcard{display:flex;flex-direction:column;background:#fff;border:1px solid var(--r26-hair);border-radius:20px;
+  overflow:hidden;transition:transform .35s var(--r26-e),box-shadow .35s var(--r26-e)}
+.r26-mcard:hover{transform:translateY(-4px);box-shadow:0 18px 44px rgba(16,41,44,.10)}
+.r26-mcard__media{position:relative;aspect-ratio:16/9;background:linear-gradient(135deg,var(--kale-700,#10292C),#1e4d52);overflow:hidden}
+.r26-mcard__media img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .6s var(--r26-e)}
+.r26-mcard:hover .r26-mcard__media img{transform:scale(1.04)}
+.r26-mcard__media--empty::after{content:"Africa GATES";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-heading);font-style:italic;font-weight:700;font-size:1.3rem;color:rgba(255,255,255,.5)}
+.r26-mcard__badge{position:absolute;top:.85rem;left:.85rem;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+  color:var(--r26-ink);font-size:.72rem;font-weight:700;padding:.3rem .7rem;border-radius:999px}
+.r26-mcard__body{display:flex;flex-direction:column;flex:1;padding:1.2rem 1.3rem 1.4rem}
+.r26-mcard__meta{font-size:.78rem;font-weight:600;color:var(--r26-em);margin-bottom:.4rem}
+.r26-mcard__title{font-family:var(--font-body);font-weight:700;font-size:1.12rem;line-height:1.25;letter-spacing:-.015em;color:var(--r26-ink);margin:0 0 .45rem}
+.r26-mcard__desc{font-size:.9rem;color:var(--r26-mute);line-height:1.5;margin:0 0 1rem}
+.r26-mcard__foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;font-size:.82rem;color:var(--r26-mute)}
+.r26-mcard__link{display:inline-flex;align-items:center;gap:.35rem;font-weight:600;color:var(--r26-em);font-size:.88rem}
+.r26-mcard__link svg{width:14px;height:14px;transition:transform .22s var(--r26-e)}
+.r26-mcard:hover .r26-mcard__link svg{transform:translateX(3px)}
+/* event date block */
+.r26-when{display:flex;align-items:center;gap:.8rem;margin-bottom:.6rem}
+.r26-when__cal{flex:none;width:52px;border-radius:12px;border:1px solid var(--r26-hair);overflow:hidden;text-align:center;background:#fff}
+.r26-when__mon{display:block;background:var(--r26-em);color:#fff;font-size:.62rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 0}
+.r26-when__day{display:block;font-weight:700;font-size:1.25rem;color:var(--r26-ink);padding:2px 0 4px}
+
+/* ════════════════════════════════════════════════════════════════
+   ARTICLE — blog post reading view
+═══════════════════════════════════════════════════════════════ */
+.r26-article{max-width:680px;margin:0 auto;padding-block:clamp(2rem,5vw,3.5rem)}
+.r26-article__kicker{font-size:.85rem;font-weight:600;color:var(--r26-em);margin:0 0 .8rem}
+.r26-article h1{font-family:var(--font-body);font-weight:700;color:var(--r26-ink);font-size:clamp(1.9rem,4.2vw,3rem);line-height:1.1;letter-spacing:-.028em;margin:0 0 1rem}
+.r26-article__meta{font-size:.88rem;color:var(--r26-mute);margin-bottom:1.8rem}
+.r26-article__cover{border-radius:20px;overflow:hidden;margin:0 0 2rem;aspect-ratio:16/8;background:var(--r26-gray)}
+.r26-article__cover img{width:100%;height:100%;object-fit:cover;display:block}
+.r26-prose p{color:#3c4543;font-size:1.08rem;line-height:1.7;margin:0 0 1.3rem;max-width:none}
+.r26-prose h2{font-family:var(--font-body);font-weight:700;color:var(--r26-ink);font-size:1.45rem;letter-spacing:-.02em;margin:2.1rem 0 .8rem}
+.r26-prose a{color:var(--r26-em);font-weight:600}
+
+/* ════════════════════════════════════════════════════════════════
+   VOTING PAGE — stepper · programme selector · sticky cat bar · ballot
+═══════════════════════════════════════════════════════════════ */
+.r26-stepper{display:flex;gap:.5rem;justify-content:center;list-style:none;margin:0 auto 2.4rem;padding:0;flex-wrap:wrap}
+.r26-stepper li{display:inline-flex;align-items:center;gap:.5rem;font-size:.9rem;font-weight:600;color:var(--r26-mute);padding:.45rem .95rem;border-radius:999px;background:var(--r26-gray)}
+.r26-stepper li span{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#fff;color:var(--r26-mute);font-size:.78rem;border:1px solid var(--r26-hair)}
+.r26-stepper li.is-current{color:var(--r26-ink);background:#fff;box-shadow:0 0 0 1px var(--r26-em) inset}
+.r26-stepper li.is-current span,.r26-stepper li.is-done span{background:var(--r26-em);color:#fff;border-color:var(--r26-em)}
+.r26-stepper li.is-done{color:var(--r26-em)}
+.r26-progsel{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1rem}
+.r26-progcard{display:flex;flex-direction:column;gap:.55rem;text-align:left;background:#fff;border:1px solid var(--r26-hair);border-radius:18px;padding:1.4rem;cursor:pointer;transition:transform .25s var(--r26-e),box-shadow .25s var(--r26-e),border-color .2s}
+.r26-progcard:hover{transform:translateY(-3px);box-shadow:0 16px 38px rgba(16,41,44,.09)}
+.r26-progcard.is-active{border-color:var(--r26-em);box-shadow:0 0 0 1px var(--r26-em)}
+.r26-progcard__top{display:flex;align-items:center;justify-content:space-between;gap:.6rem}
+.r26-progcard__ico{font-size:1.8rem;line-height:1}
+.r26-progcard__title{font-family:var(--font-body);font-weight:700;font-size:1.1rem;letter-spacing:-.015em;color:var(--r26-ink);margin:0}
+.r26-progcard__desc{font-size:.88rem;color:var(--r26-mute);line-height:1.45;margin:0}
+.r26-votebar{position:sticky;top:calc(var(--header-h,80px) + 8px);z-index:15;background:rgba(255,255,255,.9);backdrop-filter:blur(12px) saturate(160%);-webkit-backdrop-filter:blur(12px) saturate(160%);border:1px solid var(--r26-hair);border-radius:16px;padding:.5rem;margin-bottom:1.4rem;display:flex;gap:.35rem;overflow-x:auto;scrollbar-width:none}
+.r26-votebar::-webkit-scrollbar{display:none}
+.r26-cattab{flex:none;border:0;background:none;cursor:pointer;font-family:var(--font-body);font-size:.9rem;font-weight:600;color:var(--r26-mute);padding:.5rem .9rem;border-radius:10px;white-space:nowrap;transition:background .18s,color .18s}
+.r26-cattab:hover{color:var(--r26-ink);background:var(--r26-gray)}
+.r26-cattab.is-active{color:#fff;background:var(--r26-em)}
+.r26-cattab span{opacity:.6;margin-left:.3rem;font-variant-numeric:tabular-nums}
+.r26-cattab.is-active span{opacity:.85}
+.r26-ballot{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.6rem}
+.r26-ballot__row{display:flex;align-items:center;gap:1rem;background:#fff;border:1px solid var(--r26-hair);border-radius:16px;padding:.85rem 1.1rem;transition:border-color .2s,box-shadow .25s var(--r26-e),transform .25s var(--r26-e)}
+.r26-ballot__row:hover{border-color:rgba(35,123,34,.3);box-shadow:0 12px 30px rgba(16,41,44,.08);transform:translateY(-2px)}
+.r26-ballot__rank{flex:none;width:26px;text-align:center;font-family:var(--font-mono,monospace);font-weight:700;color:var(--r26-mute)}
+.r26-ballot__av{flex:none;width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--kale-700,#10292C),#1e4d52)}
+.r26-ballot__who{flex:1;min-width:0}
+.r26-ballot__who strong{display:block;font-size:1rem;font-weight:700;color:var(--r26-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r26-ballot__who small{display:block;font-size:.82rem;color:var(--r26-mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.r26-ballot__votes{flex:none;text-align:right;font-size:.78rem;color:var(--r26-mute);text-transform:uppercase;letter-spacing:.04em}
+.r26-ballot__votes b{display:block;font-family:var(--font-mono,monospace);font-size:1.05rem;color:var(--r26-em);text-transform:none;letter-spacing:0}
+@media(max-width:560px){.r26-ballot__votes{display:none}.r26-ballot__row{gap:.75rem;padding:.75rem .9rem}}
+.r26-h3{font-family:var(--font-body);font-weight:700;color:var(--r26-ink);font-size:1.2rem;letter-spacing:-.015em;margin:0 0 1.1rem}
+.r26-lead,.r26-stats__head p,.r26-map__copy>p{color:var(--r26-mute);font-size:1.09rem;line-height:1.55;margin:0}
+.r26-head--center .r26-lead{max-width:46ch;margin-left:auto;margin-right:auto}
+
+/* ════════════════════════════════════════════════════════════════
+   RESPONSIVE — kill mobile horizontal overflow; fit hero type
+═══════════════════════════════════════════════════════════════ */
+/* Contain horizontal overflow on <main> (a sibling of the footer) rather than on
+   html/body — an overflow-clip ancestor would break the footer band's position:sticky. */
+html,body{overflow-x:visible}
+.main-wrapper{overflow-x:clip}
+.r26-hl{overflow-wrap:break-word}
+@media (max-width:768px){
+  .r26-hl{font-size:clamp(2rem,8.5vw,3rem)}
+  .r26-hero{padding-block:2.25rem 2.75rem}
+  .r26-hero__wm{display:none}
+  .r26-cutout.is-loaded{display:none}
+  .r26-eyebrow{display:flex;flex-wrap:wrap;align-items:center;letter-spacing:.1em;font-size:.72rem}
+  .r26-head--center .r26-eyebrow,.r26-hero .r26-eyebrow,.r26-stats .r26-eyebrow{justify-content:center}
+  .r26-h2{font-size:clamp(1.55rem,6vw,2rem)}
+  .r26-surface{padding:1.6rem 1.2rem}
+  .r26-band__inner{padding:2rem 1.4rem}
+}
+
+/* ════════════════════════════════════════════════════════════════
+   NAV — Amplitude island: floating rounded capsule, soft-pill triggers,
+   full-width text-only mega panel. Scoped specificity wins on cascade order.
+═══════════════════════════════════════════════════════════════ */
+.afg-nav{position:sticky;top:clamp(6px,1vw,12px);height:auto;margin:clamp(6px,1vw,12px) clamp(8px,1.6vw,26px) 0;
+  background:rgba(255,255,255,.94);backdrop-filter:saturate(160%) blur(16px);-webkit-backdrop-filter:saturate(160%) blur(16px);
+  border:1px solid rgba(16,41,44,.05);border-radius:22px;
+  box-shadow:0 6px 24px -12px rgba(16,41,44,.16);transition:box-shadow .3s ease,border-radius .25s ease,top .3s ease}
+.afg-nav.is-scrolled{background:rgba(255,255,255,.97);box-shadow:0 14px 44px -16px rgba(16,41,44,.24);top:clamp(10px,1.5vw,18px);height:auto}
+/* comfortable vertical breathing room — supersedes the rigid 80px row height so the
+   island never feels cramped, especially once scrolled & detached from the bar. */
+/* row padding governs nav height (professional.css's fixed 72/60px is overridden to
+   height:auto above), and it stays consistent on scroll — no cramped shrink. */
+.afg-nav .afg-nav__row{height:auto;min-height:0;padding-block:clamp(1.2rem,1.55vw,1.65rem)}
+.afg-nav.is-mega-open{border-bottom-left-radius:0;border-bottom-right-radius:0;box-shadow:0 30px 80px -20px rgba(16,41,44,.28)}
+.afg-nav .afg-brand__name{font-family:var(--font-heading);font-weight:700;color:var(--kale-700)}
+.afg-nav .afg-brand__tag,.afg-nav.is-scrolled .afg-brand__tag{color:var(--emerald-600);letter-spacing:.34em;font-weight:700}
+/* calm the spinning corona glow on the logo */
+/* kill the legacy kente stripe (::before) + gold-dot/glow (::after) on the mark */
+.afg-nav .afg-brand__mark::before,.afg-nav .afg-brand__mark::after,.afg-brand:hover .afg-brand__mark::after{display:none;animation:none;opacity:0;content:none}
+.afg-nav .afg-brand:hover .afg-brand__mark{transform:none}
+/* triggers: Amplitude soft-pill highlight on hover/open/active */
+.afg-nav .afg-link{position:relative;background:none;color:var(--kale-700);font-weight:600;font-size:.95rem;
+  padding:.55rem .95rem;border-radius:999px;transition:background .2s ease,color .2s ease}
+.afg-nav .afg-link:hover{background:rgba(16,41,44,.06);color:var(--kale-700)}
+.afg-nav .afg-link.is-active{color:var(--emerald-700)}
+.afg-nav .afg-mega-wrap.is-open .afg-link--toggle{background:rgba(16,41,44,.07);color:var(--kale-700)}
+/* full-width mega sheet: spans the island, merges with it when open */
+.afg-mega-wrap{position:static}
+.afg-mega{position:absolute;left:0;right:0;top:100%;width:auto;min-width:0;transform:none;
+  background:#fff;border:1px solid rgba(16,41,44,.05);border-top:0;
+  border-radius:0 0 22px 22px;box-shadow:0 44px 90px -26px rgba(16,41,44,.32);
+  padding:clamp(1.4rem,2.6vw,2.4rem) clamp(1.4rem,3vw,2.8rem);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(1.2rem,2.6vw,2.6rem)}
+.afg-mega__col{display:flex;flex-direction:column;gap:.35rem}
+.afg-mega__hd{font-family:var(--font-body);font-size:.82rem;font-weight:500;color:var(--neutral-400,#a1a6a9);
+  letter-spacing:.01em;margin:0 0 .55rem;padding:0 .65rem}
+.afg-mega__link{display:block;padding:.55rem .65rem;border-radius:12px;transition:background .18s ease}
+.afg-mega__link:hover{transform:none;background:rgba(16,41,44,.045)}
+.afg-mega__link.is-active{background:var(--emerald-50,#effaf0)}
+/* legacy open-state re-applies translateX(-50%) at higher specificity — neutralise */
+.afg-mega-wrap.is-open .afg-mega{transform:none}
+.afg-mega__txt strong{display:block;font-size:.98rem;font-weight:700;color:var(--kale-700);letter-spacing:-.01em}
+.afg-mega__txt small{display:block;font-size:.8rem;color:var(--neutral-500,#717a7e);margin-top:2px;line-height:1.45}
+/* staggered column entrance — the Amplitude left-to-right fade */
+@media (prefers-reduced-motion:no-preference){
+  .afg-mega-wrap.is-open .afg-mega__col{opacity:0;transform:translateY(10px);animation:r26rise .5s var(--r26-e) forwards}
+  .afg-mega-wrap.is-open .afg-mega__col:nth-child(2){animation-delay:.07s}
+  .afg-mega-wrap.is-open .afg-mega__col:nth-child(3){animation-delay:.14s}
+}
+
+/* Mobile nav ≤900: swap desktop links + mega panels for the drawer/tab bar.
+   The mega panels are position:absolute ~640px wide; left visible on narrow
+   screens they overflow and force the layout viewport wider (breaking every
+   vw/clamp size). Hiding them here is the real fix for the mobile overflow. */
+@media (max-width:900px){
+  .afg-links{display:none}
+  .afg-mega-wrap{display:none}
+  .afg-toggle{display:inline-flex}
+  .afg-partner{display:none}
+}
+/* Phones: the bottom tab bar is the nav, so the header is logo-only. Center the
+   brand and slim the row so it reads as an intentional app header, not a
+   half-empty bar with the wordmark stranded on the left. */
+@media (max-width:767px){
+  .afg-nav .afg-nav__row{justify-content:center;padding-block:.7rem}
+  .afg-nav .afg-cta{display:none}
+}
+
+/* ════════════════════════════════════════════════════════════════
+   REAL LOGO + FOOTER CINEMA (Amplitude-style bottom wordmark as video)
+═══════════════════════════════════════════════════════════════ */
+/* Real logo badge is self-contained (white circle + Africa + wordmark) —
+   no extra ring/background, just let the artwork sit. */
+.afg-nav .afg-brand__mark{background:none;border:0;box-shadow:none;overflow:visible;width:44px;height:44px}
+.afg-nav .afg-brand__mark img{width:44px;height:44px;object-fit:contain}
+.ftr__brand-mark .ftr__brand-logo{width:46px;height:46px;background:none;border-radius:0;padding:0;flex:none}
+
+/* ── Unified footer surface: the card (links + meta) and the cinematic band share
+   ONE continuous background, so there is NO seam between them. The band is pinned
+   beneath the card and REVEALED as the card scrolls up off it (Amplitude-style). ── */
+:root{--ftr-bg:#081617;--ftr-band-h:clamp(168px,21.5vw,360px)}
+.ftr{position:relative;background:var(--ftr-bg);color:rgba(255,255,255,.85);margin-top:4rem;padding:0 0 var(--ftr-band-h)}
+.ftr__card{position:relative;z-index:1;background:var(--ftr-bg);padding:clamp(3rem,5vw,4.5rem) 0 2.25rem}
+/* decluttered to brand + 3 columns — keep the brand wider, the link columns even */
+.ftr__grid{grid-template-columns:1.6fr repeat(3,1fr);gap:clamp(1.6rem,3vw,3rem);border-bottom:0;padding-bottom:0}
+@media(max-width:900px){.ftr__grid{grid-template-columns:1fr 1fr}.ftr__brand{grid-column:1 / -1}}
+/* Amplitude footer anatomy: bold link columns under muted headings */
+.ftr__col h4{color:rgba(255,255,255,.42);-webkit-text-fill-color:rgba(255,255,255,.42);font-family:var(--font-body);font-size:.82rem;font-weight:500;letter-spacing:.01em;text-transform:none}
+.ftr__col ul li a{font-weight:700;font-size:.95rem;color:rgba(255,255,255,.92);transition:color .18s ease}
+.ftr__col ul li a:hover{color:var(--emerald-300,#7FC87C)}
+.ftr__col ul li{margin-bottom:.85rem}
+
+/* meta row — socials left · legal links + copyright right */
+.ftr__meta{display:flex;align-items:flex-start;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;
+  margin-top:2.5rem;padding-top:1.75rem;border-top:1px solid rgba(255,255,255,.08)}
+.ftr__meta-right{margin-left:auto;text-align:right;display:flex;flex-direction:column;gap:.55rem}
+.ftr__meta-links{display:flex;gap:1.4rem;justify-content:flex-end;flex-wrap:wrap}
+.ftr__meta-links a{font-weight:700;font-size:.85rem;color:rgba(255,255,255,.9)}
+.ftr__meta-links a:hover{color:var(--emerald-300,#7FC87C)}
+.ftr__meta-copy{font-size:.8rem;color:rgba(255,255,255,.45)}
+.ftr__meta-copy a{color:rgba(255,255,255,.7)}
+@media(max-width:640px){.ftr__meta-right{margin-left:0;text-align:left}.ftr__meta-links{justify-content:flex-start}}
+
+/* giant edge-to-edge gradient wordmark, pinned beneath the card and revealed on scroll.
+   sticky bottom:0 holds it at the viewport floor; the negative margin makes it underlap
+   the card, and .ftr's padding-bottom gives the card room to scroll up off it. */
+.ftr-cinema{position:absolute;left:0;right:0;bottom:0;z-index:0;height:var(--ftr-band-h);
+  overflow:hidden;isolation:isolate;background:var(--ftr-bg);
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  padding:0 .35rem clamp(.15rem,.9vw,.7rem);gap:.35rem}
+/* pinned to the viewport floor during the reveal window so the card scrolls up off
+   it; JS toggles this only once the card's base reaches the floor (no mid-page bleed). */
+.ftr-cinema.is-pinned{position:fixed}
+/* faint centered brand glow — an accent, NOT a tonal division */
+.ftr-cinema::before{content:"";position:absolute;z-index:0;left:50%;bottom:4%;width:80%;height:128%;
+  transform:translateX(-50%);pointer-events:none;
+  background:radial-gradient(48% 48% at 50% 58%, rgba(127,200,124,.16), rgba(201,162,39,.06) 50%, transparent 72%)}
+/* a small label so the giant word reads as intentional, not stray */
+.ftr-cinema__label{position:relative;z-index:1;font-family:var(--font-body);font-size:.78rem;font-weight:600;
+  letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.42)}
+/* readable soft-white base gradient that DISSOLVES to transparent at its foot, so
+   the wordmark melts into the dark field where it bleeds / gets overlapped — never
+   a hard slice. The moving shine is a separate blended overlay (below) so it can
+   never break the text's clip. */
+.ftr-cinema__word{position:relative;z-index:1;font-family:var(--font-heading);font-weight:800;
+  font-size:clamp(2.8rem,16.2vw,22rem);line-height:.82;letter-spacing:-.045em;white-space:nowrap;user-select:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.9) 12%,rgba(255,255,255,.52) 60%,rgba(255,255,255,.14) 99%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.02em}
+.ftr-cinema__video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;z-index:2}
+.ftr-cinema__video.is-playing{display:block}
+/* light-sweep: a soft diagonal glare that glides across the band and catches the
+   wordmark. mix-blend-mode means it lightens whatever it passes over without
+   touching background-clip:text; contained by the band's isolation:isolate. */
+.ftr-cinema::after{content:"";position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:linear-gradient(104deg,transparent 41%,rgba(255,255,255,.62) 50%,transparent 59%);
+  mix-blend-mode:overlay;transform:translateX(-62%);opacity:0}
+@media (prefers-reduced-motion:no-preference){
+  .ftr-cinema::before{animation:ftr-bloom 9s ease-in-out infinite}
+  .ftr-cinema::after{animation:ftr-sweep 7.5s ease-in-out infinite}
+}
+@keyframes ftr-bloom{0%,100%{opacity:.7;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.12)}}
+@keyframes ftr-sweep{0%{transform:translateX(-62%);opacity:0}10%{opacity:1}48%{opacity:1}58%,100%{transform:translateX(62%);opacity:0}}
+/* mobile: lift the wordmark above the fixed tab bar (band still pinned at bottom:0) */
+@media (max-width:900px){
+  .ftr-cinema{padding-bottom:calc(58px + env(safe-area-inset-bottom,0px) + .4rem)}
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SITE-WIDE WOW — scroll-reveal for every section (all pages).
+   JS adds .io-pre only to below-fold sections, so content can never
+   be stranded hidden; transform/opacity only; reduced-motion exempt.
+═══════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion:no-preference){
+  .io-pre{opacity:0;transform:translateY(28px)}
+  .io-in{opacity:1;transform:translateY(0);transition:opacity .75s var(--r26-e),transform .75s var(--r26-e)}
+}
+
+/* ════════════════════════════════════════════════════════════════
+   WOW — tasteful, GPU-friendly motion (transform/opacity only)
+═══════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion:no-preference){
+  /* living gradient drift behind the dark statement band + footer cinema */
+  .r26-band__glow{animation:r26-drift 16s var(--r26-e) infinite alternate;will-change:transform}
+  @keyframes r26-drift{from{transform:translate3d(-4%,0,0) scale(1)}to{transform:translate3d(4%,0,0) scale(1.1)}}
+  /* gentle float on the living-map continent */
+  .r26-map__art img{animation:r26-float 9s ease-in-out infinite}
+  @keyframes r26-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  /* sheen that sweeps the live chip dot ring once it enters */
+  .r26-chip__dot::after{will-change:transform,opacity}
+}

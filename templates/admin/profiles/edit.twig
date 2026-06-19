@@ -1,0 +1,66 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Profiles</small>{% endblock %}
+{% block topbar_title %}{{ profile.display_name }}{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/registry/{{ profile.slug }}" target="_blank">View public →</a>
+  <a class="ad-btn" href="/admin/profiles">← Back</a>
+{% endblock %}
+
+{% block content %}
+<form method="post" action="/admin/profiles/{{ profile.id }}" class="ad-form">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Identity</div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <div class="row">
+        <div><label>Display name</label><input type="text" name="display_name" value="{{ profile.display_name }}" required></div>
+        <div><label>Category</label><input type="text" name="category" value="{{ profile.category }}"></div>
+      </div>
+      <div class="row">
+        <div><label>Type</label>
+          <select name="profile_type">
+            {% for o in ['individual','business','organisation'] %}<option value="{{ o }}" {% if profile.profile_type == o %}selected{% endif %}>{{ o|capitalize }}</option>{% endfor %}
+          </select>
+        </div>
+        <div><label>Country (ISO-2)</label><input type="text" name="country_code" value="{{ profile.country_code }}" maxlength="2"></div>
+      </div>
+      <div><label>Bio</label><textarea name="bio" rows="4">{{ profile.bio }}</textarea></div>
+      <div class="row">
+        <div><label>Website</label><input type="url" name="website" value="{{ profile.website }}"></div>
+        <div><label>Instagram handle</label><input type="text" name="instagram_handle" value="{{ profile.instagram_handle }}"></div>
+      </div>
+      <div><label>Twitter / X handle</label><input type="text" name="twitter_handle" value="{{ profile.twitter_handle }}"></div>
+    </div>
+  </div></div>
+
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">CPI & Status</div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <div class="row">
+        <div><label>CPI score (0–1000)</label><input type="number" name="cpi_score" min="0" max="1000" value="{{ profile.cpi_score }}"></div>
+        <div><label>CPI tier</label>
+          <select name="cpi_tier">
+            {% for t in ['diamond','platinum','gold','silver','bronze','unranked'] %}<option value="{{ t }}" {% if profile.cpi_tier == t %}selected{% endif %}>{{ t|capitalize }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div><label>Status</label>
+          <select name="status">
+            {% for s in ['pending','approved','suspended','rejected'] %}<option value="{{ s }}" {% if profile.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}
+          </select>
+        </div>
+        <div><label>Verification</label>
+          <select name="verification_tier">
+            {% for v in ['none','basic','verified','premium'] %}<option value="{{ v }}" {% if profile.verification_tier == v %}selected{% endif %}>{{ v|capitalize }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div><label>Completeness %</label><input type="number" name="completeness_pct" min="0" max="100" value="{{ profile.completeness_pct }}"></div>
+    </div>
+  </div></div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <a class="ad-btn" href="/admin/profiles">Cancel</a>
+    <button class="ad-btn ad-btn--primary" type="submit">Save changes</button>
+  </div>
+</form>
+{% endblock %}

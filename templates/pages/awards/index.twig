@@ -1,0 +1,108 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+{% set awards = awards_data|default([]) %}
+
+{# ════ HERO ════ #}
+<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
+  <div class="aurora aurora--soft" aria-hidden="true"></div>
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Recognition engine · 2026 Cycle</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Two programmes. One mission. <em style="color:var(--emerald-600)">One stage.</em></h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Each programme is independent — its own door, its own jury, its own calendar. Nominate, vote, or join a panel.</p>
+      <div class="r26-cta r26-reveal r26-d4">
+        <a href="/nominate" class="btn btn--emerald">
+          Submit a nomination
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+        <a href="/vote" class="btn btn--white">
+          Cast your vote
+          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+{# ════ PROGRAMMES ════ #}
+<section class="section" style="padding-top:1rem">
+  <div class="wrap">
+    <div class="r26-head r26-head--center">
+      <p class="r26-eyebrow">All programmes</p>
+      <h2 class="r26-h2">Pick a track. <em>Tell us</em> who belongs there.</h2>
+    </div>
+
+    {% if awards is not empty %}
+    <div class="r26-mediagrid">
+      {% for a in awards %}
+        {% set status = a.cycle_status|default('upcoming') %}
+        <article class="r26-mcard" data-anim data-anim-delay="{{ loop.index0 % 4 }}">
+          <div class="r26-mcard__media {% if not a.cover|default('') %}r26-mcard__media--empty{% endif %}">
+            {% if a.cover|default('') %}<img src="{{ a.cover }}" alt="{{ a.title }}" loading="lazy" decoding="async">{% endif %}
+            <span class="r26-mcard__badge">
+              {% if status == 'voting' %}Voting open
+              {% elseif status == 'nominations' %}Nominations open
+              {% elseif status == 'judging' %}Judging
+              {% elseif status == 'results' %}Results
+              {% else %}{{ status|capitalize }}{% endif %}
+            </span>
+          </div>
+          <div class="r26-mcard__body">
+            <p class="r26-mcard__meta">{{ a.icon_emoji|default('🏆') }} No. {{ '%02d'|format(loop.index) }} / {{ '%02d'|format(loop.length) }}{% if a.voting_close %} · Closes {{ a.voting_close|date('d M Y') }}{% endif %}</p>
+            <h3 class="r26-mcard__title">{{ a.title }}</h3>
+            <p class="r26-mcard__desc">{{ a.description }}</p>
+            <div class="r26-mcard__foot">
+              {% if status == 'voting' %}
+                <a href="/vote" class="btn btn--emerald btn--sm">Vote now <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+              {% elseif status == 'nominations' %}
+                <a href="/nominate" class="btn btn--emerald btn--sm">Nominate <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+              {% else %}
+                <a href="/awards/{{ a.slug }}" class="btn btn--white btn--sm">View details <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+              {% endif %}
+            </div>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="r26-empty">
+      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+      <h3>Programmes open soon</h3>
+      <p>The 2026 cycle is being finalised. In the meantime, you can <a href="/nominate" style="color:var(--emerald-600);font-weight:600">submit a nomination →</a>.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{# ════ HOW IT WORKS — 3 steps ════ #}
+<section class="section" style="padding-top:0">
+  <div class="wrap">
+    <div class="r26-surface">
+      <div class="r26-head r26-head--center">
+        <p class="r26-eyebrow">Every cycle, in three steps</p>
+        <h2 class="r26-h2">From nomination to <em>recognition</em></h2>
+      </div>
+      <div class="r26-cards">
+        <article class="r26-card" data-anim>
+          <span class="r26-card__step">Step 01</span>
+          <h3 class="r26-card__title">Open nominations</h3>
+          <p style="font-size:.93rem;color:var(--neutral-600,#4a5256);line-height:1.55;margin:0">Anyone can nominate. Submissions are OTP-verified to keep the pipeline clean and the credit fair.</p>
+        </article>
+        <article class="r26-card" data-anim data-anim-delay="1">
+          <span class="r26-card__step">Step 02</span>
+          <h3 class="r26-card__title">Community vote + judge panel</h3>
+          <p style="font-size:.93rem;color:var(--neutral-600,#4a5256);line-height:1.55;margin:0">Verified voters weigh in publicly while a curated panel of African experts scores each shortlist privately.</p>
+        </article>
+        <article class="r26-card" data-anim data-anim-delay="2">
+          <span class="r26-card__step">Step 03</span>
+          <h3 class="r26-card__title">Permanent attribution</h3>
+          <p style="font-size:.93rem;color:var(--neutral-600,#4a5256);line-height:1.55;margin:0">Every winner lands in the legacy vault — searchable, dated, and forever credited on the continental record.</p>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

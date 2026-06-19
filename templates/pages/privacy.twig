@@ -1,0 +1,36 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Last updated · 1 May 2025</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Privacy <em style="color:var(--emerald-600)">at GATES.</em></h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Short, specific, and updated when something material changes. We hash emails, never sell data, and only ask for what we need.</p>
+    </div>
+  </div>
+</section>
+
+<article class="r26-article wrap" style="padding-top:1.5rem">
+  <div class="r26-prose" data-anim>
+    <h2 style="margin-top:0">What we collect</h2>
+    <p>When you nominate, vote, or register a profile, we store your display name, country, and a SHA-256 hash of your email. We do not retain plaintext emails after OTP delivery.</p>
+
+    <h2>Why we collect it</h2>
+    <p>Hashed emails let us guarantee one vote per category per person without ever holding identifying data. Profile details are used to compute and display your CPI score and to surface you in cycle shortlists.</p>
+
+    <h2>Cookies</h2>
+    <p>We set a session cookie for CSRF protection, a remembered-locale cookie if you choose one, and a fingerprint hash used only for rate-limiting. No third-party trackers.</p>
+
+    <h2>Your rights</h2>
+    <p>You can request the deletion of any profile or comment you submitted by emailing <a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a>. We respond within 14 days.</p>
+
+    <h2>Children</h2>
+    <p>GATES is open to nominees of any age, but only verified adults (16+) can submit nominations, votes, or comments.</p>
+
+    <p style="margin-top:2rem;font-size:0.9375rem;color:var(--neutral-500,#6b7478)">Africa GATES is an initiative of <a href="https://afrovanguard.org.ng">Afrovanguard</a>. This policy is governed by the laws of the Federal Republic of Nigeria.</p>
+  </div>
+</article>
+
+{% endblock %}

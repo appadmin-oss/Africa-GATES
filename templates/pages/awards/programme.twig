@@ -1,0 +1,56 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+{% set a = programme %}
+{% set status = a.cycle_status|default('upcoming') %}
+
+<section class="p-hero p-hero--image" style="--p-hero-image: url('{{ a.cover|default('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=2000&q=82') }}')">
+  <div class="aurora aurora--dark" aria-hidden="true"></div>
+  <div class="wrap">
+    <p class="eyebrow" data-anim>{{ a.icon_emoji|default('🏆') }} Programme · 2026 Cycle</p>
+    <h1 data-text-anim>{{ a.title }}</h1>
+    <p data-anim data-anim-delay="1">{{ a.description }}</p>
+    <div class="p-hero__cta" data-anim data-anim-delay="2">
+      {% if status == 'voting' %}
+        <a href="/vote" class="btn btn--gold">Cast a vote <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      {% elseif status == 'nominations' %}
+        <a href="/nominate" class="btn btn--gold">Submit a nomination <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      {% endif %}
+      <a href="/awards" class="btn btn--white">All programmes <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="text-center mx-auto max-w-xl mb-8" data-anim>
+      <p class="eyebrow">Categories</p>
+      <h2 data-text-anim>This cycle's <em>shortlist</em></h2>
+    </div>
+    {% if a.categories is iterable and a.categories|length %}
+    <div class="card-grid">
+      {% for c in a.categories %}
+      <div class="card">
+        <h3 class="card__title">{{ c.title }}</h3>
+        <p class="card__deck">{{ c.description|default('Recognition for outstanding contribution in this category.') }}</p>
+        <div class="card__foot">
+          <span class="text-sm text-soft">{{ c.nominee_count|default(0) }} nominees</span>
+          {% if status == 'voting' %}
+            <a href="/vote#{{ c.slug }}" class="btn btn--emerald btn--sm">Vote <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-rich" data-anim>
+      <div class="empty-rich__icon">🌱</div>
+      <h3>Categories open soon</h3>
+      <p>The {{ a.title }} cycle is being finalised. Subscribe to be notified the moment nominations open.</p>
+      <a href="/" class="btn btn--primary">Back to home <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ programme.title }} · Cycle{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/programmes">← Back</a>{% endblock %}
+
+{% block content %}
+<div class="ad-grid-2">
+  <div>
+    <form method="post" action="/admin/programmes/{{ programme.id }}/cycle" class="ad-form">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="ad-card">
+        <div class="ad-card__head"><div class="ad-card__title">Cycle window</div></div>
+        <div class="ad-card__body">
+          <div class="ad-form">
+            <div class="row">
+              <div><label>Year</label><input type="number" name="year" value="{{ cycle.year|default('now'|date('Y')) }}" required></div>
+              <div><label>Status</label>
+                <select name="status">{% for s in ['upcoming','nominations','voting','judging','results','archived'] %}<option value="{{ s }}" {% if cycle.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select>
+              </div>
+            </div>
+            <div><label>Edition label</label><input type="text" name="edition_label" value="{{ cycle.edition_label|default('') }}"></div>
+            <div class="row">
+              <div><label>Nominations open</label><input type="datetime-local" name="nominations_open" value="{{ cycle.nominations_open|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+              <div><label>Nominations close</label><input type="datetime-local" name="nominations_close" value="{{ cycle.nominations_close|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+            </div>
+            <div class="row">
+              <div><label>Voting open</label><input type="datetime-local" name="voting_open" value="{{ cycle.voting_open|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+              <div><label>Voting close</label><input type="datetime-local" name="voting_close" value="{{ cycle.voting_close|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+            </div>
+            <div><label>Results date</label><input type="datetime-local" name="results_date" value="{{ cycle.results_date|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:14px">
+        <button class="ad-btn ad-btn--primary" type="submit">Save cycle</button>
+      </div>
+    </form>
+  </div>
+
+  <div>
+    <div class="ad-card">
+      <div class="ad-card__head"><div class="ad-card__title">Categories<small>For the current cycle</small></div></div>
+      <div class="ad-card__body">
+        {% if categories|length == 0 %}<p style="color:var(--ad-text-mute);font-size:13px">No categories yet.</p>{% endif %}
+        {% for c in categories %}
+        <details style="border:1px solid var(--ad-line);border-radius:8px;padding:12px;margin-bottom:8px">
+          <summary style="font-weight:600;cursor:pointer">{{ c.title }} <span style="color:var(--ad-text-mute);font-weight:500">· {{ c.slug }}</span></summary>
+          <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:12px">
+            <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ c.id }}">
+            <div class="row">
+              <div><label>Title</label><input type="text" name="title" value="{{ c.title }}" required></div>
+              <div><label>Slug</label><input type="text" name="slug" value="{{ c.slug }}" required></div>
+            </div>
+            <div><label>Description</label><textarea name="description" rows="2">{{ c.description }}</textarea></div>
+            <div class="row">
+              <div><label>Sort order</label><input type="number" name="sort_order" value="{{ c.sort_order }}"></div>
+              <div style="display:flex;gap:8px;align-items:flex-end">
+                <button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Update</button>
+                <form method="post" action="/admin/categories/{{ c.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--danger ad-btn--sm" type="submit" data-confirm="Delete category?">Delete</button></form>
+              </div>
+            </div>
+          </form>
+        </details>
+        {% endfor %}
+
+        <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:18px;padding:14px;background:var(--ad-bg);border-radius:8px">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <strong style="font-size:13px">+ Add category</strong>
+          <div class="row">
+            <div><label>Title</label><input type="text" name="title" required></div>
+            <div><label>Slug</label><input type="text" name="slug" required></div>
+          </div>
+          <div><label>Description</label><textarea name="description" rows="2"></textarea></div>
+          <div class="row">
+            <div><label>Sort order</label><input type="number" name="sort_order" value="0"></div>
+            <div style="display:flex;align-items:flex-end"><button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Add</button></div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

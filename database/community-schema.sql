@@ -1,0 +1,148 @@
+-- AFRICA GATES — Community + Judging-rubric extensions (MySQL 8+)
+-- Idempotent.
+
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+CREATE TABLE IF NOT EXISTS gates_judge_criteria (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  programme_id TINYINT UNSIGNED DEFAULT NULL,
+  slug VARCHAR(60) NOT NULL,
+  label VARCHAR(120) NOT NULL,
+  description TEXT,
+  weight TINYINT UNSIGNED NOT NULL DEFAULT 25,
+  sort_order TINYINT UNSIGNED NOT NULL DEFAULT 0,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  PRIMARY KEY (id),
+  KEY idx_crit_prog (programme_id),
+  CONSTRAINT fk_crit_prog FOREIGN KEY (programme_id) REFERENCES gates_award_programmes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_judge_criteria_scores (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  judge_id BIGINT UNSIGNED NOT NULL,
+  nominee_id BIGINT UNSIGNED NOT NULL,
+  category_id BIGINT UNSIGNED NOT NULL,
+  criterion_id BIGINT UNSIGNED NOT NULL,
+  score TINYINT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_jcrit (judge_id, nominee_id, criterion_id),
+  KEY idx_jcrit_nominee (nominee_id),
+  KEY idx_jcrit_judge (judge_id),
+  CONSTRAINT fk_jcrit_judge    FOREIGN KEY (judge_id)     REFERENCES gates_judges(id)           ON DELETE CASCADE,
+  CONSTRAINT fk_jcrit_nominee  FOREIGN KEY (nominee_id)   REFERENCES gates_nominees(id)         ON DELETE CASCADE,
+  CONSTRAINT fk_jcrit_category FOREIGN KEY (category_id)  REFERENCES gates_award_categories(id) ON DELETE CASCADE,
+  CONSTRAINT fk_jcrit_crit     FOREIGN KEY (criterion_id) REFERENCES gates_judge_criteria(id)   ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_judge_notes (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  judge_id BIGINT UNSIGNED NOT NULL,
+  nominee_id BIGINT UNSIGNED NOT NULL,
+  notes TEXT,
+  submitted_at TIMESTAMP NULL DEFAULT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_jnote (judge_id, nominee_id),
+  CONSTRAINT fk_jnote_judge   FOREIGN KEY (judge_id)   REFERENCES gates_judges(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_jnote_nominee FOREIGN KEY (nominee_id) REFERENCES gates_nominees(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Conflict-of-interest recusals (per judge, per programme). Server-side gate that
+-- removes a recused judge's ability to score any nominee in the programme.
+CREATE TABLE IF NOT EXISTS gates_judge_coi (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  judge_id BIGINT UNSIGNED NOT NULL,
+  programme_id BIGINT UNSIGNED NOT NULL,
+  reason VARCHAR(500) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_judge_coi (judge_id, programme_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_comments (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  target_type ENUM('profile','legacy','thread','nominee') NOT NULL,
+  target_id BIGINT UNSIGNED NOT NULL,
+  parent_id BIGINT UNSIGNED DEFAULT NULL,
+  author_name VARCHAR(200) NOT NULL,
+  author_email VARCHAR(191) DEFAULT NULL,
+  author_email_hash VARCHAR(64) DEFAULT NULL,
+  body TEXT NOT NULL,
+  status ENUM('approved','quarantined','rejected','deleted') NOT NULL DEFAULT 'approved',
+  ai_score DECIMAL(4,3) DEFAULT NULL,
+  ai_reason VARCHAR(500) DEFAULT NULL,
+  ip_hash VARCHAR(64) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_comments_target (target_type, target_id),
+  KEY idx_comments_status (status),
+  KEY idx_comments_created (created_at),
+  CONSTRAINT fk_comment_parent FOREIGN KEY (parent_id) REFERENCES gates_comments(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_cheers (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  target_type ENUM('profile','nominee','comment','thread') NOT NULL,
+  target_id BIGINT UNSIGNED NOT NULL,
+  fp VARCHAR(64) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_cheer (target_type, target_id, fp),
+  KEY idx_cheers_target (target_type, target_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_activity (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  kind ENUM('vote','nomination','register','comment','cheer','winner','legacy','opportunity') NOT NULL,
+  actor_label VARCHAR(200) DEFAULT NULL,
+  target_type VARCHAR(50) DEFAULT NULL,
+  target_id BIGINT UNSIGNED DEFAULT NULL,
+  target_label VARCHAR(250) DEFAULT NULL,
+  meta TEXT,
+  is_public TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_activity_created (created_at),
+  KEY idx_activity_kind (kind)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_threads (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  programme_id TINYINT UNSIGNED DEFAULT NULL,
+  slug VARCHAR(191) NOT NULL,
+  title VARCHAR(250) NOT NULL,
+  body TEXT,
+  author_name VARCHAR(200) NOT NULL,
+  author_email_hash VARCHAR(64) NOT NULL,
+  status ENUM('approved','quarantined','rejected','deleted','locked') NOT NULL DEFAULT 'approved',
+  ai_score DECIMAL(4,3) DEFAULT NULL,
+  reply_count INT UNSIGNED NOT NULL DEFAULT 0,
+  cheer_count INT UNSIGNED NOT NULL DEFAULT 0,
+  last_activity TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  is_pinned TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_thread_slug (slug),
+  KEY idx_threads_programme (programme_id),
+  KEY idx_threads_activity (last_activity),
+  KEY idx_threads_status (status),
+  CONSTRAINT fk_thread_prog FOREIGN KEY (programme_id) REFERENCES gates_award_programmes(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_moderation_log (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  target_type VARCHAR(50) NOT NULL,
+  target_id BIGINT UNSIGNED NOT NULL,
+  provider VARCHAR(30) NOT NULL DEFAULT 'heuristic',
+  decision ENUM('allow','quarantine','reject') NOT NULL,
+  score DECIMAL(4,3) DEFAULT NULL,
+  reason VARCHAR(500) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_modlog_target (target_type, target_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;

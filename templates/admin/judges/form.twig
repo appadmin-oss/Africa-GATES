@@ -1,0 +1,30 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ is_new ? 'Invite Judge' : 'Edit · ' ~ row.name }}{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/judges">← Back</a>{% endblock %}
+{% block content %}
+<form class="ad-form" method="post" action="{{ is_new ? '/admin/judges/new' : '/admin/judges/' ~ row.id }}" enctype="multipart/form-data">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="ad-card"><div class="ad-card__body">
+    <div class="ad-form">
+      <div class="row"><div><label>Name</label><input type="text" name="name" value="{{ row.name|default('') }}" required></div><div><label>Email</label><input type="email" name="email" value="{{ row.email|default('') }}" required></div></div>
+      <div class="row"><div><label>Title</label><input type="text" name="title" value="{{ row.title|default('') }}"></div><div><label>Organisation</label><input type="text" name="organisation" value="{{ row.organisation|default('') }}"></div></div>
+      <div class="row"><div><label>Country (ISO-2)</label><input type="text" name="country_code" value="{{ row.country_code|default('') }}" maxlength="2"></div><div style="display:flex;align-items:flex-end"><label class="checkbox"><input type="checkbox" name="is_active" {% if row.is_active is not defined or row.is_active %}checked{% endif %}> Active panel member</label></div></div>
+      <div><label>Bio</label><textarea name="bio" rows="3">{{ row.bio|default('') }}</textarea></div>
+      <div><label>Programmes</label>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
+          {% for p in programmes %}<label class="checkbox" style="padding:8px 10px;background:var(--ad-bg);border-radius:6px"><input type="checkbox" name="programme_ids[]" value="{{ p.id }}" {% if row.programme_ids is iterable and p.id in row.programme_ids %}checked{% endif %}> {{ p.icon_emoji }} {{ p.title }}</label>{% endfor %}
+        </div>
+      </div>
+      {% if row.avatar_path %}<div><label>Current avatar</label><img src="{{ row.avatar_path }}" alt="" style="width:80px;height:80px;border-radius:50%;object-fit:cover"></div>{% endif %}
+      <div><label>Replace avatar</label>
+        <label class="file-zone" data-file-zone>Drop or click — square portrait works best <input type="file" name="avatar" accept="image/*"></label>
+        <div class="preview-grid" data-file-preview></div>
+      </div>
+    </div>
+  </div></div>
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <a class="ad-btn" href="/admin/judges">Cancel</a>
+    <button class="ad-btn ad-btn--primary" type="submit">Save</button>
+  </div>
+</form>
+{% endblock %}

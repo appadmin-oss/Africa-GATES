@@ -1,0 +1,24 @@
+.env
+vendor/
+var/cache/twig/*.php
+var/data/
+public/assets/vendor/*.map
+var/logs/
+
+# Off-host build output + user uploads (not committed)
+public/assets/dist/
+public/uploads/
+
+# Duplicate app snapshot & archive shipped in the tree (Phase 0 hygiene: to be deleted)
+africa-gates-voting-and-nomination-claude-eager-wozniak-QLdKH/
+africa-gates-voting-and-nomination-claude-eager-wozniak-QLdKH.zip
+
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Local Composer binary (tool, not project code)
+composer.phar
+
+# PHPUnit cache
+.phpunit.cache/

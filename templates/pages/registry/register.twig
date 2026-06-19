@@ -1,0 +1,74 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+<section class="p-hero p-hero--light">
+  <div class="wrap">
+    <p class="eyebrow" data-anim>Register a profile</p>
+    <h1 data-text-anim>Get on <em>the board.</em></h1>
+    <p data-anim data-anim-delay="1">Free. Verified. The moment your profile is approved, your CPI score starts ticking and you become eligible for every cycle.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap" style="max-width:44rem">
+    <form method="POST" action="/register" class="form-stack" data-anim>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="rName">Display name</label>
+          <input id="rName" name="display_name" class="form-input" type="text" required placeholder="e.g. Amara Nwosu">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="rType">Profile type</label>
+          <select id="rType" name="profile_type" class="form-select">
+            <option value="individual">Individual</option>
+            <option value="business">Business</option>
+            <option value="organisation">Organisation</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="rCategory">Category</label>
+          <input id="rCategory" name="category" class="form-input" type="text" placeholder="e.g. Education leader, EdTech, Choir">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="rCountry">Country</label>
+          <select id="rCountry" name="country_code" class="form-select" required>
+            <option value="">— Select —</option>
+            {% for code, name in {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':'Côte d\'Ivoire','CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','BF':'Burkina Faso','MZ':'Mozambique','BW':'Botswana','NA':'Namibia','GA':'Gabon','TN':'Tunisia','DZ':'Algeria'} %}
+            <option value="{{ code }}">{{ name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="rBio">A paragraph about your work</label>
+        <textarea id="rBio" name="bio" class="form-textarea" rows="4" placeholder="What do you do? Where? Why does it matter? Specifics land better than adjectives."></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="rEmail">Email <span class="text-soft" style="font-weight:400">(for OTP verification)</span></label>
+          <input id="rEmail" name="email" class="form-input" type="email" required placeholder="you@example.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="rWeb">Website / link (optional)</label>
+          <input id="rWeb" name="website" class="form-input" type="url" placeholder="https://…">
+        </div>
+      </div>
+
+      <p class="text-xs text-soft">Your CPI score starts at 0 and ticks up as votes, judge panels, and profile completeness contribute. <a href="/awards" style="color:var(--emerald-600);font-weight:500">How CPI works →</a></p>
+
+      <button class="btn btn--gold" type="submit" style="align-self:flex-start">
+        Register profile
+        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </form>
+  </div>
+</section>
+
+{% endblock %}

@@ -1,0 +1,72 @@
+/* ════════════════════════════════════════════════════════════════
+   AURORA — ambient drifting gradient field (OpenAI-inspired)
+   Brand-anchored: emerald + gold, with a cool teal/periwinkle shimmer.
+   Subtle, slow (24–34s), GPU-cheap (transform/opacity only), motion-safe.
+
+   Usage:
+     <div class="aurora" aria-hidden="true"></div>        light surfaces
+     <div class="aurora aurora--dark" aria-hidden="true"></div>  dark surfaces
+   Drop it as the FIRST child of a position:relative; overflow:hidden host;
+   real content must sit above it (z-index:1). Host integration for the
+   known placements is wired at the bottom of this file.
+═══════════════════════════════════════════════════════════════ */
+.aurora {
+  position: absolute; inset: 0; z-index: 0;
+  pointer-events: none; overflow: hidden; border-radius: inherit;
+}
+.aurora::before, .aurora::after {
+  content: ''; position: absolute; inset: -55%;
+  filter: blur(64px); will-change: transform; transform: translateZ(0);
+}
+/* Green + teal field */
+.aurora::before {
+  background:
+    radial-gradient(38% 38% at 28% 30%, rgba(51,134,50,0.42), transparent 62%),
+    radial-gradient(34% 34% at 70% 36%, rgba(45,212,191,0.40), transparent 62%);
+  animation: aurora-drift-a 26s ease-in-out infinite alternate;
+}
+/* Periwinkle + gold field (the cool "aurora" shimmer + warm anchor) */
+.aurora::after {
+  background:
+    radial-gradient(42% 42% at 60% 68%, rgba(124,131,253,0.34), transparent 62%),
+    radial-gradient(30% 30% at 84% 60%, rgba(243,180,22,0.38), transparent 60%);
+  animation: aurora-drift-b 34s ease-in-out infinite alternate;
+}
+
+/* Dark surfaces (login, footer): let the hues add/glow. */
+.aurora--dark::before, .aurora--dark::after { mix-blend-mode: screen; filter: blur(64px) saturate(1.12); }
+.aurora--dark::before {
+  background:
+    radial-gradient(40% 40% at 26% 30%, rgba(51,134,50,0.55), transparent 62%),
+    radial-gradient(36% 36% at 72% 38%, rgba(45,212,191,0.52), transparent 62%);
+}
+.aurora--dark::after {
+  background:
+    radial-gradient(44% 44% at 62% 70%, rgba(124,131,253,0.46), transparent 62%),
+    radial-gradient(30% 30% at 84% 62%, rgba(243,180,22,0.42), transparent 60%);
+}
+
+/* Quieter still — for content-dense light sections. */
+.aurora--soft::before, .aurora--soft::after { opacity: 0.7; filter: blur(78px); }
+
+@keyframes aurora-drift-a {
+  from { transform: translate3d(-5%,-3%,0) scale(1.08) rotate(0deg); }
+  to   { transform: translate3d(4%, 4%,0) scale(1.20) rotate(9deg); }
+}
+@keyframes aurora-drift-b {
+  from { transform: translate3d(4%, 2%,0) scale(1.16) rotate(0deg); }
+  to   { transform: translate3d(-4%,-4%,0) scale(1.06) rotate(-11deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora::before, .aurora::after { animation: none; }
+}
+
+/* ── Host integration for the chosen placements ──────────────────
+   Keeps the integration in this one (fresh-loading) file so the
+   per-page stylesheets don't need editing. */
+.ad-auth, .jd-auth { position: relative; overflow: hidden; }
+.ad-auth__card, .jd-auth__card { position: relative; z-index: 1; }
+/* Public placements (the hero already hosts layers: relative + content z-index). */
+.r26-stats { position: relative; overflow: hidden; }
+.r26-stats > .wrap { position: relative; z-index: 1; }
+.ftr__card > .wrap { position: relative; z-index: 1; }

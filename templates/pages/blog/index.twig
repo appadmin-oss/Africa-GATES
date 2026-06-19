@@ -1,0 +1,50 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+
+<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
+  <div class="aurora aurora--soft" aria-hidden="true"></div>
+  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div class="r26-hero__inner">
+      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Blog</p>
+      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Notes from the <em style="color:var(--emerald-600)">index.</em></h1>
+      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Announcements, methodology and partnership stories — written in the open, like the scores.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="padding-top:1rem">
+  <div class="wrap">
+    {% if posts is not empty %}
+    <div class="r26-mediagrid">
+      {% for p in posts %}
+      <a class="r26-mcard" href="/blog/{{ p.slug }}">
+        <div class="r26-mcard__media {% if not p.cover_image %}r26-mcard__media--empty{% endif %}">
+          {% if p.cover_image %}<img src="{{ p.cover_image }}" alt="" loading="lazy" decoding="async">{% endif %}
+          {% if p.tag %}<span class="r26-mcard__badge">{{ p.tag }}</span>{% endif %}
+        </div>
+        <div class="r26-mcard__body">
+          <p class="r26-mcard__meta">{{ p.published_at|date('j F Y') }}</p>
+          <h3 class="r26-mcard__title">{{ p.title }}</h3>
+          <p class="r26-mcard__desc">{{ p.excerpt }}</p>
+          <div class="r26-mcard__foot">
+            <span>{{ p.author }}</span>
+            <span class="r26-mcard__link">Read
+              <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="r26-empty">
+      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+      <h3>The first story is being written</h3>
+      <p>Announcements, methodology notes and partner stories will land here as the inaugural cycle unfolds.</p>
+      <a class="btn btn--emerald" href="/nominate">Submit a nomination</a>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}
