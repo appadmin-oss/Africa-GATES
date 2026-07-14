@@ -411,6 +411,7 @@ return function(App $app) {
         $j->get('/ballot/{programmeId:[0-9]+}', JudgeBallotController::class.':ballot');
         $j->post('/score/{nomineeId:[0-9]+}',   JudgeBallotController::class.':saveScore');
         $j->post('/conflict/{programmeId:[0-9]+}', JudgeBallotController::class.':declareConflict');
+        $j->post('/conflict/{programmeId:[0-9]+}/withdraw', JudgeBallotController::class.':withdrawConflict');
     })->add(new JudgeAuthMiddleware());
 
     // ═══ MEMBER ACCOUNTS ══════════════════════════════════════════════

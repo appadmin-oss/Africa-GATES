@@ -151,10 +151,25 @@ class JudgeService
             $byCategory[$n['category_id']]['nominees'][] = $n;
         }
 
+        // Whether this judge can actually write scores now — the same gate
+        // saveScore() enforces server-side. The template uses it to render a
+        // read-only ballot with a clear reason instead of live sliders that
+        // would only fail on submit.
+        $coi = $this->hasConflict($judgeId, $programmeId);
+        $judgingOpen = ($cycle->status === 'judging') && !$coi;
+        $lockReason = $coi
+            ? 'You have declared a conflict of interest for this programme, so scoring is disabled.'
+            : (($cycle->status !== 'judging')
+                ? 'Scoring is closed — this cycle is not in the judging phase yet.'
+                : '');
+
         return [
             'cycle' => (array)$cycle,
             'criteria' => $criteria,
             'categories' => array_values($byCategory),
+            'judging_open' => $judgingOpen,
+            'coi' => $coi,
+            'lock_reason' => $lockReason,
             'progress' => [
                 'total' => count($nominees),
                 'scored' => count(array_filter($nominees, fn($n) => count($byNominee[$n['id']] ?? []) === count($criteria))),
@@ -248,6 +263,13 @@ class JudgeService
                 'created_at' => Carbon::now()->toDateTimeString(),
             ]
         );
+    }
+
+    /** Withdraw a previously-declared conflict of interest (a judge may have declared in error). */
+    public function withdrawConflict(int $judgeId, int $programmeId): void
+    {
+        DB::table('gates_judge_coi')
+            ->where('judge_id', $judgeId)->where('programme_id', $programmeId)->delete();
     }
 
     /** True if the judge has declared a conflict of interest for the programme. */

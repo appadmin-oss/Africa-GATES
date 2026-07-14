@@ -25,23 +25,60 @@
   </div>
   {% endif %}
 
-  {# Conflict of interest declaration — per programme #}
-  <div class="jd-conflict" x-data="{declared: sessionStorage.getItem('coi_declared_{{ programme.id }}') === '1'}" x-show="!declared" x-cloak>
-    <div class="jd-conflict__body">
-      <strong>⚖️ Conflict of interest check</strong>
-      <p>Do you have a personal, financial, or professional relationship with any nominee here that could affect your impartiality?</p>
-    </div>
-    <div class="jd-conflict__actions">
-      <form method="post" action="/judge/conflict/{{ programme.id }}" style="display:inline">
-        <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <button class="jd-conflict__btn jd-conflict__btn--yes" type="submit">Yes — declare a conflict</button>
-      </form>
-      <button class="jd-conflict__btn jd-conflict__btn--no" type="button"
-              @click="declared=true; sessionStorage.setItem('coi_declared_{{ programme.id }}','1')">No conflict — proceed</button>
-    </div>
-  </div>
+  {# Conflict of interest declaration — per programme. Only shown when no COI is on record. #}
+  {% if not ballot.coi %}
+  <div class="jd-conflict"
+       x-data="{declared: sessionStorage.getItem('coi_declared_{{ programme.id }}') === '1', step:'ask'}"
+       x-show="!declared" x-cloak>
 
-  <script id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }} }</script>
+    {# Step 1 — the check #}
+    <template x-if="step==='ask'">
+      <div class="jd-conflict__row">
+        <div class="jd-conflict__body">
+          <strong>⚖️ Conflict of interest check</strong>
+          <p>Do you have a personal, financial, or professional relationship with any nominee here that could affect your impartiality?</p>
+        </div>
+        <div class="jd-conflict__actions">
+          <button class="jd-conflict__btn jd-conflict__btn--yes" type="button" @click="step='confirm'">Yes — I have a conflict</button>
+          <button class="jd-conflict__btn jd-conflict__btn--no" type="button"
+                  @click="declared=true; sessionStorage.setItem('coi_declared_{{ programme.id }}','1')">No conflict — proceed</button>
+        </div>
+      </div>
+    </template>
+
+    {# Step 2 — confirm the recusal (destructive & disables scoring) #}
+    <template x-if="step==='confirm'">
+      <form method="post" action="/judge/conflict/{{ programme.id }}" class="jd-conflict__form">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <strong>Recuse yourself from this programme?</strong>
+        <p>This locks your ballot for <b>{{ programme.title }}</b> and removes you from its scoring. You can withdraw a recusal made in error afterwards.</p>
+        <label class="jd-conflict__lbl" for="coi_reason">Reason <span>(optional — shared with administrators only)</span></label>
+        <textarea id="coi_reason" name="reason" class="jd-conflict__ta" maxlength="500" rows="3"
+                  placeholder="e.g. I mentor one of the nominees."></textarea>
+        <div class="jd-conflict__actions">
+          <button class="jd-conflict__btn jd-conflict__btn--no" type="button" @click="step='ask'">← Back</button>
+          <button class="jd-conflict__btn jd-conflict__btn--yes" type="submit">Confirm recusal</button>
+        </div>
+      </form>
+    </template>
+  </div>
+  {% endif %}
+
+  <script id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }}, "judgingOpen": {{ ballot.judging_open ? 'true' : 'false' }}, "lockReason": {{ ballot.lock_reason|default('')|json_encode(JSON_SAFE)|raw }} }</script>
+
+  {% if not ballot.judging_open %}
+  <div class="jc-lock" role="status">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <p>{{ ballot.lock_reason ?: 'Scoring is currently closed for this programme.' }}</p>
+    {% if ballot.coi %}
+    <form method="post" action="/judge/conflict/{{ programme.id }}/withdraw" class="jc-lock__act"
+          x-data @submit="return confirm('Withdraw your conflict-of-interest recusal for this programme and re-open scoring?')">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button type="submit" class="jc-lock__btn">Withdraw recusal</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
 
   <div class="jc" x-data="ballotApp(JSON.parse(document.getElementById('ballotData').textContent))" x-cloak>
     <div x-show="!queue.length" class="jd-empty">No nominees yet for this programme's current cycle.</div>
@@ -98,20 +135,21 @@
                 <input class="jc-range" type="range" min="0" max="10" step="1"
                        :value="cur.scores[c.id] !== undefined ? cur.scores[c.id] : 0"
                        :aria-label="c.label + ' score'"
+                       :disabled="locked"
                        @input="setScore(c.id, $event.target.value)">
               </div>
             </template>
 
             <div class="jc-note">
               <label>Panel note (optional)</label>
-              <textarea x-model="cur.notes" placeholder="Why this score? Notes are shared with the panel, never public."></textarea>
+              <textarea x-model="cur.notes" :disabled="locked" placeholder="Why this score? Notes are shared with the panel, never public."></textarea>
             </div>
 
             <div class="jc-actions">
               <div class="jc-save" :class="cur._state" x-text="saveLabel"></div>
               <div style="flex:1"></div>
               <button type="button" class="jc-btn jc-btn--ghost" @click="advance()">Skip</button>
-              <button type="button" class="jc-btn jc-btn--p" @click="submit()" :disabled="cur._state==='saving'">
+              <button type="button" class="jc-btn jc-btn--p" @click="submit()" :disabled="locked || cur._state==='saving'">
                 <span x-text="cur.complete ? 'Update score' : 'Submit score'"></span>
                 <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </button>
@@ -195,6 +233,32 @@
   .jc-guide svg{ flex:none; margin-top:1px; }
   .jc-guide p{ margin:0; font-size:12.5px; line-height:1.6; color:#1a6118; }
 
+  .jc-lock{ display:flex; align-items:center; gap:12px; background:#fff8e6; border:1px solid #f2d68a; color:#7a5600; border-radius:14px; padding:14px 18px; margin-bottom:18px; }
+  .jc-lock svg{ flex:none; }
+  .jc-lock p{ margin:0; font-size:13.5px; font-weight:500; line-height:1.5; }
+  .jc-lock__act{ margin-left:auto; }
+  .jc-lock__btn{ cursor:pointer; font-family:inherit; font-size:12.5px; font-weight:600; color:#7a5600; background:#fff; border:1px solid #e2c477; border-radius:999px; padding:8px 16px; white-space:nowrap; }
+  .jc-lock__btn:hover{ background:#fffdf5; border-color:#d4a90e; }
+
+  /* Conflict-of-interest declaration card */
+  .jd-conflict{ background:#fff; border:1px solid rgba(16,41,44,.1); border-left:4px solid #d49a0e; border-radius:14px; padding:18px 20px; margin-bottom:20px; }
+  .jd-conflict__row{ display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+  .jd-conflict__body strong, .jd-conflict__form strong{ display:block; font-family:var(--font-display,serif); font-weight:700; font-size:16px; color:#10292C; }
+  .jd-conflict__body p, .jd-conflict__form p{ margin:5px 0 0; font-size:13.5px; line-height:1.55; color:#5a6d6f; max-width:52ch; }
+  .jd-conflict__actions{ display:flex; gap:10px; flex-wrap:wrap; flex:none; }
+  .jd-conflict__form .jd-conflict__actions{ margin-top:14px; }
+  .jd-conflict__btn{ cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; padding:10px 18px; border-radius:999px; border:1px solid transparent; }
+  .jd-conflict__btn--yes{ background:#fff4f2; color:#c0392b; border-color:#f0c4bd; }
+  .jd-conflict__btn--yes:hover{ background:#fdeae7; border-color:#e2a79d; }
+  .jd-conflict__btn--yes[type=submit]{ background:#c0392b; color:#fff; border-color:#c0392b; }
+  .jd-conflict__btn--yes[type=submit]:hover{ background:#a5301f; }
+  .jd-conflict__btn--no{ background:#f4f7f4; color:#1a6118; border-color:#d6e8d3; }
+  .jd-conflict__btn--no:hover{ background:#ecf3ea; }
+  .jd-conflict__lbl{ display:block; margin:14px 0 6px; font-size:12.5px; font-weight:600; color:#4a5256; }
+  .jd-conflict__lbl span{ font-weight:400; color:#8a9698; }
+  .jd-conflict__ta{ width:100%; resize:vertical; border:1px solid rgba(16,41,44,.16); border-radius:10px; padding:11px 13px; font-family:inherit; font-size:13.5px; line-height:1.5; color:#10292C; outline:none; }
+  .jd-conflict__ta:focus{ border-color:#d49a0e; }
+
   @media (max-width:860px){ .jc-grid{ grid-template-columns:1fr; } .jc-queue{ position:static; } .jc-scroll{ max-height:280px; } }
 </style>
 <script>
@@ -209,16 +273,18 @@ function ballotApp(initial){
     queue: queue,
     active: 0,
     _timers: {},
+    locked: initial.judgingOpen === false,
+    lockReason: initial.lockReason || '',
     get cur(){ return this.queue[this.active] || null; },
     get maxScore(){ return this.criteria.length * 10; },
     get curScore(){ var n=this.cur; if(!n) return 0; return this.criteria.reduce(function(s,c){ return s + (n.scores[c.id]||0); },0); },
-    get saveLabel(){ var n=this.cur; if(!n) return ''; return n._state==='saving'?'Saving…':(n._state==='ok'?'✓ Saved':(n._state==='err'?'✗ Could not save':(n.complete?'Fully scored':'Not yet scored'))); },
+    get saveLabel(){ var n=this.cur; if(!n) return ''; return n._state==='saving'?'Saving…':(n._state==='ok'?'✓ Saved':(n._state==='err'?('✗ '+(n._err||'Could not save')):(n.complete?'Fully scored':'Not yet scored'))); },
 
     flag(cc){ cc=(cc||'').toUpperCase(); if(cc.length!==2) return '🌍'; return String.fromCodePoint.apply(null,[].map.call(cc,function(c){return 127397+c.charCodeAt(0);})); },
     pick(i){ this.active = i; },
 
     setScore(critId, val){
-      var n=this.cur; if(!n) return;
+      var n=this.cur; if(!n || this.locked) return;
       var sc = Object.assign({}, n.scores); sc[critId] = parseInt(val); n.scores = sc;
       n.complete = this.criteria.every(function(c){ return n.scores[c.id] !== undefined; });
       n.avg = this._avg(n.scores);
@@ -244,9 +310,10 @@ function ballotApp(initial){
       var self=this; this._timers[n.id] = setTimeout(function(){ self._save(n); }, 800);
     },
 
-    submit(){ var n=this.cur; if(!n) return; var self=this; this._save(n).then(function(ok){ if(ok) self.advance(); }); },
+    submit(){ var n=this.cur; if(!n || this.locked) return; var self=this; this._save(n).then(function(ok){ if(ok) self.advance(); }); },
 
     async _save(n){
+      if(this.locked){ n._state='err'; n._err = this.lockReason || 'Scoring is closed'; return false; }
       try{
         n._state='saving';
         var params = new URLSearchParams({ notes: n.notes || '' });
@@ -257,9 +324,11 @@ function ballotApp(initial){
           body: params,
         });
         var d = await r.json().catch(function(){ return {}; });
-        if(d.ok){ n._state='ok'; setTimeout(function(){ if(n._state==='ok') n._state=''; },2500); return true; }
-        n._state='err'; return false;
-      }catch(e){ n._state='err'; return false; }
+        if(r.ok && d.ok){ n._state='ok'; n._err=''; setTimeout(function(){ if(n._state==='ok') n._state=''; },2500); return true; }
+        n._err = (d && d.message) || (r.status===403 ? 'Scoring is closed for this cycle' : ('Save failed (' + r.status + ')'));
+        n._state='err';
+        return false;
+      }catch(e){ n._err='Network error — check your connection'; n._state='err'; return false; }
     },
   };
 }
