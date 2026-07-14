@@ -11,6 +11,8 @@ use AfricaGates\Admin\Services\AuditService;
 
 class NomineesController
 {
+    private const PER_PAGE = 60;
+
     public function __construct(
         private readonly Twig $view,
         private readonly AuditService $audit,
@@ -23,16 +25,31 @@ class NomineesController
         $status  = (string)($p['status'] ?? '');
         $q       = (string)($p['q'] ?? '');
 
-        $base = DB::table('gates_nominees as n')
-            ->join('gates_award_categories as c','c.id','=','n.category_id')
-            ->join('gates_award_cycles as cy','cy.id','=','c.cycle_id')
-            ->join('gates_award_programmes as p','p.id','=','cy.programme_id')
+        // Shared filter builder so the count and the page slice stay in lockstep.
+        $filtered = function () use ($cycleId, $status, $q) {
+            $b = DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c','c.id','=','n.category_id')
+                ->join('gates_award_cycles as cy','cy.id','=','c.cycle_id')
+                ->join('gates_award_programmes as p','p.id','=','cy.programme_id');
+            if ($cycleId) $b->where('cy.id', $cycleId);
+            if ($status)  $b->where('n.status', $status);
+            if ($q)       $b->where('n.name','like',"%$q%");
+            return $b;
+        };
+
+        // Paginate so nominees beyond the old hard 200-row cap remain reachable
+        // and manageable (previously anyone ranked below the top 200 by votes
+        // simply vanished from the admin list).
+        $total = (int) $filtered()->count();
+        $pages = max(1, (int) ceil($total / self::PER_PAGE));
+        $page  = min(max(1, (int)($p['page'] ?? 1)), $pages);
+
+        $rows = $filtered()
             ->leftJoin('gates_profiles as pr','pr.id','=','n.profile_id')
-            ->select(['n.id','n.name','n.tagline','n.country_code','n.vote_count','n.status','n.photo_path','n.profile_id','c.title as category','p.title as programme','cy.id as cycle_id','cy.year','pr.slug as profile_slug','pr.display_name as profile_name']);
-        if ($cycleId) $base->where('cy.id', $cycleId);
-        if ($status)  $base->where('n.status', $status);
-        if ($q)       $base->where('n.name','like',"%$q%");
-        $rows = $base->orderByDesc('n.vote_count')->limit(200)->get();
+            ->select(['n.id','n.name','n.tagline','n.country_code','n.vote_count','n.status','n.photo_path','n.profile_id','c.title as category','p.title as programme','cy.id as cycle_id','cy.year','pr.slug as profile_slug','pr.display_name as profile_name'])
+            ->orderByDesc('n.vote_count')
+            ->offset(($page - 1) * self::PER_PAGE)->limit(self::PER_PAGE)
+            ->get();
 
         $cycles = DB::table('gates_award_cycles as c')
             ->join('gates_award_programmes as p','p.id','=','c.programme_id')
@@ -44,6 +61,10 @@ class NomineesController
             'rows'       => $rows->map(fn($r)=>(array)$r)->all(),
             'cycles'     => $cycles->map(fn($r)=>(array)$r)->all(),
             'filters'    => ['cycle' => $cycleId, 'status' => $status, 'q' => $q],
+            'total'      => $total,
+            'page'       => $page,
+            'pages'      => $pages,
+            'per'        => self::PER_PAGE,
         ]);
     }
 

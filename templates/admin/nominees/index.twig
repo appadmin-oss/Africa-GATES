@@ -14,6 +14,12 @@
   <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
 </form>
 
+{% if total is defined %}
+<p style="margin:0 0 12px;font-size:13px;color:var(--ad-text-soft)">
+  {{ total|number_format }} nominee{{ total == 1 ? '' : 's' }}{% if pages > 1 %} · page {{ page }} of {{ pages }}{% endif %}
+</p>
+{% endif %}
+
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
     <thead><tr><th scope="col">Nominee</th><th scope="col">Programme · Category</th><th scope="col">Country</th><th scope="col">Votes</th><th scope="col">Profile (CPI link)</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
@@ -53,4 +59,18 @@
     </tbody>
   </table>
 </div></div>
+
+{% if pages is defined and pages > 1 %}
+{% set qs = (filters.q ? '&q=' ~ filters.q : '') ~ (filters.cycle ? '&cycle=' ~ filters.cycle : '') ~ (filters.status ? '&status=' ~ filters.status : '') %}
+<div class="ad-pager">
+  {% if page > 1 %}<a href="?page={{ page - 1 }}{{ qs }}" rel="prev">← Prev</a>{% endif %}
+  {% for p in 1..pages %}
+    {% if p == page %}<span class="is-current">{{ p }}</span>
+    {% elseif p == 1 or p == pages or (p >= page - 2 and p <= page + 2) %}<a href="?page={{ p }}{{ qs }}">{{ p }}</a>
+    {% elseif p == page - 3 or p == page + 3 %}<span class="ad-pager__gap">…</span>
+    {% endif %}
+  {% endfor %}
+  {% if page < pages %}<a href="?page={{ page + 1 }}{{ qs }}" rel="next">Next →</a>{% endif %}
+</div>
+{% endif %}
 {% endblock %}
