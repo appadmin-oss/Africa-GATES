@@ -260,7 +260,9 @@ return function(App $app) {
         $g->get('/cookies', fn($req,$res)=>$legalRender($req,$res,'cookies'));
         $g->get('/integrity',fn($req,$res)=>$tv($req)->render($res,'pages/integrity.twig',['page_title'=>'Awards Integrity & Methodology — Africa GATES','meta_description'=>'How Africa GATES safeguards fair results — the methodology behind community votes, expert judging and the Cultural Power Index that ranks African excellence.','gates_page'=>'integrity','has_hero'=>false,'current_section'=>'projects']));
         $g->get('/support', fn($req,$res)=>$tv($req)->render($res,'pages/support.twig',['page_title'=>'Support & Appeals — Africa GATES','meta_description'=>'Get help with Africa GATES — the CPI, voting, nominations and your profile — and appeal any moderation decision through an independent review.','gates_page'=>'support','has_hero'=>false]));
-        $g->get('/signin',  fn($req,$res)=>$tv($req)->render($res,'pages/signin.twig',['page_title'=>'Sign in — Africa GATES','meta_description'=>'Sign in to your Africa GATES account — for judges, partners and verified profiles. A secure email code, no password needed.','gates_page'=>'signin','has_hero'=>false,'hide_chrome'=>true]));
+        // /signin was a non-functional mock (fake success, no auth). Retire it —
+        // the real, working member sign-in is /account/login.
+        $g->get('/signin',  fn($req,$res)=>$res->withHeader('Location','/account/login')->withStatus(301));
         // Status reflects REAL signals, not a hardcoded "all green": the core
         // features are operational because this DB-backed page is being served at
         // all; payments/email report their actual configuration state.

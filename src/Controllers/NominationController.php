@@ -30,12 +30,15 @@ class NominationController {
     }
     public function submit(Request $req,Response $res):Response {
         $b=(array)$req->getParsedBody(); $ip=$req->getServerParams()['REMOTE_ADDR']??''; $fp=hash('sha256',$ip.strtolower(trim($b['nominator_email']??'')));
-        if(!$this->rateLimit->check($fp,'nominate',5,86400)) return $res->withHeader('Location','/nominate/success?error=ratelimit')->withStatus(302);
-        // Real programme data for any error re-render, so the form never falls back to
-        // stale hardcoded categories (which could misfile a nomination).
+        // Real programme data for any error re-render, so the form never falls back
+        // to stale hardcoded categories (which could misfile a nomination). `old`
+        // feeds every typed value back into the wizard so a server-side rejection
+        // never wipes the form. Defined up-front so the rate-limit path re-renders
+        // the form too (never a false "success" page).
         $progs=$this->cache->remember('awards:active',1800,fn()=>$this->awards->getActiveProgrammesWithStatus());
         $open=array_values(array_filter($progs,fn($p)=>in_array($p['cycle_status'],['nominations'])));
-        $rerender=fn(string $msg)=>$this->view->render($res,'pages/nominate.twig',['error'=>$msg,'gates_page'=>'nominate','has_hero'=>false,'current_section'=>'projects','programmes'=>$open,'all_programmes'=>$progs,'member'=>\AfricaGates\Services\UserAccountService::memberForForms()])->withStatus(422);
+        $rerender=fn(string $msg,int $status=422)=>$this->view->render($res,'pages/nominate.twig',['error'=>$msg,'old'=>$b,'gates_page'=>'nominate','has_hero'=>false,'current_section'=>'projects','programmes'=>$open,'all_programmes'=>$progs,'member'=>\AfricaGates\Services\UserAccountService::memberForForms()])->withStatus($status);
+        if(!$this->rateLimit->check($fp,'nominate',5,86400)) return $rerender("You've reached today's nomination limit (5 per day). Please try again tomorrow.",429);
         $required = [
             'programme_id'=>'a programme', 'nominee_name'=>"the nominee's full name", 'country_code'=>"the nominee's country",
             'nominee_state'=>"the nominee's state/region", 'nominee_lga'=>"the nominee's LGA", 'reason'=>'a reason for the nomination',
