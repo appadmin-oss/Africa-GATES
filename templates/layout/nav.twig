@@ -32,7 +32,7 @@
         <div class="ag-mega" data-ag-mega-panel>
           <a href="/nominate" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef7ee;color:#1a6118">🎓</span><span class="ag-mega__txt"><strong>Nominate</strong><small>Surface a profile in under {{ nomination_seconds }} seconds</small></span></a>
           <a href="/vote" class="ag-mega__item"><span class="ag-mega__ico" style="background:#effaf0;color:#237b22">✓</span><span class="ag-mega__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span></a>
-          <a href="/account/register" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">✦</span><span class="ag-mega__txt"><strong>Register a profile</strong><small>Join the continental registry, free</small></span></a>
+          <a href="/account/register" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">✦</span><span class="ag-mega__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
           <a href="/awards" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">🏅</span><span class="ag-mega__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
           <a href="/leaderboard" class="ag-mega__item"><span class="ag-mega__ico" style="background:#e9efef;color:#2b373d">📊</span><span class="ag-mega__txt"><strong>Leaderboard</strong><small>Live CPI rankings, refreshed every {{ cpi_recompute_hours }} hours</small></span></a>
           <a href="/integrity" class="ag-mega__item"><span class="ag-mega__ico" style="background:#f0f2f2;color:#5d7374">⚖️</span><span class="ag-mega__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
@@ -60,8 +60,14 @@
 
     <div class="ag-nav__cta">
       <a href="/vote" class="ag-vote {% if _p=='vote' %}is-active{% endif %}"{% if _p=='vote' %} aria-current="page"{% endif %}>Vote</a>
-      <a href="/account/register" class="ag-register">Register
-        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      {% if is_member %}
+        <a href="/account" class="ag-register {% if _p=='account' %}is-active{% endif %}"{% if _p=='account' %} aria-current="page"{% endif %}>{{ member_name ? 'My account' : 'Account' }}
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      {% else %}
+        <a href="/account/login" class="ag-signin {% if _p=='account' %}is-active{% endif %}">Sign in</a>
+        <a href="/account/register" class="ag-register">Register
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      {% endif %}
     </div>
   </div>
 </header>
@@ -95,7 +101,7 @@
       <p class="ag-menu__label">Participate</p>
       <a href="/nominate" class="ag-menu__link {% if _p=='nominate' %}is-active{% endif %}"{% if _p=='nominate' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef7ee;color:#1a6118">🎓</span><span class="ag-menu__txt"><strong>Nominate</strong><small>Surface a profile in under {{ nomination_seconds }} seconds</small></span></a>
       <a href="/vote" class="ag-menu__link {% if _p=='vote' %}is-active{% endif %}"{% if _p=='vote' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#effaf0;color:#237b22">✓</span><span class="ag-menu__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span></a>
-      <a href="/account/register" class="ag-menu__link"><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">✦</span><span class="ag-menu__txt"><strong>Register a profile</strong><small>Join the continental registry, free</small></span></a>
+      <a href="/account/register" class="ag-menu__link"><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">✦</span><span class="ag-menu__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
       <a href="/awards" class="ag-menu__link {% if _p=='awards' %}is-active{% endif %}"{% if _p=='awards' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">🏅</span><span class="ag-menu__txt"><strong>Awards</strong><small>Education, integrity, choral &amp; business</small></span></a>
       <a href="/leaderboard" class="ag-menu__link {% if _p=='leaderboard' %}is-active{% endif %}"{% if _p=='leaderboard' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#e9efef;color:#2b373d">📊</span><span class="ag-menu__txt"><strong>Leaderboard</strong><small>Live CPI rankings, every {{ cpi_recompute_hours }} hours</small></span></a>
       <a href="/integrity" class="ag-menu__link"><span class="ag-menu__ico" style="background:#f0f2f2;color:#5d7374">⚖️</span><span class="ag-menu__txt"><strong>Integrity Center</strong><small>How voting, scoring and audits work</small></span></a>
@@ -113,8 +119,15 @@
       <a href="/shop" class="ag-menu__link {% if _p=='shop' %}is-active{% endif %}"{% if _p=='shop' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef7ee;color:#1a6118">🛍️</span><span class="ag-menu__txt"><strong>Shop</strong><small>Wear the recognition — funds programmes</small></span></a>
     </div>
     <div class="ag-menu__ctas">
-      <a href="/account/register" class="ag-register" style="justify-content:center">Register your profile
+      {% if is_member %}
+      <a href="/account" class="ag-register" style="justify-content:center">My account
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <a href="/account/logout" class="ag-menu__link" style="justify-content:center"><span class="ag-menu__txt" style="text-align:center"><strong>Sign out</strong></span></a>
+      {% else %}
+      <a href="/account/register" class="ag-register" style="justify-content:center">Create your account
+        <svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <a href="/account/login" class="ag-menu__link" style="justify-content:center;background:var(--ag-surface-2)"><span class="ag-menu__txt" style="text-align:center"><strong>Sign in to your account</strong></span></a>
+      {% endif %}
       <a href="/partner" class="ag-menu__link {% if _p=='partner' %}is-active{% endif %}"{% if _p=='partner' %} aria-current="page"{% endif %} style="justify-content:center;background:var(--ag-surface-2)"><span class="ag-menu__txt" style="text-align:center"><strong>Become a partner</strong></span></a>
       <a href="/support" class="ag-menu__link {% if _p=='support' %}is-active{% endif %}"{% if _p=='support' %} aria-current="page"{% endif %} style="justify-content:center"><span class="ag-menu__txt" style="text-align:center"><strong>Support &amp; appeals</strong></span></a>
     </div>

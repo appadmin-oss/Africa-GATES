@@ -1,6 +1,13 @@
 {% extends "judge/layout.twig" %}
 {% block content %}
 
+{# The whole ballot shares one Alpine component so the progress strip stays in
+   sync with scores saved live (it used to freeze at the page-load count until
+   a full reload). The payload is parsed from the JSON island below. #}
+<script id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }}, "judgingOpen": {{ ballot.judging_open ? 'true' : 'false' }}, "lockReason": {{ ballot.lock_reason|default('')|json_encode(JSON_SAFE)|raw }} }</script>
+
+<div x-data="ballotApp(JSON.parse(document.getElementById('ballotData').textContent))">
+
 {# ── Progress strip ── #}
 <div class="jc-strip">
   <div class="wrap jc-strip__in">
@@ -10,8 +17,8 @@
     </div>
     <div class="jc-strip__prog">
       {% set pct = ballot.progress.total > 0 ? (ballot.progress.scored / ballot.progress.total * 100)|round : 0 %}
-      <div class="jc-strip__count"><b>{{ ballot.progress.scored }} / {{ ballot.progress.total }}</b><span>scored</span></div>
-      <div class="jc-strip__bar"><span style="width:{{ pct }}%"></span></div>
+      <div class="jc-strip__count"><b x-text="scoredCount + ' / ' + totalCount">{{ ballot.progress.scored }} / {{ ballot.progress.total }}</b><span>scored</span></div>
+      <div class="jc-strip__bar"><span :style="'width:'+progressPct+'%'" style="width:{{ pct }}%"></span></div>
     </div>
   </div>
 </div>
@@ -64,8 +71,6 @@
   </div>
   {% endif %}
 
-  <script id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }}, "judgingOpen": {{ ballot.judging_open ? 'true' : 'false' }}, "lockReason": {{ ballot.lock_reason|default('')|json_encode(JSON_SAFE)|raw }} }</script>
-
   {% if not ballot.judging_open %}
   <div class="jc-lock" role="status">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -80,7 +85,7 @@
   </div>
   {% endif %}
 
-  <div class="jc" x-data="ballotApp(JSON.parse(document.getElementById('ballotData').textContent))" x-cloak>
+  <div class="jc" x-cloak>
     <div x-show="!queue.length" class="jd-empty">No nominees yet for this programme's current cycle.</div>
 
     <div class="jc-grid" x-show="queue.length">
@@ -165,6 +170,7 @@
     </div>
   </div>
 </section>
+</div>{# /x-data ballotApp #}
 {% endblock %}
 
 {% block foot_scripts %}
@@ -276,6 +282,9 @@ function ballotApp(initial){
     locked: initial.judgingOpen === false,
     lockReason: initial.lockReason || '',
     get cur(){ return this.queue[this.active] || null; },
+    get scoredCount(){ return this.queue.filter(function(n){ return n.complete; }).length; },
+    get totalCount(){ return this.queue.length; },
+    get progressPct(){ return this.totalCount > 0 ? Math.round(this.scoredCount / this.totalCount * 100) : 0; },
     get maxScore(){ return this.criteria.length * 10; },
     get curScore(){ var n=this.cur; if(!n) return 0; return this.criteria.reduce(function(s,c){ return s + (n.scores[c.id]||0); },0); },
     get saveLabel(){ var n=this.cur; if(!n) return ''; return n._state==='saving'?'Saving…':(n._state==='ok'?'✓ Saved':(n._state==='err'?('✗ '+(n._err||'Could not save')):(n.complete?'Fully scored':'Not yet scored'))); },

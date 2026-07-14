@@ -32,6 +32,29 @@ class AccountController
     private function flash(string $key): ?string { $v = $_SESSION[$key] ?? null; unset($_SESSION[$key]); return $v; }
 
     /**
+     * A safe local redirect target for post-login. Only same-site absolute paths
+     * are allowed — never a scheme, host, or protocol-relative (`//evil.com`) URL,
+     * which would turn login into an open redirect. Also refuses auth pages so we
+     * don't bounce a freshly-signed-in user back to a login screen.
+     */
+    private function safeNext(?string $raw): ?string
+    {
+        $raw = trim((string) $raw);
+        if ($raw === '' || $raw[0] !== '/' || str_starts_with($raw, '//') || str_contains($raw, "\\")) return null;
+        $path = parse_url($raw, PHP_URL_PATH) ?: '';
+        if (str_starts_with($path, '/account/login') || str_starts_with($path, '/account/register') || str_starts_with($path, '/account/verify')) return null;
+        return $raw;
+    }
+
+    /** Consume the stored post-login destination, defaulting to the dashboard. */
+    private function nextTarget(): string
+    {
+        $t = $this->safeNext($_SESSION['login_next'] ?? null);
+        unset($_SESSION['login_next']);
+        return $t ?? '/account';
+    }
+
+    /**
      * Welcome email on FIRST verification: the account is now usable, so show
      * the member what they can actually do (vote, nominate, community, points)
      * instead of leaving them at a dead end. Best-effort, never blocks login.
@@ -104,7 +127,7 @@ class AccountController
                     'email_hash' => hash('sha256', strtolower((string) $user->email)),
                 ]);
                 $this->sendWelcome($user);
-                return $res->withHeader('Location', '/account')->withStatus(302);
+                return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
             }
             $_SESSION['flash_error'] = 'That verification link is invalid or has expired — request a fresh one below.';
         }
@@ -169,7 +192,11 @@ class AccountController
     // ── Login (password) ────────────────────────────────────────────────────
     public function loginForm(Request $req, Response $res): Response
     {
-        if (!empty($_SESSION['user_id'])) return $res->withHeader('Location', '/account')->withStatus(302);
+        if (!empty($_SESSION['user_id'])) return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
+        // Remember where the visitor was headed (e.g. a gate redirected them here)
+        // so every sign-in path — password, code, or email verify — can return them.
+        $next = $this->safeNext($req->getQueryParams()['next'] ?? null);
+        if ($next !== null) $_SESSION['login_next'] = $next;
         return $this->view->render($res, 'pages/account/login.twig', [
             'page_title' => 'Sign in — Africa GATES', 'gates_page' => 'account', 'has_hero' => false, 'hide_chrome' => true,
             'sent'  => $req->getQueryParams()['sent'] ?? null,
@@ -201,7 +228,7 @@ class AccountController
             return $res->withHeader('Location', '/account/verify')->withStatus(302);
         }
         $this->accounts->startSession($user, $ip);
-        return $res->withHeader('Location', '/account')->withStatus(302);
+        return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
     }
 
     // ── Login (one-time email code) ───────────────────────────────────────────
@@ -299,7 +326,7 @@ class AccountController
         }
         unset($_SESSION['user_login_email']);
         $this->accounts->startSession($user, $this->ip($req));
-        return $res->withHeader('Location', '/account')->withStatus(302);
+        return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
     }
 
     // ── Dashboard ─────────────────────────────────────────────────────────────

@@ -44,6 +44,10 @@
   background:var(--ag-green); padding:11px 20px; border-radius:var(--ag-r-pill); box-shadow:var(--ag-shadow-cta); transition:background var(--ag-dur-fast),transform var(--ag-dur-fast); }
 .ag-register:hover{ background:var(--ag-green-dark); transform:translateY(-1px); }
 .ag-register svg{ width:14px; height:14px; }
+.ag-signin{ font:600 14px/1 var(--ag-font-body); color:var(--ag-ink); text-decoration:none; padding:10px 14px; border-radius:var(--ag-r-pill);
+  border:1px solid rgba(16,41,44,.16); transition:border-color var(--ag-dur-fast),background var(--ag-dur-fast); }
+.ag-signin:hover{ border-color:rgba(16,41,44,.34); background:rgba(16,41,44,.04); }
+.ag-signin.is-active{ border-color:var(--ag-green); color:var(--ag-green-dark); }
 
 /* ── Mega menu ── */
 .ag-mega-wrap{ position:relative; }
