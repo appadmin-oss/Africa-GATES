@@ -41,9 +41,14 @@ class AuthController
         $next = (string)($b['next'] ?? '/admin/dashboard');
         if (!str_starts_with($next, '/admin/')) $next = '/admin/dashboard';
 
-        $admin = $this->auth->attemptLogin((string)($b['email'] ?? ''), (string)($b['password'] ?? ''), $ip);
+        $email = (string)($b['email'] ?? '');
+        $password = (string)($b['password'] ?? '');
+        // The .env admin password is the guaranteed way in (no DB seed / no
+        // email required); fall back to a DB admin account if one exists.
+        $admin = $this->auth->attemptEnvLogin($email, $password, $ip)
+              ?: $this->auth->attemptLogin($email, $password, $ip);
         if (!$admin) {
-            $_SESSION['flash_error'] = 'Invalid credentials, or account locked. Try again or use a magic link.';
+            $_SESSION['flash_error'] = 'Invalid credentials, or account locked. Please try again.';
             return $res->withHeader('Location', '/admin/login')->withStatus(302);
         }
         $this->auth->startSession($admin);
@@ -51,8 +56,18 @@ class AuthController
         return $res->withHeader('Location', $next)->withStatus(302);
     }
 
+    /** Magic-link (email) sign-in is OFF unless ADMIN_MAGIC_LINK=1 in .env. */
+    private function magicEnabled(): bool
+    {
+        return in_array(strtolower(trim((string)($_ENV['ADMIN_MAGIC_LINK'] ?? '0'))), ['1', 'true', 'yes', 'on'], true);
+    }
+
     public function magicForm(Request $req, Response $res): Response
     {
+        if (!$this->magicEnabled()) {
+            $_SESSION['flash_error'] = 'Sign in with your password.';
+            return $res->withHeader('Location', '/admin/login')->withStatus(302);
+        }
         return $this->view->render($res, 'admin/magic.twig', [
             'page_title' => 'Sign in with a link — Africa GATES',
             'notice' => $_SESSION['flash_notice'] ?? null,
@@ -62,6 +77,9 @@ class AuthController
 
     public function magicRequest(Request $req, Response $res): Response
     {
+        if (!$this->magicEnabled()) {
+            return $res->withHeader('Location', '/admin/login')->withStatus(302);
+        }
         $b = (array)$req->getParsedBody();
         $email = strtolower(trim((string)($b['email'] ?? '')));
         $ip = (string)($req->getServerParams()['REMOTE_ADDR'] ?? '');
@@ -96,6 +114,10 @@ class AuthController
 
     public function magicConsume(Request $req, Response $res): Response
     {
+        if (!$this->magicEnabled()) {
+            $_SESSION['flash_error'] = 'Sign in with your password.';
+            return $res->withHeader('Location', '/admin/login')->withStatus(302);
+        }
         $token = (string)($req->getQueryParams()['token'] ?? '');
         if ($token === '') {
             $_SESSION['flash_error'] = 'Missing token.';
