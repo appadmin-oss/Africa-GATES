@@ -1,142 +1,217 @@
 {% extends "layout/gates.twig" %}
-{% block content %}
 
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Awards integrity center</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">How Africa GATES <em style="color:var(--emerald-600)">works.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Transparent rules. Verified identities. Independent scoring. Every decision made here is defensible — this page is your reference if anything is ever disputed.</p>
-      {# Trust signals strip #}
-      <div class="r26-reveal r26-d4" style="margin-top:1.5rem;display:flex;flex-wrap:wrap;gap:0.6rem;justify-content:center">
-        {% for label in [
-          'OTP-verified voting',
-          'One vote per identity per category',
-          'Fraud detection on every vote',
-          'Independent judging panel',
-          'Weighted public + judge scoring',
-          'Full audit trail'
-        ] %}
-        <span class="r26-chip2"><span class="r26-chip2__dot"></span>{{ label }}</span>
-        {% endfor %}
+{% block head_styles %}
+<style>
+  body[data-page="integrity"]{ background:#eef0ec; color:var(--ag-ink); }
+  .mth{ max-width:920px; margin:0 auto; padding:clamp(2rem,5vw,2.9rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+
+  .mth-hero{ text-align:center; max-width:640px; margin:0 auto; }
+  .mth-hero .mth-eyebrow{ margin:0 0 10px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
+  .mth-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4.6vw,2.625rem); letter-spacing:-.02em; }
+  .mth-hero h1 em{ font-style:italic; color:var(--ag-green); }
+  .mth-hero p{ margin:14px 0 0; font-size:16px; line-height:1.6; color:#52605c; }
+  .mth-chips{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:18px; }
+  .mth-chip{ display:inline-flex; align-items:center; gap:7px; background:var(--ag-surface); border:1px solid rgba(16,41,44,.1); border-radius:999px; padding:7px 13px; font-size:12.5px; font-weight:500; color:#3a4448; }
+  .mth-chip::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--ag-green); }
+
+  .mth-h2{ margin:clamp(2.4rem,5vw,3.2rem) 0 4px; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.5rem,3vw,1.85rem); letter-spacing:-.01em; }
+  .mth-lead{ margin:0 0 1.3rem; color:#52605c; font-size:15px; line-height:1.6; max-width:46rem; }
+
+  /* scoring card */
+  .mth-score{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(1.6rem,3vw,2rem); }
+  .mth-score__head{ display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1.3rem; }
+  .mth-score__head h3{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.25rem; }
+  .mth-score__max{ font:700 14px/1 var(--ag-font-mono); color:var(--ag-green); }
+  .mth-bar{ margin-bottom:1.3rem; }
+  .mth-bar:last-child{ margin-bottom:0; }
+  .mth-bar__top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .mth-bar__name{ display:flex; align-items:center; gap:11px; font-weight:600; font-size:15.5px; }
+  .mth-bar__ico{ width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex:none; }
+  .mth-bar__pct{ font:700 14px/1 var(--ag-font-mono); color:var(--ag-ink); }
+  .mth-bar__track{ height:9px; border-radius:5px; background:#eef2ee; overflow:hidden; margin-bottom:7px; }
+  .mth-bar__fill{ display:block; height:100%; border-radius:5px; background:linear-gradient(90deg,var(--ag-green),var(--ag-green-light)); }
+  .mth-bar__desc{ margin:0; font-size:13.5px; line-height:1.55; color:#626a6e; }
+  .mth-eq{ text-align:center; margin:1.4rem 0 0; font:700 .95rem/1 var(--ag-font-mono); color:var(--ag-ink); }
+  .mth-why{ margin-top:1.1rem; background:#fff8e8; border:1px solid rgba(201,162,75,.3); border-radius:14px; padding:1rem 1.2rem; font-size:14px; line-height:1.6; color:#5b4a1f; }
+  .mth-why strong{ color:#3a2f12; }
+
+  /* grids */
+  .mth-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:1.2rem; }
+  .mth-cell{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:20px; }
+  .mth-cell__top{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.5rem; }
+  .mth-cell h3{ margin:0; font-weight:600; font-size:15.5px; color:var(--ag-ink); }
+  .mth-cell__pct{ font:700 12px/1 var(--ag-font-mono); color:var(--ag-green); background:var(--ag-green-wash); padding:5px 9px; border-radius:999px; }
+  .mth-cell p{ margin:0; font-size:13.5px; line-height:1.6; color:#626a6e; }
+  .mth-cell__ico{ width:40px; height:40px; border-radius:11px; background:#effaf0; display:flex; align-items:center; justify-content:center; margin-bottom:12px; }
+
+  /* timeline (dark) */
+  .mth-time{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:22px; padding:clamp(1.6rem,3vw,2.1rem); margin-top:1.2rem; }
+  .mth-time__orb{ position:absolute; right:-50px; top:-50px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.18),transparent 68%); }
+  .mth-time h3{ position:relative; margin:0 0 1.3rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.25rem; color:#fff; }
+  .mth-time__row{ position:relative; display:grid; grid-template-columns:repeat(6,1fr); gap:0; }
+  .mth-step__head{ display:flex; align-items:center; }
+  .mth-step__n{ width:30px; height:30px; flex:none; border-radius:50%; background:var(--ag-green-light); color:var(--ag-ink); display:flex; align-items:center; justify-content:center; font:700 13px/1 var(--ag-font-mono); }
+  .mth-step__line{ flex:1; height:2px; background:rgba(127,200,124,.35); }
+  .mth-step:last-child .mth-step__line{ background:transparent; }
+  .mth-step__t{ font-weight:600; font-size:13px; color:#fff; margin-top:12px; padding-right:12px; }
+  .mth-step__d{ font-size:11.5px; line-height:1.5; color:rgba(255,255,255,.6); margin-top:4px; padding-right:12px; }
+
+  /* prose */
+  .mth-prose h3{ margin:1.5rem 0 .35rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.15rem; color:var(--ag-ink); }
+  .mth-prose p{ margin:0; font-size:14.5px; line-height:1.7; color:#3a4448; }
+  .mth-prose a{ color:var(--ag-green); }
+  .mth-prose ol{ margin:.6rem 0 0; padding-left:1.3rem; display:flex; flex-direction:column; gap:.4rem; font-size:14px; line-height:1.6; color:#3a4448; }
+
+  .mth-cta{ text-align:center; margin-top:clamp(2.4rem,5vw,3.2rem); }
+  .mth-cta p{ margin:0 0 1rem; color:#52605c; }
+  .mth-btn{ display:inline-flex; align-items:center; gap:.5rem; background:var(--ag-green); color:#fff; text-decoration:none; font-weight:600; font-size:15px; padding:14px 28px; border-radius:999px; box-shadow:0 12px 24px -12px rgba(35,123,34,.6); }
+  .mth-btn:hover{ background:var(--ag-green-dark); }
+
+  @media (max-width:680px){
+    .mth-grid{ grid-template-columns:1fr; }
+    .mth-time__row{ grid-template-columns:1fr; gap:1rem; }
+    .mth-step__line{ display:none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mth">
+  <header class="mth-hero">
+    <p class="mth-eyebrow">Methodology · Integrity Center</p>
+    <h1>How the CPI is <em>scored.</em></h1>
+    <p>Transparent rules, verified identities, independent scoring. The Cultural Power Index is a defensible, audited score — this page is your reference if anything is ever disputed.</p>
+    <div class="mth-chips">
+      {% for label in ['OTP-verified voting','One vote per identity','Fraud-scored','Independent jury','Weighted public + judge','Full audit trail'] %}
+        <span class="mth-chip">{{ label }}</span>
+      {% endfor %}
+    </div>
+  </header>
+
+  {# ── The score ── #}
+  <h2 class="mth-h2">The score</h2>
+  <p class="mth-lead">The final CPI is a weighted combination of the community’s verified votes and an independent judge panel. Neither alone decides the winner.</p>
+  <div class="mth-score">
+    <div class="mth-score__head">
+      <h3>Two weighted inputs</h3>
+      <span class="mth-score__max">= CPI score</span>
+    </div>
+    <div class="mth-bar">
+      <div class="mth-bar__top">
+        <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>Public votes</span>
+        <span class="mth-bar__pct">45%</span>
       </div>
+      <span class="mth-bar__track"><span class="mth-bar__fill" style="width:45%"></span></span>
+      <p class="mth-bar__desc">Community voice — normalised within each category against the category’s highest vote count. Only organic, OTP-verified votes count toward the score; donation bonus votes never move it.</p>
+    </div>
+    <div class="mth-bar">
+      <div class="mth-bar__top">
+        <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#f3eef7;color:#5b3a8a"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>Judge panel</span>
+        <span class="mth-bar__pct">55%</span>
+      </div>
+      <span class="mth-bar__track"><span class="mth-bar__fill" style="width:55%"></span></span>
+      <p class="mth-bar__desc">An independent panel scores each shortlisted nominee on four equally-weighted criteria. Only complete scorecards count, and a nominee needs a minimum number of judges to be winner-eligible.</p>
+    </div>
+    <p class="mth-eq">45% public&nbsp;+&nbsp;55% judges&nbsp;=&nbsp;CPI</p>
+    <div class="mth-why"><strong>Why 45/55?</strong> Popularity alone shouldn’t decide a winner — a well-funded campaign can generate disproportionate vote volume. The slight tilt to the judge panel keeps merit, not marketing, in charge of the decision.</div>
+  </div>
+
+  {# ── Judge criteria ── #}
+  <h2 class="mth-h2">The four judging criteria</h2>
+  <p class="mth-lead">Every judge scores each nominee 0–10 on four dimensions. The equally-weighted average becomes that judge’s score.</p>
+  <div class="mth-grid">
+    {% set crit = {
+      'Impact':'Measurable difference made for the community, industry, or continent.',
+      'Originality':'Inventiveness and novelty — has this person introduced something genuinely new?',
+      'Reach':'Breadth of influence: local, regional, continental, or global.',
+      'Integrity':'Consistency of values, ethics, and accountability under pressure.'
+    } %}
+    {% for title, desc in crit %}
+      <div class="mth-cell">
+        <div class="mth-cell__top"><h3>{{ title }}</h3><span class="mth-cell__pct">25%</span></div>
+        <p>{{ desc }}</p>
+      </div>
+    {% endfor %}
+  </div>
+
+  {# ── Principles ── #}
+  <h2 class="mth-h2">Principles we hold</h2>
+  <div class="mth-grid">
+    {% set princ = [
+      ['One person, one vote','Email is hashed (SHA-256) and checked for uniqueness per category. Plain addresses are never stored.'],
+      ['No pay-to-win','Donations and ticket sales never affect a score. Funding and ranking are fully separated.'],
+      ['Open audit trail','Every recomputation is logged. An independent reviewer can replay the math from source.'],
+      ['Panel verification','A profile must clear human review before any votes or impact points are counted.']
+    ] %}
+    {% for p in princ %}
+      <div class="mth-cell">
+        <div class="mth-cell__ico"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <h3>{{ p[0] }}</h3>
+        <p style="margin-top:6px">{{ p[1] }}</p>
+      </div>
+    {% endfor %}
+  </div>
+
+  {# ── Lifecycle timeline ── #}
+  <h2 class="mth-h2">From nomination to result</h2>
+  <div class="mth-time">
+    <div class="mth-time__orb" aria-hidden="true"></div>
+    <h3>Every programme runs six enforced stages</h3>
+    <div class="mth-time__row">
+      {% set steps = [
+        ['1','Nominated','Anyone can nominate; entries are queued for moderation.'],
+        ['2','Verified','The team reviews eligibility, accuracy and completeness.'],
+        ['3','Shortlisted','Approved nominees go public; the list is then frozen.'],
+        ['4','Voted','OTP-verified, fraud-scored community votes are collected.'],
+        ['5','Judged','The independent panel scores each nominee.'],
+        ['6','Sealed','A signed snapshot is taken; results are computed and archived.']
+      ] %}
+      {% for s in steps %}
+        <div class="mth-step">
+          <div class="mth-step__head"><span class="mth-step__n">{{ s[0] }}</span><span class="mth-step__line"></span></div>
+          <div class="mth-step__t">{{ s[1] }}</div>
+          <div class="mth-step__d">{{ s[2] }}</div>
+        </div>
+      {% endfor %}
     </div>
   </div>
-</section>
 
-<article class="r26-article wrap" style="padding-top:1.5rem">
-  <div class="r26-prose">
+  {# ── Detailed rules (prose) ── #}
+  <div class="mth-prose">
+    <h2 class="mth-h2">Voting rules in detail</h2>
+    <h3>OTP verification required</h3>
+    <p>Every vote requires a one-time 6-digit code delivered to the voter’s email. The code expires in {{ otp_expiry_minutes }} minutes, can only be used once, and is cryptographically bound to the specific nominee it was requested for — it cannot be reused for a different nominee.</p>
+    <h3>Fraud scoring on every vote</h3>
+    <p>Each vote attempt gets a risk score (0–100) from device fingerprint, IP vote density, OTP request patterns, and behavioural signals. Below 30 auto-approves; 60–79 is flagged for manual review; 80+ is blocked before the vote is recorded.</p>
+    <h3>Disposable email addresses blocked</h3>
+    <p>Known temporary email domains (Mailinator, Guerrilla Mail, 10-minute mail, and 30+ others) are rejected at code-request time — before any database write occurs.</p>
+    <h3>Donation votes</h3>
+    <p>Supporters who donate earn bonus votes (currently {{ donation_votes_per_1000 }} per ₦1,000 donated, admin-configurable). Bonus votes face the same OTP verification and fraud scoring as standard votes, and — importantly — they are excluded from the CPI calculation. They show support; they do not move the score.</p>
 
-    {# ── Section 1: Lifecycle ── #}
-    <h2>1 — Award lifecycle</h2>
-    <p>Every award programme runs through five mandatory stages. No stage can be skipped and stages cannot overlap — the platform enforces this at the database level.</p>
-    {% set stages = [
-      {num:'01', name:'Nomination', desc:'Anyone can nominate a person or organisation. Submissions are queued for moderation — they are not visible to the public until approved.'},
-      {num:'02', name:'Verification', desc:'The moderation team reviews each submission for eligibility, accuracy, and completeness. Nominees who do not meet criteria are rejected with a reason logged.'},
-      {num:'03', name:'Shortlist Published', desc:'Approved nominees appear publicly. The shortlist is frozen — no new entries are accepted once voting opens.'},
-      {num:'04', name:'Public Voting', desc:'Community votes are collected. Each email address can cast one vote per category per cycle. Every vote is OTP-verified and fraud-scored before recording.'},
-      {num:'05', name:'Judging', desc:'An independent panel scores each shortlisted nominee on four weighted criteria. Judge scores are recorded separately and combined with public votes at close.'},
-      {num:'06', name:'Results & Audit', desc:'A signed vote snapshot is generated at the moment voting closes. The weighted final score is calculated and winners are announced. The snapshot is permanently archived.'},
-    ] %}
-    <div style="display:flex;flex-direction:column;gap:0.75rem;margin:1.25rem 0 0" data-anim>
-      {% for s in stages %}
-      <div style="display:flex;gap:1rem;background:#fff;border:1px solid rgba(16,41,44,0.08);border-radius:16px;padding:1.1rem 1.25rem">
-        <div style="font-family:var(--font-mono);font-weight:700;color:var(--emerald-600);flex:none;font-size:0.95rem;line-height:1.6">{{ s.num }}</div>
-        <div>
-          <h3 class="r26-h3" style="margin:0 0 0.3rem;font-size:1.05rem">{{ s.name }}</h3>
-          <p style="margin:0;font-size:0.95rem">{{ s.desc }}</p>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
+    <h2 class="mth-h2">Nomination eligibility</h2>
+    <h3>Who can nominate</h3>
+    <p>Any person with a valid, non-disposable email address. There is no fee. Nominators provide their full name, phone number, and location for accountability.</p>
+    <h3>Who can be nominated</h3>
+    <p>Any African individual, school, choir, or business that meets the criteria for the specific award programme. Self-nominations are accepted.</p>
+    <h3>Grounds for rejection</h3>
+    <p>A nomination is rejected if the nominee doesn’t meet the criteria, the reason given is demonstrably false, it duplicates an existing approved entry, or it violates our community standards.</p>
 
-    {# ── Section 2: Voting rules ── #}
-    <h2>2 — Voting rules</h2>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">One vote per category per person</h3>
-    <p>Your email address is hashed using SHA-256 and stored against your vote. The plain-text email is never saved. Each hash can appear once per category per cycle — enforced by a database unique constraint that cannot be bypassed.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">OTP verification required</h3>
-    <p>Every vote requires a one-time 6-digit code delivered to the voter's email. The code expires in 10 minutes, can only be used once, and is cryptographically bound to the specific nominee it was requested for — it cannot be reused for a different nominee.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Fraud scoring on every vote</h3>
-    <p>Each vote attempt is assigned a risk score (0–100) based on device fingerprint, IP vote density, OTP request patterns, and behavioural signals. Scores below 30 are auto-approved. Scores 60–79 are flagged for manual review. Scores 80+ are blocked before the vote is recorded.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Disposable email addresses blocked</h3>
-    <p>Known temporary email domains (Mailinator, Guerrilla Mail, 10-minute mail, and 30+ others) are rejected at OTP request time — before any database write occurs.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Donation votes</h3>
-    <p>Supporters who donate to Africa GATES earn bonus votes (currently 5 per ₦1,000 donated, admin-configurable). Bonus votes are subject to the same OTP verification and fraud scoring as standard votes. They do not bypass any anti-fraud control.</p>
-
-    {# ── Section 3: Scoring formula ── #}
-    <h2>3 — How winners are scored</h2>
-    <p>The final CPI (Cultural Power Index) score is a weighted combination of community votes and judge scores. Neither alone determines the winner.</p>
-    <div class="r26-surface" style="padding:1.75rem;margin:1.25rem 0 0" data-anim>
-      <div class="r26-metrics" style="grid-template-columns:repeat(2,1fr);max-width:none">
-        <div class="r26-metric">
-          <div class="r26-metric__num">45%</div>
-          <div class="r26-metric__lbl"><strong>Public votes</strong> — community voice, normalised within each category against the category's highest vote count.</div>
-        </div>
-        <div class="r26-metric">
-          <div class="r26-metric__num">55%</div>
-          <div class="r26-metric__lbl"><strong>Judge panel</strong> — average of four criteria: Impact (25%), Originality (25%), Reach (25%), and Integrity (25%).</div>
-        </div>
-      </div>
-      <p style="text-align:center;margin:1.25rem 0 0;font-family:var(--font-mono);font-size:0.9rem;color:var(--r26-ink,#10292c)">45% public + 55% judges = CPI Score</p>
-    </div>
-    <div class="r26-note r26-note--gold" style="margin-top:1.25rem">
-      <strong>Why 45/55?</strong> Popularity alone should not determine the winner — a well-funded campaign can generate disproportionate vote volume. The slight tilt to the judge panel ensures that merit, not marketing, carries the decision.
-    </div>
-
-    {# ── Section 4: Judge criteria ── #}
-    <h2>4 — Judging criteria</h2>
-    <p>Every judge scores each nominee on four dimensions. Scores are 0–10 per criterion. The weighted average becomes the judge score.</p>
-    <div class="r26-cards" style="grid-template-columns:repeat(2,1fr);margin-top:1.25rem" data-anim>
-      {% for title,desc in {
-        'Impact': 'Measurable difference made for the community, industry, or continent.',
-        'Originality': 'Inventiveness and novelty — has this person introduced something genuinely new?',
-        'Reach': 'Breadth of influence: local, regional, continental, or global.',
-        'Integrity': 'Consistency of values, ethics, and accountability under pressure.'
-      } %}
-      <div class="r26-card">
-        <h3 class="r26-card__title" style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem">{{ title }} <span class="r26-chip2" style="font-size:0.78rem;padding:0.3rem 0.7rem">25%</span></h3>
-        <p style="margin:0;font-size:0.95rem">{{ desc }}</p>
-      </div>
-      {% endfor %}
-    </div>
-
-    {# ── Section 5: Nomination eligibility ── #}
-    <h2>5 — Nomination eligibility</h2>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Who can nominate</h3>
-    <p>Any person with a valid, non-disposable email address. There is no fee to nominate. Nominators provide their full name, phone number, and location for accountability.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Who can be nominated</h3>
-    <p>Any African individual, school, choir, or business that meets the stated criteria for the specific award programme. Self-nominations are accepted.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Business Awards criteria</h3>
-    <p>Business nominees must have a minimum of 5 staff members, maintain a physical office presence in Alimosho, and demonstrate excellence worthy of emulation.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">Grounds for rejection</h3>
-    <p>A nomination will be rejected if: the nominee does not meet the eligibility criteria, the reason provided is demonstrably false, the nomination is a duplicate of an existing approved entry, or the submission violates our community standards.</p>
-
-    {# ── Section 6: Dispute resolution ── #}
-    <h2>6 — Dispute resolution</h2>
-    <p>If you believe a result was manipulated, a nominee was improperly approved, or a fraud pattern was missed, contact us at <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>.</p>
-    <p>We will:</p>
-    <ol style="padding-left:1.5rem;display:flex;flex-direction:column;gap:0.5rem;font-size:0.9375rem;color:var(--neutral-600,#4a5256);margin:0 0 1.3rem">
-      <li>Acknowledge the complaint within 48 hours.</li>
+    <h2 class="mth-h2">Disputes &amp; your data</h2>
+    <p>If you believe a result was manipulated or a fraud pattern was missed, email <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a> or open an appeal via <a href="/support">Support &amp; Appeals</a>. We will:</p>
+    <ol>
+      <li>Acknowledge the complaint within {{ review_sla_hours }} hours.</li>
       <li>Export the relevant vote audit trail (timestamps, hashed identities, risk scores).</li>
       <li>Engage an independent reviewer if the complaint is substantiated.</li>
       <li>Publish a summary of findings if the dispute affected a final result.</li>
     </ol>
-
-    {# ── Section 7: Data and privacy ── #}
-    <h2>7 — Your data</h2>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">What we store</h3>
-    <p>A SHA-256 hash of your email. Your IP address (also hashed). A device fingerprint. The nominee ID and timestamp of your vote. We never store your plain-text email, name, or personal identifier against a vote.</p>
-    <h3 class="r26-h3" style="margin:1.4rem 0 0.35rem">What we never sell</h3>
-    <p>We do not sell, share, or monetise voter data. Africa GATES products are ad-free. Data collected is used only for fraud prevention, vote integrity, and aggregate analytics.</p>
-    <p>Full details: <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Use</a></p>
-
-    <div style="margin-top:2.5rem;text-align:center" data-anim>
-      <p style="margin-bottom:1rem">Questions not answered here?</p>
-      <a href="mailto:integrity@afrovanguard.org.ng" class="btn btn--emerald">Contact the Integrity Team</a>
-    </div>
-
+    <h3>What we store</h3>
+    <p>A SHA-256 hash of your email and IP, a device fingerprint, and the nominee ID and timestamp of your vote. We never store your plain-text email, name, or personal identifier against a vote, and we never sell or monetise voter data. Full details: <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms</a>.</p>
   </div>
-</article>
+
+  <div class="mth-cta">
+    <p>Questions not answered here?</p>
+    <a class="mth-btn" href="mailto:integrity@afrovanguard.org.ng">Contact the Integrity Team
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+  </div>
+</div>
 {% endblock %}

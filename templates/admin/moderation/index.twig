@@ -1,0 +1,74 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Moderation Queue{% endblock %}
+{% block content %}
+
+<p style="margin:0 0 16px;font-size:13px;color:var(--ad-text-mute,#5a6d6f);max-width:60ch">
+  Posts are auto-moderated on submit — clean content goes live instantly and obvious spam is blocked outright.
+  Only borderline items wait here for a human decision, so there's nothing to approve unless something lands in the grey area.
+  {% if pending == 0 %}<strong style="color:#16794d">Nothing pending — the filter is keeping up.</strong>{% endif %}
+</p>
+
+{% macro verdict(score, reason) %}
+  <span style="font-family:monospace;font-size:11px;color:#b03a5b">AI {{ (score|default(0) * 100)|round }}%</span>
+  {% if reason %}<span style="font-size:11px;color:var(--ad-text-mute,#8a9a9c)"> · {{ reason }}</span>{% endif %}
+{% endmacro %}
+{% import _self as ui %}
+
+{% if threads|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Quarantined threads<small>{{ threads|length }} awaiting review</small></div></div><div class="ad-card__body">
+  {% for t in threads %}
+  <div style="border:1px solid var(--ad-border,#e3e8e8);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="font-weight:700;color:var(--ad-text,#10292c)">{{ t.title }}</div>
+    <div style="font-size:13px;color:var(--ad-text-mute,#5a6d6f);margin:4px 0">{{ t.body|slice(0,280) }}{% if t.body|length > 280 %}…{% endif %}</div>
+    <div style="font-size:11px;color:var(--ad-text-mute,#8a9a9c);margin-bottom:8px">by {{ t.author_name }} · {{ t.created_at }} · {{ ui.verdict(t.ai_score, '') }}</div>
+    <form method="post" action="/admin/moderation/thread/{{ t.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve &amp; publish</button></form>
+    <form method="post" action="/admin/moderation/thread/{{ t.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit">Remove</button></form>
+    <form method="post" action="/admin/moderation/thread/{{ t.id }}/recheck" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" title="Run the current AI moderation pipeline again and apply its verdict">✦ AI re-check</button></form>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if comments|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Quarantined comments &amp; replies<small>{{ comments|length }} awaiting review</small></div></div><div class="ad-card__body">
+  {% for c in comments %}
+  <div style="border:1px solid var(--ad-border,#e3e8e8);border-radius:10px;padding:14px;margin-bottom:10px">
+    <div style="font-size:14px;color:var(--ad-text,#10292c)">{{ c.body }}</div>
+    <div style="font-size:11px;color:var(--ad-text-mute,#8a9a9c);margin:6px 0 8px">by {{ c.author_name }} · on {{ c.target_type }} #{{ c.target_id }} · {{ c.created_at }} · {{ ui.verdict(c.ai_score, c.ai_reason) }}</div>
+    <form method="post" action="/admin/moderation/comment/{{ c.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve</button></form>
+    <form method="post" action="/admin/moderation/comment/{{ c.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit">Remove</button></form>
+    <form method="post" action="/admin/moderation/comment/{{ c.id }}/recheck" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" title="Run the current AI moderation pipeline again and apply its verdict">✦ AI re-check</button></form>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
+
+{% if pending == 0 %}
+<div class="ad-card"><div class="ad-card__body" style="text-align:center;padding:36px;color:var(--ad-text-mute,#5a6d6f)">
+  ✓ The queue is empty. The AI/heuristic filter is handling submissions automatically.
+</div></div>
+{% endif %}
+
+{% if recent_log|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Recent automatic decisions<small>What the filter did, most recent first</small></div></div><div class="ad-card__body">
+  <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead><tr style="text-align:left;color:var(--ad-text-mute,#5a6d6f)">
+      <th scope="col" style="padding:6px 8px">When</th><th scope="col" style="padding:6px 8px">Target</th><th scope="col" style="padding:6px 8px">Decision</th><th scope="col" style="padding:6px 8px">Provider</th><th scope="col" style="padding:6px 8px">Score</th><th scope="col" style="padding:6px 8px">Reason</th>
+    </tr></thead>
+    <tbody>
+    {% for l in recent_log %}
+      <tr style="border-top:1px solid var(--ad-border,#eef1f1)">
+        <td style="padding:6px 8px;white-space:nowrap;color:var(--ad-text-mute,#8a9a9c)">{{ l.created_at }}</td>
+        <td style="padding:6px 8px">{{ l.target_type }} #{{ l.target_id }}</td>
+        <td style="padding:6px 8px"><span style="font-weight:700;color:{{ l.decision == 'allow' ? '#16794d' : (l.decision == 'reject' ? '#b03a5b' : '#a47306') }}">{{ l.decision }}</span></td>
+        <td style="padding:6px 8px">{{ l.provider }}</td>
+        <td style="padding:6px 8px;font-family:monospace">{{ (l.score|default(0) * 100)|round }}%</td>
+        <td style="padding:6px 8px;color:var(--ad-text-mute,#5a6d6f)">{{ l.reason }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div></div>
+{% endif %}
+
+{% endblock %}

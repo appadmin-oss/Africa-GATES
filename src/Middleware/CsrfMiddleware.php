@@ -25,7 +25,11 @@ class CsrfMiddleware {
     private const MUTATING   = ['POST','PUT','PATCH','DELETE'];
     // Exact-match paths exempt from CSRF: OTP-gated routes (emailed code is the
     // proof) and signature-verified payment webhooks (no session to protect).
-    private const OTP_EXEMPT = ['/api/vote', '/api/otp/request', '/pay/webhook'];
+    // Plus the token-gated no-SSH setup endpoint: it is authenticated by the secret
+    // SETUP_TOKEN in the query (checked in the route), so a CSRF token adds nothing.
+    // /api/agent/gee is server-to-server (Make.com agent → Gee): no Origin
+    // header, bearer-key authenticated in the controller — CSRF doesn't apply.
+    private const OTP_EXEMPT = ['/api/vote', '/api/otp/request', '/api/v1/vote', '/api/v1/otp/request', '/api/agent/gee', '/api/v1/agent/gee', '/pay/webhook', '/__setup/admin'];
 
     public function __invoke(Request $req, Handler $handler): Response {
         if (!in_array($req->getMethod(), self::MUTATING, true)) {

@@ -1,0 +1,61 @@
+{# ── AI drafting widget for rich-text fields ────────────────────────────────
+   Reusable across the terms editor, legal editor, and any rich body. Posts to
+   /admin/ai/assist and writes the returned HTML into a target [data-richtext]
+   textarea (dispatching 'input' so the live editor surface re-syncs).
+
+   Usage: {% include 'admin/partials/ai-assist.twig' with { target: 'f-body', kind: 'terms & conditions' } only %}
+   - target : id of the textarea to fill
+   - kind   : what's being written (used in the AI prompt + labels)                 #}
+<div class="ai-assist" x-data="agAiAssist('{{ target }}', {{ kind|json_encode }})" style="border:1px dashed var(--ad-accent,#237b22);border-radius:12px;padding:12px 14px;margin:8px 0 4px;background:#f6faf6">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ad-accent,#237b22)" stroke-width="2" aria-hidden="true"><path d="M12 3l2.1 5.4L19.5 10l-5.4 2.1L12 17l-2.1-4.9L4.5 10l5.4-1.6z"/></svg>
+    <strong style="font-size:13px;color:var(--ad-text,#10292c)">Draft with AI</strong>
+    <span style="font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">— always review before publishing</span>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
+    <label class="sr-only" :for="promptId">Describe what to draft</label>
+    <input type="text" :id="promptId" x-model="prompt" @keydown.enter.prevent="run('draft')"
+           placeholder="Describe it — e.g. “eligibility, one vote per category, appeals within 14 days”"
+           style="flex:1;min-width:220px;border:1px solid var(--ad-line,#dfe4e3);border-radius:8px;padding:8px 11px;font:inherit;font-size:13px">
+    <button type="button" class="ad-btn ad-btn--primary ad-btn--sm" @click="run('draft')" x-bind:disabled="busy" x-text="busy ? 'Working…' : 'Draft'"></button>
+    <button type="button" class="ad-btn ad-btn--sm" @click="run('improve')" x-bind:disabled="busy" title="Rewrite the current content for clarity">Improve current</button>
+  </div>
+  <p role="alert" x-show="error" x-cloak x-text="error" style="color:#b42318;font-size:12.5px;font-weight:600;margin:8px 0 0"></p>
+  <p role="status" x-show="okMsg" x-cloak x-text="okMsg" style="color:#166534;font-size:12.5px;font-weight:600;margin:8px 0 0"></p>
+</div>
+<script>
+if (!window.agAiAssist) {
+  window.agAiAssist = function (targetId, kind) {
+    return {
+      prompt: '', busy: false, error: '', okMsg: '',
+      promptId: 'aiprompt-' + targetId,
+      target() { return document.getElementById(targetId); },
+      async run(mode) {
+        const el = this.target();
+        if (!el) return;
+        if (mode === 'draft' && !this.prompt.trim()) { this.error = 'Describe what you want drafted.'; return; }
+        this.busy = true; this.error = ''; this.okMsg = '';
+        try {
+          const r = await fetch('/admin/ai/assist', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]') || {}).content || '{{ csrf_token }}' },
+            body: JSON.stringify({ mode: mode, kind: kind, prompt: this.prompt, current: el.value })
+          });
+          const j = await r.json();
+          if (j && j.ok && j.html) {
+            el.value = j.html;
+            el.dispatchEvent(new Event('input', { bubbles: true })); // re-sync the rich editor
+            this.okMsg = mode === 'improve' ? 'Rewritten — review and edit as needed.' : 'Draft inserted — review and edit as needed.';
+          } else {
+            this.error = (j && j.error) || 'AI could not help just now.';
+          }
+        } catch (e) {
+          this.error = 'Network error — try again.';
+        } finally {
+          this.busy = false;
+        }
+      }
+    };
+  };
+}
+</script>

@@ -1,0 +1,51 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="/assets/css/components/auth.css?v={{ asset_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-auth">
+  <aside class="ag-auth__brand">
+    <div class="ag-auth__orb" aria-hidden="true"></div>
+    <a class="ag-auth__logo" href="/" aria-label="Africa GATES — home">
+      <span class="ag-auth__logo-glyph" aria-hidden="true">G</span>
+      <span class="ag-auth__logo-word"><b>Africa</b><span>GATES</span></span>
+    </a>
+    <div class="ag-auth__pitch">
+      <h1>One quick<br>confirmation.</h1>
+      <p>Verifying your email keeps your account secure and the voting points you earn safely yours.</p>
+    </div>
+    <p class="ag-auth__copy">© {{ "now"|date("Y") }} Africa GATES · An Afrovanguard initiative</p>
+  </aside>
+
+  <div class="ag-auth__panel">
+    <div class="ag-auth__form-wrap">
+      {% include 'partials/lottie.twig' with { src: '/assets/anim/otp-verify.json', size: 150 } only %}
+      <p class="ag-auth__eyebrow">Member account</p>
+      <h1 class="ag-auth__h">Confirm your email</h1>
+      <p class="ag-auth__sub">
+        {% if email %}We've sent a verification link to <strong>{{ email }}</strong>. Open it to activate your account.{% else %}We've sent you a verification link. Open it to activate your account.{% endif %}
+      </p>
+      {% if error %}<div class="ag-auth__alert ag-auth__alert--err" role="alert">{{ error }}</div>{% endif %}
+      {% if notice %}<div class="ag-auth__alert ag-auth__alert--note" role="status">{{ notice }}</div>{% endif %}
+
+      <form method="post" action="/account/verify/resend">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {% if email %}
+          <input type="hidden" name="email" value="{{ email }}">
+        {% else %}
+          <div class="ag-auth__field">
+            <label class="ag-auth__label" for="email">Your email</label>
+            <input class="ag-auth__input" id="email" type="email" name="email" autocomplete="email" placeholder="you@email.com" required autofocus>
+          </div>
+        {% endif %}
+        <button class="ag-auth__cta" type="submit">Resend verification link</button>
+      </form>
+
+      <p class="ag-auth__fine">Already verified? <a href="/account/login">Sign in</a></p>
+      <p class="ag-auth__fine" style="margin-top:6px;color:#5f7273">A one-time sign-in code from the <a href="/account/login">sign-in page</a> also confirms your email instantly.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -27,6 +27,23 @@ $capsule->addConnection(require $root . '/config/database.php');
 $capsule->setAsGlobal();
 $capsule->bootEloquent();
 
+// Single-instance guard — a run that overruns its 15-min window must not overlap
+// the next tick (double reminders, double job-drains, SQLite write contention).
+if (!\AfricaGates\Support\CronGuard::acquire('maintenance', $root . '/var/data')) {
+    fwrite(STDERR, "[maintenance] another run is still in progress — exiting.\n");
+    exit(0);
+}
+
+// DI container so the cron's queue worker + reminder sender can resolve services
+// (GoogleSheetsService, OtpService). Without it, the functions' `global $container`
+// was null and the Google Sheets vote-sync + voting-reminder emails silently no-opped.
+$builder = new \DI\ContainerBuilder();
+$builder->addDefinitions(require $root . '/config/container.php');
+$container = $builder->build();
+
+// Wall-clock for gates_cron_log.runtime_ms (previously always written null).
+$startedAt = microtime(true);
+
 $now = Carbon::now();
 $task = $argv[1] ?? 'auto';
 $ran = [];
@@ -57,6 +74,15 @@ function pruneRateLimits(): int {
         return $c;
     } catch (\Throwable $e) { return 0; }
 }
+function pruneShareLinks(): int {
+    // Expired prefill links carry nominee contact details — remove the payload
+    // promptly (7-day grace after expiry for "my link stopped working" support).
+    try {
+        $c = (int)DB::table('gates_nomination_links')->where('expires_at', '<', Carbon::now()->subDays(7))->delete();
+        log_line("Share-link prune: $c rows");
+        return $c;
+    } catch (\Throwable $e) { return 0; }
+}
 function trimCronLog(): int {
     try {
         $c = (int)DB::table('gates_cron_log')->where('ran_at', '<', Carbon::now()->subDays(90))->delete();
@@ -82,6 +108,13 @@ function advanceCycles(): int {
             if ($want === $c->status) continue;
             DB::table('gates_award_cycles')->where('id', $c->id)->update(['status' => $want]);
             log_line("Cycle #{$c->id} (prog {$c->programme_id}, {$c->year}): {$c->status} → {$want}");
+            \AfricaGates\Services\WebhookService::dispatch('cycle.status_changed', [
+                'cycle_id'     => (int) $c->id,
+                'programme_id' => (int) $c->programme_id,
+                'year'         => (int) $c->year,
+                'from'         => (string) $c->status,
+                'to'           => (string) $want,
+            ]);
             $changed++;
         }
         if ($changed > 0) {
@@ -127,6 +160,36 @@ function drainJobs(): int {
         $q = new \AfricaGates\Services\QueueService();
         $sheets = $container?->get(\AfricaGates\Services\GoogleSheetsService::class);
         $q->on('vote.sheets_push', function (array $p) use ($sheets) { $sheets?->pushVote($p); });
+        // SMS / WhatsApp retries — deliver() throws on failure so QueueService
+        // owns the retry/backoff schedule (5 attempts, then failed).
+        $sms = \AfricaGates\Services\SmsService::boot();
+        $q->on(\AfricaGates\Services\SmsService::JOB_SMS, function (array $p) use ($sms) {
+            $sms->deliver('sms', (string)($p['to'] ?? ''), (string)($p['body'] ?? ''), (string)($p['template'] ?? 'generic'));
+        });
+        $q->on(\AfricaGates\Services\SmsService::JOB_WHATSAPP, function (array $p) use ($sms) {
+            $sms->deliver('whatsapp', (string)($p['to'] ?? ''), (string)($p['body'] ?? ''), (string)($p['template'] ?? 'generic'));
+        });
+        // Review-at-scale: advisory AI triage per nomination (score + summary +
+        // duplicate hints). Advisory only — never approves/rejects anything.
+        $q->on(\AfricaGates\Services\NominationTriageService::JOB_TRIAGE, function (array $p) {
+            \AfricaGates\Services\NominationTriageService::generate((int)($p['nomination_id'] ?? 0));
+        });
+        // Community v2: tell a member their thread got a reply (queued so the
+        // posting request never waits on SMTP; silently skipped for guests).
+        $mailer = $container?->get(\AfricaGates\Services\OtpService::class);
+        $q->on('community.reply_email', function (array $p) use ($mailer) {
+            if (!$mailer) return;
+            $u = DB::table('gates_users')->where('id', (int)($p['author_user_id'] ?? 0))->where('status', 'active')->first();
+            if (!$u || empty($u->email)) return;
+            $esc  = static fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+            $base = rtrim((string)($_ENV['APP_URL'] ?? ''), '/');
+            $url  = $base . '/community/' . rawurlencode((string)($p['slug'] ?? ''));
+            $html = '<p>Hi ' . $esc($u->name) . ',</p>'
+                . '<p><strong>' . $esc($p['replier'] ?? 'A member') . '</strong> replied to your community thread '
+                . '&ldquo;<strong>' . $esc($p['title'] ?? '') . '</strong>&rdquo;.</p>'
+                . '<p><a href="' . $esc($url) . '" style="display:inline-block;background:#237b22;color:#fff;text-decoration:none;font-weight:600;padding:11px 20px;border-radius:999px">Read the reply &rarr;</a></p>';
+            $mailer->sendBranded((string)$u->email, 'New reply to your thread — Africa GATES', $html, strip_tags($html), 'Community');
+        });
         $r = $q->work(50);
         if ($r['done'] || $r['failed'] || $r['retried']) {
             log_line("Queue: {$r['done']} done, {$r['retried']} retried, {$r['failed']} failed");
@@ -142,6 +205,47 @@ function drainJobs(): int {
  * Send a voting-reminder email to all newsletter subscribers when a cycle
  * closes in exactly 48 hours. Runs as part of the daily maintenance cron.
  */
+/**
+ * Nominator "still under review" acknowledgement — the no-silence guarantee.
+ * For nominations pending past the review SLA that have had NO response yet,
+ * email the nominator once (nominator_ack_at guards against repeats) so a slow
+ * queue never reads as being ignored.
+ */
+function sendPendingAcknowledgements(): int {
+    global $container;
+    try {
+        $sla = 48;
+        try { $v = DB::table('gates_settings')->where('key_name', 'review_sla_hours')->value('value'); if ($v !== null) $sla = max(1, (int)$v); } catch (\Throwable $e) {}
+        // Only start acknowledging once a nomination is well past the SLA (2×),
+        // so this is a genuine "sorry it's taking a while", not premature noise.
+        $pending = \AfricaGates\Services\NominationFeedbackService::pendingNeedingAck($sla * 2, 200);
+        if (!$pending) return 0;
+        $mailer = $container?->get(\AfricaGates\Services\OtpService::class);
+        if (!$mailer || !$mailer->smtpConfigured()) return 0;
+        $sent = 0;
+        foreach ($pending as $nom) {
+            if (!filter_var($nom->nominator_email ?? '', FILTER_VALIDATE_EMAIL)) {
+                \AfricaGates\Services\NominationFeedbackService::markAcked((int)$nom->id); // no email → don't re-scan forever
+                continue;
+            }
+            $by = htmlspecialchars((string)$nom->nominator_name, ENT_QUOTES, 'UTF-8');
+            $nn = htmlspecialchars((string)$nom->nominee_name, ENT_QUOTES, 'UTF-8');
+            $ref = htmlspecialchars((string)($nom->reference ?? ''), ENT_QUOTES, 'UTF-8');
+            $html = "<p>Hi <strong>{$by}</strong>,</p><p>A quick note that your nomination of <strong>{$nn}</strong>"
+                . ($ref !== '' ? " (ref {$ref})" : '') . " is still with our review team. Thank you for your patience — "
+                . "we review every nomination by hand to keep the awards fair, and you'll hear from us the moment there's a decision.</p>";
+            try {
+                $mailer->sendBranded((string)$nom->nominator_email, "Your nomination of {$nom->nominee_name} is still under review",
+                    $html, "Hi {$nom->nominator_name},\n\nYour nomination of {$nom->nominee_name} is still under review. You'll hear from us as soon as there's a decision.\n\n— Africa GATES", 'Nominations');
+                \AfricaGates\Services\NominationFeedbackService::markAcked((int)$nom->id);
+                $sent++;
+            } catch (\Throwable $e) { /* try again next run */ }
+        }
+        log_line("Nomination acknowledgements sent: {$sent}");
+        return $sent;
+    } catch (\Throwable $e) { log_line('Ack error: ' . $e->getMessage()); return 0; }
+}
+
 function sendVotingReminders(): int {
     global $container;
     $count = 0;
@@ -227,6 +331,12 @@ if ($task === 'auto') {
         $ran[] = ['otp',       purgeExpiredOtp()];
         $ran[] = ['magic',     purgeExpiredMagic()];
         $ran[] = ['ratelimit', pruneRateLimits()];
+        $ran[] = ['sharelinks', pruneShareLinks()];
+        // Queue AI triage for pending nominations that don't have insights yet
+        // (backlogs from before the feature, or periods when AI was off).
+        $ran[] = ['triage-backfill', \AfricaGates\Services\NominationTriageService::backfill(100)];
+        // Mail delivery audit: keep 30 days.
+        try { $ran[] = ['maillog', (int) DB::table('gates_mail_log')->where('created_at', '<', Carbon::now()->subDays(30))->delete()]; } catch (\Throwable $e) {}
     }
     // Every 6 hours: CPI recompute + tamper-evident standings snapshot
     if ($now->hour % 6 === 0 && (int)$now->minute < 15) {
@@ -237,6 +347,7 @@ if ($task === 'auto') {
     if ($now->hour === 6 && (int)$now->minute < 15) {
         $ran[] = ['collusion', scanCollusion()];
         $ran[] = ['reminder', sendVotingReminders()];
+        $ran[] = ['nom-ack', sendPendingAcknowledgements()];
         recordDigest(); $ran[] = ['digest', 1];
         $ran[] = ['cronlog', trimCronLog()];
     }
@@ -273,7 +384,7 @@ try {
         'job_name'   => 'maintenance',
         'status'     => 'success',
         'message'    => json_encode($ran),
-        'runtime_ms' => null,
+        'runtime_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         'ran_at'     => Carbon::now()->toDateTimeString(),
     ]);
 } catch (\Throwable $e) {}

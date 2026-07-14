@@ -1,0 +1,17 @@
+/* ════════════════════════════════════════════════════════════════
+   Africa GATES — Base typography (new system; scoped to .ag-scope so
+   legacy pages are untouched until migrated). Playfair display +
+   DM Sans body + JetBrains mono labels, per the design.
+   ════════════════════════════════════════════════════════════════ */
+.ag-scope{ font-family:var(--ag-font-body); color:var(--ag-ink); -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+.ag-scope h1,.ag-scope h2,.ag-scope h3,.ag-display{
+  font-family:var(--ag-font-display); font-weight:700; color:var(--ag-ink); line-height:1.05; letter-spacing:-.01em; margin:0;
+}
+.ag-scope h1,.ag-display{ font-size:var(--ag-fs-hero); }
+.ag-scope h2{ font-size:var(--ag-fs-h2); }
+.ag-scope h3{ font-size:var(--ag-fs-h3); }
+.ag-accent{ font-style:italic; color:var(--ag-green); font-weight:600; }   /* green italic display accent */
+.ag-eyebrow{ display:inline-flex; align-items:center; gap:.5rem; font:600 var(--ag-fs-label)/1 var(--ag-font-mono);
+  letter-spacing:var(--ag-tracking-label); text-transform:uppercase; color:var(--ag-green); }
+.ag-lead{ font-size:var(--ag-fs-body); line-height:1.6; color:var(--ag-ink-soft); }
+.ag-mono{ font-family:var(--ag-font-mono); }

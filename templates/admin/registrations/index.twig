@@ -1,0 +1,46 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Event Registrations{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/registrations/export?event={{ event_id }}&q={{ q|url_encode }}">⤓ Export CSV</a>{% endblock %}
+{% block content %}
+<form method="get" action="/admin/registrations" class="ad-card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+  <div>
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Event</label>
+    <select name="event" aria-label="Filter by event" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;min-width:220px">
+      <option value="0">All events</option>
+      {% for e in events %}<option value="{{ e.id }}" {% if e.id == event_id %}selected{% endif %}>{{ e.title }}</option>{% endfor %}
+    </select>
+  </div>
+  <div style="flex:1;min-width:180px">
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Search name / email / phone</label>
+    <input type="search" name="q" value="{{ q }}" placeholder="e.g. amara or @gmail" aria-label="Search registrations" style="width:100%;padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+  </div>
+  <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
+  {% if event_id or q %}<a class="ad-btn" href="/admin/registrations">Clear</a>{% endif %}
+</form>
+
+<div class="ad-card"><div class="ad-table-wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 4px 12px"><strong style="font-size:14px">{{ total|number_format }} registration{{ total == 1 ? '' : 's' }}</strong>{% if pages > 1 %}<span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Page {{ page }} of {{ pages }}</span>{% endif %}</div>
+  <table class="ad-table">
+    <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Phone</th><th scope="col">Event</th><th scope="col">Tier</th><th scope="col">Registered</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><strong>{{ r.name }}</strong></td>
+        <td>{{ r.email }}</td>
+        <td style="font-family:'Space Mono',monospace;font-size:12px">{{ r.phone }}</td>
+        <td><a href="/admin/registrations?event={{ r.event_id }}" style="color:var(--ad-accent,#237b22);text-decoration:none">{{ r.event_title|default('—') }}</a></td>
+        <td>{% if r.tier %}<span class="ad-chip ad-chip--gold">{{ r.tier }}</span>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">—</span>{% endif %}</td>
+        <td style="font-family:'Space Mono',monospace;font-size:12px">{{ r.created_at|date('Y-m-d H:i') }}</td>
+      </tr>
+      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No registrations{% if event_id or q %} match this filter{% endif %} yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% if pages > 1 %}
+  <div style="display:flex;gap:8px;justify-content:center;padding:16px 0 4px">
+    {% if page > 1 %}<a class="ad-btn ad-btn--sm" href="/admin/registrations?event={{ event_id }}&q={{ q|url_encode }}&page={{ page - 1 }}">← Prev</a>{% endif %}
+    <span style="font-size:13px;color:var(--ad-text-mute,#5a6d6f);align-self:center">{{ page }} / {{ pages }}</span>
+    {% if page < pages %}<a class="ad-btn ad-btn--sm" href="/admin/registrations?event={{ event_id }}&q={{ q|url_encode }}&page={{ page + 1 }}">Next →</a>{% endif %}
+  </div>
+  {% endif %}
+</div></div>
+{% endblock %}

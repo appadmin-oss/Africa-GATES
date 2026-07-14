@@ -83,6 +83,44 @@ class QueueServiceTest extends TestCase
         $this->assertSame(5, (int) $row->attempts);
     }
 
+    public function test_stale_locked_job_is_reclaimed(): void
+    {
+        // A worker claimed the job then died 10 minutes ago, leaving a stale lock.
+        // The reaper must reclaim and run it rather than strand it forever.
+        $q = new QueueService();
+        $id = $q->push('test.stale');
+        DB::table('gates_jobs')->where('id', $id)->update(['locked_at' => Carbon::now()->subMinutes(10)->toDateTimeString()]);
+        $ran = false;
+        $q->on('test.stale', function () use (&$ran) { $ran = true; });
+
+        $r = $q->work();
+
+        $this->assertTrue($ran, 'a job whose worker died holding the lock must be reclaimed');
+        $this->assertSame(1, $r['done']);
+        $this->assertSame('done', DB::table('gates_jobs')->where('id', $id)->value('status'));
+    }
+
+    public function test_stale_job_past_max_attempts_is_failed_not_run(): void
+    {
+        // A poison job that crashed the worker mid-handler every time (so attempts
+        // climbed via claim-time increments) must eventually be failed, not reaped
+        // forever.
+        $q = new QueueService();
+        $id = $q->push('test.poison');
+        DB::table('gates_jobs')->where('id', $id)->update([
+            'locked_at' => Carbon::now()->subMinutes(10)->toDateTimeString(),
+            'attempts'  => 5, // already at MAX_ATTEMPTS
+        ]);
+        $ran = false;
+        $q->on('test.poison', function () use (&$ran) { $ran = true; });
+
+        $r = $q->work();
+
+        $this->assertFalse($ran, 'a job that already burned all attempts must not run again');
+        $this->assertSame(1, $r['failed']);
+        $this->assertSame('failed', DB::table('gates_jobs')->where('id', $id)->value('status'));
+    }
+
     public function test_locked_job_is_not_reprocessed(): void
     {
         $q = new QueueService();

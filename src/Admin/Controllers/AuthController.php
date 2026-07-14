@@ -121,8 +121,14 @@ class AuthController
     {
         try {
             if ($this->otp) {
-                $this->otp->sendCustom($to, 'Your Africa GATES admin sign-in link',
-                    "Click here to sign in (valid 15 minutes): $link"
+                $mhtml = "<h1 style=\"margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:24px;color:#10292C\">Admin sign-in</h1>"
+                    . "<p style=\"margin:13px 0 0;font-size:15px;line-height:1.6;color:#4a5256\">Click below to sign in to the Africa GATES admin console. This link is valid for <strong>15 minutes</strong> and can be used once.</p>"
+                    . "<p style=\"text-align:center;margin:24px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:13px 30px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Sign in to admin &rarr;</a></p>"
+                    . "<p style=\"margin:0;font-size:12.5px;color:#92a6a7;word-break:break-all\">Or paste this link into your browser:<br>{$link}</p>"
+                    . "<p style=\"margin:14px 0 0;font-size:13px;color:#92a6a7\">Didn't request this? Ignore this email — no one can sign in without it.</p>";
+                $this->otp->sendBranded($to, 'Your Africa GATES admin sign-in link', $mhtml,
+                    "Sign in to the Africa GATES admin console (valid 15 minutes, single use):\n\n$link\n\nDidn't request this? Ignore this email.",
+                    'Security'
                 );
                 return;
             }

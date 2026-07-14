@@ -2,12 +2,12 @@
 {% block topbar_title %}Nominees{% endblock %}
 {% block content %}
 <form class="ad-filters" method="get" action="/admin/nominees">
-  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee name…">
-  <select name="cycle">
+  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee name…" aria-label="Search nominee name">
+  <select name="cycle" aria-label="Filter by cycle">
     <option value="">All cycles</option>
     {% for c in cycles %}<option value="{{ c.id }}" {% if filters.cycle == c.id %}selected{% endif %}>{{ c.title }} · {{ c.year }}</option>{% endfor %}
   </select>
-  <select name="status">
+  <select name="status" aria-label="Filter by status">
     <option value="">All statuses</option>
     {% for s in ['pending','approved','winner','runner_up'] %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|capitalize|replace({'_':' '}) }}</option>{% endfor %}
   </select>
@@ -16,7 +16,7 @@
 
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
-    <thead><tr><th>Nominee</th><th>Programme · Category</th><th>Country</th><th>Votes</th><th>Profile (CPI link)</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Nominee</th><th scope="col">Programme · Category</th><th scope="col">Country</th><th scope="col">Votes</th><th scope="col">Profile (CPI link)</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
@@ -34,7 +34,7 @@
           {% else %}
             <form method="post" action="/admin/nominees/{{ r.id }}/link" style="display:flex;gap:4px">
               <input type="hidden" name="_token" value="{{ csrf_token }}">
-              <input type="text" name="profile_slug" placeholder="profile slug" style="width:110px;font-size:12px;padding:2px 6px">
+              <input type="text" name="profile_slug" placeholder="profile slug" aria-label="Profile slug" style="width:110px;font-size:12px;padding:2px 6px">
               <button class="ad-btn ad-btn--xs" type="submit">Link</button>
             </form>
           {% endif %}

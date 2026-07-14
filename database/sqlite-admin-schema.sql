@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS gates_admins (
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT,
   name TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'editor' CHECK(role IN ('superadmin','admin','editor','judge','viewer')),
+  role TEXT NOT NULL DEFAULT 'editor' CHECK(role IN ('superadmin','admin','editor','moderator','judge','viewer')),
   avatar_path TEXT,
   is_active INTEGER NOT NULL DEFAULT 1,
   last_login_at TEXT,
@@ -94,3 +94,26 @@ CREATE TABLE IF NOT EXISTS gates_uploads (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_uploads_attached ON gates_uploads(attached_to_type, attached_to_id);
+
+-- Outbound webhooks (admin-managed integration endpoints) + delivery log.
+CREATE TABLE IF NOT EXISTS gates_webhooks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  url TEXT NOT NULL,
+  secret TEXT NOT NULL,
+  events TEXT NOT NULL DEFAULT '*',
+  description TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  last_status INTEGER,
+  last_event_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS gates_webhook_deliveries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  webhook_id INTEGER NOT NULL,
+  event TEXT NOT NULL,
+  status_code INTEGER,
+  ok INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_delivery_hook ON gates_webhook_deliveries(webhook_id, created_at);

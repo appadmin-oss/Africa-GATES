@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;1,500;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="image-slot.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;background:#fbfbfa}
+  .agd-scroll::-webkit-scrollbar{width:10px;height:10px}
+  .agd-scroll::-webkit-scrollbar-thumb{background:rgba(16,41,44,.16);border-radius:8px}
+  .agd-x::-webkit-scrollbar{height:0}
+  .agd-x{scrollbar-width:none}
+  @keyframes agdPulse{0%{box-shadow:0 0 0 0 rgba(35,123,34,.45)}70%{box-shadow:0 0 0 6px rgba(35,123,34,0)}100%{box-shadow:0 0 0 0 rgba(35,123,34,0)}}
+  @keyframes agdUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes agdMega{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes agdHeart{0%{transform:scale(1)}40%{transform:scale(1.4)}100%{transform:scale(1)}}
+  @keyframes agdProg{from{width:0}to{width:100%}}
+  @keyframes agdMarquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  @keyframes agdFade{from{opacity:0}to{opacity:1}}
+  @keyframes agdReelIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+  @keyframes agdSpin{to{transform:rotate(360deg)}}
+  [data-px]{transition:transform .15s cubic-bezier(.2,.7,.3,1);will-change:transform}
+  /* truly transparent cut-outs — kill the slot's default frame fill */
+  image-slot::part(frame){background:transparent}
+  image-slot::part(image){filter:drop-shadow(0 28px 40px rgba(7,20,22,.32))}
+  image-slot[data-deco]::part(empty){display:none}
+  image-slot[data-deco]::part(image){filter:none}
+</style>
+</helmet>
+
+<div class="agd-scroll" style="width:100%;height:100vh;overflow-y:auto;overflow-x:hidden;background:#fbfbfa" onClick="{{ closeMega }}">
+
+  <!-- ░░░ NAV ░░░ -->
+  <header style="position:sticky;top:0;z-index:50;background:rgba(251,251,250,.82);backdrop-filter:blur(16px);border-bottom:1px solid rgba(16,41,44,.07)">
+    <div style="max-width:1240px;margin:0 auto;padding:0 40px;height:72px;display:flex;align-items:center;justify-content:space-between;gap:28px">
+      <button onClick="{{ goHome }}" style="cursor:pointer;border:none;background:none;display:flex;align-items:center;gap:11px;padding:0">
+        <span style="width:38px;height:38px;border-radius:11px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#7FC87C">G</span>
+        <span style="display:flex;flex-direction:column;line-height:1;align-items:flex-start"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Africa</span><span style="font-size:10px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span>
+      </button>
+
+      <nav style="display:flex;align-items:center;gap:4px">
+        <button onClick="{{ goPulse }}" style="cursor:pointer;border:none;background:{{ pulseBg }};font-family:inherit;font-size:14.5px;font-weight:600;color:{{ pulseFg }};padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:7px">
+          <span style="width:7px;height:7px;border-radius:50%;background:#e0245e;animation:agdPulse 2s infinite"></span>Pulse</button>
+        <div style="position:relative" onClick="{{ stop }}">
+          <button onClick="{{ toggleParticipate }}" style="cursor:pointer;border:none;background:{{ partBg }};font-family:inherit;font-size:14.5px;font-weight:500;color:{{ partFg }};padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Participate
+            <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor" style="transform:{{ partRot }};transition:transform .2s"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></button>
+        </div>
+        <div style="position:relative" onClick="{{ stop }}">
+          <button onClick="{{ toggleExplore }}" style="cursor:pointer;border:none;background:{{ explBg }};font-family:inherit;font-size:14.5px;font-weight:500;color:{{ explFg }};padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Explore
+            <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor" style="transform:{{ explRot }};transition:transform .2s"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></button>
+        </div>
+        <button onClick="{{ goLeaderboard }}" style="cursor:pointer;border:none;background:none;font-family:inherit;font-size:14.5px;font-weight:500;color:{{ lbFg }};padding:9px 14px;border-radius:10px">Leaderboard</button>
+      </nav>
+
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onClick="{{ goVote }}" style="cursor:pointer;border:none;background:none;font-family:inherit;font-size:14px;font-weight:600;color:#10292C;padding:9px 12px;border-radius:10px" style-hover="background:rgba(16,41,44,.05)">Vote</button>
+        <button onClick="{{ goNominate }}" style="cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-size:14px;font-weight:600;padding:10px 20px;border-radius:999px;display:flex;align-items:center;gap:7px;box-shadow:0 8px 18px -8px rgba(35,123,34,.6)" style-hover="background:#1a6118">Register
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+    </div>
+
+    <sc-if value="{{ megaOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ stop }}" style="position:absolute;left:0;right:0;top:72px;background:rgba(251,251,250,.86);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid rgba(16,41,44,.08);border-bottom-left-radius:24px;border-bottom-right-radius:24px;box-shadow:0 24px 48px -28px rgba(16,41,44,.25);animation:agdMega .2s ease both">
+      <div style="max-width:1240px;margin:0 auto;padding:30px 40px 34px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+        <sc-for list="{{ megaItems }}" as="m" hint-placeholder-count="3">
+          <button onClick="{{ m.go }}" style="cursor:pointer;text-align:left;border:1px solid transparent;background:none;border-radius:14px;padding:15px 16px;display:flex;gap:13px;align-items:flex-start" style-hover="background:#f6f7f6;border-color:rgba(16,41,44,.06)">
+            <span style="flex:none;width:38px;height:38px;border-radius:11px;background:{{ m.icoBg }};color:{{ m.icoFg }};display:flex;align-items:center;justify-content:center"><span style="font-size:18px">{{ m.emoji }}</span></span>
+            <span style="display:flex;flex-direction:column;gap:3px">
+              <span style="font-weight:600;font-size:14.5px;color:#10292C">{{ m.title }}</span>
+              <span style="font-size:12.5px;line-height:1.4;color:#717a7e">{{ m.desc }}</span>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+  </header>
+
+  <!-- ═══════════════ HOME ═══════════════ -->
+  <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+  <div>
+    <!-- hero -->
+    <section style="position:relative;overflow:hidden">
+      <div data-px="14" style="position:absolute;top:-180px;left:50%;margin-left:-450px;width:900px;height:620px;background:radial-gradient(ellipse at center,rgba(127,200,124,.16),transparent 62%);pointer-events:none"></div>
+      <div style="max-width:1240px;margin:0 auto;padding:92px 40px 30px;position:relative;text-align:center">
+        <div style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.04em;color:#1a6118;background:#effaf0;padding:7px 15px;border-radius:999px;animation:agdUp .5s ease both">
+          <span style="width:7px;height:7px;border-radius:50%;background:#237b22;animation:agdPulse 2s infinite"></span>Live · CPI recomputed every 6 hours</div>
+        <h1 style="margin:26px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:80px;line-height:.97;letter-spacing:-.025em;color:#10292C;animation:agdUp .5s ease .05s both">African excellence,<br><em style="color:#237b22;font-style:italic">recognised.</em></h1>
+        <p style="max-width:610px;margin:26px auto 0;font-size:18.5px;line-height:1.55;color:#4a5256;animation:agdUp .5s ease .1s both">The continental Cultural Power Index — where the community nominates, expert panels score, the continent votes, and every cycle becomes part of the permanent record.</p>
+        <div style="display:flex;gap:13px;justify-content:center;margin-top:34px;animation:agdUp .5s ease .15s both">
+          <button onClick="{{ goNominate }}" style="cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:15.5px;padding:15px 28px;border-radius:999px;display:flex;align-items:center;gap:8px;box-shadow:0 14px 28px -12px rgba(35,123,34,.6)" style-hover="background:#1a6118">Submit a nomination
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button onClick="{{ goLeaderboard }}" style="cursor:pointer;border:1px solid rgba(16,41,44,.16);background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:15.5px;padding:15px 26px;border-radius:999px" style-hover="border-color:#237b22;color:#237b22">Explore the index</button>
+        </div>
+        <p style="margin:30px 0 0;font-size:12.5px;font-weight:500;color:#92a6a7;animation:agdUp .5s ease .2s both">Trusted by nominees, judges &amp; partners across the continent</p>
+      </div>
+      <!-- country marquee -->
+      <div style="position:relative;margin-top:14px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(90deg,transparent,#000 12%,#000 88%,transparent);overflow:hidden">
+        <div style="display:flex;gap:14px;width:max-content;animation:agdMarquee 36s linear infinite">
+          <sc-for list="{{ marquee }}" as="m" hint-placeholder-count="14">
+            <span style="flex:none;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:#4a5256;background:#fff;border:1px solid rgba(16,41,44,.08);padding:8px 15px;border-radius:999px"><span style="font-size:15px">{{ m.flag }}</span>{{ m.city }}</span>
+          </sc-for>
+        </div>
+      </div>
+    </section>
+
+    <!-- ░ STORIES TRAY — live moments ░ -->
+    <section style="max-width:1240px;margin:0 auto;padding:34px 40px 0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <div style="display:flex;align-items:center;gap:9px">
+          <span style="width:7px;height:7px;border-radius:50%;background:#e0245e;animation:agdPulse 2s infinite"></span>
+          <p style="margin:0;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#10292C">Live moments from the cycle</p>
+        </div>
+        <button onClick="{{ goPulse }}" style="cursor:pointer;border:none;background:none;font-family:inherit;font-size:13px;font-weight:600;color:#237b22">Open Pulse →</button>
+      </div>
+      <div class="agd-x" style="display:flex;gap:16px;overflow-x:auto;padding-bottom:6px">
+        <!-- add moment -->
+        <button onClick="{{ goPulse }}" style="flex:none;cursor:pointer;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:9px;width:78px;padding:0">
+          <span style="width:74px;height:74px;border-radius:50%;border:2px dashed rgba(16,41,44,.2);display:flex;align-items:center;justify-content:center;color:#237b22"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+          <span style="font-size:11.5px;font-weight:500;color:#92a6a7">Your moment</span>
+        </button>
+        <sc-for list="{{ stories }}" as="st" hint-placeholder-count="7">
+          <button onClick="{{ st.open }}" style="flex:none;cursor:pointer;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:9px;width:78px;padding:0">
+            <span style="position:relative;width:74px;height:74px;border-radius:50%;padding:2.5px;background:{{ st.ring }};display:flex;align-items:center;justify-content:center">
+              <span style="width:100%;height:100%;border-radius:50%;border:2.5px solid #fbfbfa;overflow:hidden;background:{{ st.avBg }};color:{{ st.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:25px;position:relative">
+                <image-slot id="{{ st.thumb }}" data-deco fit="cover" shape="circle" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" placeholder=""></image-slot>
+                <span style="position:relative;z-index:1">{{ st.initial }}</span>
+              </span>
+              <span style="position:absolute;bottom:0;right:2px;z-index:2;font-size:13px;background:#fff;border-radius:50%;width:21px;height:21px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.18)">{{ st.flag }}</span>
+            </span>
+            <span style="font-size:11.5px;font-weight:500;color:#4a5256;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:78px">{{ st.first }}</span>
+          </button>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- stat strip -->
+    <section style="max-width:1240px;margin:0 auto;padding:38px 40px 0">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);border:1px solid rgba(16,41,44,.08);border-radius:20px;overflow:hidden;background:#fff">
+        <sc-for list="{{ statStrip }}" as="s" hint-placeholder-count="4">
+          <div style="padding:30px 24px;border-right:1px solid rgba(16,41,44,.07)">
+            <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:34px;color:#10292C;letter-spacing:-.01em">{{ s.value }}</div>
+            <div style="font-size:13px;font-weight:500;color:#717a7e;margin-top:6px">{{ s.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- ░ FEATURE · NOMINATE (cut-out, text left) ░ -->
+    <section style="max-width:1240px;margin:0 auto;padding:104px 40px 0;display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center">
+      <div>
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#1a6118;background:#effaf0;padding:6px 12px;border-radius:999px">01 · Nominate</span>
+        <h2 style="margin:18px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:50px;line-height:1.02;letter-spacing:-.015em;color:#10292C">Surface excellence, <em style="color:#237b22;font-style:italic">wherever you find it.</em></h2>
+        <p style="margin:22px 0 0;font-size:17px;line-height:1.6;color:#4a5256;max-width:440px">Real, verified African profiles — names and records, never stock photos. Nominate someone in under 90 seconds: free, OTP-verified, reviewed by African judges.</p>
+        <button onClick="{{ goNominate }}" style="margin-top:28px;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-size:15px;font-weight:600;padding:13px 24px;border-radius:999px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 12px 24px -12px rgba(35,123,34,.55)" style-hover="background:#1a6118">Start a nomination
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div style="position:relative;height:500px;display:flex;align-items:center;justify-content:center">
+        <div data-px="-24" style="position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle at 42% 36%,#2a8f3a,#10292C 74%)"></div>
+        <div data-px="-12" style="position:absolute;width:316px;height:316px;border-radius:50%;border:1px solid rgba(16,41,44,.1)"></div>
+        <div data-px="-12" style="position:absolute;bottom:64px;width:300px;height:34px;border-radius:50%;background:rgba(7,20,22,.16);filter:blur(14px)"></div>
+        <image-slot id="agd-cut-1" fit="contain" style="position:relative;width:430px;height:500px;z-index:2" placeholder="Drop a cut-out portrait (transparent PNG)"></image-slot>
+        <div data-px="28" style="position:absolute;left:-10px;bottom:62px;z-index:3;background:#fff;border-radius:16px;padding:13px 17px;box-shadow:0 18px 40px -20px rgba(16,41,44,.45);display:flex;align-items:center;gap:11px">
+          <span style="width:38px;height:38px;border-radius:11px;background:#effaf0;color:#1a6118;display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+          <div><div style="font-weight:600;font-size:13.5px;color:#10292C">Nomination verified</div><div style="font-size:11px;color:#717a7e">OTP confirmed · 0:48</div></div>
+        </div>
+        <div data-px="20" style="position:absolute;right:-6px;top:64px;z-index:3;background:#10292C;border-radius:14px;padding:12px 16px;box-shadow:0 18px 40px -20px rgba(16,41,44,.5)">
+          <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px;color:#7FC87C;line-height:1">942</div>
+          <div style="font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-top:3px">CPI score</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ░ FEATURE · VOTE (visual left, text right) ░ -->
+    <section style="max-width:1240px;margin:0 auto;padding:104px 40px 0;display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center">
+      <div style="position:relative;order:0">
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:24px;padding:22px;box-shadow:0 30px 60px -40px rgba(16,41,44,.5)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <span style="font-size:12px;font-weight:600;color:#717a7e">Lifetime Educator · 3 nominees</span>
+            <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#1a6118;background:#effaf0;padding:5px 10px;border-radius:999px"><span style="width:6px;height:6px;border-radius:50%;background:#237b22;animation:agdPulse 2s infinite"></span>Open</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ voteMini }}" as="n" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:12px;background:{{ n.bg }};border:1px solid {{ n.border }};border-radius:14px;padding:11px 13px">
+                <span style="width:38px;height:38px;border-radius:11px;background:{{ n.avBg }};color:{{ n.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:16px">{{ n.initial }}</span>
+                <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:13.5px;color:#10292C">{{ n.flag }} {{ n.name }}</div><div style="font-size:11px;color:#717a7e"><b style="font-family:'JetBrains Mono',monospace;color:#4a5256">{{ n.votes }}</b> votes</div></div>
+                <span style="flex:none;font-size:12px;font-weight:600;color:{{ n.tagColor }}">{{ n.tag }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:14px;display:flex;align-items:center;gap:8px;font-size:11.5px;color:#92a6a7"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>One verified vote per category · fraud-scored · fully audited</div>
+        </div>
+      </div>
+      <div>
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#1a6118;background:#effaf0;padding:6px 12px;border-radius:999px">02 · Vote</span>
+        <h2 style="margin:18px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:50px;line-height:1.02;letter-spacing:-.015em;color:#10292C">A vote that <em style="color:#237b22;font-style:italic">actually counts.</em></h2>
+        <p style="margin:22px 0 0;font-size:17px;line-height:1.6;color:#4a5256;max-width:440px">One verified voter, one vote per category — cross-checked against fingerprint and email hash. Tallies recompute every six hours, in public.</p>
+        <button onClick="{{ goVote }}" style="margin-top:28px;cursor:pointer;border:1px solid rgba(16,41,44,.16);background:#fff;color:#10292C;font-family:inherit;font-size:15px;font-weight:600;padding:13px 24px;border-radius:999px;display:inline-flex;align-items:center;gap:8px" style-hover="border-color:#237b22;color:#237b22">Cast a vote
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+    </section>
+
+    <!-- ░ FEATURE · EVENTS (text left, card right) ░ -->
+    <section style="max-width:1240px;margin:0 auto;padding:104px 40px 0;display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center">
+      <div>
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#a47306;background:#fff8df;padding:6px 12px;border-radius:999px">03 · Events</span>
+        <h2 style="margin:18px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:50px;line-height:1.02;letter-spacing:-.015em;color:#10292C">Ceremonies, webinars <em style="color:#237b22;font-style:italic">& the live stage.</em></h2>
+        <p style="margin:22px 0 0;font-size:17px;line-height:1.6;color:#4a5256;max-width:440px">Recognition is also a gathering. RSVP to award ceremonies, methodology webinars and community sessions across the cycle — streamed and archived in Pulse.</p>
+        <button onClick="{{ goEvents }}" style="margin-top:28px;cursor:pointer;border:1px solid rgba(16,41,44,.16);background:#fff;color:#10292C;font-family:inherit;font-size:15px;font-weight:600;padding:13px 24px;border-radius:999px;display:inline-flex;align-items:center;gap:8px" style-hover="border-color:#237b22;color:#237b22">See the calendar
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <sc-for list="{{ eventsMini }}" as="e" hint-placeholder-count="3">
+          <button onClick="{{ goEvents }}" style="cursor:pointer;text-align:left;display:flex;align-items:center;gap:16px;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:16px 18px" style-hover="border-color:rgba(16,41,44,.2);transform:translateX(2px)">
+            <span style="flex:none;width:58px;height:62px;border-radius:14px;background:{{ e.dateBg }};display:flex;flex-direction:column;align-items:center;justify-content:center;color:{{ e.dateFg }}"><span style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">{{ e.mon }}</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px;line-height:1">{{ e.day }}</span></span>
+            <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15.5px;color:#10292C">{{ e.title }}</div><div style="font-size:12.5px;color:#717a7e;margin-top:3px">{{ e.meta }}</div></div>
+            <span style="flex:none;font-size:10.5px;font-weight:600;letter-spacing:.04em;padding:5px 10px;border-radius:999px;background:{{ e.pillBg }};color:{{ e.pillFg }}">{{ e.kind }}</span>
+          </button>
+        </sc-for>
+      </div>
+    </section>
+
+    <!-- ░ FEATURE · PULSE & COMMUNITY (reel stack left, text right) ░ -->
+    <section style="max-width:1240px;margin:0 auto;padding:104px 40px 0;display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center">
+      <div style="position:relative;height:420px;display:flex;align-items:center;justify-content:center">
+        <div data-px="-16" style="position:absolute;width:380px;height:300px;border-radius:30px;background:radial-gradient(ellipse at 50% 50%,rgba(224,36,94,.16),transparent 70%)"></div>
+        <div data-px="14" style="position:relative;transform:rotate(-7deg);width:150px;height:266px;border-radius:20px;overflow:hidden;background:linear-gradient(135deg,#1a2629,#5d7374);box-shadow:0 24px 50px -24px rgba(16,41,44,.6);margin-right:-26px;z-index:1">
+          <image-slot id="agd-reel-3" data-deco fit="cover" radius="20" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" placeholder=""></image-slot>
+          <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(7,20,22,.6),transparent 60%)"></div>
+        </div>
+        <button onClick="{{ openFirstReel }}" data-px="-8" style="position:relative;cursor:pointer;border:none;padding:0;transform:scale(1.06);width:172px;height:306px;border-radius:22px;overflow:hidden;background:linear-gradient(135deg,#10292C,#1a6118);box-shadow:0 30px 60px -26px rgba(16,41,44,.7);z-index:2">
+          <image-slot id="agd-reel-1" data-deco fit="cover" radius="22" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" placeholder=""></image-slot>
+          <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(7,20,22,.7),transparent 55%)"></div>
+          <span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="#10292C"><path d="M8 5v14l11-7z"/></svg></span>
+          <div style="position:absolute;left:12px;right:12px;bottom:12px;text-align:left"><div style="font-weight:600;font-size:12.5px;color:#fff">Inside the choral finals</div><div style="font-size:10.5px;color:rgba(255,255,255,.78);margin-top:2px">18.2K views</div></div>
+        </button>
+        <div data-px="14" style="position:relative;transform:rotate(7deg);width:150px;height:266px;border-radius:20px;overflow:hidden;background:linear-gradient(135deg,#a47306,#d49a0e);box-shadow:0 24px 50px -24px rgba(16,41,44,.6);margin-left:-26px;z-index:1">
+          <image-slot id="agd-reel-2" data-deco fit="cover" radius="20" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" placeholder=""></image-slot>
+          <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(7,20,22,.6),transparent 60%)"></div>
+        </div>
+      </div>
+      <div>
+        <span style="display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#e0245e;background:#fdeaf0;padding:6px 12px;border-radius:999px">04 · Pulse &amp; Community</span>
+        <h2 style="margin:18px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:50px;line-height:1.02;letter-spacing:-.015em;color:#10292C">Recognition you <em style="color:#237b22;font-style:italic">live with daily.</em></h2>
+        <p style="margin:22px 0 0;font-size:17px;line-height:1.6;color:#4a5256;max-width:440px">Pulse is the living feed — reels, posts and stories from nominees, plus programme channels where the community gathers between cycles. Not a vote-once site; a place you return to.</p>
+        <button onClick="{{ goPulse }}" style="margin-top:28px;cursor:pointer;border:none;background:#10292C;color:#fff;font-family:inherit;font-size:15px;font-weight:600;padding:13px 24px;border-radius:999px;display:inline-flex;align-items:center;gap:8px" style-hover="background:#1a3a3d">Open Pulse
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+    </section>
+
+    <!-- leaderboard + how rail -->
+    <section style="max-width:1240px;margin:0 auto;padding:96px 40px 0;display:grid;grid-template-columns:1.15fr .85fr;gap:56px;align-items:start">
+      <div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:22px">
+          <div>
+            <p style="margin:0 0 7px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#237b22">Live · Cultural Power Index</p>
+            <h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:34px;color:#10292C">Leading this cycle</h2>
+          </div>
+          <button onClick="{{ goLeaderboard }}" style="cursor:pointer;border:none;background:none;font-family:inherit;font-size:14px;font-weight:600;color:#237b22">Full ranking →</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <sc-for list="{{ leadersTop }}" as="p" hint-placeholder-count="6">
+            <button onClick="{{ p.open }}" style="cursor:pointer;text-align:left;display:flex;align-items:center;gap:16px;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:14px 18px" style-hover="border-color:rgba(16,41,44,.2);transform:translateX(2px)">
+              <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;color:{{ p.medal }};width:24px;text-align:center">{{ p.rank }}</span>
+              <span style="width:46px;height:46px;border-radius:13px;background:{{ p.avBg }};color:{{ p.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:20px;flex:none">{{ p.initial }}</span>
+              <span style="flex:1;min-width:0">
+                <span style="display:block;font-weight:600;font-size:16px;color:#10292C">{{ p.flag }} {{ p.name }}</span>
+                <span style="display:block;font-size:13px;color:#717a7e;margin-top:2px">{{ p.category }} · {{ p.countryName }}</span>
+              </span>
+              <span style="flex:none;width:120px;margin-right:6px"><span style="display:block;height:6px;border-radius:4px;background:#eef0f0;overflow:hidden"><span style="display:block;height:100%;border-radius:4px;background:{{ p.barColor }};width:{{ p.barW }}"></span></span></span>
+              <span style="text-align:right;flex:none;width:64px"><span style="display:block;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:19px;color:#237b22">{{ p.cpi }}</span><span style="font-size:9.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:{{ p.tcolor }}">{{ p.tier }}</span></span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="position:sticky;top:96px">
+        <div style="background:#10292C;border-radius:24px;padding:34px 30px;position:relative;overflow:hidden">
+          <div style="position:absolute;right:-50px;top:-50px;width:190px;height:190px;border-radius:50%;background:radial-gradient(circle,rgba(127,200,124,.2),transparent 70%)"></div>
+          <p style="margin:0 0 18px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#fbc329">How it works</p>
+          <div style="display:flex;flex-direction:column;gap:0">
+            <sc-for list="{{ howSteps }}" as="h" hint-placeholder-count="3">
+              <div style="display:flex;gap:15px;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.1)">
+                <span style="flex:none;width:30px;height:30px;border-radius:50%;background:rgba(127,200,124,.16);color:#7FC87C;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px">{{ h.n }}</span>
+                <div><div style="font-weight:600;font-size:15.5px;color:#fff">{{ h.title }}</div><div style="font-size:13px;line-height:1.5;color:rgba(255,255,255,.62);margin-top:3px">{{ h.desc }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+          <button onClick="{{ goNominate }}" style="width:100%;margin-top:22px;cursor:pointer;border:none;background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:15px;padding:14px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:7px">Start a nomination
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ░ CINEMATIC CUT-OUT SECTION B (dark legacy) ░ -->
+    <section style="margin:110px 0 0">
+      <div style="max-width:1240px;margin:0 auto;padding:0 40px">
+        <div style="background:#10292C;border-radius:32px;overflow:hidden;display:grid;grid-template-columns:1fr 1fr;align-items:center;position:relative">
+          <div style="position:relative;height:520px;display:flex;align-items:center;justify-content:center">
+            <div data-px="-20" style="position:absolute;width:360px;height:360px;border-radius:50%;background:radial-gradient(circle at 50% 40%,rgba(212,154,14,.5),transparent 70%)"></div>
+            <image-slot id="agd-cut-2" fit="contain" style="position:relative;width:400px;height:500px;z-index:2" placeholder="Drop a cut-out portrait (transparent PNG)"></image-slot>
+            <div data-px="22" style="position:absolute;right:18px;bottom:70px;z-index:3;background:rgba(255,255,255,.08);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.16);border-radius:14px;padding:12px 16px">
+              <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;color:#fbc329;line-height:1">2024</div>
+              <div style="font-size:10.5px;color:rgba(255,255,255,.7);margin-top:4px">Inaugural edition</div>
+            </div>
+          </div>
+          <div style="padding:64px 64px 64px 24px">
+            <p style="margin:0 0 14px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#fbc329">Legacy Vault</p>
+            <h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:46px;line-height:1.04;letter-spacing:-.015em;color:#fff">Recognition is a record, <em style="color:#7FC87C;font-style:italic">not a moment.</em></h2>
+            <p style="margin:22px 0 0;font-size:16.5px;line-height:1.6;color:rgba(255,255,255,.72);max-width:420px">Every cycle becomes part of the permanent vault — searchable, attributed, and forever credited to the people who earned it.</p>
+            <button onClick="{{ goLegacy }}" style="margin-top:30px;cursor:pointer;border:1px solid rgba(255,255,255,.28);background:none;color:#fff;font-family:inherit;font-size:15px;font-weight:600;padding:13px 24px;border-radius:999px;display:inline-flex;align-items:center;gap:8px" style-hover="background:rgba(255,255,255,.08)">Browse the vault
+              <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- final CTA -->
+    <section style="max-width:1240px;margin:0 auto;padding:96px 40px">
+      <div style="background:#10292C;border-radius:30px;padding:74px 40px;text-align:center;position:relative;overflow:hidden">
+        <div data-px="16" style="position:absolute;left:50%;top:-120px;margin-left:-350px;width:700px;height:400px;background:radial-gradient(ellipse,rgba(127,200,124,.18),transparent 65%)"></div>
+        <p style="margin:0 0 14px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#fbc329;position:relative">Join the index</p>
+        <h2 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:48px;line-height:1.05;color:#fff;position:relative">Someone you know<br>deserves <em style="color:#7FC87C;font-style:italic">this stage.</em></h2>
+        <p style="max-width:540px;margin:18px auto 0;font-size:16.5px;line-height:1.55;color:rgba(255,255,255,.7);position:relative">Nominate them in 90 seconds — free, OTP-verified, reviewed by a panel of African judges.</p>
+        <div style="display:flex;gap:13px;justify-content:center;margin-top:30px;position:relative">
+          <button onClick="{{ goNominate }}" style="cursor:pointer;border:none;background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:15.5px;padding:15px 28px;border-radius:999px;display:flex;align-items:center;gap:8px">Submit a nomination
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button onClick="{{ goNominate }}" style="cursor:pointer;border:1px solid rgba(255,255,255,.28);background:none;color:#fff;font-family:inherit;font-weight:600;font-size:15.5px;padding:15px 26px;border-radius:999px" style-hover="background:rgba(255,255,255,.08)">Register a profile</button>
+        </div>
+      </div>
+    </section>
+  </div>
+  </sc-if>
+
+  <!-- ═══════════════ PULSE (feed) ═══════════════ -->
+  <sc-if value="{{ isPulse }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:1180px;margin:0 auto;padding:40px 40px 90px">
+    <div style="margin-bottom:22px">
+      <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#e0245e">Pulse · the living feed</p>
+      <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:44px;line-height:1.02;letter-spacing:-.02em;color:#10292C">What the continent is <em style="color:#237b22;font-style:italic">talking about.</em></h1>
+    </div>
+    <!-- tabs -->
+    <div style="display:flex;gap:6px;border-bottom:1px solid rgba(16,41,44,.08);margin-bottom:26px">
+      <sc-for list="{{ pulseTabs }}" as="t" hint-placeholder-count="4">
+        <button onClick="{{ t.set }}" style="cursor:pointer;border:none;background:none;font-family:inherit;font-size:14.5px;font-weight:600;color:{{ t.fg }};padding:12px 16px;border-bottom:2px solid {{ t.bar }};margin-bottom:-1px;display:flex;align-items:center;gap:7px">{{ t.label }}<sc-if value="{{ t.badge }}" hint-placeholder-val="{{ false }}"><span style="font-size:10px;font-weight:700;color:#fff;background:#e0245e;border-radius:999px;padding:2px 7px">{{ t.badge }}</span></sc-if></button>
+      </sc-for>
+    </div>
+
+    <!-- ── FOR YOU ── -->
+    <sc-if value="{{ tabForYou }}" hint-placeholder-val="{{ true }}">
+    <div class="agd-x" style="display:flex;gap:16px;overflow-x:auto;padding-bottom:6px;margin-bottom:26px">
+      <sc-for list="{{ stories }}" as="st" hint-placeholder-count="7">
+        <button onClick="{{ st.open }}" style="flex:none;cursor:pointer;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:8px;width:72px;padding:0 0 4px">
+          <span style="position:relative;width:66px;height:66px;border-radius:50%;padding:2.5px;background:{{ st.ring }};display:flex;align-items:center;justify-content:center">
+            <span style="width:100%;height:100%;border-radius:50%;border:2.5px solid #fbfbfa;overflow:hidden;background:{{ st.avBg }};color:{{ st.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:22px;position:relative">
+              <image-slot id="{{ st.thumb }}" data-deco fit="cover" shape="circle" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" placeholder=""></image-slot>
+              <span style="position:relative;z-index:1">{{ st.initial }}</span></span>
+          </span>
+          <span style="font-size:11.5px;font-weight:500;color:#4a5256;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72px">{{ st.first }}</span>
+        </button>
+      </sc-for>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 360px;gap:40px;align-items:start">
+      <!-- feed column -->
+      <div style="display:flex;flex-direction:column;gap:24px">
+        <sc-for list="{{ feed }}" as="post" hint-placeholder-count="3">
+          <article style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:22px;overflow:hidden">
+            <!-- header -->
+            <div style="display:flex;align-items:center;gap:13px;padding:16px 18px">
+              <button onClick="{{ post.open }}" style="cursor:pointer;border:none;background:none;padding:0;width:46px;height:46px;border-radius:13px;background:{{ post.avBg }};color:{{ post.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:20px">{{ post.initial }}</button>
+              <div style="flex:1;min-width:0">
+                <div style="display:flex;align-items:center;gap:7px"><span style="font-weight:600;font-size:15px;color:#10292C">{{ post.flag }} {{ post.author }}</span><span style="font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:{{ post.tbg }};color:{{ post.tcolor }}">{{ post.tier }}</span></div>
+                <div style="font-size:12.5px;color:#92a6a7;margin-top:2px">{{ post.category }} · {{ post.time }}</div>
+              </div>
+              <button onClick="{{ post.toggleFollow }}" style="cursor:pointer;border:1px solid {{ post.followBorder }};background:{{ post.followBg }};color:{{ post.followFg }};font-family:inherit;font-size:13px;font-weight:600;padding:8px 16px;border-radius:999px">{{ post.followLabel }}</button>
+            </div>
+            <!-- media -->
+            <div style="position:relative;width:100%;aspect-ratio:5/4;background:{{ post.cover }}">
+              <image-slot id="{{ post.slot }}" fit="cover" style="position:absolute;inset:0;width:100%;height:100%" placeholder=""></image-slot>
+              <sc-if value="{{ post.isReel }}" hint-placeholder-val="{{ false }}">
+                <span style="position:absolute;top:14px;right:14px;display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#fff;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);padding:5px 11px;border-radius:999px"><svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>Reel</span>
+                <span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:58px;height:58px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="#10292C"><path d="M8 5v14l11-7z"/></svg></span>
+              </sc-if>
+            </div>
+            <!-- actions -->
+            <div style="padding:14px 18px 18px">
+              <div style="display:flex;align-items:center;gap:18px">
+                <button onClick="{{ post.toggleLike }}" style="cursor:pointer;border:none;background:none;padding:0;display:flex;align-items:center;gap:7px;color:{{ post.likeColor }}">
+                  <svg width="25" height="25" viewBox="0 0 24 24" fill="{{ post.likeFill }}" stroke="{{ post.likeColor }}" stroke-width="1.9" style="animation:{{ post.likeAnim }}"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
+                  <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:#10292C">{{ post.likes }}</span>
+                </button>
+                <div style="display:flex;align-items:center;gap:7px;color:#3a4448">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20l1.1-3.5A8.4 8.4 0 1 1 21 11.5Z"/></svg>
+                  <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;color:#10292C">{{ post.comments }}</span>
+                </div>
+                <div style="color:#3a4448"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4 20-7Z"/></svg></div>
+                <div style="flex:1"></div>
+                <button onClick="{{ post.toggleSave }}" style="cursor:pointer;border:none;background:none;padding:0;color:{{ post.saveColor }}"><svg width="23" height="23" viewBox="0 0 24 24" fill="{{ post.saveFill }}" stroke="{{ post.saveColor }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></button>
+              </div>
+              <p style="margin:13px 0 0;font-size:14.5px;line-height:1.5;color:#10292C"><strong style="font-weight:600">{{ post.author }}</strong> {{ post.caption }}</p>
+              <button onClick="{{ post.open }}" style="cursor:pointer;border:none;background:none;padding:8px 0 0;font-size:13px;color:#92a6a7">View all {{ post.comments }} comments</button>
+            </div>
+          </article>
+        </sc-for>
+      </div>
+
+      <!-- rail -->
+      <div style="position:sticky;top:96px;display:flex;flex-direction:column;gap:20px">
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:22px">
+          <p style="margin:0 0 16px;font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#717a7e">Rising this week</p>
+          <div style="display:flex;flex-direction:column;gap:15px">
+            <sc-for list="{{ rising }}" as="p" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:12px">
+                <button onClick="{{ p.open }}" style="cursor:pointer;border:none;background:none;padding:0;width:42px;height:42px;border-radius:12px;background:{{ p.avBg }};color:{{ p.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:18px">{{ p.initial }}</button>
+                <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px;color:#10292C;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div><div style="font-size:11.5px;color:#1a9c34;font-weight:600">▲ {{ p.delta }} this week</div></div>
+                <button onClick="{{ p.toggleFollow }}" style="cursor:pointer;border:1px solid {{ p.followBorder }};background:{{ p.followBg }};color:{{ p.followFg }};font-family:inherit;font-size:12px;font-weight:600;padding:6px 13px;border-radius:999px">{{ p.followLabel }}</button>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:#10292C;border-radius:20px;padding:24px;position:relative;overflow:hidden">
+          <div style="position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(127,200,124,.22),transparent 70%)"></div>
+          <p style="margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#fbc329">Voting closes in</p>
+          <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:30px;color:#fff">21d 14h</div>
+          <p style="margin:8px 0 16px;font-size:13px;line-height:1.5;color:rgba(255,255,255,.66)">Your vote moves the index. One verified vote per category.</p>
+          <button onClick="{{ goVote }}" style="width:100%;cursor:pointer;border:none;background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:14px;padding:12px;border-radius:999px">Cast a vote</button>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ── REELS ── -->
+    <sc-if value="{{ tabReels }}" hint-placeholder-val="{{ false }}">
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px">
+      <sc-for list="{{ reelsGrid }}" as="r" hint-placeholder-count="5">
+        <button onClick="{{ r.open }}" style="cursor:pointer;border:none;background:none;padding:0;text-align:left">
+          <div style="position:relative;width:100%;aspect-ratio:9/16;border-radius:18px;overflow:hidden;background:{{ r.cover }}" style-hover="transform:translateY(-4px)">
+            <image-slot id="{{ r.slot }}" data-deco fit="cover" radius="18" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" placeholder=""></image-slot>
+            <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(7,20,22,.8) 8%,rgba(7,20,22,0) 55%)"></div>
+            <span style="position:absolute;top:11px;left:11px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;color:#fff;background:rgba(0,0,0,.38);backdrop-filter:blur(4px);padding:4px 9px;border-radius:999px"><svg width="10" height="10" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>{{ r.dur }}</span>
+            <span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="#10292C"><path d="M8 5v14l11-7z"/></svg></span>
+            <div style="position:absolute;left:11px;right:11px;bottom:11px">
+              <div style="font-weight:600;font-size:12.5px;color:#fff;line-height:1.25">{{ r.title }}</div>
+              <div style="display:flex;align-items:center;gap:5px;margin-top:5px;font-size:10.5px;color:rgba(255,255,255,.8)"><span>{{ r.author }}</span><span>·</span><span>{{ r.views }}</span></div>
+            </div>
+          </div>
+        </button>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <!-- ── EVENTS ── -->
+    <sc-if value="{{ tabEvents }}" hint-placeholder-val="{{ false }}">
+    <div style="display:grid;grid-template-columns:1fr 360px;gap:40px;align-items:start">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <sc-for list="{{ eventsList }}" as="e" hint-placeholder-count="4">
+          <div style="display:flex;gap:20px;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:20px;align-items:center" style-hover="border-color:rgba(16,41,44,.18)">
+            <span style="flex:none;width:74px;height:80px;border-radius:16px;background:{{ e.dateBg }};display:flex;flex-direction:column;align-items:center;justify-content:center;color:{{ e.dateFg }}"><span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">{{ e.mon }}</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:28px;line-height:1">{{ e.day }}</span></span>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:9px"><span style="font-size:10.5px;font-weight:600;letter-spacing:.04em;padding:4px 10px;border-radius:999px;background:{{ e.pillBg }};color:{{ e.pillFg }}">{{ e.kind }}</span><span style="font-size:12.5px;color:#92a6a7">{{ e.time }}</span></div>
+              <h3 style="margin:8px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:#10292C">{{ e.title }}</h3>
+              <p style="margin:5px 0 0;font-size:13.5px;color:#717a7e">{{ e.meta }}</p>
+            </div>
+            <button onClick="{{ e.rsvp }}" style="flex:none;cursor:pointer;border:1px solid {{ e.btnBorder }};background:{{ e.btnBg }};color:{{ e.btnFg }};font-family:inherit;font-size:14px;font-weight:600;padding:11px 22px;border-radius:999px">{{ e.btnLabel }}</button>
+          </div>
+        </sc-for>
+      </div>
+      <div style="position:sticky;top:96px;background:#10292C;border-radius:20px;padding:26px;position:relative;overflow:hidden">
+        <div style="position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(212,154,14,.24),transparent 70%)"></div>
+        <p style="margin:0 0 6px;font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#fbc329">Next on the calendar</p>
+        <h3 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:24px;color:#fff">Inaugural Awards Gala</h3>
+        <p style="margin:10px 0 18px;font-size:13.5px;line-height:1.5;color:rgba(255,255,255,.7)">Lagos · 15 September 2026. Streamed live in Pulse, then archived to the Legacy Vault.</p>
+        <button onClick="{{ openTicket }}" style="width:100%;cursor:pointer;border:none;background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:14px;padding:12px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:7px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z"/></svg>Get tickets · from ₦15,000</button>
+        <button onClick="{{ openDonation }}" style="width:100%;margin-top:9px;cursor:pointer;border:1px solid rgba(255,255,255,.28);background:none;color:#fff;font-family:inherit;font-weight:600;font-size:14px;padding:12px;border-radius:999px">Donate to the cause</button>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- ── COMMUNITY ── -->
+    <sc-if value="{{ tabCommunity }}" hint-placeholder-val="{{ false }}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <sc-for list="{{ channels }}" as="c" hint-placeholder-count="4">
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:24px">
+          <div style="display:flex;align-items:flex-start;gap:14px">
+            <span style="flex:none;width:52px;height:52px;border-radius:15px;background:{{ c.tint }};display:flex;align-items:center;justify-content:center;font-size:26px">{{ c.emoji }}</span>
+            <div style="flex:1">
+              <h3 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:19px;color:#10292C">{{ c.title }}</h3>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:5px;font-size:12.5px;color:#92a6a7"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:50%;background:#237b22"></span>{{ c.online }} online</span><span>·</span><span>{{ c.members }} members</span></div>
+            </div>
+          </div>
+          <p style="margin:14px 0 0;font-size:13.5px;line-height:1.5;color:#717a7e">{{ c.desc }}</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding-top:16px;border-top:1px solid rgba(16,41,44,.06)">
+            <span style="font-size:12.5px;color:#717a7e">Latest: <span style="color:#10292C;font-weight:500">{{ c.latest }}</span></span>
+            <button onClick="{{ c.toggle }}" style="cursor:pointer;border:1px solid {{ c.btnBorder }};background:{{ c.btnBg }};color:{{ c.btnFg }};font-family:inherit;font-size:13.5px;font-weight:600;padding:9px 18px;border-radius:999px">{{ c.btnLabel }}</button>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ═══════════════ LEADERBOARD ═══════════════ -->
+  <sc-if value="{{ isLeaderboard }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:1240px;margin:0 auto;padding:64px 40px 90px">
+    <div style="text-align:center;max-width:640px;margin:0 auto 44px">
+      <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#1a6118;background:#effaf0;padding:7px 15px;border-radius:999px;margin-bottom:18px"><span style="width:7px;height:7px;border-radius:50%;background:#237b22;animation:agdPulse 2s infinite"></span>Live · refreshed every 6 hours</span>
+      <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:56px;line-height:1.02;letter-spacing:-.02em;color:#10292C">The continental <em style="color:#237b22;font-style:italic">ranking.</em></h1>
+      <p style="margin:18px 0 0;font-size:17px;line-height:1.55;color:#4a5256">2,418 verified profiles · one transparent 0–1000 Cultural Power Index.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:30px">
+      <sc-for list="{{ podium }}" as="p" hint-placeholder-count="3">
+        <button onClick="{{ p.open }}" style="cursor:pointer;text-align:center;background:{{ p.podBg }};border:1px solid {{ p.podBorder }};border-radius:22px;padding:28px 20px;position:relative" style-hover="transform:translateY(-3px)">
+          <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:{{ p.medal }}">#{{ p.rank }}</div>
+          <span style="width:72px;height:72px;margin:14px auto 0;border-radius:20px;background:{{ p.avBg }};color:{{ p.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:30px">{{ p.initial }}</span>
+          <div style="font-size:24px;margin-top:12px">{{ p.flag }}</div>
+          <div style="font-weight:600;font-size:16px;color:#10292C;margin-top:6px">{{ p.name }}</div>
+          <div style="font-size:13px;color:#717a7e;margin-top:2px">{{ p.category }}</div>
+          <div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:26px;color:#237b22;margin-top:12px">{{ p.cpi }}</div>
+        </button>
+      </sc-for>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+      <sc-for list="{{ lbFilters }}" as="f" hint-placeholder-count="5">
+        <button onClick="{{ f.set }}" style="cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:600;padding:9px 16px;border-radius:999px;border:1px solid {{ f.border }};background:{{ f.bg }};color:{{ f.fg }}">{{ f.label }}</button>
+      </sc-for>
+    </div>
+    <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;overflow:hidden">
+      <div style="display:grid;grid-template-columns:60px 1fr 200px 130px 90px;gap:16px;padding:16px 24px;border-bottom:1px solid rgba(16,41,44,.07);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#92a6a7">
+        <span>Rank</span><span>Profile</span><span>Category</span><span>Score</span><span style="text-align:right">Tier</span>
+      </div>
+      <sc-for list="{{ lbList }}" as="r" hint-placeholder-count="10">
+        <button onClick="{{ r.open }}" style="cursor:pointer;width:100%;text-align:left;display:grid;grid-template-columns:60px 1fr 200px 130px 90px;gap:16px;align-items:center;padding:14px 24px;border:none;border-bottom:1px solid rgba(16,41,44,.05);background:none" style-hover="background:#f7f8f7">
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:{{ r.medal }}">{{ r.rank }}</span>
+          <span style="display:flex;align-items:center;gap:13px;min-width:0">
+            <span style="width:40px;height:40px;border-radius:11px;background:{{ r.avBg }};color:{{ r.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:17px;flex:none">{{ r.initial }}</span>
+            <span style="min-width:0"><span style="display:block;font-weight:600;font-size:15px;color:#10292C">{{ r.flag }} {{ r.name }}</span><span style="display:block;font-size:12px;color:#92a6a7">{{ r.countryName }}</span></span>
+          </span>
+          <span style="font-size:13.5px;color:#4a5256">{{ r.category }}</span>
+          <span style="display:flex;align-items:center;gap:10px"><span style="flex:1;height:6px;border-radius:4px;background:#eef0f0;overflow:hidden"><span style="display:block;height:100%;border-radius:4px;background:{{ r.barColor }};width:{{ r.barW }}"></span></span><span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:#10292C">{{ r.cpi }}</span></span>
+          <span style="text-align:right"><span style="font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;border-radius:999px;background:{{ r.tbg }};color:{{ r.tcolor }}">{{ r.tier }}</span></span>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ═══════════════ REGISTRY ═══════════════ -->
+  <sc-if value="{{ isRegistry }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:1240px;margin:0 auto;padding:64px 40px 90px">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:40px;margin-bottom:36px;flex-wrap:wrap">
+      <div>
+        <p style="margin:0 0 10px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#237b22">The living registry</p>
+        <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:52px;line-height:1.02;letter-spacing:-.02em;color:#10292C">A continent of <em style="color:#237b22;font-style:italic">people.</em></h1>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid rgba(16,41,44,.12);border-radius:13px;padding:12px 16px;min-width:320px" style-focus-within="border-color:#237b22">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#92a6a7" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input value="{{ regQuery }}" onInput="{{ onSearch }}" placeholder="Search name, country or field" style="flex:1;border:none;outline:none;font-family:inherit;font-size:15px;color:#10292C;background:none"/>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:26px">
+      <sc-for list="{{ regCatChips }}" as="c" hint-placeholder-count="5">
+        <button onClick="{{ c.set }}" style="cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;padding:8px 15px;border-radius:999px;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }}">{{ c.label }}</button>
+      </sc-for>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
+      <sc-for list="{{ regList }}" as="p" hint-placeholder-count="8">
+        <button onClick="{{ p.open }}" style="cursor:pointer;text-align:left;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:12px" style-hover="border-color:rgba(16,41,44,.2);transform:translateY(-3px);box-shadow:0 16px 32px -22px rgba(16,41,44,.4)">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="width:52px;height:52px;border-radius:14px;background:{{ p.avBg }};color:{{ p.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:23px">{{ p.initial }}</span>
+            <span style="font-size:22px">{{ p.flag }}</span>
+          </div>
+          <div><div style="font-weight:600;font-size:16px;color:#10292C">{{ p.name }}</div><div style="font-size:13px;color:#717a7e;margin-top:2px">{{ p.category }}</div></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:13px;border-top:1px solid rgba(16,41,44,.06)">
+            <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:18px;color:#237b22">{{ p.cpi }}</span>
+            <span style="font-size:9.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;border-radius:999px;background:{{ p.tbg }};color:{{ p.tcolor }}">{{ p.tier }}</span>
+          </div>
+        </button>
+      </sc-for>
+    </div>
+    <sc-if value="{{ regEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:60px 20px;text-align:center;color:#92a6a7;font-size:15px">No profiles match “{{ regQuery }}”.</div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ═══════════════ PROFILE ═══════════════ -->
+  <sc-if value="{{ isProfile }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:1080px;margin:0 auto;padding:40px 40px 90px">
+    <button onClick="{{ goRegistry }}" style="cursor:pointer;border:1px solid rgba(16,41,44,.1);background:#fff;border-radius:999px;padding:9px 16px;font-family:inherit;font-size:13.5px;font-weight:600;color:#10292C;display:inline-flex;align-items:center;gap:7px" style-hover="border-color:#237b22;color:#237b22">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>Back</button>
+    <div style="margin-top:28px;display:grid;grid-template-columns:.9fr 1.1fr;gap:56px;align-items:start">
+      <div style="position:relative;height:440px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:24px;overflow:hidden">
+        <div data-px="-16" style="position:absolute;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle at 45% 40%,{{ ap.glow }},transparent 70%)"></div>
+        <image-slot id="agd-profile-portrait" fit="contain" style="position:relative;width:300px;height:400px;z-index:2" placeholder="Drop a cut-out portrait"></image-slot>
+        <span style="position:absolute;top:18px;left:18px;font-size:30px;z-index:3">{{ ap.flag }}</span>
+      </div>
+      <div>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.04em;padding:6px 13px;border-radius:999px;background:{{ ap.tbg }};color:{{ ap.tcolor }}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z" opacity=".25"/><path d="m10 13-2-2-1.4 1.4L10 15.8 17.4 8.4 16 7l-6 6Z"/></svg>{{ ap.tier }} · Verified</span>
+        <h1 style="margin:14px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:44px;line-height:1.02;color:#10292C">{{ ap.name }}</h1>
+        <p style="margin:8px 0 0;font-size:15.5px;color:#717a7e">{{ ap.countryName }} · {{ ap.category }}</p>
+        <div style="margin-top:28px;display:flex;align-items:center;gap:24px;padding:22px;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px">
+          <div style="flex:none;width:108px;height:108px;border-radius:50%;background:{{ ap.ring }};display:flex;align-items:center;justify-content:center">
+            <div style="width:80px;height:80px;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:26px;color:#10292C;line-height:1">{{ ap.cpi }}</span>
+              <span style="font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#92a6a7;margin-top:2px">of 1000</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:26px">
+            <div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px;color:#10292C">#{{ ap.rank }}</div><div style="font-size:11px;color:#92a6a7;text-transform:uppercase;letter-spacing:.05em;margin-top:3px">Overall</div></div>
+            <div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:22px;color:#10292C">{{ ap.votes }}</div><div style="font-size:11px;color:#92a6a7;text-transform:uppercase;letter-spacing:.05em;margin-top:3px">Votes</div></div>
+          </div>
+        </div>
+        <p style="margin:28px 0 14px;font-size:12px;font-weight:600;color:#717a7e">Score breakdown · 6 transparent factors</p>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <sc-for list="{{ apFactors }}" as="f" hint-placeholder-count="6">
+            <div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
+                <span style="font-size:13.5px;font-weight:500;color:#10292C">{{ f.label }} <span style="color:#a1a6a9;font-size:12px">· {{ f.weight }}</span></span>
+                <span style="font-family:'JetBrains Mono',monospace;font-weight:600;font-size:12.5px;color:#4a5256">{{ f.pct }}</span>
+              </div>
+              <div style="height:8px;border-radius:4px;background:#eef0f0;overflow:hidden"><span style="display:block;height:100%;border-radius:4px;background:{{ f.color }};width:{{ f.pct }}"></span></div>
+            </div>
+          </sc-for>
+        </div>
+        <button onClick="{{ goVote }}" style="width:100%;margin-top:30px;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:15px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px" style-hover="background:#1a6118">Vote for {{ ap.first }}
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ═══════════════ AWARDS ═══════════════ -->
+  <sc-if value="{{ isAwards }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:1240px;margin:0 auto;padding:64px 40px 90px">
+    <div style="text-align:center;max-width:620px;margin:0 auto 46px">
+      <p style="margin:0 0 12px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#a47306">Recognition programmes</p>
+      <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:54px;line-height:1.02;letter-spacing:-.02em;color:#10292C">Four tracks of <em style="color:#237b22;font-style:italic">excellence.</em></h1>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <sc-for list="{{ awardsList }}" as="a" hint-placeholder-count="4">
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:22px;padding:30px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+            <span style="width:58px;height:58px;border-radius:16px;background:{{ a.tintBg }};display:flex;align-items:center;justify-content:center;font-size:30px">{{ a.emoji }}</span>
+            <span style="font-size:11px;font-weight:600;letter-spacing:.04em;padding:6px 13px;border-radius:999px;background:{{ a.pillBg }};color:{{ a.pillFg }}">{{ a.pillText }}</span>
+          </div>
+          <h3 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:24px;color:#10292C">{{ a.title }}</h3>
+          <p style="margin:10px 0 18px;font-size:14.5px;line-height:1.55;color:#717a7e">{{ a.desc }}</p>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding-top:16px;border-top:1px solid rgba(16,41,44,.06)">
+            <span style="font-size:12.5px;color:#92a6a7;font-family:'JetBrains Mono',monospace">{{ a.meta }}</span>
+            <button onClick="{{ a.go }}" style="cursor:pointer;border:none;background:none;font-family:inherit;font-size:14px;font-weight:600;color:#237b22;display:inline-flex;align-items:center;gap:6px">{{ a.cta }}
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ═══════════════ LEGACY ═══════════════ -->
+  <sc-if value="{{ isLegacy }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:1240px;margin:0 auto;padding:64px 40px 90px">
+    <div style="text-align:center;max-width:680px;margin:0 auto 46px">
+      <p style="margin:0 0 12px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#a47306">Legacy Vault</p>
+      <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:54px;line-height:1.04;letter-spacing:-.02em;color:#10292C">Recognition is a record, <em style="color:#237b22;font-style:italic">not a moment.</em></h1>
+      <p style="margin:18px 0 0;font-size:17px;line-height:1.55;color:#4a5256">Every cycle preserved — searchable, attributed, and forever credited.</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+      <sc-for list="{{ legacyList }}" as="L" hint-placeholder-count="4">
+        <div style="border-radius:22px;overflow:hidden;border:1px solid rgba(16,41,44,.08);background:#fff" style-hover="transform:translateY(-3px);box-shadow:0 20px 40px -26px rgba(16,41,44,.4)">
+          <div style="height:170px;background:{{ L.cover }};position:relative;display:flex;align-items:flex-end;padding:18px">
+            <span style="position:absolute;top:16px;right:18px;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:rgba(255,255,255,.92)">{{ L.year }}</span>
+            <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:22px;color:#fff;text-shadow:0 1px 14px rgba(0,0,0,.3)">{{ L.title }}</span>
+          </div>
+          <div style="padding:18px 20px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:13.5px;color:#717a7e">{{ L.meta }}</span>
+            <span style="font-size:13px;font-weight:600;color:#237b22">View →</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ═══════════════ VOTE ═══════════════ -->
+  <sc-if value="{{ isVote }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:980px;margin:0 auto;padding:64px 40px 90px">
+    <div style="text-align:center;max-width:560px;margin:0 auto 40px">
+      <p style="margin:0 0 12px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#237b22">Voting · 2026 cycle</p>
+      <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:52px;line-height:1.02;letter-spacing:-.02em;color:#10292C">Cast your <em style="color:#237b22;font-style:italic">vote.</em></h1>
+      <p style="margin:16px 0 0;font-size:16px;line-height:1.55;color:#4a5256">One verified vote per category — OTP-confirmed, fraud-scored, fully audited.</p>
+    </div>
+    <p style="margin:0 0 14px;font-size:13px;font-weight:600;color:#717a7e">Choose a programme</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <sc-for list="{{ voteProgrammes }}" as="pr" hint-placeholder-count="4">
+        <button onClick="{{ pr.select }}" style="cursor:pointer;text-align:left;border:1.5px solid {{ pr.border }};background:{{ pr.bg }};border-radius:18px;padding:22px;opacity:{{ pr.op }};display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:28px">{{ pr.emoji }}</span>
+            <span style="font-size:11px;font-weight:600;padding:5px 11px;border-radius:999px;background:{{ pr.pillBg }};color:{{ pr.pillFg }}">{{ pr.pillText }}</span>
+          </div>
+          <div style="font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#10292C">{{ pr.title }}</div>
+          <div style="font-size:13.5px;line-height:1.5;color:#717a7e">{{ pr.desc }}</div>
+        </button>
+      </sc-for>
+    </div>
+    <sc-if value="{{ voteProgOpen }}" hint-placeholder-val="{{ true }}">
+    <div style="margin-top:34px">
+      <p style="margin:0 0 14px;font-size:13px;font-weight:600;color:#717a7e">Pick a category, then cast your vote</p>
+      <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px">
+        <sc-for list="{{ voteCats }}" as="c" hint-placeholder-count="3">
+          <button onClick="{{ c.select }}" style="cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:600;padding:9px 16px;border-radius:999px;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.fg }}">{{ c.title }} · {{ c.count }}</button>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{ ballot }}" as="n" hint-placeholder-count="3">
+          <div style="display:flex;align-items:center;gap:16px;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:14px 18px">
+            <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:#92a6a7;width:18px;text-align:center">{{ n.rank }}</span>
+            <span style="width:46px;height:46px;border-radius:13px;background:{{ n.avBg }};color:{{ n.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:19px;flex:none">{{ n.initial }}</span>
+            <div style="flex:1"><div style="font-weight:600;font-size:16px;color:#10292C">{{ n.flag }} {{ n.name }}</div><div style="font-size:13px;color:#717a7e;margin-top:1px"><b style="font-family:'JetBrains Mono',monospace;color:#4a5256">{{ n.votes }}</b> votes</div></div>
+            <button onClick="{{ n.vote }}" style="flex:none;cursor:pointer;border:none;background:{{ n.btnBg }};color:{{ n.btnFg }};font-family:inherit;font-weight:600;font-size:14px;padding:11px 24px;border-radius:999px">{{ n.btnLabel }}</button>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ═══════════════ NOMINATE ═══════════════ -->
+  <sc-if value="{{ isNominate }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:680px;margin:0 auto;padding:64px 40px 90px">
+    <sc-if value="{{ nominateDone }}" hint-placeholder-val="{{ false }}">
+      <div style="text-align:center;padding-top:30px">
+        <div style="width:80px;height:80px;margin:0 auto;border-radius:50%;background:#effaf0;display:flex;align-items:center;justify-content:center">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <h2 style="margin:22px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:34px;color:#10292C">Nomination received.</h2>
+        <p style="margin:14px 0 0;font-size:16px;line-height:1.55;color:#4a5256">Thank you for surfacing excellence. We'll verify the profile and notify you when it joins the cycle.</p>
+        <div style="display:flex;gap:12px;justify-content:center;margin-top:30px">
+          <button onClick="{{ goLeaderboard }}" style="cursor:pointer;border:1px solid rgba(16,41,44,.16);background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:15px;padding:13px 24px;border-radius:999px">View leaderboard</button>
+          <button onClick="{{ resetNominate }}" style="cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:13px 24px;border-radius:999px">Nominate again</button>
+        </div>
+      </div>
+    </sc-if>
+    <sc-if value="{{ nominateForm }}" hint-placeholder-val="{{ true }}">
+      <div style="text-align:center;margin-bottom:36px">
+        <p style="margin:0 0 12px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#237b22">90 seconds · free · OTP-verified</p>
+        <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:48px;line-height:1.02;letter-spacing:-.02em;color:#10292C">Submit a <em style="color:#237b22;font-style:italic">nomination.</em></h1>
+      </div>
+      <label style="display:block;font-size:13px;font-weight:600;color:#4a5256;margin-bottom:11px">Which programme?</label>
+      <div style="display:flex;flex-wrap:wrap;gap:9px">
+        <sc-for list="{{ nominateProgs }}" as="pr" hint-placeholder-count="4">
+          <button onClick="{{ pr.set }}" style="cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:600;padding:10px 16px;border-radius:999px;border:1px solid {{ pr.border }};background:{{ pr.bg }};color:{{ pr.fg }};display:inline-flex;align-items:center;gap:7px">{{ pr.emoji }} {{ pr.title }}</button>
+        </sc-for>
+      </div>
+      <div style="margin-top:24px;display:flex;flex-direction:column;gap:18px">
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;color:#4a5256;margin-bottom:8px">Nominee's full name</label>
+          <input placeholder="e.g. Amara Okonkwo" style="width:100%;border:1px solid rgba(16,41,44,.14);border-radius:13px;padding:14px 16px;font-family:inherit;font-size:15px;color:#10292C;outline:none" style-focus="border-color:#237b22"/>
+        </div>
+        <div style="display:flex;gap:16px">
+          <div style="flex:1"><label style="display:block;font-size:13px;font-weight:600;color:#4a5256;margin-bottom:8px">Country</label><input placeholder="Nigeria" style="width:100%;border:1px solid rgba(16,41,44,.14);border-radius:13px;padding:14px 16px;font-family:inherit;font-size:15px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+          <div style="flex:1"><label style="display:block;font-size:13px;font-weight:600;color:#4a5256;margin-bottom:8px">Your email</label><input placeholder="you@email.com" style="width:100%;border:1px solid rgba(16,41,44,.14);border-radius:13px;padding:14px 16px;font-family:inherit;font-size:15px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;color:#4a5256;margin-bottom:8px">Why do they deserve recognition?</label>
+          <textarea rows="3" placeholder="A sentence or two on their impact…" style="width:100%;border:1px solid rgba(16,41,44,.14);border-radius:13px;padding:14px 16px;font-family:inherit;font-size:15px;color:#10292C;outline:none;resize:none" style-focus="border-color:#237b22"></textarea>
+        </div>
+      </div>
+      <div style="margin-top:16px;display:flex;align-items:flex-start;gap:10px;background:#effaf0;border-radius:14px;padding:14px 16px">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>
+        <span style="font-size:13px;line-height:1.45;color:#1a6118">We hash your email — no plain text is ever stored. One verified identity per nomination.</span>
+      </div>
+      <button onClick="{{ submitNominate }}" style="width:100%;margin-top:22px;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:16px;padding:16px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 14px 28px -14px rgba(35,123,34,.6)" style-hover="background:#1a6118">Submit nomination
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ═══════════════ BLOG ═══════════════ -->
+  <sc-if value="{{ isBlog }}" hint-placeholder-val="{{ false }}">
+  <div style="max-width:1240px;margin:0 auto;padding:64px 40px 90px">
+    <div style="text-align:center;max-width:620px;margin:0 auto 44px">
+      <p style="margin:0 0 12px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#237b22">The journal</p>
+      <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:54px;line-height:1.02;letter-spacing:-.02em;color:#10292C">Notes from the <em style="color:#237b22;font-style:italic">index.</em></h1>
+      <p style="margin:18px 0 0;font-size:17px;line-height:1.55;color:#4a5256">Methodology, announcements and stories behind the scores.</p>
+    </div>
+    <!-- featured -->
+    <button onClick="{{ stop }}" style="cursor:pointer;width:100%;text-align:left;border:1px solid rgba(16,41,44,.08);background:#fff;border-radius:26px;overflow:hidden;display:grid;grid-template-columns:1.1fr 1fr;margin-bottom:18px" style-hover="border-color:rgba(16,41,44,.18)">
+      <div style="position:relative;min-height:340px;background:{{ blogFeatured.cover }}">
+        <image-slot id="agd-blog-feat" fit="cover" style="position:absolute;inset:0;width:100%;height:100%" placeholder=""></image-slot>
+      </div>
+      <div style="padding:46px 48px;display:flex;flex-direction:column;justify-content:center">
+        <span style="display:inline-flex;width:fit-content;align-items:center;font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:999px;background:#effaf0;color:#1a6118">{{ blogFeatured.tag }}</span>
+        <h2 style="margin:18px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:34px;line-height:1.08;color:#10292C">{{ blogFeatured.title }}</h2>
+        <p style="margin:16px 0 0;font-size:15.5px;line-height:1.6;color:#4a5256">{{ blogFeatured.excerpt }}</p>
+        <div style="margin-top:24px;display:flex;align-items:center;gap:11px">
+          <span style="width:38px;height:38px;border-radius:11px;background:#eef7ee;color:#1a6118;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:16px">{{ blogFeatured.initial }}</span>
+          <div><div style="font-weight:600;font-size:13.5px;color:#10292C">{{ blogFeatured.author }}</div><div style="font-size:12px;color:#92a6a7">{{ blogFeatured.date }} · {{ blogFeatured.read }}</div></div>
+        </div>
+      </div>
+    </button>
+    <!-- grid -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+      <sc-for list="{{ blogPosts }}" as="b" hint-placeholder-count="6">
+        <button onClick="{{ stop }}" style="cursor:pointer;text-align:left;border:1px solid rgba(16,41,44,.08);background:#fff;border-radius:20px;overflow:hidden;display:flex;flex-direction:column" style-hover="border-color:rgba(16,41,44,.18);transform:translateY(-3px);box-shadow:0 18px 36px -24px rgba(16,41,44,.4)">
+          <div style="position:relative;height:180px;background:{{ b.cover }}">
+            <image-slot id="{{ b.slot }}" fit="cover" style="position:absolute;inset:0;width:100%;height:100%" placeholder=""></image-slot>
+            <span style="position:absolute;top:12px;left:12px;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.92);color:#10292C">{{ b.tag }}</span>
+          </div>
+          <div style="padding:18px 20px;flex:1;display:flex;flex-direction:column">
+            <h3 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:19px;line-height:1.12;color:#10292C">{{ b.title }}</h3>
+            <p style="margin:9px 0 0;font-size:13.5px;line-height:1.5;color:#717a7e;flex:1">{{ b.excerpt }}</p>
+            <div style="margin-top:16px;display:flex;align-items:center;gap:8px;font-size:12px;color:#92a6a7"><span style="font-weight:600;color:#4a5256">{{ b.author }}</span><span>·</span><span>{{ b.date }}</span></div>
+          </div>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ░░░ FOOTER ░░░ -->
+  <footer style="border-top:1px solid rgba(16,41,44,.08);background:#fff">
+    <div style="max-width:1240px;margin:0 auto;padding:54px 40px 30px;display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:40px">
+      <div>
+        <div style="display:flex;align-items:center;gap:11px;margin-bottom:16px">
+          <span style="width:34px;height:34px;border-radius:10px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:18px;color:#7FC87C">G</span>
+          <span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:16px;color:#10292C">Africa</span><span style="font-size:9px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span>
+        </div>
+        <p style="margin:0;font-size:13.5px;line-height:1.6;color:#717a7e;max-width:280px">The continental Cultural Power Index. An Afrovanguard initiative — live in Nigeria, building toward 54 nations.</p>
+      </div>
+      <sc-for list="{{ footCols }}" as="col" hint-placeholder-count="3">
+        <div>
+          <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#10292C">{{ col.title }}</p>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <sc-for list="{{ col.links }}" as="L" hint-placeholder-count="4">
+              <button onClick="{{ L.go }}" style="cursor:pointer;text-align:left;border:none;background:none;font-family:inherit;font-size:13.5px;color:#4a5256;padding:0;width:fit-content" style-hover="color:#237b22">{{ L.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="max-width:1240px;margin:0 auto;padding:20px 40px 40px;border-top:1px solid rgba(16,41,44,.06);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
+      <span style="font-size:12.5px;color:#92a6a7">© 2026 Africa GATES · An Afrovanguard initiative</span>
+      <div style="display:flex;align-items:center;gap:18px">
+        <div style="display:flex;gap:9px">
+          <a href="https://twitter.com/afrovanguard" target="_blank" rel="noopener" aria-label="X" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(16,41,44,.12);display:flex;align-items:center;justify-content:center;color:#4a5256;text-decoration:none" style-hover="background:#10292C;color:#fff;border-color:#10292C"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.24 2.25h3.31l-7.23 8.26L22.5 21.75h-6.34l-4.97-6.5-5.68 6.5H2.2l7.73-8.84L1.5 2.25h6.5l4.49 5.94 5.75-5.94Zm-1.16 17.52h1.83L7.01 4.13H5.04L17.08 19.77Z"/></svg></a>
+          <a href="https://instagram.com/afrovanguard" target="_blank" rel="noopener" aria-label="Instagram" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(16,41,44,.12);display:flex;align-items:center;justify-content:center;color:#4a5256;text-decoration:none" style-hover="background:#10292C;color:#fff;border-color:#10292C"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a>
+          <a href="https://linkedin.com/company/afrovanguard" target="_blank" rel="noopener" aria-label="LinkedIn" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(16,41,44,.12);display:flex;align-items:center;justify-content:center;color:#4a5256;text-decoration:none" style-hover="background:#10292C;color:#fff;border-color:#10292C"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45z"/></svg></a>
+          <a href="https://youtube.com/@afrovanguard" target="_blank" rel="noopener" aria-label="YouTube" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(16,41,44,.12);display:flex;align-items:center;justify-content:center;color:#4a5256;text-decoration:none" style-hover="background:#10292C;color:#fff;border-color:#10292C"><svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.4-.43-5.03a2.6 2.6 0 0 0-1.83-1.84C19.1 4.7 12 4.7 12 4.7s-7.1 0-8.74.43a2.6 2.6 0 0 0-1.83 1.84C1 8.6 1 12 1 12s0 3.4.43 5.03a2.6 2.6 0 0 0 1.83 1.84C4.9 19.3 12 19.3 12 19.3s7.1 0 8.74-.43a2.6 2.6 0 0 0 1.83-1.84C23 15.4 23 12 23 12ZM9.75 15.02V8.98L15 12l-5.25 3.02Z"/></svg></a>
+        </div>
+        <span style="width:1px;height:18px;background:rgba(16,41,44,.12)"></span>
+        <span style="font-size:12.5px;color:#92a6a7">Privacy</span>
+        <span style="font-size:12.5px;color:#92a6a7">Integrity Center</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ░░░ STORY VIEWER ░░░ -->
+  <sc-if value="{{ storyViewerOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeStory }}" style="position:fixed;inset:0;z-index:80;background:rgba(7,16,17,.86);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center">
+    <button onClick="{{ closeStory }}" style="position:absolute;top:24px;right:28px;cursor:pointer;border:none;background:rgba(255,255,255,.12);color:#fff;width:42px;height:42px;border-radius:50%;font-size:22px;display:flex;align-items:center;justify-content:center">×</button>
+    <button onClick="{{ prevStory }}" style="position:absolute;left:max(28px,calc(50% - 380px));cursor:pointer;border:none;background:rgba(255,255,255,.12);color:#fff;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+    <div onClick="{{ stop }}" style="width:340px;height:606px;border-radius:22px;overflow:hidden;position:relative;background:{{ activeStory.cover }};box-shadow:0 30px 80px -20px rgba(0,0,0,.6)">
+      <div style="position:absolute;top:14px;left:14px;right:14px;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden;z-index:3"><span style="display:block;height:100%;background:#fff;animation:agdProg 5s linear forwards"></span></div>
+      <image-slot id="{{ activeStory.thumb }}" fit="cover" style="position:absolute;inset:0;width:100%;height:100%" placeholder=""></image-slot>
+      <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(7,16,17,.7) 4%,transparent 30%,transparent 78%,rgba(7,16,17,.5))"></div>
+      <div style="position:absolute;top:30px;left:16px;right:16px;display:flex;align-items:center;gap:11px;z-index:3">
+        <span style="width:40px;height:40px;border-radius:50%;background:{{ activeStory.avBg }};color:{{ activeStory.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:17px;border:2px solid rgba(255,255,255,.5)">{{ activeStory.initial }}</span>
+        <div style="flex:1"><div style="font-weight:600;font-size:14px;color:#fff">{{ activeStory.first }}</div><div style="font-size:11px;color:rgba(255,255,255,.7)">{{ activeStory.time }}</div></div>
+      </div>
+      <div style="position:absolute;left:18px;right:18px;bottom:22px;z-index:3">
+        <p style="margin:0 0 14px;font-size:17px;line-height:1.35;font-weight:600;color:#fff;text-shadow:0 1px 12px rgba(0,0,0,.4)">{{ activeStory.caption }}</p>
+        <button onClick="{{ goVote }}" style="width:100%;cursor:pointer;border:none;background:rgba(255,255,255,.95);color:#10292C;font-family:inherit;font-weight:600;font-size:14px;padding:12px;border-radius:999px">Vote in this category</button>
+      </div>
+    </div>
+    <button onClick="{{ nextStory }}" style="position:absolute;right:max(28px,calc(50% - 380px));cursor:pointer;border:none;background:rgba(255,255,255,.12);color:#fff;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+  </div>
+  </sc-if>
+
+  <!-- ░░░ IMMERSIVE REEL VIEWER ░░░ -->
+  <sc-if value="{{ reelViewerOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeReel }}" style="position:fixed;inset:0;z-index:90;background:rgba(5,12,13,.92);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;animation:agdFade .25s ease both">
+    <button onClick="{{ closeReel }}" style="position:absolute;top:24px;right:28px;cursor:pointer;border:none;background:rgba(255,255,255,.12);color:#fff;width:44px;height:44px;border-radius:50%;font-size:24px;display:flex;align-items:center;justify-content:center;z-index:5">×</button>
+    <button onClick="{{ prevReel }}" style="position:absolute;left:max(28px,calc(50% - 420px));cursor:pointer;border:none;background:rgba(255,255,255,.12);color:#fff;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+
+    <div onClick="{{ stop }}" style="position:relative;display:flex;align-items:flex-end;gap:18px;animation:agdReelIn .3s ease both">
+      <!-- phone-frame reel -->
+      <div style="position:relative;width:354px;height:630px;border-radius:26px;overflow:hidden;background:{{ activeReel.cover }};box-shadow:0 40px 90px -28px rgba(0,0,0,.7)">
+        <image-slot id="{{ activeReel.slot }}" fit="cover" radius="26" style="position:absolute;inset:0;width:100%;height:100%" placeholder=""></image-slot>
+        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(5,12,13,.82) 4%,transparent 34%,transparent 72%,rgba(5,12,13,.45))"></div>
+        <!-- segmented progress -->
+        <div style="position:absolute;top:14px;left:14px;right:14px;display:flex;gap:5px;z-index:4">
+          <sc-for list="{{ reelSegs }}" as="sg" hint-placeholder-count="5">
+            <span style="flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.32);overflow:hidden"><span style="display:block;height:100%;background:#fff;width:{{ sg.w }};animation:{{ sg.anim }}"></span></span>
+          </sc-for>
+        </div>
+        <!-- creator -->
+        <div style="position:absolute;top:34px;left:16px;right:16px;display:flex;align-items:center;gap:11px;z-index:4">
+          <span style="width:40px;height:40px;border-radius:50%;background:{{ activeReel.avBg }};color:{{ activeReel.avFg }};display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:17px;border:2px solid rgba(255,255,255,.5)">{{ activeReel.initial }}</span>
+          <div style="flex:1"><div style="font-weight:600;font-size:14px;color:#fff">{{ activeReel.flag }} {{ activeReel.author }}</div><div style="font-size:11px;color:rgba(255,255,255,.72)">{{ activeReel.category }} · {{ activeReel.dur }}</div></div>
+          <button onClick="{{ activeReel.toggleFollow }}" style="cursor:pointer;border:1px solid rgba(255,255,255,.5);background:{{ activeReel.followBg }};color:{{ activeReel.followFg }};font-family:inherit;font-size:12px;font-weight:600;padding:6px 13px;border-radius:999px">{{ activeReel.followLabel }}</button>
+        </div>
+        <!-- center play/pause -->
+        <button onClick="{{ toggleReelPlay }}" style="position:absolute;inset:0;cursor:pointer;border:none;background:none;display:flex;align-items:center;justify-content:center;z-index:2">
+          <sc-if value="{{ reelPaused }}" hint-placeholder-val="{{ false }}"><span style="width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.92);display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="#10292C"><path d="M8 5v14l11-7z"/></svg></span></sc-if>
+        </button>
+        <!-- caption + cta -->
+        <div style="position:absolute;left:16px;right:16px;bottom:18px;z-index:4">
+          <div style="display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#fff;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);padding:4px 10px;border-radius:999px;margin-bottom:9px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="2.5"/></svg>{{ activeReel.views }} views</div>
+          <div style="font-weight:700;font-size:16px;color:#fff;line-height:1.2;margin-bottom:7px">{{ activeReel.title }}</div>
+          <p style="margin:0 0 12px;font-size:13px;line-height:1.45;color:rgba(255,255,255,.85)">{{ activeReel.caption }}</p>
+          <button onClick="{{ goVote }}" style="width:100%;cursor:pointer;border:none;background:rgba(255,255,255,.95);color:#10292C;font-family:inherit;font-weight:600;font-size:14px;padding:12px;border-radius:999px;margin-bottom:9px">Vote for {{ activeReel.first }}</button>
+          <div style="display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:9px 14px" style-focus-within="border-color:rgba(255,255,255,.6)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20l1.1-3.5A8.4 8.4 0 1 1 21 11.5Z"/></svg>
+            <input placeholder="Add a comment…" style="flex:1;border:none;outline:none;background:none;font-family:inherit;font-size:13px;color:#fff" />
+            <button style="cursor:pointer;border:none;background:none;color:#fff;font-family:inherit;font-size:13px;font-weight:600;padding:0">Post</button>
+          </div>
+        </div>
+      </div>
+      <!-- vertical action rail -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:22px;padding-bottom:14px">
+        <button onClick="{{ activeReel.toggleLike }}" style="cursor:pointer;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff">
+          <span style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center"><svg width="26" height="26" viewBox="0 0 24 24" fill="{{ activeReel.likeFill }}" stroke="{{ activeReel.likeStroke }}" stroke-width="1.9" style="animation:{{ activeReel.likeAnim }}"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px">{{ activeReel.likes }}</span></button>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff">
+          <span style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20l1.1-3.5A8.4 8.4 0 1 1 21 11.5Z"/></svg></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px">{{ activeReel.comments }}</span></div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff">
+          <span style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4 20-7Z"/></svg></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px">Share</span></div>
+        <button onClick="{{ activeReel.toggleSave }}" style="cursor:pointer;border:none;background:none;display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff">
+          <span style="width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="{{ activeReel.saveFill }}" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg></span>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px">Save</span></button>
+        <button onClick="{{ toggleMute }}" style="cursor:pointer;border:none;background:rgba(255,255,255,.12);width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff">
+          <sc-if value="{{ reelMuted }}" hint-placeholder-val="{{ true }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5zM23 9l-6 6M17 9l6 6"/></svg></sc-if>
+          <sc-if value="{{ reelUnmuted }}" hint-placeholder-val="{{ false }}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5zM15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg></sc-if>
+        </button>
+      </div>
+    </div>
+
+    <button onClick="{{ nextReel }}" style="position:absolute;right:max(28px,calc(50% - 420px));cursor:pointer;border:none;background:rgba(255,255,255,.12);color:#fff;width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+  </div>
+  </sc-if>
+
+  <!-- ░░░ CHECKOUT (tickets + donations) ░░░ -->
+  <sc-if value="{{ checkoutOpen }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ closeCheckout }}" style="position:fixed;inset:0;z-index:95;background:rgba(5,12,13,.7);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:24px;animation:agdFade .25s ease both">
+    <div onClick="{{ stop }}" style="width:480px;max-width:100%;max-height:92vh;overflow-y:auto;background:#fbfbfa;border-radius:26px;box-shadow:0 40px 90px -30px rgba(0,0,0,.6);animation:agdReelIn .3s ease both" class="agd-scroll">
+      <div style="position:sticky;top:0;background:rgba(251,251,250,.9);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid rgba(16,41,44,.07);z-index:2">
+        <div style="display:flex;align-items:center;gap:11px">
+          <span style="width:38px;height:38px;border-radius:11px;background:{{ coAccentBg }};display:flex;align-items:center;justify-content:center;font-size:19px">{{ coIcon }}</span>
+          <div><div style="font-weight:600;font-size:15px;color:#10292C">{{ coTitle }}</div><div style="font-size:12px;color:#92a6a7">{{ coSub }}</div></div>
+        </div>
+        <button onClick="{{ closeCheckout }}" style="cursor:pointer;border:1px solid rgba(16,41,44,.12);background:#fff;width:34px;height:34px;border-radius:50%;font-size:18px;color:#10292C;display:flex;align-items:center;justify-content:center">×</button>
+      </div>
+
+      <sc-if value="{{ coTicketSelect }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:22px 24px 26px">
+        <p style="margin:0 0 12px;font-size:12px;font-weight:600;color:#717a7e">Choose your tier</p>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <sc-for list="{{ ticketTiers }}" as="t" hint-placeholder-count="3">
+            <button onClick="{{ t.select }}" style="cursor:{{ t.cursor }};text-align:left;border:1.5px solid {{ t.border }};background:{{ t.bg }};border-radius:16px;padding:16px;display:flex;align-items:center;gap:14px;opacity:{{ t.op }}">
+              <span style="flex:none;width:22px;height:22px;border-radius:50%;border:2px solid {{ t.radio }};display:flex;align-items:center;justify-content:center"><span style="width:11px;height:11px;border-radius:50%;background:{{ t.dot }}"></span></span>
+              <div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:8px"><span style="font-weight:600;font-size:15.5px;color:#10292C">{{ t.name }}</span><sc-if value="{{ t.badge }}" hint-placeholder-val="{{ false }}"><span style="font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:{{ t.badgeBg }};color:{{ t.badgeFg }}">{{ t.badge }}</span></sc-if></div><div style="font-size:12.5px;color:#717a7e;margin-top:3px">{{ t.perks }}</div></div>
+              <span style="flex:none;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;color:#10292C">{{ t.price }}</span>
+            </button>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;padding:14px 16px;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px">
+          <span style="font-size:14px;font-weight:600;color:#10292C">Quantity</span>
+          <div style="display:flex;align-items:center;gap:14px">
+            <button onClick="{{ decQty }}" style="cursor:pointer;width:34px;height:34px;border-radius:10px;border:1px solid rgba(16,41,44,.14);background:#fff;font-size:20px;color:#10292C;display:flex;align-items:center;justify-content:center">−</button>
+            <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:17px;color:#10292C;min-width:18px;text-align:center">{{ qty }}</span>
+            <button onClick="{{ incQty }}" style="cursor:pointer;width:34px;height:34px;border-radius:10px;border:1px solid rgba(16,41,44,.14);background:#fff;font-size:20px;color:#10292C;display:flex;align-items:center;justify-content:center">+</button>
+          </div>
+        </div>
+        <button onClick="{{ goPay }}" style="width:100%;margin-top:18px;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:15px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px" style-hover="background:#1a6118">Continue · {{ orderTotal }}
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ coDonationSelect }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:22px 24px 26px">
+        <div style="display:flex;gap:8px;margin-bottom:18px;background:#f0f2f2;border-radius:999px;padding:4px">
+          <button onClick="{{ setOnce }}" style="flex:1;cursor:pointer;border:none;font-family:inherit;font-size:13.5px;font-weight:600;padding:9px;border-radius:999px;background:{{ freqOnceBg }};color:{{ freqOnceFg }}">One-time</button>
+          <button onClick="{{ setMonthly }}" style="flex:1;cursor:pointer;border:none;font-family:inherit;font-size:13.5px;font-weight:600;padding:9px;border-radius:999px;background:{{ freqMonthlyBg }};color:{{ freqMonthlyFg }}">Monthly</button>
+        </div>
+        <p style="margin:0 0 12px;font-size:12px;font-weight:600;color:#717a7e">Choose an amount</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <sc-for list="{{ donAmounts }}" as="d" hint-placeholder-count="6">
+            <button onClick="{{ d.set }}" style="cursor:pointer;border:1.5px solid {{ d.border }};background:{{ d.bg }};color:{{ d.fg }};font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;padding:16px 8px;border-radius:14px">{{ d.label }}</button>
+          </sc-for>
+        </div>
+        <div style="margin-top:12px;display:flex;align-items:center;gap:10px;background:#fff;border:1px solid {{ customBorder }};border-radius:14px;padding:12px 16px">
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;color:#92a6a7">₦</span>
+          <input value="{{ customAmount }}" onInput="{{ onCustom }}" inputmode="numeric" placeholder="Custom amount" style="flex:1;border:none;outline:none;font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;color:#10292C;background:none"/>
+        </div>
+        <div style="margin-top:16px;display:flex;align-items:flex-start;gap:10px;background:#effaf0;border-radius:14px;padding:13px 15px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>
+          <span style="font-size:12.5px;line-height:1.45;color:#1a6118">Funds child leadership programmes across the continent. 100% transparent, receipted.</span>
+        </div>
+        <button onClick="{{ goPay }}" style="width:100%;margin-top:18px;cursor:pointer;border:none;background:{{ donCtaBg }};color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:15px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px;opacity:{{ donCtaOp }}">Donate {{ orderTotal }}{{ freqSuffix }}
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ coPay }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:22px 24px 26px">
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:16px;margin-bottom:18px">
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:13.5px;color:#4a5256"><span>{{ orderLabel }}</span><span style="font-family:'JetBrains Mono',monospace;font-weight:600;color:#10292C">{{ orderTotal }}</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:13.5px;color:#4a5256;margin-top:8px"><span>Processing fee</span><span style="font-family:'JetBrains Mono',monospace;font-weight:600;color:#10292C">{{ coFee }}</span></div>
+          <div style="height:1px;background:rgba(16,41,44,.08);margin:12px 0"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:600;color:#10292C"><span>Total</span><span style="font-family:'JetBrains Mono',monospace;font-weight:700">{{ coGrand }}</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:13px">
+          <div><label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">Name on card</label><input placeholder="Amara Okonkwo" style="width:100%;border:1px solid rgba(16,41,44,.14);border-radius:12px;padding:13px 15px;font-family:inherit;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+          <div><label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">Card number</label>
+            <div style="display:flex;align-items:center;gap:10px;border:1px solid rgba(16,41,44,.14);border-radius:12px;padding:13px 15px" style-focus-within="border-color:#237b22"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#92a6a7" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg><input placeholder="4242 4242 4242 4242" style="flex:1;border:none;outline:none;font-family:'JetBrains Mono',monospace;font-size:14.5px;color:#10292C;background:none"/></div>
+          </div>
+          <div style="display:flex;gap:12px">
+            <div style="flex:1"><label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">Expiry</label><input placeholder="MM / YY" style="width:100%;border:1px solid rgba(16,41,44,.14);border-radius:12px;padding:13px 15px;font-family:'JetBrains Mono',monospace;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+            <div style="flex:1"><label style="display:block;font-size:12px;font-weight:600;color:#4a5256;margin-bottom:7px">CVC</label><input placeholder="123" style="width:100%;border:1px solid rgba(16,41,44,.14);border-radius:12px;padding:13px 15px;font-family:'JetBrains Mono',monospace;font-size:14.5px;color:#10292C;outline:none" style-focus="border-color:#237b22"/></div>
+          </div>
+        </div>
+        <button onClick="{{ submitPay }}" style="width:100%;margin-top:18px;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:15px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:8px" style-hover="background:#1a6118"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Pay {{ coGrand }} securely</button>
+        <button onClick="{{ coBack }}" style="width:100%;margin-top:8px;cursor:pointer;border:none;background:none;font-family:inherit;font-size:13px;font-weight:600;color:#92a6a7;padding:8px">Back</button>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ coProcessing }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:56px 24px;text-align:center">
+        <div style="width:54px;height:54px;margin:0 auto;border-radius:50%;border:4px solid #e8ece9;border-top-color:#237b22;animation:agdSpin .8s linear infinite"></div>
+        <p style="margin:22px 0 0;font-size:15px;font-weight:600;color:#10292C">Securing your {{ coNoun }}…</p>
+        <p style="margin:6px 0 0;font-size:13px;color:#92a6a7">Do not close this window.</p>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ coSuccess }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:14px 24px 28px;text-align:center">
+        <img src="assets/illo-trophy.jpg" alt="" style="width:200px;height:auto;margin:0 auto;mix-blend-mode:multiply"/>
+        <h2 style="margin:6px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:26px;color:#10292C">{{ coSuccessTitle }}</h2>
+        <p style="margin:10px 0 0;font-size:14.5px;line-height:1.55;color:#4a5256">{{ coSuccessBody }}</p>
+        <div style="margin-top:20px;background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:16px;padding:18px;display:flex;align-items:center;justify-content:space-between">
+          <div style="text-align:left"><div style="font-size:11px;color:#92a6a7;text-transform:uppercase;letter-spacing:.06em">{{ coReceiptLabel }}</div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;color:#10292C;margin-top:3px">{{ coReceiptCode }}</div></div>
+          <div style="text-align:right"><div style="font-size:11px;color:#92a6a7;text-transform:uppercase;letter-spacing:.06em">Amount</div><div style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:16px;color:#237b22;margin-top:3px">{{ coGrand }}</div></div>
+        </div>
+        <p style="margin:14px 0 0;font-size:12.5px;color:#92a6a7">A receipt has been emailed to you.</p>
+        <button onClick="{{ closeCheckout }}" style="width:100%;margin-top:18px;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:15px;padding:14px;border-radius:999px">Done</button>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ coError }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:46px 24px 28px;text-align:center">
+        <div style="width:66px;height:66px;margin:0 auto;border-radius:50%;background:#fdecec;display:flex;align-items:center;justify-content:center"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5M12 16.5v.01"/><circle cx="12" cy="12" r="9"/></svg></div>
+        <h2 style="margin:18px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:23px;color:#10292C">Payment didn't go through</h2>
+        <p style="margin:10px 0 0;font-size:14px;line-height:1.55;color:#4a5256">Your card was declined and you have not been charged. Try another card or check your details.</p>
+        <div style="display:flex;gap:10px;margin-top:22px">
+          <button onClick="{{ closeCheckout }}" style="flex:1;cursor:pointer;border:1px solid rgba(16,41,44,.16);background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:14px;padding:13px;border-radius:999px">Cancel</button>
+          <button onClick="{{ coRetry }}" style="flex:1;cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:14px;padding:13px;border-radius:999px">Try again</button>
+        </div>
+      </div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = {
+    screen: 'home', mega: null, activeProfile: 1,
+    lbFilter: 'All', regCat: 'All', regQuery: '',
+    voteProg: 'edu', voteCat: 'edu-1', nominateDone: false, nominateProg: 'edu',
+    liked: {}, saved: {}, following: {}, voted: {},
+    storyIdx: null,
+    pulseTab: 'foryou', reelIdx: null, reelLiked: {}, reelSaved: {}, reelMuted: true, reelPaused: false,
+    coOpen: false, coKind: 'ticket', coStep: 'select', coTier: 1, coQty: 1, coAmt: 15000, coCustom: '', coFreq: 'once'
+  };
+  openTicket(){ this.setState({ coOpen:true, coKind:'ticket', coStep:'select', coTier:1, coQty:1 }); }
+  openDonation(){ this.setState({ coOpen:true, coKind:'donation', coStep:'select', coAmt:15000, coCustom:'', coFreq:'once' }); }
+  submitPay(){ this.setState({ coStep:'processing' }); clearTimeout(this._payT); this._payT=setTimeout(()=>this.setState({ coStep:'success' }), 1700); }
+
+  componentDidMount() {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    this._mx = 0; this._my = 0; this._raf = null;
+    this._tick = () => {
+      this._raf = null;
+      document.querySelectorAll('[data-px]').forEach(el => {
+        const d = parseFloat(el.getAttribute('data-px')) || 0;
+        el.style.transform = 'translate3d(' + (-this._mx * d).toFixed(1) + 'px,' + (-this._my * d).toFixed(1) + 'px,0)';
+      });
+    };
+    this._onMove = (e) => {
+      this._mx = (e.clientX / window.innerWidth - 0.5) * 2;
+      this._my = (e.clientY / window.innerHeight - 0.5) * 2;
+      if (!this._raf) this._raf = requestAnimationFrame(this._tick);
+    };
+    window.addEventListener('mousemove', this._onMove, { passive: true });
+  }
+  componentWillUnmount() { if (this._onMove) window.removeEventListener('mousemove', this._onMove); if (this._raf) cancelAnimationFrame(this._raf); if (this._reelT) clearTimeout(this._reelT); }
+
+  componentDidUpdate() {
+    const cur = this.state.reelIdx, paused = this.state.reelPaused;
+    if (cur === this._lastReel && paused === this._lastPaused) return;
+    this._lastReel = cur; this._lastPaused = paused;
+    clearTimeout(this._reelT);
+    if (cur != null && !paused) this._reelT = setTimeout(() => this.advanceReel(), 6000);
+  }
+  advanceReel(){ const n = this.data.reels.length; this.setState(st => ({ reelIdx: st.reelIdx==null ? null : (st.reelIdx+1)%n })); }
+
+  buildData() {
+    const AV = [['#effaf0','#1a6118'],['#fff8df','#a47306'],['#e9efef','#2b373d'],['#eef7ee','#237b22']];
+    const TIER = {
+      Luminary: { tcolor:'#a47306', tbg:'#fff8df', ring:'#d49a0e', glow:'rgba(212,154,14,.4)' },
+      Laureate: { tcolor:'#1a6118', tbg:'#effaf0', ring:'#237b22', glow:'rgba(35,123,34,.35)' },
+      Vanguard: { tcolor:'#2b373d', tbg:'#f0f2f2', ring:'#5d7374', glow:'rgba(93,115,116,.35)' },
+      Rising:   { tcolor:'#717a7e', tbg:'#f4f5f5', ring:'#92a6a7', glow:'rgba(146,166,167,.3)' }
+    };
+    const CN = { NG:'Nigeria', ZA:'South Africa', GH:'Ghana', KE:'Kenya', SN:'Senegal', ZW:'Zimbabwe', ZM:'Zambia', CI:"Côte d'Ivoire" };
+    const raw = [
+      ['Amara Okonkwo','NG','🇳🇬','Education',942,'Luminary',38420],
+      ['Thandiwe Dlamini','ZA','🇿🇦','Integrity & Service',918,'Luminary',31050],
+      ['Kwame Mensah','GH','🇬🇭','Choral & Music',897,'Luminary',28770],
+      ['Zainab Bello','NG','🇳🇬','Business',871,'Laureate',24310],
+      ['Daniel Kiprop','KE','🇰🇪','Education',854,'Laureate',21980],
+      ['Fatima Diallo','SN','🇸🇳','Choral & Music',832,'Laureate',19450],
+      ['Samuel Achieng','KE','🇰🇪','Integrity & Service',811,'Laureate',17220],
+      ['Naledi Moyo','ZW','🇿🇼','Business',794,'Vanguard',15680],
+      ['Tariro Banda','ZM','🇿🇲','Education',778,'Vanguard',13940],
+      ['Yacine Touré','CI','🇨🇮','Choral & Music',763,'Vanguard',12510],
+      ['Adaeze Nwosu','NG','🇳🇬','Integrity & Service',749,'Vanguard',11030],
+      ['Kofi Asante','GH','🇬🇭','Business',731,'Rising',9420]
+    ];
+    const profiles = raw.map((r,i)=>{ const t=TIER[r[5]]; const av=AV[i%AV.length];
+      return { id:i+1, name:r[0], first:r[0].split(' ')[0], cc:r[1], flag:r[2], countryName:CN[r[1]]||r[1], category:r[3], cpi:r[4], tier:r[5], votesN:r[6], votes:r[6].toLocaleString(), initial:r[0][0], tcolor:t.tcolor, tbg:t.tbg, ring:t.ring, glow:t.glow, avBg:av[0], avFg:av[1] };
+    });
+    const COVERS = ['linear-gradient(135deg,#10292C,#1a6118)','linear-gradient(135deg,#a47306,#d49a0e)','linear-gradient(135deg,#1a2629,#5d7374)','linear-gradient(135deg,#237b22,#7FC87C)','linear-gradient(135deg,#10292C,#2b373d)'];
+    const feed = [
+      { pid:1, time:'2h', isReel:false, likes:1842, comments:96, caption:'introduced a numeracy programme now reaching 12 rural schools across Enugu. The work continues. 🇳🇬', cover:COVERS[0], slot:'agd-post-1' },
+      { pid:3, time:'5h', isReel:true, likes:3120, comments:214, caption:'rehearsal cut from the national choral finals — goosebumps every single time.', cover:COVERS[3], slot:'agd-post-2' },
+      { pid:2, time:'1d', isReel:false, likes:2076, comments:131, caption:'on what ethical public service looks like when no one is watching. Full talk in the Legacy Vault.', cover:COVERS[2], slot:'agd-post-3' }
+    ];
+    const reels = [
+      { pid:3, title:'Inside the choral finals', dur:'0:42', views:'18.2K', cover:COVERS[3], slot:'agd-reel-1' },
+      { pid:1, title:'A classroom, rebuilt', dur:'1:05', views:'12.7K', cover:COVERS[0], slot:'agd-reel-2' },
+      { pid:6, title:'The sound of Dakar', dur:'0:38', views:'9.4K', cover:COVERS[1], slot:'agd-reel-3' },
+      { pid:2, title:'Service, quietly', dur:'0:55', views:'8.1K', cover:COVERS[2], slot:'agd-reel-4' },
+      { pid:4, title:'Building across borders', dur:'1:12', views:'6.6K', cover:COVERS[4], slot:'agd-reel-5' }
+    ];
+    const stories = [0,1,2,3,4,5,6].map(i=>({ pid: profiles[i].id, cover: COVERS[i%COVERS.length], thumb:'agd-story-'+(i+1),
+      caption: ['Numeracy programme now in 12 schools','Ethics in public service — new talk','Choral finals rehearsal','Scaling across 4 markets','Teaching that travels','The sound of a nation','Civic courage, recognised'][i],
+      time: ['2h','5h','7h','11h','14h','18h','21h'][i] }));
+    const reelCaps = ['A cut from the national choral finals — the room held its breath.','Inside a classroom rebuilt by the community, one brick at a time.','The street rhythms of Dakar that became a movement.','What ethical public service looks like when no one is watching.','Scaling a business across four African markets.'];
+    reels.forEach((r,i)=>{ r.caption = reelCaps[i] || ''; r.likesN = [4210,3180,2640,2090,1730][i] || 1500; r.commentsN = [214,168,131,96,72][i] || 60; });
+    const events = [
+      { mon:'SEP', day:'15', title:'Inaugural Awards Gala', meta:'Eko Hotel, Lagos · Nigeria', kind:'Ceremony', time:'18:00 WAT', dateBg:'#10292C', dateFg:'#7FC87C', pillBg:'#fff8df', pillFg:'#a47306', live:true },
+      { mon:'SEP', day:'22', title:'How the CPI is scored', meta:'Webinar · open to all', kind:'Webinar', time:'15:00 WAT', dateBg:'#effaf0', dateFg:'#1a6118', pillBg:'#effaf0', pillFg:'#1a6118' },
+      { mon:'OCT', day:'04', title:'Education programme town hall', meta:'Community session · Pulse Live', kind:'Community', time:'17:00 WAT', dateBg:'#f0f2f2', dateFg:'#2b373d', pillBg:'#f0f2f2', pillFg:'#5d7374' },
+      { mon:'OCT', day:'19', title:'Judges & methodology AMA', meta:'Webinar · submit questions', kind:'Webinar', time:'16:00 WAT', dateBg:'#effaf0', dateFg:'#1a6118', pillBg:'#effaf0', pillFg:'#1a6118' }
+    ];
+    const channels = [
+      { id:'c-edu', emoji:'🎓', title:'Education Excellence', online:'214', members:'4.2K', desc:'Teachers, founders and reformers comparing notes on what works in African classrooms.', latest:'Numeracy pilot results shared', tint:'#eef7ee' },
+      { id:'c-int', emoji:'⚖️', title:'Integrity & Service', online:'132', members:'2.8K', desc:'Public servants and civic leaders on governance, ethics and accountability.', latest:'New transparency toolkit', tint:'#fff8df' },
+      { id:'c-mus', emoji:'🎶', title:'Choral & Music', online:'389', members:'6.1K', desc:'Choirs, composers and producers sharing the sound of the continent.', latest:'Finals rehearsal reel posted', tint:'#e9efef' },
+      { id:'c-biz', emoji:'📈', title:'Business Excellence', online:'97', members:'3.4K', desc:'Founders scaling enterprises and jobs across African borders.', latest:'Cross-border hiring thread', tint:'#f4f5f5' }
+    ];
+    const blogPosts = [
+      { tag:'Methodology', title:'How the Cultural Power Index is computed', author:'A. Eze', date:'12 Jun', read:'6 min', excerpt:'A walk through the six transparent factors and how they recompute every six hours.', cover:COVERS[0], slot:'agd-blog-1' },
+      { tag:'Announcement', title:'The inaugural cycle opens for nominations', author:'Editorial', date:'4 Jun', read:'3 min', excerpt:'Education and Integrity programmes are live. Here is how to take part.', cover:COVERS[3], slot:'agd-blog-2' },
+      { tag:'Integrity', title:'Inside our fraud-scoring and audit trail', author:'T. Bello', date:'28 May', read:'8 min', excerpt:'How one verified voter, one vote per category is actually enforced.', cover:COVERS[2], slot:'agd-blog-3' },
+      { tag:'Field notes', title:'A classroom rebuilt in Enugu', author:'M. Okafor', date:'21 May', read:'5 min', excerpt:'The story behind one of this cycle’s most-watched reels.', cover:COVERS[1], slot:'agd-blog-4' },
+      { tag:'Community', title:'Why recognition needs a permanent record', author:'Editorial', date:'14 May', read:'4 min', excerpt:'Recognition is a record, not a moment — what the Legacy Vault preserves.', cover:COVERS[4], slot:'agd-blog-5' },
+      { tag:'Music', title:'The sound of a continent, archived', author:'F. Diallo', date:'7 May', read:'7 min', excerpt:'How choral editions are captured and credited forever.', cover:COVERS[1], slot:'agd-blog-6' }
+    ];
+    const blogFeatured = { tag:'Methodology', title:'Transparent recognition, counted in the open', author:'Africa GATES', date:'18 Jun', read:'9 min', initial:'G', excerpt:'Every score traces back to community votes and expert panels. We break down exactly how the index stays honest — and why it recomputes every six hours.', cover:COVERS[0] };
+    const marquee = [ ['🇳🇬','Lagos'],['🇬🇭','Accra'],['🇰🇪','Nairobi'],['🇿🇦','Johannesburg'],['🇪🇹','Addis Ababa'],['🇪🇬','Cairo'],['🇸🇳','Dakar'],['🇷🇼','Kigali'],['🇺🇬','Kampala'],['🇨🇮','Abidjan'],['🇲🇦','Casablanca'],['🇿🇲','Lusaka'],['🇲🇿','Maputo'],['🇳🇦','Windhoek'] ].map(m=>({flag:m[0],city:m[1]}));
+    return { profiles, feed, reels, stories, COVERS, events, channels, blogPosts, blogFeatured, marquee };
+  }
+  get data(){ if(!this._d) this._d=this.buildData(); return this._d; }
+  P(id){ return this.data.profiles.find(p=>p.id===id); }
+  go(screen){ this.setState({ screen, mega:null }); const sc=document.querySelector('.agd-scroll'); if(sc) sc.scrollTop=0; }
+  toast(){}
+
+  renderVals() {
+    const s = this.state, D = this.data;
+    const INK='#10292C';
+    const profiles = D.profiles;
+    const sorted = profiles.slice().sort((a,b)=>b.cpi-a.cpi);
+    const max = sorted[0].cpi;
+    const MEDAL = ['#d49a0e','#9aa7a7','#c0894a'];
+    const POD = [['#fff8df','#f3e2a8'],['#f1f4f4','#e0e6e6'],['#fbf2e6','#eed9bf']];
+    const openP = id => () => this.go('profile') || this.setState({ activeProfile:id });
+    const openProfile = id => () => { this.setState({ screen:'profile', mega:null, activeProfile:id }); const sc=document.querySelector('.agd-scroll'); if(sc) sc.scrollTop=0; };
+
+    const rankOf = id => sorted.findIndex(p=>p.id===id)+1;
+    const deco = (p) => ({ ...p, rank: rankOf(p.id), medal: MEDAL[rankOf(p.id)-1]||'#92a6a7',
+      barW: Math.round(p.cpi/max*100)+'%', barColor: p.tier==='Luminary'?'#d49a0e':'#237b22', open: openProfile(p.id) });
+
+    // follow / like helpers
+    const toggleFollow = id => () => this.setState(st=>({ following: { ...st.following, [id]: !st.following[id] } }));
+    const followView = id => { const on=!!s.following[id]; return {
+      followLabel: on?'Following':'Follow', followBg: on?'#10292C':'#fff', followFg: on?'#fff':'#10292C',
+      followBorder: on?'#10292C':'rgba(16,41,44,.16)', toggleFollow: toggleFollow(id) }; };
+
+    // FEED
+    const feed = D.feed.map(f=>{ const p=this.P(f.pid); const liked=!!s.liked[f.pid]; const saved=!!s.saved[f.pid];
+      return { ...f, author:p.name, flag:p.flag, initial:p.initial, avBg:p.avBg, avFg:p.avFg, tier:p.tier, tbg:p.tbg, tcolor:p.tcolor, category:p.category,
+        likes: (f.likes + (liked?1:0)).toLocaleString(),
+        likeFill: liked?'#e0245e':'none', likeColor: liked?'#e0245e':'#3a4448', likeAnim: liked?'agdHeart .4s ease':'none',
+        toggleLike: ()=>this.setState(st=>({ liked: { ...st.liked, [f.pid]: !st.liked[f.pid] } })),
+        saveFill: saved?'#10292C':'none', saveColor: saved?'#10292C':'#3a4448',
+        toggleSave: ()=>this.setState(st=>({ saved: { ...st.saved, [f.pid]: !st.saved[f.pid] } })),
+        comments: f.comments,
+        open: openProfile(f.pid), ...followView(f.pid) };
+    });
+
+    // reels (home strip)
+    const reels = D.reels.map(r=>{ const p=this.P(r.pid); return { ...r, author:p.name }; });
+
+    // stories
+    const RINGS = ['linear-gradient(135deg,#d49a0e,#fbc329)','linear-gradient(135deg,#237b22,#7FC87C)','linear-gradient(135deg,#e0245e,#fbc329)','linear-gradient(135deg,#5d7374,#10292C)'];
+    const stories = D.stories.map((st,i)=>{ const p=this.P(st.pid); return { ...st, first:p.first, flag:p.flag, initial:p.initial, avBg:p.avBg, avFg:p.avFg, ring: RINGS[i%RINGS.length],
+      open: ()=>this.setState({ storyIdx:i }) }; });
+    const activeStory = s.storyIdx!=null ? stories[s.storyIdx] : {};
+
+    // rising (rail)
+    const rising = sorted.slice(6,10).map((p,i)=>({ ...p, delta: [18,14,11,7][i]+' pts', open: openProfile(p.id), ...followView(p.id) }));
+
+    // ── PULSE tabs ──
+    const TABS = [['foryou','For you'],['reels','Reels'],['events','Events'],['community','Community']];
+    const pulseTabs = TABS.map(t=>{ const on=s.pulseTab===t[0]; return { label:t[1], fg:on?'#10292C':'#717a7e', bar:on?'#e0245e':'transparent', badge: t[0]==='reels'?String(D.reels.length):'', set:()=>this.setState({pulseTab:t[0]}) }; });
+
+    // ── REELS grid + viewer ──
+    const openReel = i => () => this.setState({ reelIdx:i, reelPaused:false });
+    const reelsGrid = D.reels.map((r,i)=>{ const p=this.P(r.pid); return { ...r, author:p.name, open: openReel(i) }; });
+    let activeReel = {};
+    const reelSegs = D.reels.map((r,i)=>({ w: s.reelIdx!=null && i<s.reelIdx ? '100%' : '0%', anim: (s.reelIdx===i ? 'agdProg 6s linear forwards' : 'none') }));
+    if (s.reelIdx!=null) {
+      const r = D.reels[s.reelIdx]; const p = this.P(r.pid);
+      const liked = !!s.reelLiked[s.reelIdx]; const saved = !!s.reelSaved[s.reelIdx];
+      activeReel = { ...r, author:p.name, first:p.first, flag:p.flag, category:p.category, initial:p.initial, avBg:p.avBg, avFg:p.avFg,
+        likes:(r.likesN+(liked?1:0)).toLocaleString(), comments:r.commentsN.toLocaleString(),
+        likeFill: liked?'#e0245e':'none', likeStroke: liked?'#e0245e':'#fff', likeAnim: liked?'agdHeart .4s ease':'none',
+        toggleLike: ()=>this.setState(st=>({ reelLiked:{...st.reelLiked,[st.reelIdx]:!st.reelLiked[st.reelIdx]} })),
+        saveFill: saved?'#fff':'none', toggleSave: ()=>this.setState(st=>({ reelSaved:{...st.reelSaved,[st.reelIdx]:!st.reelSaved[st.reelIdx]} })),
+        followBg: s.following[p.id]?'rgba(255,255,255,.95)':'transparent', followFg: s.following[p.id]?'#10292C':'#fff', followLabel: s.following[p.id]?'Following':'Follow',
+        toggleFollow: toggleFollow(p.id) };
+    }
+    const reelN = D.reels.length;
+
+    // ── EVENTS ──
+    const rsvp = s.rsvp||{};
+    const eventsList = D.events.map((e,i)=>{ const on=!!rsvp[i]; const ticketed = e.kind==='Ceremony';
+      if (ticketed) return { ...e, btnLabel:'Get tickets', btnBg:'#237b22', btnFg:'#fff', btnBorder:'#237b22', rsvp: ()=>this.openTicket() };
+      return { ...e,
+        btnLabel: on?'Going ✓':'RSVP', btnBg: on?'#eef7ee':'#10292C', btnFg: on?'#1a6118':'#fff', btnBorder: on?'#bfe0bd':'#10292C',
+        rsvp: ()=>this.setState(st=>({ rsvp:{...(st.rsvp||{}),[i]:!(st.rsvp||{})[i]} })) }; });
+    const eventsMini = D.events.slice(0,3);
+
+    // ── COMMUNITY ──
+    const joined = s.joined||{};
+    const channels = D.channels.map(c=>{ const on=!!joined[c.id]; return { ...c,
+      btnLabel: on?'Joined ✓':'Join', btnBg: on?'#eef7ee':'#237b22', btnFg: on?'#1a6118':'#fff', btnBorder: on?'#bfe0bd':'#237b22',
+      toggle: ()=>this.setState(st=>({ joined:{...(st.joined||{}),[c.id]:!(st.joined||{})[c.id]} })) }; });
+
+    // ── HOME feature visuals ──
+    const VM = [['#fff8df','#a47306'],['#effaf0','#1a6118'],['#e9efef','#2b373d']];
+    const voteMini = [
+      { name:'Amara Okonkwo', flag:'🇳🇬', initial:'A', votes:'12,840', tag:'#1', tagColor:'#a47306', bg:'#f6fcf5', border:'#bfe0bd', avBg:VM[0][0], avFg:VM[0][1] },
+      { name:'Daniel Kiprop', flag:'🇰🇪', initial:'D', votes:'9,210', tag:'#2', tagColor:'#717a7e', bg:'#fff', border:'rgba(16,41,44,.08)', avBg:VM[1][0], avFg:VM[1][1] },
+      { name:'Tariro Banda', flag:'🇿🇲', initial:'T', votes:'7,655', tag:'#3', tagColor:'#717a7e', bg:'#fff', border:'rgba(16,41,44,.08)', avBg:VM[2][0], avFg:VM[2][1] }
+    ];
+    const marquee = D.marquee;
+
+    // ── CHECKOUT (tickets + donations) ──
+    const NGN = n => '₦' + Math.round(n).toLocaleString();
+    const TIERS = [
+      { name:'Student', price:5000, perks:'Entry · valid student ID required', badge:'Sold out', soldOut:true },
+      { name:'General Admission', price:15000, perks:'Entry · welcome pack · networking floor' },
+      { name:'VIP', price:45000, perks:'Front rows · gala dinner · after-party', badge:'Most popular' },
+      { name:'Patron Table (10)', price:400000, perks:'Reserved table of 10 · named programme credit', badge:'2 left' }
+    ];
+    const co = (patch) => () => this.setState(patch);
+    const ticketTiers = TIERS.map((t,i)=>{ const sel=s.coTier===i && !t.soldOut;
+      return { ...t, price: NGN(t.price),
+        cursor: t.soldOut?'not-allowed':'pointer', op: t.soldOut?0.5:1,
+        border: sel?'#237b22':(t.soldOut?'rgba(16,41,44,.08)':'rgba(16,41,44,.12)'), bg: sel?'#f6fcf5':'#fff',
+        radio: sel?'#237b22':'rgba(16,41,44,.2)', dot: sel?'#237b22':'transparent',
+        badgeBg: t.soldOut?'#f0f2f2':(t.badge==='Most popular'?'#effaf0':'#fff8df'), badgeFg: t.soldOut?'#92a6a7':(t.badge==='Most popular'?'#1a6118':'#a47306'),
+        select: ()=>{ if(!t.soldOut) this.setState({ coTier:i }); } };
+    });
+    const DON = [5000,15000,50000,100000,250000,500000];
+    const donAmounts = DON.map(a=>{ const sel=!s.coCustom && s.coAmt===a;
+      return { label: NGN(a), set: ()=>this.setState({ coAmt:a, coCustom:'' }),
+        border: sel?'#237b22':'rgba(16,41,44,.12)', bg: sel?'#237b22':'#fff', fg: sel?'#fff':'#10292C' }; });
+    const donValue = s.coCustom ? (parseInt(s.coCustom.replace(/[^0-9]/g,''))||0) : s.coAmt;
+    const tierObj = TIERS[s.coTier] || TIERS[1];
+    const baseTotal = s.coKind==='ticket' ? tierObj.price * s.coQty : donValue;
+    const fee = Math.round(baseTotal * 0.015);
+    const codeRand = (p) => p + '-' + Math.random().toString(36).slice(2,7).toUpperCase();
+    const checkoutVals = {
+      checkoutOpen: s.coOpen, closeCheckout: ()=>this.setState({coOpen:false}),
+      coKind: s.coKind,
+      coTicketSelect: s.coOpen && s.coKind==='ticket' && s.coStep==='select',
+      coDonationSelect: s.coOpen && s.coKind==='donation' && s.coStep==='select',
+      coPay: s.coStep==='pay', coProcessing: s.coStep==='processing', coSuccess: s.coStep==='success', coError: s.coStep==='error',
+      coIcon: s.coKind==='ticket' ? '🎟️' : '❤️', coAccentBg: s.coKind==='ticket' ? '#fff8df' : '#fdeaf0',
+      coTitle: s.coKind==='ticket' ? 'Inaugural Awards Gala' : 'Support Africa GATES',
+      coSub: s.coKind==='ticket' ? '15 Sep 2026 · Lagos, NG' : 'An Afrovanguard initiative',
+      coNoun: s.coKind==='ticket' ? 'tickets' : 'donation',
+      ticketTiers, qty: s.coQty,
+      incQty: ()=>this.setState(st=>({coQty:Math.min(20,st.coQty+1)})), decQty: ()=>this.setState(st=>({coQty:Math.max(1,st.coQty-1)})),
+      donAmounts, customAmount: s.coCustom, onCustom: (e)=>this.setState({coCustom:e.target.value.replace(/[^0-9]/g,'')}),
+      customBorder: s.coCustom ? '#237b22' : 'rgba(16,41,44,.12)',
+      setOnce: ()=>this.setState({coFreq:'once'}), setMonthly: ()=>this.setState({coFreq:'monthly'}),
+      freqOnceBg: s.coFreq==='once'?'#fff':'transparent', freqOnceFg: s.coFreq==='once'?'#10292C':'#717a7e',
+      freqMonthlyBg: s.coFreq==='monthly'?'#fff':'transparent', freqMonthlyFg: s.coFreq==='monthly'?'#10292C':'#717a7e',
+      freqSuffix: s.coKind==='donation' && s.coFreq==='monthly' ? '/mo' : '',
+      donCtaBg: donValue>0 ? '#237b22' : '#9aa6a8', donCtaOp: donValue>0 ? 1 : 0.7,
+      orderTotal: NGN(baseTotal), orderLabel: s.coKind==='ticket' ? (tierObj.name + ' × ' + s.coQty) : ('Donation' + (s.coFreq==='monthly'?' · monthly':'')),
+      coFee: NGN(fee), coGrand: NGN(baseTotal + fee),
+      goPay: ()=>{ if(s.coKind==='donation' && donValue<=0) return; this.setState({coStep:'pay'}); },
+      submitPay: ()=>this.submitPay(), coBack: ()=>this.setState({coStep:'select'}), coRetry: ()=>this.setState({coStep:'pay'}),
+      coSuccessTitle: s.coKind==='ticket' ? "You're going! 🎉" : 'Thank you 🌍',
+      coSuccessBody: s.coKind==='ticket' ? ('Your ' + s.coQty + ' ' + (s.coQty>1?'tickets are':'ticket is') + ' confirmed for the Inaugural Awards Gala.') : ('Your ' + (s.coFreq==='monthly'?'monthly ':'') + 'gift will fund child leadership programmes across Africa.'),
+      coReceiptLabel: s.coKind==='ticket' ? 'Order' : 'Receipt',
+      coReceiptCode: s.coKind==='ticket' ? codeRand('GALA') : codeRand('GIFT'),
+      openTicket: ()=>this.openTicket(), openDonation: ()=>this.openDonation()
+    };
+
+    // leaderboard
+    const lbCatList = ['All','Education','Integrity & Service','Choral & Music','Business'];
+    const lbFiltered = (s.lbFilter==='All'?sorted:sorted.filter(p=>p.category===s.lbFilter));
+    const lbList = lbFiltered.map(p=>deco(p));
+    const podium = sorted.slice(0,3).map((p,i)=>({ ...deco(p), podBg:POD[i][0], podBorder:POD[i][1] }));
+    const lbFilters = lbCatList.map(c=>{ const on=s.lbFilter===c; return { label: c==='Integrity & Service'?'Integrity':(c==='Choral & Music'?'Music':c),
+      bg:on?INK:'#fff', fg:on?'#fff':'#4a5256', border:on?INK:'rgba(16,41,44,.12)', set:()=>this.setState({lbFilter:c}) }; });
+
+    // registry
+    const regCatList = ['All','Education','Integrity & Service','Choral & Music','Business'];
+    const regCatChips = regCatList.map(c=>{ const on=s.regCat===c; return { label: c==='Integrity & Service'?'Integrity':(c==='Choral & Music'?'Music':c),
+      bg:on?'#eef7ee':'#fff', fg:on?'#1a6118':'#717a7e', border:on?'#bfe0bd':'rgba(16,41,44,.1)', set:()=>this.setState({regCat:c}) }; });
+    const q = s.regQuery.trim().toLowerCase();
+    const regList = profiles.filter(p=>(s.regCat==='All'||p.category===s.regCat)&&(!q||p.name.toLowerCase().includes(q)||p.countryName.toLowerCase().includes(q)||p.category.toLowerCase().includes(q))).map(p=>({ ...p, open: openProfile(p.id) }));
+
+    // profile
+    const ap0 = this.P(s.activeProfile) || profiles[0];
+    const apRank = rankOf(ap0.id);
+    const scv = ap0.cpi/1000; const cap=v=>Math.min(100,Math.round(v));
+    const apFactors = [
+      { label:'Vote engagement', weight:'25%', pct:cap(scv*100*0.96)+'%', color:'#237b22' },
+      { label:'Verification tier', weight:'20%', pct:(ap0.tier==='Luminary'?98:ap0.tier==='Laureate'?86:70)+'%', color:'#d49a0e' },
+      { label:'Profile completeness', weight:'15%', pct:cap(scv*100*0.92+6)+'%', color:'#237b22' },
+      { label:'Activity & recency', weight:'15%', pct:cap(scv*100*0.88)+'%', color:'#338632' },
+      { label:'Legacy participation', weight:'15%', pct:cap(scv*100*0.8)+'%', color:'#a47306' },
+      { label:'Continental reach', weight:'10%', pct:cap(scv*100*0.74)+'%', color:'#5d7374' }
+    ];
+    const ringPct = Math.round(ap0.cpi/1000*100);
+    const ap = { ...ap0, rank:apRank, ring:'conic-gradient('+ap0.ring+' 0% '+ringPct+'%, #e8ece9 '+ringPct+'% 100%)' };
+
+    // vote
+    const programmes = [
+      { id:'edu', emoji:'🎓', title:'Education Excellence', desc:'Teachers, founders and reformers shaping how Africa learns.', status:'voting', close:'15 Sep' },
+      { id:'int', emoji:'⚖️', title:'Integrity & Service', desc:'Public service, governance and ethical leadership.', status:'voting', close:'15 Sep' },
+      { id:'mus', emoji:'🎶', title:'Choral & Music', desc:'Choirs, composers and the sound of the continent.', status:'judging' },
+      { id:'biz', emoji:'📈', title:'Business Excellence', desc:'Builders growing enterprises and jobs across borders.', status:'nominations' }
+    ];
+    const cats = {
+      edu: [ { id:'edu-1', title:'Lifetime Educator', noms:[['Amara Okonkwo','🇳🇬',12840],['Daniel Kiprop','🇰🇪',9210],['Tariro Banda','🇿🇲',7655]] },
+             { id:'edu-2', title:'Innovation in Learning', noms:[['Zainab Bello','🇳🇬',8430],['Naledi Moyo','🇿🇼',6120]] } ],
+      int: [ { id:'int-1', title:'Public Service', noms:[['Thandiwe Dlamini','🇿🇦',11200],['Kwame Mensah','🇬🇭',8900]] } ]
+    };
+    const STAT = { voting:{pillBg:'#effaf0',pillFg:'#1a6118',pillText:'● Voting open'}, judging:{pillBg:'#f0f2f2',pillFg:'#5d7374',pillText:'Judging'}, nominations:{pillBg:'#fff8df',pillFg:'#a47306',pillText:'Nominating'} };
+    const voteProgrammes = programmes.map(pr=>{ const st=STAT[pr.status]; const sel=s.voteProg===pr.id; const open=pr.status==='voting';
+      return { ...pr, ...st, op:open?1:.62, border: sel&&open?'#237b22':(open?'#bfe0bd':'rgba(16,41,44,.08)'), bg: sel&&open?'#f6fcf5':'#fff',
+        select: ()=>{ if(open){ const fc=(cats[pr.id]||[])[0]; this.setState({voteProg:pr.id,voteCat:fc?fc.id:null}); } else if(pr.status==='judging') this.go('leaderboard'); else this.go('nominate'); } }; });
+    const activeProg = programmes.find(p=>p.id===s.voteProg);
+    const voteProgOpen = activeProg && activeProg.status==='voting';
+    const progCats = cats[s.voteProg] || [];
+    const voteCats = progCats.map(c=>{ const on=s.voteCat===c.id; return { id:c.id, title:c.title, count:c.noms.length, bg:on?'#237b22':'#fff', fg:on?'#fff':'#4a5256', border:on?'#237b22':'rgba(16,41,44,.12)', select:()=>this.setState({voteCat:c.id}) }; });
+    const activeCat = progCats.find(c=>c.id===s.voteCat)||progCats[0];
+    const AVB=[['#effaf0','#1a6118'],['#fff8df','#a47306'],['#e9efef','#2b373d']];
+    const ballot = activeCat ? activeCat.noms.slice().sort((a,b)=>b[2]-a[2]).map((n,i)=>{ const key=s.voteCat+'-'+i; const did=!!s.voted[key];
+      return { name:n[0], flag:n[1], rank:i+1, initial:n[0][0], avBg:AVB[i%3][0], avFg:AVB[i%3][1], votes:(n[2]+(did?1:0)).toLocaleString(),
+        btnLabel: did?'Voted ✓':'Vote', btnBg: did?'#eef7ee':'#237b22', btnFg: did?'#1a6118':'#fff',
+        vote: ()=>{ if(!did) this.setState(st=>({ voted:{...st.voted,[key]:true} })); } }; }) : [];
+
+    // awards
+    const awardsList = programmes.map(pr=>{ const st=STAT[pr.status]; const counts={edu:'3 categories · 7 nominees',int:'2 categories · 4 nominees',mus:'2 categories · judging',biz:'2 categories · open'};
+      const tint={edu:'#eef7ee',int:'#fff8df',mus:'#e9efef',biz:'#f4f5f5'};
+      return { ...pr, ...st, tintBg:tint[pr.id], meta:counts[pr.id]||'', cta: pr.status==='voting'?'Vote':(pr.status==='judging'?'Leaderboard':'Nominate'),
+        go: ()=>{ if(pr.status==='voting'){ const fc=(cats[pr.id]||[])[0]; this.setState({screen:'vote',mega:null,voteProg:pr.id,voteCat:fc?fc.id:null}); } else if(pr.status==='judging') this.go('leaderboard'); else this.go('nominate'); } }; });
+
+    // legacy
+    const legacyList = [
+      { year:'2024', title:'Inaugural Continental Edition', meta:'18 awards · Lagos, NG', cover:'linear-gradient(135deg,#10292C,#1a6118)' },
+      { year:'2023', title:'West Africa Honours', meta:'12 awards · Accra, GH', cover:'linear-gradient(135deg,#a47306,#d49a0e)' },
+      { year:'2023', title:'East Africa Honours', meta:'10 awards · Nairobi, KE', cover:'linear-gradient(135deg,#1a2629,#5d7374)' },
+      { year:'2022', title:"Founders' Circle", meta:'8 awards · Abuja, NG', cover:'linear-gradient(135deg,#237b22,#7FC87C)' },
+      { year:'2022', title:'Southern Africa Honours', meta:'9 awards · Johannesburg, ZA', cover:'linear-gradient(135deg,#10292C,#2b373d)' },
+      { year:'2021', title:'Pilot Recognition Cycle', meta:'6 awards · Lagos, NG', cover:'linear-gradient(135deg,#5d7374,#92a6a7)' }
+    ];
+
+    // nominate
+    const nominateProgs = programmes.map(pr=>{ const on=s.nominateProg===pr.id; return { id:pr.id, emoji:pr.emoji, title:pr.title.split(' ')[0],
+      bg:on?'#eef7ee':'#fff', fg:on?'#1a6118':'#4a5256', border:on?'#237b22':'rgba(16,41,44,.12)', set:()=>this.setState({nominateProg:pr.id}) }; });
+
+    const ICO = { edu:['#eef7ee','#1a6118','🎓'], vote:['#effaf0','#237b22','✓'], reg:['#fff8df','#a47306','✦'], awd:['#fff8df','#a47306','🏅'], lb:['#e9efef','#2b373d','📊'], int:['#f0f2f2','#5d7374','⚖️'], regi:['#e9efef','#2b373d','👥'], leg:['#fff8df','#a47306','🏛️'], evt:['#eef7ee','#237b22','📅'], com:['#f0f2f2','#5d7374','💬'], opp:['#fff8df','#a47306','✦'], blog:['#e9efef','#2b373d','✎'] };
+    const mk = (k,title,desc,fn)=>({ icoBg:ICO[k][0], icoFg:ICO[k][1], emoji:ICO[k][2], title, desc, go: fn });
+    const participate = [ mk('edu','Nominate','Surface a profile in under 90 seconds',()=>this.go('nominate')), mk('vote','Vote','One verified voter, one vote per category',()=>this.go('vote')), mk('reg','Register a profile','Join the continental registry, free',()=>this.go('nominate')), mk('awd','Awards','Education, integrity, choral & business',()=>this.go('awards')), mk('lb','Leaderboard','Live CPI rankings, refreshed every 6 hours',()=>this.go('leaderboard')), mk('int','Integrity Center','How voting, scoring and audits work',()=>this.go('leaderboard')) ];
+    const explore = [ mk('evt','Pulse','Reels, posts and live moments',()=>this.go('pulse')), mk('regi','Registry','Browse verified African profiles',()=>this.go('registry')), mk('leg','Legacy Vault','Every edition, permanently archived',()=>this.go('legacy')), mk('com','Community','Programme channels, OTP-verified',()=>this.setState({screen:'pulse',mega:null,pulseTab:'community'})), mk('evt','Events','Ceremonies, webinars & sessions',()=>this.setState({screen:'pulse',mega:null,pulseTab:'events'})), mk('blog','Blog','Announcements and methodology notes',()=>this.go('blog')) ];
+
+    const fcol = (title, items) => ({ title, links: items.map(x=>({ label:x.l, go:x.go })) });
+    const L = (l, go) => ({ l, go });
+
+    const setMega = k => () => this.setState(st=>({ mega: st.mega===k?null:k }));
+
+    return {
+      // nav
+      goHome:()=>this.go('home'), goPulse:()=>this.go('pulse'), goNominate:()=>this.go('nominate'),
+      goLeaderboard:()=>this.go('leaderboard'), goLegacy:()=>this.go('legacy'), goRegistry:()=>this.go('registry'),
+      goVote:()=>this.go('vote'), goAwards:()=>this.go('awards'),
+      goEvents:()=>this.setState({screen:'pulse',mega:null,pulseTab:'events'}), goCommunity:()=>this.setState({screen:'pulse',mega:null,pulseTab:'community'}), goBlog:()=>this.go('blog'),
+      toggleParticipate:setMega('participate'), toggleExplore:setMega('explore'),
+      closeMega:()=>{ if(s.mega) this.setState({mega:null}); }, stop:(e)=>e.stopPropagation(),
+      megaOpen:!!s.mega, megaItems: s.mega==='participate'?participate:(s.mega==='explore'?explore:[]),
+      partBg: s.mega==='participate'?'rgba(16,41,44,.05)':'none', partFg: s.mega==='participate'?'#10292C':'#3a4448',
+      explBg: s.mega==='explore'?'rgba(16,41,44,.05)':'none', explFg: s.mega==='explore'?'#10292C':'#3a4448',
+      partRot: s.mega==='participate'?'rotate(180deg)':'rotate(0)', explRot: s.mega==='explore'?'rotate(180deg)':'rotate(0)',
+      lbFg: s.screen==='leaderboard'?'#10292C':'#3a4448',
+      pulseBg: s.screen==='pulse'?'rgba(224,36,94,.08)':'none', pulseFg: s.screen==='pulse'?'#e0245e':'#3a4448',
+      // screen flags
+      isHome:s.screen==='home', isPulse:s.screen==='pulse', isLeaderboard:s.screen==='leaderboard', isRegistry:s.screen==='registry',
+      isProfile:s.screen==='profile', isAwards:s.screen==='awards', isLegacy:s.screen==='legacy', isVote:s.screen==='vote', isNominate:s.screen==='nominate', isBlog:s.screen==='blog',
+      // pulse tabs
+      pulseTabs, tabForYou:s.pulseTab==='foryou', tabReels:s.pulseTab==='reels', tabEvents:s.pulseTab==='events', tabCommunity:s.pulseTab==='community',
+      reelsGrid, eventsList, channels, marquee, voteMini, eventsMini,
+      openFirstReel: openReel(0),
+      // reel viewer
+      reelViewerOpen: s.reelIdx!=null, activeReel, reelSegs, reelPaused:s.reelPaused, reelMuted:s.reelMuted, reelUnmuted:!s.reelMuted,
+      closeReel:()=>this.setState({reelIdx:null}),
+      nextReel:(e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this.setState(st=>({ reelIdx: st.reelIdx==null?0:(st.reelIdx+1)%reelN, reelPaused:false })); },
+      prevReel:(e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this.setState(st=>({ reelIdx: st.reelIdx==null?0:(st.reelIdx-1+reelN)%reelN, reelPaused:false })); },
+      toggleReelPlay:(e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this.setState(st=>({reelPaused:!st.reelPaused})); },
+      toggleMute:(e)=>{ if(e&&e.stopPropagation)e.stopPropagation(); this.setState(st=>({reelMuted:!st.reelMuted})); },
+      // blog
+      blogFeatured: D.blogFeatured, blogPosts: D.blogPosts,
+      // checkout
+      ...checkoutVals,
+      // home
+      statStrip:[{value:'2,418',label:'Verified profiles'},{value:'48.9K',label:'Community votes cast'},{value:'4',label:'Award programmes'},{value:'5',label:'Legacy editions'}],
+      leadersTop: sorted.slice(0,6).map(p=>deco(p)),
+      regCards: sorted.slice(0,4).map(p=>({ ...p, open:openProfile(p.id) })),
+      howSteps:[{n:'1',title:'Nominate',desc:'Surface excellence — OTP-verified, free, open to every African profile.'},{n:'2',title:'Vote',desc:'One verified voter, one vote per category. Tallies recompute every 6 hours.'},{n:'3',title:'Recognise',desc:'A transparent 0–1000 score and permanent legacy attribution.'}],
+      stories, reels,
+      // pulse
+      feed, rising,
+      // story viewer
+      storyViewerOpen: s.storyIdx!=null, activeStory,
+      closeStory:()=>this.setState({storyIdx:null}),
+      nextStory:()=>this.setState(st=>({ storyIdx: st.storyIdx==null?0:(st.storyIdx+1)%stories.length })),
+      prevStory:()=>this.setState(st=>({ storyIdx: st.storyIdx==null?0:(st.storyIdx-1+stories.length)%stories.length })),
+      // leaderboard
+      podium, lbFilters, lbList,
+      // registry
+      regCatChips, regList, regQuery:s.regQuery, regEmpty:regList.length===0, onSearch:(e)=>this.setState({regQuery:e.target.value}),
+      // profile
+      ap, apFactors,
+      // vote
+      voteProgrammes, voteProgOpen, voteCats, ballot,
+      // awards / legacy
+      awardsList, legacyList,
+      // nominate
+      nominateProgs, nominateDone:s.nominateDone, nominateForm:!s.nominateDone, submitNominate:()=>this.setState({nominateDone:true}), resetNominate:()=>this.setState({nominateDone:false}),
+      // footer
+      footCols:[ fcol('Participate',[L('Nominate',()=>this.go('nominate')),L('Vote',()=>this.go('vote')),L('Register',()=>this.go('nominate')),L('Awards',()=>this.go('awards'))]),
+                 fcol('Explore',[L('Pulse',()=>this.go('pulse')),L('Leaderboard',()=>this.go('leaderboard')),L('Registry',()=>this.go('registry')),L('Legacy Vault',()=>this.go('legacy'))]),
+                 fcol('About',[L('Integrity Center',()=>this.go('leaderboard')),L('Events',()=>this.setState({screen:'pulse',mega:null,pulseTab:'events'})),L('Donate',()=>this.openDonation()),L('Blog',()=>this.go('blog'))]) ]
+    };
+  }
+}
+</script>
+</body>
+</html>

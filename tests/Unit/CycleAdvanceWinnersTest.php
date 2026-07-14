@@ -11,10 +11,12 @@ use Symfony\Component\Console\Tester\CommandTester;
 /**
  * R1 regression: when a cycle reaches 'results', winners must be chosen by the
  * full Cultural Power Index (45% community + 55% judges) — NOT raw vote_count.
+ * Both nominees meet the judge quorum (2 complete scorecards each), so the test
+ * isolates CPI-vs-raw-votes rather than the quorum gate.
  *
- * Scenario in one category:
- *   • Nominee A: 10 votes, NO judge scores  → CPI = 0.45*(10/10) = 450
- *   • Nominee B:  2 votes, judges score 10   → CPI = 0.45*(2/10)+0.55*1 = 640
+ * Scenario in one category (organic votes; cohort max 10):
+ *   • Nominee A: 10 votes, judges score 2  → CPI = 0.45*(10/10)+0.55*0.2 = 560
+ *   • Nominee B:  2 votes, judges score 10 → CPI = 0.45*(2/10)+0.55*1.0 = 640
  * Under the old vote_count ordering A would win; under CPI, B must win.
  */
 class CycleAdvanceWinnersTest extends TestCase
@@ -29,13 +31,20 @@ class CycleAdvanceWinnersTest extends TestCase
             'results_date' => '2020-04-01 00:00:00',
         ]);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);
-        // A: high votes, no judges. B: low votes, top judges.
-        DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'A_HighVotes', 'status' => 'approved', 'vote_count' => 10]);
-        DB::table('gates_nominees')->insert(['id' => 2, 'category_id' => 1, 'name' => 'B_HighJudge', 'status' => 'approved', 'vote_count' => 2]);
-        DB::table('gates_judges')->insert(['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1]);
+        // A: more votes, LOW judge scores. B: fewer votes, TOP judge scores.
+        DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'A_HighVotes', 'status' => 'approved', 'vote_count' => 10, 'organic_vote_count' => 10]);
+        DB::table('gates_nominees')->insert(['id' => 2, 'category_id' => 1, 'name' => 'B_HighJudge', 'status' => 'approved', 'vote_count' => 2, 'organic_vote_count' => 2]);
+        DB::table('gates_judges')->insert([
+            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1],
+            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'is_active' => 1],
+        ]);
         DB::table('gates_judge_criteria')->insert(['id' => 1, 'slug' => 'impact', 'label' => 'Impact', 'weight' => 25, 'is_active' => 1]);
+        // Two COMPLETE scorecards per nominee (single active criterion) → quorum met.
         DB::table('gates_judge_criteria_scores')->insert([
-            'judge_id' => 1, 'nominee_id' => 2, 'category_id' => 1, 'criterion_id' => 1, 'score' => 10,
+            ['judge_id' => 1, 'nominee_id' => 1, 'category_id' => 1, 'criterion_id' => 1, 'score' => 2],
+            ['judge_id' => 2, 'nominee_id' => 1, 'category_id' => 1, 'criterion_id' => 1, 'score' => 2],
+            ['judge_id' => 1, 'nominee_id' => 2, 'category_id' => 1, 'criterion_id' => 1, 'score' => 10],
+            ['judge_id' => 2, 'nominee_id' => 2, 'category_id' => 1, 'criterion_id' => 1, 'score' => 10],
         ]);
     }
 
@@ -60,12 +69,19 @@ class CycleAdvanceWinnersTest extends TestCase
             'results_date' => '2020-04-01 00:00:00',
         ]);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);
-        DB::table('gates_judges')->insert(['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1]);
+        DB::table('gates_judges')->insert([
+            ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1],
+            ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'is_active' => 1],
+        ]);
         DB::table('gates_judge_criteria')->insert(['id' => 1, 'slug' => 'impact', 'label' => 'Impact', 'weight' => 25, 'is_active' => 1]);
-        // Three identical nominees: 10 votes, judged 10 → CPI 1000 each (a 3-way tie).
+        // Three identical nominees: 10 organic votes + two complete scorecards of
+        // 10 → CPI 1000 each (a quorum-meeting 3-way tie).
         foreach ([1, 2, 3] as $id) {
-            DB::table('gates_nominees')->insert(['id' => $id, 'category_id' => 1, 'name' => 'N' . $id, 'status' => 'approved', 'vote_count' => 10]);
-            DB::table('gates_judge_criteria_scores')->insert(['judge_id' => 1, 'nominee_id' => $id, 'category_id' => 1, 'criterion_id' => 1, 'score' => 10]);
+            DB::table('gates_nominees')->insert(['id' => $id, 'category_id' => 1, 'name' => 'N' . $id, 'status' => 'approved', 'vote_count' => 10, 'organic_vote_count' => 10]);
+            DB::table('gates_judge_criteria_scores')->insert([
+                ['judge_id' => 1, 'nominee_id' => $id, 'category_id' => 1, 'criterion_id' => 1, 'score' => 10],
+                ['judge_id' => 2, 'nominee_id' => $id, 'category_id' => 1, 'criterion_id' => 1, 'score' => 10],
+            ]);
         }
     }
 

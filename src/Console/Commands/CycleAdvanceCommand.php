@@ -32,6 +32,13 @@ class CycleAdvanceCommand extends Command
         $this->addOption('dry-run', null, InputOption::VALUE_NONE, 'Show what would change without writing.');
     }
 
+    /** Lifecycle status name for an ordinal (inverse of self::ORDER). */
+    private static function statusName(int $ord): string
+    {
+        $name = array_search($ord, self::ORDER, true);
+        return $name !== false ? $name : 'archived';
+    }
+
     /** Derive the correct status from the date windows (later phases override). */
     public static function statusFor(object $c, Carbon $now): string
     {
@@ -66,16 +73,25 @@ class CycleAdvanceCommand extends Command
                 $hasWindows = $c->nominations_open || $c->nominations_close || $c->voting_open || $c->voting_close || $c->results_date;
                 if (!$hasWindows) continue;
                 $checked++;
-                $want = self::statusFor($c, $now);
-                if ($want === $c->status) continue;
+                $target    = self::statusFor($c, $now);
+                $curOrd    = self::ORDER[$c->status] ?? 0;
+                $targetOrd = self::ORDER[$target] ?? 0;
+                if ($targetOrd === $curOrd) continue;
                 // Forward-only: the date-driven cron must never auto-REGRESS a cycle
                 // to an earlier phase (e.g. mis-edited dates un-announcing winners).
                 // A backward move is left to a deliberate manual/admin action.
-                if (self::ORDER[$want] < (self::ORDER[$c->status] ?? 0)) {
-                    $io->writeln(sprintf('  cycle #%d: skipped backward %s → %s (manual only)', $c->id, $c->status, $want));
+                if ($targetOrd < $curOrd) {
+                    $io->writeln(sprintf('  cycle #%d: skipped backward %s → %s (manual only)', $c->id, $c->status, $target));
                     continue;
                 }
-                $io->writeln(sprintf('  cycle #%d (programme %d, %d): %s → %s', $c->id, $c->programme_id, $c->year, $c->status, $want));
+                // Advance at most ONE phase per run so no phase is ever skipped —
+                // critically 'voting'. A first run that lands after voting_close
+                // would otherwise jump straight to 'judging', leaving the cycle
+                // unvotable and (forward-only) unrecoverable.
+                $want = self::statusName($curOrd + 1);
+                $io->writeln(sprintf('  cycle #%d (programme %d, %d): %s → %s%s',
+                    $c->id, $c->programme_id, $c->year, $c->status, $want,
+                    $want !== $target ? " (stepping toward $target)" : ''));
                 if (!$dry) {
                     DB::table('gates_award_cycles')->where('id', $c->id)->update(['status' => $want]);
                     $this->logTransition((int)$c->id, (string)$c->status, $want, 'auto: date window', $io);
@@ -119,14 +135,17 @@ class CycleAdvanceCommand extends Command
             // award reflects the published, per-cycle-configurable methodology.
             $scores = $scoring->scoreCategory((int) $catId);
             if (!$scores) continue;
-            // Never auto-crown a winner on community votes alone: with no judge
-            // scores the 55% expert half is absent, so the CPI is not the published
-            // methodology. Skip + alert for manual review instead.
-            if (!DB::table('gates_judge_criteria_scores')->where('category_id', (int) $catId)->exists()) {
-                $io->writeln(sprintf('    ! category %d: no judge scores — skipping promotion (manual review)', (int) $catId));
+            // Only nominees meeting the judge quorum (≥ min_judges_per_nominee
+            // COMPLETE scorecards) are winner-eligible. A lone judge — or a
+            // category the panel never reached — must not decide an award; skip +
+            // alert for manual review. Under-quorum nominees are excluded from the
+            // ranking entirely (never scored 0/10 and pushed to loser).
+            $eligibleIds = array_keys(array_filter($scores, static fn ($s) => !empty($s['eligible'])));
+            if (!$eligibleIds) {
+                $io->writeln(sprintf('    ! category %d: no nominee meets the judge quorum — skipping promotion (manual review)', (int) $catId));
                 continue;
             }
-            $ranked = DB::table('gates_nominees')->whereIn('id', array_keys($scores))->get()
+            $ranked = DB::table('gates_nominees')->whereIn('id', $eligibleIds)->get()
                 ->map(function ($n) use ($scores) {
                     $n->cpi = (int) ($scores[$n->id]['cpi_score'] ?? 0);
                     return $n;
@@ -215,9 +234,17 @@ class CycleAdvanceCommand extends Command
                     'from_name'    => $_ENV['MAIL_FROM_NAME'] ?? 'Africa GATES',
                 ];
                 $mailer = new \AfricaGates\Services\OtpService($smtp);
+                $base = rtrim((string)($_ENV['APP_URL'] ?? 'https://afg.afrovanguard.org.ng'), '/');
                 $headline = $kind === 'winner' ? 'Congratulations — you won.' : 'Congratulations — you are a runner-up.';
-                $body = "Hi {$n->profile_name},\n\n$headline\n\nCategory: {$n->category}\nCycle: " . date('Y') . "\n\nThe full results are now on https://africagates.org/leaderboard — and your profile carries a permanent record.\n\n— Africa GATES";
-                $mailer->sendCustom((string)$n->profile_email, '[Africa GATES] ' . $headline, $body);
+                $nm   = htmlspecialchars((string)$n->profile_name, ENT_QUOTES, 'UTF-8');
+                $catN = htmlspecialchars((string)$n->category, ENT_QUOTES, 'UTF-8');
+                $year = date('Y');
+                $htmlBody = "<p>Hi <strong>{$nm}</strong>,</p><p style=\"font-size:17px;font-weight:700;color:#10292C\">{$headline}</p>"
+                    . "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin:14px 0;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:12px 16px\"><tr><td style=\"font-size:14px;color:#166534;line-height:1.7\">Category: <strong>{$catN}</strong><br>Cycle: <strong>{$year}</strong></td></tr></table>"
+                    . "<p>The full results are now live — and your profile carries a permanent record on the leaderboard.</p>"
+                    . "<p style=\"text-align:center;margin:22px 0\"><a href=\"{$base}/leaderboard\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">See the results →</a></p>";
+                $plain = "Hi {$n->profile_name},\n\n$headline\n\nCategory: {$n->category}\nCycle: {$year}\n\nThe full results are now on {$base}/leaderboard — and your profile carries a permanent record.\n\n— Africa GATES";
+                $mailer->sendBranded((string)$n->profile_email, $headline . ' — Africa GATES', $htmlBody, $plain, 'Results', $base . '/assets/img/illustrations/illo-trophy.jpg');
             } catch (\Throwable $e) { /* best-effort */ }
         }
     }

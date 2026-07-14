@@ -1,0 +1,111 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style>
+  body[data-page="shop"]{ background:#eef0ec; color:var(--ag-ink); }
+  body[data-page="shop"] [x-cloak]{ display:none !important; }
+  .si{ max-width:1100px; margin:0 auto; padding:0 var(--ag-gutter,32px) 60px; }
+  .si-crumb{ padding:18px 0 0; font-size:12.5px; color:#5a6d6f; }
+  .si-crumb a{ color:#5a6d6f; text-decoration:none; } .si-crumb a:hover{ color:var(--ag-ink); }
+  .si-crumb b{ color:var(--ag-ink); font-weight:500; }
+
+  .si-grid{ margin-top:14px; display:grid; grid-template-columns:1fr 1fr; gap:36px; align-items:start; }
+  @media(max-width:780px){ .si-grid{ grid-template-columns:1fr; gap:22px; } }
+  .si-gallery{ position:relative; aspect-ratio:1/1; border-radius:22px; overflow:hidden; background-size:cover; background-position:center; }
+  .si-gallery__orb{ position:absolute; right:-40px; bottom:-50px; width:240px; height:240px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%); }
+  .si-gallery__tag{ position:absolute; top:14px; left:14px; font-size:10px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; padding:5px 11px; border-radius:999px; }
+  .si-tag--Bestseller{ background:#fff8df; color:#7a5600; } .si-tag--New{ background:#eef7ee; color:#1a6118; } .si-tag--Limited{ background:#fdeaf0; color:#9c2b48; }
+
+  .si-cat{ margin:0; font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ag-green); }
+  .si-name{ margin:8px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.7rem,4vw,2.1rem); letter-spacing:-.01em; color:var(--ag-ink); }
+  .si-price{ margin-top:10px; font:700 24px/1 var(--ag-font-mono); color:var(--ag-ink); }
+  .si-desc{ margin:16px 0 0; font-size:14.5px; line-height:1.65; color:#3a4448; }
+
+  .si-actions{ display:flex; gap:12px; margin-top:22px; align-items:center; }
+  .si-stepper{ display:flex; align-items:center; gap:14px; border:1px solid rgba(16,41,44,.14); border-radius:12px; padding:10px 14px; }
+  .si-stepper button{ cursor:pointer; border:none; background:none; font-size:20px; color:var(--ag-ink); line-height:1; }
+  .si-stepper span{ font:700 16px var(--ag-font-mono); min-width:16px; text-align:center; }
+  .si-buy{ flex:1; cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:15px; border-radius:999px; }
+  .si-buy:hover{ background:var(--ag-green-dark); }
+  .si-add{ width:100%; margin-top:10px; cursor:pointer; border:1px solid rgba(16,41,44,.16); background:var(--ag-surface,#fff); color:var(--ag-ink); font-family:inherit; font-weight:600; font-size:15px; padding:14px; border-radius:999px; }
+
+  .si-assure{ display:flex; flex-direction:column; gap:11px; margin-top:24px; padding-top:22px; border-top:1px solid rgba(16,41,44,.08); }
+  .si-assure__row{ display:flex; align-items:center; gap:11px; font-size:13.5px; color:#3a4448; }
+  .si-assure__i{ flex:none; width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; }
+
+  .si-related{ margin-top:44px; }
+  .si-related h2{ margin:0 0 16px; font-family:var(--ag-font-display); font-weight:700; font-size:22px; color:var(--ag-ink); }
+  .si-rgrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:18px; }
+  @media(max-width:780px){ .si-rgrid{ grid-template-columns:repeat(2,1fr); } }
+  .si-rcard{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:16px; overflow:hidden; text-decoration:none; display:block; transition:border-color .15s; }
+  .si-rcard:hover{ border-color:rgba(16,41,44,.18); }
+  .si-rcard__cover{ aspect-ratio:1/1; background-size:cover; background-position:center; }
+  .si-rcard__b{ padding:13px; }
+  .si-rcard__n{ font-weight:600; font-size:14px; color:var(--ag-ink); }
+  .si-rcard__p{ font:700 14px/1 var(--ag-font-mono); color:var(--ag-green); margin-top:5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set p = product %}
+{% set COV = ['linear-gradient(135deg,#10292C,#1a6118)','linear-gradient(135deg,#a47306,#d49a0e)','linear-gradient(135deg,#1a2629,#5d7374)','linear-gradient(135deg,#237b22,#7FC87C)','linear-gradient(135deg,#2b373d,#4a5b60)','linear-gradient(135deg,#b97a12,#fbc329)'] %}
+{% set heroBg = p.cover_path ? "url('" ~ p.cover_path ~ "')" : 'radial-gradient(130% 130% at 70% 10%,#1d5b2a,#10292C 70%)' %}
+
+<div class="si" x-data="{ qty:1 }">
+  <nav class="si-crumb" aria-label="Breadcrumb">
+    <a href="/shop">Shop</a> · <a href="/shop">{{ p.category }}</a> · <b>{{ p.name }}</b>
+  </nav>
+
+  <div class="si-grid">
+    <div class="si-gallery" style="background-image:{{ heroBg }}">
+      {% if not p.cover_path %}<div class="si-gallery__orb" aria-hidden="true"></div>{% endif %}
+      {% if p.tag %}<span class="si-gallery__tag si-tag--{{ p.tag }}">{{ p.tag }}</span>{% endif %}
+    </div>
+
+    <div>
+      <p class="si-cat">{{ p.category }}</p>
+      <h1 class="si-name">{{ p.name }}</h1>
+      <div class="si-price">{{ p.price_label|default('₦' ~ (p.display_price|default(p.price_naira)|number_format)) }}</div>
+      {% if currency != 'NGN' %}<div style="font-size:12px;color:#5a6d6f;margin-top:2px">≈ ₦{{ p.display_price|default(p.price_naira)|number_format }} · charged in Naira</div>{% endif %}
+      {% if p.description %}<p class="si-desc">{{ p.description }}</p>{% endif %}
+
+      <div class="si-actions">
+        <div class="si-stepper">
+          <button type="button" @click="qty=Math.max(1,qty-1)" aria-label="Decrease">−</button>
+          <span x-text="qty"></span>
+          <button type="button" @click="qty=Math.min(20,qty+1)" aria-label="Increase">+</button>
+        </div>
+        <button type="button" class="si-buy"
+          @click='$store.cart.add({slug:{{ p.slug|json_encode(15)|raw }}, name:{{ p.name|json_encode(15)|raw }}, price:{{ p.display_price|default(p.price_naira) }}, cover:{{ p.cover_path|default("")|json_encode(15)|raw }}, qty:qty}); $store.cart.open=false; $store.cart.checkoutOpen=true;'>
+          Buy now · <span x-text="$store.cart.ngn({{ p.display_price|default(p.price_naira) }}*qty)"></span>
+        </button>
+      </div>
+      <button type="button" class="si-add"
+        @click='$store.cart.add({slug:{{ p.slug|json_encode(15)|raw }}, name:{{ p.name|json_encode(15)|raw }}, price:{{ p.display_price|default(p.price_naira) }}, cover:{{ p.cover_path|default("")|json_encode(15)|raw }}, qty:qty})'>
+        Add to cart
+      </button>
+
+      <div class="si-assure">
+        <div class="si-assure__row"><span class="si-assure__i" style="background:#effaf0;color:#1a6118"><svg aria-hidden="true" focusable="false" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg></span>Every order funds child leadership programmes</div>
+        <div class="si-assure__row"><span class="si-assure__i" style="background:#fff8df;color:#7a5600"><svg aria-hidden="true" focusable="false" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>Secure gateway checkout · {% if delivery_regions is empty %}delivers nationwide{% else %}delivers to {{ delivery_regions|join(', ') }}{% endif %}</div>
+      </div>
+    </div>
+  </div>
+
+  {% if related is not empty %}
+  <section class="si-related">
+    <h2>You may also like</h2>
+    <div class="si-rgrid">
+      {% for r in related %}
+      <a class="si-rcard" href="/shop/{{ r.slug }}">
+        <div class="si-rcard__cover" style="{% if r.cover_path %}background-image:url('{{ r.cover_path }}'){% else %}background:{{ COV[loop.index0 % COV|length] }}{% endif %}"></div>
+        <div class="si-rcard__b"><div class="si-rcard__n">{{ r.name }}</div><div class="si-rcard__p">{{ r.price_label|default('₦' ~ (r.display_price|default(r.price_naira)|number_format)) }}</div></div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% include 'partials/shop-cart.twig' %}
+</div>
+{% endblock %}

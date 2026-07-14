@@ -1,0 +1,34 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Shop Products{% endblock %}
+{% block topbar_actions %}<a class="ad-btn ad-btn--primary" href="/admin/products/new">+ New product</a>{% endblock %}
+{% block content %}
+<div class="ad-card"><div class="ad-table-wrap">
+  <table class="ad-table">
+    <thead><tr><th scope="col"></th><th scope="col">Product</th><th scope="col">Category</th><th scope="col">Price</th><th scope="col">Stock</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td style="width:54px"><span style="display:block;width:44px;height:44px;border-radius:9px;background-size:cover;background-position:center;{% if r.cover_path %}background-image:url('{{ r.cover_path }}'){% else %}background:linear-gradient(135deg,#10292C,#1a6118){% endif %}"></span></td>
+        <td>
+          <strong>{{ r.name }}</strong>{% if r.tag %} <span class="ad-chip ad-chip--gold">{{ r.tag }}</span>{% endif %}
+          <div style="font-size:12px;color:var(--ad-text-soft);font-family:'Space Mono',monospace">{{ r.slug }}</div>
+        </td>
+        <td>{{ r.category }}</td>
+        <td style="font-family:'Space Mono',monospace">₦{{ r.price_naira|number_format }}</td>
+        <td>{{ r.stock is null ? '∞' : r.stock }}</td>
+        <td><span class="ad-chip ad-chip--{{ r.is_active ? 'green' : 'grey' }}">{{ r.is_active ? 'Active' : 'Hidden' }}</span></td>
+        <td class="col-actions">
+          <a class="ad-btn ad-btn--sm" href="/admin/products/{{ r.id }}">Edit</a>
+          <form method="post" action="/admin/products/{{ r.id }}/delete" style="display:inline" data-confirm="Delete this product permanently?">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" aria-label="Delete product">×</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="text-align:center;color:var(--ad-text-mute);padding:34px">No products yet. <a href="/admin/products/new" style="color:var(--ad-accent,#237b22);font-weight:600">Add your first →</a></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

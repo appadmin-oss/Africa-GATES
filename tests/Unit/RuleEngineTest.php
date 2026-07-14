@@ -40,7 +40,7 @@ class RuleEngineTest extends TestCase
         DB::table('gates_award_programmes')->insert(['id' => 1, 'slug' => 'p1', 'title' => 'P1']);
         DB::table('gates_award_cycles')->insert(['id' => 1, 'programme_id' => 1, 'year' => (int) date('Y'), 'status' => 'voting']);
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);
-        DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'A', 'status' => 'approved', 'vote_count' => 10]);
+        DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'A', 'status' => 'approved', 'vote_count' => 10, 'organic_vote_count' => 10]);
 
         $scoring = new NomineeScoringService();
         // Default 45/55, no judge scores → 0.45 * 1000 = 450.

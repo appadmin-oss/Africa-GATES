@@ -1,30 +1,96 @@
 {% extends "admin/layout.twig" %}
-{% block topbar_title %}{{ is_new ? 'Invite Judge' : 'Edit · ' ~ row.name }}{% endblock %}
-{% block topbar_actions %}<a class="ad-btn" href="/admin/judges">← Back</a>{% endblock %}
+{% block topbar_title %}{{ is_new ? 'Invite a judge' : 'Edit · ' ~ row.name }}{% endblock %}
+{% block topbar_actions %}
+  {% if not is_new %}<a class="ad-btn" href="/judges" target="_blank" rel="noopener">View public page ↗</a>{% endif %}
+  <a class="ad-btn" href="/admin/judges">← The panel</a>
+{% endblock %}
 {% block content %}
+{% set COUNTRIES = {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':"Côte d'Ivoire",'CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','AO':'Angola','CD':'DR Congo','BW':'Botswana','NA':'Namibia','DZ':'Algeria','TN':'Tunisia','ML':'Mali','BF':'Burkina Faso','MZ':'Mozambique','MW':'Malawi','US':'United States','GB':'United Kingdom','FR':'France','DE':'Germany','CA':'Canada'} %}
+
+{% if flash_error %}<div class="ad-flash ad-flash--err" role="alert" style="margin-bottom:12px">{{ flash_error }}</div>{% endif %}
+
 <form class="ad-form" method="post" action="{{ is_new ? '/admin/judges/new' : '/admin/judges/' ~ row.id }}" enctype="multipart/form-data">
   <input type="hidden" name="_token" value="{{ csrf_token }}">
-  <div class="ad-card"><div class="ad-card__body">
+
+  {# ── 1 · Identity & credentials ── #}
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Identity &amp; credentials<small>Who they are, and how the platform reaches them.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
-      <div class="row"><div><label>Name</label><input type="text" name="name" value="{{ row.name|default('') }}" required></div><div><label>Email</label><input type="email" name="email" value="{{ row.email|default('') }}" required></div></div>
-      <div class="row"><div><label>Title</label><input type="text" name="title" value="{{ row.title|default('') }}"></div><div><label>Organisation</label><input type="text" name="organisation" value="{{ row.organisation|default('') }}"></div></div>
-      <div class="row"><div><label>Country (ISO-2)</label><input type="text" name="country_code" value="{{ row.country_code|default('') }}" maxlength="2"></div><div style="display:flex;align-items:flex-end"><label class="checkbox"><input type="checkbox" name="is_active" {% if row.is_active is not defined or row.is_active %}checked{% endif %}> Active panel member</label></div></div>
-      <div><label>Bio</label><textarea name="bio" rows="3">{{ row.bio|default('') }}</textarea></div>
-      <div><label>Programmes</label>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">
-          {% for p in programmes %}<label class="checkbox" style="padding:8px 10px;background:var(--ad-bg);border-radius:6px"><input type="checkbox" name="programme_ids[]" value="{{ p.id }}" {% if row.programme_ids is iterable and p.id in row.programme_ids %}checked{% endif %}> {{ p.icon_emoji }} {{ p.title }}</label>{% endfor %}
+      <div class="row">
+        <div><label for="f-name">Full name *</label><input type="text" name="name" id="f-name" value="{{ row.name|default('') }}" required placeholder="e.g. Dr. Adaobi Nwosu"></div>
+        <div><label for="f-email">Email *</label><input type="email" name="email" id="f-email" value="{{ row.email|default('') }}" required placeholder="Their sign-in identity — must be unique on the panel">
+          <small style="font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">This is how they sign in to the judging portal, and where their invitation lands. One email per judge.</small>
         </div>
       </div>
-      {% if row.avatar_path %}<div><label>Current avatar</label><img src="{{ row.avatar_path }}" alt="" style="width:80px;height:80px;border-radius:50%;object-fit:cover"></div>{% endif %}
-      <div><label>Replace avatar</label>
-        <label class="file-zone" data-file-zone>Drop or click — square portrait works best <input type="file" name="avatar" accept="image/*"></label>
-        <div class="preview-grid" data-file-preview></div>
+      <div class="row">
+        <div><label for="f-title">Title / role</label><input type="text" name="title" id="f-title" value="{{ row.title|default('') }}" placeholder="e.g. Professor of Education"></div>
+        <div><label for="f-organisation">Organisation</label><input type="text" name="organisation" id="f-organisation" value="{{ row.organisation|default('') }}" placeholder="e.g. University of Lagos"></div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-country_code">Country</label>
+          <select name="country_code" id="f-country_code">
+            <option value="">— Select —</option>
+            {% for code, cname in COUNTRIES %}<option value="{{ code }}" {% if row.country_code|default('') == code %}selected{% endif %}>{{ cname }}</option>{% endfor %}
+          </select>
+          <small style="font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">Shown as the full country name on their public nameplate.</small>
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <label class="checkbox"><input type="checkbox" name="is_active" {% if row.is_active is not defined or row.is_active %}checked{% endif %}> <span><strong>Seated on the panel</strong> — unchecked judges keep their record but disappear from the public jury page and cannot score.</span></label>
+        </div>
       </div>
     </div>
   </div></div>
+
+  {# ── 2 · Public presence ── #}
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Public presence<small>What visitors see on <a href="/judges" target="_blank" rel="noopener">the jury page</a> — their citation and portrait. The portrait is also the social-share image for their page.</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <div>
+        <label for="f-bio">Citation <small>(their bio, written in the third person — 2–4 sentences carry best)</small></label>
+        {% include 'admin/partials/ai-assist.twig' with { target: 'f-bio', kind: 'judge citation (formal third-person bio for an awards jury page)' } only %}
+        <textarea name="bio" id="f-bio" rows="4" placeholder="e.g. Dr. Nwosu has spent two decades building teacher-training programmes across West Africa…">{{ row.bio|default('') }}</textarea>
+      </div>
+      <div class="row">
+        {% if row.avatar_path %}
+        <div><label>Current portrait</label>
+          <img src="{{ row.avatar_path }}" alt="Portrait of {{ row.name }}" style="width:96px;height:120px;border-radius:48px 48px 10px 10px;object-fit:cover;border:2px solid #d9c489">
+        </div>
+        {% endif %}
+        <div><label>{{ row.avatar_path is defined and row.avatar_path ? 'Replace portrait' : 'Portrait' }}</label>
+          <label class="file-zone" data-file-zone>Drop or click — a formal head-and-shoulders portrait; it is displayed in an arched frame, so headroom helps. PNG/JPG/WebP.<input type="file" name="avatar" accept="image/*"></label>
+          <div class="preview-grid" data-file-preview></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+
+  {# ── 3 · Panel assignment ── #}
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Panel assignment<small>The programmes whose nominees this judge scores. Assignments can change any time.</small></div></div><div class="ad-card__body">
+    {% if programmes is empty %}
+      <p style="margin:0;color:var(--ad-text-mute,#5a6d6f)">No programmes exist yet — <a href="/admin/programmes" style="color:var(--ad-accent,#237b22);font-weight:600">create one first</a>, then assign the judge.</p>
+    {% else %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px">
+      {% for p in programmes %}<label class="checkbox" style="padding:10px 12px;background:var(--ad-bg);border:1px solid var(--ad-line,#e5eae8);border-radius:9px"><input type="checkbox" name="programme_ids[]" value="{{ p.id }}" {% if row.programme_ids is iterable and p.id in row.programme_ids %}checked{% endif %}> {{ p.icon_emoji }} {{ p.title }}</label>{% endfor %}
+    </div>
+    <p style="margin:10px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A judge with no assignment can sign in but sees an empty desk — assign at least one programme so their invitation means something.</p>
+    {% endif %}
+  </div></div>
+
+  {# ── What saving does (new judges) ── #}
+  {% if is_new %}
+  <div class="ad-card" style="border-left:4px solid var(--ad-accent,#237b22)"><div class="ad-card__body">
+    <strong style="font-size:14px">What happens when you save</strong>
+    <ol style="margin:10px 0 0;padding-left:1.3em;font-size:13px;line-height:1.8;color:var(--ad-text-soft,#4a5256)">
+      <li>An <strong>assignment email</strong> goes to them with their programmes and the portal sign-in link (they sign in with a one-time code — no password to manage).</li>
+      <li>A separate <strong>single-use onboarding form link</strong> lets them complete their own citation and portrait if you leave those blank.</li>
+      <li>They appear on <a href="/judges" target="_blank" rel="noopener">the public jury page</a> immediately (while “Seated on the panel” is ticked).</li>
+    </ol>
+    <p style="margin:10px 0 0;font-size:12px;color:var(--ad-text-mute,#8a9a9c)">Both emails need working delivery — check <a href="/admin/settings" style="color:var(--ad-accent,#237b22)">Settings → Email → Delivery health</a> if invitations don't arrive. You can resend the onboarding link any time from the panel list (✉).</p>
+  </div></div>
+  {% endif %}
+
   <div style="display:flex;justify-content:flex-end;gap:10px">
     <a class="ad-btn" href="/admin/judges">Cancel</a>
-    <button class="ad-btn ad-btn--primary" type="submit">Save</button>
+    <button class="ad-btn ad-btn--primary" type="submit">{{ is_new ? 'Save & send invitations' : 'Save changes' }}</button>
   </div>
 </form>
 {% endblock %}

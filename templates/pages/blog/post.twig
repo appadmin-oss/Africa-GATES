@@ -1,42 +1,76 @@
 {% extends "layout/gates.twig" %}
-{% block content %}
 
-<article class="r26-article wrap">
-  <p class="r26-article__kicker"><a href="/blog" style="color:inherit">Blog</a>{% if post.tag %} · {{ post.tag }}{% endif %}</p>
+{% block head_styles %}
+<style>
+  body[data-page="blog"]{ background:#eef0ec; color:var(--ag-ink); }
+  .ba{ max-width:760px; margin:0 auto; padding:24px var(--ag-gutter,28px) 16px; }
+  .ba-kicker{ font-size:12.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--ag-green,#237b22); }
+  .ba-kicker a{ color:inherit; text-decoration:none; }
+  .ba h1{ margin:12px 0 0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.9rem,5vw,2.7rem); line-height:1.08; letter-spacing:-.02em; color:var(--ag-ink); }
+  .ba-meta{ margin:14px 0 0; font-size:13.5px; color:#5a6d6f; }
+  .ba-cover{ margin:22px 0 0; border-radius:20px; overflow:hidden; aspect-ratio:16/9; background:#10292C; }
+  .ba-cover img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+  .ba-prose{ margin:26px 0 0; font-size:16.5px; line-height:1.75; color:#2b373d; }
+  .ba-prose > * + *{ margin-top:1.1em; }
+  .ba-prose h2{ font-family:var(--ag-font-display,serif); font-weight:700; font-size:1.5rem; line-height:1.2; color:var(--ag-ink); margin-top:1.7em; }
+  .ba-prose h3{ font-family:var(--ag-font-display,serif); font-weight:700; font-size:1.22rem; color:var(--ag-ink); margin-top:1.5em; }
+  .ba-prose a{ color:var(--ag-green,#237b22); text-decoration:underline; text-underline-offset:2px; }
+  .ba-prose ul, .ba-prose ol{ padding-left:1.3em; }
+  .ba-prose li + li{ margin-top:.4em; }
+  .ba-prose blockquote{ margin:1.4em 0; padding:4px 18px; border-left:3px solid var(--ag-green,#237b22); color:#3a4448; font-style:italic; }
+  .ba-prose img{ max-width:100%; height:auto; border-radius:14px; }
+  .ba-prose code{ background:#e7ece8; padding:2px 6px; border-radius:6px; font-size:.9em; }
+  .ba-prose hr{ border:0; border-top:1px solid rgba(16,41,44,.12); margin:2em 0; }
+
+  .ba-more{ max-width:1180px; margin:40px auto 0; padding:0 var(--ag-gutter,28px) 56px; }
+  .ba-more__h{ font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.3rem,3vw,1.7rem); color:var(--ag-ink); margin:0 0 16px; }
+  .ba-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+  @media(max-width:860px){ .ba-grid{ grid-template-columns:repeat(2,1fr); } }
+  @media(max-width:560px){ .ba-grid{ grid-template-columns:1fr; } }
+  .ba-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:16px; overflow:hidden; text-decoration:none; color:inherit; transition:border-color .15s, transform .15s; }
+  .ba-card:hover{ border-color:rgba(16,41,44,.18); transform:translateY(-2px); }
+  .ba-card__media{ aspect-ratio:16/10; background-size:cover; background-position:center; background:radial-gradient(120% 120% at 75% 0%,#1d5b2a,#10292C); }
+  .ba-card__b{ padding:13px 15px 16px; }
+  .ba-card__meta{ font-size:11.5px; color:#5a6d6f; }
+  .ba-card__t{ margin-top:5px; font-family:var(--ag-font-display,serif); font-weight:700; font-size:15px; color:var(--ag-ink); line-height:1.25; }
+</style>
+{% endblock %}
+
+{% block content %}
+<article class="ba">
+  <p class="ba-kicker"><a href="/blog">Blog</a>{% if post.tag %} · {{ post.tag }}{% endif %}</p>
   <h1>{{ post.title }}</h1>
-  <p class="r26-article__meta">{{ post.author }} · {{ post.published_at|date('j F Y') }}</p>
+  <p class="ba-meta">{{ post.author }} · {{ post.published_at|date('j F Y') }}</p>
   {% if post.cover_image %}
-  <figure class="r26-article__cover"><img src="{{ post.cover_image }}" alt="" fetchpriority="high" decoding="async"></figure>
+  <figure class="ba-cover"><img src="{{ post.cover_image }}" alt="" fetchpriority="high" decoding="async"></figure>
   {% endif %}
-  <div class="r26-prose">
+  {% if post.audio_path %}
+  <div style="margin:22px 0 0;background:#10292C;border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+    <span style="font-size:12.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#7FC87C">🎧 Listen to this story</span>
+    <audio controls preload="none" src="{{ post.audio_path }}" style="width:100%"></audio>
+  </div>
+  {% endif %}
+  <div class="ba-prose">
     {{ post.body|sanitize_html }}
   </div>
+  {% include 'partials/poll.twig' %}
 </article>
 
 {% if more is not empty %}
-<section class="section" style="padding-top:0">
-  <div class="wrap">
-    <div class="r26-surface">
-      <div class="r26-head">
-        <p class="r26-eyebrow">Keep reading</p>
-        <h2 class="r26-h2">More from the <em>blog</em></h2>
+<section class="ba-more">
+  <h2 class="ba-more__h">More from the blog</h2>
+  <div class="ba-grid">
+    {% for p in more %}
+    <a class="ba-card" href="/blog/{{ p.slug }}">
+      <div class="ba-card__media" {% if p.cover_image %}style="background-image:url('{{ p.cover_image }}')"{% endif %}></div>
+      <div class="ba-card__b">
+        <div class="ba-card__meta">{{ p.published_at|date('j F Y') }}</div>
+        <div class="ba-card__t">{{ p.title }}</div>
       </div>
-      <div class="r26-mediagrid">
-        {% for p in more %}
-        <a class="r26-mcard" href="/blog/{{ p.slug }}">
-          <div class="r26-mcard__media {% if not p.cover_image %}r26-mcard__media--empty{% endif %}">
-            {% if p.cover_image %}<img src="{{ p.cover_image }}" alt="" loading="lazy" decoding="async">{% endif %}
-          </div>
-          <div class="r26-mcard__body">
-            <p class="r26-mcard__meta">{{ p.published_at|date('j F Y') }}</p>
-            <h3 class="r26-mcard__title">{{ p.title }}</h3>
-          </div>
-        </a>
-        {% endfor %}
-      </div>
-    </div>
+    </a>
+    {% endfor %}
   </div>
 </section>
 {% endif %}
-
 {% endblock %}

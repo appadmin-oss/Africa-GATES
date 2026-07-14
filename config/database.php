@@ -8,6 +8,13 @@ if ($driver === 'sqlite') {
     if (!is_dir(dirname($dbPath))) {
         @mkdir(dirname($dbPath), 0775, true);
     }
+    // Laravel 12's SQLite connector resolves a NON-existent database path through
+    // base_path() (a full-framework helper that isn't defined in this standalone
+    // app), which fatals on first connect. Ensure the file exists first — a 0-byte
+    // file is a valid, empty SQLite database. (':memory:' is never touched.)
+    if ($dbPath !== ':memory:' && !file_exists($dbPath)) {
+        @touch($dbPath);
+    }
     return [
         'driver'                  => 'sqlite',
         'database'                => $dbPath,

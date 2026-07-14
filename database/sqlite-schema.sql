@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS gates_award_programmes (
   icon_emoji TEXT DEFAULT '🏆',
   sort_order INTEGER NOT NULL DEFAULT 0,
   is_active INTEGER NOT NULL DEFAULT 1,
+  terms TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -90,7 +91,8 @@ CREATE TABLE IF NOT EXISTS gates_nominees (
   tagline TEXT,
   photo_path TEXT,
   country_code TEXT,
-  vote_count INTEGER NOT NULL DEFAULT 0,
+  vote_count INTEGER NOT NULL DEFAULT 0,          -- total display support (organic + paid boost)
+  organic_vote_count INTEGER NOT NULL DEFAULT 0,  -- organic OTP votes only; the CPI community signal
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','winner','runner_up')),
   nominated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(category_id) REFERENCES gates_award_categories(id) ON DELETE CASCADE,
@@ -109,6 +111,8 @@ CREATE TABLE IF NOT EXISTS gates_votes (
   ip_hash TEXT,
   device_hash TEXT,
   idempotency_key TEXT,
+  voter_name TEXT,
+  voter_phone TEXT,
   vote_type TEXT NOT NULL DEFAULT 'standard' CHECK(vote_type IN ('standard','bonus','paid')),
   weight INTEGER NOT NULL DEFAULT 1,
   donation_id INTEGER,
@@ -122,7 +126,9 @@ CREATE TABLE IF NOT EXISTS gates_votes (
 CREATE INDEX IF NOT EXISTS idx_votes_nominee ON gates_votes(nominee_id);
 CREATE INDEX IF NOT EXISTS idx_votes_voted ON gates_votes(voted_at);
 CREATE INDEX IF NOT EXISTS idx_votes_device ON gates_votes(device_hash);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_idem ON gates_votes(idempotency_key);
+-- Idempotency is scoped per-voter: a shared/buggy client key must not let one
+-- voter block another. (Multiple NULL keys remain allowed for key-less votes.)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_idem ON gates_votes(voter_email_hash, idempotency_key);
 
 CREATE TABLE IF NOT EXISTS gates_otp_tokens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -148,6 +154,10 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   country_code TEXT,
   nominee_state TEXT,
   nominee_lga TEXT,
+  nominee_org TEXT,
+  nominee_phone TEXT,
+  nominee_photo_path TEXT,
+  reference TEXT,
   reason TEXT,
   reference_url TEXT,
   reference_url_2 TEXT,
@@ -159,13 +169,18 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   nominator_country TEXT,
   nominator_state TEXT,
   nominator_lga TEXT,
+  nominator_age_range TEXT,
+  decision_reason TEXT,
+  nominator_ack_at TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
   ip_hash TEXT,
+  device_fp TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(cycle_id) REFERENCES gates_award_cycles(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_nominations_cycle ON gates_nominations(cycle_id);
 CREATE INDEX IF NOT EXISTS idx_nominations_status ON gates_nominations(status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_nom_reference ON gates_nominations(reference);
 
 CREATE TABLE IF NOT EXISTS gates_legacy_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -217,6 +232,71 @@ CREATE TABLE IF NOT EXISTS gates_rate_limits (
   UNIQUE(fingerprint, action)
 );
 CREATE INDEX IF NOT EXISTS idx_rate_window ON gates_rate_limits(window_start);
+
+-- Shareable prefill nomination links (opaque token → nominee-side JSON payload).
+CREATE TABLE IF NOT EXISTS gates_nomination_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token TEXT NOT NULL UNIQUE,
+  payload TEXT NOT NULL,
+  created_ip_hash TEXT,
+  created_by INTEGER,
+  hits INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_nomlink_expires ON gates_nomination_links(expires_at);
+
+-- Editable legal / policy documents (privacy, terms, cookies, + custom).
+CREATE TABLE IF NOT EXISTS gates_legal_docs (
+  slug TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  body_html TEXT,
+  updated_label TEXT,
+  is_published INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  updated_by INTEGER,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_legal_pub ON gates_legal_docs(is_published, sort_order);
+
+-- AI triage for nomination review at scale (advisory only — never auto-decides).
+CREATE TABLE IF NOT EXISTS gates_nomination_insights (
+  nomination_id INTEGER PRIMARY KEY,
+  quality_score INTEGER,
+  summary TEXT,
+  duplicates_json TEXT,
+  model TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Email delivery audit (recipient masked) — powers the admin Email-health card.
+CREATE TABLE IF NOT EXISTS gates_mail_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  to_masked TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  category TEXT,
+  status TEXT NOT NULL CHECK(status IN ('sent','failed','logged_dev')),
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_mail_created ON gates_mail_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_mail_status ON gates_mail_log(status);
+
+-- Outbound SMS / WhatsApp delivery audit (recipients stored hashed + masked, never raw).
+CREATE TABLE IF NOT EXISTS gates_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  channel TEXT NOT NULL CHECK(channel IN ('sms','whatsapp')),
+  to_hash TEXT NOT NULL,
+  to_masked TEXT NOT NULL,
+  template TEXT NOT NULL DEFAULT 'generic',
+  status TEXT NOT NULL CHECK(status IN ('sent','failed','queued')),
+  provider TEXT,
+  provider_ref TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_messages_created ON gates_messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_status ON gates_messages(status);
 
 CREATE TABLE IF NOT EXISTS gates_cache (
   cache_key TEXT PRIMARY KEY,
@@ -294,6 +374,7 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   tier TEXT,
   bonus_votes INTEGER NOT NULL DEFAULT 0,
   votes_used INTEGER NOT NULL DEFAULT 0,
+  intent_nominee_id INTEGER, -- paid-vote orders: auto-mint target on confirm
   payment_ref TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','confirmed','failed')),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -315,8 +396,98 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   cover_image TEXT,
   rsvp_url TEXT,
   status TEXT NOT NULL DEFAULT 'published',
+  capacity INTEGER,
+  price_naira INTEGER,
+  schedule TEXT,
+  map_embed TEXT,
+  ticket_tiers TEXT,
+  early_bird_text TEXT,
+  early_bird_deadline TEXT,
+  early_bird_url TEXT,
   created_at TEXT
 );
+
+-- ─── Event registrations (on-platform RSVP for site events) ───
+CREATE TABLE IF NOT EXISTS gates_event_registrations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT,
+  ip_hash TEXT,
+  amount_naira INTEGER DEFAULT 0,
+  reference TEXT,
+  tier TEXT,
+  user_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(event_id, email)
+);
+CREATE INDEX IF NOT EXISTS idx_evreg_event ON gates_event_registrations(event_id);
+
+-- ─── Gated single-use form links (verified nominees + judge invites) ───
+CREATE TABLE IF NOT EXISTS gates_form_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  purpose TEXT NOT NULL,
+  subject_id INTEGER NOT NULL,
+  email_hash TEXT,
+  token_hash TEXT NOT NULL UNIQUE,
+  payload TEXT,
+  is_used INTEGER NOT NULL DEFAULT 0,
+  used_at TEXT,
+  expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_formtok_subject ON gates_form_tokens(purpose, subject_id);
+
+-- ─── Form builder (admin-designed forms + submissions) ───
+CREATE TABLE IF NOT EXISTS gates_forms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  form_key TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  description TEXT,
+  schema_json TEXT NOT NULL DEFAULT '{"fields":[]}',
+  submit_message TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS gates_form_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  form_id INTEGER NOT NULL,
+  form_key TEXT NOT NULL,
+  data_json TEXT NOT NULL,
+  ip_hash TEXT,
+  user_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_formsub_form ON gates_form_submissions(form_key);
+
+-- ─── User accounts + voting-points ledger ───
+CREATE TABLE IF NOT EXISTS gates_users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  phone TEXT,
+  password_hash TEXT,
+  points INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active',
+  email_verified INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT,
+  last_login_at TEXT,
+  last_login_ip TEXT
+);
+CREATE TABLE IF NOT EXISTS gates_points_ledger (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  delta INTEGER NOT NULL,
+  reason TEXT NOT NULL,
+  ref_type TEXT,
+  ref_id TEXT,
+  balance_after INTEGER NOT NULL DEFAULT 0,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_user ON gates_points_ledger(user_id, created_at);
 
 -- ─── Blog posts ───
 CREATE TABLE IF NOT EXISTS gates_posts (
@@ -326,6 +497,7 @@ CREATE TABLE IF NOT EXISTS gates_posts (
   excerpt TEXT,
   body TEXT,
   cover_image TEXT,
+  audio_path TEXT,
   author TEXT,
   tag TEXT,
   status TEXT NOT NULL DEFAULT 'published',
@@ -478,3 +650,13 @@ CREATE TABLE IF NOT EXISTS gates_rule_sets (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(scope, scope_id)
 );
+
+-- Performance indexes on hot columns (mirrors 2026_06_30_perf_indexes.php + nomination_device_fp).
+-- Placed at the very end so every referenced table is already defined.
+CREATE INDEX IF NOT EXISTS idx_nominations_device ON gates_nominations(device_fp);
+CREATE INDEX IF NOT EXISTS idx_votes_nominee ON gates_votes(nominee_id);
+CREATE INDEX IF NOT EXISTS idx_votes_voted_at ON gates_votes(voted_at);
+CREATE INDEX IF NOT EXISTS idx_points_user ON gates_points_ledger(user_id);
+CREATE INDEX IF NOT EXISTS idx_donations_created ON gates_donations(created_at);
+CREATE INDEX IF NOT EXISTS idx_users_created ON gates_users(created_at);
+CREATE INDEX IF NOT EXISTS idx_formsub_formid ON gates_form_submissions(form_id);

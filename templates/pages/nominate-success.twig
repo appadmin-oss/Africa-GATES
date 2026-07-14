@@ -1,20 +1,91 @@
 {% extends "layout/gates.twig" %}
 {% block content %}
-<section class="r26-hero" style="padding-block:clamp(3rem,7vw,5rem) clamp(2rem,4vw,3rem);text-align:center">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <span class="r26-reveal r26-d1" aria-hidden="true" style="display:inline-flex;align-items:center;justify-content:center;width:66px;height:66px;border-radius:50%;background:var(--emerald-50,#effaf0);color:var(--emerald-600,#1f9d55);margin:0 auto 1.4rem">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-      </span>
-      <p class="r26-eyebrow r26-reveal r26-d2" style="justify-content:center;display:inline-flex">Nomination submitted</p>
-      <h1 class="r26-hl r26-reveal r26-d3" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Thanks — your <em style="color:var(--emerald-600)">nomination</em> is in.</h1>
-      <p class="r26-sub r26-reveal r26-d4" style="margin-left:auto;margin-right:auto">A moderator will review within 48 hours. We'll email {{ email|default('you') }} the moment it goes live to voters.</p>
-      <div class="r26-reveal r26-d5" style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;margin-top:1.9rem">
-        <a href="/awards" class="btn btn--emerald">Browse programmes <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        <a href="/" class="btn btn--ghost">Back home</a>
+{% set _nom = nominee|default('') %}
+{% set _cat = category|default('') %}
+{% set _ref = ref|default('') %}
+{% include 'partials/success.twig' with {
+  sc_accent: 'green',
+  sc_art: 'green',
+  sc_glyph: 'plane',
+  sc_kicker: 'Nomination submitted',
+  sc_heading: 'Your nomination is on its way',
+  sc_body: _nom
+    ? 'Thank you for surfacing excellence. We’ve logged your nomination of ' ~ _nom ~ (_cat ? ' for ' ~ _cat : '') ~ '. Our panel verifies every profile before it joins the cycle.'
+    : 'Thank you for surfacing excellence. We’ve logged your nomination, and our panel verifies every profile before it joins the cycle.',
+  sc_receipt: _ref ? { label: 'Reference', code: _ref } : null,
+  sc_primary: { label: 'Track the leaderboard', href: '/leaderboard' },
+  sc_secondary: { label: 'Nominate another', href: '/nominate' },
+  sc_email_note: 'We’ve sent your confirmation — and notified the nominee on the contact you shared (email, SMS or WhatsApp).',
+  sc_confetti: false,
+  sc_next_label: 'What happens next',
+  sc_steps: [
+    'Our panel reviews the nomination (usually within {{ review_sla_hours }} hours).',
+    'You’ll get an email the moment the profile goes live.',
+    'Then voting opens and the Cultural Power Index begins to build.'
+  ]
+} only %}
+
+<div style="margin:18px auto 0">
+  {% include 'partials/lottie.twig' with { src: '/assets/anim/trophy.json', size: 130 } only %}
+</div>
+
+{% if share_payload %}
+<section style="max-width:620px;margin:26px auto 0;padding:0 18px" x-data="agShareNom()">
+  <div style="background:#f4f9f4;border:1px solid #d5e8d5;border-radius:16px;padding:18px 20px">
+    <h3 style="margin:0 0 6px;font-size:16px;color:#10292c">Rally more nominations for {{ nominee }}</h3>
+    <p style="margin:0 0 12px;font-size:13.5px;color:#5a6d6f;line-height:1.55">Nominations from more people and places strengthen a nominee's case. Share a link that pre-fills their details — whoever opens it adds their own voice in seconds.</p>
+    <button type="button" x-show="!url" x-bind:disabled="busy" @click="make()"
+            style="background:#237b22;color:#fff;border:0;font-weight:600;padding:11px 20px;border-radius:999px;cursor:pointer"
+            x-text="busy ? 'Creating link…' : 'Get a share link'"></button>
+    <p x-show="err" x-text="err" style="color:#b4452f;font-size:13px;margin:8px 0 0" x-cloak></p>
+    <div x-show="url" x-cloak>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" readonly :value="url" @focus="$event.target.select()"
+               style="flex:1;min-width:0;padding:10px 12px;border:1px solid #cfe0cf;border-radius:10px;font-size:13px;color:#10292c;background:#fff">
+        <button type="button" @click="copy()" style="background:#10292c;color:#fff;border:0;font-weight:600;padding:10px 16px;border-radius:10px;cursor:pointer" x-text="copied ? 'Copied ✓' : 'Copy'"></button>
       </div>
+      <p style="margin:8px 0 0;font-size:12px;color:#5a6d6f">Link expires in <span x-text="days"></span> days. Anyone who opens it can review and edit every detail before submitting.</p>
     </div>
   </div>
 </section>
+{% endif %}
+{% endblock %}
+
+{% block foot_scripts %}
+<script>
+  /* Invite the nominator to the WhatsApp community once their nomination lands. */
+  document.addEventListener('DOMContentLoaded', function () {
+    if (window.AGCommunity) window.AGCommunity.open('nomination');
+  });
+  {% if share_payload %}
+  window.AFG_SHARE = {{ share_payload|json_encode(15)|raw }};
+  function agShareNom(){
+    return {
+      url:'', busy:false, copied:false, err:'', days:30,
+      async make(){
+        this.busy = true; this.err = '';
+        try {
+          const r = await fetch('/api/v1/nominations/share-link', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(window.AFG_SHARE)
+          });
+          const j = await r.json();
+          if (j && (j.ok || j.success) && j.url) {
+            this.url  = j.url.indexOf('http') === 0 ? j.url : (location.origin + j.url);
+            this.days = j.expires_days || 30;
+          } else {
+            this.err = (j && (j.error || j.message)) || 'Could not create the link — please try again.';
+          }
+        } catch (e) { this.err = 'Could not create the link — please try again.'; }
+        finally { this.busy = false; }
+      },
+      copy(){
+        const done = () => { this.copied = true; setTimeout(() => this.copied = false, 1600); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(this.url).then(done).catch(done);
+        else done();
+      }
+    };
+  }
+  {% endif %}
+</script>
 {% endblock %}

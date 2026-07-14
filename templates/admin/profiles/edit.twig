@@ -12,49 +12,49 @@
   <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Identity</div></div><div class="ad-card__body">
     <div class="ad-form">
       <div class="row">
-        <div><label>Display name</label><input type="text" name="display_name" value="{{ profile.display_name }}" required></div>
-        <div><label>Category</label><input type="text" name="category" value="{{ profile.category }}"></div>
+        <div><label for="f-display_name">Display name</label><input type="text" name="display_name" id="f-display_name" value="{{ profile.display_name }}" required></div>
+        <div><label for="f-category">Category</label><input type="text" name="category" id="f-category" value="{{ profile.category }}"></div>
       </div>
       <div class="row">
-        <div><label>Type</label>
-          <select name="profile_type">
+        <div><label for="f-profile_type">Type</label>
+          <select name="profile_type" id="f-profile_type">
             {% for o in ['individual','business','organisation'] %}<option value="{{ o }}" {% if profile.profile_type == o %}selected{% endif %}>{{ o|capitalize }}</option>{% endfor %}
           </select>
         </div>
-        <div><label>Country (ISO-2)</label><input type="text" name="country_code" value="{{ profile.country_code }}" maxlength="2"></div>
+        <div><label for="f-country_code">Country (ISO-2)</label><input type="text" name="country_code" id="f-country_code" value="{{ profile.country_code }}" maxlength="2"></div>
       </div>
-      <div><label>Bio</label><textarea name="bio" rows="4">{{ profile.bio }}</textarea></div>
+      <div><label for="f-bio">Bio</label><textarea name="bio" id="f-bio" rows="4">{{ profile.bio }}</textarea></div>
       <div class="row">
-        <div><label>Website</label><input type="url" name="website" value="{{ profile.website }}"></div>
-        <div><label>Instagram handle</label><input type="text" name="instagram_handle" value="{{ profile.instagram_handle }}"></div>
+        <div><label for="f-website">Website</label><input type="url" name="website" id="f-website" value="{{ profile.website }}"></div>
+        <div><label for="f-instagram_handle">Instagram handle</label><input type="text" name="instagram_handle" id="f-instagram_handle" value="{{ profile.instagram_handle }}"></div>
       </div>
-      <div><label>Twitter / X handle</label><input type="text" name="twitter_handle" value="{{ profile.twitter_handle }}"></div>
+      <div><label for="f-twitter_handle">Twitter / X handle</label><input type="text" name="twitter_handle" id="f-twitter_handle" value="{{ profile.twitter_handle }}"></div>
     </div>
   </div></div>
 
   <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">CPI & Status</div></div><div class="ad-card__body">
     <div class="ad-form">
       <div class="row">
-        <div><label>CPI score (0–1000)</label><input type="number" name="cpi_score" min="0" max="1000" value="{{ profile.cpi_score }}"></div>
-        <div><label>CPI tier</label>
-          <select name="cpi_tier">
+        <div><label for="f-cpi_score">CPI score (0–1000)</label><input type="number" name="cpi_score" id="f-cpi_score" min="0" max="1000" value="{{ profile.cpi_score }}"></div>
+        <div><label for="f-cpi_tier">CPI tier</label>
+          <select name="cpi_tier" id="f-cpi_tier">
             {% for t in ['diamond','platinum','gold','silver','bronze','unranked'] %}<option value="{{ t }}" {% if profile.cpi_tier == t %}selected{% endif %}>{{ t|capitalize }}</option>{% endfor %}
           </select>
         </div>
       </div>
       <div class="row">
-        <div><label>Status</label>
-          <select name="status">
+        <div><label for="f-status">Status</label>
+          <select name="status" id="f-status">
             {% for s in ['pending','approved','suspended','rejected'] %}<option value="{{ s }}" {% if profile.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}
           </select>
         </div>
-        <div><label>Verification</label>
-          <select name="verification_tier">
+        <div><label for="f-verification_tier">Verification</label>
+          <select name="verification_tier" id="f-verification_tier">
             {% for v in ['none','basic','verified','premium'] %}<option value="{{ v }}" {% if profile.verification_tier == v %}selected{% endif %}>{{ v|capitalize }}</option>{% endfor %}
           </select>
         </div>
       </div>
-      <div><label>Completeness %</label><input type="number" name="completeness_pct" min="0" max="100" value="{{ profile.completeness_pct }}"></div>
+      <div><label for="f-completeness_pct">Completeness %</label><input type="number" name="completeness_pct" id="f-completeness_pct" min="0" max="100" value="{{ profile.completeness_pct }}"></div>
     </div>
   </div></div>
 

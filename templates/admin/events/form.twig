@@ -22,16 +22,75 @@
       <label>Cover image URL<input type="url" name="cover_image" value="{{ row.cover_image|default('') }}" placeholder="https://…"></label>
       <label>RSVP / details URL<input type="text" name="rsvp_url" value="{{ row.rsvp_url|default('') }}" placeholder="/partner or https://…"></label>
     </div>
-    <label>Status
-      <select name="status">
-        <option value="published" {% if row.status|default('draft') == 'published' %}selected{% endif %}>Published</option>
-        <option value="draft" {% if row.status|default('draft') == 'draft' %}selected{% endif %}>Draft</option>
-      </select>
-    </label>
+    <div class="ad-form__row">
+      <label>Status
+        <select name="status">
+          <option value="published" {% if row.status|default('draft') == 'published' %}selected{% endif %}>Published</option>
+          <option value="draft" {% if row.status|default('draft') == 'draft' %}selected{% endif %}>Draft</option>
+        </select>
+      </label>
+      <label>Capacity <small>(blank = unlimited)</small><input type="number" name="capacity" min="0" step="1" value="{{ row.capacity|default('') }}" placeholder="Unlimited"></label>
+    </div>
+    <label>Map embed / link URL <small>(optional — shows a "view map" link in the Venue section)</small><input type="url" name="map_embed" value="{{ row.map_embed|default('') }}" placeholder="https://maps.google.com/…"></label>
+
+    {# Early-bird banner (the promo strip across the top of the event page) #}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa">
+      <strong style="font-size:14px">Early-bird banner <small style="font-weight:400;color:#8a9a9c">(optional — auto-hides after the deadline)</small></strong>
+      <label style="margin-top:8px">Banner text<input type="text" name="early_bird_text" value="{{ row.early_bird_text|default('') }}" maxlength="255" placeholder="Save ₦8,000 with Early Bird tickets"></label>
+      <div class="ad-form__row">
+        <label>Deadline<input type="datetime-local" name="early_bird_deadline" value="{{ row.early_bird_deadline|default('')|replace({' ':'T'})|slice(0,16) }}"></label>
+        <label>Link URL<input type="text" name="early_bird_url" value="{{ row.early_bird_url|default('') }}" placeholder="#tickets or https://…"></label>
+      </div>
+    </div>
+
+    {# Run-of-show repeater #}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ sched_seed|json_encode|e('html_attr') }}, {time:'',title:'',body:''})">
+      <strong style="font-size:14px">Run of show <small style="font-weight:400;color:#8a9a9c">(optional — renders as a timeline)</small></strong>
+      <template x-for="r in rows" :key="r.id">
+        <div style="display:flex;gap:8px;align-items:flex-start;margin-top:8px">
+          <input name="sched_time[]" aria-label="Schedule time" x-model="r.time" maxlength="40" placeholder="18:00" style="width:88px;flex:none">
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;min-width:0">
+            <input name="sched_title[]" aria-label="Schedule item title" x-model="r.title" maxlength="160" placeholder="Item title">
+            <input name="sched_body[]" aria-label="Schedule item detail" x-model="r.body" maxlength="300" placeholder="Short detail (optional)">
+          </div>
+          <button type="button" @click="rm(r.id)" aria-label="Remove row" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer;flex:none">×</button>
+        </div>
+      </template>
+      <button type="button" @click="add()" style="margin-top:10px;border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add item</button>
+    </div>
+
+    {# Ticket tiers repeater #}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ tier_seed|json_encode|e('html_attr') }}, {name:'',price:0,perk:'',sold:false})">
+      <strong style="font-size:14px">Ticket tiers <small style="font-weight:400;color:#8a9a9c">(optional — leave empty for a simple free RSVP)</small></strong>
+      <template x-for="r in rows" :key="r.id">
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <input type="hidden" name="tier_soldout[]" :value="r.sold ? '1' : '0'">
+          <input name="tier_name[]" aria-label="Ticket tier name" x-model="r.name" maxlength="80" placeholder="Tier (e.g. VIP)" style="width:140px">
+          <input name="tier_price[]" aria-label="Ticket tier price" type="number" min="0" step="1" x-model.number="r.price" placeholder="0" style="width:100px">
+          <input name="tier_perk[]" aria-label="Ticket tier perk" x-model="r.perk" maxlength="120" placeholder="What's included" style="flex:1;min-width:120px">
+          <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap"><input type="checkbox" x-model="r.sold"> Sold out</label>
+          <button type="button" @click="rm(r.id)" aria-label="Remove row" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer">×</button>
+        </div>
+      </template>
+      <button type="button" @click="add()" style="margin-top:10px;border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add tier</button>
+      <p style="font-size:12px;color:#8a9a9c;margin:8px 0 0">Prices in ₦. "% sold" is computed automatically from registrations vs capacity.</p>
+    </div>
+
     <div class="ad-form__actions">
       <button class="ad-btn ad-btn--primary" type="submit">Save event</button>
       <a class="ad-btn" href="/admin/events">Cancel</a>
     </div>
   </form>
 </div>
+<script>
+function evRepeater(seed, blank){
+  let nextId = 1000;
+  const rows = (seed && seed.length) ? seed.map(r => Object.assign({}, r)) : [Object.assign({id:1}, blank)];
+  return {
+    rows,
+    add(){ this.rows.push(Object.assign({id: nextId++}, blank)); },
+    rm(id){ this.rows = this.rows.filter(r => r.id !== id); if(!this.rows.length) this.add(); }
+  };
+}
+</script>
 {% endblock %}

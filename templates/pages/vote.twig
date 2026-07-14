@@ -1,429 +1,264 @@
 {% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style>
+  /* Page-scoped: this block only loads on /vote. */
+  body{ background:#eef0ec; }
+  [x-cloak]{ display:none !important; }
+
+  .vh{ max-width:1100px; margin:0 auto; padding:24px var(--ag-gutter,32px) 64px; }
+
+  /* hero */
+  .vh-hero{ position:relative; overflow:hidden; border-radius:24px; background:radial-gradient(130% 130% at 82% 0%,#1d5b2a,#10292C 62%); padding:clamp(1.8rem,4vw,2.4rem); color:#fff; }
+  .vh-hero__orb{ position:absolute; right:-60px; top:-70px; width:300px; height:300px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.28),transparent 68%); }
+  .vh-hero__row{ position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:28px; flex-wrap:wrap; }
+  .vh-hero__badge{ display:inline-flex; align-items:center; gap:8px; font-size:11.5px; font-weight:600; letter-spacing:.06em; color:#fbc329; background:rgba(212,154,14,.18); padding:7px 14px; border-radius:999px; }
+  .vh-hero__badge::before{ content:""; width:8px; height:8px; border-radius:50%; background:var(--ag-green-light,#7FC87C); box-shadow:0 0 0 4px rgba(127,200,124,.22); }
+  .vh-hero h1{ margin:16px 0 0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,4.4vw,2.6rem); line-height:1.04; letter-spacing:-.02em; color:#fff; }
+  .vh-hero p{ margin:14px 0 0; max-width:560px; font-size:15px; line-height:1.6; color:rgba(255,255,255,.82); }
+  .vh-stats{ display:flex; gap:14px; }
+  .vh-stat{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:16px; padding:16px 20px; text-align:center; }
+  .vh-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:28px; line-height:1; }
+  .vh-stat__n--g{ color:var(--ag-green-light,#7FC87C); }
+  .vh-stat__l{ font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.6); margin-top:5px; }
+
+  .vh-grid{ margin-top:26px; display:grid; grid-template-columns:1fr 320px; gap:28px; align-items:start; }
+
+  /* filter chips */
+  .vh-filters{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+  .vh-chips{ display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; }
+  .vh-chips::-webkit-scrollbar{ display:none; }
+  .vh-chip{ flex:none; cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; padding:9px 16px; border-radius:999px; border:1px solid rgba(16,41,44,.12); background:var(--ag-surface,#fff); color:#4a5256; }
+  .vh-chip.is-active{ background:var(--ag-ink,#10292C); color:#fff; border-color:var(--ag-ink,#10292C); }
+  .vh-count{ font-size:13px; color:#5f7273; }
+
+  /* programme cards */
+  .vh-cards{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .vh-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:20px; display:flex; flex-direction:column; transition:border-color .18s,box-shadow .18s; animation:vhRise .3s ease both; }
+  .vh-card:hover{ border-color:rgba(16,41,44,.18); box-shadow:0 18px 36px -26px rgba(16,41,44,.45); }
+  .vh-card__top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .vh-tag{ font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:5px 11px; border-radius:999px; }
+  .vh-tag--live{ background:#effaf0; color:#1a6118; }
+  .vh-tag--gold{ background:#fff8df; color:#8a6005; }
+  .vh-tag--soft{ background:#e6f0f4; color:#27607a; }
+  .vh-tag--mute{ background:#eef2ef; color:#5a6d6f; }
+  .vh-card__votes{ font-family:var(--ag-font-mono); font-size:12px; font-weight:600; color:#5f7273; }
+  .vh-card h3{ margin:13px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:20px; color:var(--ag-ink,#10292C); }
+  .vh-lead{ display:flex; align-items:center; gap:11px; margin-top:14px; }
+  .vh-lead__av{ flex:none; width:44px; height:44px; border-radius:12px; background:#fff8df; color:#7a5600; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:18px; }
+  .vh-lead__l{ font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:#5f7273; }
+  .vh-lead__name{ font-weight:600; font-size:14px; color:var(--ag-ink,#10292C); }
+  .vh-lead--empty{ font-size:13px; color:#5f7273; }
+  .vh-bar{ margin-top:14px; height:7px; border-radius:999px; background:#eef2ef; overflow:hidden; display:flex; }
+  .vh-bar i{ display:block; height:100%; }
+  .vh-card__foot{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px; }
+  .vh-card__noms{ font-size:12.5px; color:#5f6d6f; }
+  .vh-act{ flex:none; cursor:pointer; text-decoration:none; font-family:inherit; font-size:13px; font-weight:600; padding:9px 20px; border-radius:999px; border:1px solid transparent; }
+  .vh-act--p{ background:var(--ag-green,#237b22); color:#fff; }
+  .vh-act--p:hover{ background:var(--ag-green-dark,#1a6118); }
+  .vh-act--g{ background:var(--ag-surface,#fff); border-color:rgba(16,41,44,.16); color:var(--ag-ink,#10292C); }
+  .vh-act--off{ background:#f1f4f1; color:#9aa6a8; cursor:default; }
+
+  /* right rail */
+  .vh-rail{ position:sticky; top:96px; display:flex; flex-direction:column; gap:16px; }
+  .vh-ballot{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:24px; box-shadow:0 12px 36px -22px rgba(16,41,44,.3); }
+  .vh-ballot h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:19px; color:var(--ag-ink,#10292C); }
+  .vh-ballot p{ margin:8px 0 0; font-size:13px; line-height:1.5; color:#5f6d6f; }
+  .vh-prog{ margin-top:16px; height:9px; border-radius:999px; background:#eef2ef; overflow:hidden; }
+  .vh-prog i{ display:block; height:100%; background:var(--ag-green,#237b22); transition:width .4s ease; }
+  .vh-secure{ display:flex; align-items:center; gap:9px; margin-top:18px; padding:13px; border-radius:13px; background:#f4f7f4; font-size:12px; line-height:1.45; color:#4a5256; }
+  .vh-ballot__cta{ display:block; text-align:center; text-decoration:none; width:100%; margin-top:16px; cursor:pointer; border:none; background:var(--ag-green,#237b22); color:#fff; font-family:inherit; font-weight:600; font-size:14.5px; padding:13px; border-radius:999px; }
+  .vh-ballot__cta--off{ background:#9aa6a8; }
+  .vh-closing{ background:var(--ag-ink,#10292C); border-radius:20px; padding:22px; color:#fff; }
+  .vh-closing__k{ margin:0; font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#fbc329; }
+  .vh-closing h3{ margin:9px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:18px; color:#fff; }
+  .vh-closing p{ margin:8px 0 0; font-size:13px; line-height:1.55; color:rgba(255,255,255,.72); }
+  .vh-closing a{ display:inline-block; margin-top:14px; text-decoration:none; font-size:13px; font-weight:600; color:var(--ag-green-light,#7FC87C); }
+
+  .vh-empty{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(2rem,5vw,3rem); text-align:center; }
+  .vh-empty h3{ margin:0 0 .4rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; color:var(--ag-ink,#10292C); }
+  .vh-empty p{ margin:0 auto 1.4rem; max-width:34rem; color:#4a5256; line-height:1.6; }
+  .vh-btns{ display:flex; gap:.75rem; flex-wrap:wrap; justify-content:center; }
+
+  :focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+  @keyframes vhRise{ from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  @media (max-width:860px){ .vh-grid{ grid-template-columns:1fr; } .vh-rail{ position:static; } .vh-cards{ grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
 {% block content %}
-
-{% set FLAGS = {
-  'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮',
-  'CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','AO':'🇦🇴','CD':'🇨🇩','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪'
+{% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮','CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','AO':'🇦🇴','CD':'🇨🇩','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪','BW':'🇧🇼'} %}
+{% set STATUS = {
+  'voting':      {'label':'Voting open','cls':'live'},
+  'nominations': {'label':'Nominating', 'cls':'soft'},
+  'judging':     {'label':'Judging',    'cls':'mute'},
+  'results':     {'label':'Results in', 'cls':'gold'},
+  'upcoming':    {'label':'Opens soon', 'cls':'mute'},
+  'archived':    {'label':'Archived',   'cls':'mute'}
 } %}
+{% set hub = hub|default([]) %}
+{% set votingIds = hub|filter(p => p.cycle_status == 'voting')|map(p => p.id)|join(',') %}
 
-{% set awards = awards_data|default([]) %}
+<div class="vh" x-data="voteHub()" x-init="init()" data-prog-ids="{{ votingIds }}">
 
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Voting · 2026 Cycle</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Cast your <em style="color:var(--emerald-600)">vote.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">One verified vote per category — OTP-confirmed, fraud-scored, and fully audited.</p>
-      <p class="r26-reveal r26-d4" style="margin-top:1.4rem"><a href="/integrity" style="font-size:.95rem;font-weight:600;color:var(--emerald-600)">How voting works →</a></p>
-    </div>
-  </div>
-</section>
-
-{# ── Trust + donate note ── #}
-<div class="wrap" style="max-width:62rem">
-  <div class="r26-note r26-note--emerald" style="text-align:center">
-    OTP-verified · one vote per identity per category · full audit trail.
-    Earn <strong>5 bonus votes per ₦1,000 donated</strong> — <a href="/partner" style="color:inherit;font-weight:700">donate to amplify your support</a>.
-  </div>
-</div>
-
-<section class="section" id="vote-app" x-data="voteApp()" x-init="init()">
-  <div class="wrap">
-
-    {# Progress stepper #}
-    <ol class="r26-stepper">
-      <li :class="activeProg ? 'is-done' : 'is-current'"><span>1</span> Programme</li>
-      <li :class="activeCat ? 'is-done' : (activeProg ? 'is-current' : '')"><span>2</span> Category</li>
-      <li :class="activeCat ? 'is-current' : ''"><span>3</span> Vote</li>
-    </ol>
-
-    {% if awards is empty %}
-      <div class="r26-empty">
-        <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-        <h3>Voting cycles will open soon</h3>
-        <p>In the meantime, you can <a href="/nominate" style="color:var(--emerald-600);font-weight:600">submit a nomination →</a> or explore the <a href="/registry" style="color:var(--emerald-600);font-weight:600">profile registry →</a>.</p>
+  <!-- HERO -->
+  <section class="vh-hero">
+    <div class="vh-hero__orb" aria-hidden="true"></div>
+    <div class="vh-hero__row">
+      <div>
+        <span class="vh-hero__badge">{% if meta.voting_count > 0 %}Voting open · {{ meta.year }} cycle{% else %}Between cycles{% endif %}</span>
+        {% if meta.voting_count > 0 %}
+          <h1>Cast your vote across<br>{{ meta.voting_count }} live programme{{ meta.voting_count == 1 ? '' : 's' }}</h1>
+          <p>One verified vote per category. Every ballot is OTP-secured and fully audited. Tallies refresh every 6 hours.</p>
+        {% else %}
+          <h1>Voting opens<br>again soon</h1>
+          <p>Cycles run across the continent through the year. While this one’s between stages, explore the live rankings or put someone forward.</p>
+        {% endif %}
       </div>
-    {% else %}
-    <div class="r26-head">
-      <p class="r26-eyebrow">Step 1 · Choose a programme</p>
-      <h2 class="r26-h2">Pick a recognition <em>track</em></h2>
+      <div class="vh-stats">
+        <div class="vh-stat"><div class="vh-stat__n vh-stat__n--g">{{ meta.days_left is null ? '—' : meta.days_left }}</div><div class="vh-stat__l">Days left</div></div>
+        <div class="vh-stat"><div class="vh-stat__n">{{ meta.votes_total|number_format }}</div><div class="vh-stat__l">Votes cast</div></div>
+      </div>
     </div>
-    <div class="r26-progsel">
-      {% for a in awards %}
-        {% set status = a.cycle_status|default('upcoming') %}
-        <button type="button" class="r26-progcard" data-prog-id="{{ a.id }}"
-                :class="activeProg === {{ a.id }} ? 'is-active' : ''"
-                @click="selectProgramme({{ a.id }})">
-          <div class="r26-progcard__top">
-            <span class="r26-progcard__ico">{{ a.icon_emoji|default('🏆') }}</span>
-            {% if status == 'voting' %}<span class="pill pill--live">Voting open</span>
-            {% elseif status == 'judging' %}<span class="pill">Judging</span>
-            {% else %}<span class="pill">{{ status|capitalize }}</span>{% endif %}
-          </div>
-          <h3 class="r26-progcard__title">{{ a.title }}</h3>
-          <p class="r26-progcard__desc">{{ a.description }}</p>
-          {% if a.voting_close %}<small class="text-soft" style="font-size:.78rem">Closes {{ a.voting_close|date('d M Y') }}</small>{% endif %}
-        </button>
-      {% endfor %}
-    </div>
-    {% endif %}
+  </section>
 
-    {# Step 2 + 3 — sticky category bar + ranked live ballot #}
-    <div x-show="activeProg" x-cloak x-transition style="margin-top:2.5rem">
-      <div class="r26-head">
-        <p class="r26-eyebrow">Step 2 · Pick a category, then cast your vote</p>
-        <h2 class="r26-h2">The live <em>ballot</em></h2>
+  {% if hub|length == 0 %}
+    <div class="vh-empty" style="margin-top:26px">
+      <h3>No programmes yet</h3>
+      <p>Programmes appear here as soon as a cycle goes live. In the meantime, explore the rankings or nominate someone.</p>
+      <div class="vh-btns">
+        <a href="/leaderboard" class="vh-act vh-act--p">See the leaderboard</a>
+        <a href="/nominate" class="vh-act vh-act--g">Submit a nomination</a>
+      </div>
+    </div>
+  {% else %}
+  <div class="vh-grid">
+
+    <!-- LEFT -->
+    <div>
+      <div class="vh-filters">
+        <div class="vh-chips" role="tablist" aria-label="Filter programmes">
+          <button type="button" class="vh-chip" :class="filter==='all' && 'is-active'" @click="filter='all'" role="tab" :aria-selected="filter==='all'">All</button>
+          {% set seen = [] %}
+          {% for p in hub %}
+            {% set st = p.cycle_status|default('upcoming') %}
+            {% if st not in seen %}
+              {% set seen = seen|merge([st]) %}
+              <button type="button" class="vh-chip" :class="filter==='{{ st }}' && 'is-active'" @click="filter='{{ st }}'" role="tab" :aria-selected="filter==='{{ st }}'">{{ STATUS[st].label|default(st|capitalize) }}</button>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <span class="vh-count"><span x-text="shown"></span> of {{ hub|length }} shown</span>
       </div>
 
-      <div class="r26-votebar" role="tablist" aria-label="Categories">
-        <template x-for="c in categories" :key="c.id">
-          <button type="button" class="r26-cattab" :class="activeCat === c.id ? 'is-active' : ''" @click="selectCategory(c.id)">
-            <span x-text="c.title"></span><span x-text="'(' + (nomineesByCat[c.id]?.length || 0) + ')'"></span>
-          </button>
-        </template>
-      </div>
+      <div class="vh-cards">
+        {% for p in hub %}
+          {% set st = p.cycle_status|default('upcoming') %}
+          {% set tag = STATUS[st]|default({'label':st|capitalize,'cls':'mute'}) %}
+          {% set leader = p.leader %}
+          {% set flag = leader ? (FLAGS[leader.country_code|default('')]|default('🌍')) : '' %}
+          <article class="vh-card" data-status="{{ st }}" x-show="filter==='all' || filter==='{{ st }}'" x-cloak>
+            <div class="vh-card__top">
+              <span class="vh-tag vh-tag--{{ tag.cls }}">{{ tag.label }}</span>
+              {% if p.total_votes > 0 %}<span class="vh-card__votes">{{ p.total_votes|number_format }} votes</span>{% endif %}
+            </div>
+            <h3>{{ p.icon_emoji|default('') }} {{ p.title }}</h3>
 
-      <div x-show="activeCat" x-cloak x-transition>
-        <ol class="r26-ballot" x-show="activeNominees.length">
-          <template x-for="(n, i) in activeNominees" :key="n.id">
-            <li class="r26-ballot__row">
-              <span class="r26-ballot__rank" x-text="i + 1"></span>
-              <span class="r26-ballot__av" x-text="(n.name||'?').charAt(0)"></span>
-              <div class="r26-ballot__who">
-                <strong x-text="n.name"></strong>
-                <small x-text="(n.tagline || n.category || '') + (n.country_code ? (' · ' + n.country_code) : '')"></small>
+            {% if leader and p.total_votes > 0 %}
+              <div class="vh-lead">
+                <span class="vh-lead__av">{{ leader.name|first|upper }}</span>
+                <div style="min-width:0">
+                  <div class="vh-lead__l">Leading</div>
+                  <div class="vh-lead__name">{{ flag }} {{ leader.name }}</div>
+                </div>
               </div>
-              <div class="r26-ballot__votes"><b x-text="(n.vote_count||0).toLocaleString()"></b>votes</div>
-              <button type="button" class="btn btn--emerald btn--sm" @click="openVote(n)" style="flex:none">
-                Vote
-                <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-            </li>
-          </template>
-        </ol>
-        <div x-show="!activeNominees.length" x-cloak class="r26-empty">
-          <h3>Nominations open for this category</h3>
-          <p>Be the first — <a href="/nominate" style="color:var(--emerald-600);font-weight:600">submit a nomination →</a></p>
-        </div>
+              <div class="vh-bar" aria-hidden="true">
+                {% set cols = ['#237b22','#7FC87C','#cfe6ce'] %}
+                {% for w in p.bars|default([]) %}<i style="width:{{ w }}%;background:{{ cols[loop.index0]|default('#cfe6ce') }}"></i>{% endfor %}
+              </div>
+            {% else %}
+              <div class="vh-lead"><span class="vh-lead--empty">
+                {%- if st == 'nominations' -%}Open for nominations
+                {%- elseif st == 'voting' -%}Be the first to vote
+                {%- elseif st == 'results' or st == 'judging' -%}Awaiting results
+                {%- else -%}Nominees coming soon
+                {%- endif -%}
+              </span></div>
+            {% endif %}
+
+            <div class="vh-card__foot">
+              <span class="vh-card__noms">{{ p.nominee_count|default(0) }} nominee{{ p.nominee_count == 1 ? '' : 's' }}</span>
+              {% if st == 'voting' and leader %}
+                <a class="vh-act vh-act--p" href="/vote/{{ p.slug }}">Vote →</a>
+              {% elseif st == 'voting' %}
+                <span class="vh-act vh-act--off">Coming soon</span>
+              {% elseif st == 'nominations' %}
+                <a class="vh-act vh-act--g" href="/nominate">Nominate</a>
+              {% elseif st == 'results' %}
+                <a class="vh-act vh-act--g" href="/leaderboard">See results</a>
+              {% elseif st == 'judging' %}
+                <a class="vh-act vh-act--g" href="/vote/{{ p.slug }}">View</a>
+              {% else %}
+                <span class="vh-act vh-act--off">Opens soon</span>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
       </div>
     </div>
 
-  </div>
-
-  {# ── Vote modal (OTP) ── #}
-  <div x-show="modalOpen" x-cloak
-       class="modal-overlay"
-       @click.self="closeModal()"
-       @keydown.escape.window="closeModal()"
-       role="dialog" aria-modal="true" aria-labelledby="voteModalTitle">
-
-    <div class="modal-panel">
-
-      {# Header — email + otp steps #}
-      <div class="modal-header" x-show="step !== 'done'">
-        <p class="modal-eyebrow">Cast vote · 2026</p>
-        <h2 class="modal-title" id="voteModalTitle" x-text="'Vote for ' + (chosen?.name || '')"></h2>
-        <p class="modal-sub"
-           x-text="step === 'email' ? 'We\'ll send a 6-digit code to verify you.' : 'Enter the code we emailed you.'"></p>
-        <button @click="closeModal()" type="button" class="modal-close-btn" aria-label="Close">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+    <!-- RIGHT · ballot tracker -->
+    <div class="vh-rail">
+      {% if meta.voting_count > 0 %}
+      <div class="vh-ballot">
+        <h2>Your ballot</h2>
+        <p><span x-text="votedCount"></span> of {{ meta.voting_count }} live programme{{ meta.voting_count == 1 ? '' : 's' }} voted <span style="color:#5f7273">· on this device</span></p>
+        <div class="vh-prog" role="progressbar" :aria-valuenow="votedCount" aria-valuemin="0" aria-valuemax="{{ meta.voting_count }}"><i :style="'width:' + Math.round(votedCount/{{ meta.voting_count }}*100) + '%'"></i></div>
+        <div class="vh-secure">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>Verified by email OTP — one vote per category, never duplicated.</span>
+        </div>
+        {% set firstVoting = (hub|filter(p => p.cycle_status == 'voting' and p.leader)|first) %}
+        {% if firstVoting %}<a class="vh-ballot__cta" href="/vote/{{ firstVoting.slug }}" x-text="votedCount > 0 ? 'Keep voting' : 'Start voting'">Start voting</a>{% endif %}
       </div>
+      {% endif %}
 
-      {# Header — done step #}
-      <div class="modal-header" x-show="step === 'done'" x-cloak>
-        <button @click="closeModal()" type="button" class="modal-close-btn" aria-label="Close">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-
-      <div class="modal-body">
-
-        {# ── Step: email ── #}
-        <div x-show="step === 'email'" x-cloak>
-
-          {# Donate nudge #}
-          <div class="r26-note r26-note--emerald" style="font-size:0.8125rem;padding:0.875rem 1rem;margin-bottom:1.25rem">
-            <strong>Want more votes?</strong>
-            <a href="/partner" style="color:inherit;font-weight:700;text-decoration:underline;margin-left:0.25rem">Donate ₦1,000+</a>
-            to earn 5 bonus votes.
-          </div>
-
-          <div class="field">
-            <input x-model="email" type="email" class="field__input" placeholder=" "
-                   id="voteEmail" @keyup.enter="requestOtp()" autocomplete="email">
-            <label class="field__label" for="voteEmail">Your email address</label>
-          </div>
-          <p style="font-size:0.75rem;color:var(--neutral-400);margin:0.5rem 0 1.25rem;line-height:1.5">
-            We hash your email — no plain text is ever stored.
-          </p>
-
-          {% if turnstile_site_key %}
-          <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-theme="light" style="margin-bottom:1rem"></div>
-          {% endif %}
-
-          <p x-show="otpError" x-cloak
-             style="font-size:0.875rem;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:var(--r-sm);padding:0.625rem 0.875rem;margin-bottom:1rem"
-             x-text="otpError"></p>
-
-          <button class="btn btn--emerald btn--full" @click="requestOtp()" :disabled="busy" type="button"
-                  :class="busy ? 'is-loading' : ''">
-            <span x-show="!busy">Send verification code</span>
-          </button>
-        </div>
-
-        {# ── Step: OTP ── #}
-        <div x-show="step === 'otp'" x-cloak>
-
-          <p style="font-size:0.9375rem;color:var(--neutral-600);margin:0 0 1.25rem;line-height:1.5">
-            Code sent to <strong x-text="email" style="color:var(--kale-700)"></strong>.
-            Expires in 10 minutes.
-          </p>
-
-          {# OTP digit input — styled as one wide mono field #}
-          <div class="field">
-            <input x-model="otp" inputmode="numeric" pattern="[0-9]*" maxlength="6"
-                   class="field__input" placeholder=" "
-                   id="voteOtp" @keyup.enter="submitVote()" autofocus
-                   style="text-align:center;letter-spacing:0.6em;font-family:var(--font-mono);font-size:1.75rem;font-weight:700;padding-top:1rem;padding-bottom:1rem">
-            <label class="field__label" for="voteOtp" style="left:50%;transform:translateX(-50%) translateY(-50%)">6-digit code</label>
-          </div>
-
-          <p x-show="voteError" x-cloak
-             style="font-size:0.875rem;color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;border-radius:var(--r-sm);padding:0.625rem 0.875rem;margin:0.75rem 0"
-             x-text="voteError"></p>
-
-          <div style="display:flex;gap:0.625rem;margin-top:1.25rem">
-            <button class="btn btn--white" @click="step='email'" type="button">← Back</button>
-            <button class="btn btn--emerald" style="flex:1"
-                    @click="submitVote()" :disabled="busy || otp.length !== 6" type="button"
-                    :class="busy ? 'is-loading' : ''">
-              <span x-show="!busy">Confirm vote</span>
-            </button>
-          </div>
-        </div>
-
-        {# ── Step: done ── #}
-        <div x-show="step === 'done'" x-cloak style="text-align:center">
-          <div style="margin:0 auto 0.75rem;width:64px;height:64px;border-radius:50%;background:var(--emerald-50,#effaf0);display:flex;align-items:center;justify-content:center;animation:popIn .5s var(--ease-spring) both">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--emerald-600)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-          </div>
-          <h3 style="font-size:1.375rem;font-weight:700;color:var(--kale-700);margin:0 0 0.375rem">Vote recorded!</h3>
-          <p style="font-size:0.9375rem;color:var(--neutral-500);margin:0 0 1.5rem">
-            You voted for <strong x-text="chosen?.name" style="color:var(--kale-700)"></strong>
-            in <em x-text="chosen?.category || 'this category'"></em>.
-          </p>
-
-          <div x-show="milestoneLabel" x-cloak style="margin-bottom:1rem">
-            <div class="achievement-badge" x-text="milestoneLabel"></div>
-          </div>
-
-          {# Stats row #}
-          <div style="display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr;background:var(--bg-light-emerald);border-radius:var(--r-lg);padding:1rem;margin-bottom:1.25rem;gap:0">
-            <div style="text-align:center">
-              <div style="font-family:var(--font-mono);font-size:1.625rem;font-weight:700;color:var(--emerald-600)" x-text="(newCount||0).toLocaleString()"></div>
-              <div style="font-size:0.6875rem;color:var(--neutral-500);text-transform:uppercase;letter-spacing:.05em;margin-top:2px">total votes</div>
-            </div>
-            <div style="background:rgba(51,134,50,0.2)"></div>
-            <div style="text-align:center">
-              <div style="font-size:1.625rem;font-weight:700;color:var(--kale-700)">#<span x-text="newRank || '—'"></span></div>
-              <div style="font-size:0.6875rem;color:var(--neutral-500);text-transform:uppercase;letter-spacing:.05em;margin-top:2px">in category</div>
-            </div>
-            <div style="background:rgba(51,134,50,0.2)"></div>
-            <div style="text-align:center">
-              <div style="font-size:1rem;font-weight:700;color:var(--gold-600)" x-text="daysLeft > 0 ? daysLeft + 'd' : 'Today'"></div>
-              <div style="font-size:0.6875rem;color:var(--neutral-500);text-transform:uppercase;letter-spacing:.05em;margin-top:2px">left to vote</div>
-            </div>
-          </div>
-
-          {# Impact message #}
-          <p style="font-size:0.9375rem;color:var(--emerald-700);font-weight:500;margin-bottom:1.25rem;padding:0.75rem 1rem;background:#f0fdf4;border-radius:var(--r-md);border:1px solid #bbf7d0;text-align:left">
-            You just supported <strong x-text="chosen?.name"></strong> in representing African excellence.
-          </p>
-
-          {# Share #}
-          <p style="font-size:0.75rem;font-weight:700;color:var(--neutral-500);margin-bottom:0.75rem;text-transform:uppercase;letter-spacing:.08em">Help them go further</p>
-          <div style="display:flex;gap:0.5rem;justify-content:center;flex-wrap:wrap;margin-bottom:1.25rem">
-            <a :href="shareUrl('whatsapp')" target="_blank" rel="noopener" data-share-platform="whatsapp"
-               style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem 1.125rem;border-radius:var(--r-full);background:#25D366;color:#fff;font-size:0.875rem;font-weight:600;text-decoration:none">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.999 2.003C6.477 2.003 2 6.479 2 12.001c0 1.832.496 3.54 1.354 5.009L2.013 21.998l5.12-1.341A9.947 9.947 0 0012 22c5.522 0 10-4.477 10-9.999 0-5.523-4.478-9.998-10.001-9.998zm0 18.187a8.172 8.172 0 01-4.17-1.14l-.299-.178-3.097.812.826-3.019-.196-.31A8.18 8.18 0 013.815 12c0-4.51 3.67-8.181 8.184-8.181 4.513 0 8.183 3.671 8.183 8.181 0 4.511-3.67 8.19-8.183 8.19z"/></svg>
-              WhatsApp
-            </a>
-            <a :href="shareUrl('x')" target="_blank" rel="noopener" data-share-platform="x"
-               style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem 1.125rem;border-radius:var(--r-full);background:#000;color:#fff;font-size:0.875rem;font-weight:600;text-decoration:none">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.259 5.629L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z"/></svg>
-              X
-            </a>
-            <a :href="shareUrl('linkedin')" target="_blank" rel="noopener" data-share-platform="linkedin"
-               style="display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem 1.125rem;border-radius:var(--r-full);background:#0A66C2;color:#fff;font-size:0.875rem;font-weight:600;text-decoration:none">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-              LinkedIn
-            </a>
-          </div>
-
-          <div style="display:flex;gap:0.625rem">
-            <a href="/leaderboard" class="btn btn--white" style="flex:1">Leaderboard</a>
-            <button class="btn btn--emerald" style="flex:1" @click="closeModal()" type="button">Done</button>
-          </div>
-        </div>
-
-      </div>{# /modal-body #}
-    </div>{# /modal-panel #}
-  </div>
-</section>
-
-{% if awards|filter(a => a.cycle_status == 'voting')|length == 0 %}
-<section class="section section--smoke">
-  <div class="wrap">
-    <div class="r26-head r26-head--center">
-      <p class="r26-eyebrow">Between cycles</p>
-      <h2 class="r26-h2">Voting opens again <em>soon</em></h2>
-      <p class="r26-lead">Cycles run every quarter across the continent. In the meantime, explore last cycle's winners.</p>
-    </div>
-    <div class="text-center" data-anim>
-      <div class="button-group align-center">
-        <a href="/leaderboard" class="btn btn--emerald">See current rankings <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        <a href="/legacy" class="btn btn--white">Browse the legacy vault <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      <div class="vh-closing">
+        <p class="vh-closing__k">{{ meta.voting_close ? 'Closing soon' : 'How it works' }}</p>
+        {% if meta.voting_close %}
+          <h3>Voting closes {{ meta.voting_close|date('j M') }}</h3>
+          <p>After it closes, judges review the top nominees per category before the Awards Gala — community votes are 45% of the final score.</p>
+        {% else %}
+          <h3>Community votes count for 45%</h3>
+          <p>Public votes blend with an expert judging panel (55%) to set each Cultural Power Index score. Popularity alone never decides a winner.</p>
+        {% endif %}
+        <a href="/integrity">How scoring works →</a>
       </div>
     </div>
   </div>
-</section>
-{% endif %}
-
+  {% endif %}
+</div>
 {% endblock %}
 
 {% block foot_scripts %}
-{% if turnstile_site_key %}
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-{% endif %}
 <script>
-function voteApp() {
+function voteHub(){
   return {
-    activeProg: null, activeCat: null,
-    categories: [], nomineesByCat: {}, activeNominees: [],
-    modalOpen: false, chosen: null,
-    step: 'email', email: '', otp: '', busy: false,
-    newCount: 0, newRank: null, daysLeft: 0,
-    otpError: '', voteError: '',
-
-    shareUrl(platform) {
-      const name  = this.chosen?.name  || 'this nominee';
-      const text  = `I just voted for ${name} in the Africa GATES Awards 2026. Join me in celebrating African excellence. 🌍`;
-      const url   = window.location.origin + '/vote';
-      const enc   = encodeURIComponent;
-      if (platform === 'whatsapp')  return `https://wa.me/?text=${enc(text + ' ' + url)}`;
-      if (platform === 'x')         return `https://x.com/intent/tweet?text=${enc(text)}&url=${enc(url)}`;
-      if (platform === 'linkedin')  return `https://www.linkedin.com/sharing/share-offsite/?url=${enc(url)}&summary=${enc(text)}`;
-      return url;
-    },
-
-    init() {
-      const first = document.querySelector('[data-prog-id]');
-      if (first) this.selectProgramme(parseInt(first.getAttribute('data-prog-id')));
-    },
-
-    async selectProgramme(id) {
-      this.activeProg = id;
-      this.activeCat = null;
-      this.activeNominees = [];
+    filter: 'all',
+    voted: {},
+    init(){
       try {
-        const r = await fetch(`/api/nominees?award=${id}`);
-        const d = await r.json();
-        const list = d.nominees || [];
-        const grouped = {};
-        list.forEach(n => {
-          const cid = n.category_id;
-          if (!grouped[cid]) grouped[cid] = { id: cid, title: n.category, list: [] };
-          grouped[cid].list.push(n);
+        (this.$root.dataset.progIds || '').split(',').filter(Boolean).forEach(id => {
+          if (localStorage.getItem('afg_voted_prog_' + id)) this.voted[id] = true;
         });
-        this.categories = Object.values(grouped).map(g => ({ id: g.id, title: g.title }));
-        this.nomineesByCat = Object.fromEntries(Object.values(grouped).map(g => [g.id, g.list]));
-        if (this.categories.length) this.selectCategory(this.categories[0].id);
-      } catch (e) {}
+      } catch(e){}
     },
-
-    selectCategory(id) {
-      this.activeCat = id;
-      this.activeNominees = (this.nomineesByCat[id] || []).slice()
-        .sort((a, b) => b.vote_count - a.vote_count);
+    get votedCount(){ return Object.keys(this.voted).length; },
+    get shown(){
+      const cards = this.$root.querySelectorAll('.vh-card');
+      let n = 0; cards.forEach(c => { if (this.filter === 'all' || c.dataset.status === this.filter) n++; });
+      return n;
     },
-
-    openVote(n) {
-      this.chosen = n;
-      this.step = 'email'; this.email = ''; this.otp = ''; this.busy = false;
-      this.otpError = ''; this.voteError = '';
-      this.modalOpen = true;
-      this.$nextTick(() => { if (window.turnstile) try { window.turnstile.reset(); } catch(e){} });
-    },
-    closeModal() { this.modalOpen = false; },
-
-    turnstileToken() {
-      const el = this.$root.querySelector('[name="cf-turnstile-response"]');
-      return el ? el.value : '';
-    },
-
-    async requestOtp() {
-      this.otpError = '';
-      if (!this.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.email)) {
-        this.otpError = 'Enter a valid email address.'; return;
-      }
-      this.busy = true;
-      if (window.AFG) AFG.trackFunnel('otp_requested', { nominee_id: this.chosen?.id, award_id: this.activeProg });
-      try {
-        const r = await fetch('/api/otp/request', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: this.email,
-            nominee_id: this.chosen.id,
-            award_id:   this.activeProg,
-            session_id:  window.AFG_SESSION || '',
-            device_hash: window.AFG_DEVICE  || '',
-            turnstile_token: this.turnstileToken(),
-          })
-        });
-        const d = await r.json().catch(() => ({}));
-        if (r.ok && d.success) { this.step = 'otp'; }
-        else { this.otpError = d.message || 'Could not send the code. Please try again.'; }
-      } catch (e) { this.otpError = 'Network error. Please try again.'; }
-      finally { this.busy = false; }
-    },
-
-    async submitVote() {
-      this.voteError = '';
-      if (this.otp.length !== 6) { this.voteError = 'Enter the 6-digit code.'; return; }
-      this.busy = true;
-      try {
-        const r = await fetch('/api/vote', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: this.email,
-            otp:   this.otp,
-            nominee_id:  this.chosen.id,
-            award_id:    this.activeProg,
-            session_id:  window.AFG_SESSION || '',
-            device_hash: window.AFG_DEVICE  || '',
-          })
-        });
-        const d = await r.json().catch(() => ({}));
-        if (d && d.success) {
-          this.newCount = d.new_count || 0;
-          this.newRank  = d.new_rank  || null;
-          this.daysLeft = d.days_left || 0;
-          if (d.milestone) this.milestoneLabel = '🎉 ' + Number(d.milestone).toLocaleString() + ' votes milestone!';
-          this.step = 'done';
-          if (window.AFG) AFG.trackFunnel('vote_cast', { nominee_id: this.chosen.id, award_id: this.activeProg });
-        } else {
-          this.voteError = d.message || 'Could not record your vote.';
-        }
-      } catch (e) { this.voteError = 'Network error. Please try again.'; }
-      finally { this.busy = false; }
-    },
-
-    milestoneLabel: null,
   };
 }
 </script>

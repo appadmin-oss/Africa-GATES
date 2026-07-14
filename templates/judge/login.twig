@@ -1,33 +1,71 @@
-{% extends "judge/layout.twig" %}
-{% block content %}
-<section class="jd-auth">
-  <div class="aurora" aria-hidden="true"></div>
-  <div class="jd-auth__card">
-    <p class="jd-eyebrow">Judges Panel</p>
-    <h1 class="jd-auth__h">Sign in to <em>score</em></h1>
-    <p class="jd-auth__sub">Enter your judge email — we'll send you a 6-digit code.</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ page_title|default('Judge sign-in — Africa GATES') }}</title>
+<meta name="csrf-token" content="{{ csrf_token }}">
+<link rel="icon" type="image/svg+xml" href="/assets/img/logo-mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/base/tokens.css?v={{ asset_version }}">
+<link rel="stylesheet" href="/assets/css/components/auth.css?v={{ asset_version }}">
+</head>
+<body>
+<div class="ag-auth">
+  <aside class="ag-auth__brand">
+    <div class="ag-auth__orb" aria-hidden="true"></div>
+    <a class="ag-auth__logo" href="/" aria-label="Africa GATES — home">
+      <span class="ag-auth__logo-glyph" aria-hidden="true">G</span>
+      <span class="ag-auth__logo-word"><b>Africa</b><span>GATES</span></span>
+    </a>
+    <div class="ag-auth__pitch">
+      <h1>You hold 55%<br>of the score.</h1>
+      <p>Your confidential ballot, weighed with the continent's verified votes, decides every Cultural Power Index. Four measures, equally weighed:</p>
+      <ul style="margin:18px 0 0;padding:0;list-style:none;display:grid;gap:9px">
+        <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(255,255,255,.88)"><span aria-hidden="true" style="font:700 11px/1 'JetBrains Mono',monospace;color:#ffd24a;width:18px">I</span> Impact — what verifiably changed</li>
+        <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(255,255,255,.88)"><span aria-hidden="true" style="font:700 11px/1 'JetBrains Mono',monospace;color:#ffd24a;width:18px">II</span> Originality — a voice the continent hadn't heard</li>
+        <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(255,255,255,.88)"><span aria-hidden="true" style="font:700 11px/1 'JetBrains Mono',monospace;color:#ffd24a;width:18px">III</span> Reach — how far the work travelled</li>
+        <li style="display:flex;align-items:center;gap:10px;font-size:14px;color:rgba(255,255,255,.88)"><span aria-hidden="true" style="font:700 11px/1 'JetBrains Mono',monospace;color:#ffd24a;width:18px">IV</span> Integrity — a record that survives scrutiny</li>
+      </ul>
+    </div>
+    <p class="ag-auth__copy">© {{ "now"|date("Y") }} Africa GATES · An Afrovanguard initiative</p>
+  </aside>
 
-    {% if error %}<div class="jd-flash jd-flash--err">{{ error }}</div>{% endif %}
-    {% if notice and sent %}<div class="jd-flash jd-flash--note">{{ notice }}</div>{% endif %}
+  <div class="ag-auth__panel">
+    <div class="ag-auth__form-wrap">
+      <p class="ag-auth__eyebrow">Judges Panel</p>
 
-    {% if not sent %}
-    <form class="jd-auth__form" method="post" action="/judge/login/request">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <label for="email">Judge email</label>
-      <input id="email" type="email" name="email" autocomplete="email" required autofocus>
-      <button type="submit">Send code →</button>
-    </form>
-    {% else %}
-    <form class="jd-auth__form" method="post" action="/judge/login/verify">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <label for="otp">6-digit code</label>
-      <input class="jd-otp-input" id="otp" name="otp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required autofocus>
-      <button type="submit">Sign in →</button>
-    </form>
-    <p style="font-size:12.5px;color:var(--ink-500);margin-top:12px;text-align:center">
-      Didn't get a code? <a href="/judge/login" style="color:var(--g-700);font-weight:600">Send again</a>
-    </p>
-    {% endif %}
+      {% if not sent %}
+        <h1 class="ag-auth__h">Sign in to score</h1>
+        <p class="ag-auth__sub">Enter your judge email — we'll send you a 6-digit code.</p>
+        {% if error %}<div class="ag-auth__alert ag-auth__alert--err">{{ error }}</div>{% endif %}
+        <form method="post" action="/judge/login/request">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div class="ag-auth__field">
+            <label class="ag-auth__label" for="email">Judge email</label>
+            <input class="ag-auth__input" id="email" type="email" name="email" autocomplete="email" placeholder="you@email.com" required autofocus>
+          </div>
+          <button class="ag-auth__cta" type="submit">Send code →</button>
+        </form>
+      {% else %}
+        <h1 class="ag-auth__h">Check your email</h1>
+        <p class="ag-auth__sub">Enter the 6-digit code we just sent. It expires in 10 minutes.</p>
+        {% if error %}<div class="ag-auth__alert ag-auth__alert--err">{{ error }}</div>{% endif %}
+        {% if notice %}<div class="ag-auth__alert ag-auth__alert--note">{{ notice }}</div>{% endif %}
+        <form method="post" action="/judge/login/verify">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div class="ag-auth__field">
+            <label class="ag-auth__label" for="otp">6-digit code</label>
+            <input class="ag-auth__input ag-auth__input--otp" id="otp" name="otp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="······" required autofocus>
+          </div>
+          <button class="ag-auth__cta" type="submit">Sign in →</button>
+        </form>
+        <p class="ag-auth__fine">Didn't get a code? <a href="/judge/login">Send again</a></p>
+      {% endif %}
+    </div>
   </div>
-</section>
-{% endblock %}
+</div>
+</body>
+</html>

@@ -1,0 +1,85 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}AI Assistant{% endblock %}
+{% block content %}
+<div class="ad-card" x-data="agAssistant()" x-init="init()">
+  <div class="ad-card__head">
+    <div class="ad-card__title">Console copilot
+      <small>
+        {% if ai_configured %}
+          Grounded with live platform state · provider: {{ ai_provider|capitalize }} ·
+          {% if is_superadmin %}unlimited for superadmins{% else %}up to 60 messages/hour for your role{% endif %}
+        {% else %}
+          No AI provider configured — {% if is_superadmin %}add a key under <a href="/admin/settings">Settings → AI providers</a> (Groq is free){% else %}ask a superadmin to add a provider key in Settings{% endif %}.
+        {% endif %}
+      </small>
+    </div>
+  </div>
+  <div class="ad-card__body">
+    <div id="asstLog" role="log" aria-live="polite" aria-label="Assistant conversation"
+         style="min-height:280px;max-height:55vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px 12px">
+      <template x-for="(m, i) in msgs" :key="i">
+        <div :style="m.role === 'user'
+            ? 'align-self:flex-end;background:var(--ad-accent,#237b22);color:#fff;border-radius:14px 14px 4px 14px;padding:10px 14px;max-width:82%;font-size:13.5px;line-height:1.55;white-space:pre-wrap'
+            : 'align-self:flex-start;background:var(--ad-bg-soft,#f4f5f5);color:var(--ad-text,#10292c);border-radius:14px 14px 14px 4px;padding:10px 14px;max-width:82%;font-size:13.5px;line-height:1.55;white-space:pre-wrap'">
+          <span class="sr-only" x-text="m.role === 'user' ? 'You said:' : 'Assistant said:'"></span><span x-text="m.text"></span>
+        </div>
+      </template>
+      <div x-show="busy" x-cloak style="align-self:flex-start;color:var(--ad-text-mute,#5a6d6f);font-size:13px">Thinking…</div>
+      <p x-show="!msgs.length && !busy" style="margin:auto;text-align:center;color:var(--ad-text-mute,#5a6d6f);font-size:13.5px;max-width:420px">
+        Ask about the platform's current state — e.g. <em>"What needs my attention today?"</em>, <em>"How many nominations are waiting?"</em>, <em>"Summarise this cycle's progress."</em>
+      </p>
+    </div>
+    <p role="alert" x-show="error" x-cloak x-text="error" style="color:#b42318;font-size:13px;font-weight:600;margin:0 0 8px"></p>
+    <form @submit.prevent="send()" style="display:flex;gap:8px">
+      <label for="asstInput" class="sr-only">Message the assistant</label>
+      <textarea id="asstInput" x-model="draft" rows="1" maxlength="2000" {% if not ai_configured %}disabled{% endif %}
+                @keydown.enter.exact.prevent="send()"
+                placeholder="{% if ai_configured %}Ask the console copilot…{% else %}Configure an AI provider first{% endif %}"
+                style="flex:1;resize:vertical;min-height:44px;border:1px solid rgba(16,41,44,.18);border-radius:12px;padding:11px 14px;font:inherit;font-size:13.5px"></textarea>
+      <button class="ad-btn ad-btn--primary" type="submit" x-bind:disabled="busy || !draft.trim()" {% if not ai_configured %}disabled{% endif %}>Send</button>
+    </form>
+    <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">The copilot reads live counts and queues; it cannot change data. Verify before acting on critical numbers.</p>
+  </div>
+</div>
+<script>
+function agAssistant() {
+  return {
+    msgs: [], draft: '', busy: false, error: '',
+    init() {
+      try { this.msgs = JSON.parse(sessionStorage.getItem('ag-asst') || '[]').slice(-30); } catch (e) {}
+      this.$nextTick(() => this.scroll());
+    },
+    persist() { try { sessionStorage.setItem('ag-asst', JSON.stringify(this.msgs.slice(-30))); } catch (e) {} },
+    scroll() { const el = document.getElementById('asstLog'); if (el) el.scrollTop = el.scrollHeight; },
+    async send() {
+      const text = this.draft.trim();
+      if (!text || this.busy) return;
+      this.error = '';
+      this.msgs.push({ role: 'user', text });
+      this.draft = '';
+      this.busy = true;
+      this.$nextTick(() => this.scroll());
+      try {
+        const r = await fetch('/admin/assistant/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{ csrf_token }}' },
+          body: JSON.stringify({ message: text, history: this.msgs.slice(0, -1).slice(-10) })
+        });
+        const j = await r.json();
+        if (j && j.ok && j.reply) {
+          this.msgs.push({ role: 'assistant', text: j.reply });
+        } else {
+          this.error = (j && j.error) || 'The assistant did not answer — try again.';
+        }
+      } catch (e) {
+        this.error = 'Network error — try again.';
+      } finally {
+        this.busy = false;
+        this.persist();
+        this.$nextTick(() => this.scroll());
+      }
+    }
+  };
+}
+</script>
+{% endblock %}

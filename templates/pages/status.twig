@@ -1,0 +1,128 @@
+{% extends "layout/gates.twig" %}
+
+{% set overall = overall|default('operational') %}
+{% set components = components|default([
+  {'name':'Voting & ballots',     'desc':'Vote casting, OTP verification', 'status':'Operational'},
+  {'name':'Leaderboard & CPI',    'desc':'Score computation, rankings',    'status':'Operational'},
+  {'name':'Registry & profiles',  'desc':'Profile browse and search',      'status':'Operational'},
+  {'name':'Pulse & media',        'desc':'Feed, reels, stories',           'status':'Operational'},
+  {'name':'Payments & tickets',   'desc':'Checkout, donations, ticketing', 'status':'Operational'},
+  {'name':'Email & notifications','desc':'Transactional delivery',         'status':'Operational'}
+]) %}
+{% set incidents = incidents|default([]) %}
+
+{% block head_styles %}
+<style>
+  body[data-page="status"]{ background:#eef0ec; }
+  .st{ max-width:880px; margin:0 auto; padding:clamp(1.8rem,4vw,2.4rem) var(--ag-gutter,32px) clamp(3rem,6vw,3.75rem); }
+
+  .st-banner{ position:relative; overflow:hidden; border-radius:22px; padding:clamp(1.5rem,3vw,1.9rem); display:flex; align-items:center; gap:18px;
+    background:linear-gradient(135deg,#1a6118,#237b22); color:#fff; }
+  .st-banner--degraded{ background:linear-gradient(135deg,#9a6a06,#c9912b); }
+  .st-banner--down{ background:linear-gradient(135deg,#8c1d12,#c0392b); }
+  .st-banner__orb{ position:absolute; right:-50px; top:-50px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle,rgba(255,255,255,.12),transparent 68%); }
+  .st-banner__ico{ position:relative; flex:none; width:54px; height:54px; border-radius:50%; background:rgba(255,255,255,.16); display:flex; align-items:center; justify-content:center; }
+  .st-banner__txt{ position:relative; flex:1; min-width:0; }
+  .st-banner__txt h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.4rem,3vw,1.7rem); letter-spacing:-.01em; }
+  .st-banner__txt p{ margin:6px 0 0; font-size:13.5px; color:rgba(255,255,255,.82); }
+  .st-banner__badge{ position:relative; flex:none; font-size:12px; font-weight:600; background:rgba(255,255,255,.16); padding:8px 14px; border-radius:999px; }
+
+  .st-h2{ margin:34px 0 14px; font-size:13px; font-weight:700; letter-spacing:.04em; color:var(--ag-ink); }
+
+  .st-comps{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; overflow:hidden; }
+  .st-comp{ display:flex; align-items:center; gap:14px; padding:16px 22px; border-bottom:1px solid rgba(16,41,44,.06); }
+  .st-comp:last-child{ border-bottom:0; }
+  .st-comp__main{ flex:1; min-width:0; }
+  .st-comp__name{ font-weight:600; font-size:14.5px; color:var(--ag-ink); }
+  .st-comp__desc{ font-size:12px; color:#5a6d6f; margin-top:2px; }
+  .st-comp__status{ flex:none; display:flex; align-items:center; gap:8px; }
+  .st-dot{ width:9px; height:9px; border-radius:50%; background:#237b22; box-shadow:0 0 0 0 rgba(35,123,34,.45); animation:stPulse 2.4s infinite; }
+  .st-dot--degraded{ background:#e0a52b; animation:none; }
+  .st-dot--down{ background:#c0392b; animation:none; }
+  .st-comp__label{ font-size:13px; font-weight:600; color:#1a6118; }
+  .st-comp__label--degraded{ color:#7a5600; }
+  .st-comp__label--down{ color:#c0392b; }
+
+  .st-mon{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .st-mon__card{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:20px; }
+  .st-mon__k{ font-size:11.5px; color:#5a6d6f; text-transform:uppercase; letter-spacing:.05em; }
+  .st-mon__v{ font-family:var(--ag-font-display); font-weight:700; font-size:1.15rem; color:var(--ag-ink); margin-top:8px; }
+  .st-mon__d{ font-size:12.5px; line-height:1.5; color:#4a5256; margin-top:6px; }
+
+  .st-inc{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:20px 22px; }
+  .st-inc + .st-inc{ margin-top:14px; }
+  .st-inc__top{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .st-inc__tag{ font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; background:#e7f3e7; color:#1a6118; }
+  .st-inc__title{ font-weight:600; font-size:14.5px; color:var(--ag-ink); }
+  .st-inc__date{ margin-left:auto; font-size:12px; color:#5a6d6f; }
+  .st-inc__body{ margin:11px 0 0; font-size:13.5px; line-height:1.6; color:#4a5256; }
+  .st-empty{ text-align:center; padding:22px; background:var(--ag-surface); border:1px dashed rgba(16,41,44,.14); border-radius:16px; font-size:13.5px; color:#5a6d6f; }
+
+  @keyframes stPulse{ 0%{box-shadow:0 0 0 0 rgba(35,123,34,.45)} 70%{box-shadow:0 0 0 6px rgba(35,123,34,0)} 100%{box-shadow:0 0 0 0 rgba(35,123,34,0)} }
+
+  @media (max-width:640px){ .st-mon{ grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="st">
+  {% set bclass = overall == 'down' ? 'st-banner--down' : (overall == 'degraded' ? 'st-banner--degraded' : '') %}
+  {% set btitle = overall == 'down' ? 'Major service outage' : (overall == 'degraded' ? 'Some systems degraded' : 'All systems operational') %}
+  <div class="st-banner {{ bclass }}">
+    <div class="st-banner__orb" aria-hidden="true"></div>
+    <span class="st-banner__ico" aria-hidden="true">
+      {% if overall == 'operational' %}
+        <svg aria-hidden="true" focusable="false" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      {% else %}
+        <svg aria-hidden="true" focusable="false" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+      {% endif %}
+    </span>
+    <div class="st-banner__txt">
+      <h1>{{ btitle }}</h1>
+      <p>Last checked {{ "now"|date("d M Y, H:i") }} WAT · reload to refresh</p>
+    </div>
+    <span class="st-banner__badge">Live status</span>
+  </div>
+
+  <h2 class="st-h2">Components</h2>
+  <div class="st-comps">
+    {% for c in components %}
+      {% set s = c.status|lower %}
+      {% set sv = s == 'down' or s == 'outage' ? 'down' : (s == 'degraded' or s == 'partial' ? 'degraded' : 'op') %}
+      <div class="st-comp">
+        <div class="st-comp__main">
+          <div class="st-comp__name">{{ c.name }}</div>
+          <div class="st-comp__desc">{{ c.desc }}</div>
+        </div>
+        <div class="st-comp__status">
+          <span class="st-dot {{ sv == 'down' ? 'st-dot--down' : (sv == 'degraded' ? 'st-dot--degraded' : '') }}" aria-hidden="true"></span>
+          <span class="st-comp__label {{ sv == 'down' ? 'st-comp__label--down' : (sv == 'degraded' ? 'st-comp__label--degraded' : '') }}">{{ c.status }}</span>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <h2 class="st-h2">What we monitor</h2>
+  <div class="st-mon">
+    <div class="st-mon__card"><div class="st-mon__k">Voting integrity</div><div class="st-mon__v">OTP-verified</div><div class="st-mon__d">Every vote is verified and fraud-scored before it counts.</div></div>
+    <div class="st-mon__card"><div class="st-mon__k">Availability</div><div class="st-mon__v">Core services</div><div class="st-mon__d">Voting, leaderboard and payments are watched continuously.</div></div>
+    <div class="st-mon__card"><div class="st-mon__k">Your data</div><div class="st-mon__v">Backed up</div><div class="st-mon__d">Emails are hashed; votes and profiles are backed up.</div></div>
+  </div>
+
+  <h2 class="st-h2">Recent incidents</h2>
+  {% if incidents is empty %}
+    <div class="st-empty">No incidents reported recently.</div>
+  {% else %}
+    {% for i in incidents %}
+      <div class="st-inc">
+        <div class="st-inc__top">
+          <span class="st-inc__tag">{{ i.tag|default('Resolved') }}</span>
+          <span class="st-inc__title">{{ i.title }}</span>
+          <span class="st-inc__date">{{ i.date }}</span>
+        </div>
+        <p class="st-inc__body">{{ i.body }}</p>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

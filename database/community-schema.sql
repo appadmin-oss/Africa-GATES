@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS gates_comments (
   author_name VARCHAR(200) NOT NULL,
   author_email VARCHAR(191) DEFAULT NULL,
   author_email_hash VARCHAR(64) DEFAULT NULL,
+  author_user_id BIGINT UNSIGNED DEFAULT NULL,
   body TEXT NOT NULL,
   status ENUM('approved','quarantined','rejected','deleted') NOT NULL DEFAULT 'approved',
   ai_score DECIMAL(4,3) DEFAULT NULL,
@@ -117,10 +118,12 @@ CREATE TABLE IF NOT EXISTS gates_threads (
   body TEXT,
   author_name VARCHAR(200) NOT NULL,
   author_email_hash VARCHAR(64) NOT NULL,
+  author_user_id BIGINT UNSIGNED DEFAULT NULL,
   status ENUM('approved','quarantined','rejected','deleted','locked') NOT NULL DEFAULT 'approved',
   ai_score DECIMAL(4,3) DEFAULT NULL,
   reply_count INT UNSIGNED NOT NULL DEFAULT 0,
   cheer_count INT UNSIGNED NOT NULL DEFAULT 0,
+  repost_count INT UNSIGNED NOT NULL DEFAULT 0,
   last_activity TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   is_pinned TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -145,4 +148,73 @@ CREATE TABLE IF NOT EXISTS gates_moderation_log (
   KEY idx_modlog_target (target_type, target_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Polls (one per target — thread or blog post; options as a JSON array; multi = WhatsApp-style multiple answers)
+CREATE TABLE IF NOT EXISTS gates_polls (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  target_type VARCHAR(16) NOT NULL DEFAULT 'thread',
+  target_id BIGINT UNSIGNED NOT NULL,
+  question VARCHAR(255) NOT NULL,
+  options TEXT NOT NULL,
+  multi TINYINT(1) NOT NULL DEFAULT 0,
+  is_closed TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_poll_target (target_type, target_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_poll_votes (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  poll_id BIGINT UNSIGNED NOT NULL,
+  option_index INT NOT NULL,
+  fp VARCHAR(64) NOT NULL,
+  user_id BIGINT UNSIGNED DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_pollvote (poll_id, fp, option_index),
+  KEY idx_pollvotes_poll (poll_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Member follows / bookmarks / reposts
+CREATE TABLE IF NOT EXISTS gates_follows (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  target_type VARCHAR(20) NOT NULL,
+  target_id BIGINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_follow (user_id, target_type, target_id),
+  KEY idx_follow_target (target_type, target_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_bookmarks (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  thread_id BIGINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_bookmark (user_id, thread_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_reposts (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  thread_id BIGINT UNSIGNED NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_repost (user_id, thread_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- Member reports: one report per member per target; content quarantines at the
+-- threshold (see CommunityService::report), operators review in /admin/moderation.
+CREATE TABLE IF NOT EXISTS gates_reports (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  target_type ENUM('thread','comment') NOT NULL,
+  target_id BIGINT UNSIGNED NOT NULL,
+  user_id BIGINT UNSIGNED NOT NULL,
+  reason VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(id), UNIQUE KEY uq_report(target_type, target_id, user_id),
+  KEY idx_reports_target(target_type, target_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

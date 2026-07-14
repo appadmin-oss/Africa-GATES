@@ -1,0 +1,175 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style>
+  body[data-page="shop"]{ background:#eef0ec; color:var(--ag-ink); }
+  body[data-page="shop"] [x-cloak]{ display:none !important; }
+  .shop{ max-width:1180px; margin:0 auto; padding:0 var(--ag-gutter,32px) 60px; }
+
+  .sh-hero{ position:relative; overflow:hidden; border-radius:24px; margin-top:24px; background:radial-gradient(130% 130% at 80% 0%,#1d5b2a,#10292C 60%); padding:clamp(2.4rem,5vw,2.75rem) clamp(1.6rem,4vw,2.5rem); color:#fff; }
+  .sh-hero__orb{ position:absolute; right:-60px; bottom:-80px; width:320px; height:320px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.28),transparent 68%); }
+  .sh-hero__in{ position:relative; max-width:560px; }
+  .sh-badge{ display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#ffd24a; background:rgba(8,26,16,.55); box-shadow:inset 0 0 0 1px rgba(212,154,14,.32); padding:7px 14px; border-radius:999px; }
+  .sh-hero h1{ margin:16px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,5vw,2.6rem); line-height:1.04; letter-spacing:-.02em; }
+  .sh-hero p{ margin:14px 0 0; font-size:15.5px; line-height:1.6; color:rgba(255,255,255,.85); max-width:460px; }
+
+  .sh-bar{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-top:24px; }
+  .sh-filters{ display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; }
+  .sh-filters::-webkit-scrollbar{ display:none; }
+  .sh-chip{ flex:none; cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; padding:9px 16px; border-radius:999px; border:1px solid rgba(16,41,44,.12); background:var(--ag-surface,#fff); color:#4a5256; }
+  .sh-chip.is-on{ background:var(--ag-ink); color:#fff; border-color:var(--ag-ink); }
+  .sh-count{ font-size:13px; color:#626a6e; }
+  .sh-region{ display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#4a5256; }
+  .sh-region select{ border:1px solid rgba(16,41,44,.16); border-radius:999px; padding:6px 11px; font-family:inherit; font-size:13px; background:var(--ag-surface,#fff); color:var(--ag-ink); cursor:pointer; }
+
+  .sh-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:20px; }
+  @media(max-width:860px){ .sh-grid{ grid-template-columns:repeat(2,1fr); } }
+  @media(max-width:520px){ .sh-grid{ grid-template-columns:1fr 1fr; gap:12px; } }
+  .sh-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; overflow:hidden; transition:transform .15s, box-shadow .15s, border-color .15s; }
+  .sh-card:hover{ transform:translateY(-3px); border-color:rgba(16,41,44,.18); box-shadow:0 18px 36px -24px rgba(16,41,44,.4); }
+  .sh-card__cover{ position:relative; display:block; aspect-ratio:1/1; background-size:cover; background-position:center; text-decoration:none; }
+  .sh-card__tag{ position:absolute; top:12px; left:12px; font-size:10px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; padding:5px 10px; border-radius:999px; }
+  .sh-tag--Bestseller{ background:#fff8df; color:#7a5600; }
+  .sh-tag--New{ background:#eef7ee; color:#1a6118; }
+  .sh-tag--Limited{ background:#fdeaf0; color:#9c2b48; }
+  .sh-card__body{ padding:16px; }
+  .sh-card__cat{ font-size:11px; color:#5a6d6f; text-transform:uppercase; letter-spacing:.05em; }
+  .sh-card__name{ font-weight:600; font-size:15.5px; color:var(--ag-ink); margin-top:4px; text-decoration:none; display:block; }
+  .sh-card__row{ display:flex; align-items:center; justify-content:space-between; margin-top:14px; gap:10px; }
+  .sh-card__price{ font:700 17px/1 var(--ag-font-mono); color:var(--ag-ink); }
+  .sh-add{ cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-size:13px; font-weight:600; padding:9px 15px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; }
+  .sh-add:hover{ background:var(--ag-green-dark); }
+
+  .sh-mission{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:24px 28px; display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin-top:28px; }
+  .sh-mission__i{ flex:none; width:48px; height:48px; border-radius:13px; background:#effaf0; color:#1a6118; display:flex; align-items:center; justify-content:center; }
+  .sh-mission__b{ flex:1; min-width:220px; }
+  .sh-mission__b b{ font-size:16px; color:var(--ag-ink); }
+  .sh-mission__b div{ font-size:13.5px; color:#626a6e; margin-top:3px; }
+
+  .sh-empty{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(2rem,5vw,3rem); text-align:center; margin-top:20px; }
+  .sh-empty h3{ margin:0 0 .4rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; }
+  .sh-empty p{ margin:0; color:#4a5256; }
+
+  /* Ad units — clean, labeled, and height-reserved so they never shift the layout. */
+  .ad-slot{ margin:28px 0 0; padding:14px; background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; text-align:center; min-height:128px; overflow:hidden; }
+  .ad-slot__label{ display:block; font-size:10px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:#9aa6a8; margin-bottom:8px; }
+  .ad-slot .adsbygoogle{ display:block; min-height:90px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set COV = ['linear-gradient(135deg,#10292C,#1a6118)','linear-gradient(135deg,#a47306,#d49a0e)','linear-gradient(135deg,#1a2629,#5d7374)','linear-gradient(135deg,#237b22,#7FC87C)','linear-gradient(135deg,#2b373d,#4a5b60)','linear-gradient(135deg,#b97a12,#fbc329)'] %}
+
+<div class="shop" x-data="{ filter:'All' }">
+  <div class="sh-notice" id="shopNotice" role="alert" style="display:none;margin-top:16px;padding:12px 16px;border-radius:12px;background:#fdeaea;border:1px solid rgba(180,35,24,.2);color:#8a1c12;font-size:13.5px;font-weight:500"></div>
+  <script>(function(){var m={region:'Please choose a valid delivery region at checkout.',noship:'Sorry — an item in your cart can’t be delivered to your selected region. Remove it or choose another region.',unavailable:'That payment method is unavailable right now.',email:'Please enter a valid email address.',details:'Please add your name and delivery address.',empty:'Your cart is empty.',busy:'Too many attempts — please wait a moment.',start:'We couldn’t start checkout. Please try again.',error:'Something went wrong. Please try again.',failed:'Payment was not completed.'};var p=new URLSearchParams(location.search).get('checkout');if(p&&m[p]){var el=document.getElementById('shopNotice');el.textContent=m[p];el.style.display='block';}})();</script>
+  <div class="sh-hero">
+    <div class="sh-hero__orb" aria-hidden="true"></div>
+    <div class="sh-hero__in">
+      <span class="sh-badge">🛍️ The GATES Shop</span>
+      <h1>Wear the recognition</h1>
+      <p>Heritage-grade apparel and keepsakes. Every purchase funds child leadership programmes across the continent.</p>
+    </div>
+  </div>
+
+  {% if products is not empty %}
+  <div class="sh-bar">
+    <div class="sh-filters">
+      <button type="button" class="sh-chip" :class="filter==='All' ? 'is-on' : ''" @click="filter='All'" :aria-pressed="filter==='All'">All</button>
+      {% for c in categories %}<button type="button" class="sh-chip" :class="filter==='{{ c }}' ? 'is-on' : ''" @click="filter='{{ c }}'" :aria-pressed="filter==='{{ c }}'">{{ c }}</button>{% endfor %}
+    </div>
+    <span class="sh-count">{{ products|length }} item{{ products|length == 1 ? '' : 's' }}</span>
+    {% if region_priced %}
+    <label class="sh-region" title="Prices vary by delivery region">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+      <select aria-label="Pricing region" onchange="(function(v){document.cookie='ag_region='+encodeURIComponent(v)+';path=/;max-age=31536000';location.reload();})(this.value)">
+        {% for r in regions %}<option value="{{ r }}" {% if r == region %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    {% if currency_enabled %}
+    <label class="sh-region" title="Show prices in your currency">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.6.5M14.5 14.5A2.5 2.5 0 0 1 10 14M12 7v10"/></svg>
+      <select aria-label="Display currency" onchange="(function(v){document.cookie='ag_currency='+encodeURIComponent(v)+';path=/;max-age=31536000';location.reload();})(this.value)">
+        {% for code, sym in currencies %}<option value="{{ code }}" {% if code == currency %}selected{% endif %}>{{ code }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+  </div>
+
+  <div class="sh-grid">
+    {% for p in products %}
+    <article class="sh-card" x-show="filter==='All' || filter==='{{ p.category }}'" x-transition.opacity>
+      <a class="sh-card__cover" href="/shop/{{ p.slug }}" style="{% if p.cover_path %}background-image:url('{{ p.cover_path }}'){% else %}background:{{ COV[loop.index0 % COV|length] }}{% endif %}">
+        {% if p.tag %}<span class="sh-card__tag sh-tag--{{ p.tag }}">{{ p.tag }}</span>{% endif %}
+      </a>
+      <div class="sh-card__body">
+        <div class="sh-card__cat">{{ p.category }}</div>
+        <a class="sh-card__name" href="/shop/{{ p.slug }}">{{ p.name }}</a>
+        <div class="sh-card__row">
+          <span class="sh-card__price">{{ p.price_label|default('₦' ~ (p.display_price|default(p.price_naira)|number_format)) }}</span>
+          <button type="button" class="sh-add" @click='$store.cart.add({slug:{{ p.slug|json_encode(15)|raw }}, name:{{ p.name|json_encode(15)|raw }}, price:{{ p.display_price|default(p.price_naira) }}, cover:{{ p.cover_path|default("")|json_encode(15)|raw }}})'>
+            <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add
+          </button>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+
+  {# Ad — in the natural break below the product grid. #}
+  {% include 'partials/ad-slot.twig' %}
+
+  <div class="sh-mission">
+    <span class="sh-mission__i"><svg aria-hidden="true" focusable="false" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg></span>
+    <div class="sh-mission__b"><b>Every order gives back</b><div>Proceeds fund child leadership programmes — receipted and transparent.</div></div>
+  </div>
+
+  {# Optional second ad (bottom). Renders only if a distinct slot is configured. #}
+  {% if adsense_slot_2 %}{% include 'partials/ad-slot.twig' with { slot: adsense_slot_2 } %}{% endif %}
+  {% else %}
+  <div class="sh-empty">
+    <h3>The shop is opening soon</h3>
+    <p>We’re lining up the first drop of Africa GATES apparel and keepsakes. Check back shortly.</p>
+  </div>
+  {% endif %}
+
+  {% include 'partials/shop-cart.twig' %}
+</div>
+{% endblock %}
+
+{% block foot_scripts %}
+{% if adsense_client %}
+{# AdSense loader — once per page. #}
+<script async crossorigin="anonymous" src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}"></script>
+{# Enterprise ad controller: lazy-load each unit as it nears the viewport, and
+   collapse any slot the network leaves unfilled so no blank "Advertisement"
+   box is ever shown. Reserved height (CSS) prevents layout shift before load. #}
+<script>
+(function(){
+  function init(){
+    var slots = document.querySelectorAll('aside.ad-slot[data-ad-lazy]');
+    if(!slots.length) return;
+    function load(slot){
+      if(slot.dataset.adLoaded) return; slot.dataset.adLoaded='1';
+      var ins = slot.querySelector('ins.adsbygoogle');
+      try{ (window.adsbygoogle = window.adsbygoogle || []).push({}); }catch(e){}
+      if(!ins) return;
+      var n=0, t=setInterval(function(){
+        n++;
+        var st = ins.getAttribute('data-ad-status');
+        if(st==='unfilled' || (n>6 && (ins.offsetHeight||0) < 10)){ slot.style.display='none'; clearInterval(t); }
+        else if(st==='filled' || n>12){ clearInterval(t); }
+      }, 500);
+    }
+    if(!('IntersectionObserver' in window)){ slots.forEach(load); return; }
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ load(e.target); io.unobserve(e.target); } });
+    }, { rootMargin:'600px 0px' });
+    slots.forEach(function(s){ io.observe(s); });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+{% endif %}
+{% endblock %}

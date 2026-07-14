@@ -11,7 +11,11 @@ in cPanel, Linux crontab, and as systemd timers, and how to verify they're runni
 |-----|--------|-----------|--------------|
 | CPI Recompute | `cron/recalculate-cpi.php` | Every 6 hours | Recalculates Cultural Power Index scores for all profiles (votes + judge scores) |
 | Dashboard Aggregation | `cron/aggregate-dashboard.php` | Every 4 hours | Rebuilds cached stats, region/tier distributions, and country data |
-| Maintenance | `cron/maintenance.php` | Daily at 2 AM | Purges expired OTPs, stale cache rows, and old rate-limit records |
+| Maintenance / orchestrator | `cron/maintenance.php` | **Every 15 minutes** | Self-scheduling single entry: every run drains the job queue, advances award-cycle phases and prunes cache; hourly it purges expired OTP/magic/rate-limit rows; every 6h it recomputes CPI + writes a tamper-evident snapshot; daily at 06:00 it runs the collusion scan, voting reminders and digest. **Must run every 15 min** or those sub-tasks never fire. |
+
+> If you run the orchestrator every 15 min, Jobs 1–2 below are optional — it already
+> recomputes CPI every 6h. Keep the dashboard job (it builds extra cached stats the
+> orchestrator doesn't). Running CPI from both is harmless (idempotent).
 
 ---
 
@@ -86,15 +90,20 @@ The cron scripts are in `<project_root>/cron/`. All paths below use
 
 > Note: Use minute `15` (not `0`) so it doesn't run at the same second as the CPI job.
 
-### Job 3: Maintenance — daily at 2 AM
+### Job 3: Maintenance / orchestrator — every 15 minutes
 
 | Field | Value |
 |-------|-------|
-| Minute | `0` |
-| Hour | `2` |
+| Minute | `*/15` |
+| Hour | `*` |
 | Day | `*` |
 | Month | `*` |
 | Weekday | `*` |
+
+> This one MUST be every 15 minutes — it self-schedules its heavier sub-tasks
+> (CPI, snapshots, collusion, reminders) by the current hour/minute. A daily run
+> would silently skip all of them. Overlapping runs are safe (the script takes a
+> single-instance lock and exits early if another run is active).
 
 **Command:**
 ```
@@ -121,8 +130,8 @@ Paste these lines (adjust paths and PHP binary):
 # Dashboard aggregation — every 4 hours
 15 0,4,8,12,16,20 * * * /usr/bin/php /home/youruser/africa-gates/cron/aggregate-dashboard.php >> /home/youruser/africa-gates/var/logs/dashboard-cron.log 2>&1
 
-# Maintenance (OTP/cache purge) — daily at 2 AM
-0 2 * * * /usr/bin/php /home/youruser/africa-gates/cron/maintenance.php >> /home/youruser/africa-gates/var/logs/maintenance-cron.log 2>&1
+# Maintenance / orchestrator — every 15 minutes (drives cycles, queue, CPI, snapshots, collusion, reminders)
+*/15 * * * * /usr/bin/php /home/youruser/africa-gates/cron/maintenance.php >> /home/youruser/africa-gates/var/logs/maintenance-cron.log 2>&1
 ```
 
 Save and exit. Verify with:
@@ -214,7 +223,7 @@ StandardError=append:/home/youruser/africa-gates/var/logs/maintenance-cron.log
 Description=Africa GATES — Maintenance timer
 
 [Timer]
-OnCalendar=*-*-* 02:00:00
+OnCalendar=*:0/15
 Persistent=true
 
 [Install]

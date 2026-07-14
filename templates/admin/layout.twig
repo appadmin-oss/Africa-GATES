@@ -25,75 +25,125 @@
     </div>
 
     <nav class="ad-side__group">
-      <h6>Overview</h6>
+      <h6>Overview <span class="ad-info" data-tip="Dashboard and key platform metrics." tabindex="0" aria-label="Overview section">i</span></h6>
       <a class="ad-side__link {% if admin_page == 'dashboard' %}is-active{% endif %}" href="/admin/dashboard">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
         Dashboard
+      </a>
+      <a class="ad-side__link {% if admin_page == 'assistant' %}is-active{% endif %}" href="/admin/assistant">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.1 5.4L19.5 10l-5.4 2.1L12 17l-2.1-4.9L4.5 10l5.4-1.6z"/><path d="M18.6 14.6l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/></svg>
+        AI Assistant
       </a>
     </nav>
 
+    {% if 'moderation' in admin_sections %}
     <nav class="ad-side__group">
-      <h6>Moderation</h6>
+      <h6>Moderation <span class="ad-info" data-tip="Approve profiles, nominations and community content before it goes live." tabindex="0" aria-label="Moderation section">i</span></h6>
       <a class="ad-side__link {% if admin_page == 'profiles' %}is-active{% endif %}" href="/admin/profiles">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Profiles
       </a>
       <a class="ad-side__link {% if admin_page == 'nominations' %}is-active{% endif %}" href="/admin/nominations">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 15.09 8.26 22 9.27l-5 4.87 1.18 6.88L12 17.77 5.82 21.02 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 15.09 8.26 22 9.27l-5 4.87 1.18 6.88L12 17.77 5.82 21.02 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
         Nominations
       </a>
       <a class="ad-side__link {% if admin_page == 'nominees' %}is-active{% endif %}" href="/admin/nominees">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
         Nominees
       </a>
+      <a class="ad-side__link {% if admin_page == 'moderation' %}is-active{% endif %}" href="/admin/moderation">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V5l-8-3z"/><path d="m9 11 2 2 4-4"/></svg>
+        Moderation Queue
+      </a>
     </nav>
 
+    {% endif %}
+    {% if 'programmes' in admin_sections %}
     <nav class="ad-side__group">
-      <h6>Programmes</h6>
+      <h6>Programmes <span class="ad-info" data-tip="Award programmes, cycles, categories and the judging panel." tabindex="0" aria-label="Programmes section">i</span></h6>
       <a class="ad-side__link {% if admin_page == 'programmes' %}is-active{% endif %}" href="/admin/programmes">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         Awards & Cycles
       </a>
-      <a class="ad-side__link {% if admin_page == 'judges' %}is-active{% endif %}" href="/admin/judges">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21v-2a4 4 0 0 0-3-3.87"/><path d="M4 21v-2a4 4 0 0 1 3-3.87"/></svg>
-        Judges Panel
+      <a class="ad-side__link {% if admin_page == 'awards_page' %}is-active{% endif %}" href="/admin/awards-page">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v6H4z"/><path d="M4 14h10v6H4z"/><path d="M17 14h3v6h-3z"/></svg>
+        Awards Page
       </a>
     </nav>
-
+    {% endif %}
+    {% if 'content' in admin_sections %}
     <nav class="ad-side__group">
-      <h6>Content</h6>
+      <h6>Content <span class="ad-info" data-tip="Public-facing content — events, blog, legacy, opportunities, partners, media, shop &amp; forms." tabindex="0" aria-label="Content section">i</span></h6>
       <a class="ad-side__link {% if admin_page == 'events' %}is-active{% endif %}" href="/admin/events">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
         Events
       </a>
       <a class="ad-side__link {% if admin_page == 'posts' %}is-active{% endif %}" href="/admin/posts">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         Blog Posts
       </a>
       <a class="ad-side__link {% if admin_page == 'legacy' %}is-active{% endif %}" href="/admin/legacy">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
         Legacy Events
       </a>
       <a class="ad-side__link {% if admin_page == 'opportunities' %}is-active{% endif %}" href="/admin/opportunities">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 12l-4-4-4 4"/><path d="M12 16V8"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 12l-4-4-4 4"/><path d="M12 16V8"/></svg>
         Opportunities
       </a>
       <a class="ad-side__link {% if admin_page == 'partners' %}is-active{% endif %}" href="/admin/partners">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Partner Enquiries
+      </a>
+      <a class="ad-side__link {% if admin_page == 'media' %}is-active{% endif %}" href="/admin/media">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+        Media
+      </a>
+      <a class="ad-side__link {% if admin_page == 'products' %}is-active{% endif %}" href="/admin/products">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        Shop Products
+      </a>
+      <a class="ad-side__link {% if admin_page == 'forms' %}is-active{% endif %}" href="/admin/forms">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6M9 9h1"/></svg>
+        Forms
+      </a>
+      <a class="ad-side__link {% if admin_page == 'legal' %}is-active{% endif %}" href="/admin/legal">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v5c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6z"/><path d="M9.5 12l2 2 3.5-4"/></svg>
+        Legal &amp; policies
       </a>
     </nav>
 
-    {% if admin_role == 'superadmin' %}
+    {% endif %}
+    {% if 'data' in admin_sections %}
     <nav class="ad-side__group">
-      <h6>Configuration</h6>
+      <h6>Data <span class="ad-info" data-tip="Every dataset collected across the platform — browse, view details &amp; export." tabindex="0" aria-label="Data section">i</span></h6>
+      <a class="ad-side__link {% if admin_page == 'data' %}is-active{% endif %}" href="/admin/data">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
+        All data
+      </a>
+      <a class="ad-side__link {% if admin_page == 'registrations' %}is-active{% endif %}" href="/admin/registrations">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Event Registrations
+      </a>
+    </nav>
+    {% endif %}
+    {% if 'configuration' in admin_sections %}
+    <nav class="ad-side__group">
+      <h6>Configuration <span class="ad-info" data-tip="Admin accounts, site settings and integrations — superadmin only." tabindex="0" aria-label="Configuration section">i</span></h6>
       <a class="ad-side__link {% if admin_page == 'admins' %}is-active{% endif %}" href="/admin/admins">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         Admins
       </a>
       <a class="ad-side__link {% if admin_page == 'settings' %}is-active{% endif %}" href="/admin/settings">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Settings
+      </a>
+      <a class="ad-side__link {% if admin_page == 'webhooks' %}is-active{% endif %}" href="/admin/webhooks">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Webhooks
+      </a>
+      <a class="ad-side__link {% if admin_page == 'judges' %}is-active{% endif %}" href="/admin/judges">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21v-2a4 4 0 0 0-3-3.87"/><path d="M4 21v-2a4 4 0 0 1 3-3.87"/></svg>
+        Judges Panel
       </a>
     </nav>
     {% endif %}
@@ -103,9 +153,10 @@
       <div class="who">
         <div class="n">{{ admin_name|default('Admin') }}</div>
         <div class="e">{{ admin_email|default('') }}</div>
+        {% if admin_role_label %}<div class="e" style="margin-top:3px;font-weight:700;color:#7FC87C;text-transform:uppercase;letter-spacing:.08em;font-size:10px">{{ admin_role_label }}</div>{% endif %}
       </div>
       <a href="/admin/logout" class="out" data-tip="Sign out" aria-label="Sign out">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </a>
     </div>
   </aside>
@@ -114,19 +165,58 @@
   <main class="ad-main">
 
     <div class="ad-topbar">
-      <button class="ad-mobile-toggle" id="adMobileToggle" aria-label="Open menu">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <button class="ad-mobile-toggle" id="adMobileToggle" aria-label="Open menu" aria-controls="adSide" aria-expanded="false">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
       </button>
+      {% set admin_help = {
+        'dashboard': 'Your at-a-glance overview — key metrics and recent activity.',
+        'profiles': 'Registry profiles. Review, approve, edit or remove community profiles.',
+        'nominations': 'Review submitted nominations and approve them into nominees.',
+        'nominees': 'Approved nominees — manage status, link profiles and set winners.',
+        'programmes': 'Award programmes, their cycles, categories and editable terms.',
+        'awards-page': 'Edit the content shown on the public Awards landing page.',
+        'judges': 'Invite and manage the judging panel and their programme assignments.',
+        'events': 'Create and customise events — schedule, ticket tiers and the early-bird banner.',
+        'posts': 'Write and publish blog posts (audio and polls supported).',
+        'legacy': 'Past-edition recaps shown in the Legacy Vault.',
+        'opportunities': 'Opportunities listings surfaced to the community.',
+        'partners': 'Partnership enquiries submitted from the public site.',
+        'media': 'Uploaded images and files used across the site.',
+        'products': 'Shop products, pricing and delivery regions.',
+        'forms': 'Build custom forms with field types, conditional logic and validation — published at /f/{key}.',
+        'data': 'Browse every dataset collected — paginated tables, full-detail pages and CSV export.',
+        'registrations': 'Event RSVP / ticket registrations — filterable and exportable.',
+        'admins': 'Manage admin accounts and their access levels.',
+        'settings': 'Site-wide configuration — branding, email, AI, points, pricing and eligibility.',
+        'webhooks': 'Outbound webhooks to integrations and AI agents.'
+      } %}
       <h1 class="ad-h1">
         {% block topbar_eyebrow %}{% endblock %}
         {% block topbar_title %}{{ page_title }}{% endblock %}
+        {% if admin_help[admin_page] is defined %}<span class="ad-info" data-tip="{{ admin_help[admin_page] }}" tabindex="0" role="img" aria-label="About this page: {{ admin_help[admin_page] }}">i</span>{% endif %}
       </h1>
       <div class="ad-actions">{% block topbar_actions %}{% endblock %}</div>
     </div>
 
-    {% if flash_ok %}<div class="ad-flash ad-flash--ok">✓ {{ flash_ok }}</div>{% endif %}
-    {% if flash_error %}<div class="ad-flash ad-flash--err">⚠ {{ flash_error }}</div>{% endif %}
-    {% if flash_notice %}<div class="ad-flash ad-flash--note">ℹ {{ flash_notice }}</div>{% endif %}
+    {% if migrations_pending is defined and migrations_pending|length > 0 %}
+    <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
+      <span aria-hidden="true">🗄️</span>
+      <span><strong>{{ migrations_pending|length }} database migration step{{ migrations_pending|length == 1 ? '' : 's' }} not yet recorded as applied.</strong>
+        If admin actions that write new data — <strong>approving/rejecting nominations, creating judges, building forms</strong> — are failing with errors while pages still load, this is why: the schema is behind the code.
+        Apply &amp; reconcile now: run <code>php bin/console db:migrate</code> on the server, or (no SSH) open <code>/__setup/migrate?token=YOUR_SETUP_TOKEN</code>. It is idempotent — safe to re-run, and clears this notice.
+        <span style="display:block;margin-top:4px;opacity:.85;font-size:12px">Pending: {{ migrations_pending|slice(0,6)|join(', ') }}{% if migrations_pending|length > 6 %} +{{ migrations_pending|length - 6 }} more{% endif %}</span>
+      </span>
+    </div>
+    {% endif %}
+    {% if smtp_ok is defined and not smtp_ok %}
+    <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
+      <span aria-hidden="true">✉</span>
+      <span><strong>Email delivery is OFF</strong> — SMTP is not configured, so sign-in codes, verification links and notifications are <strong>not reaching anyone</strong> (they are written to <code>var/logs/outgoing-mail.log</code> instead). Set <code>SMTP_USER</code> / <code>SMTP_PASS</code> in <code>.env</code>, then confirm with <a href="/admin/settings" style="color:inherit;font-weight:700;text-decoration:underline">Settings → Send a test email</a>.</span>
+    </div>
+    {% endif %}
+    {% if flash_ok %}<div class="ad-flash ad-flash--ok" role="status">✓ {{ flash_ok }}</div>{% endif %}
+    {% if flash_error %}<div class="ad-flash ad-flash--err" role="alert">⚠ {{ flash_error }}</div>{% endif %}
+    {% if flash_notice %}<div class="ad-flash ad-flash--note" role="status">ℹ {{ flash_notice }}</div>{% endif %}
 
     {% block content %}{% endblock %}
 
@@ -139,5 +229,7 @@
 <script defer src="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js"></script>
 {% block foot_scripts %}{% endblock %}
 <script defer src="/assets/js/admin.js?v={{ asset_version }}"></script>
+{% include 'admin/partials/richtext.twig' %}
+{% include 'admin/partials/ui.twig' %}
 </body>
 </html>

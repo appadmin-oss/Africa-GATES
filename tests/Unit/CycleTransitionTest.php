@@ -42,6 +42,24 @@ class CycleTransitionTest extends TestCase
         $this->assertSame('voting', $row->to_status);
     }
 
+    public function test_advances_one_phase_and_never_skips_voting(): void
+    {
+        // The first cron run lands AFTER voting already closed, so the date-derived
+        // target is 'judging'. The cycle must still pass THROUGH 'voting' (advance
+        // one phase per run) rather than skip it — otherwise no vote could ever be
+        // cast for that cycle.
+        $this->seedCycle(3, 'nominations', [
+            'nominations_open' => '2020-01-01 00:00:00',
+            'voting_open'      => '2020-02-01 00:00:00',
+            'voting_close'     => '2020-03-01 00:00:00',
+        ]);
+
+        (new CommandTester(new CycleAdvanceCommand()))->execute([]);
+
+        $this->assertSame('voting', DB::table('gates_award_cycles')->where('id', 3)->value('status'),
+            'must step into voting, not skip straight to judging');
+    }
+
     public function test_backward_transition_is_skipped(): void
     {
         // Status is already 'results' but the only date defines a past nominations

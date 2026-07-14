@@ -19,8 +19,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *   php bin/console db:migrate
  *   php bin/console db:migrate --with-seed-admin
  *
- * --with-seed-admin will create a first superadmin if no admin exists.
- * Defaults: SEED_ADMIN_EMAIL=admin@afrovanguard.org.ng / SEED_ADMIN_PASSWORD=AfricaGates!2025
+ * --with-seed-admin creates a first superadmin if none exists. Email defaults to
+ * SEED_ADMIN_EMAIL (else admin@afrovanguard.org.ng); the password is taken from
+ * SEED_ADMIN_PASSWORD if set, otherwise a strong random one is generated and
+ * printed ONCE — no hardcoded default credential is ever shipped.
  */
 #[AsCommand(name: 'db:migrate', description: 'Apply ALL DB schemas (public + admin + community).')]
 class MigrateCommand extends Command
@@ -39,36 +41,32 @@ class MigrateCommand extends Command
         $driver = $_ENV['DB_DRIVER'] ?? 'mysql';
         $root = dirname(__DIR__, 3);
 
-        $files = $driver === 'sqlite' ? [
-            'public'    => $root.'/database/sqlite-schema.sql',
-            'admin'     => $root.'/database/sqlite-admin-schema.sql',
-            'community' => $root.'/database/sqlite-community-schema.sql',
-        ] : [
-            'public'    => $root.'/database/schema.sql',
-            'admin'     => $root.'/database/admin-schema.sql',
-            'community' => $root.'/database/community-schema.sql',
-        ];
-
-        $pdo = DB::connection()->getPdo();
-        foreach ($files as $label => $f) {
-            if (!is_file($f)) { $io->warning("Missing $label: $f"); continue; }
-            $sql = file_get_contents($f);
-            $io->writeln("Applying <info>$label</info> (" . basename($f) . ") …");
-            try {
-                if ($driver === 'sqlite') {
-                    $pdo->exec($sql);
-                } else {
-                    // MySQL PDO::exec can handle multi-statement SQL when the driver permits;
-                    // split-and-run for maximum compatibility.
-                    foreach ($this->splitMysql($sql) as $stmt) {
-                        if (trim($stmt) === '') continue;
-                        $pdo->exec($stmt);
-                    }
-                }
-            } catch (\Throwable $e) {
-                $io->error("Failed on $label: " . $e->getMessage());
+        // Delegate to MigrationRunner — the SINGLE source of truth also used by the
+        // web trigger (/__setup/migrate). It ledger-tracks BOTH the schema files and
+        // the dated migrations, and — crucially — treats benign MySQL errors
+        // ("table already exists", "duplicate column/key": 1050/1060/1061…) as no-ops.
+        //
+        // The old inline applier used raw PDO::exec on every schema statement and
+        // returned FAILURE on ANY throw, BEFORE the dated migrations ran. On a
+        // re-deploy that re-applied schema.sql, a benign "duplicate index" aborted
+        // the whole command, so new columns (e.g. gates_nominations.decision_reason)
+        // never got added and admin write-actions 500'd. Converging via the runner
+        // fixes that class of bug for good.
+        $io->writeln('Applying schema + tracked migrations …');
+        $guard = 0;
+        do {
+            $r = \AfricaGates\Services\MigrationRunner::run(1000); // effectively "all" per call
+            foreach ($r['lines'] as $line) {
+                $io->writeln('  ' . (str_starts_with(ltrim($line), 'WARN') ? '<comment>' . $line . '</comment>' : $line));
+            }
+            if (!$r['ok']) {
+                $io->error('Migration failed: ' . ($r['error'] ?? 'unknown error'));
                 return Command::FAILURE;
             }
+        } while ($r['pending'] > 0 && ++$guard < 100);
+        if ($r['pending'] > 0) {
+            $io->error('Migrations did not converge after ' . $guard . ' batches — check var/logs/setup-migrate.log.');
+            return Command::FAILURE;
         }
 
         // Optionally seed first admin
@@ -131,6 +129,75 @@ class MigrateCommand extends Command
 
         $io->success('Migrations complete.');
         return Command::SUCCESS;
+    }
+
+    /**
+     * Apply the dated PHP migrations in database/migrations/ that haven't run
+     * yet, tracked in a `gates_migrations` ledger so each runs exactly once and
+     * in filename (date-prefixed) order.
+     *
+     * The 3 historical .sql migrations are MySQL-only catch-up scripts already
+     * folded into the consolidated schema files applied above, so they are not
+     * re-executed here (their procedure bodies also can't be split safely).
+     */
+    private function runFileMigrations(SymfonyStyle $io, string $root, string $driver): int
+    {
+        $this->ensureLedger($driver);
+
+        $applied = [];
+        foreach (DB::table('gates_migrations')->pluck('migration') as $m) {
+            $applied[(string) $m] = true;
+        }
+
+        $files = glob($root . '/database/migrations/*.php') ?: [];
+        sort($files); // date-prefixed filenames sort chronologically
+
+        $skippedSql = count(glob($root . '/database/migrations/*.sql') ?: []);
+        if ($skippedSql > 0) {
+            $io->writeln("  ($skippedSql historical .sql migration(s) skipped — superseded by the base schema)");
+        }
+
+        $ran = 0;
+        foreach ($files as $file) {
+            $name = basename($file);
+            if (isset($applied[$name])) continue;
+
+            $io->writeln("  → $name");
+            try {
+                // Isolated scope so the migration's top-level vars don't leak here;
+                // each script self-bootstraps its own connection and is idempotent.
+                (static function (string $__migrationFile) { include $__migrationFile; })($file);
+                DB::table('gates_migrations')->insert([
+                    'migration'  => $name,
+                    'applied_at' => Carbon::now()->toDateTimeString(),
+                ]);
+                $ran++;
+            } catch (\Throwable $e) {
+                $io->error("Migration $name failed: " . $e->getMessage());
+                return Command::FAILURE;
+            }
+        }
+
+        $io->writeln($ran > 0 ? "  applied $ran migration(s)." : '  no new migrations.');
+        return Command::SUCCESS;
+    }
+
+    /** Create the migration-tracking ledger if it doesn't exist (driver-aware). */
+    private function ensureLedger(string $driver): void
+    {
+        if ($driver === 'sqlite') {
+            DB::statement('CREATE TABLE IF NOT EXISTS gates_migrations ('
+                . 'id INTEGER PRIMARY KEY AUTOINCREMENT, '
+                . 'migration TEXT NOT NULL UNIQUE, '
+                . 'applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+        } else {
+            DB::statement('CREATE TABLE IF NOT EXISTS gates_migrations ('
+                . 'id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, '
+                . 'migration VARCHAR(191) NOT NULL, '
+                . 'applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, '
+                . 'PRIMARY KEY(id), UNIQUE KEY uq_migration(migration)) '
+                . 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
+        }
     }
 
     /**

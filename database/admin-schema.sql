@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS gates_admins (
   email VARCHAR(191) NOT NULL,
   password_hash VARCHAR(255) DEFAULT NULL,
   name VARCHAR(200) NOT NULL,
-  role ENUM('superadmin','admin','editor','judge','viewer') NOT NULL DEFAULT 'editor',
+  role ENUM('superadmin','admin','editor','moderator','judge','viewer') NOT NULL DEFAULT 'editor',
   avatar_path VARCHAR(400) DEFAULT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   last_login_at TIMESTAMP NULL DEFAULT NULL,
@@ -116,6 +116,32 @@ CREATE TABLE IF NOT EXISTS gates_uploads (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_uploads_attached (attached_to_type, attached_to_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_webhooks (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  url VARCHAR(500) NOT NULL,
+  secret VARCHAR(120) NOT NULL,
+  events TEXT NOT NULL,
+  description VARCHAR(200) DEFAULT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  last_status INT DEFAULT NULL,
+  last_event_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_webhook_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_webhook_deliveries (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  webhook_id BIGINT UNSIGNED NOT NULL,
+  event VARCHAR(60) NOT NULL,
+  status_code INT DEFAULT NULL,
+  ok TINYINT(1) NOT NULL DEFAULT 0,
+  error VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_delivery_hook (webhook_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

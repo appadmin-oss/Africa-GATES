@@ -1,0 +1,18 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ d.label }} · #{{ id }}{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/data/{{ dataset }}">← {{ d.label }}</a>{% endblock %}
+{% block content %}
+<div class="ad-card" style="max-width:860px"><div class="ad-card__body">
+  <div style="display:grid;grid-template-columns:minmax(120px,auto) 1fr;gap:11px 20px;font-size:14px">
+    {% for f in fields %}
+      <span style="color:var(--ad-text-soft,#5a6d6f);font-weight:500;white-space:nowrap">{{ f.key }}</span>
+      <span style="word-break:break-word;min-width:0">
+        {% set sv = f.value is null ? '' : f.value %}
+        {% if sv == '' %}<span style="color:var(--ad-text-mute,#8a9a9c)">—</span>
+        {% elseif sv starts with '{' or sv starts with '[' %}<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-family:'Space Mono',monospace;font-size:12px;background:var(--ad-bg,#f4f6f5);padding:9px 11px;border-radius:8px;overflow-x:auto">{{ sv }}</pre>
+        {% else %}{{ sv }}{% endif %}
+      </span>
+    {% endfor %}
+  </div>
+</div></div>
+{% endblock %}

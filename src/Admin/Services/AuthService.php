@@ -65,6 +65,9 @@ class AuthService
             if ($attempts >= 5) {
                 $update['locked_until'] = Carbon::now()->addMinutes(15)->toDateTimeString();
                 $update['failed_attempts'] = 0;
+                // Distinct high-signal security event for log-based alerting (see
+                // docs/SECURITY-HARDENING-V3.md — alert on `admin.login.lockout`).
+                $this->log->warn('admin.login.lockout', ['email' => $email, 'ip' => $ip]);
             }
             DB::table('gates_admins')->where('id', $admin->id)->update($update);
             $this->log->info('admin.login.fail', ['email' => $email, 'attempts' => $attempts]);

@@ -31,7 +31,7 @@ class BonusVoteServiceTest extends TestCase
         ]);
         DB::table('gates_nominees')->insert([
             'id' => 1, 'category_id' => 10, 'name' => 'Nominee', 'country_code' => 'NG',
-            'status' => 'approved', 'vote_count' => $startVotes,
+            'status' => 'approved', 'vote_count' => $startVotes, 'organic_vote_count' => $startVotes,
         ]);
         DB::table('gates_donations')->insert([
             'id' => 1, 'donor_name' => 'Donor', 'donor_email' => 'd@x.io',
@@ -57,6 +57,25 @@ class BonusVoteServiceTest extends TestCase
         // vote_count 10 → 13 (increment by weight), donation 0 → 3 used.
         $this->assertSame(13, (int) DB::table('gates_nominees')->where('id', 1)->value('vote_count'));
         $this->assertSame(3, (int) DB::table('gates_donations')->where('id', 1)->value('votes_used'));
+        // Organic count is untouched — paid votes never enter the CPI community signal.
+        $this->assertSame(10, (int) DB::table('gates_nominees')->where('id', 1)->value('organic_vote_count'));
+    }
+
+    public function test_cap_is_based_on_organic_not_inflated_display_total(): void
+    {
+        // Diverge the two columns: 20 organic, but a 200 display total (e.g. a
+        // history of paid boosts). The cap must follow ORGANIC (20 → 50% = 10),
+        // NOT the inflated vote_count (which would allow 100).
+        $this->seed(bonus: 200);
+        DB::table('gates_nominees')->where('id', 1)->update([
+            'vote_count' => 200, 'organic_vote_count' => 20,
+        ]);
+        $svc = new BonusVoteService();
+
+        $this->assertFalse($svc->redeem(1, 1, 50)['ok']);   // 50 > cap(10)
+        $this->assertSame(0, DB::table('gates_votes')->count());
+
+        $this->assertTrue($svc->redeem(1, 1, 10)['ok']);    // exactly at cap
     }
 
     public function test_cannot_redeem_more_than_remaining(): void

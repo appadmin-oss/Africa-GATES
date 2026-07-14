@@ -1,0 +1,75 @@
+{% extends "layout/gates.twig" %}
+{% block head_styles %}
+<style>
+  [x-cloak]{ display:none !important; }
+  .ff{ max-width:640px; margin:0 auto; padding:clamp(28px,5vw,48px) var(--ag-gutter,28px) 64px; }
+  .ff h1{ font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.8rem,4.5vw,2.5rem); line-height:1.06; letter-spacing:-.02em; color:var(--ag-ink,#10292C); margin:0; }
+  .ff__desc{ margin:12px 0 0; font-size:15.5px; line-height:1.6; color:#4a5256; }
+  .ff__err{ margin:18px 0 0; font-size:14px; color:#b42318; background:#fdecec; border:1px solid rgba(180,35,24,.18); border-radius:11px; padding:11px 14px; }
+  .ff-field{ margin-top:18px; }
+  .ff-field label.ff-lab{ display:block; font-size:13px; font-weight:600; color:#374149; margin-bottom:6px; }
+  .ff-in, .ff select, .ff textarea{ width:100%; border:1px solid rgba(16,41,44,.18); border-radius:11px; padding:11px 13px; font-family:inherit; font-size:15px; color:var(--ag-ink,#10292C); background:#fff; }
+  .ff-in:focus, .ff select:focus, .ff textarea:focus{ outline:none; border-color:var(--ag-green,#237b22); }
+  .ff-opt{ display:flex; align-items:flex-start; gap:8px; font-size:14.5px; color:#374149; margin-top:7px; cursor:pointer; }
+  .ff-help{ display:block; font-size:12px; color:#5f7273; margin-top:4px; }
+  .ff-submit{ margin-top:24px; border:none; background:var(--ag-green,#237b22); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:13px 30px; border-radius:999px; cursor:pointer; }
+  .ff-done{ text-align:center; padding:38px 0; }
+  .ff-done__ico{ width:64px; height:64px; margin:0 auto 16px; border-radius:50%; background:#effaf0; display:flex; align-items:center; justify-content:center; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="ff">
+  {% if done %}
+    <div class="ff-done">
+      <div class="ff-done__ico"><svg aria-hidden="true" focusable="false" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
+      <h1>{{ form.title }}</h1>
+      <p class="ff__desc">{{ form.submit_message ?: 'Thank you — your response has been recorded.' }}</p>
+      <a href="/" style="display:inline-block;margin-top:20px;font-size:14px;font-weight:600;color:var(--ag-green,#237b22);text-decoration:none">← Back to Africa GATES</a>
+    </div>
+  {% else %}
+    <h1>{{ form.title }}</h1>
+    {% if form.description %}<p class="ff__desc">{{ form.description }}</p>{% endif %}
+    {% if error %}<div class="ff__err" role="alert">{{ error }}</div>{% endif %}
+
+    <form method="post" action="/f/{{ form.form_key }}" x-data="formApp({{ values|default({})|json_encode|e('html_attr') }})" enctype="multipart/form-data">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      {% for f in form.fields %}
+        <div class="ff-field"{% if f.showIfField %} x-show="vis('{{ f.showIfField|e('js') }}','{{ f.showIfValue|e('js') }}')" x-cloak{% endif %}>
+          {% set req = f.required %}
+          {% if f.type != 'checkbox' or f.options %}<label class="ff-lab"{% if f.type in ['text','email','tel','number','date','textarea','select','file'] %} for="ff-{{ f.name }}"{% endif %}>{{ f.label }}{% if req %} *{% endif %}</label>{% endif %}
+          {% set reqExpr = (req ? 'true' : 'false') ~ (f.showIfField ? " && vis('" ~ f.showIfField|e('js') ~ "','" ~ f.showIfValue|e('js') ~ "')" : '') %}
+          {% if f.type in ['text','email','tel','number','date'] %}
+            <input class="ff-in" type="{{ f.type }}" id="ff-{{ f.name }}" name="{{ f.name }}" x-model="vals['{{ f.name|e('js') }}']" :required="{{ reqExpr }}"{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}{% if f.maxlength %} maxlength="{{ f.maxlength }}"{% endif %}{% if f.pattern %} pattern="{{ f.pattern }}"{% endif %}>
+          {% elseif f.type == 'textarea' %}
+            <textarea id="ff-{{ f.name }}" name="{{ f.name }}" x-model="vals['{{ f.name|e('js') }}']" rows="4" :required="{{ reqExpr }}"{% if f.placeholder %} placeholder="{{ f.placeholder }}"{% endif %}{% if f.maxlength %} maxlength="{{ f.maxlength }}"{% endif %}></textarea>
+          {% elseif f.type == 'select' %}
+            <select id="ff-{{ f.name }}" name="{{ f.name }}" x-model="vals['{{ f.name|e('js') }}']" :required="{{ reqExpr }}"><option value="">Choose…</option>{% for o in f.options %}<option value="{{ o }}">{{ o }}</option>{% endfor %}</select>
+          {% elseif f.type == 'radio' %}
+            {% for o in f.options %}<label class="ff-opt"><input type="radio" name="{{ f.name }}" value="{{ o }}" x-model="vals['{{ f.name|e('js') }}']" :required="{{ reqExpr }}"> <span>{{ o }}</span></label>{% endfor %}
+          {% elseif f.type == 'checkbox' %}
+            {% if f.options %}{% for o in f.options %}<label class="ff-opt"><input type="checkbox" name="{{ f.name }}[]" value="{{ o }}" x-model="vals['{{ f.name|e('js') }}']"> <span>{{ o }}</span></label>{% endfor %}
+            {% else %}<label class="ff-opt"><input type="checkbox" name="{{ f.name }}" value="1" :required="{{ reqExpr }}"> <span>{{ f.placeholder ?: f.label }}</span></label>{% endif %}
+          {% elseif f.type == 'file' %}
+            <input class="ff-in" type="file" id="ff-{{ f.name }}" name="{{ f.name }}" :required="{{ reqExpr }}">
+          {% endif %}
+          {% if f.help %}<small class="ff-help">{{ f.help }}</small>{% endif %}
+        </div>
+      {% endfor %}
+      <button type="submit" class="ff-submit">Submit</button>
+    </form>
+  {% endif %}
+</div>
+<script>
+function formApp(seed){
+  return {
+    vals: seed && typeof seed === 'object' ? seed : {},
+    vis(field, val){
+      if(!field) return true;
+      var v = this.vals[field];
+      if(Array.isArray(v)) return v.map(String).indexOf(String(val)) !== -1;
+      return String(v == null ? '' : v) === String(val);
+    }
+  };
+}
+</script>
+{% endblock %}

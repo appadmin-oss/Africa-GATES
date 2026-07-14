@@ -29,7 +29,15 @@ class RegistryController {
         $bio=trim(strip_tags((string)($p['bio'] ?? '')));
         $meta=$p['display_name'].($p['category']?' · '.$p['category']:'').' on the Africa GATES registry'.($bio!==''?'. '.$bio:'. Track their live Cultural Power Index score, verification tier and standing.');
         $meta=mb_strlen($meta)>160?rtrim(mb_substr($meta,0,157)).'…':$meta;
-        return $this->view->render($res,'pages/registry/profile.twig',['page_title'=>$p['display_name'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$p['display_name'].' — Africa GATES','gates_page'=>'registry','has_hero'=>false,'current_section'=>'projects','profile'=>$p,'comments'=>$comments,'cheer_count'=>$cheerCount]);
+        // Real "also in this category" rail — top profiles sharing the category, self excluded.
+        $similar=[];
+        if(!empty($p['category'])){
+            $similar=array_slice(array_values(array_filter(
+                $this->profiles->getLeaderboard(4,(string)$p['category']),
+                fn($s)=>($s['slug']??'')!==$p['slug']
+            )),0,3);
+        }
+        return $this->view->render($res,'pages/registry/profile.twig',['page_title'=>$p['display_name'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$p['display_name'].' — Africa GATES','gates_page'=>'registry','has_hero'=>false,'current_section'=>'projects','profile'=>$p,'comments'=>$comments,'cheer_count'=>$cheerCount,'similar'=>$similar]+array_filter(['og_image'=>\AfricaGates\Support\Assets::absoluteOg($p['avatar_path']??null),'og_image_alt'=>$p['display_name'].' — Africa GATES profile'],fn($v)=>$v!==null));
     }
     public function registerForm(Request $req,Response $res):Response {
         return $this->view->render($res,'pages/registry/register.twig',['page_title'=>'Register — Africa GATES','meta_description'=>'Join the Africa GATES registry. Create your verified profile, start building a Cultural Power Index score and become eligible for every awards cycle.','gates_page'=>'register','has_hero'=>false,'current_section'=>'projects']);

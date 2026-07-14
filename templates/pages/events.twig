@@ -1,87 +1,117 @@
 {% extends "layout/gates.twig" %}
-{% block content %}
 
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Events · 2026 Cycle</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Where recognition <em style="color:var(--emerald-600)">happens.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Ceremonies, webinars and community sessions across the cycle — online and on the ground.</p>
+{% block head_styles %}
+<style>
+  body[data-page="events"]{ background:#eef0ec; color:var(--ag-ink); }
+  .ev{ max-width:1180px; margin:0 auto; padding:0 var(--ag-gutter,32px) 64px; }
+
+  .ev-hero{ position:relative; overflow:hidden; border-radius:24px; margin-top:24px; background:radial-gradient(130% 130% at 80% 0%,#1d5b2a,#10292C 60%); padding:clamp(2.6rem,6vw,3.4rem) clamp(1.6rem,4vw,2.8rem); color:#fff; }
+  .ev-hero__orb{ position:absolute; right:-60px; bottom:-80px; width:340px; height:340px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.28),transparent 68%); }
+  .ev-hero__in{ position:relative; max-width:620px; }
+  .ev-badge{ display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#ffd24a; background:rgba(8,26,16,.55); box-shadow:inset 0 0 0 1px rgba(212,154,14,.32); padding:7px 14px; border-radius:999px; }
+  .ev-hero h1{ margin:16px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2.1rem,5.4vw,3rem); line-height:1.03; letter-spacing:-.02em; }
+  .ev-hero p{ margin:14px 0 0; font-size:15.5px; line-height:1.65; color:rgba(255,255,255,.85); max-width:520px; }
+
+  .ev-sec{ margin-top:38px; }
+  .ev-sec__head{ display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:18px; }
+  .ev-sec__title{ font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.4rem,3vw,1.85rem); color:var(--ag-ink); }
+  .ev-sec__count{ font-size:13px; color:#626a6e; white-space:nowrap; }
+
+  .ev-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+  @media(max-width:860px){ .ev-grid{ grid-template-columns:repeat(2,1fr); gap:14px; } }
+  @media(max-width:560px){ .ev-grid{ grid-template-columns:1fr; } }
+  .ev-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; overflow:hidden; display:flex; flex-direction:column; text-decoration:none; color:inherit; transition:transform .15s, box-shadow .15s, border-color .15s; }
+  .ev-card:hover{ transform:translateY(-3px); border-color:rgba(16,41,44,.16); box-shadow:0 20px 40px -26px rgba(16,41,44,.45); }
+  .ev-card__media{ position:relative; aspect-ratio:16/10; background-size:cover; background-position:center; background-color:#10292C; }
+  .ev-card__media--empty{ background:radial-gradient(120% 120% at 75% 0%,#1d5b2a,#10292C); }
+  .ev-card__cal{ position:absolute; top:12px; left:12px; background:#fff; border-radius:11px; padding:6px 11px; text-align:center; box-shadow:0 8px 18px -8px rgba(0,0,0,.55); }
+  .ev-card__mon{ display:block; font:700 10px/1.2 var(--ag-font-mono,monospace); letter-spacing:.1em; text-transform:uppercase; color:#b42318; }
+  .ev-card__day{ display:block; font-family:var(--ag-font-display,serif); font-weight:800; font-size:19px; color:var(--ag-ink); line-height:1.05; }
+  .ev-card__loc{ position:absolute; bottom:12px; left:12px; max-width:calc(100% - 24px); font-size:11px; font-weight:600; color:#fff; background:rgba(16,41,44,.62); padding:5px 11px; border-radius:999px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ev-card__body{ padding:15px 17px 18px; flex:1; display:flex; flex-direction:column; }
+  .ev-card__when{ font-size:12px; color:#5a6d6f; font-weight:500; }
+  .ev-card__title{ margin:6px 0 0; font-family:var(--ag-font-display,serif); font-weight:700; font-size:17px; color:var(--ag-ink); line-height:1.2; }
+  .ev-card__desc{ margin:8px 0 0; font-size:13.5px; line-height:1.55; color:#4a5256; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .ev-card__foot{ margin-top:14px; padding-top:13px; border-top:1px solid rgba(16,41,44,.06); }
+  .ev-card__link{ display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:var(--ag-green,#237b22); }
+  .ev-past .ev-card__media{ filter:grayscale(.25); }
+
+  .ev-empty{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(2rem,5vw,3rem); text-align:center; }
+  .ev-empty h3{ margin:0 0 .4rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; color:var(--ag-ink); }
+  .ev-empty p{ margin:0 auto 18px; color:#4a5256; max-width:440px; }
+  .ev-empty__cta{ display:inline-flex; align-items:center; gap:7px; background:var(--ag-green,#237b22); color:#fff; font-weight:600; font-size:14px; padding:11px 22px; border-radius:999px; text-decoration:none; }
+  .ev-empty__cta:hover{ background:var(--ag-green-dark,#1a6118); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ev">
+  <div class="ev-hero">
+    <div class="ev-hero__orb" aria-hidden="true"></div>
+    <div class="ev-hero__in">
+      <span class="ev-badge">📅 Events · 2026 Cycle</span>
+      <h1>Where recognition happens</h1>
+      <p>Ceremonies, webinars and community sessions across the cycle — online and on the ground. Reserve your place in seconds.</p>
     </div>
   </div>
-</section>
 
-<section class="section" style="padding-top:1rem">
-  <div class="wrap">
-    <div class="r26-head">
-      <p class="r26-eyebrow">Upcoming</p>
-      <h2 class="r26-h2">Next on the <em>calendar</em></h2>
+  <section class="ev-sec">
+    <div class="ev-sec__head">
+      <div class="ev-sec__title">Upcoming</div>
+      {% if upcoming is not empty %}<span class="ev-sec__count">{{ upcoming|length }} {{ upcoming|length == 1 ? 'event' : 'events' }}</span>{% endif %}
     </div>
+
     {% if upcoming is not empty %}
-    <div class="r26-mediagrid">
+    <div class="ev-grid">
       {% for e in upcoming %}
-      <article class="r26-mcard">
-        <div class="r26-mcard__media {% if not e.cover_image %}r26-mcard__media--empty{% endif %}">
-          {% if e.cover_image %}<img src="{{ e.cover_image }}" alt="{{ e.title }}" loading="lazy" decoding="async">{% endif %}
-          <span class="r26-mcard__badge">{{ e.location|default('Africa GATES') }}</span>
+      <a class="ev-card" href="/events/{{ e.slug }}">
+        <div class="ev-card__media {% if not e.cover_image %}ev-card__media--empty{% endif %}" {% if e.cover_image %}style="background-image:url('{{ e.cover_image }}')"{% endif %}>
+          <span class="ev-card__cal"><span class="ev-card__mon">{{ e.event_date|date('M') }}</span><span class="ev-card__day">{{ e.event_date|date('j') }}</span></span>
+          {% if e.venue or e.location %}<span class="ev-card__loc">📍 {{ e.venue|default(e.location) }}</span>{% endif %}
         </div>
-        <div class="r26-mcard__body">
-          <div class="r26-when">
-            <span class="r26-when__cal" aria-hidden="true">
-              <span class="r26-when__mon">{{ e.event_date|date('M') }}</span>
-              <span class="r26-when__day">{{ e.event_date|date('j') }}</span>
-            </span>
-            <span class="r26-mcard__meta" style="margin:0">{{ e.event_date|date('l, j F Y · H:i') }}</span>
-          </div>
-          <h3 class="r26-mcard__title">{{ e.title }}</h3>
-          <p class="r26-mcard__desc">{{ e.tagline|default(e.description|slice(0,140)) }}</p>
-          <div class="r26-mcard__foot">
-            <span>{{ e.venue|default(e.location) }}</span>
-            {% if e.rsvp_url %}<a class="r26-mcard__link" href="{{ e.rsvp_url }}">Reserve
-              <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>{% endif %}
+        <div class="ev-card__body">
+          <div class="ev-card__when">{{ e.event_date|date('l, j F · H:i') }} WAT</div>
+          <div class="ev-card__title">{{ e.title }}</div>
+          {% if e.tagline or e.description %}<p class="ev-card__desc">{{ e.tagline|default(e.description) }}</p>{% endif %}
+          <div class="ev-card__foot">
+            <span class="ev-card__link">Details &amp; RSVP
+              <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </div>
         </div>
-      </article>
+      </a>
       {% endfor %}
     </div>
     {% else %}
-    <div class="r26-empty">
-      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+    <div class="ev-empty">
       <h3>No upcoming events just yet</h3>
       <p>The next ceremony, webinar or community session will be announced here — and in the community channels first.</p>
-      <a class="btn btn--emerald" href="/community">Join the community</a>
+      <a class="ev-empty__cta" href="/community">Join the community
+        <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
     </div>
     {% endif %}
-  </div>
-</section>
+  </section>
 
-{% if past is not empty %}
-<section class="section" style="padding-top:0">
-  <div class="wrap">
-    <div class="r26-surface">
-      <div class="r26-head">
-        <p class="r26-eyebrow">Archive</p>
-        <h2 class="r26-h2">Past <em>events</em></h2>
-      </div>
-      <div class="r26-mediagrid">
-        {% for e in past %}
-        <article class="r26-mcard">
-          <div class="r26-mcard__media {% if not e.cover_image %}r26-mcard__media--empty{% endif %}">
-            {% if e.cover_image %}<img src="{{ e.cover_image }}" alt="{{ e.title }}" loading="lazy" decoding="async">{% endif %}
-          </div>
-          <div class="r26-mcard__body">
-            <p class="r26-mcard__meta">{{ e.event_date|date('j F Y') }} · {{ e.location }}</p>
-            <h3 class="r26-mcard__title">{{ e.title }}</h3>
-            <p class="r26-mcard__desc">{{ e.tagline }}</p>
-          </div>
-        </article>
-        {% endfor %}
-      </div>
+  {% if past is not empty %}
+  <section class="ev-sec ev-past">
+    <div class="ev-sec__head">
+      <div class="ev-sec__title">Past events</div>
+      <span class="ev-sec__count">Archive</span>
     </div>
-  </div>
-</section>
-{% endif %}
-
+    <div class="ev-grid">
+      {% for e in past %}
+      <a class="ev-card" href="/events/{{ e.slug }}">
+        <div class="ev-card__media {% if not e.cover_image %}ev-card__media--empty{% endif %}" {% if e.cover_image %}style="background-image:url('{{ e.cover_image }}')"{% endif %}>
+          <span class="ev-card__cal"><span class="ev-card__mon">{{ e.event_date|date('M') }}</span><span class="ev-card__day">{{ e.event_date|date('j') }}</span></span>
+        </div>
+        <div class="ev-card__body">
+          <div class="ev-card__when">{{ e.event_date|date('j F Y') }}{% if e.location %} · {{ e.location }}{% endif %}</div>
+          <div class="ev-card__title">{{ e.title }}</div>
+          {% if e.tagline %}<p class="ev-card__desc">{{ e.tagline }}</p>{% endif %}
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+</div>
 {% endblock %}

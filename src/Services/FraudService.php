@@ -18,6 +18,14 @@ use Psr\Log\LoggerInterface;
  * All scoring is non-blocking unless the decision is 'block'. The goal is
  * to surface suspicious patterns for human review, not to refuse legitimate
  * voters who happen to share a network or device.
+ *
+ * SCOPE: this is a best-effort PRE-CAST screen, scored from already-committed
+ * rows, so a simultaneous burst can race past it (each request sees pre-burst
+ * counts). The hard guarantees live elsewhere — UNIQUE(voter_email_hash,
+ * category_id) makes double-voting impossible, and CollusionService is the
+ * authoritative POST-HOC detector that scans committed votes for rings the
+ * live screen couldn't see. Treat a 'block' here as early rejection, not the
+ * last line of defence.
  */
 class FraudService
 {
@@ -80,11 +88,32 @@ class FraudService
             }
         } else {
             // No device fingerprint: a real browser produces one, so its absence is
-            // a mild signal of an automated/hardened client. This keeps the 'block'
-            // gate reachable for a device-less ring instead of collapsing to <=65
-            // just because the client omitted device_hash.
+            // a mild signal of an automated/hardened client.
             $score += self::SIGNALS['missing_device'];
             $signals[] = 'missing_device';
+
+            // Dropping the device hash must NOT erase detection. Fall back to IP for
+            // the same two concentration signals, but at CGNAT-tolerant thresholds
+            // (>=5, vs >0 for a device) so a busy shared mobile/carrier IP with a few
+            // legitimate voters isn't blocked — only a genuine single-IP ring is.
+            $ipCatVotes = DB::table('gates_votes')
+                ->where('ip_hash', $ipHash)
+                ->where('category_id', $categoryId)
+                ->where('voted_at', '>=', Carbon::now()->subDay()->toDateTimeString())
+                ->count();
+            if ($ipCatVotes >= 5) {
+                $score += self::SIGNALS['same_device_voted_category']; // 50 — IP stands in for device
+                $signals[] = "ip_already_voted_category:{$ipCatVotes}";
+            }
+
+            $ipHourVotes = DB::table('gates_votes')
+                ->where('ip_hash', $ipHash)
+                ->where('voted_at', '>=', Carbon::now()->subHour()->toDateTimeString())
+                ->count();
+            if ($ipHourVotes >= 5) {
+                $score += self::SIGNALS['many_categories_one_hour']; // 25
+                $signals[] = "ip_hour_votes:{$ipHourVotes}";
+            }
         }
 
         // 3. IP vote density (many different emails from same IP in 24h)

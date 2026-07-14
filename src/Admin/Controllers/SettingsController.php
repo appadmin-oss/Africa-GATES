@@ -36,7 +36,39 @@ class SettingsController
             'smtp_configured'=> $this->mailer?->smtpConfigured() ?? false,
             'flash_ok'       => $_SESSION['flash_ok']   ?? null,
             'flash_error'    => $_SESSION['flash_error'] ?? null,
+            'shop_regions'   => \AfricaGates\Services\ShopPricing::regions(),
+            'shop_mults'     => \AfricaGates\Services\ShopPricing::multipliers(),
+            // Which AI providers have a key (booleans only — keys are never echoed).
+            'ai_status'      => \AfricaGates\Services\AiService::boot()->status(),
+            // Whether a DEDICATED moderation Groq key is set (vs falling back to
+            // the general key). Read straight from settings — never echoed.
+            'ai_mod_dedicated' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'ai_groq_key_mod')->value('value') ?? ($_ENV['GROQ_MODERATION_KEY'] ?? ''))) !== '',
+            'ai_mod_model'   => \AfricaGates\Services\AiService::MODERATION_MODEL,
+            // Messaging channels configured state (booleans only — secrets never echoed).
+            'sms_status'     => \AfricaGates\Services\SmsService::boot()->status(),
+            // Email delivery health — recent sends with status/error so "links
+            // aren't arriving" is diagnosable at a glance.
+            'mail_health'    => $this->mailHealth(),
         ]);
+    }
+
+    /** @return array{sent_24h:int, failed_24h:int, dev_24h:int, recent:array, last_error:?string} */
+    private function mailHealth(): array
+    {
+        $out = ['sent_24h' => 0, 'failed_24h' => 0, 'dev_24h' => 0, 'recent' => [], 'last_error' => null];
+        try {
+            $since = date('Y-m-d H:i:s', time() - 86400);
+            $counts = \Illuminate\Database\Capsule\Manager::table('gates_mail_log')
+                ->where('created_at', '>=', $since)->selectRaw('status, COUNT(*) c')->groupBy('status')->pluck('c', 'status');
+            $out['sent_24h']   = (int) ($counts['sent'] ?? 0);
+            $out['failed_24h'] = (int) ($counts['failed'] ?? 0);
+            $out['dev_24h']    = (int) ($counts['logged_dev'] ?? 0);
+            $out['recent'] = \Illuminate\Database\Capsule\Manager::table('gates_mail_log')
+                ->orderByDesc('id')->limit(8)->get()->map(fn($r) => (array) $r)->all();
+            $out['last_error'] = \Illuminate\Database\Capsule\Manager::table('gates_mail_log')
+                ->where('status', 'failed')->orderByDesc('id')->value('error');
+        } catch (\Throwable) {}
+        return $out;
     }
 
     public function save(Request $req, Response $res): Response
@@ -44,10 +76,11 @@ class SettingsController
         $b = (array)$req->getParsedBody();
         $adminId = (int)$_SESSION['admin_id'];
 
-        // Core site settings (gates_settings table)
-        foreach (['announce_text','announce_url','announce_cta','site_title','contact_email'] as $k) {
+        // Core site settings + email sender identity (gates_settings table)
+        foreach (['announce_text','announce_url','announce_cta','site_title','contact_email',
+                  'mail_from_name','mail_from_address','mail_reply_to','admin_alert_email'] as $k) {
             if (array_key_exists($k, $b)) {
-                $this->settings->set($k, (string)$b[$k], $adminId);
+                $this->settings->set($k, trim((string)$b[$k]), $adminId);
             }
         }
 
@@ -67,6 +100,114 @@ class SettingsController
                     ['setting_key' => $key],
                     ['setting_value' => $val, 'updated_at' => \Illuminate\Support\Carbon::now()->toDateTimeString()]
                 );
+        }
+
+        // Shop location-based pricing — per-region multipliers (gates_settings,
+        // JSON map region=>multiplier). Only non-1.0 values are stored, so an
+        // all-default config disables regional pricing entirely.
+        if (array_key_exists('region_mult', $b) && is_array($b['region_mult'])) {
+            $map = [];
+            foreach (\AfricaGates\Services\ShopPricing::regions() as $region) {
+                $v = (float)($b['region_mult'][$region] ?? 1);
+                if ($v > 0 && abs($v - 1.0) > 0.0001) {
+                    $map[$region] = max(0.1, min(10.0, round($v, 3)));
+                }
+            }
+            $this->settings->set('shop_region_mult', $map ? json_encode($map) : '', $adminId);
+            // Currency-conversion master toggle lives in the same shop card.
+            $this->settings->set('currency_conversion', isset($b['currency_conversion']) ? '1' : '', $adminId);
+        }
+
+        // Voting points — earn/redeem rates + master toggle (gates_settings).
+        if (array_key_exists('points_per_vote', $b)) {
+            $this->settings->set('points_per_1000_naira', (string) max(0, (int) ($b['points_per_1000_naira'] ?? 50)), $adminId);
+            $this->settings->set('points_per_vote', (string) max(1, (int) ($b['points_per_vote'] ?? 500)), $adminId);
+            $this->settings->set('points_enabled', isset($b['points_enabled']) ? '1' : '', $adminId);
+        }
+
+        // Paid voting — admin-toggleable business model (OFF by default).
+        // Paid votes bump the public tally only; the organic CPI signal is
+        // never moved by money (enforced in PaidVoteService::mint).
+        if (array_key_exists('paid_vote_settings', $b)) {
+            $this->settings->set('paid_voting_enabled', isset($b['paid_voting_enabled']) ? '1' : '', $adminId);
+            $this->settings->set('paid_voting_disable_free', isset($b['paid_voting_disable_free']) ? '1' : '', $adminId);
+            $this->settings->set('vote_price_naira', (string) max(10, (int) ($b['vote_price_naira'] ?? \AfricaGates\Services\PaidVoteService::DEFAULT_PRICE_NAIRA)), $adminId);
+            $this->settings->set('vote_votes_per_1000', (string) max(1, (int) ($b['vote_votes_per_1000'] ?? \AfricaGates\Services\PaidVoteService::DEFAULT_PER_1000)), $adminId);
+        }
+
+        // AI providers — keys live in gates_settings and are WRITE-ONLY: they
+        // are never rendered back to the page. A blank field leaves the stored
+        // key untouched; ticking the matching "clear" box removes it. The first
+        // configured provider (Groq → Gemini → Anthropic → OpenAI) is used.
+        if (array_key_exists('ai_settings', $b)) {
+            // Two Groq keys: 'groq' = general/public, 'groq_mod' = dedicated
+            // moderation key (runs the best model; free-falls back to the
+            // general key when unset).
+            $providerKeys = ['groq' => 'ai_groq_key', 'groq_mod' => 'ai_groq_key_mod', 'gemini' => 'ai_gemini_key', 'anthropic' => 'ai_anthropic_key', 'openai' => 'ai_openai_key'];
+            $clear = (array) ($b['ai_clear'] ?? []);
+            foreach ($providerKeys as $name => $settingKey) {
+                if (!empty($clear[$name])) { $this->settings->set($settingKey, '', $adminId); continue; }
+                $val = trim((string) ($b[$settingKey] ?? ''));
+                if ($val !== '') $this->settings->set($settingKey, $val, $adminId);
+            }
+            foreach (['ai_groq_model', 'ai_groq_model_mod', 'ai_gemini_model'] as $modelKey) {
+                if (array_key_exists($modelKey, $b)) $this->settings->set($modelKey, trim((string) $b[$modelKey]), $adminId);
+            }
+            // Gee ↔ Make.com agent bridge: URL is plain (echoed), the shared
+            // key is WRITE-ONLY like the provider keys above.
+            if (array_key_exists('gee_make_agent_url', $b)) {
+                $url = trim((string) $b['gee_make_agent_url']);
+                if ($url === '' || str_starts_with($url, 'https://')) $this->settings->set('gee_make_agent_url', $url, $adminId);
+            }
+            if (!empty($clear['make_key'])) $this->settings->set('gee_make_agent_key', '', $adminId);
+            else {
+                $mk = trim((string) ($b['gee_make_agent_key'] ?? ''));
+                if ($mk !== '') $this->settings->set('gee_make_agent_key', $mk, $adminId);
+            }
+        }
+
+        // Messaging (SMS / WhatsApp) — Twilio + WhatsApp Business Cloud API.
+        // Secrets are WRITE-ONLY (never rendered back); a blank field leaves the
+        // stored value untouched, the matching "clear" box removes it. Master
+        // toggles are OFF by default; unconfigured = the gateway stays inert.
+        if (array_key_exists('messaging_settings', $b)) {
+            $this->settings->set('sms_enabled', isset($b['sms_enabled']) ? '1' : '', $adminId);
+            $this->settings->set('wa_enabled',  isset($b['wa_enabled'])  ? '1' : '', $adminId);
+            $clear = (array) ($b['messaging_clear'] ?? []);
+            foreach (['sms_twilio_sid', 'sms_twilio_token', 'wa_access_token'] as $k) {
+                if (!empty($clear[$k])) { $this->settings->set($k, '', $adminId); continue; }
+                $val = trim((string) ($b[$k] ?? ''));
+                if ($val !== '') $this->settings->set($k, $val, $adminId);
+            }
+            foreach (['sms_twilio_from', 'sms_twilio_wa_from', 'wa_phone_number_id'] as $k) {
+                if (array_key_exists($k, $b)) $this->settings->set($k, trim((string) $b[$k]), $adminId);
+            }
+        }
+
+        // Moderation thresholds — where AI/heuristic scores flip to quarantine
+        // or auto-reject. Clamped in SpamService::thresholds() so a typo can
+        // never disable moderation entirely.
+        if (array_key_exists('moderation_settings', $b)) {
+            $q = (float) ($b['mod_threshold_quarantine'] ?? 0.30);
+            $r = (float) ($b['mod_threshold_reject'] ?? 0.65);
+            $this->settings->set('mod_threshold_quarantine', (string) max(0.05, min(0.90, $q)), $adminId);
+            $this->settings->set('mod_threshold_reject', (string) max($q + 0.05, min(0.99, $r)), $adminId);
+        }
+
+        // Nomination eligibility — admin-toggleable "considered" threshold + min distinct locations.
+        if (array_key_exists('nomination_settings', $b)) {
+            $this->settings->set('nomination_eligibility_enabled', isset($b['nomination_eligibility_enabled']) ? '1' : '', $adminId);
+            $this->settings->set('nomination_min_locations', (string) max(1, (int) ($b['nomination_min_locations'] ?? 5)), $adminId);
+        }
+
+        // Display constants — values that used to be hardcoded in copy across the site.
+        if (array_key_exists('display_settings', $b)) {
+            foreach (['nations_count', 'cpi_recompute_hours', 'review_sla_hours', 'nomination_seconds', 'otp_expiry_minutes'] as $k) {
+                if (array_key_exists($k, $b)) $this->settings->set($k, (string) max(0, (int) $b[$k]), $adminId);
+            }
+            if (array_key_exists('processing_fee_pct', $b)) {
+                $this->settings->set('processing_fee_pct', (string) max(0, (float) $b['processing_fee_pct']), $adminId);
+            }
         }
 
         $this->audit->record($adminId, 'settings.update', null, null);

@@ -24,6 +24,7 @@ class RuleEngine
         'fraud_flag'       => 60,
         'fraud_monitor'    => 30,
         'max_paid_weight_pct' => 50,   // bonus-vote ceiling, as % of a nominee's ORGANIC votes
+        'min_judges_per_nominee' => 2, // COMPLETE judge scorecards required to be winner-eligible
     ];
 
     /** @return array<string,mixed> merged ruleset */

@@ -40,6 +40,9 @@ abstract class TestCase extends BaseTestCase
         $this->db = $capsule;
 
         $this->loadSchema();
+
+        // Static per-process caches must never leak between tests.
+        \AfricaGates\Services\SpamService::resetThresholdCache();
     }
 
     protected function tearDown(): void

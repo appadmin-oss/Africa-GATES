@@ -1,103 +1,429 @@
 {% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style>
+  body[data-page="registry"]{ background:#eef0ec; color:var(--ag-ink); }
+  [x-cloak]{ display:none !important; }
+  .pf{ max-width:1080px; margin:0 auto; padding:0 var(--ag-gutter,32px); }
+  .pf-crumb{ padding:18px 0 0; font-size:12.5px; color:#5a6d6f; }
+  .pf-crumb a{ color:#5a6d6f; text-decoration:none; }
+  .pf-crumb a:hover{ color:var(--ag-ink); }
+  .pf-crumb b{ color:var(--ag-ink); font-weight:500; }
+
+  /* hero */
+  .pf-hero{ position:relative; overflow:hidden; border-radius:24px; margin-top:14px; background:radial-gradient(130% 130% at 82% 6%,#1d5b2a 0%,#10292C 58%); }
+  .pf-hero__orb{ position:absolute; right:-70px; bottom:-90px; width:340px; height:340px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.28),transparent 68%); }
+  .pf-hero__in{ position:relative; display:flex; align-items:stretch; gap:8px; padding:clamp(28px,4vw,38px) clamp(22px,4vw,40px); }
+  .pf-hero__main{ flex:1; min-width:0; display:flex; flex-direction:column; justify-content:center; }
+  .pf-tags{ display:flex; align-items:center; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+  .pf-badge{ font-size:11px; font-weight:600; letter-spacing:.06em; padding:6px 13px; border-radius:999px; background:rgba(212,154,14,.18); color:#fbc329; display:inline-flex; align-items:center; gap:6px; }
+  .pf-joined{ font-size:12px; color:rgba(255,255,255,.66); }
+  .pf-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,5vw,3rem); line-height:1; letter-spacing:-.02em; color:#fff; }
+  .pf-meta{ margin:14px 0 0; font-size:15.5px; color:rgba(255,255,255,.86); }
+  .pf-bioline{ margin:14px 0 0; font-size:14.5px; line-height:1.6; color:rgba(255,255,255,.76); max-width:440px; }
+  .pf-stats{ display:flex; align-items:center; gap:clamp(16px,3vw,26px); margin-top:24px; flex-wrap:wrap; }
+  .pf-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:clamp(24px,3.5vw,30px); line-height:1; color:#fff; }
+  .pf-stat__n.g{ color:#7FC87C; }
+  .pf-stat__l{ font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.62); margin-top:4px; }
+  .pf-stat__div{ width:1px; height:40px; background:rgba(255,255,255,.18); }
+  .pf-cta{ display:flex; gap:11px; margin-top:28px; flex-wrap:wrap; }
+  .pf-btn{ cursor:pointer; text-decoration:none; font-family:inherit; font-weight:600; font-size:15px; padding:14px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; border:1px solid transparent; }
+  .pf-btn--light{ background:#fff; color:#10292C; }
+  .pf-btn--ghost{ background:none; border-color:rgba(255,255,255,.32); color:#fff; }
+  .pf-btn--ghost:hover{ background:rgba(255,255,255,.1); }
+  .pf-btn--ghost:disabled{ cursor:default; opacity:.85; }
+  .pf-btn--icon{ padding:14px; }
+  .pf-hero__side{ flex:none; width:280px; position:relative; display:flex; align-items:flex-end; justify-content:center; }
+  .pf-hero__glow{ position:absolute; bottom:-38px; width:240px; height:240px; border-radius:50%; background:radial-gradient(circle at 50% 40%,rgba(127,200,124,.42),transparent 66%); }
+  .pf-portrait{ position:relative; z-index:2; width:240px; height:280px; object-fit:cover; border-radius:18px; }
+  .pf-mono{ position:relative; z-index:2; width:180px; height:180px; border-radius:50%; align-self:center; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:72px; color:#fff; background:linear-gradient(135deg,rgba(127,200,124,.9),rgba(35,123,34,.85)); }
+
+  /* body grid */
+  .pf-grid{ margin:28px 0 0; padding-bottom:60px; display:grid; grid-template-columns:1fr 320px; gap:28px; align-items:start; }
+  .pf-col{ display:flex; flex-direction:column; gap:24px; min-width:0; }
+  .pf-side{ display:flex; flex-direction:column; gap:20px; position:sticky; top:88px; }
+  .pf-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(20px,3vw,28px); }
+  .pf-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:20px; color:var(--ag-ink); }
+  .pf-card p.body{ margin:14px 0 0; font-size:15px; line-height:1.7; color:#3a4448; }
+
+  /* cpi weighting */
+  .pf-cpi__top{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .pf-cpi__score{ font-family:var(--ag-font-mono); font-weight:700; font-size:18px; color:var(--ag-green-dark); }
+  .pf-wbar{ margin-top:16px; }
+  .pf-wbar__h{ display:flex; align-items:center; justify-content:space-between; margin-bottom:7px; }
+  .pf-wbar__h span:first-child{ font-size:13.5px; font-weight:500; color:#4a5256; }
+  .pf-wbar__h .mono{ font-family:var(--ag-font-mono); font-weight:700; font-size:13px; color:var(--ag-ink); }
+  .pf-track{ height:8px; border-radius:5px; background:#eef2ee; overflow:hidden; }
+  .pf-track > span{ display:block; height:100%; border-radius:5px; background:linear-gradient(90deg,#237b22,#7FC87C); }
+  .pf-note{ margin:18px 0 0; font-size:12.5px; line-height:1.5; color:#626a6e; }
+  .pf-note a{ color:var(--ag-green-dark); font-weight:600; text-decoration:none; }
+
+  /* achievements */
+  .pf-ach{ list-style:none; margin:16px 0 0; padding:0; display:flex; flex-direction:column; gap:11px; }
+  .pf-ach li{ display:flex; gap:11px; align-items:flex-start; font-size:14.5px; line-height:1.55; color:#3a4448; }
+  .pf-ach svg{ flex:none; margin-top:2px; color:var(--ag-green); }
+  .pf-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:18px; }
+  .pf-chip{ font-size:12.5px; font-weight:500; color:#4a5256; background:#eef2ee; border-radius:999px; padding:6px 13px; }
+
+  /* gallery */
+  .pf-gal{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-top:18px; }
+  .pf-gal__t{ position:relative; aspect-ratio:3/4; border-radius:14px; overflow:hidden; background-size:cover; background-position:center; background-color:#dde3df; }
+
+  /* sidebar vote */
+  .pf-vote{ position:relative; overflow:hidden; background:#10292C; border-radius:20px; padding:24px; }
+  .pf-vote__orb{ position:absolute; right:-40px; top:-40px; width:160px; height:160px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.22),transparent 68%); }
+  .pf-vote__k{ position:relative; margin:0; font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#7FC87C; }
+  .pf-vote__b{ position:relative; margin:10px 0 0; font-size:15px; line-height:1.55; color:rgba(255,255,255,.84); }
+  .pf-vote__b strong{ color:#fff; }
+  .pf-vote__btn{ position:relative; width:100%; margin-top:16px; cursor:pointer; border:none; background:#7FC87C; color:#10292C; font-family:inherit; font-weight:600; font-size:15px; padding:14px; border-radius:999px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+  .pf-vote__btn:hover{ background:#6dbb6a; }
+  .pf-vote__sec{ position:relative; display:flex; align-items:center; gap:7px; margin-top:14px; font-size:12px; color:rgba(255,255,255,.66); }
+
+  /* facts / connect / similar */
+  .pf-side h3{ margin:0 0 14px; font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f; }
+  .pf-facts{ display:flex; flex-direction:column; gap:13px; }
+  .pf-fact{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .pf-fact__k{ font-size:13.5px; color:#626a6e; }
+  .pf-fact__v{ font-size:13.5px; font-weight:500; color:var(--ag-ink); text-align:right; }
+  .pf-fact__v.mono{ font-family:var(--ag-font-mono); font-weight:700; }
+  .pf-pill{ font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px; text-transform:capitalize; }
+  .pf-links{ display:flex; flex-direction:column; gap:10px; }
+  .pf-links a{ font-size:14px; font-weight:500; color:var(--ag-green-dark); text-decoration:none; display:inline-flex; align-items:center; gap:8px; word-break:break-all; }
+  .pf-links a:hover{ text-decoration:underline; }
+  .pf-sim{ display:flex; flex-direction:column; gap:14px; }
+  .pf-sim__row{ display:flex; align-items:center; gap:12px; text-decoration:none; }
+  .pf-sim__av{ flex:none; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:17px; background-size:cover; background-position:center; }
+  .pf-sim__b{ flex:1; min-width:0; }
+  .pf-sim__n{ font-weight:600; font-size:13.5px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pf-sim__c{ font-size:11.5px; color:#5a6d6f; }
+  .pf-sim__go{ font-size:12px; font-weight:600; color:var(--ag-green-dark); }
+
+  /* community */
+  .pf-comm__head{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .pf-cheer{ cursor:pointer; border:1px solid rgba(16,41,44,.16); background:var(--ag-surface,#fff); color:var(--ag-ink); font-family:inherit; font-size:14px; font-weight:600; padding:9px 18px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; }
+  .pf-cheer:hover{ border-color:var(--ag-green); }
+  .pf-cheer:disabled{ cursor:default; }
+  .pf-cheer .h{ color:#e0245e; font-size:15px; }
+  .pf-clist{ display:flex; flex-direction:column; gap:12px; margin-top:18px; }
+  .pf-cmt{ border:1px solid rgba(16,41,44,.07); border-radius:14px; padding:15px 17px; background:#fbfdfb; }
+  .pf-cmt__h{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:5px; }
+  .pf-cmt__a{ font-size:14px; font-weight:600; color:var(--ag-ink); }
+  .pf-cmt__d{ font-family:var(--ag-font-mono); font-size:11.5px; color:#5a6d6f; }
+  .pf-cmt__b{ margin:0; font-size:14px; line-height:1.55; color:#3a4448; white-space:pre-wrap; }
+  .pf-empty{ text-align:center; padding:26px 16px; color:#626a6e; }
+  .pf-empty .e{ font-size:26px; }
+  .pf-form{ margin-top:18px; display:flex; flex-direction:column; gap:12px; }
+  .pf-frow{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .pf-form label{ display:block; font-size:12.5px; font-weight:600; color:#4a5256; margin-bottom:5px; }
+  .pf-form input, .pf-form textarea{ width:100%; font-family:inherit; font-size:14px; color:var(--ag-ink); background:#fff; border:1px solid rgba(16,41,44,.16); border-radius:11px; padding:11px 13px; }
+  .pf-form input:focus, .pf-form textarea:focus{ outline:none; border-color:var(--ag-green); }
+  .pf-form .soft{ font-weight:400; color:#5a6d6f; }
+  .pf-submit{ align-self:flex-start; cursor:pointer; border:none; background:var(--ag-green-dark); color:#fff; font-family:inherit; font-weight:600; font-size:14.5px; padding:12px 24px; border-radius:999px; }
+  .pf-submit:disabled{ opacity:.6; cursor:default; }
+  .pf-err{ background:#fdeaea; border:1px solid #f5c2c2; color:#9c2b2b; border-radius:11px; padding:11px 14px; font-size:13.5px; }
+  .pf-ok{ background:#e7f4e7; border:1px solid #bfe0bd; color:#1a6118; border-radius:11px; padding:13px 16px; font-size:14px; display:flex; align-items:center; gap:9px; }
+
+  /* toast */
+  .pf-toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); z-index:90; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:13px 22px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); }
+
+  @media (max-width:880px){
+    .pf-grid{ grid-template-columns:1fr; }
+    .pf-side{ position:static; }
+    .pf-hero__side{ display:none; }
+  }
+  @media (max-width:520px){
+    .pf-stat__div{ display:none; }
+    .pf-frow{ grid-template-columns:1fr; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-
-{% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮','CM':'🇨🇲','SN':'🇸🇳','RW':'🇷🇼'} %}
 {% set p = profile %}
+{% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮','CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪','BW':'🇧🇼','AO':'🇦🇴','CD':'🇨🇩'} %}
+{% set CCN = {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':"Côte d'Ivoire",'CM':'Cameroon','SN':'Senegal','ML':'Mali','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','BF':'Burkina Faso','NE':'Niger','BW':'Botswana','AO':'Angola','CD':'DR Congo'} %}
+{% set TIERCOL = {'diamond':['#e6f1f4','#225a67'],'platinum':['#eef0f1','#566b72'],'gold':['#fff8df','#7a5600'],'silver':['#f0f2f2','#5d6569']} %}
+{% set AV = [['#e3f1e3','#155a13'],['#fff8df','#8a6005'],['#e2e8e9','#243034']] %}
+{% set flag = FLAGS[p.country_code]|default('🌍') %}
+{% set ctry = CCN[p.country_code]|default(p.country_code) %}
+{% set tier = p.cpi_tier|default('silver') %}
+{% set tc = TIERCOL[tier]|default(['#eef2ee','#1a6118']) %}
+{% set isVerified = p.verification_tier and p.verification_tier != 'none' %}
+{% set firstName = p.display_name|split(' ')|first %}
+{% set bioText = p.bio|default('')|trim %}
 
-<section class="r26-hero" style="padding-block:clamp(2.5rem,5vw,4rem) clamp(1.5rem,3vw,2.5rem);text-align:left">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap" style="position:relative;z-index:1">
-    <div class="r26-reveal r26-d1" style="display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap">
-      <div style="width:88px;height:88px;border-radius:50%;background:linear-gradient(135deg,var(--kale-700),#1e4d52);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-family:var(--font-body);font-weight:700;font-size:2.25rem;flex-shrink:0;box-shadow:var(--shadow-md)">
-        {{ p.display_name|slice(0,1) }}
-      </div>
-      <div style="min-width:0">
-        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.5rem">
-          <span class="flag-chip"><span class="flag-chip__icon">{{ FLAGS[p.country_code]|default('🌍') }}</span> {{ p.country_code }}</span>
-          <span class="tier-badge tier-badge--{{ p.cpi_tier }}">{{ p.cpi_tier }}</span>
-          {% if p.verification_tier and p.verification_tier != 'none' %}
-          <span class="pill" style="background:var(--bg-light-emerald);color:var(--emerald-700)">✓ {{ p.verification_tier|capitalize }} verified</span>
-          {% endif %}
+<div class="pf" x-data="profileApp()">
+
+  <nav class="pf-crumb" aria-label="Breadcrumb">
+    <a href="/registry">Registry</a>{% if p.category %} · <a href="/registry">{{ p.category }}</a>{% endif %} · <b>{{ p.display_name }}</b>
+  </nav>
+
+  {# ── Hero ── #}
+  <header class="pf-hero">
+    <div class="pf-hero__orb" aria-hidden="true"></div>
+    <div class="pf-hero__in">
+      <div class="pf-hero__main">
+        <div class="pf-tags">
+          <span class="pf-badge">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="#fbc329" aria-hidden="true"><path d="m12 2 2.6 6.6L21 9.2l-5 4.3L17.6 21 12 17.3 6.4 21 8 13.5l-5-4.3 6.4-.6L12 2Z"/></svg>
+            {{ tier|capitalize }}{% if isVerified %} · Verified{% endif %}
+          </span>
+          {% if p.registered_at %}<span class="pf-joined">Joined {{ p.registered_at|date('Y') }}</span>{% endif %}
         </div>
-        <h1 class="r26-hl" style="font-size:clamp(1.875rem,4vw,2.75rem)">{{ p.display_name }}</h1>
-        <p class="r26-sub" style="margin:0.375rem 0 0;font-size:1.0625rem">{{ p.category }}</p>
+        <h1>{{ p.display_name }}</h1>
+        <p class="pf-meta">{{ flag }} {{ ctry }}{% if p.category %} · {{ p.category }}{% endif %}{% if p.profile_type and p.profile_type != 'individual' %} · {{ p.profile_type|capitalize }}{% endif %}</p>
+        {% if bioText %}<p class="pf-bioline">{{ bioText|length > 150 ? bioText|slice(0,147) ~ '…' : bioText }}</p>{% endif %}
+
+        <div class="pf-stats">
+          <div><div class="pf-stat__n g">{{ p.cpi_score|default(0) }}</div><div class="pf-stat__l">CPI · of 1000</div></div>
+          <div class="pf-stat__div" aria-hidden="true"></div>
+          <div><div class="pf-stat__n">{{ p.view_count|default(0) }}</div><div class="pf-stat__l">Profile views</div></div>
+          <div class="pf-stat__div" aria-hidden="true"></div>
+          <div><div class="pf-stat__n" x-text="cheers">{{ cheer_count|default(0) }}</div><div class="pf-stat__l">Cheers</div></div>
+        </div>
+
+        <div class="pf-cta">
+          <a class="pf-btn pf-btn--light" href="/vote">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
+            Vote for {{ firstName }}
+          </a>
+          <button type="button" class="pf-btn pf-btn--ghost" @click="cheer()" :aria-pressed="cheered" :disabled="cheered">
+            <span x-text="cheered ? '♥ Cheered' : '♡ Cheer'"></span>
+          </button>
+          <button type="button" class="pf-btn pf-btn--ghost pf-btn--icon" @click="share()" aria-label="Share profile">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="pf-hero__side">
+        <div class="pf-hero__glow" aria-hidden="true"></div>
+        {% if p.avatar_path %}
+          <img class="pf-portrait" src="{{ p.avatar_path }}" alt="{{ p.display_name }}">
+        {% else %}
+          <div class="pf-mono" aria-hidden="true">{{ p.display_name|slice(0,1)|upper }}</div>
+        {% endif %}
       </div>
     </div>
-  </div>
-</section>
+  </header>
 
-<section class="section" style="padding-top:1rem">
-  <div class="wrap" style="display:grid;grid-template-columns:1fr;gap:2rem">
-    <div class="profile-layout" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:2.5rem">
-      {# Main column #}
-      <div data-anim>
-        {% if p.bio %}
-        <h2 class="r26-h3" style="margin-bottom:0.875rem">About</h2>
-        <p style="font-size:1.0625rem;line-height:1.65;color:var(--kale-700)">{{ p.bio }}</p>
+  {# ── Body grid ── #}
+  <div class="pf-grid">
+    <div class="pf-col">
+
+      {# About #}
+      {% if bioText %}
+      <section class="pf-card">
+        <h2>About</h2>
+        <p class="body">{{ bioText }}</p>
+        {% if p.tags is iterable and p.tags|length %}
+        <div class="pf-chips">{% for t in p.tags %}<span class="pf-chip">{{ t }}</span>{% endfor %}</div>
         {% endif %}
+      </section>
+      {% endif %}
 
-        {% if p.achievements is iterable and p.achievements|length %}
-        <h2 class="r26-h3" style="margin:2rem 0 0.875rem">Achievements</h2>
-        <ul style="list-style:none;padding:0;display:flex;flex-direction:column;gap:0.625rem">
+      {# CPI weighting (real 45/55 model — the formula, not fabricated per-profile sub-scores) #}
+      <section class="pf-card">
+        <div class="pf-cpi__top">
+          <h2>Cultural Power Index</h2>
+          <span class="pf-cpi__score">{{ p.cpi_score|default(0) }} / 1000</span>
+        </div>
+        <div class="pf-wbar">
+          <div class="pf-wbar__h"><span>Community vote</span><span class="mono">45%</span></div>
+          <div class="pf-track"><span style="width:45%"></span></div>
+        </div>
+        <div class="pf-wbar">
+          <div class="pf-wbar__h"><span>Independent jury panel</span><span class="mono">55%</span></div>
+          <div class="pf-track"><span style="width:55%"></span></div>
+        </div>
+        <p class="pf-note">The score recomputes every 6 hours from organic verified votes (45%) and the independent judge panel (55%){% if p.cpi_last_computed %} · last updated {{ p.cpi_last_computed|date('d M Y') }}{% endif %}. <a href="/integrity">How scoring works →</a></p>
+      </section>
+
+      {# Achievements #}
+      {% if p.achievements is iterable and p.achievements|length %}
+      <section class="pf-card">
+        <h2>Achievements</h2>
+        <ul class="pf-ach">
           {% for a in p.achievements %}
-          <li style="display:flex;gap:0.625rem;align-items:flex-start"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;color:var(--emerald-600);margin-top:2px"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="currentColor"/></svg> <span>{{ a }}</span></li>
+          <li>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            <span>{{ a }}</span>
+          </li>
           {% endfor %}
         </ul>
-        {% endif %}
+      </section>
+      {% endif %}
 
-        {% if p.tags is iterable and p.tags|length %}
-        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1.5rem">
-          {% for t in p.tags %}
-          <span class="chip">{{ t }}</span>
+      {# Moments / gallery #}
+      {% if p.gallery_paths is iterable and p.gallery_paths|length %}
+      <section class="pf-card">
+        <h2>Moments</h2>
+        <div class="pf-gal">
+          {% for g in p.gallery_paths|slice(0,6) %}
+          <div class="pf-gal__t" style="background-image:url('{{ g }}')"></div>
           {% endfor %}
         </div>
-        {% endif %}
-      </div>
+      </section>
+      {% endif %}
 
-      {# CPI side card #}
-      <aside data-anim data-anim-delay="1">
-        <div class="card" style="padding:2rem;text-align:center;align-items:center">
-          <div class="cpi-ring" style="margin-bottom:1rem">
-            <svg class="cpi-ring__svg" width="180" height="180" viewBox="0 0 60 60" aria-hidden="true">
-              <defs>
-                <linearGradient id="cpiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#338632"/>
-                  <stop offset="100%" stop-color="#fbc329"/>
-                </linearGradient>
-              </defs>
-              <circle class="cpi-ring__track" cx="30" cy="30" r="26" stroke-width="3"/>
-              <circle class="cpi-ring__fill"  cx="30" cy="30" r="26" stroke-width="3"
-                      stroke-dasharray="163.4" stroke-dashoffset="{{ 163.4 - (163.4 * (p.cpi_score|default(0) / 1000)) }}"/>
-            </svg>
-            <div class="cpi-ring__label">
-              <span class="cpi-ring__score">{{ p.cpi_score|default(0) }}</span>
-              <span class="cpi-ring__max">/ 1000 · {{ p.cpi_tier|capitalize }}</span>
+      {# Community: cheers + comments (real /api/community endpoints) #}
+      <section class="pf-card">
+        <div class="pf-comm__head">
+          <h2>Community</h2>
+          <button type="button" class="pf-cheer" @click="cheer()" :aria-pressed="cheered" :disabled="cheered">
+            <span class="h" x-text="cheered ? '♥' : '♡'"></span>
+            <span x-text="cheers"></span> <span style="color:#626a6e;font-weight:500">cheers</span>
+          </button>
+        </div>
+
+        <div class="pf-clist">
+          {% for c in comments|default([]) %}
+          <article class="pf-cmt">
+            <div class="pf-cmt__h">
+              <span class="pf-cmt__a">{{ c.author_name }}</span>
+              <span class="pf-cmt__d">{{ c.created_at|date('d M, H:i') }}</span>
+            </div>
+            <p class="pf-cmt__b">{{ c.body }}</p>
+          </article>
+          {% else %}
+          <div class="pf-empty"><div class="e">💬</div><p style="margin:.5rem 0 0">No comments yet — be the first to add context or evidence.</p></div>
+          {% endfor %}
+        </div>
+
+        <div class="pf-err" role="alert" x-show="cerr" x-cloak x-text="cerr" style="margin-top:16px"></div>
+
+        <form class="pf-form" @submit.prevent="postComment()" x-show="!csent" x-cloak>
+          <div class="pf-frow">
+            <div>
+              <label for="pfCName">Your name</label>
+              <input id="pfCName" type="text" x-model="cname" required placeholder="e.g. Tunde Akinwande">
+            </div>
+            <div>
+              <label for="pfCEmail">Email <span class="soft">(hashed, never shown)</span></label>
+              <input id="pfCEmail" type="email" x-model="cemail" required placeholder="you@example.com">
             </div>
           </div>
-          <div class="text-sm text-soft" style="line-height:1.5">Cultural Power Index<br>recomputed every 6 hours from votes + judge panels.</div>
-          <a href="/vote" class="btn btn--emerald btn--sm" style="margin-top:1rem">
-            Vote for {{ p.display_name|split(' ')|first }}
-            <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </a>
-        </div>
-
-        {% if p.website or p.instagram_handle or p.twitter_handle %}
-        <div class="card" style="margin-top:1rem">
-          <h3 class="r26-eyebrow" style="margin:0 0 0.625rem">Connect</h3>
-          <div style="display:flex;flex-direction:column;gap:0.5rem;font-size:0.9375rem">
-            {% if p.website %}<a href="{{ p.website }}" target="_blank" rel="noopener" style="color:var(--emerald-600);font-weight:500">🌐 {{ p.website|replace({'https://':'','http://':''}) }}</a>{% endif %}
-            {% if p.instagram_handle %}<a href="https://instagram.com/{{ p.instagram_handle }}" target="_blank" rel="noopener" style="color:var(--emerald-600);font-weight:500">📸 @{{ p.instagram_handle }}</a>{% endif %}
-            {% if p.twitter_handle %}<a href="https://x.com/{{ p.twitter_handle }}" target="_blank" rel="noopener" style="color:var(--emerald-600);font-weight:500">𝕏 @{{ p.twitter_handle }}</a>{% endif %}
+          <div>
+            <label for="pfCBody">Your comment</label>
+            <textarea id="pfCBody" x-model="cbody" rows="3" required minlength="6" placeholder="Add context, evidence, or a counter-point (min. 6 characters)"></textarea>
           </div>
+          <button class="pf-submit" type="submit" :disabled="csending" x-text="csending ? 'Sending…' : 'Post comment'"></button>
+        </form>
+
+        <div class="pf-ok" role="status" x-show="csent" x-cloak style="margin-top:16px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.2 14.85l8.27-8.27 1.27 1.27L10.2 17.4 4.47 11.67l1.27-1.27L10.2 14.85z"/></svg>
+          Thanks — your comment is queued for moderation and will appear shortly.
         </div>
-        {% endif %}
-      </aside>
+      </section>
     </div>
 
-    <div class="text-center" style="margin-top:2rem" data-anim>
-      <a href="/registry" class="btn btn--white">← All profiles</a>
-    </div>
+    {# ── Sidebar ── #}
+    <aside class="pf-side">
+      <div class="pf-vote">
+        <div class="pf-vote__orb" aria-hidden="true"></div>
+        <p class="pf-vote__k">Cultural Power Index</p>
+        <p class="pf-vote__b">Back <strong>{{ firstName }}</strong> in the open. One verified voter, one vote per category.</p>
+        <a class="pf-vote__btn" href="/vote">Cast your vote</a>
+        <div class="pf-vote__sec">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>
+          OTP-secured · fully audited
+        </div>
+      </div>
+
+      <div class="pf-card">
+        <h3>At a glance</h3>
+        <div class="pf-facts">
+          <div class="pf-fact"><span class="pf-fact__k">Country</span><span class="pf-fact__v">{{ flag }} {{ ctry }}</span></div>
+          {% if p.category %}<div class="pf-fact"><span class="pf-fact__k">Programme</span><span class="pf-fact__v">{{ p.category }}</span></div>{% endif %}
+          <div class="pf-fact"><span class="pf-fact__k">Tier</span><span class="pf-pill" style="background:{{ tc[0] }};color:{{ tc[1] }}">{{ tier }}</span></div>
+          {% if p.region %}<div class="pf-fact"><span class="pf-fact__k">Region</span><span class="pf-fact__v">{{ p.region }}</span></div>{% endif %}
+          {% if p.registered_at %}<div class="pf-fact"><span class="pf-fact__k">On the record</span><span class="pf-fact__v">Since {{ p.registered_at|date('M Y') }}</span></div>{% endif %}
+          <div class="pf-fact"><span class="pf-fact__k">Profile views</span><span class="pf-fact__v mono">{{ p.view_count|default(0) }}</span></div>
+        </div>
+      </div>
+
+      {% if p.website or p.instagram_handle or p.twitter_handle %}
+      <div class="pf-card">
+        <h3>Connect</h3>
+        <div class="pf-links">
+          {% if p.website %}<a href="{{ p.website }}" target="_blank" rel="noopener nofollow">🌐 {{ p.website|replace({'https://':'','http://':''})|trim('/') }}</a>{% endif %}
+          {% if p.instagram_handle %}<a href="https://instagram.com/{{ p.instagram_handle|replace({'@':''}) }}" target="_blank" rel="noopener nofollow">📸 @{{ p.instagram_handle|replace({'@':''}) }}</a>{% endif %}
+          {% if p.twitter_handle %}<a href="https://x.com/{{ p.twitter_handle|replace({'@':''}) }}" target="_blank" rel="noopener nofollow">𝕏 @{{ p.twitter_handle|replace({'@':''}) }}</a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if similar|default([])|length %}
+      <div class="pf-card">
+        <h3>Also in {{ p.category }}</h3>
+        <div class="pf-sim">
+          {% for s in similar %}
+          {% set sav = AV[loop.index0 % AV|length] %}
+          <a class="pf-sim__row" href="/registry/{{ s.slug }}">
+            <span class="pf-sim__av" style="{% if s.avatar_path %}background-image:url('{{ s.avatar_path }}'){% else %}background:{{ sav[0] }};color:{{ sav[1] }}{% endif %}">{% if not s.avatar_path %}{{ s.display_name|slice(0,1)|upper }}{% endif %}</span>
+            <span class="pf-sim__b">
+              <span class="pf-sim__n">{{ FLAGS[s.country_code]|default('🌍') }} {{ s.display_name }}</span>
+              <span class="pf-sim__c">CPI {{ s.cpi_score }}</span>
+            </span>
+            <span class="pf-sim__go">View</span>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </aside>
   </div>
-</section>
 
+  {# toast #}
+  <div class="pf-toast" role="status" x-show="toast" x-transition x-cloak x-text="toast"></div>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}
+<script>
+function profileApp(){
+  return {
+    cheers: {{ cheer_count|default(0)|e('js') }},
+    cheered: false,
+    toast: '',
+    _t: null,
+    cname:'', cemail:'', cbody:'', csending:false, csent:false, cerr:'',
+    ping(m){ this.toast = m; clearTimeout(this._t); this._t = setTimeout(() => this.toast = '', 2400); },
+    cheer(){
+      if (this.cheered) return;
+      this.cheered = true; this.cheers++;
+      fetch('/api/community/cheer', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+        body: JSON.stringify({ target_type:'profile', target_id: {{ profile.id|default(0)|e('js') }} })
+      }).then(r => r.json()).then(d => {
+        if (!d || !d.success) { this.cheered = false; this.cheers--; }
+        else { this.ping('Thanks for the cheer 👏'); }
+      }).catch(() => { this.cheered = false; this.cheers--; });
+    },
+    share(){
+      var u = window.location.href;
+      if (navigator.share) { navigator.share({ title: document.title, url: u }).catch(() => {}); }
+      else if (navigator.clipboard) { navigator.clipboard.writeText(u).then(() => this.ping('Link copied to clipboard')).catch(() => this.ping('Copy the page link to share')); }
+      else { this.ping('Copy the page link to share'); }
+    },
+    postComment(){
+      this.cerr = '';
+      if (!this.cbody || this.cbody.length < 6 || !this.cname || !this.cemail) {
+        this.cerr = 'Please add your name, a valid email, and at least 6 characters.'; return;
+      }
+      this.csending = true;
+      fetch('/api/community/comment', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
+        body: JSON.stringify({ target_type:'profile', target_id: {{ profile.id|default(0)|e('js') }}, body: this.cbody, author_name: this.cname, author_email: this.cemail })
+      }).then(r => r.json()).then(d => {
+        this.csending = false;
+        if (d && d.success) { this.csent = true; this.cbody=''; this.cname=''; this.cemail=''; }
+        else { this.cerr = (d && d.message) ? d.message : 'Could not post comment. Please try again.'; }
+      }).catch(() => { this.csending = false; this.cerr = 'Network error — please try again.'; });
+    }
+  };
+}
+</script>
 {% endblock %}

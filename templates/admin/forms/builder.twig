@@ -1,0 +1,121 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ is_new ? 'New Form' : 'Edit Form' }}{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/forms">← Forms</a>{% endblock %}
+{% block content %}
+{% if flash_error %}<div class="ad-flash ad-flash--err" role="alert" style="margin-bottom:12px">{{ flash_error }}</div>{% endif %}
+<form method="post" action="{{ is_new ? '/admin/forms/new' : '/admin/forms/' ~ row.id }}" x-data="formBuilder({{ fields_seed|json_encode|e('html_attr') }})" @submit="serialize()">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <input type="hidden" name="fields_json" id="fieldsJson">
+
+  <div class="ad-card"><div class="ad-card__body"><div class="ad-form">
+    <div class="row">
+      <div><label for="f-title">Title *</label><input type="text" name="title" id="f-title" value="{{ row.title|default('') }}" required></div>
+      <div><label for="f-form_key">Key <small>(public URL: /f/key)</small></label><input type="text" name="form_key" id="f-form_key" value="{{ row.form_key|default('') }}" placeholder="auto from title"></div>
+    </div>
+    <div><label for="f-description">Description</label><textarea name="description" id="f-description" rows="2">{{ row.description|default('') }}</textarea></div>
+    <div class="row">
+      <div><label for="f-status">Status</label><select name="status" id="f-status"><option value="draft" {% if row.status|default('draft') == 'draft' %}selected{% endif %}>Draft</option><option value="published" {% if row.status == 'published' %}selected{% endif %}>Published</option></select></div>
+      <div><label for="f-submit_message">Thank-you message</label><input type="text" name="submit_message" id="f-submit_message" value="{{ row.submit_message|default('') }}" placeholder="Thank you — your response has been recorded."></div>
+    </div>
+  </div></div></div>
+
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Fields <small>add, configure, set conditional logic &amp; reorder</small></div></div><div class="ad-card__body">
+    <div style="border:1px dashed var(--ad-accent,#237b22);border-radius:12px;padding:12px 14px;margin-bottom:14px;background:#f6faf6">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--ad-accent,#237b22)" stroke-width="2" aria-hidden="true"><path d="M12 3l2.1 5.4L19.5 10l-5.4 2.1L12 17l-2.1-4.9L4.5 10l5.4-1.6z"/></svg>
+        <strong style="font-size:13px">Generate fields with AI</strong>
+        <span style="font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">— describe the form; review before saving</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
+        <label class="sr-only" for="aiFormPrompt">Describe the form</label>
+        <input type="text" id="aiFormPrompt" x-model="aiPrompt" @keydown.enter.prevent="aiGenerate()"
+               placeholder="e.g. “Partner sponsorship enquiry: org, contact, budget tier, message”"
+               style="flex:1;min-width:240px;border:1px solid var(--ad-line,#dfe4e3);border-radius:8px;padding:8px 11px;font:inherit;font-size:13px">
+        <button type="button" class="ad-btn ad-btn--primary ad-btn--sm" @click="aiGenerate(false)" x-bind:disabled="aiBusy" x-text="aiBusy ? 'Generating…' : 'Generate'"></button>
+        <button type="button" class="ad-btn ad-btn--sm" @click="aiGenerate(true)" x-bind:disabled="aiBusy" title="Add the generated fields after the current ones">Append</button>
+      </div>
+      <p role="alert" x-show="aiError" x-cloak x-text="aiError" style="color:#b42318;font-size:12.5px;font-weight:600;margin:8px 0 0"></p>
+    </div>
+    <template x-for="(f, i) in fields" :key="f._id">
+      <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fafcfa">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select x-model="f.type" aria-label="Field type" style="width:130px"><template x-for="t in types" :key="t"><option :value="t" x-text="t"></option></template></select>
+          <input x-model="f.label" aria-label="Field label" placeholder="Field label" style="flex:1;min-width:160px">
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;white-space:nowrap"><input type="checkbox" x-model="f.required"> Required</label>
+          <button type="button" @click="up(i)" title="Move up" style="border:none;background:#eef2f0;border-radius:7px;width:30px;height:30px;cursor:pointer">↑</button>
+          <button type="button" @click="down(i)" title="Move down" style="border:none;background:#eef2f0;border-radius:7px;width:30px;height:30px;cursor:pointer">↓</button>
+          <button type="button" @click="remove(i)" title="Remove" aria-label="Remove field" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:7px;width:30px;height:30px;cursor:pointer">×</button>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <input x-model="f.placeholder" aria-label="Placeholder" placeholder="Placeholder" style="flex:1;min-width:140px">
+          <input x-model="f.help" aria-label="Help text" placeholder="Help text" style="flex:1;min-width:140px">
+        </div>
+        <div x-show="needsOptions(f.type)" x-cloak style="margin-top:8px">
+          <textarea x-model="f.optionsText" aria-label="Options, one per line" rows="3" placeholder="Options — one per line" style="width:100%"></textarea>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <input x-model="f.pattern" aria-label="Validation regex" placeholder="Validation regex (optional)" style="flex:1;min-width:160px">
+          <input type="number" x-model="f.maxlength" aria-label="Max length" min="0" placeholder="Max length" style="width:120px">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Show only if</span>
+          <select x-model="f.showIfField" aria-label="Show only when field" style="min-width:150px"><option value="">— always shown —</option><template x-for="o in fieldNames(i)" :key="o.name"><option :value="o.name" x-text="o.label"></option></template></select>
+          <span style="font-size:12px">equals</span>
+          <input x-model="f.showIfValue" aria-label="Show only when value" placeholder="value" style="width:150px" :disabled="!f.showIfField">
+        </div>
+      </div>
+    </template>
+    <button type="button" @click="add()" class="ad-btn" style="margin-top:4px">+ Add field</button>
+    <p style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin:10px 0 0">Field types: text, email, tel, number, textarea, select, radio, checkbox, date, file. "Show only if" creates conditional logic; the regex + max length enforce validation (server-side too).</p>
+  </div></div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <a class="ad-btn" href="/admin/forms">Cancel</a>
+    <button class="ad-btn ad-btn--primary" type="submit">Save form</button>
+  </div>
+</form>
+<script>
+function formBuilder(seed){
+  var nextId = 1;
+  var slug = function(s){ return (s || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, ''); };
+  return {
+    types: {{ types|json_encode|raw }},
+    fields: (seed || []).map(function(f){ return Object.assign({ _id: nextId++, optionsText: (f.options || []).join('\n') }, f); }),
+    aiPrompt: '', aiBusy: false, aiError: '',
+    async aiGenerate(append){
+      if(!this.aiPrompt.trim()){ this.aiError = 'Describe the form you want.'; return; }
+      this.aiBusy = true; this.aiError = '';
+      try {
+        var r = await fetch('/admin/ai/form-fields', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]') || {}).content || '{{ csrf_token }}' },
+          body: JSON.stringify({ prompt: this.aiPrompt })
+        });
+        var j = await r.json();
+        if(j && j.ok && j.fields && j.fields.length){
+          var mapped = j.fields.map((f) => ({ _id: nextId++, type: f.type||'text', name:'', label: f.label||'', required: !!f.required, placeholder: f.placeholder||'', help: f.help||'', pattern:'', maxlength:0, optionsText: (f.options||[]).join('\n'), showIfField:'', showIfValue:'' }));
+          this.fields = append ? this.fields.concat(mapped) : mapped;
+          this.aiPrompt = '';
+        } else {
+          this.aiError = (j && j.error) || 'Could not generate fields — try rephrasing.';
+        }
+      } catch(e){ this.aiError = 'Network error — try again.'; }
+      finally { this.aiBusy = false; }
+    },
+    add(){ this.fields.push({ _id: nextId++, type:'text', name:'', label:'', required:false, placeholder:'', help:'', pattern:'', maxlength:0, optionsText:'', showIfField:'', showIfValue:'' }); },
+    remove(i){ this.fields.splice(i, 1); },
+    up(i){ if(i > 0){ var x = this.fields.splice(i, 1)[0]; this.fields.splice(i - 1, 0, x); } },
+    down(i){ if(i < this.fields.length - 1){ var x = this.fields.splice(i, 1)[0]; this.fields.splice(i + 1, 0, x); } },
+    needsOptions(t){ return ['select','radio','checkbox'].indexOf(t) !== -1; },
+    nm(f){ return slug(f.name || f.label); },
+    fieldNames(except){ var self = this; return this.fields.map(function(f, idx){ return { name: self.nm(f), label: (f.label || self.nm(f)), idx: idx }; }).filter(function(o){ return o.idx !== except && o.name; }); },
+    serialize(){
+      var out = this.fields.filter(function(f){ return (f.label || '').trim() !== ''; }).map(function(f){
+        return { type:f.type, name:slug(f.name || f.label), label:f.label, required:!!f.required, placeholder:f.placeholder || '', help:f.help || '', pattern:f.pattern || '', maxlength:parseInt(f.maxlength || 0) || 0, options:(f.optionsText || '').split('\n').map(function(s){ return s.trim(); }).filter(Boolean), showIfField:f.showIfField || '', showIfValue:f.showIfValue || '' };
+      });
+      document.getElementById('fieldsJson').value = JSON.stringify(out);
+    }
+  };
+}
+</script>
+{% endblock %}

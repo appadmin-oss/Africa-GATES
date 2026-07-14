@@ -1,0 +1,64 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="/assets/css/components/auth.css?v={{ asset_version }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-auth">
+  <aside class="ag-auth__brand">
+    <div class="ag-auth__orb" aria-hidden="true"></div>
+    <a class="ag-auth__logo" href="/" aria-label="Africa GATES — home">
+      <span class="ag-auth__logo-glyph" aria-hidden="true">G</span>
+      <span class="ag-auth__logo-word"><b>Africa</b><span>GATES</span></span>
+    </a>
+    <div class="ag-auth__pitch">
+      <h1>Your points,<br>your voice.</h1>
+      <p>Sign in to track the voting points you earn and redeem them to back the African excellence you believe in.</p>
+    </div>
+    <p class="ag-auth__copy">© {{ "now"|date("Y") }} Africa GATES · An Afrovanguard initiative</p>
+  </aside>
+
+  <div class="ag-auth__panel">
+    <div class="ag-auth__form-wrap">
+      <p class="ag-auth__eyebrow">Member account</p>
+
+      {% if sent %}
+        <h1 class="ag-auth__h">Check your email</h1>
+        <p class="ag-auth__sub">Enter the 6-digit code we just sent — it expires in 15 minutes.</p>
+        {% if error %}<div class="ag-auth__alert ag-auth__alert--err" role="alert">{{ error }}</div>{% endif %}
+        {% if notice %}<div class="ag-auth__alert ag-auth__alert--note" role="status">{{ notice }}</div>{% endif %}
+        <form method="post" action="/account/login/verify">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div class="ag-auth__field">
+            <label class="ag-auth__label" for="otp">6-digit code</label>
+            <input class="ag-auth__input ag-auth__input--otp" id="otp" name="otp" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="······" required autofocus>
+          </div>
+          <button class="ag-auth__cta" type="submit">Sign in →</button>
+        </form>
+        <p class="ag-auth__fine"><a href="/account/login">← Use a password instead</a></p>
+      {% else %}
+        <h1 class="ag-auth__h">Welcome back</h1>
+        <p class="ag-auth__sub">Sign in to track your points and redeem votes.</p>
+        {% if error %}<div class="ag-auth__alert ag-auth__alert--err" role="alert">{{ error }}</div>{% endif %}
+        {% if notice %}<div class="ag-auth__alert ag-auth__alert--note" role="status">{{ notice }}</div>{% endif %}
+        <form method="post" action="/account/login">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div class="ag-auth__field">
+            <label class="ag-auth__label" for="email">Email</label>
+            <input class="ag-auth__input" id="email" type="email" name="email" autocomplete="email" placeholder="you@email.com" required autofocus>
+          </div>
+          <div class="ag-auth__field">
+            <label class="ag-auth__label" for="password">Password <span style="font-weight:400;color:#5f7273">(or use a code below)</span></label>
+            <input class="ag-auth__input" id="password" type="password" name="password" autocomplete="current-password" placeholder="••••••••">
+          </div>
+          <button class="ag-auth__cta" type="submit">Sign in →</button>
+          <button class="ag-auth__cta" type="submit" formaction="/account/login/otp" formnovalidate
+                  style="background:transparent;color:var(--ag-green,#237b22);box-shadow:inset 0 0 0 1.5px rgba(35,123,34,.4);margin-top:10px">Email me a one-time code</button>
+        </form>
+        <p class="ag-auth__fine">New here? <a href="/account/register">Create an account</a></p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -61,7 +61,7 @@
   --neutral-200: #e5e7e7;
   --neutral-300: #cdd1d2;
   --neutral-400: #a1a6a9;   /* muted neutral */
-  --neutral-500: #717a7e;
+  --neutral-500: #626a6e;   /* body/secondary text — darkened to clear WCAG AA (≥4.5:1) on white & subpage bg */
   --neutral-600: #4a5256;
   --neutral-700: #2f3538;
 
@@ -995,7 +995,6 @@ p { color: var(--neutral-500); line-height: 1.6; }
   display: flex;
   gap: 1.25rem;
   overflow-x: auto;
-  scroll-snap-type: x mandatory;
   padding: 2rem 0;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -1006,7 +1005,6 @@ p { color: var(--neutral-500); line-height: 1.6; }
 .talent-slide {
   position: relative;
   flex: 0 0 320px;
-  scroll-snap-align: start;
   height: 460px;
   border-radius: var(--r-xl);
   overflow: hidden;
@@ -3534,212 +3532,6 @@ html { scroll-behavior: smooth; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   AI ASSISTANT — floating panel
-═══════════════════════════════════════════════════════════════ */
-.ai-assistant {
-  position: fixed;
-  right: 1.5rem;
-  bottom: 5.75rem;
-  z-index: var(--z-ai);
-  font-family: var(--font-sans, inherit);
-}
-.ai-assistant__fab {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.125rem 0.75rem 0.875rem;
-  border-radius: 999px;
-  background: linear-gradient(135deg, var(--kale-700) 0%, var(--emerald-600) 100%);
-  color: #fff;
-  border: 0;
-  cursor: pointer;
-  box-shadow: 0 18px 30px -10px rgba(16,41,44,0.45), 0 0 0 3px rgba(127,200,124,0.18);
-  font-weight: 600;
-  font-size: 0.8125rem;
-  letter-spacing: 0.04em;
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-  position: relative;
-  overflow: hidden;
-}
-.ai-assistant__fab:hover { transform: translateY(-2px); box-shadow: 0 22px 40px -10px rgba(16,41,44,0.55), 0 0 0 4px rgba(127,200,124,0.28); }
-.ai-assistant__fab-glow {
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  background: conic-gradient(from 0deg, transparent 0%, var(--gold-400) 25%, transparent 50%, var(--emerald-300) 75%, transparent 100%);
-  animation: aiGlow 4s linear infinite;
-  z-index: -1;
-  opacity: 0.7;
-}
-@keyframes aiGlow { to { transform: rotate(360deg); } }
-.ai-assistant__fab-label { white-space: nowrap; }
-.ai-assistant__panel {
-  position: absolute;
-  bottom: calc(100% + 0.875rem);
-  right: 0;
-  width: min(22rem, calc(100vw - 2rem));
-  background: #fff;
-  border: 1px solid rgba(16,41,44,0.08);
-  border-radius: 16px;
-  box-shadow: 0 30px 60px -20px rgba(16,41,44,0.4), 0 10px 24px -8px rgba(16,41,44,0.18);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  max-height: 32rem;
-  animation: aiPanelIn 0.3s cubic-bezier(0.22,1,0.36,1);
-}
-/* Honour the [hidden] attribute — without this, the display: flex above
-   overrides the browser default `[hidden] { display: none }` and the panel
-   refuses to close even though the JS sets panel.hidden = true. */
-.ai-assistant__panel[hidden] { display: none !important; }
-@keyframes aiPanelIn { from { transform: translateY(8px) scale(0.98); opacity: 0; } }
-.ai-assistant__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.875rem 1rem;
-  background: linear-gradient(135deg, var(--kale-700), var(--emerald-700));
-  color: #fff;
-}
-.ai-assistant__title { display: flex; align-items: center; gap: 0.625rem; }
-.ai-assistant__title strong { display: block; font-size: 0.875rem; font-weight: 600; }
-.ai-assistant__title small { display: block; font-family: var(--font-mono); font-size: 0.6875rem; opacity: 0.78; letter-spacing: 0.08em; text-transform: uppercase; }
-.ai-assistant__avatar {
-  width: 32px; height: 32px;
-  border-radius: 10px;
-  background: rgba(255,255,255,0.12);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--gold-200);
-}
-.ai-assistant__close {
-  width: 28px; height: 28px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.08);
-  border: 0;
-  color: #fff;
-  display: inline-flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-.ai-assistant__close:hover { background: rgba(255,255,255,0.18); }
-.ai-assistant__log {
-  flex: 1;
-  padding: 1rem;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-  max-height: 22rem;
-  background: var(--neutral-50);
-}
-.ai-msg { max-width: 88%; }
-.ai-msg p { font-size: 0.875rem; line-height: 1.5; margin: 0; }
-.ai-msg--bot {
-  align-self: flex-start;
-  background: #fff;
-  padding: 0.75rem 0.875rem;
-  border-radius: 14px 14px 14px 4px;
-  border: 1px solid rgba(16,41,44,0.06);
-  color: var(--kale-700);
-}
-.ai-msg--user {
-  align-self: flex-end;
-  background: var(--kale-700);
-  color: #fff;
-  padding: 0.625rem 0.875rem;
-  border-radius: 14px 14px 4px 14px;
-}
-.ai-msg__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
-  margin-top: 0.625rem;
-}
-.ai-msg__chips button {
-  font-size: 0.75rem;
-  padding: 0.35rem 0.625rem;
-  border-radius: 999px;
-  background: var(--emerald-50);
-  border: 1px solid var(--emerald-100, #c8e6c7);
-  color: var(--emerald-700);
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.2s ease;
-}
-.ai-msg__chips button:hover { background: var(--emerald-100, #c8e6c7); }
-.ai-msg--typing {
-  background: #fff;
-  padding: 0.625rem 0.875rem;
-  border-radius: 14px 14px 14px 4px;
-  border: 1px solid rgba(16,41,44,0.06);
-  align-self: flex-start;
-}
-.ai-msg--typing span {
-  display: inline-block;
-  width: 6px; height: 6px;
-  margin: 0 1px;
-  background: var(--neutral-500);
-  border-radius: 50%;
-  animation: aiTyping 1.2s ease-in-out infinite;
-}
-.ai-msg--typing span:nth-child(2) { animation-delay: 0.15s; }
-.ai-msg--typing span:nth-child(3) { animation-delay: 0.3s; }
-@keyframes aiTyping {
-  0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
-  40% { opacity: 1; transform: translateY(-3px); }
-}
-.ai-assistant__form {
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border-top: 1px solid rgba(16,41,44,0.08);
-  background: #fff;
-}
-.ai-assistant__input {
-  flex: 1;
-  padding: 0.625rem 0.875rem;
-  font-size: 0.875rem;
-  border: 1px solid rgba(16,41,44,0.12);
-  border-radius: 999px;
-  background: var(--neutral-50);
-  color: var(--kale-700);
-  outline: none;
-  transition: border-color 0.2s ease, background 0.2s ease;
-}
-.ai-assistant__input:focus { border-color: var(--emerald-500); background: #fff; }
-.ai-assistant__send {
-  width: 38px; height: 38px;
-  border-radius: 50%;
-  background: var(--emerald-600);
-  color: #fff;
-  border: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
-}
-.ai-assistant__send:hover { background: var(--emerald-700); transform: scale(1.05); }
-.ai-assistant__foot {
-  padding: 0.5rem 0.875rem;
-  font-family: var(--font-mono);
-  font-size: 0.625rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--neutral-500);
-  background: #fff;
-  border-top: 1px solid rgba(16,41,44,0.04);
-  text-align: center;
-}
-@media (max-width: 600px) {
-  .ai-assistant { right: 1rem; bottom: 5rem; }
-  .ai-assistant__fab-label { display: none; }
-  .ai-assistant__fab { padding: 0.75rem; }
-}
-
-/* ═══════════════════════════════════════════════════════════════
    SUBPAGE HERO (.p-hero) — cinematic uplift to match home tone
 ═══════════════════════════════════════════════════════════════ */
 .p-hero {
@@ -4397,9 +4189,8 @@ img, svg, canvas, video { max-width: 100%; }
   .afg-drawer { display: flex; }
 }
 
-/* AI assistant + FABs: clear the iOS safe-area and each other on mobile */
+/* Legacy FABs: clear the iOS safe-area on mobile (Gee owns its own offsets) */
 @media (max-width: 600px) {
-  .ai-assistant { bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px)); }
   .community-fab { bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
   #backToTop { bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
 }
@@ -4490,7 +4281,6 @@ img, svg, canvas, video { max-width: 100%; }
      :has scopes padding to pages that render the bar (public site only). */
   body:has(.afg-tabbar) { padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
   .community-fab, #backToTop { display: none !important; }
-  .ai-assistant { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); right: 1rem; }
   .ftr { margin-bottom: 0; }
   /* Drawer sits above the tab bar but leaves it tappable */
   .afg-drawer { inset: var(--header-h) 0 calc(58px + env(safe-area-inset-bottom,0px)) 0; }
@@ -4545,12 +4335,6 @@ img, svg, canvas, video { max-width: 100%; }
   .afg-nav .afg-cta .btn,
   .afg-nav .afg-partner { display: none !important; }
   .afg-cta { gap: 0; }
-
-  /* AI is reachable from the drawer ("Ask Atlas") — drop the floating FAB
-     so the bottom-right corner isn't crowded next to the tab bar. */
-  .ai-assistant__fab { display: none; }
-  /* …but keep the panel usable if opened programmatically from the drawer */
-  .ai-assistant__panel { bottom: calc(72px + env(safe-area-inset-bottom,0px)); right: 0.75rem; left: 0.75rem; width: auto; }
 }
 
 /* ═══════════════════════════════════════════════════════════════

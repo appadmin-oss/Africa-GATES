@@ -15,6 +15,9 @@ class QueueService
 {
     private const MAX_ATTEMPTS = 5;
 
+    /** Seconds after which a held lock is assumed dead (worker crashed) and reclaimable. */
+    private const LOCK_TIMEOUT = 300;
+
     /** @var array<string, callable> */
     private array $handlers = [];
 
@@ -48,16 +51,39 @@ class QueueService
     public function work(int $limit = 20): array
     {
         $now = Carbon::now()->toDateTimeString();
+        // A lock older than LOCK_TIMEOUT means the worker died holding it — reclaim.
+        $staleBefore = Carbon::now()->subSeconds(self::LOCK_TIMEOUT)->toDateTimeString();
+        $reclaimable = static function ($q) use ($staleBefore) {
+            $q->whereNull('locked_at')->orWhere('locked_at', '<', $staleBefore);
+        };
+
         $jobs = DB::table('gates_jobs')
-            ->where('status', 'pending')->where('run_after', '<=', $now)->whereNull('locked_at')
+            ->where('status', 'pending')->where('run_after', '<=', $now)->where($reclaimable)
             ->orderBy('id')->limit($limit)->get();
 
         $done = 0; $failed = 0; $retried = 0;
         foreach ($jobs as $job) {
-            // Claim: only one worker can flip locked_at from NULL.
-            $claimed = DB::table('gates_jobs')->where('id', $job->id)->whereNull('locked_at')
-                ->update(['locked_at' => $now, 'updated_at' => $now]);
+            // Poison pill: a job that already burned all attempts (e.g. crashed the
+            // worker mid-handler every time) must be failed, not reaped forever.
+            if ((int) $job->attempts >= self::MAX_ATTEMPTS) {
+                DB::table('gates_jobs')->where('id', $job->id)->update([
+                    'status' => 'failed', 'locked_at' => null,
+                    'last_error' => 'exceeded max attempts (likely crashed mid-handler)',
+                    'updated_at' => Carbon::now()->toDateTimeString(),
+                ]);
+                $failed++;
+                continue;
+            }
+
+            // Claim: flip the lock only if it's still free or still stale (so a fresh
+            // claim by another worker wins the race). Increment attempts AT CLAIM so a
+            // worker that dies mid-handler still burns an attempt — no infinite loop.
+            $claimed = DB::table('gates_jobs')->where('id', $job->id)
+                ->where('status', 'pending')->where($reclaimable)
+                ->update(['locked_at' => $now, 'attempts' => DB::raw('attempts + 1'), 'updated_at' => $now]);
             if (!$claimed) continue;
+
+            $attempts = (int) $job->attempts + 1; // reflects the claim-time increment
 
             try {
                 $handler = $this->handlers[$job->type] ?? null;
@@ -68,11 +94,10 @@ class QueueService
                 ]);
                 $done++;
             } catch (\Throwable $e) {
-                $attempts = (int) $job->attempts + 1;
+                // attempts already incremented at claim — don't double-count.
                 $exhausted = $attempts >= self::MAX_ATTEMPTS;
                 DB::table('gates_jobs')->where('id', $job->id)->update([
                     'status'     => $exhausted ? 'failed' : 'pending',
-                    'attempts'   => $attempts,
                     'locked_at'  => null,
                     'run_after'  => Carbon::now()->addSeconds(60 * $attempts)->toDateTimeString(),
                     'last_error' => mb_substr($e->getMessage(), 0, 500),

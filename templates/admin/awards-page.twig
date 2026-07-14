@@ -1,0 +1,57 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Awards Page{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/awards" target="_blank" rel="noopener">View live page ↗</a>
+  <button class="ad-btn ad-btn--primary" type="submit" form="awardsPageForm">Save changes</button>
+{% endblock %}
+
+{% block head_styles %}
+<style>
+  .awp-intro{ color:var(--ad-text-soft); font-size:13.5px; line-height:1.6; margin:0 0 18px; max-width:680px; }
+  .awp-intro a{ color:var(--ad-accent,#2563eb); font-weight:600; }
+  .awp-sec__h{ font-size:13px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ad-text-soft); margin:0 0 2px; }
+  .awp-field{ margin-bottom:16px; }
+  .awp-field:last-child{ margin-bottom:0; }
+  .awp-field label{ display:block; font-size:13px; font-weight:600; color:var(--ad-text); margin-bottom:5px; }
+  .awp-field input, .awp-field textarea{ width:100%; }
+  .awp-field .hint{ display:block; margin-top:5px; font-size:12px; color:var(--ad-text-mute); line-height:1.5; }
+  .awp-row{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:620px){ .awp-row{ grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<p class="awp-intro">
+  Edit the copy that frames the public <a href="/awards" target="_blank" rel="noopener">Awards page</a>. The award
+  <strong>programme cards</strong> themselves (titles, descriptions, icons, open/closed status) are live data —
+  manage those under <a href="/admin/programmes">Awards &amp; Cycles</a>. Leave any field blank to fall back to its
+  default (shown as the greyed placeholder).
+</p>
+
+<form id="awardsPageForm" class="ad-form" method="post" action="/admin/awards-page">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+  {% for section, fields in sections %}
+  <div class="ad-card"><div class="ad-card__body">
+    <h2 class="awp-sec__h">{{ section }}</h2>
+
+    {% for f in fields %}
+      <div class="awp-field">
+        <label for="{{ f.key }}">{{ f.label }}</label>
+        {% if f.type == 'textarea' %}
+          <textarea id="{{ f.key }}" name="{{ f.key }}" rows="3" placeholder="{{ f.default }}">{{ f.value }}</textarea>
+        {% else %}
+          <input id="{{ f.key }}" type="text" name="{{ f.key }}" value="{{ f.value }}" placeholder="{{ f.default }}">
+        {% endif %}
+        {% if f.help %}<small class="hint">{{ f.help }}</small>{% endif %}
+      </div>
+    {% endfor %}
+  </div></div>
+  {% endfor %}
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:4px">
+    <a class="ad-btn" href="/admin/dashboard">Cancel</a>
+    <button class="ad-btn ad-btn--primary" type="submit">Save changes</button>
+  </div>
+</form>
+{% endblock %}

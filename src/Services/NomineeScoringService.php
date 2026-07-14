@@ -35,46 +35,91 @@ class NomineeScoringService
             ->select('cy.id as cycle_id', 'cy.programme_id')->first();
         $w = $this->rules->weights($ctx->programme_id ?? null, $ctx->cycle_id ?? null);
 
-        $cohortMax = max(1, (int) $nominees->max('vote_count'));
-        $judge = $this->judgeAveragesFor($nominees->pluck('id')->all());
+        // Community CPI is normalised over ORGANIC votes only — purchased "bonus"
+        // votes (folded into vote_count for display) must never move the cohort
+        // max or any nominee's community share, or money could buy rank.
+        $cohortMax = max(1, (int) $nominees->max('organic_vote_count'));
+        $quorum = (int) ($this->rules->effective($ctx->programme_id ?? null, $ctx->cycle_id ?? null)['min_judges_per_nominee']
+            ?? RuleEngine::DEFAULTS['min_judges_per_nominee']);
+        $stats = $this->judgeStatsFor($nominees->pluck('id')->all());
 
         $out = [];
         foreach ($nominees as $n) {
-            $ja = $judge[$n->id] ?? null;
+            $st     = $stats[(int) $n->id] ?? null;
+            $ja     = $st['avg'] ?? null;
+            $judges = $st['judges'] ?? 0;
             $out[(int) $n->id] = [
-                'vote_count'  => (int) $n->vote_count,
+                'vote_count'  => (int) $n->vote_count,            // total display support
                 'judge_score' => $ja,
-                'cpi_score'   => $this->cpi->nomineeScore((int) $n->vote_count, $cohortMax, $ja, $w['community'], $w['judge']),
+                'judges'      => $judges,                          // COMPLETE scorecards only
+                'eligible'    => $judges >= $quorum,               // winner-eligible only at quorum
+                'cpi_score'   => $this->cpi->nomineeScore((int) $n->organic_vote_count, $cohortMax, $ja, $w['community'], $w['judge']),
             ];
         }
         return $out;
     }
 
     /**
-     * Weighted judge average (0–10) per nominee, averaged across judges.
+     * Weighted judge average (0–10) per nominee, across COMPLETE scorecards only.
      * @param int[] $nomineeIds
      * @return array<int,float>
      */
     public function judgeAveragesFor(array $nomineeIds): array
     {
+        $out = [];
+        foreach ($this->judgeStatsFor($nomineeIds) as $id => $st) {
+            $out[$id] = $st['avg'];
+        }
+        return $out;
+    }
+
+    /**
+     * Per-nominee judge stats counting ONLY complete scorecards — a judge whose
+     * scores cover EVERY active criterion. Partial scorecards are ignored, so a
+     * judge cannot be counted toward quorum (or sway the average) by scoring just
+     * one criterion.
+     *
+     * @param int[] $nomineeIds
+     * @return array<int, array{avg: float, judges: int}>
+     */
+    public function judgeStatsFor(array $nomineeIds): array
+    {
         if (!$nomineeIds) return [];
         $weights = [];
         foreach (DB::table('gates_judge_criteria')->where('is_active', 1)->get() as $c) {
-            $weights[$c->id] = (int) $c->weight ?: 25;
+            $weights[(int) $c->id] = (int) $c->weight ?: 25;
         }
+        $activeIds = array_keys($weights);
+        $required  = count($activeIds);
+        if ($required === 0) return [];
+
         $tree = [];
         foreach (DB::table('gates_judge_criteria_scores')->whereIn('nominee_id', $nomineeIds)->get() as $s) {
-            $tree[$s->nominee_id][$s->judge_id][$s->criterion_id] = (int) $s->score;
+            $tree[(int) $s->nominee_id][(int) $s->judge_id][(int) $s->criterion_id] = (int) $s->score;
         }
         $out = [];
         foreach ($tree as $nomId => $byJudge) {
             $perJudge = [];
             foreach ($byJudge as $scoresByCrit) {
-                $ws = 0; $wt = 0;
-                foreach ($scoresByCrit as $cid => $sc) { $w = $weights[$cid] ?? 25; $ws += $sc * $w; $wt += $w; }
-                if ($wt > 0) $perJudge[] = $ws / $wt;
+                $ws = 0; $wt = 0; $covered = 0;
+                foreach ($activeIds as $cid) {
+                    if (!array_key_exists($cid, $scoresByCrit)) continue;
+                    $covered++;
+                    $w = $weights[$cid];
+                    $ws += $scoresByCrit[$cid] * $w;
+                    $wt += $w;
+                }
+                // Only a COMPLETE scorecard (every active criterion scored) counts.
+                if ($covered === $required && $wt > 0) {
+                    $perJudge[] = $ws / $wt;
+                }
             }
-            if ($perJudge) $out[(int) $nomId] = round(array_sum($perJudge) / count($perJudge), 2);
+            if ($perJudge) {
+                $out[(int) $nomId] = [
+                    'avg'    => round(array_sum($perJudge) / count($perJudge), 2),
+                    'judges' => count($perJudge),
+                ];
+            }
         }
         return $out;
     }

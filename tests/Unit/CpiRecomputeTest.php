@@ -33,7 +33,8 @@ class CpiRecomputeTest extends TestCase
     {
         DB::table('gates_nominees')->insert([
             'id' => $id, 'category_id' => $cat, 'profile_id' => $profileId,
-            'name' => "N{$id}", 'country_code' => 'NG', 'status' => 'approved', 'vote_count' => $votes,
+            'name' => "N{$id}", 'country_code' => 'NG', 'status' => 'approved',
+            'vote_count' => $votes, 'organic_vote_count' => $votes,
         ]);
     }
 

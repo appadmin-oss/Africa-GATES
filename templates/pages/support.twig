@@ -1,0 +1,165 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style>
+  body[data-page="support"]{ background:#eef0ec; color:var(--ag-ink); }
+  .sp{ max-width:1080px; margin:0 auto; padding:clamp(2rem,5vw,2.75rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+
+  .sp-hero{ text-align:center; max-width:600px; margin:0 auto; }
+  .sp-hero .sp-eyebrow{ margin:0 0 10px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
+  .sp-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4.4vw,2.625rem); letter-spacing:-.02em; }
+  .sp-hero p{ margin:14px 0 0; font-size:16px; line-height:1.6; color:#4a5256; }
+
+  .sp-routes{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:32px; }
+  .sp-route{ cursor:pointer; text-align:left; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:22px; text-decoration:none; display:block; transition:border-color .15s, transform .15s; }
+  .sp-route:hover{ border-color:rgba(16,41,44,.2); transform:translateY(-2px); }
+  .sp-route.is-active{ border-color:var(--ag-green); }
+  .sp-route__ico{ width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; }
+  .sp-route__t{ font-weight:600; font-size:15.5px; color:var(--ag-ink); margin-top:14px; }
+  .sp-route__d{ font-size:13px; color:var(--ag-ink-soft); margin-top:4px; line-height:1.5; }
+
+  .sp-grid{ display:grid; grid-template-columns:1fr 320px; gap:28px; align-items:start; margin-top:28px; }
+  .sp-card{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(1.4rem,3vw,1.9rem); }
+  .sp-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; color:var(--ag-ink); }
+  .sp-card__sub{ margin:8px 0 22px; font-size:14px; color:var(--ag-ink-soft); }
+
+  .sp-label{ display:block; font-size:12px; font-weight:600; color:#4a5256; margin-bottom:8px; }
+  .sp-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
+  .sp-chip{ cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; padding:9px 15px; border-radius:999px; border:1px solid rgba(16,41,44,.14); background:var(--ag-surface); color:#4a5256; transition:background .15s, color .15s, border-color .15s; }
+  .sp-chip.is-active{ background:var(--ag-ink); color:#fff; border-color:var(--ag-ink); }
+  .sp-row{ display:flex; gap:14px; }
+  .sp-field{ flex:1; }
+  .sp-mt{ margin-top:16px; }
+  .sp-input, .sp-textarea{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:14.5px; color:var(--ag-ink); outline:none; transition:border-color .15s; }
+  .sp-input:focus, .sp-textarea:focus{ border-color:var(--ag-green); }
+  .sp-textarea{ min-height:120px; resize:vertical; line-height:1.5; }
+  .sp-cta{ width:100%; margin-top:20px; cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:15px; border-radius:999px; transition:background .15s; }
+  .sp-cta:hover{ background:var(--ag-green-dark); }
+  .sp-cta:disabled{ background:#dfe4e3; color:#5b6669; opacity:1; cursor:not-allowed; }
+  .sp-fine{ margin:14px 0 0; font-size:11.5px; line-height:1.55; color:#5a6d6f; text-align:center; }
+  .sp-fine strong{ color:#4a5256; }
+  .sp-fine a{ color:var(--ag-green); }
+
+  .sp-side{ display:flex; flex-direction:column; gap:18px; position:sticky; top:88px; }
+  .sp-human{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:20px; padding:24px; }
+  .sp-human__orb{ position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.2),transparent 68%); }
+  .sp-human h3{ position:relative; margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:18px; color:#fff; }
+  .sp-human p{ position:relative; margin:9px 0 0; font-size:13.5px; line-height:1.55; color:rgba(255,255,255,.78); }
+  .sp-human__links{ position:relative; display:flex; flex-direction:column; gap:9px; margin-top:16px; }
+  .sp-human__links a, .sp-human__links button{ display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:12px 14px; color:#fff; font-size:13.5px; font-weight:500; text-decoration:none; cursor:pointer; font-family:inherit; text-align:left; width:100%; }
+  .sp-human__links a:hover, .sp-human__links button:hover{ background:rgba(255,255,255,.14); }
+
+  .sp-before{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px; }
+  .sp-before h3{ margin:0 0 12px; font:600 12px/1 var(--ag-font-body); letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f; }
+  .sp-before__links{ display:flex; flex-direction:column; gap:13px; }
+  .sp-before__links a{ display:flex; align-items:center; gap:10px; color:var(--ag-ink); text-decoration:none; font-size:13.5px; font-weight:500; }
+  .sp-before__links a:hover{ color:var(--ag-green); }
+
+  .sp-sla{ background:#f4f7f4; border:1px solid #d6e8d3; border-radius:16px; padding:18px; display:flex; align-items:center; gap:12px; }
+  .sp-sla__t{ font-size:13px; font-weight:600; color:var(--ag-ink); }
+  .sp-sla__d{ font-size:12.5px; color:#1a6118; }
+
+  @media (max-width:860px){ .sp-grid{ grid-template-columns:1fr; } .sp-side{ position:static; top:auto; } }
+  @media (max-width:680px){ .sp-routes{ grid-template-columns:1fr; } .sp-row{ flex-direction:column; gap:16px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sp" x-data="{
+  reason:'Dispute a result', name:'', email:'', ref:'', detail:'',
+  get valid(){ return /.+@.+\..+/.test(this.email) && this.detail.trim().length > 3; },
+  send(){
+    if(!this.valid) return;
+    var body = 'Reason: '+this.reason+'%0D%0AName: '+encodeURIComponent(this.name)+'%0D%0AProfile / reference: '+encodeURIComponent(this.ref)+'%0D%0A%0D%0A'+encodeURIComponent(this.detail);
+    window.location.href = 'mailto:appeals@afrovanguard.org.ng?subject='+encodeURIComponent('GATES appeal — '+this.reason)+'&body='+body;
+  }
+}">
+  <header class="sp-hero">
+    <p class="sp-eyebrow">Support &amp; appeals</p>
+    <h1>We’re here to help</h1>
+    <p>Dispute a result, report a profile, recover access, or raise a concern. Every appeal is reviewed by a real person — most within one business day.</p>
+  </header>
+
+  <div class="sp-routes">
+    <a class="sp-route" href="#sp-form" @click="reason='Dispute a result'" :class="reason==='Dispute a result' && 'is-active'">
+      <span class="sp-route__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6ZM4 7h16"/></svg></span>
+      <div class="sp-route__t">Dispute a result</div>
+      <div class="sp-route__d">Think a vote count or ranking is wrong? Ask for an audit.</div>
+    </a>
+    <a class="sp-route" href="#sp-form" @click="reason='Report a profile'" :class="reason==='Report a profile' && 'is-active'">
+      <span class="sp-route__ico" style="background:#fff8df;color:#7a5600"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="M12 8v4M12 16h.01"/></svg></span>
+      <div class="sp-route__t">Report a profile</div>
+      <div class="sp-route__d">Flag a profile that breaks our integrity rules.</div>
+    </a>
+    <a class="sp-route" href="#sp-form" @click="reason='Recover access'" :class="reason==='Recover access' && 'is-active'">
+      <span class="sp-route__ico" style="background:#e9efef;color:#2b373d"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></span>
+      <div class="sp-route__t">Recover access</div>
+      <div class="sp-route__d">Can’t sign in or verify your email? We’ll help.</div>
+    </a>
+  </div>
+
+  <div class="sp-grid">
+    <div class="sp-card" id="sp-form">
+      <h2>Submit an appeal</h2>
+      <p class="sp-card__sub">Tell us what happened. The more detail you share, the faster we can resolve it.</p>
+
+      <label class="sp-label">What is this about?</label>
+      <div class="sp-chips">
+        {% for r in ['Dispute a result','Report a profile','Recover access','Payment or ticket issue','Something else'] %}
+          <button type="button" class="sp-chip" @click="reason='{{ r }}'" :class="reason==='{{ r }}' && 'is-active'" :aria-pressed="reason==='{{ r }}'">{{ r }}</button>
+        {% endfor %}
+      </div>
+
+      <div class="sp-row">
+        <div class="sp-field">
+          <label class="sp-label" for="sp-name">Your name</label>
+          <input class="sp-input" id="sp-name" x-model="name" placeholder="Amara Okonkwo">
+        </div>
+        <div class="sp-field">
+          <label class="sp-label" for="sp-email">Email</label>
+          <input class="sp-input" id="sp-email" x-model="email" type="email" placeholder="you@email.com">
+        </div>
+      </div>
+
+      <div class="sp-mt">
+        <label class="sp-label" for="sp-ref">Profile or reference (optional)</label>
+        <input class="sp-input" id="sp-ref" x-model="ref" placeholder="e.g. /registry/amara-okonkwo · or NOM-7F3K2">
+      </div>
+
+      <div class="sp-mt">
+        <label class="sp-label" for="sp-detail">Describe the issue</label>
+        <textarea class="sp-textarea" id="sp-detail" x-model="detail" placeholder="What happened, and what outcome are you hoping for?"></textarea>
+      </div>
+
+      <button type="button" class="sp-cta" :disabled="!valid" @click="send()">Email this appeal →</button>
+      <p class="sp-fine">This opens your email app with the details filled in, addressed to <strong>appeals@afrovanguard.org.ng</strong>. Appeals are confidential and handled under our <a href="/integrity">integrity policy</a>.</p>
+    </div>
+
+    <aside class="sp-side">
+      <div class="sp-human">
+        <div class="sp-human__orb" aria-hidden="true"></div>
+        <h3>Talk to a human</h3>
+        <p>Prefer to reach out directly? The team is one message away.</p>
+        <div class="sp-human__links">
+          <a href="mailto:support@afrovanguard.org.ng"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg>support@afrovanguard.org.ng</a>
+          <button type="button" onclick="(window.openGee||function(){var f=document.getElementById('geeFab');f&&f.click();})()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20l1.1-3.5A8.4 8.4 0 1 1 21 11.5Z"/></svg>Ask Gee</button>
+        </div>
+      </div>
+
+      <div class="sp-before">
+        <h3>Before you appeal</h3>
+        <div class="sp-before__links">
+          <a href="/integrity"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .3c0 1.7-2.5 2-2.5 3.7M12 17h.01"/></svg>How the CPI is scored</a>
+          <a href="/help"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Search the Help Center</a>
+          <a href="/terms"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>Integrity &amp; voting rules</a>
+        </div>
+      </div>
+
+      <div class="sp-sla">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <div><div class="sp-sla__t">Avg. first response</div><div class="sp-sla__d">under 1 business day</div></div>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

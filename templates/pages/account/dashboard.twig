@@ -1,0 +1,219 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style>
+  body[data-page="account"]{ background:#eef0ec; color:var(--ag-ink); }
+  .ac{ max-width:920px; margin:0 auto; padding:0 var(--ag-gutter,28px) 60px; }
+  .ac-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:26px 0 6px; }
+  .ac-head h1{ margin:0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.6rem,4.5vw,2.2rem); color:var(--ag-ink); }
+  .ac-head__sub{ font-size:13.5px; color:#5a6d6f; margin-top:3px; }
+  .ac-logout{ font-size:13px; font-weight:600; color:#5a6d6f; text-decoration:none; border:1px solid rgba(16,41,44,.14); padding:8px 14px; border-radius:999px; }
+  .ac-logout:hover{ color:var(--ag-ink); border-color:rgba(16,41,44,.28); }
+  .ac-ok{ background:#effaf0; border:1px solid #bfe6bd; color:#1a6118; border-radius:12px; padding:11px 14px; font-size:13.5px; margin-top:12px; }
+
+  .ac-grid{ display:grid; grid-template-columns:1.1fr 1fr; gap:18px; margin-top:16px; }
+  @media(max-width:680px){ .ac-grid{ grid-template-columns:1fr; } }
+  .ac-pts{ position:relative; overflow:hidden; border-radius:20px; background:radial-gradient(130% 130% at 85% 0%,#1d5b2a,#10292C 60%); color:#fff; padding:24px 26px; }
+  .ac-pts__orb{ position:absolute; right:-40px; bottom:-50px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%); }
+  .ac-pts__label{ position:relative; font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#ffd24a; }
+  .ac-pts__n{ position:relative; font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:clamp(2.4rem,9vw,3.2rem); line-height:1; margin-top:8px; color:#fff; }
+  .ac-pts__sub{ position:relative; font-size:13.5px; color:rgba(255,255,255,.82); margin-top:8px; }
+  .ac-pts__cta{ position:relative; display:inline-flex; align-items:center; gap:7px; margin-top:16px; background:#fff; color:#10292C; font-weight:700; font-size:14px; padding:10px 18px; border-radius:999px; text-decoration:none; }
+  .ac-pts__cta:hover{ background:#eef3ee; }
+
+  .ac-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px 24px; }
+  .ac-card h2{ margin:0 0 12px; font-family:var(--ag-font-display); font-weight:700; font-size:1.15rem; color:var(--ag-ink); }
+  .ac-earn__row{ display:flex; align-items:flex-start; gap:11px; font-size:13.5px; color:#3a4448; line-height:1.5; }
+  .ac-earn__row + .ac-earn__row{ margin-top:11px; }
+  .ac-earn__i{ flex:none; width:30px; height:30px; border-radius:9px; background:#effaf0; color:#1a6118; display:flex; align-items:center; justify-content:center; font-size:15px; }
+
+  .ac-ledger{ margin-top:18px; }
+  .ac-row{ display:flex; align-items:center; gap:12px; padding:13px 0; border-top:1px solid rgba(16,41,44,.07); }
+  .ac-row:first-of-type{ border-top:0; }
+  .ac-row__b{ flex:1; min-width:0; }
+  .ac-row__r{ font-weight:600; font-size:14px; color:var(--ag-ink); }
+  .ac-row__d{ font-size:12px; color:#5a6d6f; margin-top:1px; }
+  .ac-row__delta{ font:700 14px/1 var(--ag-font-mono,monospace); flex:none; }
+  .ac-row__delta.pos{ color:#1a6118; } .ac-row__delta.neg{ color:#b42318; }
+  .ac-row__bal{ font:600 12px/1 var(--ag-font-mono,monospace); color:#92a6a7; flex:none; min-width:64px; text-align:right; }
+  .ac-empty{ color:#5a6d6f; font-size:14px; margin:0; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set labels = {'earn.shop_order':'Shop order','earn.donation':'Donation','earn.event_ticket':'Event ticket','spend.vote':'Redeemed for votes','adjust.admin':'Admin adjustment'} %}
+<div class="ac">
+  <div class="ac-head">
+    <div>
+      <h1>Hello, {{ user.name|split(' ')|first }}</h1>
+      <div class="ac-head__sub">{{ user.email }}</div>
+    </div>
+    <a class="ac-logout" href="/account/logout">Sign out</a>
+  </div>
+  {% if flash_ok %}<div class="ac-ok">{{ flash_ok }}</div>{% endif %}
+  {% if flash_error %}<div class="ac-ok" style="background:#fdeaea;border-color:#f3c2c2;color:#b42318">{{ flash_error }}</div>{% endif %}
+
+  {# ── Onboarding checklist — hidden once everything is done ── #}
+  {% set _open_steps = checklist|default([])|filter(s => not s.done) %}
+  {% if _open_steps is not empty %}
+  <div class="ac-card" style="margin:0 0 18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <h2 style="margin:0">Get the most from your membership</h2>
+      {% if completeness is defined %}
+      <div style="display:flex;align-items:center;gap:8px;min-width:180px" title="Profile completeness">
+        <div style="flex:1;height:7px;background:rgba(16,41,44,.08);border-radius:99px;overflow:hidden"><div style="width:{{ completeness.pct }}%;height:100%;background:var(--ag-green,#237b22);border-radius:99px"></div></div>
+        <span style="font-size:12px;font-weight:700;color:var(--ag-green,#237b22)">{{ completeness.pct }}%</span>
+      </div>
+      {% endif %}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:12px">
+      {% for s in checklist %}
+      <a href="{{ s.href }}" style="display:flex;align-items:center;gap:9px;text-decoration:none;padding:10px 12px;border-radius:12px;border:1px solid {{ s.done ? 'rgba(35,123,34,.25)' : 'rgba(16,41,44,.10)' }};background:{{ s.done ? '#f2f9f2' : '#fff' }}">
+        <span aria-hidden="true" style="width:20px;height:20px;flex:none;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;{{ s.done ? 'background:#237b22;color:#fff' : 'background:rgba(16,41,44,.07);color:#5a6d6f' }}">{{ s.done ? '✓' : loop.index }}</span>
+        <span style="font-size:13px;font-weight:600;color:{{ s.done ? '#40554f' : 'var(--ag-ink,#10292c)' }};{{ s.done ? 'text-decoration:line-through;opacity:.7' : '' }}">{{ s.label }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="ac-grid">
+    <div class="ac-pts">
+      <div class="ac-pts__orb" aria-hidden="true"></div>
+      <div class="ac-pts__label">Voting points</div>
+      <div class="ac-pts__n">{{ points|number_format }}</div>
+      <div class="ac-pts__sub" style="margin-top:6px">{{ summary.earned|number_format }} earned · {{ summary.spent|number_format }} redeemed</div>
+      {% if points_enabled %}
+        <div class="ac-pts__sub">≈ <strong>{{ redeemable }}</strong> vote{{ redeemable == 1 ? '' : 's' }} redeemable · {{ points_per_vote }} pts = 1 vote</div>
+        <a class="ac-pts__cta" href="/vote">Redeem at the ballot →</a>
+      {% else %}
+        <div class="ac-pts__sub">Earn points from your activity — redemption opens soon.</div>
+      {% endif %}
+    </div>
+
+    <div class="ac-card">
+      <h2>How you earn</h2>
+      <div class="ac-earn__row"><span class="ac-earn__i">🛍️</span><span>Buy from the <a href="/shop" style="color:var(--ag-green)">shop</a> — points scale with what you spend.</span></div>
+      <div class="ac-earn__row"><span class="ac-earn__i">🎟️</span><span>Register for paid events.</span></div>
+      <div class="ac-earn__row"><span class="ac-earn__i">♥</span><span>Make a <a href="/donate" style="color:var(--ag-green)">donation</a> to child leadership programmes.</span></div>
+      <div class="ac-earn__row"><span class="ac-earn__i">✓</span><span>Points convert to votes you can cast for your favourites.</span></div>
+    </div>
+  </div>
+
+  {# ── Your activity: votes cast + nominations made ── #}
+  <div class="ac-grid" style="margin-top:18px">
+    <section class="ac-card" aria-labelledby="ac-votes-h">
+      <h2 id="ac-votes-h">Your votes</h2>
+      {% if my_votes is empty %}
+        <p class="ac-empty">You haven't voted yet — <a href="/vote" style="color:var(--ag-green,#237b22);font-weight:600">explore the ballot</a> and back your favourites.</p>
+      {% else %}
+        <ul style="list-style:none;margin:0;padding:0">
+          {% for v in my_votes %}
+          <li style="padding:10px 0;border-top:1px solid rgba(16,41,44,.07)">
+            <div style="font-weight:600;font-size:14px;color:var(--ag-ink,#10292c)">{{ v.nominee }}</div>
+            <div style="font-size:12px;color:#5a6d6f;margin-top:2px">{{ v.category ?: 'Category' }} · <time datetime="{{ v.voted_at }}">{{ v.voted_at|date('j M Y') }}</time></div>
+          </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+    <section class="ac-card" aria-labelledby="ac-noms-h">
+      <h2 id="ac-noms-h">Your nominations</h2>
+      {% if my_nominations is empty %}
+        <p class="ac-empty">No nominations yet — <a href="/nominate" style="color:var(--ag-green,#237b22);font-weight:600">put someone forward</a> for continental recognition.</p>
+      {% else %}
+        <ul style="list-style:none;margin:0;padding:0">
+          {% for n in my_nominations %}
+          {% set badge = {'pending': ['#8a6d1a', '#fdf6e3', 'Pending review'], 'approved': ['#166534', '#f0fdf4', 'Approved'], 'rejected': ['#7f1d1d', '#fef2f2', 'Not approved']}[n.status]|default(['#5a6d6f', '#f4f5f5', n.status|capitalize]) %}
+          <li style="padding:10px 0;border-top:1px solid rgba(16,41,44,.07)">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-weight:600;font-size:14px;color:var(--ag-ink,#10292c)">{{ n.nominee }}</span>
+              <span style="font-size:11px;font-weight:700;color:{{ badge[0] }};background:{{ badge[1] }};border-radius:99px;padding:3px 9px">{{ badge[2] }}</span>
+            </div>
+            <div style="font-size:12px;color:#5a6d6f;margin-top:2px">Ref <code style="font-size:11.5px">{{ n.reference }}</code> · <time datetime="{{ n.created_at }}">{{ n.created_at|date('j M Y') }}</time></div>
+          </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  </div>
+
+  {% if my_links is not empty %}
+  <section class="ac-card" style="margin-top:18px" aria-labelledby="ac-links-h">
+    <h2 id="ac-links-h">Your share links</h2>
+    <p style="font-size:13px;color:#5a6d6f;margin:4px 0 8px">Links you created so others can second a nomination — opens counted live.</p>
+    <ul style="list-style:none;margin:0;padding:0">
+      {% for l in my_links %}
+      <li style="padding:10px 0;border-top:1px solid rgba(16,41,44,.07);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div style="font-weight:600;font-size:14px;color:var(--ag-ink,#10292c)">{{ l.nominee }}</div>
+          <div style="font-size:12px;color:#5a6d6f;margin-top:2px">{{ l.hits }} open{{ l.hits == 1 ? '' : 's' }} · {{ l.expired ? 'expired' : ('expires ' ~ l.expires_at|date('j M Y')) }}</div>
+        </div>
+        {% if not l.expired %}
+        <button type="button" onclick="navigator.clipboard && navigator.clipboard.writeText(this.dataset.url); this.textContent='Copied ✓'; setTimeout(() => this.textContent='Copy link', 1600)"
+                data-url="{{ l.url }}" aria-label="Copy share link for {{ l.nominee }}"
+                style="background:#10292c;color:#fff;border:0;font-weight:600;font-size:12px;padding:8px 14px;border-radius:999px;cursor:pointer">Copy link</button>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <div class="ac-card" id="profile" style="margin-top:18px" x-data="{edit:false, pw:false}">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <h2 style="margin:0">Profile &amp; security</h2>
+      <button type="button" @click="edit=!edit" style="border:1px solid rgba(16,41,44,.16);background:none;border-radius:999px;padding:7px 14px;font:600 13px/1 inherit;color:#5a6d6f;cursor:pointer" x-text="edit ? 'Close' : 'Edit'"></button>
+    </div>
+    <div x-show="!edit" style="margin-top:12px;font-size:14px;color:#3a4448;line-height:1.8">
+      <div><strong>Name</strong> · {{ user.name }}</div>
+      <div><strong>Email</strong> · {{ user.email }}</div>
+      <div><strong>Phone</strong> · {{ user.phone|default('—') }}</div>
+    </div>
+    <form x-show="edit" x-cloak method="post" action="/account/profile" style="margin-top:14px">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <label style="font-size:12.5px;color:#5a6d6f">Full name<input name="name" type="text" value="{{ user.name }}" required style="display:block;width:100%;margin-top:5px;border:1px solid rgba(16,41,44,.16);border-radius:10px;padding:10px 12px;font:inherit"></label>
+        <label style="font-size:12.5px;color:#5a6d6f">Phone<input name="phone" type="tel" value="{{ user.phone }}" required style="display:block;width:100%;margin-top:5px;border:1px solid rgba(16,41,44,.16);border-radius:10px;padding:10px 12px;font:inherit"></label>
+      </div>
+      <p style="font-size:12px;color:#92a6a7;margin:10px 0 4px">Your email is fixed here — contact support to change it.</p>
+      <button type="button" @click="pw=!pw" style="border:none;background:#f4f7f4;border-radius:999px;padding:7px 13px;font:600 12.5px/1 inherit;color:#5a6d6f;cursor:pointer" x-text="pw ? '− Cancel password change' : '+ Change password'"></button>
+      <div x-show="pw" x-cloak style="margin-top:10px;display:grid;gap:10px">
+        {% if user.password_hash %}<input name="current_password" type="password" placeholder="Current password" autocomplete="current-password" style="border:1px solid rgba(16,41,44,.16);border-radius:10px;padding:10px 12px;font:inherit">{% endif %}
+        <input name="new_password" type="password" placeholder="New password (min 8 chars)" autocomplete="new-password" minlength="8" style="border:1px solid rgba(16,41,44,.16);border-radius:10px;padding:10px 12px;font:inherit">
+      </div>
+      <div style="margin-top:14px"><button type="submit" style="border:none;background:var(--ag-green,#237b22);color:#fff;font:600 14px/1 inherit;padding:11px 22px;border-radius:999px;cursor:pointer">Save changes</button></div>
+    </form>
+  </div>
+
+  {% if bookmarks is not empty %}
+  <div class="ac-card" style="margin-top:18px">
+    <h2>Saved discussions</h2>
+    {% for bm in bookmarks %}
+    <a href="/community/{{ bm.slug }}" style="display:block;padding:11px 0;border-top:1px solid rgba(16,41,44,.07);text-decoration:none">
+      <div style="font-weight:600;font-size:14px;color:var(--ag-ink)">{{ bm.title }}</div>
+      <div style="font-size:12px;color:#92a6a7;margin-top:2px">{{ bm.reply_count|default(0) }} replies · {{ bm.cheer_count|default(0) }} reactions</div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="ac-card ac-ledger">
+    <h2>Points history</h2>
+    {% if ledger is empty %}
+      <p class="ac-empty">No points yet — your earnings and redemptions will appear here.</p>
+    {% else %}
+      {% for e in ledger %}
+      <div class="ac-row">
+        <div class="ac-row__b">
+          <div class="ac-row__r">{{ labels[e.reason]|default(e.reason|replace({'.':' · ','_':' '})|capitalize) }}</div>
+          <div class="ac-row__d">{{ e.created_at|date('j M Y, H:i') }}{% if e.note %} · {{ e.note }}{% endif %}</div>
+        </div>
+        <div class="ac-row__delta {{ e.delta >= 0 ? 'pos' : 'neg' }}">{{ e.delta >= 0 ? '+' : '' }}{{ e.delta|number_format }}</div>
+        <div class="ac-row__bal">{{ e.balance_after|number_format }}</div>
+      </div>
+      {% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -9,7 +9,7 @@ use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Admin\Services\{AuditService, UploadService};
-use AfricaGates\Services\OtpService;
+use AfricaGates\Services\{OtpService, GatedFormService};
 
 class JudgesController
 {
@@ -60,18 +60,44 @@ class JudgesController
         $files = $req->getUploadedFiles();
         $adminId = (int)$_SESSION['admin_id'];
 
+        $backTo = '/admin/judges/' . ($id ? $id : 'new');
+
+        // Server-side validation — the browser's `required` is advisory only.
+        $name  = trim((string)($b['name'] ?? ''));
+        $email = strtolower(trim((string)($b['email'] ?? '')));
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $_SESSION['flash_error'] = 'A judge needs a name and a valid email address.';
+            return $res->withHeader('Location', $backTo)->withStatus(302);
+        }
+        // Duplicate email → a friendly message, not a raw UNIQUE-key 500 (this
+        // was the "cannot add a second judge" crash: re-submitting an address
+        // already on the panel hit the DB constraint unhandled).
+        $dupe = DB::table('gates_judges')->whereRaw('LOWER(email) = ?', [$email])
+            ->when($id, fn($q) => $q->where('id', '!=', $id))->exists();
+        if ($dupe) {
+            $_SESSION['flash_error'] = 'A judge with that email is already on the panel — edit them instead, or use a different address.';
+            return $res->withHeader('Location', $backTo)->withStatus(302);
+        }
+
         $existing = $id ? (array)DB::table('gates_judges')->where('id', $id)->first() : [];
         $avatar = $existing['avatar_path'] ?? null;
         if (isset($files['avatar']) && $files['avatar']->getError() === UPLOAD_ERR_OK) {
-            $u = $this->uploads->uploadImage($files['avatar'], 'judges', 600, 85, $adminId, 'judge', $id);
-            $avatar = $u['url'];
+            // A rejected image (wrong type / too large / corrupt) must not 500
+            // the whole save — explain it and let the operator retry.
+            try {
+                $u = $this->uploads->uploadImage($files['avatar'], 'judges', 600, 85, $adminId, 'judge', $id);
+                $avatar = $u['url'];
+            } catch (\Throwable $e) {
+                $_SESSION['flash_error'] = 'The photo was rejected (' . $e->getMessage() . ') — use a PNG/JPG/WebP under the size limit.';
+                return $res->withHeader('Location', $backTo)->withStatus(302);
+            }
         }
 
         $progIds = array_values(array_filter(array_map('intval', (array)($b['programme_ids'] ?? []))));
 
         $data = [
-            'name'         => trim((string)($b['name'] ?? '')),
-            'email'        => strtolower(trim((string)($b['email'] ?? ''))),
+            'name'         => $name,
+            'email'        => $email,
             'title'        => trim((string)($b['title'] ?? '')),
             'organisation' => trim((string)($b['organisation'] ?? '')),
             'bio'          => trim((string)($b['bio'] ?? '')),
@@ -85,7 +111,13 @@ class JudgesController
             $this->audit->record($adminId, 'judge.update', 'judge', $id);
         } else {
             $data['created_at'] = Carbon::now()->toDateTimeString();
-            $id = (int)DB::table('gates_judges')->insertGetId($data);
+            try {
+                $id = (int)DB::table('gates_judges')->insertGetId($data);
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Race-window duplicate (pre-check passed, constraint fired).
+                $_SESSION['flash_error'] = 'A judge with that email is already on the panel — edit them instead, or use a different address.';
+                return $res->withHeader('Location', $backTo)->withStatus(302);
+            }
             $this->audit->record($adminId, 'judge.create', 'judge', $id);
 
             // Email the new judge their assignment details
@@ -101,9 +133,39 @@ class JudgesController
                     $loginUrl
                 );
             }
+            // Single-use gated onboarding form link (separate from the login invite).
+            $this->sendJudgeForm($id, $judgeEmail, trim((string)($b['name'] ?? '')));
         }
         $_SESSION['flash_ok'] = 'Judge saved.';
         return $res->withHeader('Location', '/admin/judges')->withStatus(302);
+    }
+
+    /** POST /admin/judges/{id}/regenerate-form — re-issue + resend the judge's single-use onboarding form link. */
+    public function regenerateForm(Request $req, Response $res, array $args): Response
+    {
+        $id = (int)$args['id'];
+        $j = DB::table('gates_judges')->where('id', $id)->first();
+        if (!$j) throw new \Slim\Exception\HttpNotFoundException($req);
+        $this->sendJudgeForm($id, (string)$j->email, (string)$j->name);
+        $this->audit->record((int)$_SESSION['admin_id'], 'judge.regenerate_form', 'judge', $id);
+        $_SESSION['flash_ok'] = 'A fresh single-use judge form link was emailed (any previous link is now void).';
+        return $res->withHeader('Location', '/admin/judges')->withStatus(302);
+    }
+
+    /** Issue a single-use judge form token + email the judge a link to complete their profile. */
+    private function sendJudgeForm(int $judgeId, string $email, string $name): void
+    {
+        $email = strtolower(trim($email));
+        if (!$this->mailer || $judgeId < 1 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+        $raw  = GatedFormService::issue('judge', $judgeId, $email);
+        $link = GatedFormService::link($raw);
+        $nn   = htmlspecialchars($name !== '' ? $name : 'there', ENT_QUOTES, 'UTF-8');
+        $html = "<p>Hi <strong>{$nn}</strong>,</p>"
+            . "<p>Welcome to the Africa GATES judging panel. Please complete your judge profile using your private form below.</p>"
+            . "<p style=\"text-align:center;margin:24px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Complete your judge profile →</a></p>"
+            . "<p style=\"font-size:12.5px;color:#6b7674\">This is a private, single-use link just for you — it works once.</p>";
+        $plain = "Hi {$name},\n\nWelcome to the Africa GATES judging panel. Complete your judge profile using your private, single-use form:\n{$link}\n\n— Africa GATES";
+        try { $this->mailer->sendBranded($email, 'Complete your Africa GATES judge profile', $html, $plain, 'Judges'); } catch (\Throwable $e) {}
     }
 
     public function delete(Request $req, Response $res, array $args): Response

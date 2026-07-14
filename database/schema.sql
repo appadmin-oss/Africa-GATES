@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS gates_award_programmes (
   scope ENUM('continental','regional','national') NOT NULL DEFAULT 'continental',
   cover_path VARCHAR(400) DEFAULT NULL, icon_emoji VARCHAR(20) DEFAULT '🏆',
   sort_order TINYINT UNSIGNED NOT NULL DEFAULT 0, is_active TINYINT(1) NOT NULL DEFAULT 1,
+  terms MEDIUMTEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), UNIQUE KEY uq_slug(slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -64,6 +65,7 @@ CREATE TABLE IF NOT EXISTS gates_nominees (
   profile_id BIGINT UNSIGNED DEFAULT NULL, name VARCHAR(200) NOT NULL,
   tagline VARCHAR(300) DEFAULT NULL, photo_path VARCHAR(400) DEFAULT NULL,
   country_code CHAR(2) DEFAULT NULL, vote_count INT UNSIGNED NOT NULL DEFAULT 0,
+  organic_vote_count INT UNSIGNED NOT NULL DEFAULT 0,
   status ENUM('pending','approved','winner','runner_up') NOT NULL DEFAULT 'pending',
   nominated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), KEY idx_category(category_id), KEY idx_votes(vote_count DESC),
@@ -78,6 +80,8 @@ CREATE TABLE IF NOT EXISTS gates_votes (
   ip_hash VARCHAR(64) DEFAULT NULL,
   device_hash VARCHAR(64) DEFAULT NULL,
   idempotency_key VARCHAR(80) DEFAULT NULL,
+  voter_name VARCHAR(120) DEFAULT NULL,
+  voter_phone VARCHAR(40) DEFAULT NULL,
   vote_type ENUM('standard','bonus','paid') NOT NULL DEFAULT 'standard',
   weight SMALLINT UNSIGNED NOT NULL DEFAULT 1,
   donation_id BIGINT UNSIGNED DEFAULT NULL,
@@ -85,7 +89,7 @@ CREATE TABLE IF NOT EXISTS gates_votes (
   fraud_flag TINYINT(1) NOT NULL DEFAULT 0,
   voted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), UNIQUE KEY uq_one_vote(voter_email_hash,category_id),
-  UNIQUE KEY uq_votes_idem(idempotency_key),
+  UNIQUE KEY uq_votes_idem(voter_email_hash,idempotency_key),
   KEY idx_nominee(nominee_id), KEY idx_voted_at(voted_at), KEY idx_votes_device(device_hash),
   CONSTRAINT fk_vote_nominee FOREIGN KEY(nominee_id) REFERENCES gates_nominees(id) ON DELETE CASCADE,
   CONSTRAINT fk_vote_cat FOREIGN KEY(category_id) REFERENCES gates_award_categories(id) ON DELETE CASCADE
@@ -202,6 +206,10 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   country_code CHAR(2) DEFAULT NULL,
   nominee_state VARCHAR(100) DEFAULT NULL,
   nominee_lga VARCHAR(100) DEFAULT NULL,
+  nominee_org VARCHAR(200) DEFAULT NULL,
+  nominee_phone VARCHAR(40) DEFAULT NULL,
+  nominee_photo_path VARCHAR(400) DEFAULT NULL,
+  reference VARCHAR(24) DEFAULT NULL,
   reason TEXT,
   reference_url VARCHAR(400) DEFAULT NULL,
   reference_url_2 VARCHAR(400) DEFAULT NULL,
@@ -210,10 +218,18 @@ CREATE TABLE IF NOT EXISTS gates_nominations (
   nominator_email VARCHAR(191) NOT NULL,
   nominator_phone VARCHAR(30) DEFAULT NULL,
   nominator_location VARCHAR(200) DEFAULT NULL,
+  nominator_country CHAR(2) DEFAULT NULL,
+  nominator_state VARCHAR(100) DEFAULT NULL,
+  nominator_lga VARCHAR(100) DEFAULT NULL,
+  nominator_age_range VARCHAR(20) DEFAULT NULL,
+  decision_reason TEXT,
+  nominator_ack_at TIMESTAMP NULL DEFAULT NULL,
   status ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
   ip_hash VARCHAR(64) DEFAULT NULL,
+  device_fp VARCHAR(64) DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY(id), KEY idx_cycle(cycle_id), KEY idx_status(status),
+  PRIMARY KEY(id), KEY idx_cycle(cycle_id), KEY idx_status(status), KEY idx_nominations_device(device_fp),
+  UNIQUE KEY uq_nom_reference(reference),
   CONSTRAINT fk_nom_cycle FOREIGN KEY(cycle_id) REFERENCES gates_award_cycles(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -246,6 +262,78 @@ CREATE TABLE IF NOT EXISTS gates_rate_limits (
   action VARCHAR(50) NOT NULL, hit_count SMALLINT UNSIGNED NOT NULL DEFAULT 1,
   window_start TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), UNIQUE KEY uq_fp_action(fingerprint,action), KEY idx_window(window_start)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shareable prefill nomination links: an opaque high-entropy token maps to a
+-- nominee-side payload (JSON) that prefills the wizard for whoever opens it.
+-- PII stays server-side behind the token; links expire and count their hits.
+CREATE TABLE IF NOT EXISTS gates_nomination_links (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  token VARCHAR(64) NOT NULL,
+  payload TEXT NOT NULL,
+  created_ip_hash VARCHAR(64) DEFAULT NULL,
+  created_by BIGINT UNSIGNED DEFAULT NULL,
+  hits INT UNSIGNED NOT NULL DEFAULT 0,
+  expires_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(id), UNIQUE KEY uq_nomlink_token(token), KEY idx_nomlink_expires(expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Editable legal / policy documents (privacy, terms, cookies, + custom).
+-- Replaces the hardcoded copy that used to live in templates/pages/legal.twig
+-- so operators can edit policies from the admin without a deploy.
+CREATE TABLE IF NOT EXISTS gates_legal_docs (
+  slug VARCHAR(60) NOT NULL,
+  title VARCHAR(160) NOT NULL,
+  body_html MEDIUMTEXT,
+  updated_label VARCHAR(60) DEFAULT NULL,
+  is_published TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order INT NOT NULL DEFAULT 0,
+  updated_by BIGINT UNSIGNED DEFAULT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(slug), KEY idx_legal_pub(is_published, sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- AI triage for nomination review at scale: one advisory row per nomination
+-- (quality score, summary, duplicate hints). NEVER auto-approves/rejects —
+-- operators decide; this only helps them decide faster and more accurately.
+CREATE TABLE IF NOT EXISTS gates_nomination_insights (
+  nomination_id BIGINT UNSIGNED NOT NULL,
+  quality_score TINYINT UNSIGNED DEFAULT NULL, -- 0-100 advisory
+  summary TEXT,
+  duplicates_json TEXT,
+  model VARCHAR(40) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(nomination_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Email delivery audit: one row per attempted send (recipient masked).
+-- Powers the admin Email-health card so "emails are not arriving" is
+-- diagnosable in one glance instead of silent.
+CREATE TABLE IF NOT EXISTS gates_mail_log (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  to_masked VARCHAR(120) NOT NULL,
+  subject VARCHAR(200) NOT NULL,
+  category VARCHAR(40) DEFAULT NULL,
+  status ENUM('sent','failed','logged_dev') NOT NULL,
+  error VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(id), KEY idx_mail_created(created_at), KEY idx_mail_status(status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Outbound SMS / WhatsApp delivery audit (recipients stored hashed + masked, never raw).
+CREATE TABLE IF NOT EXISTS gates_messages (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  channel ENUM('sms','whatsapp') NOT NULL,
+  to_hash VARCHAR(64) NOT NULL,
+  to_masked VARCHAR(24) NOT NULL,
+  template VARCHAR(60) NOT NULL DEFAULT 'generic',
+  status ENUM('sent','failed','queued') NOT NULL,
+  provider VARCHAR(20) DEFAULT NULL,
+  provider_ref VARCHAR(80) DEFAULT NULL,
+  error VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(id), KEY idx_messages_created(created_at), KEY idx_messages_status(status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gates_cache (
@@ -312,6 +400,7 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   tier VARCHAR(50) DEFAULT NULL,
   bonus_votes INT UNSIGNED NOT NULL DEFAULT 0,
   votes_used INT UNSIGNED NOT NULL DEFAULT 0,
+  intent_nominee_id BIGINT UNSIGNED DEFAULT NULL, -- paid-vote orders: auto-mint target on confirm
   payment_ref VARCHAR(200) DEFAULT NULL,
   status ENUM('pending','confirmed','failed') NOT NULL DEFAULT 'pending',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -320,16 +409,13 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   KEY idx_donation_status(status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Migration helper: add new columns to existing installations
--- (safe to run even if columns already exist — IF NOT EXISTS guard)
-ALTER TABLE gates_nominations
-  ADD COLUMN IF NOT EXISTS nominee_state VARCHAR(100) DEFAULT NULL AFTER country_code,
-  ADD COLUMN IF NOT EXISTS nominee_lga VARCHAR(100) DEFAULT NULL AFTER nominee_state,
-  ADD COLUMN IF NOT EXISTS reference_url VARCHAR(400) DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS reference_url_2 VARCHAR(400) DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS reference_url_3 VARCHAR(400) DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS nominator_phone VARCHAR(30) DEFAULT NULL AFTER nominator_email,
-  ADD COLUMN IF NOT EXISTS nominator_location VARCHAR(200) DEFAULT NULL AFTER nominator_phone;
+-- NOTE: the gates_nominations location + reference columns (nominee_state,
+-- nominee_lga, reference_url[_2/_3], nominator_phone/location/country/state/lga)
+-- are added by the idempotent, driver-aware migration
+--   database/migrations/2026_06_30_nomination_location_columns.php
+-- A raw `ALTER TABLE … ADD COLUMN IF NOT EXISTS …` was REMOVED from here because
+-- that syntax is MariaDB-only and a hard error on Oracle MySQL — it aborted the
+-- entire schema apply (and every later migration) on MySQL hosts.
 
 SET FOREIGN_KEY_CHECKS=1;
 
@@ -347,9 +433,110 @@ CREATE TABLE IF NOT EXISTS gates_site_events (
   cover_image VARCHAR(500) NULL,
   rsvp_url VARCHAR(500) NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'published',
+  capacity INT UNSIGNED DEFAULT NULL,
+  price_naira INT UNSIGNED DEFAULT NULL,
+  schedule TEXT NULL,
+  map_embed VARCHAR(500) NULL,
+  ticket_tiers TEXT NULL,
+  early_bird_text VARCHAR(255) NULL,
+  early_bird_deadline DATETIME NULL,
+  early_bird_url VARCHAR(500) NULL,
   created_at DATETIME NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_site_events_slug (slug)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Event registrations (on-platform RSVP for site events) ───
+CREATE TABLE IF NOT EXISTS gates_event_registrations (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  event_id INT UNSIGNED NOT NULL,
+  name VARCHAR(160) NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  phone VARCHAR(40) NULL,
+  ip_hash VARCHAR(64) NULL,
+  amount_naira INT DEFAULT 0,
+  reference VARCHAR(80) DEFAULT NULL,
+  tier VARCHAR(80) DEFAULT NULL,
+  user_id BIGINT UNSIGNED DEFAULT NULL,
+  created_at DATETIME NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_evreg_event_email (event_id, email),
+  KEY idx_evreg_event (event_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Gated single-use form links (verified nominees + judge invites) ───
+CREATE TABLE IF NOT EXISTS gates_form_tokens (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  purpose VARCHAR(16) NOT NULL,
+  subject_id BIGINT UNSIGNED NOT NULL,
+  email_hash VARCHAR(64) DEFAULT NULL,
+  token_hash VARCHAR(64) NOT NULL,
+  payload TEXT,
+  is_used TINYINT(1) NOT NULL DEFAULT 0,
+  used_at TIMESTAMP NULL DEFAULT NULL,
+  expires_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_formtok (token_hash),
+  KEY idx_formtok_subject (purpose, subject_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── Form builder (admin-designed forms + submissions) ───
+CREATE TABLE IF NOT EXISTS gates_forms (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  form_key VARCHAR(80) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  description TEXT,
+  schema_json MEDIUMTEXT NOT NULL,
+  submit_message TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'draft',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_form_key (form_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_form_submissions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  form_id BIGINT UNSIGNED NOT NULL,
+  form_key VARCHAR(80) NOT NULL,
+  data_json MEDIUMTEXT NOT NULL,
+  ip_hash VARCHAR(64) DEFAULT NULL,
+  user_id BIGINT UNSIGNED DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_formsub_form (form_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─── User accounts + voting-points ledger ───
+CREATE TABLE IF NOT EXISTS gates_users (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(160) NOT NULL,
+  email VARCHAR(191) NOT NULL,
+  phone VARCHAR(40) DEFAULT NULL,
+  password_hash VARCHAR(255) DEFAULT NULL,
+  points INT NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'active',
+  email_verified TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  last_login_at TIMESTAMP NULL DEFAULT NULL,
+  last_login_ip VARCHAR(64) DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_user_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_points_ledger (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  user_id BIGINT UNSIGNED NOT NULL,
+  delta INT NOT NULL,
+  reason VARCHAR(40) NOT NULL,
+  ref_type VARCHAR(40) DEFAULT NULL,
+  ref_id VARCHAR(80) DEFAULT NULL,
+  balance_after INT NOT NULL DEFAULT 0,
+  note VARCHAR(200) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_ledger_user (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── Blog posts ───
@@ -360,6 +547,7 @@ CREATE TABLE IF NOT EXISTS gates_posts (
   excerpt VARCHAR(400) NULL,
   body MEDIUMTEXT NULL,
   cover_image VARCHAR(500) NULL,
+  audio_path VARCHAR(500) NULL,
   author VARCHAR(120) NULL,
   tag VARCHAR(60) NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'published',
