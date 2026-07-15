@@ -26,7 +26,7 @@ class NominationController {
         if($shareToken!==''){
             try{ $prefill=(new \AfricaGates\Services\NominationLinkService())->resolve($shareToken); }catch(\Throwable $e){ $prefill=null; }
         }
-        return $this->view->render($res,'pages/nominate.twig',['page_title'=>'Nominate — Africa GATES','meta_description'=>'Nominate exceptional African talent for the Africa GATES awards. Put forward the creatives, businesses and changemakers who deserve continental recognition.','gates_page'=>'nominate','has_hero'=>false,'current_section'=>'projects','programmes'=>$open,'all_programmes'=>$progs,'prefill'=>$prefill,'share_expired'=>$shareToken!=='' && $prefill===null,'member'=>\AfricaGates\Services\UserAccountService::memberForForms()]);
+        return $this->view->render($res,'pages/nominate.twig',['page_title'=>'Nominate — Africa GATES','meta_description'=>'Nominate exceptional African talent for the Africa GATES awards. Put forward the creatives, businesses and changemakers who deserve continental recognition.','gates_page'=>'nominate','has_hero'=>false,'current_section'=>'projects','programmes'=>$open,'all_programmes'=>$progs,'prefill'=>$prefill,'share_expired'=>$shareToken!=='' && $prefill===null,'regions'=>\AfricaGates\Support\Regions::MAP,'member'=>\AfricaGates\Services\UserAccountService::memberForForms()]);
     }
     public function submit(Request $req,Response $res):Response {
         $b=(array)$req->getParsedBody(); $ip=$req->getServerParams()['REMOTE_ADDR']??''; $fp=hash('sha256',$ip.strtolower(trim($b['nominator_email']??'')));
@@ -37,7 +37,7 @@ class NominationController {
         // the form too (never a false "success" page).
         $progs=$this->cache->remember('awards:active',1800,fn()=>$this->awards->getActiveProgrammesWithStatus());
         $open=array_values(array_filter($progs,fn($p)=>in_array($p['cycle_status'],['nominations'])));
-        $rerender=fn(string $msg,int $status=422)=>$this->view->render($res,'pages/nominate.twig',['error'=>$msg,'old'=>$b,'gates_page'=>'nominate','has_hero'=>false,'current_section'=>'projects','programmes'=>$open,'all_programmes'=>$progs,'member'=>\AfricaGates\Services\UserAccountService::memberForForms()])->withStatus($status);
+        $rerender=fn(string $msg,int $status=422)=>$this->view->render($res,'pages/nominate.twig',['error'=>$msg,'old'=>$b,'gates_page'=>'nominate','has_hero'=>false,'current_section'=>'projects','programmes'=>$open,'all_programmes'=>$progs,'regions'=>\AfricaGates\Support\Regions::MAP,'member'=>\AfricaGates\Services\UserAccountService::memberForForms()])->withStatus($status);
         if(!$this->rateLimit->check($fp,'nominate',5,86400)) return $rerender("You've reached today's nomination limit (5 per day). Please try again tomorrow.",429);
         $required = [
             'programme_id'=>'a programme', 'nominee_name'=>"the nominee's full name", 'country_code'=>"the nominee's country",

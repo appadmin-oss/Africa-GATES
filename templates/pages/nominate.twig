@@ -4,10 +4,6 @@
    `all_programmes` on every render path, including errors). #}
 {% set awards = programmes|default(all_programmes|default(awards_data|default([]))) %}
 {% set COUNTRIES = {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':"Côte d'Ivoire",'CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','AO':'Angola','CD':'DR Congo'} %}
-{# Nigeria's 36 states + FCT — drives the dependent State select so the dominant
-   market submits canonical values instead of free-text variants. Other countries
-   fall back to a free-text region field. #}
-{% set NG_STATES = ['Abia','Adamawa','Akwa Ibom','Anambra','Bauchi','Bayelsa','Benue','Borno','Cross River','Delta','Ebonyi','Edo','Ekiti','Enugu','FCT — Abuja','Gombe','Imo','Jigawa','Kaduna','Kano','Katsina','Kebbi','Kogi','Kwara','Lagos','Nasarawa','Niger','Ogun','Ondo','Osun','Oyo','Plateau','Rivers','Sokoto','Taraba','Yobe','Zamfara'] %}
 {% set TINT = [['#eef7ee','#1a6118'],['#fff8df','#7a5600'],['#e9efef','#2b373d'],['#f3eef7','#5b3a8a'],['#fdeaf0','#9c2b48'],['#e0eef1','#225a67']] %}
 
 {% block head_styles %}
@@ -184,7 +180,7 @@
             </div>
             <div><label class="nm-lab" for="nName">Nominee's full name *</label><input id="nName" name="nominee_name" class="nm-in" type="text" required pattern="^\s*\S+(\s+\S+)+.*$" title="Please enter the nominee's first and last name." placeholder="e.g. Amara Okonkwo" value="{{ old.nominee_name ?? prefill.nominee_name ?? '' }}"></div>
             <div><label class="nm-lab" for="nCountry">Country *</label>
-              <select id="nCountry" name="country_code" class="nm-in" required x-model="nomineeCountry">
+              <select id="nCountry" name="country_code" class="nm-in" required x-model="nomineeCountry" @change="nomineeState=''">
                 <option value="" disabled {% if not (old.country_code ?? prefill.country_code ?? '') %}selected{% endif %} hidden>Select…</option>
                 {% for code,name in COUNTRIES %}<option value="{{ code }}" {% if (old.country_code ?? prefill.country_code ?? '') == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
               </select>
@@ -192,13 +188,13 @@
             <div class="nm-who__full"><label class="nm-lab" for="nOrg">Organisation / school <span style="color:#5a6d6f;font-weight:400">(optional)</span></label><input id="nOrg" name="nominee_org" class="nm-in" type="text" maxlength="200" placeholder="School, company or organisation they belong to" value="{{ old.nominee_org ?? prefill.nominee_org ?? '' }}"></div>
             <div class="nm-who__full nm-row">
               <div>
-                <label class="nm-lab" for="nStateSel" x-show="nomineeCountry==='NG'">State *</label>
-                <select id="nStateSel" name="nominee_state" class="nm-in" required x-show="nomineeCountry==='NG'" :disabled="nomineeCountry!=='NG'" x-cloak>
-                  <option value="" disabled {% if not (old.nominee_state ?? prefill.nominee_state ?? '') %}selected{% endif %} hidden>Select a state…</option>
-                  {% for s in NG_STATES %}<option value="{{ s }}" {% if (old.nominee_state ?? prefill.nominee_state ?? '') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                <label class="nm-lab" for="nStateSel" x-show="nomineeStates.length">State / Region *</label>
+                <select id="nStateSel" name="nominee_state" class="nm-in" required x-show="nomineeStates.length" :disabled="!nomineeStates.length" x-model="nomineeState" x-cloak>
+                  <option value="" disabled selected hidden>Select…</option>
+                  <template x-for="s in nomineeStates" :key="s"><option :value="s" x-text="s"></option></template>
                 </select>
-                <label class="nm-lab" for="nState" x-show="nomineeCountry!=='NG'">State / Region *</label>
-                <input id="nState" name="nominee_state" class="nm-in" type="text" required x-show="nomineeCountry!=='NG'" :disabled="nomineeCountry==='NG'" placeholder="e.g. Greater Accra" value="{{ old.nominee_state ?? prefill.nominee_state ?? '' }}">
+                <label class="nm-lab" for="nState" x-show="!nomineeStates.length">State / Region *</label>
+                <input id="nState" name="nominee_state" class="nm-in" type="text" required x-show="!nomineeStates.length" :disabled="nomineeStates.length>0" placeholder="e.g. state, region or province" value="{{ old.nominee_state ?? prefill.nominee_state ?? '' }}">
               </div>
               <div><label class="nm-lab" for="nLGA">LGA / County *</label><input id="nLGA" name="nominee_lga" class="nm-in" type="text" required placeholder="e.g. Nsukka" value="{{ old.nominee_lga ?? prefill.nominee_lga ?? '' }}"></div>
             </div>
@@ -297,19 +293,19 @@
             </div>
             <div class="nm-row">
               <div><label class="nm-lab" for="byCountry">Your country *</label>
-                <select id="byCountry" name="nominator_country" class="nm-in" required x-model="nominatorCountry">
+                <select id="byCountry" name="nominator_country" class="nm-in" required x-model="nominatorCountry" @change="nominatorState=''">
                   <option value="" disabled {% if not (old.nominator_country ?? '') %}selected{% endif %} hidden>Select…</option>
                   {% for code,name in COUNTRIES %}<option value="{{ code }}" {% if (old.nominator_country ?? '') == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
                 </select>
               </div>
               <div>
-                <label class="nm-lab" for="byStateSel" x-show="nominatorCountry==='NG'">Your state *</label>
-                <select id="byStateSel" name="nominator_state" class="nm-in" required x-show="nominatorCountry==='NG'" :disabled="nominatorCountry!=='NG'" x-cloak>
-                  <option value="" disabled {% if not (old.nominator_state ?? '') %}selected{% endif %} hidden>Select a state…</option>
-                  {% for s in NG_STATES %}<option value="{{ s }}" {% if (old.nominator_state ?? '') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                <label class="nm-lab" for="byStateSel" x-show="nominatorStates.length">Your state / region *</label>
+                <select id="byStateSel" name="nominator_state" class="nm-in" required x-show="nominatorStates.length" :disabled="!nominatorStates.length" x-model="nominatorState" x-cloak>
+                  <option value="" disabled selected hidden>Select…</option>
+                  <template x-for="s in nominatorStates" :key="s"><option :value="s" x-text="s"></option></template>
                 </select>
-                <label class="nm-lab" for="byState" x-show="nominatorCountry!=='NG'">State / Region *</label>
-                <input id="byState" name="nominator_state" class="nm-in" type="text" required x-show="nominatorCountry!=='NG'" :disabled="nominatorCountry==='NG'" placeholder="e.g. Greater Accra" value="{{ old.nominator_state ?? '' }}">
+                <label class="nm-lab" for="byState" x-show="!nominatorStates.length">State / Region *</label>
+                <input id="byState" name="nominator_state" class="nm-in" type="text" required x-show="!nominatorStates.length" :disabled="nominatorStates.length>0" placeholder="e.g. state, region or province" value="{{ old.nominator_state ?? '' }}">
               </div>
               <div><label class="nm-lab" for="byLGA">LGA / County *</label><input id="byLGA" name="nominator_lga" class="nm-in" type="text" required placeholder="e.g. Ikeja" value="{{ old.nominator_lga ?? '' }}"></div>
             </div>
@@ -329,7 +325,7 @@
           </button>
         </div>
       </form>
-      <p class="nm-foot">Free · takes about {{ nomination_seconds }} seconds · OTP-secured</p>
+      <p class="nm-foot">Free · takes a few minutes · OTP-secured</p>
     </div>
   </div>
 </div>
@@ -361,6 +357,9 @@ const AFG_PROG_SLUGS = {
 {% for a in awards %}  "{{ a.id }}": {{ a.slug|default('')|json_encode|raw }},
 {% endfor %}};
 {% set _pf = old ?? prefill %}const AFG_PREFILL = {{ _pf ? _pf|json_encode(15)|raw : 'null' }};
+// First-level regions per country (ISO2 → [names]); drives the dependent
+// State/Region select. Sourced from a frozen open dataset — see Support\Regions.
+const AFG_STATES = {{ regions|default({})|json_encode|raw }};
 
 function nomWizard(){
   return {
@@ -369,6 +368,10 @@ function nomWizard(){
     selectedProg:'', selectedCat:'', categories:[], progErr:false, progTitle:'', formError:'',
     nomineeCountry:'{{ (old.country_code ?? prefill.country_code ?? '')|e('js') }}',
     nominatorCountry:'{{ (old.nominator_country ?? '')|e('js') }}',
+    nomineeState:'{{ (old.nominee_state ?? prefill.nominee_state ?? '')|e('js') }}',
+    nominatorState:'{{ (old.nominator_state ?? '')|e('js') }}',
+    get nomineeStates(){ return (typeof AFG_STATES!=='undefined' && AFG_STATES[this.nomineeCountry]) || []; },
+    get nominatorStates(){ return (typeof AFG_STATES!=='undefined' && AFG_STATES[this.nominatorCountry]) || []; },
     story:'{{ (old.reason ?? '')|e('js') }}', email:'{{ (old.nominator_email ?? '')|e('js') }}', photoName:'', photoUrl:'', photoOk:true, photoMsg:'', _photoInput:null, submitting:false,
     polishAvail:true, polishing:false, polishMsg:'', _storyBackup:'',
     /* AI story polish — optional nicety with INVISIBLE limits: any budget/
