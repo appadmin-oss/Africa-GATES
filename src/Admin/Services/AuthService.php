@@ -84,66 +84,6 @@ class AuthService
         return $admin;
     }
 
-    /**
-     * Break-glass admin login using a password held in .env (ADMIN_EMAIL +
-     * ADMIN_PASSWORD). This is the operator's guaranteed way in — no DB seed
-     * and no email/magic-link required. ADMIN_PASSWORD may be plaintext or a
-     * bcrypt hash. On success a backing superadmin row is ensured so sessions,
-     * audit and RBAC behave exactly like a normal admin. Returns null when the
-     * env admin isn't configured or the credentials don't match.
-     */
-    public function attemptEnvLogin(string $email, string $password, string $ip = ''): ?object
-    {
-        $envEmail = strtolower(trim((string)($_ENV['ADMIN_EMAIL'] ?? '')));
-        $envPass  = (string)($_ENV['ADMIN_PASSWORD'] ?? '');
-        if ($envEmail === '' || $envPass === '') return null; // env admin not configured
-
-        // Independent per-IP throttle so this fixed credential can't be brute-forced.
-        if ($this->rateLimit && $ip !== ''
-            && !$this->rateLimit->check(hash('sha256', $ip), 'admin_env_login_ip', 10, 3600)) {
-            $this->log->warn('admin.login.env_throttled', ['ip_hash' => hash('sha256', $ip)]);
-            return null;
-        }
-
-        if (!hash_equals($envEmail, strtolower(trim($email)))) return null;
-        $isHash = (bool)preg_match('/^\$2[aby]\$/', $envPass);
-        $ok = $isHash ? password_verify($password, $envPass) : hash_equals($envPass, $password);
-        if (!$ok) {
-            $this->log->info('admin.login.env_fail', ['email' => $email, 'ip' => $ip]);
-            return null;
-        }
-
-        $admin = $this->ensureEnvAdmin($envEmail);
-        $this->audit->record((int)$admin->id, 'login', 'admin', (int)$admin->id, ['method' => 'env_password']);
-        return $admin;
-    }
-
-    /** Ensure the .env admin exists as an active superadmin row; return it. */
-    private function ensureEnvAdmin(string $email): object
-    {
-        $existing = DB::table('gates_admins')->where('email', $email)->first();
-        if ($existing) {
-            if (!$existing->is_active) {
-                DB::table('gates_admins')->where('id', $existing->id)
-                    ->update(['is_active' => 1, 'updated_at' => Carbon::now()->toDateTimeString()]);
-                $existing->is_active = 1;
-            }
-            return $existing;
-        }
-        $name = trim((string)($_ENV['ADMIN_NAME'] ?? 'Administrator')) ?: 'Administrator';
-        $id = DB::table('gates_admins')->insertGetId([
-            'email'         => $email,
-            'name'          => $name,
-            'role'          => 'superadmin',
-            'password_hash' => null,   // login is via .env, not this column
-            'is_active'     => 1,
-            'created_at'    => Carbon::now()->toDateTimeString(),
-            'updated_at'    => Carbon::now()->toDateTimeString(),
-        ]);
-        $this->log->info('admin.env_admin.provisioned', ['email' => $email]);
-        return DB::table('gates_admins')->where('id', $id)->first();
-    }
-
     /** Begin a session for a given admin (must be called inside a started PHP session). */
     public function startSession(object $admin): void
     {
