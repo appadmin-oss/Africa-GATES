@@ -3,8 +3,6 @@
 {% block topbar_title %}Legal &amp; policies{% endblock %}
 {% block topbar_actions %}<a class="ad-btn ad-btn--primary" href="/admin/legal/new">+ New document</a>{% endblock %}
 {% block content %}
-{% if flash_ok %}<div class="ad-flash ad-flash--ok" role="status" style="margin-bottom:12px">{{ flash_ok }}</div>{% endif %}
-{% if flash_error %}<div class="ad-flash ad-flash--err" role="alert" style="margin-bottom:12px">{{ flash_error }}</div>{% endif %}
 <p style="margin:0 0 14px;font-size:13.5px;color:var(--ad-text-mute,#5a6d6f)">Policies shown to the public — fully editable here, no deploy needed. Core policies publish at their fixed URLs (<code>/privacy</code>, <code>/terms</code>, <code>/cookies</code>); custom documents publish at <code>/legal/&lt;slug&gt;</code>.</p>
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">

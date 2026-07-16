@@ -54,8 +54,9 @@ final class Permissions
         'registrations' => 'data', 'points' => 'data', 'comments' => 'data', 'activity' => 'data', 'reports' => 'data',
         // configuration (superadmin)
         'admins' => 'configuration', 'settings' => 'configuration', 'webhooks' => 'configuration', 'judges' => 'configuration',
-        // overview
-        'dashboard' => 'overview',
+        // overview — the dashboard and the AI console copilot (every role may use
+        // the assistant; the controller enforces the per-role usage budget).
+        'dashboard' => 'overview', 'assistant' => 'overview',
     ];
 
     /** Auth-exempt / utility admin paths that carry no section (login, logout, magic, admin-api). */

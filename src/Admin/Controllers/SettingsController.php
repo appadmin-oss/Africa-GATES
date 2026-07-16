@@ -34,8 +34,7 @@ class SettingsController
             'values'         => $this->settings->all(),
             'admin_settings' => $adminSettings,
             'smtp_configured'=> $this->mailer?->smtpConfigured() ?? false,
-            'flash_ok'       => $_SESSION['flash_ok']   ?? null,
-            'flash_error'    => $_SESSION['flash_error'] ?? null,
+            // Flash renders from the Twig globals via the layout — do not shadow them.
             'shop_regions'   => \AfricaGates\Services\ShopPricing::regions(),
             'shop_mults'     => \AfricaGates\Services\ShopPricing::multipliers(),
             // Which AI providers have a key (booleans only — keys are never echoed).

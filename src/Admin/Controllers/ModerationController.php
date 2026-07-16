@@ -40,8 +40,8 @@ class ModerationController
             'threads'     => $threads,
             'recent_log'  => $recentLog,
             'pending'     => count($comments) + count($threads),
-            'flash_ok'    => $_SESSION['flash_ok'] ?? null,
-            'flash_error' => $_SESSION['flash_error'] ?? null,
+            // Flash banners render from the Twig globals via the layout — passing
+            // them here would shadow the (already-consumed) global with null.
         ]);
     }
 

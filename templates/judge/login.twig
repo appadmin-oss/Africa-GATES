@@ -40,7 +40,7 @@
       {% if not sent %}
         <h1 class="ag-auth__h">Sign in to score</h1>
         <p class="ag-auth__sub">Enter your judge email — we'll send you a 6-digit code.</p>
-        {% if error %}<div class="ag-auth__alert ag-auth__alert--err">{{ error }}</div>{% endif %}
+        {% if error ?? flash_error %}<div class="ag-auth__alert ag-auth__alert--err">{{ error ?? flash_error }}</div>{% endif %}
         <form method="post" action="/judge/login/request">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <div class="ag-auth__field">
@@ -51,9 +51,9 @@
         </form>
       {% else %}
         <h1 class="ag-auth__h">Check your email</h1>
-        <p class="ag-auth__sub">Enter the 6-digit code we just sent. It expires in 10 minutes.</p>
-        {% if error %}<div class="ag-auth__alert ag-auth__alert--err">{{ error }}</div>{% endif %}
-        {% if notice %}<div class="ag-auth__alert ag-auth__alert--note">{{ notice }}</div>{% endif %}
+        <p class="ag-auth__sub">Enter the 6-digit code we just sent. It expires in 15 minutes.</p>
+        {% if error ?? flash_error %}<div class="ag-auth__alert ag-auth__alert--err">{{ error ?? flash_error }}</div>{% endif %}
+        {% if notice ?? flash_notice %}<div class="ag-auth__alert ag-auth__alert--note">{{ notice ?? flash_notice }}</div>{% endif %}
         <form method="post" action="/judge/login/verify">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <div class="ag-auth__field">

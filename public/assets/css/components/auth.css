@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════════
    Africa GATES — Auth (component)
    Shared v3 split-panel sign-in: dark-green brand panel + form panel.
-   Used by /signin (public verified accounts), judge login, admin login.
+   Used by the member sign-in (/account/login), judge login, admin login.
    Self-contained off :root tokens — safe on standalone auth documents.
    ════════════════════════════════════════════════════════════════ */
 .ag-auth *{ box-sizing:border-box; }

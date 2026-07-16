@@ -2,7 +2,6 @@
 {% block topbar_title %}{{ is_new ? 'New Form' : 'Edit Form' }}{% endblock %}
 {% block topbar_actions %}<a class="ad-btn" href="/admin/forms">← Forms</a>{% endblock %}
 {% block content %}
-{% if flash_error %}<div class="ad-flash ad-flash--err" role="alert" style="margin-bottom:12px">{{ flash_error }}</div>{% endif %}
 <form method="post" action="{{ is_new ? '/admin/forms/new' : '/admin/forms/' ~ row.id }}" x-data="formBuilder({{ fields_seed|json_encode|e('html_attr') }})" @submit="serialize()">
   <input type="hidden" name="_token" value="{{ csrf_token }}">
   <input type="hidden" name="fields_json" id="fieldsJson">

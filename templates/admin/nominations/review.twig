@@ -105,7 +105,6 @@
     <div class="ad-card">
       <div class="ad-card__head"><div class="ad-card__title">Approve · pick a category</div></div>
       <div class="ad-card__body">
-        {% if flash_error %}<div class="ad-flash ad-flash--err" role="alert">{{ flash_error }}</div>{% endif %}
         {% if eligibility and eligibility.enabled and not eligibility.eligible %}<div class="ad-flash ad-flash--err" role="alert">Approval blocked — this nominee has {{ eligibility.distinct_locations }} of {{ eligibility.min }} required distinct locations. Adjust the threshold in Settings → Nomination eligibility.</div>{% endif %}
         {% if categories|length == 0 %}
           <p style="color:var(--ad-text-soft)">This cycle has no categories yet. <a style="color:var(--ad-primary)" href="/admin/programmes">Add some first →</a></p>

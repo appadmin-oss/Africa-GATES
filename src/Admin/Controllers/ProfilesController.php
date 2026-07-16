@@ -61,8 +61,8 @@ class ProfilesController
             'page_title' => 'Edit Profile — Admin',
             'admin_page' => 'profiles',
             'profile'    => (array)$row,
-            'flash_ok'   => $_SESSION['flash_ok']    ?? null,
-            'flash_err'  => $_SESSION['flash_error'] ?? null,
+            // Flash renders from the Twig globals via the layout — do not shadow them.
+            // (The old 'flash_err' key was also a typo: the template uses flash_error.)
         ]);
     }
 

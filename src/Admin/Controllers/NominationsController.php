@@ -77,9 +77,15 @@ class NominationsController
             // (moderation AI, free backup). Collected here, shown in the email.
             $reason = mb_substr(trim((string) (((array) $req->getParsedBody())['decision_reason'] ?? '')), 0, 800);
             if ($action === 'reject' && $reason === '') {
-                $reason = (string) (\AfricaGates\Services\NominationFeedbackService::suggestReason($nom, 'rejected') ?? '');
+                try { $reason = (string) (\AfricaGates\Services\NominationFeedbackService::suggestReason($nom, 'rejected') ?? ''); }
+                catch (\Throwable $e) { $reason = ''; }
             }
-            DB::table('gates_nominations')->where('id', $id)->update(['status' => $status, 'decision_reason' => $reason !== '' ? $reason : null]);
+            try {
+                DB::table('gates_nominations')->where('id', $id)->update(['status' => $status, 'decision_reason' => $reason !== '' ? $reason : null]);
+            } catch (\Throwable $e) {
+                $_SESSION['flash_error'] = $this->dbErrorFlash($e);
+                return $res->withHeader('Location', '/admin/nominations/' . $id . ($fromDesk ? '?desk=1' : ''))->withStatus(302);
+            }
             $this->audit->record((int)$_SESSION['admin_id'], "nomination.$action", 'nomination', $id);
             if ($action === 'reject') {
                 \AfricaGates\Services\WebhookService::dispatch('nomination.rejected', [
@@ -153,42 +159,54 @@ HTML;
 
         // Optional welcome note to the nominator, included in the approval email.
         $approveReason = mb_substr(trim((string) ($b['decision_reason'] ?? '')), 0, 800);
-        DB::table('gates_nominations')->where('id', $id)->update([
-            'status' => 'approved',
-            'category_id' => $catId,
-            'decision_reason' => $approveReason !== '' ? $approveReason : null,
-        ]);
+        // Approve + create/resolve the nominee ATOMICALLY. If any write fails —
+        // most commonly a stale DB missing a column/table from an unapplied
+        // migration — the transaction rolls back and the moderator gets an
+        // actionable flash, never a raw 500 with a half-approved nomination.
+        $nomineeId = 0;
+        try {
+            DB::transaction(function () use ($id, $catId, $approveReason, $nom, &$nomineeId) {
+                DB::table('gates_nominations')->where('id', $id)->update([
+                    'status' => 'approved',
+                    'category_id' => $catId,
+                    'decision_reason' => $approveReason !== '' ? $approveReason : null,
+                ]);
 
-        // Normalised dedup (case-insensitive + trimmed) so "Dr. Jane Doe" and
-        // "dr. jane doe " don't both become separate nominees that split votes.
-        $normName = strtolower(trim((string)$nom->nominee_name));
-        $nomineeId = (int)(DB::table('gates_nominees')->where('category_id', $catId)
-            ->whereRaw('LOWER(TRIM(name)) = ?', [$normName])->value('id') ?? 0);
-        if ($nomineeId < 1) {
-            // Best-effort auto-link to an existing registry profile so this
-            // nominee's votes + judge scores roll up into the CPI leaderboard.
-            // Match by nominee email (exact) first, then by display name.
-            $profileId = null;
-            $nomEmail = strtolower(trim((string)($nom->nominee_email ?? '')));
-            if ($nomEmail !== '') {
-                $profileId = DB::table('gates_profiles')->where('status', 'approved')
-                    ->whereRaw('LOWER(email) = ?', [$nomEmail])->value('id');
-            }
-            if (!$profileId) {
-                $profileId = DB::table('gates_profiles')->where('status', 'approved')
-                    ->whereRaw('LOWER(display_name) = ?', [strtolower(trim((string)$nom->nominee_name))])
-                    ->value('id');
-            }
-            $nomineeId = (int)DB::table('gates_nominees')->insertGetId([
-                'category_id'  => $catId,
-                'profile_id'   => $profileId ?: null,
-                'name'         => $nom->nominee_name,
-                'tagline'      => mb_substr((string)$nom->reason, 0, 200),
-                'country_code' => $nom->country_code,
-                'status'       => 'approved',
-                'vote_count'   => 0,
-                'nominated_at' => Carbon::now()->toDateTimeString(),
-            ]);
+                // Normalised dedup (case-insensitive + trimmed) so "Dr. Jane Doe" and
+                // "dr. jane doe " don't both become separate nominees that split votes.
+                $normName = strtolower(trim((string)$nom->nominee_name));
+                $nomineeId = (int)(DB::table('gates_nominees')->where('category_id', $catId)
+                    ->whereRaw('LOWER(TRIM(name)) = ?', [$normName])->value('id') ?? 0);
+                if ($nomineeId < 1) {
+                    // Best-effort auto-link to an existing registry profile so this
+                    // nominee's votes + judge scores roll up into the CPI leaderboard.
+                    // Match by nominee email (exact) first, then by display name.
+                    $profileId = null;
+                    $nomEmail = strtolower(trim((string)($nom->nominee_email ?? '')));
+                    if ($nomEmail !== '') {
+                        $profileId = DB::table('gates_profiles')->where('status', 'approved')
+                            ->whereRaw('LOWER(email) = ?', [$nomEmail])->value('id');
+                    }
+                    if (!$profileId) {
+                        $profileId = DB::table('gates_profiles')->where('status', 'approved')
+                            ->whereRaw('LOWER(display_name) = ?', [strtolower(trim((string)$nom->nominee_name))])
+                            ->value('id');
+                    }
+                    $nomineeId = (int)DB::table('gates_nominees')->insertGetId([
+                        'category_id'  => $catId,
+                        'profile_id'   => $profileId ?: null,
+                        'name'         => $nom->nominee_name,
+                        'tagline'      => mb_substr((string)$nom->reason, 0, 200),
+                        'country_code' => $nom->country_code,
+                        'status'       => 'approved',
+                        'vote_count'   => 0,
+                        'nominated_at' => Carbon::now()->toDateTimeString(),
+                    ]);
+                }
+            });
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = $this->dbErrorFlash($e);
+            return $res->withHeader('Location', '/admin/nominations/' . $id . ($fromDesk ? '?desk=1' : ''))->withStatus(302);
         }
 
         $this->audit->record((int)$_SESSION['admin_id'], 'nomination.approve', 'nomination', $id, ['category_id' => $catId]);
@@ -271,21 +289,44 @@ HTML;
         return $res->withHeader('Location', '/admin/nominations/' . $id)->withStatus(302);
     }
 
+    /**
+     * Turn an unexpected DB write failure into an actionable flash instead of a
+     * raw 500. The overwhelmingly common cause is an unapplied migration — a
+     * write touches a column/table a stale database doesn't have yet — so name
+     * that first. No decision is committed when this fires (writes are wrapped).
+     */
+    private function dbErrorFlash(\Throwable $e): string
+    {
+        try {
+            $pending = \AfricaGates\Services\MigrationRunner::status()['pending'] ?? [];
+            if (!empty($pending)) {
+                return 'This action needs a pending database update that has not been applied yet, so nothing was saved. '
+                     . 'A superadmin can apply it from Settings (or run `php bin/console db:migrate`), then try again.';
+            }
+        } catch (\Throwable) { /* status probe failed — fall through to the generic message */ }
+        return 'Something went wrong saving that decision, so no changes were made. Please try again — if it keeps happening, contact support.';
+    }
+
     /** Issue a single-use nominee form token + email the verified nominee a congrats + link. */
     private function sendNomineeForm(object $nom, int $nomineeId): void
     {
         $email = strtolower(trim((string)($nom->nominee_email ?? '')));
         if (!$this->mailer || $nomineeId < 1 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
-        $raw  = GatedFormService::issue('nominee', $nomineeId, $email);
-        $link = GatedFormService::link($raw);
-        $nn   = htmlspecialchars((string)$nom->nominee_name, ENT_QUOTES, 'UTF-8');
-        $html = "<p>Hi <strong>{$nn}</strong>,</p>"
-            . "<p>Congratulations — your nomination has been <strong style=\"color:#15803d\">verified and approved</strong> on Africa GATES.</p>"
-            . "<p>Please confirm your details using your private form below. It takes a minute and helps us present you accurately to the continent.</p>"
-            . "<p style=\"text-align:center;margin:24px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Complete your form →</a></p>"
-            . "<p style=\"font-size:12.5px;color:#6b7674\">This is a private, single-use link just for you — it works once.</p>";
-        $plain = "Hi {$nom->nominee_name},\n\nCongratulations — your nomination has been verified and approved on Africa GATES.\nPlease complete your details using your private, single-use form:\n{$link}\n\n— Africa GATES";
-        try { $this->mailer->sendBranded($email, 'Congratulations — complete your Africa GATES nominee form', $html, $plain, 'Nominations'); } catch (\Throwable $e) {}
+        // Issuing the token, building the link, and sending are ALL best-effort:
+        // a missing gates_form_tokens table (stale DB) or a mail failure must
+        // never bubble up and 500 an approval that already committed.
+        try {
+            $raw  = GatedFormService::issue('nominee', $nomineeId, $email);
+            $link = GatedFormService::link($raw);
+            $nn   = htmlspecialchars((string)$nom->nominee_name, ENT_QUOTES, 'UTF-8');
+            $html = "<p>Hi <strong>{$nn}</strong>,</p>"
+                . "<p>Congratulations — your nomination has been <strong style=\"color:#15803d\">verified and approved</strong> on Africa GATES.</p>"
+                . "<p>Please confirm your details using your private form below. It takes a minute and helps us present you accurately to the continent.</p>"
+                . "<p style=\"text-align:center;margin:24px 0\"><a href=\"{$link}\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Complete your form →</a></p>"
+                . "<p style=\"font-size:12.5px;color:#6b7674\">This is a private, single-use link just for you — it works once.</p>";
+            $plain = "Hi {$nom->nominee_name},\n\nCongratulations — your nomination has been verified and approved on Africa GATES.\nPlease complete your details using your private, single-use form:\n{$link}\n\n— Africa GATES";
+            $this->mailer->sendBranded($email, 'Congratulations — complete your Africa GATES nominee form', $html, $plain, 'Nominations');
+        } catch (\Throwable $e) { /* token issue or mail failure — never break approval */ }
     }
 
     /** Review page — preview the nomination + pick a category before approving. */
@@ -354,7 +395,7 @@ HTML;
             'duplicates' => \AfricaGates\Services\NominationTriageService::duplicatesFor($nom),
             'insight' => \AfricaGates\Services\NominationTriageService::insight($id),
             'queue' => ($nom->status === 'pending') ? \AfricaGates\Services\NominationTriageService::queuePosition($id) : null,
-            'flash_error' => $_SESSION['flash_error'] ?? null,
+            // Flash renders from the Twig globals via the layout — do not shadow it.
         ]);
     }
 }

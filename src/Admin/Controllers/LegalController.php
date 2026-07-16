@@ -32,8 +32,7 @@ final class LegalController
             'admin_page' => 'legal',
             'docs'       => LegalService::all(),
             'core'       => self::CORE,
-            'flash_ok'   => $this->flash('flash_ok'),
-            'flash_error'=> $this->flash('flash_error'),
+            // Flash renders from the Twig globals via the layout — do not shadow them.
         ]);
     }
 
@@ -52,7 +51,7 @@ final class LegalController
             'is_new'     => $isNew,
             'doc'        => $doc ?? ['slug' => '', 'title' => '', 'body_html' => '', 'updated_label' => '', 'is_published' => 1, 'sort_order' => 0],
             'is_core'    => in_array($slug, self::CORE, true),
-            'flash_error'=> $this->flash('flash_error'),
+            // Flash renders from the Twig globals via the layout — do not shadow it.
         ]);
     }
 

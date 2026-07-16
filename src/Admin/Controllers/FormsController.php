@@ -47,7 +47,7 @@ class FormsController
             'is_new'      => !$id,
             'fields_seed' => $fields,
             'types'       => FormService::TYPES,
-            'flash_error' => $_SESSION['flash_error'] ?? null,
+            // Flash renders from the Twig globals via the layout — do not shadow it.
         ]);
     }
 
