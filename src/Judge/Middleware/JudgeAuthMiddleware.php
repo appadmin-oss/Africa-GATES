@@ -21,14 +21,15 @@ class JudgeAuthMiddleware
             if ($path === $p) return $handler->handle($req);
         }
         if (empty($_SESSION['judge_id'])) {
-            // The ballot posts scores/conflicts via fetch(); treat those as JSON so
-            // an expired session returns a real 401 (the JS then redirects to login)
+            // The ballot posts SCORES via fetch(); treat those as JSON so an
+            // expired session returns a real 401 (the JS then redirects to login)
             // instead of a 302→login-HTML that surfaces as a confusing "Save failed".
+            // Conflict declare/withdraw are plain HTML forms, so they are NOT
+            // classified as JSON — they must keep the redirect-to-login behaviour.
             $isJson = str_contains($req->getHeaderLine('Accept'), 'application/json')
                 || $req->getHeaderLine('X-Requested-With') === 'XMLHttpRequest'
                 || str_starts_with($path, '/judge/api/')
-                || str_starts_with($path, '/judge/score/')
-                || str_starts_with($path, '/judge/conflict/');
+                || str_starts_with($path, '/judge/score/');
             if ($isJson) {
                 $res = new Psr7Response(401);
                 $res->getBody()->write(json_encode(['success' => false, 'message' => 'Login required.']));

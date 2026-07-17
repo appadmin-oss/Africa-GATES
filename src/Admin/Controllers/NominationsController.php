@@ -182,15 +182,21 @@ HTML;
                     // nominee's votes + judge scores roll up into the CPI leaderboard.
                     // Match by nominee email (exact) first, then by display name.
                     $profileId = null;
+                    // Auto-link ONLY on an unambiguous single match — if two+ approved
+                    // profiles share the email/name, linking to an arbitrary one would
+                    // roll this nominee's votes + judge scores into the wrong profile.
+                    // Ambiguous cases stay unlinked for manual resolution.
                     $nomEmail = strtolower(trim((string)($nom->nominee_email ?? '')));
                     if ($nomEmail !== '') {
-                        $profileId = DB::table('gates_profiles')->where('status', 'approved')
-                            ->whereRaw('LOWER(email) = ?', [$nomEmail])->value('id');
+                        $m = DB::table('gates_profiles')->where('status', 'approved')
+                            ->whereRaw('LOWER(email) = ?', [$nomEmail])->limit(2)->pluck('id');
+                        $profileId = $m->count() === 1 ? $m->first() : null;
                     }
                     if (!$profileId) {
-                        $profileId = DB::table('gates_profiles')->where('status', 'approved')
+                        $m = DB::table('gates_profiles')->where('status', 'approved')
                             ->whereRaw('LOWER(display_name) = ?', [strtolower(trim((string)$nom->nominee_name))])
-                            ->value('id');
+                            ->limit(2)->pluck('id');
+                        $profileId = $m->count() === 1 ? $m->first() : null;
                     }
                     $nomineeId = (int)DB::table('gates_nominees')->insertGetId([
                         'category_id'  => $catId,
@@ -283,9 +289,12 @@ HTML;
             $_SESSION['flash_error'] = 'Could not locate the created nominee record.';
             return $res->withHeader('Location', '/admin/nominations/' . $id)->withStatus(302);
         }
-        $this->sendNomineeForm($nom, $nomineeId);
-        $this->audit->record((int)$_SESSION['admin_id'], 'nomination.regenerate_form', 'nomination', $id);
-        $_SESSION['flash_ok'] = 'A fresh single-use acceptance form link was emailed to the nominee (any previous link is now void).';
+        if ($this->sendNomineeForm($nom, $nomineeId)) {
+            $this->audit->record((int)$_SESSION['admin_id'], 'nomination.regenerate_form', 'nomination', $id);
+            $_SESSION['flash_ok'] = 'A fresh single-use acceptance form link was emailed to the nominee (any previous link is now void).';
+        } else {
+            $_SESSION['flash_error'] = 'Could not issue or email the acceptance form link — check the nominee has a valid email and that mail is configured, then try again.';
+        }
         return $res->withHeader('Location', '/admin/nominations/' . $id)->withStatus(302);
     }
 
@@ -300,11 +309,17 @@ HTML;
         return \AfricaGates\Admin\Support\ActionError::dbMessage($e);
     }
 
-    /** Issue a single-use nominee form token + email the verified nominee a congrats + link. */
-    private function sendNomineeForm(object $nom, int $nomineeId): void
+    /**
+     * Issue a single-use nominee form token + email the verified nominee a
+     * congrats + link. Returns true only when the email was actually sent, so
+     * the explicit regenerate action can report an honest success/failure. In
+     * the approve flow the return value is ignored — sending is best-effort
+     * there and must never break an approval that already committed.
+     */
+    private function sendNomineeForm(object $nom, int $nomineeId): bool
     {
         $email = strtolower(trim((string)($nom->nominee_email ?? '')));
-        if (!$this->mailer || $nomineeId < 1 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return;
+        if (!$this->mailer || $nomineeId < 1 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
         // Issuing the token, building the link, and sending are ALL best-effort:
         // a missing gates_form_tokens table (stale DB) or a mail failure must
         // never bubble up and 500 an approval that already committed.
@@ -319,7 +334,9 @@ HTML;
                 . "<p style=\"font-size:12.5px;color:#6b7674\">This is a private, single-use link just for you — it works once.</p>";
             $plain = "Hi {$nom->nominee_name},\n\nCongratulations — your nomination has been verified and approved on Africa GATES.\nPlease complete your details using your private, single-use form:\n{$link}\n\n— Africa GATES";
             $this->mailer->sendBranded($email, 'Congratulations — complete your Africa GATES nominee form', $html, $plain, 'Nominations');
+            return true;
         } catch (\Throwable $e) { /* token issue or mail failure — never break approval */ }
+        return false;
     }
 
     /** Review page — preview the nomination + pick a category before approving. */

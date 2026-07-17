@@ -17,6 +17,11 @@ final class ActionError
 {
     public static function dbMessage(\Throwable $e): string
     {
+        // Always record the underlying failure. The caller turns this into a
+        // friendly flash and redirects, so without this line the real error
+        // (deadlock, constraint violation, missing column, syntax) would be
+        // swallowed entirely and never reach the logs.
+        error_log('[admin] DB write failed: ' . get_class($e) . ': ' . $e->getMessage());
         try {
             $pending = \AfricaGates\Services\MigrationRunner::status()['pending'] ?? [];
             if (!empty($pending)) {
