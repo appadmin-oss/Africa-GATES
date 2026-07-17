@@ -66,13 +66,18 @@ class ProgrammesController
             'is_active'   => isset($b['is_active']) ? 1 : 0,
             'terms'       => trim((string)($b['terms'] ?? '')) ?: null,
         ];
-        if ($id) {
-            DB::table('gates_award_programmes')->where('id', $id)->update($data);
-            $this->audit->record((int)$_SESSION['admin_id'], 'programme.update', 'programme', $id);
-        } else {
-            $data['created_at'] = Carbon::now()->toDateTimeString();
-            $id = (int)DB::table('gates_award_programmes')->insertGetId($data);
-            $this->audit->record((int)$_SESSION['admin_id'], 'programme.create', 'programme', $id);
+        try {
+            if ($id) {
+                DB::table('gates_award_programmes')->where('id', $id)->update($data);
+                $this->audit->record((int)$_SESSION['admin_id'], 'programme.update', 'programme', $id);
+            } else {
+                $data['created_at'] = Carbon::now()->toDateTimeString();
+                $id = (int)DB::table('gates_award_programmes')->insertGetId($data);
+                $this->audit->record((int)$_SESSION['admin_id'], 'programme.create', 'programme', $id);
+            }
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ActionError::dbMessage($e);
+            return $res->withHeader('Location', $id ? '/admin/programmes/' . $id : '/admin/programmes/new')->withStatus(302);
         }
         $this->bustAwardsCache();
         $_SESSION['flash_ok'] = 'Programme saved.';
@@ -113,12 +118,18 @@ class ProgrammesController
             'voting_close'      => $b['voting_close']      ?: null,
             'results_date'      => $b['results_date']      ?: null,
         ];
-        if ($cycle) {
-            DB::table('gates_award_cycles')->where('id', $cycle->id)->update($data);
-            $cid = (int)$cycle->id;
-        } else {
-            $data['created_at'] = Carbon::now()->toDateTimeString();
-            $cid = (int)DB::table('gates_award_cycles')->insertGetId($data);
+        $cid = 0;
+        try {
+            if ($cycle) {
+                DB::table('gates_award_cycles')->where('id', $cycle->id)->update($data);
+                $cid = (int)$cycle->id;
+            } else {
+                $data['created_at'] = Carbon::now()->toDateTimeString();
+                $cid = (int)DB::table('gates_award_cycles')->insertGetId($data);
+            }
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ActionError::dbMessage($e);
+            return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
         }
         $this->audit->record((int)$_SESSION['admin_id'], 'cycle.save', 'cycle', $cid);
         $this->bustAwardsCache();

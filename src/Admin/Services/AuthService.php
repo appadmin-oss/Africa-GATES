@@ -103,6 +103,10 @@ class AuthService
             $this->audit->record((int)$_SESSION['admin_id'], 'logout', 'admin', (int)$_SESSION['admin_id']);
         }
         unset($_SESSION['admin_id'], $_SESSION['admin_name'], $_SESSION['admin_role'], $_SESSION['admin_email']);
+        // Rotate the session id on logout so the pre-logout id can't be reused
+        // (kiosk/shared-machine hardening); also cycle the CSRF token.
+        Session::rotate();
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
 
     public function currentAdmin(): ?object

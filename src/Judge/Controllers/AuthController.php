@@ -155,6 +155,8 @@ class AuthController
     public function logout(Request $req, Response $res): Response
     {
         unset($_SESSION['judge_id'], $_SESSION['judge_name'], $_SESSION['judge_email']);
+        // Rotate the session id on logout so the pre-logout id can't be reused.
+        Session::rotate();
         return $res->withHeader('Location', '/judge/login')->withStatus(302);
     }
 }

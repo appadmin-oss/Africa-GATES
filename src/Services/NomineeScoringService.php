@@ -17,6 +17,9 @@ class NomineeScoringService
         private readonly RuleEngine $rules = new RuleEngine(),
     ) {}
 
+    /** Per-call cache of resolved criteria weights: [programmeId => [criterionId => weight]]. */
+    private array $criteriaByProgramme = [];
+
     /**
      * Per-nominee scores for one category (cohort-normalised community + judges,
      * with the effective per-cycle CPI weights from the rule engine).
@@ -85,13 +88,22 @@ class NomineeScoringService
     public function judgeStatsFor(array $nomineeIds): array
     {
         if (!$nomineeIds) return [];
-        $weights = [];
-        foreach (DB::table('gates_judge_criteria')->where('is_active', 1)->get() as $c) {
-            $weights[(int) $c->id] = (int) $c->weight ?: 25;
+
+        // Resolve each nominee's programme so "complete" is measured against the
+        // SAME programme-scoped criteria set the ballot renders + saveScore()
+        // enforces (JudgeService::criteria) — NOT the raw global list. When a
+        // programme has no specific override the resolved set == the globals, so
+        // this is behaviour-preserving today and correct once overrides exist.
+        $programmeOf = [];
+        foreach (
+            DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                ->whereIn('n.id', $nomineeIds)
+                ->select('n.id', 'cy.programme_id')->get() as $r
+        ) {
+            $programmeOf[(int) $r->id] = (int) ($r->programme_id ?? 0);
         }
-        $activeIds = array_keys($weights);
-        $required  = count($activeIds);
-        if ($required === 0) return [];
 
         $tree = [];
         foreach (DB::table('gates_judge_criteria_scores')->whereIn('nominee_id', $nomineeIds)->get() as $s) {
@@ -99,6 +111,11 @@ class NomineeScoringService
         }
         $out = [];
         foreach ($tree as $nomId => $byJudge) {
+            $weights   = $this->criteriaWeights($programmeOf[(int) $nomId] ?? 0);
+            $activeIds = array_keys($weights);
+            $required  = count($activeIds);
+            if ($required === 0) continue;
+
             $perJudge = [];
             foreach ($byJudge as $scoresByCrit) {
                 $ws = 0; $wt = 0; $covered = 0;
@@ -109,7 +126,7 @@ class NomineeScoringService
                     $ws += $scoresByCrit[$cid] * $w;
                     $wt += $w;
                 }
-                // Only a COMPLETE scorecard (every active criterion scored) counts.
+                // Only a COMPLETE scorecard (every required criterion scored) counts.
                 if ($covered === $required && $wt > 0) {
                     $perJudge[] = $ws / $wt;
                 }
@@ -122,5 +139,36 @@ class NomineeScoringService
             }
         }
         return $out;
+    }
+
+    /**
+     * Resolve the required criteria weights [criterionId => weight] for a
+     * programme, mirroring JudgeService::criteria: active rows scoped to the
+     * programme OR global (programme_id NULL), deduped by slug preferring the
+     * programme-specific row. Cached per call.
+     *
+     * @return array<int,int>
+     */
+    private function criteriaWeights(int $programmeId): array
+    {
+        if (isset($this->criteriaByProgramme[$programmeId])) {
+            return $this->criteriaByProgramme[$programmeId];
+        }
+        $rows = DB::table('gates_judge_criteria')
+            ->where('is_active', 1)
+            ->where(function ($q) use ($programmeId) {
+                $q->where('programme_id', $programmeId)->orWhereNull('programme_id');
+            })
+            ->orderBy('sort_order')->get();
+        $bySlug = [];
+        foreach ($rows as $r) {
+            $slug = (string) $r->slug;
+            if (!isset($bySlug[$slug]) || $r->programme_id) $bySlug[$slug] = $r;
+        }
+        $weights = [];
+        foreach ($bySlug as $r) {
+            $weights[(int) $r->id] = (int) $r->weight ?: 25;
+        }
+        return $this->criteriaByProgramme[$programmeId] = $weights;
     }
 }

@@ -297,14 +297,7 @@ HTML;
      */
     private function dbErrorFlash(\Throwable $e): string
     {
-        try {
-            $pending = \AfricaGates\Services\MigrationRunner::status()['pending'] ?? [];
-            if (!empty($pending)) {
-                return 'This action needs a pending database update that has not been applied yet, so nothing was saved. '
-                     . 'A superadmin can apply it from Settings (or run `php bin/console db:migrate`), then try again.';
-            }
-        } catch (\Throwable) { /* status probe failed — fall through to the generic message */ }
-        return 'Something went wrong saving that decision, so no changes were made. Please try again — if it keeps happening, contact support.';
+        return \AfricaGates\Admin\Support\ActionError::dbMessage($e);
     }
 
     /** Issue a single-use nominee form token + email the verified nominee a congrats + link. */

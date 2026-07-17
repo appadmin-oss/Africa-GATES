@@ -86,7 +86,12 @@ class ProfilesController
             'completeness_pct'  => max(0, min(100, (int)($b['completeness_pct'] ?? 0))),
             'updated_at'        => Carbon::now()->toDateTimeString(),
         ];
-        DB::table('gates_profiles')->where('id',$id)->update($patch);
+        try {
+            DB::table('gates_profiles')->where('id',$id)->update($patch);
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ActionError::dbMessage($e);
+            return $res->withHeader('Location', '/admin/profiles/' . $id)->withStatus(302);
+        }
         $this->audit->record((int)$_SESSION['admin_id'], 'profile.update', 'profile', $id, ['fields' => array_keys($patch)]);
         $_SESSION['flash_ok'] = 'Profile updated.';
         return $res->withHeader('Location', '/admin/profiles/' . $id)->withStatus(302);

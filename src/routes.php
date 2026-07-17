@@ -118,21 +118,46 @@ return function(App $app) {
             else {
                 try {
                     $now = date('Y-m-d H:i:s');
+                    $ip  = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
                     $tbl = \Illuminate\Database\Capsule\Manager::table('gates_admins');
                     $existing = (clone $tbl)->where('email', $email)->first();
                     if ($existing) {
-                        (clone $tbl)->where('id', $existing->id)->update([
-                            'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
-                            'is_active' => 1, 'failed_attempts' => 0, 'locked_until' => null, 'updated_at' => $now,
-                        ]);
-                        $ok = true; $msg = "Password reset and account unlocked for {$email} (role unchanged).";
+                        // RESET is limited to genuine recovery — a locked-out or
+                        // disabled account. An active, unlocked admin must rotate
+                        // from the console (or via the magic-link) so that a leaked
+                        // SETUP_TOKEN can't silently seize a live superadmin.
+                        $locked   = $existing->locked_until !== null && strtotime((string) $existing->locked_until) > time();
+                        $disabled = (int) ($existing->is_active ?? 1) === 0;
+                        if (!$locked && !$disabled) {
+                            error_log("[setup] REFUSED password reset for active account {$email} from {$ip}");
+                            $msg = 'This account is active and not locked, so in-place reset here is disabled. '
+                                 . 'Use the admin magic-link at /admin/magic, or delete SETUP_TOKEN and run `php bin/console admin:create`.';
+                        } else {
+                            (clone $tbl)->where('id', $existing->id)->update([
+                                'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
+                                'is_active' => 1, 'failed_attempts' => 0, 'locked_until' => null, 'updated_at' => $now,
+                            ]);
+                            error_log("[setup] password reset + unlock for {$email} from {$ip}");
+                            $ok = true; $msg = "Password reset and account unlocked for {$email} (role unchanged).";
+                        }
                     } else {
-                        (clone $tbl)->insert([
-                            'email' => $email, 'name' => $name, 'role' => 'superadmin',
-                            'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
-                            'is_active' => 1, 'failed_attempts' => 0, 'created_at' => $now, 'updated_at' => $now,
-                        ]);
-                        $ok = true; $msg = "Created superadmin {$email}.";
+                        // CREATE is limited to first-run: only when NO admin exists
+                        // yet. Once provisioned, add further admins from inside the
+                        // console (Admins, superadmin-only) — not via the token.
+                        $adminCount = (int) (clone $tbl)->count();
+                        if ($adminCount > 0) {
+                            error_log("[setup] REFUSED create superadmin {$email} from {$ip} — {$adminCount} admin(s) already exist");
+                            $msg = 'An admin account already exists, so first-admin creation here is disabled. '
+                                 . 'Add admins from the console (Admins), recover a locked/disabled account, or use `php bin/console admin:create`.';
+                        } else {
+                            (clone $tbl)->insert([
+                                'email' => $email, 'name' => $name, 'role' => 'superadmin',
+                                'password_hash' => password_hash($pass, PASSWORD_BCRYPT),
+                                'is_active' => 1, 'failed_attempts' => 0, 'created_at' => $now, 'updated_at' => $now,
+                            ]);
+                            error_log("[setup] created first superadmin {$email} from {$ip}");
+                            $ok = true; $msg = "Created superadmin {$email}.";
+                        }
                     }
                 } catch (\Throwable $ex) {
                     $msg = 'Database error: ' . $ex->getMessage() . ' — run /__setup/migrate first.';

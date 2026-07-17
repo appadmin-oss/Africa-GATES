@@ -332,6 +332,7 @@ function ballotApp(initial){
           headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]')||{}).content || '' },
           body: params,
         });
+        if(r.status===401){ n._err='Your session expired — redirecting to sign in…'; n._state='err'; window.location='/judge/login?next=' + encodeURIComponent(location.pathname); return false; }
         var d = await r.json().catch(function(){ return {}; });
         if(r.ok && d.ok){ n._state='ok'; n._err=''; setTimeout(function(){ if(n._state==='ok') n._state=''; },2500); return true; }
         n._err = (d && d.message) || (r.status===403 ? 'Scoring is closed for this cycle' : ('Save failed (' + r.status + ')'));
