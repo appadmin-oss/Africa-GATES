@@ -118,6 +118,16 @@ class ProgrammesController
             'voting_close'      => $b['voting_close']      ?: null,
             'results_date'      => $b['results_date']      ?: null,
         ];
+        // Guard manual status transitions so the editor can't produce a cycle
+        // state the automated, quorum-checked lifecycle machine never would:
+        // no hand-jump to 'results' (winners promote through the date-driven
+        // path), no backward regression, no phase-skipping.
+        $from = $cycle ? (string)$cycle->status : null;
+        $to   = (string)$data['status'];
+        if (($err = \AfricaGates\Services\CycleService::manualTransitionError($from, $to)) !== null) {
+            $_SESSION['flash_error'] = $err;
+            return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
+        }
         $cid = 0;
         try {
             if ($cycle) {
@@ -130,6 +140,20 @@ class ProgrammesController
         } catch (\Throwable $e) {
             $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ActionError::dbMessage($e);
             return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
+        }
+        // Record a manual phase change in the same tamper-evident ledger the cron
+        // writes to, so gates_cycle_transitions is a complete history (auto + manual).
+        if ($from !== null && $from !== $to) {
+            try {
+                DB::table('gates_cycle_transitions')->insert([
+                    'cycle_id'    => $cid,
+                    'from_status' => $from,
+                    'to_status'   => $to,
+                    'reason'      => 'manual: admin cycle editor',
+                    'actor'       => 'admin:' . (int)($_SESSION['admin_id'] ?? 0),
+                    'created_at'  => Carbon::now()->toDateTimeString(),
+                ]);
+            } catch (\Throwable $e) { /* ledger insert is best-effort — never block the save */ }
         }
         $this->audit->record((int)$_SESSION['admin_id'], 'cycle.save', 'cycle', $cid);
         $this->bustAwardsCache();

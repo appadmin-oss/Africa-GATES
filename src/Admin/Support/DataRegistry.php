@@ -144,6 +144,25 @@ final class DataRegistry
             'order' => ['created_at', 'desc'], 'search' => ['form_key'],
             'cols' => [['id', 'ID'], ['form_key', 'Form', 'chip'], ['created_at', 'When', 'datetime']],
         ],
+        // Operational hygiene — is the automation itself healthy? These answer
+        // "what's stuck / failing / not running", which the platform's own
+        // operator docs already reference (PROCESS-SCENARIOS: "audited in
+        // gates_messages") but had no admin view for until now.
+        'jobs' => [
+            'label' => 'Job queue', 'table' => 'gates_jobs', 'group' => 'Operations',
+            'order' => ['id', 'desc'], 'search' => ['type', 'status', 'last_error'],
+            'cols' => [['id', 'ID'], ['type', 'Type', 'chip'], ['status', 'Status', 'chip'], ['attempts', 'Tries'], ['run_after', 'Run after', 'datetime'], ['last_error', 'Last error'], ['created_at', 'Queued', 'datetime']],
+        ],
+        'cron-log' => [
+            'label' => 'Cron run log', 'table' => 'gates_cron_log', 'group' => 'Operations',
+            'order' => ['ran_at', 'desc'], 'search' => ['job_name', 'message'],
+            'cols' => [['id', 'ID'], ['job_name', 'Job', 'chip'], ['status', 'Status', 'chip'], ['runtime_ms', 'ms'], ['message', 'Message'], ['ran_at', 'When', 'datetime']],
+        ],
+        'messages' => [
+            'label' => 'SMS / WhatsApp log', 'table' => 'gates_messages', 'group' => 'Operations',
+            'order' => ['created_at', 'desc'], 'search' => ['to_masked', 'template', 'status', 'error'],
+            'cols' => [['id', 'ID'], ['channel', 'Channel', 'chip'], ['to_masked', 'To'], ['template', 'Template', 'chip'], ['status', 'Status', 'chip'], ['provider', 'Provider'], ['error', 'Error'], ['created_at', 'When', 'datetime']],
+        ],
     ];
 
     public static function get(string $key): ?array

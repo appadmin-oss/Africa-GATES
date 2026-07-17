@@ -107,16 +107,26 @@ recompute twice every 6 hours.
 | `/africa-gates/opportunities` | Opportunities |
 
 ## Award Cycle Management
-```sql
--- Open voting for Business Awards
-UPDATE gates_award_cycles SET status='voting',
-  voting_open=NOW(), voting_close='2025-09-15 23:59:59'
-WHERE programme_id=4 AND year=2025;
 
--- Close voting
-UPDATE gates_award_cycles SET status='results'
-WHERE programme_id=4 AND year=2025;
-```
+Manage cycles from the admin console — **Programmes → (a programme) → Cycle**
+(`/admin/programmes/{id}/cycle`, superadmin). Set the phase **date windows**
+(nominations open/close, voting open/close, results date) and let the platform
+run the lifecycle itself: the hourly `cycles:advance` job moves each cycle
+**forward one phase at a time** (`upcoming → nominations → voting → judging →
+results → archived`) as those dates pass, writes a tamper-evident entry to
+`gates_cycle_transitions`, and — on entry to `results` — promotes winners/
+runners-up **by CPI rank, subject to the judge quorum**.
+
+Prefer the date windows over flipping the status by hand. The editor enforces
+the same rules as the automated machine — it is **forward-only, one phase at a
+time**, and **won't set `results` manually** (that transition has to run through
+the judged, quorum-checked promotion path, so the published standings stay
+tamper-evident). To publish results, set the results date rather than selecting
+`results` in the dropdown.
+
+Do **not** change `gates_award_cycles.status` with raw SQL: it bypasses the
+audit log, the cycle-transition ledger, the cache-bust, and the quorum/winner
+promotion — leaving the cycle in a state the platform can't vouch for.
 
 **Note:** Voting and nominations are MUTUALLY EXCLUSIVE per programme. The pages automatically show a "closed" state when not in the relevant cycle phase.
 

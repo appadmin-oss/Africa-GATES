@@ -95,6 +95,15 @@ class NomineesController
      */
     public function link(Request $req, Response $res, array $args): Response
     {
+        // Relinking a nominee to a different profile changes whose CPI rollup
+        // absorbs its votes + judge scores — an integrity/award decision, so it
+        // is admin+ only, exactly like winner/runner-up. A moderator moderates,
+        // it must not silently re-route scoring.
+        if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            $_SESSION['flash_error'] = 'Only an admin can link or unlink a nominee to a profile (it moves the CPI rollup).';
+            $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/nominees';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
         $id = (int)$args['id'];
         $b  = (array)$req->getParsedBody();
         $slug = trim((string)($b['profile_slug'] ?? ''));
@@ -121,6 +130,13 @@ class NomineesController
 
     public function delete(Request $req, Response $res, array $args): Response
     {
+        // Deleting a nominee cascades to its votes + judge scores — an integrity
+        // decision beyond moderation, so admin+ only.
+        if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            $_SESSION['flash_error'] = 'Only an admin can delete a nominee.';
+            $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/nominees';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
         $id = (int)$args['id'];
         DB::table('gates_nominees')->where('id', $id)->delete();
         $this->audit->record((int)$_SESSION['admin_id'], 'nominee.delete', 'nominee', $id);
