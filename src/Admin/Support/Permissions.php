@@ -86,6 +86,17 @@ final class Permissions
         return in_array($role, self::MATRIX[$section] ?? [], true);
     }
 
+    /**
+     * Integrity & award decisions — CPI score/tier, verification tier,
+     * completeness, and setting winners/runner-ups — are reserved for admin and
+     * superadmin. A moderator moderates (approve/reject/suspend) but must not
+     * rewrite the numbers that decide rank or crown winners.
+     */
+    public static function canManageIntegrity(string $role): bool
+    {
+        return in_array($role, ['superadmin', 'admin'], true);
+    }
+
     /** The sections $role may view — drives the sidebar. */
     public static function allowedSections(string $role): array
     {

@@ -50,8 +50,10 @@
           <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|replace({'_':' '})|capitalize }}</span>
         </td>
         <td class="col-actions">
+          {% if admin_role in ['superadmin','admin'] %}
           {% if r.status != 'winner' %}<form method="post" action="/admin/nominees/{{ r.id }}/winner" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--gold" type="submit">Winner</button></form>{% endif %}
           {% if r.status != 'runner_up' %}<form method="post" action="/admin/nominees/{{ r.id }}/runner_up" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs" type="submit">Runner-up</button></form>{% endif %}
+          {% endif %}
           <form method="post" action="/admin/nominees/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" data-confirm="Delete nominee?">×</button></form>
         </td>
       </tr>

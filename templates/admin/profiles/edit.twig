@@ -34,6 +34,11 @@
 
   <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">CPI & Status</div></div><div class="ad-card__body">
     <div class="ad-form">
+      {# Integrity fields (CPI, verification, completeness) are admin+ only — a
+         moderator can still moderate status below. Server-side enforcement in
+         ProfilesController mirrors this so a hand-crafted POST can't bypass it. #}
+      {% set can_integrity = admin_role in ['superadmin','admin'] %}
+      {% if can_integrity %}
       <div class="row">
         <div><label for="f-cpi_score">CPI score (0–1000)</label><input type="number" name="cpi_score" id="f-cpi_score" min="0" max="1000" value="{{ profile.cpi_score }}"></div>
         <div><label for="f-cpi_tier">CPI tier</label>
@@ -42,19 +47,22 @@
           </select>
         </div>
       </div>
+      {% endif %}
       <div class="row">
         <div><label for="f-status">Status</label>
           <select name="status" id="f-status">
             {% for s in ['pending','approved','suspended','rejected'] %}<option value="{{ s }}" {% if profile.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}
           </select>
         </div>
+        {% if can_integrity %}
         <div><label for="f-verification_tier">Verification</label>
           <select name="verification_tier" id="f-verification_tier">
             {% for v in ['none','basic','verified','premium'] %}<option value="{{ v }}" {% if profile.verification_tier == v %}selected{% endif %}>{{ v|capitalize }}</option>{% endfor %}
           </select>
         </div>
+        {% endif %}
       </div>
-      <div><label for="f-completeness_pct">Completeness %</label><input type="number" name="completeness_pct" id="f-completeness_pct" min="0" max="100" value="{{ profile.completeness_pct }}"></div>
+      {% if can_integrity %}<div><label for="f-completeness_pct">Completeness %</label><input type="number" name="completeness_pct" id="f-completeness_pct" min="0" max="100" value="{{ profile.completeness_pct }}"></div>{% endif %}
     </div>
   </div></div>
 

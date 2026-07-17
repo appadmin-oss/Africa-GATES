@@ -74,6 +74,13 @@ class NomineesController
         $action = $args['action'];
         $map = ['winner' => 'winner', 'runner_up' => 'runner_up', 'approve' => 'approved', 'remove' => 'pending'];
         if (!isset($map[$action])) throw new \Slim\Exception\HttpNotFoundException($req);
+        // Crowning winners / runner-ups is an award decision — admin+ only, not moderator.
+        if (in_array($action, ['winner', 'runner_up'], true)
+            && !\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            $_SESSION['flash_error'] = 'Only an admin can set award results (winner / runner-up).';
+            $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/nominees';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
         DB::table('gates_nominees')->where('id', $id)->update(['status' => $map[$action]]);
         $this->audit->record((int)$_SESSION['admin_id'], "nominee.$action", 'nominee', $id);
         $_SESSION['flash_ok'] = 'Nominee updated.';

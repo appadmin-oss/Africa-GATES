@@ -48,15 +48,20 @@ class NomineeScoringService
 
         $out = [];
         foreach ($nominees as $n) {
-            $st     = $stats[(int) $n->id] ?? null;
-            $ja     = $st['avg'] ?? null;
-            $judges = $st['judges'] ?? 0;
+            $st       = $stats[(int) $n->id] ?? null;
+            $ja       = $st['avg'] ?? null;
+            $judges   = $st['judges'] ?? 0;
+            $eligible = $judges >= $quorum;                        // winner-eligible only at quorum
             $out[(int) $n->id] = [
                 'vote_count'  => (int) $n->vote_count,            // total display support
                 'judge_score' => $ja,
                 'judges'      => $judges,                          // COMPLETE scorecards only
-                'eligible'    => $judges >= $quorum,               // winner-eligible only at quorum
-                'cpi_score'   => $this->cpi->nomineeScore((int) $n->organic_vote_count, $cohortMax, $ja, $w['community'], $w['judge']),
+                'eligible'    => $eligible,
+                // Judges only move the CPI once the per-cycle quorum of COMPLETE
+                // scorecards is met (README methodology). Below quorum the judge
+                // component is withheld (community-only) so one early scorecard
+                // can't swing a nominee's displayed rank.
+                'cpi_score'   => $this->cpi->nomineeScore((int) $n->organic_vote_count, $cohortMax, $eligible ? $ja : null, $w['community'], $w['judge']),
             ];
         }
         return $out;

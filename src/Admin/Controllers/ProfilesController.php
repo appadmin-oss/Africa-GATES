@@ -86,6 +86,11 @@ class ProfilesController
             'completeness_pct'  => max(0, min(100, (int)($b['completeness_pct'] ?? 0))),
             'updated_at'        => Carbon::now()->toDateTimeString(),
         ];
+        // Integrity fields are admin+ only — a moderator may edit descriptive
+        // fields and moderate status, but never rewrite the score/verification.
+        if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            unset($patch['cpi_score'], $patch['cpi_tier'], $patch['verification_tier'], $patch['completeness_pct']);
+        }
         try {
             DB::table('gates_profiles')->where('id',$id)->update($patch);
         } catch (\Throwable $e) {
