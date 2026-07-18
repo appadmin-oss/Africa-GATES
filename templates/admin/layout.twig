@@ -224,6 +224,11 @@
 
 </div>
 
+{# Alpine.js powers the admin's rich interactivity — the AI console + AI-assist
+   drafting, the form builder, and the post/event editors all use x-data/@click.
+   Without it those surfaces silently do nothing (admin.js notes it depends on
+   Alpine). Loaded before admin.js, same pinned version as the public layout. #}
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
 <script defer src="https://unpkg.com/@popperjs/core@2"></script>
 <script defer src="https://unpkg.com/tippy.js@6"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js"></script>

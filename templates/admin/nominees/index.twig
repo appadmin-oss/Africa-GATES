@@ -39,7 +39,7 @@
               <button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" title="Unlink">unlink</button>
             </form>
             {% endif %}
-          {% elif admin_role in ['superadmin','admin'] %}
+          {% elseif admin_role in ['superadmin','admin'] %}
             <form method="post" action="/admin/nominees/{{ r.id }}/link" style="display:flex;gap:4px">
               <input type="hidden" name="_token" value="{{ csrf_token }}">
               <input type="text" name="profile_slug" placeholder="profile slug" aria-label="Profile slug" style="width:110px;font-size:12px;padding:2px 6px">
