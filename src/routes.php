@@ -557,6 +557,9 @@ return function(App $app) {
         $a->get('/registrations',                AdminRegistrationsController::class.':index');
         $a->get('/registrations/export',         AdminRegistrationsController::class.':export');
 
+        // Member account actions (manual points adjustment — audited, admin+ gated in-controller).
+        $a->post('/users/{id:[0-9]+}/points',    \AfricaGates\Admin\Controllers\UsersController::class.':adjustPoints');
+
         // Generic data explorer — every collected dataset (paginated + detail pages + CSV).
         $a->get('/data',                         AdminDataController::class.':index');
         $a->get('/data/{dataset}/export',        AdminDataController::class.':export');

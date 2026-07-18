@@ -15,4 +15,16 @@
     {% endfor %}
   </div>
 </div></div>
+
+{% if dataset == 'users' and admin_role in ['superadmin','admin'] %}
+<div class="ad-card" style="max-width:860px;margin-top:16px"><div class="ad-card__head"><div class="ad-card__title">Adjust points</div></div><div class="ad-card__body">
+  <p style="font-size:13px;color:var(--ad-text-soft,#5a6d6f);margin:0 0 12px">Grant or deduct voting points for dispute resolution (e.g. a purchase that should have earned points but didn&rsquo;t). Use a negative amount to deduct. Every adjustment is recorded in the audit log and the points ledger.</p>
+  <form method="post" action="/admin/users/{{ id }}/points" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label style="font-size:13px">Amount (+/−)<br><input type="number" name="delta" required step="1" style="width:130px;padding:6px 9px" placeholder="e.g. 500 or -500"></label>
+    <label style="font-size:13px;flex:1;min-width:220px">Reason (for the audit trail)<br><input type="text" name="note" required maxlength="200" style="width:100%;padding:6px 9px" placeholder="e.g. compensating for a failed purchase credit"></label>
+    <button class="ad-btn ad-btn--primary" type="submit">Apply</button>
+  </form>
+</div></div>
+{% endif %}
 {% endblock %}

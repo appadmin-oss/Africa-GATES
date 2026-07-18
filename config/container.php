@@ -281,4 +281,5 @@ return [
     \AfricaGates\Admin\Controllers\LegalController::class    => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\LegalController($c->get(Twig::class), $c->get(AuditService::class)),
     \AfricaGates\Admin\Controllers\AiAssistController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AiAssistController($c->get(RateLimitService::class)),
     AdminProductsController::class     => fn(ContainerInterface $c)=>new AdminProductsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
+    \AfricaGates\Admin\Controllers\UsersController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\UsersController($c->get(AuditService::class)),
 ];
