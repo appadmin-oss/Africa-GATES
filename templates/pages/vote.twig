@@ -57,7 +57,7 @@
   .vh-act--p{ background:var(--ag-green,#237b22); color:#fff; }
   .vh-act--p:hover{ background:var(--ag-green-dark,#1a6118); }
   .vh-act--g{ background:var(--ag-surface,#fff); border-color:rgba(16,41,44,.16); color:var(--ag-ink,#10292C); }
-  .vh-act--off{ background:#f1f4f1; color:#9aa6a8; cursor:default; }
+  .vh-act--off{ background:#eef1ee; color:#5f7273; cursor:default; }
 
   /* right rail */
   .vh-rail{ position:sticky; top:96px; display:flex; flex-direction:column; gap:16px; }
@@ -68,7 +68,7 @@
   .vh-prog i{ display:block; height:100%; background:var(--ag-green,#237b22); transition:width .4s ease; }
   .vh-secure{ display:flex; align-items:center; gap:9px; margin-top:18px; padding:13px; border-radius:13px; background:#f4f7f4; font-size:12px; line-height:1.45; color:#4a5256; }
   .vh-ballot__cta{ display:block; text-align:center; text-decoration:none; width:100%; margin-top:16px; cursor:pointer; border:none; background:var(--ag-green,#237b22); color:#fff; font-family:inherit; font-weight:600; font-size:14.5px; padding:13px; border-radius:999px; }
-  .vh-ballot__cta--off{ background:#9aa6a8; }
+  .vh-ballot__cta--off{ background:#5f7273; }
   .vh-closing{ background:var(--ag-ink,#10292C); border-radius:20px; padding:22px; color:#fff; }
   .vh-closing__k{ margin:0; font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#fbc329; }
   .vh-closing h3{ margin:9px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:18px; color:#fff; }
@@ -137,14 +137,14 @@
     <!-- LEFT -->
     <div>
       <div class="vh-filters">
-        <div class="vh-chips" role="tablist" aria-label="Filter programmes">
-          <button type="button" class="vh-chip" :class="filter==='all' && 'is-active'" @click="filter='all'" role="tab" :aria-selected="filter==='all'">All</button>
+        <div class="vh-chips" role="group" aria-label="Filter programmes">
+          <button type="button" class="vh-chip" :class="filter==='all' && 'is-active'" @click="filter='all'" :aria-pressed="filter==='all'">All</button>
           {% set seen = [] %}
           {% for p in hub %}
             {% set st = p.cycle_status|default('upcoming') %}
             {% if st not in seen %}
               {% set seen = seen|merge([st]) %}
-              <button type="button" class="vh-chip" :class="filter==='{{ st }}' && 'is-active'" @click="filter='{{ st }}'" role="tab" :aria-selected="filter==='{{ st }}'">{{ STATUS[st].label|default(st|capitalize) }}</button>
+              <button type="button" class="vh-chip" :class="filter==='{{ st }}' && 'is-active'" @click="filter='{{ st }}'" :aria-pressed="filter==='{{ st }}'">{{ STATUS[st].label|default(st|capitalize) }}</button>
             {% endif %}
           {% endfor %}
         </div>

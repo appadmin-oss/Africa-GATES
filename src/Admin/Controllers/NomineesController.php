@@ -8,6 +8,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Admin\Services\UploadService;
+use AfricaGates\Admin\Support\ActionError;
 use AfricaGates\Support\Filters;
 use AfricaGates\Support\Paginator;
 
@@ -18,6 +20,7 @@ class NomineesController
     public function __construct(
         private readonly Twig $view,
         private readonly AuditService $audit,
+        private readonly ?UploadService $uploads = null,
     ) {}
 
     public function index(Request $req, Response $res): Response
@@ -87,6 +90,67 @@ class NomineesController
         $this->audit->record((int)$_SESSION['admin_id'], "nominee.$action", 'nominee', $id);
         $_SESSION['flash_ok'] = 'Nominee updated.';
         $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/nominees';
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * Add or replace a nominee's photo. Multipart upload routed through the
+     * hardened UploadService (bytes-sniffed MIME, re-encoded, min-dimension
+     * gate) into the `nominees` bucket, then photo_path is repointed. The old
+     * file is best-effort removed so replacing does not orphan storage.
+     *
+     * Not an integrity/award decision, so it stays open to every role that can
+     * already reach the nominees screen (the section guard governs that) — no
+     * extra canManageIntegrity gate.
+     */
+    public function photo(Request $req, Response $res, array $args): Response
+    {
+        $id  = (int)$args['id'];
+        $nom = DB::table('gates_nominees')->where('id', $id)->first();
+        $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/nominees';
+        if (!$nom) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $file = ($req->getUploadedFiles()['photo'] ?? null);
+        if (!$file || $file->getError() === UPLOAD_ERR_NO_FILE) {
+            $_SESSION['flash_error'] = 'Choose an image to upload.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        if (!$this->uploads) {
+            $_SESSION['flash_error'] = 'Image uploads are not available on this server.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        try {
+            // 200px min side keeps thumbnails/cards from pixelating; 1200px cap
+            // + re-encode keeps the stored file lean.
+            $result = $this->uploads->uploadImage(
+                $file, 'nominees', 1200, 82,
+                (int)($_SESSION['admin_id'] ?? 0) ?: null, 'nominee', $id, 200
+            );
+        } catch (\Throwable $e) {
+            // Upload errors are the member's fault (wrong type / too small) far more
+            // often than the server's — surface the actual reason, not a raw 500.
+            $_SESSION['flash_error'] = 'Could not upload photo — ' . $e->getMessage();
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $old = (string)($nom->photo_path ?? '');
+        try {
+            DB::table('gates_nominees')->where('id', $id)->update(['photo_path' => $result['path']]);
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = ActionError::dbMessage($e);
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        // Best-effort cleanup of the replaced file — only within our own nominees
+        // bucket, never an arbitrary path, and never the file we just wrote.
+        if ($old !== '' && $old !== $result['path'] && str_starts_with($old, '/uploads/nominees/')) {
+            $abs = dirname(__DIR__, 3) . '/public' . $old;
+            if (is_file($abs)) @unlink($abs);
+        }
+
+        $this->audit->record((int)$_SESSION['admin_id'], 'nominee.photo', 'nominee', $id, ['path' => $result['path']]);
+        $_SESSION['flash_ok'] = 'Nominee photo updated.';
         return $res->withHeader('Location', $back)->withStatus(302);
     }
 

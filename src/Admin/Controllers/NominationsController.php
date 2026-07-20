@@ -99,6 +99,28 @@ class NominationsController
         // nomination instead of bouncing back to the list. Same audited
         // process — only the redirect changes.
         $fromDesk = (((array)$req->getParsedBody())['desk'] ?? '') === '1';
+        // Desk SPA posts over fetch with this header: return JSON so it can swap
+        // in the next nomination instead of following a redirect.
+        $wantsJson = strtolower($req->getHeaderLine('X-Requested-With')) === 'fetch';
+        $deskBack  = '/admin/nominations/' . $id . ($fromDesk ? '?desk=1' : '');
+
+        // Uniform exits: JSON for the SPA, flash+redirect for the classic flow.
+        $fail = function (string $msg, int $code = 422) use ($res, $wantsJson, $deskBack): Response {
+            if ($wantsJson) {
+                $res->getBody()->write((string) json_encode(['ok' => false, 'error' => $msg], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+                return $res->withHeader('Content-Type', 'application/json')->withStatus($code);
+            }
+            $_SESSION['flash_error'] = $msg;
+            return $res->withHeader('Location', $deskBack)->withStatus(302);
+        };
+        $ok = function (string $msg, string $redirect) use ($res, $wantsJson): Response {
+            if ($wantsJson) {
+                $res->getBody()->write((string) json_encode(['ok' => true, 'message' => $msg], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+                return $res->withHeader('Content-Type', 'application/json');
+            }
+            $_SESSION['flash_ok'] = $msg;
+            return $res->withHeader('Location', $redirect)->withStatus(302);
+        };
 
         // Reject / pending — no category needed
         if ($action === 'reject' || $action === 'pending') {
@@ -114,8 +136,7 @@ class NominationsController
             try {
                 DB::table('gates_nominations')->where('id', $id)->update(['status' => $status, 'decision_reason' => $reason !== '' ? $reason : null]);
             } catch (\Throwable $e) {
-                $_SESSION['flash_error'] = $this->dbErrorFlash($e);
-                return $res->withHeader('Location', '/admin/nominations/' . $id . ($fromDesk ? '?desk=1' : ''))->withStatus(302);
+                return $fail($this->dbErrorFlash($e), 500);
             }
             $this->audit->record((int)$_SESSION['admin_id'], "nomination.$action", 'nomination', $id);
             if ($action === 'reject') {
@@ -156,9 +177,8 @@ HTML;
                 );
             }
 
-            $_SESSION['flash_ok'] = 'Nomination ' . $status . ($reason !== '' && $action === 'reject' ? ' — reason sent to the nominator.' : '.');
-            if ($fromDesk) return $res->withHeader('Location', '/admin/nominations/review?after=' . $id)->withStatus(302);
-            return $res->withHeader('Location', '/admin/nominations?status=' . $nom->status)->withStatus(302);
+            $msg = 'Nomination ' . $status . ($reason !== '' && $action === 'reject' ? ' — reason sent to the nominator.' : '.');
+            return $ok($msg, $fromDesk ? '/admin/nominations/review?after=' . $id : '/admin/nominations?status=' . $nom->status);
         }
 
         // Approve flow — admin must pick a category (POST body category_id)
@@ -166,13 +186,11 @@ HTML;
         $b = (array)$req->getParsedBody();
         $catId = (int)($b['category_id'] ?? $nom->category_id ?? 0);
         if (!$catId) {
-            $_SESSION['flash_error'] = 'Choose a category before approving.';
-            return $res->withHeader('Location', '/admin/nominations/' . $id . ($fromDesk ? '?desk=1' : ''))->withStatus(302);
+            return $fail('Choose a category before approving.');
         }
         $cat = DB::table('gates_award_categories')->where('id', $catId)->first();
         if (!$cat || (int)$cat->cycle_id !== (int)$nom->cycle_id) {
-            $_SESSION['flash_error'] = 'That category is not part of this nomination\'s cycle.';
-            return $res->withHeader('Location', '/admin/nominations/' . $id . ($fromDesk ? '?desk=1' : ''))->withStatus(302);
+            return $fail('That category is not part of this nomination\'s cycle.');
         }
 
         // Eligibility gate — when enforced (Settings), a nominee must have nominations
@@ -180,11 +198,10 @@ HTML;
         if ($this->awards) {
             $elig = $this->awards->nomineeEligibility((string)$nom->nominee_name, (int)$nom->cycle_id);
             if ($elig['enabled'] && !$elig['eligible']) {
-                $_SESSION['flash_error'] = sprintf(
+                return $fail(sprintf(
                     'Not yet eligible — %d of %d required locations. Adjust the threshold in Settings → Nomination eligibility.',
                     $elig['distinct_locations'], $elig['min']
-                );
-                return $res->withHeader('Location', '/admin/nominations/' . $id . ($fromDesk ? '?desk=1' : ''))->withStatus(302);
+                ));
             }
         }
 
@@ -242,8 +259,7 @@ HTML;
                 }
             });
         } catch (\Throwable $e) {
-            $_SESSION['flash_error'] = $this->dbErrorFlash($e);
-            return $res->withHeader('Location', '/admin/nominations/' . $id . ($fromDesk ? '?desk=1' : ''))->withStatus(302);
+            return $fail($this->dbErrorFlash($e), 500);
         }
 
         $this->audit->record((int)$_SESSION['admin_id'], 'nomination.approve', 'nomination', $id, ['category_id' => $catId]);
@@ -298,9 +314,10 @@ HTML;
         // Verified nominee → congratulatory email with a single-use gated form link.
         $this->sendNomineeForm($nom, $nomineeId);
 
-        $_SESSION['flash_ok'] = 'Nomination approved and added to "' . $cat->title . '".';
-        if ($fromDesk) return $res->withHeader('Location', '/admin/nominations/review?after=' . $id)->withStatus(302);
-        return $res->withHeader('Location', '/admin/nominations?status=approved')->withStatus(302);
+        return $ok(
+            'Nomination approved and added to "' . $cat->title . '".',
+            $fromDesk ? '/admin/nominations/review?after=' . $id : '/admin/nominations?status=approved'
+        );
     }
 
     /** POST /admin/nominations/{id}/regenerate-form — re-issue the nominee's single-use form link + resend. */
@@ -380,16 +397,88 @@ HTML;
     public function desk(Request $req, Response $res): Response
     {
         $after = (int)($req->getQueryParams()['after'] ?? 0);
-        $nom = \AfricaGates\Services\NominationTriageService::nextPending($after ?: null);
-        if (!$nom && $after > 0) {
+        $lite  = \AfricaGates\Services\NominationTriageService::nextPending($after ?: null);
+        if (!$lite && $after > 0) {
             $_SESSION['flash_ok'] = 'You reached the end of the queue. Anything you skipped is still pending — restart the desk to pick it up.';
             return $res->withHeader('Location', '/admin/nominations?status=pending&sort=oldest')->withStatus(302);
         }
+        if (!$lite) {
+            $_SESSION['flash_ok'] = 'Review queue is clear — no pending nominations. 🎉';
+            return $res->withHeader('Location', '/admin/nominations')->withStatus(302);
+        }
+        // Render the SPA desk shell with the first nomination server-side (so it
+        // works with JS off too). Subsequent nominations load as fragments.
+        $nom = $this->fullNomination((int)$lite->id);
         if (!$nom) {
             $_SESSION['flash_ok'] = 'Review queue is clear — no pending nominations. 🎉';
             return $res->withHeader('Location', '/admin/nominations')->withStatus(302);
         }
-        return $res->withHeader('Location', '/admin/nominations/' . (int)$nom->id . '?desk=1')->withStatus(302);
+        return $this->view->render($res, 'admin/nominations/desk.twig', [
+            'page_title' => 'Review desk — Admin',
+            'admin_page' => 'nominations',
+        ] + $this->reviewContext($nom));
+    }
+
+    /**
+     * SPA fragment endpoint: the next pending nomination's review body as JSON
+     * ({ok, done, html, id, position, total, nominee}). The desk swaps this in
+     * without a full reload. Same FIFO/eligibility/duplicate logic as desk().
+     */
+    public function deskFragment(Request $req, Response $res): Response
+    {
+        $json = function (array $p, int $code = 200) use ($res): Response {
+            $res->getBody()->write((string) json_encode($p, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            return $res->withHeader('Content-Type', 'application/json')->withStatus($code);
+        };
+        $after = (int)($req->getQueryParams()['after'] ?? 0);
+        $lite  = \AfricaGates\Services\NominationTriageService::nextPending($after ?: null);
+        if (!$lite) {
+            return $json([
+                'ok'   => true,
+                'done' => true,
+                'message' => $after > 0
+                    ? 'You reached the end of the queue. Anything you skipped is still pending — reopen the desk to pick it up.'
+                    : 'No more pending nominations.',
+            ]);
+        }
+        $nom = $this->fullNomination((int)$lite->id);
+        if (!$nom) return $json(['ok' => true, 'done' => true, 'message' => 'No more pending nominations.']);
+
+        $ctx  = $this->reviewContext($nom);
+        $html = $this->view->fetch('admin/nominations/_review_body.twig', $ctx + ['spa' => true, 'csrf_token' => ($_SESSION['csrf_token'] ?? '')]);
+        return $json([
+            'ok'       => true,
+            'done'     => false,
+            'id'       => (int)$nom->id,
+            'nominee'  => (string)$nom->nominee_name,
+            'position' => $ctx['queue']['position'] ?? null,
+            'total'    => $ctx['queue']['total'] ?? null,
+            'html'     => $html,
+        ]);
+    }
+
+    /** Load a nomination joined to its programme/cycle (the review view's shape). */
+    private function fullNomination(int $id): ?object
+    {
+        return DB::table('gates_nominations as n')
+            ->leftJoin('gates_award_cycles as c', 'c.id', '=', 'n.cycle_id')
+            ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
+            ->select(['n.*', 'p.title as programme_title', 'p.icon_emoji', 'c.year'])
+            ->where('n.id', $id)->first();
+    }
+
+    /** Assemble the shared review context (categories, eligibility, duplicate hints, AI insight, queue position). */
+    private function reviewContext(object $nom): array
+    {
+        $cats = DB::table('gates_award_categories')->where('cycle_id', $nom->cycle_id)->orderBy('sort_order')->get()->map(fn($r) => (array)$r)->all();
+        return [
+            'nom'         => (array)$nom,
+            'categories'  => $cats,
+            'eligibility' => $this->awards ? $this->awards->nomineeEligibility((string)$nom->nominee_name, (int)$nom->cycle_id) : null,
+            'duplicates'  => \AfricaGates\Services\NominationTriageService::duplicatesFor($nom),
+            'insight'     => \AfricaGates\Services\NominationTriageService::insight((int)$nom->id),
+            'queue'       => ($nom->status === 'pending') ? \AfricaGates\Services\NominationTriageService::queuePosition((int)$nom->id) : null,
+        ];
     }
 
     /**
@@ -414,29 +503,16 @@ HTML;
 
     public function review(Request $req, Response $res, array $args): Response
     {
-        $id = (int)$args['id'];
-        $nom = DB::table('gates_nominations as n')
-            ->leftJoin('gates_award_cycles as c', 'c.id', '=', 'n.cycle_id')
-            ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
-            ->select(['n.*', 'p.title as programme_title', 'p.icon_emoji', 'c.year'])
-            ->where('n.id', $id)->first();
+        $nom = $this->fullNomination((int)$args['id']);
         if (!$nom) throw new \Slim\Exception\HttpNotFoundException($req);
-        $cats = DB::table('gates_award_categories')->where('cycle_id', $nom->cycle_id)->orderBy('sort_order')->get()->map(fn($r) => (array)$r)->all();
-        $eligibility = $this->awards ? $this->awards->nomineeEligibility((string)$nom->nominee_name, (int)$nom->cycle_id) : null;
-        // Accuracy aids: deterministic duplicate hints + optional AI insight +
-        // (in desk mode) the reviewer's position in the pending queue.
-        $desk = (($req->getQueryParams()['desk'] ?? '') === '1');
+        // The high-volume desk is now its own SPA page (/admin/nominations/review);
+        // this route is the single-nomination review. Accuracy aids come from the
+        // shared context: deterministic duplicate hints, optional AI insight and
+        // the reviewer's position in the pending queue.
         return $this->view->render($res, 'admin/nominations/review.twig', [
             'page_title' => 'Review nomination — Admin',
             'admin_page' => 'nominations',
-            'nom' => (array)$nom,
-            'categories' => $cats,
-            'eligibility' => $eligibility,
-            'desk' => $desk,
-            'duplicates' => \AfricaGates\Services\NominationTriageService::duplicatesFor($nom),
-            'insight' => \AfricaGates\Services\NominationTriageService::insight($id),
-            'queue' => ($nom->status === 'pending') ? \AfricaGates\Services\NominationTriageService::queuePosition($id) : null,
             // Flash renders from the Twig globals via the layout — do not shadow it.
-        ]);
+        ] + $this->reviewContext($nom));
     }
 }

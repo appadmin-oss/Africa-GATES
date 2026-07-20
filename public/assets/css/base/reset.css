@@ -23,6 +23,8 @@ summary:focus-visible,[tabindex]:focus-visible,[role="button"]:focus-visible,[ro
 }
 /* Never suppress the keyboard focus ring, even if a component cleared :focus outline. */
 :focus-visible{ outline-color:var(--ag-green,#237b22); }
+/* Reduced-motion applies to the whole document, not just the .ag-scope chrome:
+   page content under <main> (vote cards, nominee rises, etc.) must honour it too. */
 @media (prefers-reduced-motion: reduce){
-  .ag-scope *,.ag-scope *::before,.ag-scope *::after{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; scroll-behavior:auto!important; }
+  *,*::before,*::after{ animation-duration:.001ms!important; animation-iteration-count:1!important; transition-duration:.001ms!important; scroll-behavior:auto!important; }
 }

@@ -2,198 +2,38 @@
 {% block topbar_eyebrow %}<small>Nominations</small>{% endblock %}
 {% block topbar_title %}Review · {{ nom.nominee_name }}{% endblock %}
 {% block topbar_actions %}
-  {% if not desk and nom.status == 'pending' %}<a class="ad-btn ad-btn--primary" href="/admin/nominations/review">▶ Open review desk</a>{% endif %}
+  {% if nom.status == 'pending' %}<a class="ad-btn ad-btn--primary" href="/admin/nominations/review">▶ Open review desk</a>{% endif %}
   <a class="ad-btn" href="/admin/nominations">← Back</a>
 {% endblock %}
 
 {% block content %}
-{% if desk %}
-<div class="ad-card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;margin-bottom:14px;border-left:4px solid var(--ad-accent,#237b22)">
-  <strong style="font-size:13.5px">Review desk</strong>
-  {% if queue %}<span style="font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Nomination <strong>{{ queue.position }}</strong> of <strong>{{ queue.total }}</strong> pending (oldest first)</span>{% endif %}
-  <span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <span style="font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">Keys: <kbd>A</kbd> approve · <kbd>R</kbd> reject · <kbd>S</kbd> skip</span>
-    <a class="ad-btn ad-btn--sm" id="deskSkip" href="/admin/nominations/review?after={{ nom.id }}">Skip for now →</a>
-    <a class="ad-btn ad-btn--sm" href="/admin/nominations">Exit desk</a>
-  </span>
-</div>
-{% endif %}
+{% include 'admin/nominations/_review_body.twig' with {
+  nom: nom, categories: categories, eligibility: eligibility,
+  duplicates: duplicates, insight: insight, spa: false
+} %}
 
-{% if duplicates and (duplicates.same_cycle is not empty or duplicates.live_nominee or duplicates.similar is not empty) %}
-<div class="ad-flash" role="alert" style="display:block;margin-bottom:14px;background:#fdf6e3;border:1px solid #e8d9a8;color:#6b5514;border-radius:12px;padding:12px 16px">
-  <strong>⚠ Duplicate signals — check before deciding.</strong>
-  {% if duplicates.live_nominee %}
-    <div style="margin-top:6px;font-size:13px">“{{ nom.nominee_name }}” is <strong>already a live nominee</strong> ({{ duplicates.live_nominee.status }}) — approving again could split their votes. <a href="/admin/nominees" style="color:#6b5514;font-weight:700">Check nominees →</a></div>
-  {% endif %}
-  {% if duplicates.same_cycle is not empty %}
-    <div style="margin-top:6px;font-size:13px">{{ duplicates.same_cycle|length }} other nomination{{ duplicates.same_cycle|length == 1 ? '' : 's' }} for this person in this cycle:
-      {% for d in duplicates.same_cycle %}
-        <a href="/admin/nominations/{{ d.id }}" style="color:#6b5514;font-weight:700">#{{ d.id }} ({{ d.status }})</a>{{ loop.last ? '' : ' · ' }}
-      {% endfor %}
-      — multiple nominations from different people can be legitimate support; identical nominators may be spam.
-    </div>
-  {% endif %}
-  {% if duplicates.similar is not empty %}
-    <div style="margin-top:6px;font-size:13px">Similar spellings in this cycle (possibly the same person):
-      {% for d in duplicates.similar %}
-        <a href="/admin/nominations/{{ d.id }}" style="color:#6b5514;font-weight:700">“{{ d.name }}” #{{ d.id }} ({{ d.status }})</a>{{ loop.last ? '' : ' · ' }}
-      {% endfor %}
-    </div>
-  {% endif %}
-</div>
-{% endif %}
-
-<div class="ad-grid-2">
-
-  <div>
-    <div class="ad-card">
-      <div class="ad-card__head"><div class="ad-card__title">Submission</div></div>
-      <div class="ad-card__body">
-        <div style="display:grid;grid-template-columns:auto 1fr;gap:14px 18px;font-size:14px">
-          <span style="color:var(--ad-text-soft)">Programme</span><span>{{ nom.icon_emoji }} {{ nom.programme_title }} · {{ nom.year }}</span>
-          <span style="color:var(--ad-text-soft)">Nominee</span><strong>{{ nom.nominee_name }}</strong>
-          <span style="color:var(--ad-text-soft)">Country</span><span>{{ nom.country_code }}</span>
-          <span style="color:var(--ad-text-soft)">Organisation / school</span><span>{{ nom.nominee_org|default('—') }}</span>
-          <span style="color:var(--ad-text-soft)">Nominee email</span><span>{{ nom.nominee_email|default('—') }}</span>
-          <span style="color:var(--ad-text-soft)">Submitted by</span><span>{{ nom.nominator_name }} · {{ nom.nominator_email }}</span>
-          <span style="color:var(--ad-text-soft)">Submitted</span><span style="font-family:'Space Mono',monospace;font-size:12.5px">{{ nom.created_at|slice(0,16) }}</span>
-          {% if eligibility %}
-          <span style="color:var(--ad-text-soft)">Eligibility</span>
-          <span><strong>{{ eligibility.distinct_locations }}</strong> distinct location{{ eligibility.distinct_locations == 1 ? '' : 's' }} · {{ eligibility.total }} nomination{{ eligibility.total == 1 ? '' : 's' }}
-            {% if eligibility.enabled %}{% if eligibility.eligible %}<span class="ad-chip ad-chip--green" style="margin-left:6px">Eligible ✓</span>{% else %}<span class="ad-chip ad-chip--gold" style="margin-left:6px">{{ eligibility.distinct_locations }}/{{ eligibility.min }} — not yet eligible</span>{% endif %}{% else %}<span style="color:var(--ad-text-soft);font-size:12px;margin-left:6px">(threshold off)</span>{% endif %}
-          </span>
-          {% endif %}
-        </div>
-        <hr style="margin:18px 0;border:none;border-top:1px solid var(--ad-line-soft)">
-        <h4 style="font-size:11.5px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ad-text-soft);margin-bottom:10px">Reason for nomination</h4>
-        <p style="font-size:14.5px;line-height:1.7;color:var(--ad-text);white-space:pre-wrap">{{ nom.reason }}</p>
-        {% if nom.nominee_photo_path %}
-        <hr style="margin:18px 0;border:none;border-top:1px solid var(--ad-line-soft)">
-        <h4 style="font-size:11.5px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ad-text-soft);margin-bottom:10px">Photo</h4>
-        <button type="button" data-view-media="{{ nom.nominee_photo_path }}" data-view-title="{{ nom.nominee_name }}" aria-label="View full-size photo of {{ nom.nominee_name }}"
-                style="width:96px;height:96px;border-radius:12px;border:1px solid var(--ad-line,#dfe4e3);background-image:url('{{ nom.nominee_photo_path }}');background-size:cover;background-position:center;cursor:zoom-in"></button>
-        {% endif %}
-        {% if nom.reference_url or nom.reference_url_2 or nom.reference_url_3 %}
-        <hr style="margin:18px 0;border:none;border-top:1px solid var(--ad-line-soft)">
-        <h4 style="font-size:11.5px;text-transform:uppercase;letter-spacing:0.12em;color:var(--ad-text-soft);margin-bottom:10px">Reference links</h4>
-        <ul style="margin:0;padding-left:1.2em;font-size:13px;line-height:1.8">
-          {% for u in [nom.reference_url, nom.reference_url_2, nom.reference_url_3] %}{% if u %}<li><a href="{{ u }}" target="_blank" rel="noopener noreferrer" style="color:var(--ad-accent,#237b22);word-break:break-all">{{ u }}</a></li>{% endif %}{% endfor %}
-        </ul>
-        {% endif %}
-      </div>
-    </div>
-
-    {% if insight and (insight.summary or insight.quality_score is not null) %}
-    <div class="ad-card" style="margin-top:14px">
-      <div class="ad-card__head"><div class="ad-card__title">AI triage <small>advisory only — you decide</small></div></div>
-      <div class="ad-card__body">
-        {% if insight.quality_score is not null %}
-        {% set sc = insight.quality_score %}
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          <div style="flex:1;height:8px;background:rgba(16,41,44,.08);border-radius:99px;overflow:hidden"><div style="width:{{ sc }}%;height:100%;border-radius:99px;background:{{ sc >= 65 ? '#237b22' : (sc >= 35 ? '#b98a00' : '#b4452f') }}"></div></div>
-          <strong style="font-size:14px;color:{{ sc >= 65 ? '#166534' : (sc >= 35 ? '#6b5514' : '#7f1d1d') }}">{{ sc }}/100</strong>
-        </div>
-        <p style="margin:0 0 8px;font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">Completeness &amp; specificity of the submission — NOT whether the nominee deserves to win.</p>
-        {% endif %}
-        {% if insight.summary %}<p style="font-size:13.5px;line-height:1.65;color:var(--ad-text)">{{ insight.summary }}</p>{% endif %}
-      </div>
-    </div>
-    {% endif %}
-  </div>
-
-  <div>
-    <div class="ad-card">
-      <div class="ad-card__head"><div class="ad-card__title">Approve · pick a category</div></div>
-      <div class="ad-card__body">
-        {% if eligibility and eligibility.enabled and not eligibility.eligible %}<div class="ad-flash ad-flash--err" role="alert">Approval blocked — this nominee has {{ eligibility.distinct_locations }} of {{ eligibility.min }} required distinct locations. Adjust the threshold in Settings → Nomination eligibility.</div>{% endif %}
-        {% if categories|length == 0 %}
-          <p style="color:var(--ad-text-soft)">This cycle has no categories yet. <a style="color:var(--ad-primary)" href="/admin/programmes">Add some first →</a></p>
-        {% else %}
-        <form method="post" action="/admin/nominations/{{ nom.id }}/approve" class="ad-form" id="approveForm">
-          <input type="hidden" name="_token" value="{{ csrf_token }}">
-          {% if desk %}<input type="hidden" name="desk" value="1">{% endif %}
-          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
-            {% for c in categories %}
-              <label style="display:flex;gap:10px;align-items:flex-start;padding:12px 14px;background:var(--ad-bg);border:1.5px solid var(--ad-line);border-radius:10px;cursor:pointer;transition:all .15s ease" onmouseenter="this.style.borderColor='var(--ad-primary)'" onmouseleave="this.style.borderColor='var(--ad-line)'">
-                <input type="radio" name="category_id" value="{{ c.id }}" {% if loop.first %}checked{% endif %} style="margin-top:3px">
-                <span><strong>{{ c.title }}</strong><br><span style="font-size:12.5px;color:var(--ad-text-soft)">{{ c.description|slice(0,140) }}{% if c.description|length > 140 %}…{% endif %}</span></span>
-              </label>
-            {% endfor %}
-          </div>
-          <div style="margin-bottom:14px">
-            <label for="approveReason" style="font-size:12px;font-weight:600;color:var(--ad-text-soft)">Welcome note to the nominator <small style="font-weight:400">(optional — included in the approval email)</small></label>
-            <textarea name="decision_reason" id="approveReason" rows="2" style="width:100%;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;padding:9px 11px;font:inherit;font-size:13px" placeholder="e.g. Wonderful nomination — voting is now open, good luck!"></textarea>
-            <button type="button" class="ad-btn ad-btn--sm" data-suggest="approved" data-target="approveReason" style="margin-top:5px">✦ Suggest with AI</button>
-          </div>
-          <button type="submit" class="ad-btn ad-btn--primary" style="width:100%;justify-content:center">Approve → create nominee in this category</button>
-        </form>
-        {% endif %}
-      </div>
-    </div>
-
-    <form method="post" action="/admin/nominations/{{ nom.id }}/reject" class="ad-card" style="margin-top:14px;padding:16px" id="rejectForm">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      {% if desk %}<input type="hidden" name="desk" value="1">{% endif %}
-      <label for="rejectReason" style="font-size:12px;font-weight:600;color:var(--ad-text-soft)">Reason for the nominator <small style="font-weight:400">(shown in the email — leave blank to let AI write one)</small></label>
-      <textarea name="decision_reason" id="rejectReason" rows="3" style="width:100%;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;padding:9px 11px;font:inherit;font-size:13px;margin-bottom:8px" placeholder="Why this wasn't approved — kind &amp; constructive. Blank = an AI-drafted reason is sent."></textarea>
-      <button type="button" class="ad-btn ad-btn--sm" data-suggest="rejected" data-target="rejectReason" style="margin-bottom:10px">✦ Suggest with AI</button>
-      <button type="submit" class="ad-btn ad-btn--danger" style="width:100%;justify-content:center" data-confirm="Reject this nomination? The nominator will be emailed the reason." id="rejectBtn">Reject nomination</button>
-    </form>
-
-    <script>
-    /* AI "Suggest with AI" for decision notes — fills the textarea; hides the
-       button if no AI provider is configured (503). */
-    document.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-suggest]');
-      if (!b) return;
-      e.preventDefault();
-      var ta = document.getElementById(b.getAttribute('data-target'));
-      if (!ta) return;
-      var orig = b.textContent; b.disabled = true; b.textContent = '✦ Thinking…';
-      fetch('/admin/nominations/{{ nom.id }}/suggest-reason', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': '{{ csrf_token }}' },
-        body: 'decision=' + encodeURIComponent(b.getAttribute('data-suggest'))
-      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-        .then(function (res) {
-          if (res.ok && res.j.reason) { ta.value = res.j.reason; ta.focus(); b.textContent = orig; b.disabled = false; }
-          else if (res.j && res.j.error && String(res.j.error).indexOf('No AI') === 0) { b.style.display = 'none'; }
-          else { b.textContent = orig; b.disabled = false; }
-        }).catch(function () { b.textContent = orig; b.disabled = false; });
-    });
-    </script>
-
-    {% if nom.status == 'approved' %}
-    <form method="post" action="/admin/nominations/{{ nom.id }}/regenerate-form" style="margin-top:10px">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <button type="submit" class="ad-btn" style="width:100%;justify-content:center" data-confirm="Email the nominee a fresh single-use form link? Any previous link will stop working.">✉ Resend / regenerate nominee form link</button>
-    </form>
-    {% endif %}
-  </div>
-
-</div>
-
-{% if desk %}
 <script>
-/* Desk keyboard flow: A approve · R reject · S skip. Ignored while typing.
-   Both A and R go through the normal forms/buttons, so category validation,
-   the confirm dialog, eligibility gates and audit all still apply. */
-document.addEventListener('keydown', function (e) {
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
-  var t = (e.target || {}).tagName || '';
-  if (['INPUT', 'TEXTAREA', 'SELECT'].indexOf(t) !== -1 || (e.target && e.target.isContentEditable)) return;
-  var k = e.key.toLowerCase();
-  if (k === 'a') {
-    var f = document.getElementById('approveForm');
-    if (f) { e.preventDefault(); (f.querySelector('button[type=submit]') || f).requestSubmit ? f.requestSubmit() : f.submit(); }
-  } else if (k === 'r') {
-    var b = document.getElementById('rejectBtn');
-    if (b) { e.preventDefault(); b.click(); }
-  } else if (k === 's') {
-    var sBtn = document.getElementById('deskSkip');
-    if (sBtn) { e.preventDefault(); window.location.href = sBtn.href; }
-  }
+/* AI "Suggest with AI" for decision notes — fills the textarea; hides the
+   button if no AI provider is configured (503). Single-page only; the SPA desk
+   has its own delegated handler. */
+document.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-suggest]');
+  if (!b) return;
+  e.preventDefault();
+  var ta = document.getElementById(b.getAttribute('data-target'));
+  if (!ta) return;
+  var nom = b.getAttribute('data-nom');
+  var orig = b.textContent; b.disabled = true; b.textContent = '✦ Thinking…';
+  fetch('/admin/nominations/' + nom + '/suggest-reason', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': '{{ csrf_token }}' },
+    body: 'decision=' + encodeURIComponent(b.getAttribute('data-suggest'))
+  }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (res) {
+      if (res.ok && res.j.reason) { ta.value = res.j.reason; ta.focus(); b.textContent = orig; b.disabled = false; }
+      else if (res.j && res.j.error && String(res.j.error).indexOf('No AI') === 0) { b.style.display = 'none'; }
+      else { b.textContent = orig; b.disabled = false; }
+    }).catch(function () { b.textContent = orig; b.disabled = false; });
 });
 </script>
-{% endif %}
 {% endblock %}

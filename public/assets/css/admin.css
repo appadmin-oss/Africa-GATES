@@ -61,12 +61,13 @@ body[data-page-admin] {
 .ad-side__brand .label small { display: block; font-weight: 500; color: rgba(255, 255, 255, 0.5); font-size: 11px; letter-spacing: 0.05em; margin-top: 2px; }
 
 .ad-side__group { padding: 16px 12px; }
-.ad-side__group h6 {
+.ad-side__group h6, .ad-side__grouptitle {
   font-family: 'Space Mono', monospace;
   font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.14em;
   color: rgba(255, 255, 255, 0.35);
   padding: 0 10px 8px;
+  margin: 0;
 }
 .ad-side__link {
   display: flex; align-items: center; gap: 12px;
@@ -387,8 +388,9 @@ body[data-page-admin] {
 .ad-info { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; border:1.5px solid var(--ad-info,#2563eb); color:var(--ad-info,#2563eb); font:700 10px/1 Georgia, 'Times New Roman', serif; font-style:italic; cursor:help; vertical-align:middle; margin-left:6px; flex:none; user-select:none; transition:background .12s, color .12s; }
 .ad-info:hover, .ad-info:focus { background:var(--ad-info,#2563eb); color:#fff; outline:none; }
 .ad-h1 .ad-info { width:18px; height:18px; font-size:11px; }
-.ad-side__group h6 .ad-info { width:13px; height:13px; font-size:8.5px; margin-left:5px; opacity:.55; }
-.ad-side__group h6 .ad-info:hover, .ad-side__group h6 .ad-info:focus { opacity:1; }
+.ad-side__group h6 .ad-info, .ad-side__grouptitle .ad-info { width:13px; height:13px; font-size:8.5px; margin-left:5px; opacity:.55; }
+.ad-side__group h6 .ad-info:hover, .ad-side__group h6 .ad-info:focus,
+.ad-side__grouptitle .ad-info:hover, .ad-side__grouptitle .ad-info:focus { opacity:1; }
 .ad-card__title .ad-info { border-color:var(--ad-text-mute,#8a9a9c); color:var(--ad-text-mute,#8a9a9c); }
 .ad-card__title .ad-info:hover { background:var(--ad-text-mute,#8a9a9c); color:#fff; }
 
@@ -469,4 +471,36 @@ body[data-page-admin] {
 /* Honour reduced-motion for the transitions introduced above. */
 @media (prefers-reduced-motion: reduce) {
   .ad-btn, .ad-table tbody tr, .ad-tab, .ad-form .file-zone { transition: none; }
+}
+
+/* ── Accessibility helpers ─────────────────────────────────────────────────
+   sr-only: visible to screen readers, hidden visually (used by the review-desk
+   live region and "opens in a new tab" hints). skip-link: keyboard/SR users
+   jump straight to page content past the sidebar. */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0);
+  white-space: nowrap; border: 0;
+}
+.skip-link {
+  position: absolute; left: 8px; top: -48px; z-index: 1000;
+  background: var(--ad-primary, #10292c); color: #fff;
+  padding: 10px 16px; border-radius: 0 0 8px 8px;
+  font-weight: 700; text-decoration: none;
+  transition: top .15s ease;
+}
+.skip-link:focus { top: 0; outline: 3px solid #f3b416; outline-offset: 2px; }
+.ad-main:focus { outline: none; }
+
+/* Site-wide reduced-motion safety net for the admin console — covers any
+   animation/transition not already individually guarded above. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

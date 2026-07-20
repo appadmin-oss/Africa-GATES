@@ -263,7 +263,7 @@ return [
     AdminNominationsController::class  => fn(ContainerInterface $c)=>new AdminNominationsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class), $c->get(AwardService::class)),
     AdminModerationController::class   => fn(ContainerInterface $c)=>new AdminModerationController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminProgrammesController::class   => fn(ContainerInterface $c)=>new AdminProgrammesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class)),
-    AdminNomineesController::class     => fn(ContainerInterface $c)=>new AdminNomineesController($c->get(Twig::class), $c->get(AuditService::class)),
+    AdminNomineesController::class     => fn(ContainerInterface $c)=>new AdminNomineesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
     AdminLegacyController::class       => fn(ContainerInterface $c)=>new AdminLegacyController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
     AdminOpportunitiesController::class=> fn(ContainerInterface $c)=>new AdminOpportunitiesController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminEventsController::class       => fn(ContainerInterface $c)=>new AdminEventsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class)),

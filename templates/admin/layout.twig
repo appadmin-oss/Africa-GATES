@@ -15,6 +15,8 @@
 </head>
 <body data-page-admin>
 
+<a href="#adMain" class="skip-link">Skip to content</a>
+
 <div class="ad-shell">
 
   {# Sidebar #}
@@ -24,8 +26,8 @@
       <span class="label">Africa GATES<small>Admin Console</small></span>
     </div>
 
-    <nav class="ad-side__group">
-      <h6>Overview <span class="ad-info" data-tip="Dashboard and key platform metrics." tabindex="0" aria-label="Overview section">i</span></h6>
+    <nav class="ad-side__group" aria-label="Overview">
+      <p class="ad-side__grouptitle">Overview <span class="ad-info" data-tip="Dashboard and key platform metrics." tabindex="0" role="img" aria-label="Dashboard and key platform metrics.">i</span></p>
       <a class="ad-side__link {% if admin_page == 'dashboard' %}is-active{% endif %}" href="/admin/dashboard">
         <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
         Dashboard
@@ -37,8 +39,8 @@
     </nav>
 
     {% if 'moderation' in admin_sections %}
-    <nav class="ad-side__group">
-      <h6>Moderation <span class="ad-info" data-tip="Approve profiles, nominations and community content before it goes live." tabindex="0" aria-label="Moderation section">i</span></h6>
+    <nav class="ad-side__group" aria-label="Moderation">
+      <p class="ad-side__grouptitle">Moderation <span class="ad-info" data-tip="Approve profiles, nominations and community content before it goes live." tabindex="0" role="img" aria-label="Approve profiles, nominations and community content before it goes live.">i</span></p>
       <a class="ad-side__link {% if admin_page == 'profiles' %}is-active{% endif %}" href="/admin/profiles">
         <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Profiles
@@ -59,8 +61,8 @@
 
     {% endif %}
     {% if 'programmes' in admin_sections %}
-    <nav class="ad-side__group">
-      <h6>Programmes <span class="ad-info" data-tip="Award programmes, cycles, categories and the judging panel." tabindex="0" aria-label="Programmes section">i</span></h6>
+    <nav class="ad-side__group" aria-label="Programmes">
+      <p class="ad-side__grouptitle">Programmes <span class="ad-info" data-tip="Award programmes, cycles, categories and the judging panel." tabindex="0" role="img" aria-label="Award programmes, cycles, categories and the judging panel.">i</span></p>
       <a class="ad-side__link {% if admin_page == 'programmes' %}is-active{% endif %}" href="/admin/programmes">
         <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         Awards & Cycles
@@ -72,8 +74,8 @@
     </nav>
     {% endif %}
     {% if 'content' in admin_sections %}
-    <nav class="ad-side__group">
-      <h6>Content <span class="ad-info" data-tip="Public-facing content — events, blog, legacy, opportunities, partners, media, shop &amp; forms." tabindex="0" aria-label="Content section">i</span></h6>
+    <nav class="ad-side__group" aria-label="Content">
+      <p class="ad-side__grouptitle">Content <span class="ad-info" data-tip="Public-facing content — events, blog, legacy, opportunities, partners, media, shop &amp; forms." tabindex="0" role="img" aria-label="Public-facing content — events, blog, legacy, opportunities, partners, media, shop and forms.">i</span></p>
       <a class="ad-side__link {% if admin_page == 'events' %}is-active{% endif %}" href="/admin/events">
         <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
         Events
@@ -114,8 +116,8 @@
 
     {% endif %}
     {% if 'data' in admin_sections %}
-    <nav class="ad-side__group">
-      <h6>Data <span class="ad-info" data-tip="Every dataset collected across the platform — browse, view details &amp; export." tabindex="0" aria-label="Data section">i</span></h6>
+    <nav class="ad-side__group" aria-label="Data">
+      <p class="ad-side__grouptitle">Data <span class="ad-info" data-tip="Every dataset collected across the platform — browse, view details &amp; export." tabindex="0" role="img" aria-label="Every dataset collected across the platform — browse, view details and export.">i</span></p>
       <a class="ad-side__link {% if admin_page == 'data' %}is-active{% endif %}" href="/admin/data">
         <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
         All data
@@ -127,8 +129,8 @@
     </nav>
     {% endif %}
     {% if 'configuration' in admin_sections %}
-    <nav class="ad-side__group">
-      <h6>Configuration <span class="ad-info" data-tip="Admin accounts, site settings and integrations — superadmin only." tabindex="0" aria-label="Configuration section">i</span></h6>
+    <nav class="ad-side__group" aria-label="Configuration">
+      <p class="ad-side__grouptitle">Configuration <span class="ad-info" data-tip="Admin accounts, site settings and integrations — superadmin only." tabindex="0" role="img" aria-label="Admin accounts, site settings and integrations — superadmin only.">i</span></p>
       <a class="ad-side__link {% if admin_page == 'admins' %}is-active{% endif %}" href="/admin/admins">
         <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
         Admins
@@ -162,7 +164,7 @@
   </aside>
 
   {# Main #}
-  <main class="ad-main">
+  <main class="ad-main" id="adMain" tabindex="-1">
 
     <div class="ad-topbar">
       <button class="ad-mobile-toggle" id="adMobileToggle" aria-label="Open menu" aria-controls="adSide" aria-expanded="false">
