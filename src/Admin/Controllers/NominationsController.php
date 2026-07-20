@@ -10,6 +10,7 @@ use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Support\Filters;
+use AfricaGates\Support\Paginator;
 use AfricaGates\Services\{OtpService, WebhookService, AwardService, GatedFormService};
 
 class NominationsController
@@ -51,10 +52,9 @@ class NominationsController
         // Date-range filter (day/week/month presets + custom from/to) on submission date.
         $dateMeta = Filters::applyDateRange($base, 'n.created_at', $p);
 
-        $total = (int) (clone $base)->count();
-        $pages = max(1, (int) ceil($total / $per));
-        $page  = Filters::clampPage($page, $pages);
-        $rows = $base->orderBy('n.id', $sort === 'oldest' ? 'asc' : 'desc')->offset(($page-1)*$per)->limit($per)->get();
+        $base->orderBy('n.id', $sort === 'oldest' ? 'asc' : 'desc');
+        $pg = Paginator::paginate($base, $page, $per);
+        $rows = $pg['rows']; $total = $pg['total']; $pages = $pg['pages']; $page = $pg['page'];
 
         // Option lists for the filter dropdowns.
         $programmes = DB::table('gates_award_programmes')->orderBy('title')->get(['id', 'title'])->map(fn($r)=>(array)$r)->all();

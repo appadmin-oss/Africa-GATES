@@ -8,6 +8,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Support\Filters;
+use AfricaGates\Support\Paginator;
 
 /**
  * Event registrations (gates_event_registrations) — paginated, filterable list
@@ -54,15 +55,11 @@ class RegistrationsController
         $base = $this->query($eventId, $q);
         $dateMeta = Filters::applyDateRange($base, 'r.created_at', $qp);
 
-        $total = (int) (clone $base)->count();
-        $pages = max(1, (int) ceil($total / self::PER_PAGE));
-        $page  = Filters::clampPage($page, $pages);
-
-        $rows = (clone $base)
-            ->orderByDesc('r.created_at')
-            ->offset(($page - 1) * self::PER_PAGE)->limit(self::PER_PAGE)
-            ->get(['r.id', 'r.name', 'r.email', 'r.phone', 'r.tier', 'r.created_at', 'r.event_id', 'e.title as event_title'])
-            ->map(fn($r) => (array) $r)->all();
+        $base->orderByDesc('r.created_at')
+            ->select(['r.id', 'r.name', 'r.email', 'r.phone', 'r.tier', 'r.created_at', 'r.event_id', 'e.title as event_title']);
+        $pg    = Paginator::paginate($base, $page, self::PER_PAGE);
+        $rows  = $pg['rows']->map(fn($r) => (array) $r)->all();
+        $total = $pg['total']; $pages = $pg['pages']; $page = $pg['page'];
 
         return $this->view->render($res, 'admin/registrations/index.twig', [
             'page_title' => 'Event Registrations — Admin',

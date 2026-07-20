@@ -10,6 +10,7 @@ use Slim\Exception\HttpNotFoundException;
 use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Admin\Support\DataRegistry;
 use AfricaGates\Support\Filters;
+use AfricaGates\Support\Paginator;
 
 /**
  * Generic admin data explorer (read-only "data" section). One controller serves
@@ -64,12 +65,10 @@ class DataController
         $dateCol  = Filters::dateColumn($existing, $d['order'][0] ?? null);
         $dateMeta = Filters::applyDateRange($base, $dateCol, $qp);
 
-        $total = (int) (clone $base)->count();
-        $pages = max(1, (int) ceil($total / self::PER));
-        $page  = Filters::clampPage($page, $pages);
-        $rows  = (clone $base)->orderBy($ocol, $dir)
-            ->offset(($page - 1) * self::PER)->limit(self::PER)
-            ->get()->map(fn($r) => (array) $r)->all();
+        $base->orderBy($ocol, $dir);
+        $pg    = Paginator::paginate($base, $page, self::PER);
+        $rows  = $pg['rows']->map(fn($r) => (array) $r)->all();
+        $total = $pg['total']; $pages = $pg['pages']; $page = $pg['page'];
 
         $cols = array_values(array_filter($d['cols'], fn($c) => in_array($c[0], $existing, true)));
 

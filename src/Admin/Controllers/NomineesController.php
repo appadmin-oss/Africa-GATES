@@ -8,6 +8,8 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Support\Filters;
+use AfricaGates\Support\Paginator;
 
 class NomineesController
 {
@@ -35,19 +37,17 @@ class NomineesController
         if ($cycleId) $base->where('cy.id', $cycleId);
         if ($status)  $base->where('n.status', $status);
         if ($q)       $base->where('n.name','like',"%$q%");
-        $dateMeta = \AfricaGates\Support\Filters::applyDateRange($base, 'n.nominated_at', $p);
+        $dateMeta = Filters::applyDateRange($base, 'n.nominated_at', $p);
 
-        // Paginate so nominees beyond the old hard 200-row cap remain reachable.
-        $total = (int) (clone $base)->count();
-        $pages = max(1, (int) ceil($total / self::PER_PAGE));
-        $page  = \AfricaGates\Support\Filters::clampPage($page, $pages);
-
-        $rows = (clone $base)
-            ->leftJoin('gates_profiles as pr','pr.id','=','n.profile_id')
+        // Fold the profile lookup (1:1, so the count is unaffected) + projection +
+        // ordering onto the base, then paginate so nominees beyond the old hard
+        // 200-row cap remain reachable.
+        $base->leftJoin('gates_profiles as pr','pr.id','=','n.profile_id')
             ->select(['n.id','n.name','n.tagline','n.country_code','n.vote_count','n.status','n.photo_path','n.profile_id','c.title as category','p.title as programme','cy.id as cycle_id','cy.year','pr.slug as profile_slug','pr.display_name as profile_name'])
-            ->orderByDesc('n.vote_count')
-            ->offset(($page - 1) * self::PER_PAGE)->limit(self::PER_PAGE)
-            ->get();
+            ->orderByDesc('n.vote_count');
+        $pg    = Paginator::paginate($base, $page, self::PER_PAGE);
+        $rows  = $pg['rows'];
+        $total = $pg['total']; $pages = $pg['pages']; $page = $pg['page'];
 
         $cycles = DB::table('gates_award_cycles as c')
             ->join('gates_award_programmes as p','p.id','=','c.programme_id')
@@ -55,7 +55,7 @@ class NomineesController
 
         // Leading '&' so the existing template's `?page=N{{ qs }}` links keep every
         // active filter (previously `qs` was undefined — pagination dropped filters).
-        $qsBuilt = \AfricaGates\Support\Filters::qs(['cycle' => $cycleId, 'status' => $status, 'q' => $q, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]);
+        $qsBuilt = Filters::qs(['cycle' => $cycleId, 'status' => $status, 'q' => $q, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]);
         return $this->view->render($res, 'admin/nominees/index.twig', [
             'page_title' => 'Nominees — Admin',
             'admin_page' => 'nominees',
