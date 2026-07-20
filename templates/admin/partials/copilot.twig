@@ -3,7 +3,7 @@
    same /admin/assistant/chat endpoint; Alpine-driven, so it relies on the
    Alpine.js loaded by admin/layout.twig. #}
 <style>[x-cloak]{display:none!important}</style>
-<div x-data="agCopilot()" x-cloak style="position:fixed;right:20px;bottom:20px;z-index:1200;font-family:inherit">
+<div x-data="agChat({storageKey:'ag-copilot',logId:'copilotLog',focusId:'copilotInput',csrf:'{{ csrf_token }}'})" x-cloak style="position:fixed;right:20px;bottom:20px;z-index:1200;font-family:inherit">
   <button type="button" @click="toggle()" :aria-expanded="open ? 'true' : 'false'" aria-label="Open console copilot"
     title="Console copilot"
     style="width:52px;height:52px;border-radius:50%;border:0;background:var(--ad-accent,#237b22);color:#fff;font-size:22px;line-height:1;cursor:pointer;box-shadow:0 8px 24px -8px rgba(0,0,0,.5)">✦</button>
@@ -33,36 +33,3 @@
     </form>
   </div>
 </div>
-<script>
-function agCopilot() {
-  return {
-    open: false, msgs: [], draft: '', busy: false, error: '',
-    toggle() {
-      this.open = !this.open;
-      if (this.open) {
-        try { this.msgs = JSON.parse(sessionStorage.getItem('ag-copilot') || '[]').slice(-30); } catch (e) {}
-        this.$nextTick(() => { this.scroll(); var el = document.getElementById('copilotInput'); if (el) el.focus(); });
-      }
-    },
-    persist() { try { sessionStorage.setItem('ag-copilot', JSON.stringify(this.msgs.slice(-30))); } catch (e) {} },
-    scroll() { var el = document.getElementById('copilotLog'); if (el) el.scrollTop = el.scrollHeight; },
-    async send() {
-      var text = this.draft.trim();
-      if (!text || this.busy) return;
-      this.error = ''; this.msgs.push({ role: 'user', text }); this.draft = ''; this.busy = true;
-      this.$nextTick(() => this.scroll());
-      try {
-        var r = await fetch('/admin/assistant/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{ csrf_token }}' },
-          body: JSON.stringify({ message: text, history: this.msgs.slice(0, -1).slice(-10) })
-        });
-        var j = await r.json();
-        if (j && j.ok && j.reply) { this.msgs.push({ role: 'assistant', text: j.reply }); }
-        else { this.error = (j && j.error) || 'The copilot did not answer — try again.'; }
-      } catch (e) { this.error = 'Network error — try again.'; }
-      finally { this.busy = false; this.persist(); this.$nextTick(() => this.scroll()); }
-    }
-  };
-}
-</script>

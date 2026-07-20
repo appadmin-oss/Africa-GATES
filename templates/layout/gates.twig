@@ -290,7 +290,7 @@
 <script defer src="https://code.jquery.com/jquery-3.7.1.slim.min.js"
         integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
 {# Alpine.js — reactive bindings on /vote, /community, admin tables #}
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+<script defer src="/assets/js/vendor/alpine-3.13.5.min.js?v={{ asset_version }}"></script>
 {# Community modal — self-contained; loaded site-wide (outside the lite_page gate) #}
 <script defer src="/assets/js/community-modal.js?v={{ asset_version }}"></script>
 {% if not lite_page|default(false) %}

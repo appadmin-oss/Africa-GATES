@@ -87,4 +87,18 @@ class DataExplorerTest extends TestCase
         $this->expectException(\Slim\Exception\HttpNotFoundException::class);
         $this->ctrl()->export($req, new Response(), ['dataset' => 'donations']);
     }
+
+    public function test_export_honours_date_range_filter(): void
+    {
+        $today = date('Y-m-d H:i:s');
+        $old   = date('Y-m-d H:i:s', strtotime('-60 days'));
+        DB::table('gates_users')->insert(['name' => 'Recent Ruth', 'email' => 'ruth@x.io', 'points' => 0, 'status' => 'active', 'created_at' => $today]);
+        DB::table('gates_users')->insert(['name' => 'Ancient Amos', 'email' => 'amos@x.io', 'points' => 0, 'status' => 'active', 'created_at' => $old]);
+
+        // range=30d must include the recent row and exclude the 60-day-old one.
+        $req = (new ServerRequestFactory())->createServerRequest('GET', 'https://x/admin/data/users/export')->withQueryParams(['range' => '30d']);
+        $csv = (string) $this->ctrl()->export($req, new Response(), ['dataset' => 'users'])->getBody();
+        $this->assertStringContainsString('Recent Ruth', $csv);
+        $this->assertStringNotContainsString('Ancient Amos', $csv);
+    }
 }

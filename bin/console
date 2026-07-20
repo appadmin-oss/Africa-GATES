@@ -19,7 +19,8 @@ use AfricaGates\Console\Commands\{
     CycleAdvanceCommand,
     MigrateCommand,
     PaymentReconcileCommand,
-    PrivacyPurgeCommand
+    PrivacyPurgeCommand,
+    PrivacyEraseUserCommand
 };
 
 $capsule = new DB();
@@ -46,4 +47,5 @@ $app->add(new PaymentReconcileCommand(
     ])
 ));
 $app->add(new PrivacyPurgeCommand());
+$app->add(new PrivacyEraseUserCommand());
 $app->run();

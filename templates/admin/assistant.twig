@@ -1,7 +1,7 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}AI Assistant{% endblock %}
 {% block content %}
-<div class="ad-card" x-data="agAssistant()" x-init="init()">
+<div class="ad-card" x-data="agChat({storageKey:'ag-asst',logId:'asstLog',focusId:'asstInput',startOpen:true,csrf:'{{ csrf_token }}'})" x-init="init()">
   <div class="ad-card__head">
     <div class="ad-card__title">Console copilot
       <small>
@@ -41,45 +41,4 @@
     <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">The copilot reads live counts and queues; it cannot change data. Verify before acting on critical numbers.</p>
   </div>
 </div>
-<script>
-function agAssistant() {
-  return {
-    msgs: [], draft: '', busy: false, error: '',
-    init() {
-      try { this.msgs = JSON.parse(sessionStorage.getItem('ag-asst') || '[]').slice(-30); } catch (e) {}
-      this.$nextTick(() => this.scroll());
-    },
-    persist() { try { sessionStorage.setItem('ag-asst', JSON.stringify(this.msgs.slice(-30))); } catch (e) {} },
-    scroll() { const el = document.getElementById('asstLog'); if (el) el.scrollTop = el.scrollHeight; },
-    async send() {
-      const text = this.draft.trim();
-      if (!text || this.busy) return;
-      this.error = '';
-      this.msgs.push({ role: 'user', text });
-      this.draft = '';
-      this.busy = true;
-      this.$nextTick(() => this.scroll());
-      try {
-        const r = await fetch('/admin/assistant/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '{{ csrf_token }}' },
-          body: JSON.stringify({ message: text, history: this.msgs.slice(0, -1).slice(-10) })
-        });
-        const j = await r.json();
-        if (j && j.ok && j.reply) {
-          this.msgs.push({ role: 'assistant', text: j.reply });
-        } else {
-          this.error = (j && j.error) || 'The assistant did not answer — try again.';
-        }
-      } catch (e) {
-        this.error = 'Network error — try again.';
-      } finally {
-        this.busy = false;
-        this.persist();
-        this.$nextTick(() => this.scroll());
-      }
-    }
-  };
-}
-</script>
 {% endblock %}
