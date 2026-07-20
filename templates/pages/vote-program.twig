@@ -20,7 +20,7 @@
 
   .vp-cat{ margin-top:34px; }
   .vp-cat__head{ display:flex; align-items:baseline; gap:10px; margin-bottom:14px; }
-  .vp-cat__title{ font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.25rem,3vw,1.6rem); color:var(--ag-ink); }
+  .vp-cat__title{ margin:0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.25rem,3vw,1.6rem); color:var(--ag-ink); }
   .vp-cat__n{ font-size:12.5px; color:#626a6e; }
   .vp-cat__desc{ margin:-8px 0 14px; font-size:13.5px; color:#5a6d6f; max-width:640px; line-height:1.5; }
 
@@ -70,7 +70,7 @@
     {% for c in categories %}
     <section class="vp-cat">
       <div class="vp-cat__head">
-        <span class="vp-cat__title">{{ c.category.title }}</span>
+        <h2 class="vp-cat__title">{{ c.category.title }}</h2>
         <span class="vp-cat__n">{{ c.nominees|length }} nominee{{ c.nominees|length == 1 ? '' : 's' }}</span>
       </div>
       {% if c.category.description %}<p class="vp-cat__desc">{{ c.category.description }}</p>{% endif %}
@@ -95,7 +95,7 @@
     {% endfor %}
   {% else %}
     <div class="vp-empty">
-      <h3>Nominees coming soon</h3>
+      <h2>Nominees coming soon</h2>
       <p>This programme’s nominees for the current cycle are being finalised. Check back shortly — or nominate someone now.</p>
       <a href="/nominate">Submit a nomination →</a>
     </div>

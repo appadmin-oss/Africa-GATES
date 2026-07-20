@@ -124,7 +124,7 @@
 
   {% if hub|length == 0 %}
     <div class="vh-empty" style="margin-top:26px">
-      <h3>No programmes yet</h3>
+      <h2>No programmes yet</h2>
       <p>Programmes appear here as soon as a cycle goes live. In the meantime, explore the rankings or nominate someone.</p>
       <div class="vh-btns">
         <a href="/leaderboard" class="vh-act vh-act--p">See the leaderboard</a>
@@ -151,6 +151,7 @@
         <span class="vh-count"><span x-text="shown"></span> of {{ hub|length }} shown</span>
       </div>
 
+      <h2 class="sr-only">Live programmes</h2>
       <div class="vh-cards">
         {% for p in hub %}
           {% set st = p.cycle_status|default('upcoming') %}

@@ -14,7 +14,7 @@
 
   .ev-sec{ margin-top:38px; }
   .ev-sec__head{ display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:18px; }
-  .ev-sec__title{ font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.4rem,3vw,1.85rem); color:var(--ag-ink); }
+  .ev-sec__title{ margin:0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.4rem,3vw,1.85rem); color:var(--ag-ink); }
   .ev-sec__count{ font-size:13px; color:#626a6e; white-space:nowrap; }
 
   .ev-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
@@ -57,7 +57,7 @@
 
   <section class="ev-sec">
     <div class="ev-sec__head">
-      <div class="ev-sec__title">Upcoming</div>
+      <h2 class="ev-sec__title">Upcoming</h2>
       {% if upcoming is not empty %}<span class="ev-sec__count">{{ upcoming|length }} {{ upcoming|length == 1 ? 'event' : 'events' }}</span>{% endif %}
     </div>
 
@@ -94,7 +94,7 @@
   {% if past is not empty %}
   <section class="ev-sec ev-past">
     <div class="ev-sec__head">
-      <div class="ev-sec__title">Past events</div>
+      <h2 class="ev-sec__title">Past events</h2>
       <span class="ev-sec__count">Archive</span>
     </div>
     <div class="ev-grid">
