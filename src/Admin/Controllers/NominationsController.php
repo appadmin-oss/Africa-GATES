@@ -29,6 +29,11 @@ class NominationsController
         $sort = in_array(($p['sort'] ?? ''), ['oldest', 'newest'], true) ? (string)$p['sort'] : 'newest';
         $page = max(1, (int)($p['page'] ?? 1));
         $per = 25;
+        // Accountability filters: slice the queue by programme, cycle and country
+        // so a reviewer can audit exactly one segment at a time.
+        $programmeId = (int)($p['programme'] ?? 0);
+        $cycleId     = (int)($p['cycle'] ?? 0);
+        $country     = strtoupper(trim((string)($p['country'] ?? '')));
 
         $base = DB::table('gates_nominations as n')
             ->leftJoin('gates_award_cycles as c', 'c.id', '=', 'n.cycle_id')
@@ -40,6 +45,9 @@ class NominationsController
               ->orWhere('n.nominator_name','like',"%$q%")
               ->orWhere('n.nominator_email','like',"%$q%");
         });
+        if ($programmeId > 0) $base->where('c.programme_id', $programmeId);
+        if ($cycleId > 0)     $base->where('n.cycle_id', $cycleId);
+        if ($country !== '')  $base->where('n.country_code', $country);
         // Date-range filter (day/week/month presets + custom from/to) on submission date.
         $dateMeta = Filters::applyDateRange($base, 'n.created_at', $p);
 
@@ -48,6 +56,14 @@ class NominationsController
         $page  = Filters::clampPage($page, $pages);
         $rows = $base->orderBy('n.id', $sort === 'oldest' ? 'asc' : 'desc')->offset(($page-1)*$per)->limit($per)->get();
 
+        // Option lists for the filter dropdowns.
+        $programmes = DB::table('gates_award_programmes')->orderBy('title')->get(['id', 'title'])->map(fn($r)=>(array)$r)->all();
+        $cycles = DB::table('gates_award_cycles as c')->join('gates_award_programmes as p','p.id','=','c.programme_id')
+            ->orderByDesc('c.year')->get(['c.id', 'c.year', 'p.title'])->map(fn($r)=>(array)$r)->all();
+        $countries = DB::table('gates_nominations')->whereNotNull('country_code')->where('country_code','!=','')
+            ->distinct()->orderBy('country_code')->pluck('country_code')->all();
+
+        $filterState = ['status' => $status, 'sort' => $sort, 'q' => $q, 'programme' => $programmeId ?: '', 'cycle' => $cycleId ?: '', 'country' => $country, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']];
         return $this->view->render($res, 'admin/nominations/index.twig', [
             'page_title'  => 'Nominations — Admin',
             'admin_page'  => 'nominations',
@@ -57,9 +73,14 @@ class NominationsController
             'pages'       => $pages,
             'per'         => $per,
             'window'      => Filters::pageWindow($page, $pages),
-            'qs'          => Filters::qs(['status' => $status, 'sort' => $sort, 'q' => $q, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
-            'qs_base'     => Filters::qs(['q' => $q, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
-            'filters'     => ['status' => $status, 'q' => $q, 'sort' => $sort, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']],
+            'programmes'  => $programmes,
+            'cycles'      => $cycles,
+            'countries'   => $countries,
+            // `qs` keeps every filter (for the pager); `qs_base` drops status/sort
+            // (for the status tabs, which set those themselves).
+            'qs'          => Filters::qs($filterState),
+            'qs_base'     => Filters::qs(['q' => $q, 'programme' => $programmeId ?: '', 'cycle' => $cycleId ?: '', 'country' => $country, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
+            'filters'     => $filterState,
             'counts'      => [
                 'pending'  => (int)DB::table('gates_nominations')->where('status','pending')->count(),
                 'approved' => (int)DB::table('gates_nominations')->where('status','approved')->count(),

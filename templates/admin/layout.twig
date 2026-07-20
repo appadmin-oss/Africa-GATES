@@ -224,6 +224,10 @@
 
 </div>
 
+{# Ambient console copilot — floating assistant on every admin page except the
+   dedicated full-page one (which would otherwise double it up). #}
+{% if admin_page is not defined or admin_page != 'assistant' %}{% include 'admin/partials/copilot.twig' %}{% endif %}
+
 {# Alpine.js powers the admin's rich interactivity — the AI console + AI-assist
    drafting, the form builder, and the post/event editors all use x-data/@click.
    Without it those surfaces silently do nothing (admin.js notes it depends on

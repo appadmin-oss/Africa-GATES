@@ -19,13 +19,34 @@
 <form class="ad-filters" method="get" action="/admin/nominations" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
   <input type="hidden" name="status" value="{{ filters.status }}">
   <input type="hidden" name="sort" value="{{ filters.sort }}">
-  <div style="flex:1;min-width:200px">
+  <div style="flex:1;min-width:180px">
     <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Search</label>
     <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee or nominator…" aria-label="Search nominee or nominator" style="width:100%">
   </div>
+  <div>
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Programme</label>
+    <select name="programme" aria-label="Filter by programme" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+      <option value="">All programmes</option>
+      {% for pr in programmes %}<option value="{{ pr.id }}" {% if filters.programme == pr.id %}selected{% endif %}>{{ pr.title }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Cycle</label>
+    <select name="cycle" aria-label="Filter by cycle" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+      <option value="">All cycles</option>
+      {% for c in cycles %}<option value="{{ c.id }}" {% if filters.cycle == c.id %}selected{% endif %}>{{ c.title }} · {{ c.year }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Country</label>
+    <select name="country" aria-label="Filter by country" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+      <option value="">All countries</option>
+      {% for cc in countries %}<option value="{{ cc }}" {% if filters.country == cc %}selected{% endif %}>{{ cc }}</option>{% endfor %}
+    </select>
+  </div>
   {% include 'admin/partials/datefields.twig' with {range: filters.range, from: filters.from, to: filters.to} only %}
   <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
-  {% if filters.q or (filters.range not in ['','all']) or filters.from or filters.to %}<a class="ad-btn" href="/admin/nominations?status={{ filters.status }}&sort={{ filters.sort }}">Clear</a>{% endif %}
+  {% if filters.q or filters.programme or filters.cycle or filters.country or (filters.range not in ['','all']) or filters.from or filters.to %}<a class="ad-btn" href="/admin/nominations?status={{ filters.status }}&sort={{ filters.sort }}">Clear</a>{% endif %}
 </form>
 
 <div class="ad-card"><div class="ad-table-wrap">
