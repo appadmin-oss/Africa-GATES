@@ -1,5 +1,5 @@
 .env
-vendor/
+/vendor/
 var/cache/twig/*.php
 var/data/
 public/assets/vendor/*.map
