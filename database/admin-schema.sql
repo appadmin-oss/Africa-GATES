@@ -75,22 +75,9 @@ CREATE TABLE IF NOT EXISTS gates_judges (
   CONSTRAINT fk_judge_admin FOREIGN KEY (admin_id) REFERENCES gates_admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS gates_judge_scores (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  judge_id BIGINT UNSIGNED NOT NULL,
-  nominee_id BIGINT UNSIGNED NOT NULL,
-  category_id BIGINT UNSIGNED NOT NULL,
-  score TINYINT NOT NULL,
-  notes TEXT,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_jscore (judge_id, nominee_id),
-  KEY idx_jscore_judge (judge_id),
-  KEY idx_jscore_nominee (nominee_id),
-  CONSTRAINT fk_jscore_judge    FOREIGN KEY (judge_id)    REFERENCES gates_judges(id)           ON DELETE CASCADE,
-  CONSTRAINT fk_jscore_nominee  FOREIGN KEY (nominee_id)  REFERENCES gates_nominees(id)         ON DELETE CASCADE,
-  CONSTRAINT fk_jscore_category FOREIGN KEY (category_id) REFERENCES gates_award_categories(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- (Removed) gates_judge_scores — the legacy single-score table is dead (zero code
+-- references; scoring uses gates_judge_criteria_scores). Kept out of fresh installs
+-- to match the SQLite schema, which already omits it.
 
 CREATE TABLE IF NOT EXISTS gates_settings (
   key_name VARCHAR(100) NOT NULL,
