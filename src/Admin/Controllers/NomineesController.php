@@ -24,27 +24,25 @@ class NomineesController
         $cycleId = (int)($p['cycle'] ?? 0);
         $status  = (string)($p['status'] ?? '');
         $q       = (string)($p['q'] ?? '');
+        $page    = max(1, (int)($p['page'] ?? 1));
 
-        // Shared filter builder so the count and the page slice stay in lockstep.
-        $filtered = function () use ($cycleId, $status, $q) {
-            $b = DB::table('gates_nominees as n')
-                ->join('gates_award_categories as c','c.id','=','n.category_id')
-                ->join('gates_award_cycles as cy','cy.id','=','c.cycle_id')
-                ->join('gates_award_programmes as p','p.id','=','cy.programme_id');
-            if ($cycleId) $b->where('cy.id', $cycleId);
-            if ($status)  $b->where('n.status', $status);
-            if ($q)       $b->where('n.name','like',"%$q%");
-            return $b;
-        };
+        // One base query (search + date range), cloned for the count and the page
+        // slice so they stay in lockstep.
+        $base = DB::table('gates_nominees as n')
+            ->join('gates_award_categories as c','c.id','=','n.category_id')
+            ->join('gates_award_cycles as cy','cy.id','=','c.cycle_id')
+            ->join('gates_award_programmes as p','p.id','=','cy.programme_id');
+        if ($cycleId) $base->where('cy.id', $cycleId);
+        if ($status)  $base->where('n.status', $status);
+        if ($q)       $base->where('n.name','like',"%$q%");
+        $dateMeta = \AfricaGates\Support\Filters::applyDateRange($base, 'n.nominated_at', $p);
 
-        // Paginate so nominees beyond the old hard 200-row cap remain reachable
-        // and manageable (previously anyone ranked below the top 200 by votes
-        // simply vanished from the admin list).
-        $total = (int) $filtered()->count();
+        // Paginate so nominees beyond the old hard 200-row cap remain reachable.
+        $total = (int) (clone $base)->count();
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
-        $page  = min(max(1, (int)($p['page'] ?? 1)), $pages);
+        $page  = \AfricaGates\Support\Filters::clampPage($page, $pages);
 
-        $rows = $filtered()
+        $rows = (clone $base)
             ->leftJoin('gates_profiles as pr','pr.id','=','n.profile_id')
             ->select(['n.id','n.name','n.tagline','n.country_code','n.vote_count','n.status','n.photo_path','n.profile_id','c.title as category','p.title as programme','cy.id as cycle_id','cy.year','pr.slug as profile_slug','pr.display_name as profile_name'])
             ->orderByDesc('n.vote_count')
@@ -55,16 +53,20 @@ class NomineesController
             ->join('gates_award_programmes as p','p.id','=','c.programme_id')
             ->select(['c.id','c.year','p.title'])->orderByDesc('c.year')->get();
 
+        // Leading '&' so the existing template's `?page=N{{ qs }}` links keep every
+        // active filter (previously `qs` was undefined — pagination dropped filters).
+        $qsBuilt = \AfricaGates\Support\Filters::qs(['cycle' => $cycleId, 'status' => $status, 'q' => $q, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]);
         return $this->view->render($res, 'admin/nominees/index.twig', [
             'page_title' => 'Nominees — Admin',
             'admin_page' => 'nominees',
             'rows'       => $rows->map(fn($r)=>(array)$r)->all(),
             'cycles'     => $cycles->map(fn($r)=>(array)$r)->all(),
-            'filters'    => ['cycle' => $cycleId, 'status' => $status, 'q' => $q],
+            'filters'    => ['cycle' => $cycleId, 'status' => $status, 'q' => $q, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']],
             'total'      => $total,
             'page'       => $page,
             'pages'      => $pages,
             'per'        => self::PER_PAGE,
+            'qs'         => $qsBuilt !== '' ? '&' . $qsBuilt : '',
         ]);
     }
 

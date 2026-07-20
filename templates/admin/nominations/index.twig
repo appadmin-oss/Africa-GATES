@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block content %}
-{% set qp = filters.q ? '&q=' ~ filters.q|url_encode : '' %}
+{% set qp = qs_base ? '&' ~ qs_base : '' %}
 <div class="ad-card" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px;padding:12px 14px">
   <span style="font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f)">Quick filters <span class="ad-info" data-tip="One-click presets to triage nominations. Start with the review queue (oldest pending first) to work through fairly in order." tabindex="0" aria-label="Filter presets">i</span></span>
   <a class="ad-tab {% if filters.status == 'pending' and filters.sort == 'oldest' %}is-active{% endif %}" href="/admin/nominations?status=pending&sort=oldest{{ qp }}">📋 Review queue <span class="n">{{ counts.pending }}</span></a>
@@ -16,15 +16,23 @@
   <a class="ad-tab {% if filters.status == 'rejected' %}is-active{% endif %}" href="/admin/nominations?status=rejected{{ qp }}">✕ Rejected <span class="n">{{ counts.rejected }}</span></a>
   <a class="ad-tab {% if filters.status == 'all' %}is-active{% endif %}" href="/admin/nominations?status=all{{ qp }}">All</a>
 </div>
-<form class="ad-filters" method="get" action="/admin/nominations">
+<form class="ad-filters" method="get" action="/admin/nominations" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
   <input type="hidden" name="status" value="{{ filters.status }}">
   <input type="hidden" name="sort" value="{{ filters.sort }}">
-  <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee or nominator…" aria-label="Search nominee or nominator">
-  <button class="ad-btn ad-btn--primary" type="submit">Search</button>
-  {% if filters.q %}<a class="ad-btn" href="/admin/nominations?status={{ filters.status }}&sort={{ filters.sort }}">Clear</a>{% endif %}
+  <div style="flex:1;min-width:200px">
+    <label style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Search</label>
+    <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee or nominator…" aria-label="Search nominee or nominator" style="width:100%">
+  </div>
+  {% include 'admin/partials/datefields.twig' with {range: filters.range, from: filters.from, to: filters.to} only %}
+  <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
+  {% if filters.q or (filters.range not in ['','all']) or filters.from or filters.to %}<a class="ad-btn" href="/admin/nominations?status={{ filters.status }}&sort={{ filters.sort }}">Clear</a>{% endif %}
 </form>
 
 <div class="ad-card"><div class="ad-table-wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 4px 12px">
+    <strong style="font-size:14px">{{ total|number_format }} nomination{{ total == 1 ? '' : 's' }}</strong>
+    {% if pages > 1 %}<span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Page {{ page }} of {{ pages }}</span>{% endif %}
+  </div>
   <table class="ad-table">
     <thead><tr>
       <th scope="col">Nominee</th>
@@ -80,5 +88,6 @@
       {% endfor %}
     </tbody>
   </table>
+  {% include 'admin/partials/pager.twig' with {base: '/admin/nominations', qs: qs, page: page, pages: pages, window: window} only %}
 </div></div>
 {% endblock %}

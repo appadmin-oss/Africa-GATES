@@ -1,7 +1,7 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}Nominees{% endblock %}
 {% block content %}
-<form class="ad-filters" method="get" action="/admin/nominees">
+<form class="ad-filters" method="get" action="/admin/nominees" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
   <input type="search" name="q" value="{{ filters.q }}" placeholder="Search nominee name…" aria-label="Search nominee name">
   <select name="cycle" aria-label="Filter by cycle">
     <option value="">All cycles</option>
@@ -11,7 +11,9 @@
     <option value="">All statuses</option>
     {% for s in ['pending','approved','winner','runner_up'] %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s|capitalize|replace({'_':' '}) }}</option>{% endfor %}
   </select>
+  {% include 'admin/partials/datefields.twig' with {range: filters.range, from: filters.from, to: filters.to} only %}
   <button class="ad-btn ad-btn--primary" type="submit">Filter</button>
+  {% if filters.q or filters.cycle or filters.status or (filters.range not in ['','all']) or filters.from or filters.to %}<a class="ad-btn" href="/admin/nominees">Clear</a>{% endif %}
 </form>
 
 {% if total is defined %}

@@ -9,6 +9,7 @@ use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Support\Filters;
 use AfricaGates\Services\{OtpService, WebhookService, AwardService, GatedFormService};
 
 class NominationsController
@@ -39,7 +40,12 @@ class NominationsController
               ->orWhere('n.nominator_name','like',"%$q%")
               ->orWhere('n.nominator_email','like',"%$q%");
         });
-        $total = (clone $base)->count();
+        // Date-range filter (day/week/month presets + custom from/to) on submission date.
+        $dateMeta = Filters::applyDateRange($base, 'n.created_at', $p);
+
+        $total = (int) (clone $base)->count();
+        $pages = max(1, (int) ceil($total / $per));
+        $page  = Filters::clampPage($page, $pages);
         $rows = $base->orderBy('n.id', $sort === 'oldest' ? 'asc' : 'desc')->offset(($page-1)*$per)->limit($per)->get();
 
         return $this->view->render($res, 'admin/nominations/index.twig', [
@@ -48,8 +54,12 @@ class NominationsController
             'rows'        => $rows->map(fn($r)=>(array)$r)->all(),
             'total'       => $total,
             'page'        => $page,
+            'pages'       => $pages,
             'per'         => $per,
-            'filters'     => ['status' => $status, 'q' => $q, 'sort' => $sort],
+            'window'      => Filters::pageWindow($page, $pages),
+            'qs'          => Filters::qs(['status' => $status, 'sort' => $sort, 'q' => $q, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
+            'qs_base'     => Filters::qs(['q' => $q, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
+            'filters'     => ['status' => $status, 'q' => $q, 'sort' => $sort, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']],
             'counts'      => [
                 'pending'  => (int)DB::table('gates_nominations')->where('status','pending')->count(),
                 'approved' => (int)DB::table('gates_nominations')->where('status','approved')->count(),

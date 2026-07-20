@@ -7,6 +7,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Support\Filters;
 
 /**
  * Event registrations (gates_event_registrations) — paginated, filterable list
@@ -50,11 +51,14 @@ class RegistrationsController
 
         $events = DB::table('gates_site_events')->orderByDesc('event_date')->get(['id', 'title'])->map(fn($r) => (array) $r)->all();
 
-        $total = (int) $this->query($eventId, $q)->count();
-        $pages = max(1, (int) ceil($total / self::PER_PAGE));
-        $page  = min($page, $pages);
+        $base = $this->query($eventId, $q);
+        $dateMeta = Filters::applyDateRange($base, 'r.created_at', $qp);
 
-        $rows = $this->query($eventId, $q)
+        $total = (int) (clone $base)->count();
+        $pages = max(1, (int) ceil($total / self::PER_PAGE));
+        $page  = Filters::clampPage($page, $pages);
+
+        $rows = (clone $base)
             ->orderByDesc('r.created_at')
             ->offset(($page - 1) * self::PER_PAGE)->limit(self::PER_PAGE)
             ->get(['r.id', 'r.name', 'r.email', 'r.phone', 'r.tier', 'r.created_at', 'r.event_id', 'e.title as event_title'])
@@ -70,6 +74,11 @@ class RegistrationsController
             'page'       => $page,
             'pages'      => $pages,
             'total'      => $total,
+            'window'     => Filters::pageWindow($page, $pages),
+            'range'      => $dateMeta['range'],
+            'from'       => $dateMeta['from'],
+            'to'         => $dateMeta['to'],
+            'qs'         => Filters::qs(['event' => $eventId, 'q' => $q, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
         ]);
     }
 
@@ -81,7 +90,9 @@ class RegistrationsController
         $eventId = (int) ($qp['event'] ?? 0);
         $q       = trim((string) ($qp['q'] ?? ''));
 
-        $rows = $this->query($eventId, $q)->orderByDesc('r.created_at')
+        $base = $this->query($eventId, $q);
+        Filters::applyDateRange($base, 'r.created_at', $qp);
+        $rows = $base->orderByDesc('r.created_at')
             ->get(['e.title as event_title', 'r.name', 'r.email', 'r.phone', 'r.tier', 'r.created_at']);
 
         $fh = fopen('php://temp', 'r+');

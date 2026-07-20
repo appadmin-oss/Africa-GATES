@@ -9,6 +9,7 @@ use Slim\Views\Twig;
 use Slim\Exception\HttpNotFoundException;
 use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Admin\Support\DataRegistry;
+use AfricaGates\Support\Filters;
 
 /**
  * Generic admin data explorer (read-only "data" section). One controller serves
@@ -58,9 +59,14 @@ class DataController
         }
 
         $base = $this->filtered($d, $existing, $q);
+        // Date-range filter on the dataset's natural time column (day/week/month
+        // presets + custom from/to). No-op for tables without a timestamp column.
+        $dateCol  = Filters::dateColumn($existing, $d['order'][0] ?? null);
+        $dateMeta = Filters::applyDateRange($base, $dateCol, $qp);
+
         $total = (int) (clone $base)->count();
         $pages = max(1, (int) ceil($total / self::PER));
-        $page  = min($page, $pages);
+        $page  = Filters::clampPage($page, $pages);
         $rows  = (clone $base)->orderBy($ocol, $dir)
             ->offset(($page - 1) * self::PER)->limit(self::PER)
             ->get()->map(fn($r) => (array) $r)->all();
@@ -81,6 +87,15 @@ class DataController
             'sort'       => $ocol,
             'dir'        => $dir,
             'has_id'     => in_array('id', $existing, true),
+            'has_date'   => $dateCol !== null,
+            'range'      => $dateMeta['range'],
+            'from'       => $dateMeta['from'],
+            'to'         => $dateMeta['to'],
+            // Preserved query strings: `qs` keeps every filter incl. sort (for the
+            // pager); `qs_base` drops sort/dir (for sort-header + export links).
+            'qs'         => Filters::qs(['q' => $q, 'sort' => $ocol, 'dir' => $dir, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
+            'qs_base'    => Filters::qs(['q' => $q, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
+            'window'     => Filters::pageWindow($page, $pages),
         ]);
     }
 
@@ -111,12 +126,16 @@ class DataController
     public function export(Request $req, Response $res, array $args): Response
     {
         [, $d, $existing] = $this->resolve($req, $args);
+        $qp = $req->getQueryParams();
         $exportCols = array_values(array_filter($existing, fn($c) => !DataRegistry::isHidden($c)));
-        $q = trim((string) ($req->getQueryParams()['q'] ?? ''));
+        $q = trim((string) ($qp['q'] ?? ''));
 
         [$ocol, $odir] = $d['order'];
         if (!in_array($ocol, $existing, true)) $ocol = in_array('id', $existing, true) ? 'id' : $existing[0];
-        $rows = $this->filtered($d, $existing, $q)->orderBy($ocol, $odir)->limit(self::EXPORT_CAP)->get();
+        // Export honours the SAME search + date-range filter as the on-screen list.
+        $base = $this->filtered($d, $existing, $q);
+        Filters::applyDateRange($base, Filters::dateColumn($existing, $d['order'][0] ?? null), $qp);
+        $rows = $base->orderBy($ocol, $odir)->limit(self::EXPORT_CAP)->get();
 
         $fh = fopen('php://temp', 'r+');
         fputcsv($fh, $exportCols, ',', '"', '\\');
