@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Montserrat:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.css">
+<link rel="stylesheet" href="/assets/css/vendor/tippy.css?v={{ asset_version }}">
 <link rel="stylesheet" href="/assets/css/admin.css?v={{ asset_version }}">
 {% block head_styles %}{% endblock %}
 </head>
@@ -234,11 +234,18 @@
    drafting, the form builder, and the post/event editors all use x-data/@click.
    Without it those surfaces silently do nothing (admin.js notes it depends on
    Alpine). Loaded before admin.js, same pinned version as the public layout. #}
-<script defer src="/assets/js/vendor/alpine-3.13.5.min.js?v={{ asset_version }}"></script>
+{# ag-chat MUST load before Alpine: Alpine's build calls start() as soon as it
+   runs, and because these are deferred the document is already "interactive",
+   so Alpine walks the DOM and evaluates x-data="agChat({…})" immediately. If
+   Alpine ran first, window.agChat wouldn't exist yet and the copilot/assistant
+   would throw "agChat is not defined". #}
 <script defer src="/assets/js/ag-chat.js?v={{ asset_version }}"></script>
-<script defer src="https://unpkg.com/@popperjs/core@2"></script>
-<script defer src="https://unpkg.com/tippy.js@6"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js"></script>
+<script defer src="/assets/js/vendor/alpine-3.13.5.min.js?v={{ asset_version }}"></script>
+{# Popper + Tippy vendored locally (not CDN): the production CSP is 'self'-only
+   for scripts, so a CDN load is blocked. Popper defines window.Popper, which
+   Tippy consumes; admin.js then inits tippy on [data-tip]. #}
+<script defer src="/assets/js/vendor/popper-2.11.8.min.js?v={{ asset_version }}"></script>
+<script defer src="/assets/js/vendor/tippy-6.3.7.umd.min.js?v={{ asset_version }}"></script>
 {% block foot_scripts %}{% endblock %}
 <script defer src="/assets/js/admin.js?v={{ asset_version }}"></script>
 {% include 'admin/partials/richtext.twig' %}
