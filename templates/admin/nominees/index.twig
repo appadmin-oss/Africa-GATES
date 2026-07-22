@@ -34,7 +34,9 @@
   <span style="font-size:12px;color:var(--ad-text-soft)">Tick the duplicate rows, pick one to <em>keep</em>, then:</span>
   <button class="ad-btn ad-btn--sm ad-btn--primary" type="submit"
           data-confirm="Merge the ticked nominees into the one marked “keep”? Their votes and judge scores will be combined and the duplicates removed. This can't be undone.">⤵ Merge selected</button>
+  <button class="ad-btn ad-btn--sm" type="button" id="dupScanBtn" style="margin-left:auto">⚡ Scan for duplicates</button>
 </form>
+<div id="dupScanPanel" aria-live="polite" style="margin:0 0 12px"></div>
 {% endif %}
 
 <div class="ad-card"><div class="ad-table-wrap">
@@ -149,5 +151,54 @@
   {% endfor %}
   {% if page < pages %}<a href="?page={{ page + 1 }}{{ qs }}" rel="next">Next →</a>{% endif %}
 </div>
+{% endif %}
+
+{% if admin_role in ['superadmin','admin'] %}
+<script>
+/* AI-assisted duplicate scan: fetch likely-same-person nominee groups for the
+   selected cycle and render each as a one-click merge form. Deterministic
+   groups always appear; AI-refined ones too when a provider is configured. */
+(function () {
+  var btn = document.getElementById('dupScanBtn');
+  var panel = document.getElementById('dupScanPanel');
+  if (!btn || !panel) return;
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+  var cycle = {{ (filters.cycle|default(0)) ?: 0 }};
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
+
+  function groupForm(g) {
+    var ids = g.nominee_ids || [], names = g.names || [], keep = ids[0];
+    var hidden = '<input type="hidden" name="_token" value="' + esc(csrf) + '">'
+               + '<input type="hidden" name="keep_id" value="' + parseInt(keep, 10) + '">';
+    ids.forEach(function (id) { hidden += '<input type="hidden" name="merge_ids[]" value="' + parseInt(id, 10) + '">'; });
+    var list = names.map(function (n, i) { return esc(n) + (ids[i] === keep ? ' <em style="color:var(--ad-accent,#237b22)">(keep)</em>' : ''); }).join('  ·  ');
+    var conf = Math.round((g.confidence || 0) * 100);
+    var meta = [g.category, conf + '% match', g.source === 'ai' ? 'AI' : 'rule'].filter(Boolean).map(esc).join(' · ');
+    return '<form method="post" action="/admin/nominees/merge" style="display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:8px;background:#fff;margin-bottom:6px">'
+      + hidden
+      + '<span style="font-size:13px">' + list + '<br><small style="color:var(--ad-text-mute,#8a9a9c)">' + meta + (g.reason ? ' — ' + esc(g.reason) : '') + '</small></span>'
+      + '<button class="ad-btn ad-btn--xs ad-btn--primary" type="submit" style="flex:none" data-confirm="Merge these into one nominee? Their votes and judge scores combine and the duplicates are removed.">Merge</button>'
+      + '</form>';
+  }
+
+  btn.addEventListener('click', function () {
+    var orig = btn.textContent; btn.disabled = true; btn.textContent = '⏳ Scanning…'; panel.innerHTML = '';
+    fetch('/admin/nominees/duplicate-scan' + (cycle ? ('?cycle=' + cycle) : ''), { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        btn.disabled = false; btn.textContent = orig;
+        if (!j.ok) { panel.innerHTML = '<p style="color:#b42318;font-size:13px">' + esc(j.error || 'Scan failed.') + '</p>'; return; }
+        if (!j.groups || !j.groups.length) { panel.innerHTML = '<p style="color:var(--ad-text-soft);font-size:13px">No likely duplicates found' + (j.ai ? ' (AI-assisted)' : '') + ' across ' + (j.scanned || 0) + ' nominees.</p>'; return; }
+        var head = '<div style="padding:10px 14px;border-left:4px solid var(--ad-accent,#237b22);background:var(--ad-bg,#f7faf9);border-radius:8px">'
+          + '<strong style="font-size:13px">' + j.groups.length + ' possible duplicate group' + (j.groups.length === 1 ? '' : 's') + '</strong>'
+          + (j.ai ? ' <span style="font-size:11px;color:var(--ad-text-mute,#8a9a9c)">· AI-assisted</span>' : '')
+          + '<p style="font-size:11.5px;color:var(--ad-text-mute,#8a9a9c);margin:2px 0 10px">Review each — the first name is kept, the rest fold into it.</p>';
+        panel.innerHTML = head + j.groups.map(groupForm).join('') + '</div>';
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = orig; panel.innerHTML = '<p style="color:#b42318;font-size:13px">Network error — try again.</p>'; });
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}

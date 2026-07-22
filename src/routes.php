@@ -530,6 +530,7 @@ return function(App $app) {
         $a->post('/products/{id:[0-9]+}/delete', AdminProductsController::class.':delete');
 
         $a->get('/nominees',        AdminNomineesController::class.':index');
+        $a->get('/nominees/duplicate-scan', AdminNomineesController::class.':duplicateScan');
         $a->post('/nominees/merge', AdminNomineesController::class.':merge');
         $a->post('/nominees/{id:[0-9]+}/link',     AdminNomineesController::class.':link');
         $a->post('/nominees/{id:[0-9]+}/photo',         AdminNomineesController::class.':photo');

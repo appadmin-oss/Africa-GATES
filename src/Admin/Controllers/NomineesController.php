@@ -131,6 +131,40 @@ class NomineesController
         return $res->withHeader('Location', $back)->withStatus(302);
     }
 
+    /**
+     * AI-assisted duplicate scan (JSON): groups of nominees that are probably
+     * the same person, within a cycle, via MergeSuggestionService (deterministic
+     * clustering always; AI refinement when a provider is configured). Admin+
+     * only — it's the pre-step to a merge, and each group is returned with a
+     * ready-to-submit keep + merge_ids so the UI can offer one-click merge.
+     */
+    public function duplicateScan(Request $req, Response $res): Response
+    {
+        $json = function (array $p, int $code = 200) use ($res): Response {
+            $res->getBody()->write((string) json_encode($p, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            return $res->withHeader('Content-Type', 'application/json')->withStatus($code);
+        };
+        if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            return $json(['ok' => false, 'error' => 'Only an admin can scan for duplicates.'], 403);
+        }
+        // Modest per-admin budget — the AI layer makes one call per category.
+        try {
+            if (!(new \AfricaGates\Services\RateLimitService())->check('admin:' . ($_SESSION['admin_id'] ?? '0'), 'dup_scan', 20, 3600)) {
+                return $json(['ok' => false, 'error' => 'Too many scans — wait a minute and try again.'], 429);
+            }
+        } catch (\Throwable) {}
+
+        $cycleId = (int) ($req->getQueryParams()['cycle'] ?? 0);
+        if ($cycleId <= 0) {
+            // Default to the most recent cycle so the button works with no filter set.
+            $cycleId = (int) (DB::table('gates_award_cycles')->orderByDesc('year')->orderByDesc('id')->value('id') ?? 0);
+        }
+        if ($cycleId <= 0) return $json(['ok' => true, 'groups' => [], 'scanned' => 0, 'ai' => false]);
+
+        $r = \AfricaGates\Services\MergeSuggestionService::forCycle($cycleId);
+        return $json(['ok' => true] + $r + ['cycle' => $cycleId]);
+    }
+
     public function action(Request $req, Response $res, array $args): Response
     {
         $id = (int)$args['id'];
