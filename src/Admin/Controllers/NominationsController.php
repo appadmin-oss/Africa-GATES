@@ -81,12 +81,35 @@ class NominationsController
             'qs'          => Filters::qs($filterState),
             'qs_base'     => Filters::qs(['q' => $q, 'programme' => $programmeId ?: '', 'cycle' => $cycleId ?: '', 'country' => $country, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
             'filters'     => $filterState,
+            // Show the plain-English AI filter box only when a provider is set.
+            'ai_enabled'  => (function () { try { return \AfricaGates\Services\AiService::boot()->configured(); } catch (\Throwable) { return false; } })(),
             'counts'      => [
                 'pending'  => (int)DB::table('gates_nominations')->where('status','pending')->count(),
                 'approved' => (int)DB::table('gates_nominations')->where('status','approved')->count(),
                 'rejected' => (int)DB::table('gates_nominations')->where('status','rejected')->count(),
             ],
         ]);
+    }
+
+    /**
+     * AI filter: turn a plain-English request ("pending STEM nominations from
+     * Kenya this month") into the list's own whitelisted filter params and
+     * redirect to the filtered view. Falls back to a plain text search on the
+     * phrase when no AI provider is configured — so the box always does
+     * something useful. GET stays the source of truth; this just fills it in.
+     */
+    public function aiFilter(Request $req, Response $res): Response
+    {
+        $q = trim((string) (((array) $req->getParsedBody())['ai_query'] ?? ''));
+        if ($q === '') return $res->withHeader('Location', '/admin/nominations')->withStatus(302);
+
+        $params = \AfricaGates\Services\AiFilterService::parseNominationFilter($q);
+        if ($params === null || $params === []) {
+            $_SESSION['flash_notice'] = 'AI filtering is unavailable — showing a text search instead.';
+            $params = ['q' => mb_substr($q, 0, 80)];
+        }
+        $qs = http_build_query($params);
+        return $res->withHeader('Location', '/admin/nominations' . ($qs !== '' ? '?' . $qs : ''))->withStatus(302);
     }
 
     public function action(Request $req, Response $res, array $args): Response

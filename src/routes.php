@@ -478,6 +478,7 @@ return function(App $app) {
 
         $a->get('/nominations',     AdminNominationsController::class.':index');
         // Review DESK — high-volume queue walker ({id} below is digit-constrained, no conflict)
+        $a->post('/nominations/ai-filter', AdminNominationsController::class.':aiFilter');
         $a->get('/nominations/review', AdminNominationsController::class.':desk');
         $a->get('/nominations/review/next', AdminNominationsController::class.':deskFragment');
         $a->get('/nominations/{id:[0-9]+}',           AdminNominationsController::class.':review');

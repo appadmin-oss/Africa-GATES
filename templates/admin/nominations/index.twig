@@ -16,6 +16,19 @@
   <a class="ad-tab {% if filters.status == 'rejected' %}is-active{% endif %}" href="/admin/nominations?status=rejected{{ qp }}">✕ Rejected <span class="n">{{ counts.rejected }}</span></a>
   <a class="ad-tab {% if filters.status == 'all' %}is-active{% endif %}" href="/admin/nominations?status=all{{ qp }}">All</a>
 </div>
+{% if ai_enabled|default(false) %}
+{# Plain-English filtering: the phrase is parsed into the SAME whitelisted GET
+   filters below (status/country/range/sort/search) and applied via redirect. #}
+<form method="post" action="/admin/nominations/ai-filter" class="ad-card" style="display:flex;gap:8px;align-items:center;margin-bottom:12px;padding:10px 14px">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <span aria-hidden="true" style="font-size:15px">✦</span>
+  <label for="aiQuery" class="sr-only">Filter nominations in plain English</label>
+  <input id="aiQuery" type="text" name="ai_query" maxlength="200"
+         placeholder="Ask in plain English — e.g. “pending nominations from Kenya this month, oldest first”"
+         style="flex:1;min-width:220px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;padding:8px 11px;font:inherit;font-size:13px">
+  <button class="ad-btn ad-btn--sm ad-btn--primary" type="submit">Filter with AI</button>
+</form>
+{% endif %}
 <form class="ad-filters" method="get" action="/admin/nominations" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
   <input type="hidden" name="status" value="{{ filters.status }}">
   <input type="hidden" name="sort" value="{{ filters.sort }}">
