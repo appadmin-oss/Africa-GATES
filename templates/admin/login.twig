@@ -3,43 +3,59 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ page_title|default('Admin Login') }}</title>
+<title>{{ page_title|default('Admin sign-in — Africa GATES') }}</title>
+<link rel="icon" type="image/svg+xml" href="/assets/img/logo-mark.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="icon" type="image/svg+xml" href="/assets/img/logo-mark.svg">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600;1,700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/css/admin.css?v={{ asset_version }}">
-<link rel="stylesheet" href="/assets/css/aurora.css?v={{ asset_version }}">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/base/tokens.css?v={{ asset_version }}">
+<link rel="stylesheet" href="/assets/css/components/auth.css?v={{ asset_version }}">
 </head>
-<body class="ad-auth">
-  <div class="aurora aurora--dark" aria-hidden="true"></div>
-  <div class="ad-auth__card">
-    <a class="ad-auth__brand" href="/" aria-label="Africa GATES">
-      <img src="/assets/img/logo-mark.svg" alt="" width="46" height="46">
-      <span class="ad-auth__wm"><b>Africa GATES</b><small>Admin Console</small></span>
+<body>
+<div class="ag-auth">
+  <aside class="ag-auth__brand">
+    <div class="ag-auth__orb" aria-hidden="true"></div>
+    <a class="ag-auth__logo" href="/" aria-label="Africa GATES — home">
+      <span class="ag-auth__logo-glyph" aria-hidden="true">G</span>
+      <span class="ag-auth__logo-word"><b>Africa</b><span>GATES</span></span>
     </a>
+    <div class="ag-auth__pitch">
+      <h1>The console<br>behind the cycle.</h1>
+      <p>Programmes, nominations, judging and results — managed in one secure place.</p>
+    </div>
+    <p class="ag-auth__copy">© {{ "now"|date("Y") }} Africa GATES · Admin Console</p>
+  </aside>
 
-    <h1 class="ad-auth__h1">Sign in</h1>
-    <p class="ad-auth__sub">Access the Africa GATES admin console.</p>
+  <div class="ag-auth__panel">
+    <div class="ag-auth__form-wrap">
+      <p class="ag-auth__eyebrow">Admin Console</p>
+      <h1 class="ag-auth__h">Sign in</h1>
+      <p class="ag-auth__sub">Access the Africa GATES admin console.</p>
 
-    {% set err_msg    = error  ?? flash_error  %}
-    {% set notice_msg = notice ?? flash_notice %}
-    {% if err_msg %}<div class="ad-auth__alert ad-auth__alert--err">{{ err_msg }}</div>{% endif %}
-    {% if notice_msg %}<div class="ad-auth__alert ad-auth__alert--note">{{ notice_msg }}</div>{% endif %}
-    {% if magic_sent %}<div class="ad-auth__alert ad-auth__alert--note">If that email belongs to an active admin, we just sent a sign-in link valid for 15 minutes.</div>{% endif %}
+      {% set err_msg    = error  ?? flash_error  %}
+      {% set notice_msg = notice ?? flash_notice %}
+      {% if err_msg %}<div class="ag-auth__alert ag-auth__alert--err" role="alert">{{ err_msg }}</div>{% endif %}
+      {% if notice_msg %}<div class="ag-auth__alert ag-auth__alert--note" role="status">{{ notice_msg }}</div>{% endif %}
+      {% if magic_sent %}<div class="ag-auth__alert ag-auth__alert--note" role="status">If that email belongs to an active admin, we just sent a sign-in link valid for 15 minutes.</div>{% endif %}
 
-    <form class="ad-auth__form" method="post" action="/admin/login/submit">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <input type="hidden" name="next" value="{{ next|default('/admin/dashboard') }}">
-      <label for="email">Email</label>
-      <input id="email" type="email" name="email" autocomplete="email" required>
-      <label for="password">Password</label>
-      <input id="password" type="password" name="password" autocomplete="current-password" required>
-      <button type="submit">Sign in →</button>
-    </form>
+      <form method="post" action="/admin/login/submit">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="next" value="{{ next|default('/admin/dashboard') }}">
+        <div class="ag-auth__field">
+          <label class="ag-auth__label" for="email">Email</label>
+          <input class="ag-auth__input" id="email" type="email" name="email" autocomplete="email" required autofocus>
+        </div>
+        <div class="ag-auth__field">
+          <label class="ag-auth__label" for="password">Password</label>
+          <input class="ag-auth__input" id="password" type="password" name="password" autocomplete="current-password" required>
+        </div>
+        <button class="ag-auth__cta" type="submit">Sign in →</button>
+      </form>
 
-    <div class="ad-auth__hr"></div>
-    <p class="ad-auth__alt">Forgot your password? <a href="/admin/magic">Sign in with a magic link →</a></p>
+      <div class="ag-auth__hr"></div>
+      <p class="ag-auth__alt">Forgot your password? <a href="/admin/magic">Sign in with a magic link →</a></p>
+    </div>
   </div>
+</div>
 </body>
 </html>

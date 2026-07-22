@@ -961,82 +961,8 @@
     setActive(0);
   }
 
-  /* ─── AI Assistant — floating chat widget ─────────────────── */
-  function bindAiAssistant() {
-    const fab    = $('#aiAssistantFab');
-    const panel  = $('#aiAssistantPanel');
-    const closer = $('#aiAssistantClose');
-    const form   = $('#aiAssistantForm');
-    const input  = $('#aiAssistantInput');
-    const log    = $('#aiAssistantLog');
-    if (!fab || !panel || !form || !log) return;
-
-    const open  = () => { panel.hidden = false; fab.setAttribute('aria-expanded', 'true'); setTimeout(() => input?.focus(), 100); };
-    const close = () => { panel.hidden = true;  fab.setAttribute('aria-expanded', 'false'); };
-    // Public hook — the mobile drawer's "GATES Guide" button calls this directly,
-    // bypassing the FAB which is hidden on small screens.
-    window.openAiAssistant  = open;
-    window.closeAiAssistant = close;
-    window.toggleAiAssistant = () => panel.hidden ? open() : close();
-
-    on(fab, 'click', () => { panel.hidden ? open() : close(); });
-    on(closer, 'click', close);
-
-    function append(role, html) {
-      const el = document.createElement('div');
-      el.className = 'ai-msg ai-msg--' + role;
-      el.innerHTML = role === 'user' ? `<p>${escapeHtml(html)}</p>` : html;
-      log.appendChild(el);
-      log.scrollTop = log.scrollHeight;
-      return el;
-    }
-    function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function typing() {
-      const el = document.createElement('div');
-      el.className = 'ai-msg ai-msg--typing';
-      el.innerHTML = '<span></span><span></span><span></span>';
-      log.appendChild(el);
-      log.scrollTop = log.scrollHeight;
-      return el;
-    }
-
-    // Scripted guide — canned answers that link to the live pages.
-    // Not an AI: no network call, no generation. Keep answers factual + linky.
-    function answer(q) {
-      const t = q.toLowerCase();
-      if (/cpi|score|rank/.test(t)) return '<p>The <strong>Cultural Power Index</strong> is a 0–1000 score across six components: community votes, judge panels, profile completeness, legacy citations, peer engagement, and verified output. It refreshes every 6 hours and is publicly auditable.</p><p><a href="/awards" style="color:var(--emerald-600);font-weight:500">See the CPI model →</a></p>';
-      if (/nominat/.test(t))      return '<p>Anyone with an African profile can be nominated. <a href="/nominate" style="color:var(--emerald-600);font-weight:500">Open the nomination form →</a> — it takes 90 seconds, and the nominee gets a verification OTP.</p>';
-      if (/vote|voting/.test(t))  return '<p>One verified voter, one vote per category. <a href="/vote" style="color:var(--emerald-600);font-weight:500">Cast your vote →</a></p>';
-      if (/nigeria|lagos|ng/.test(t)) return '<p>See who\'s leading in Nigeria on the live, publicly-auditable leaderboard. <a href="/leaderboard?country=NG" style="color:var(--emerald-600);font-weight:500">Open Nigeria leaderboard →</a></p>';
-      if (/partner|sponsor/.test(t)) return '<p>Three tiers — Cultural Ally ($2k), Continental Patron ($10k), Title Sponsor ($50k+). <a href="/partner" style="color:var(--emerald-600);font-weight:500">See partnership options →</a></p>';
-      if (/legacy|archive/.test(t))  return '<p>Every cycle is archived in the <a href="/legacy" style="color:var(--emerald-600);font-weight:500">Legacy Vault</a> — searchable and permanently credited.</p>';
-      if (/community|forum|thread/.test(t)) return '<p>Join the conversation in the <a href="/community" style="color:var(--emerald-600);font-weight:500">community channels</a> — six programme tracks, OTP-verified posts.</p>';
-      return '<p>Good question. Try one of the suggested prompts above, or ask about CPI, voting, nominations, partnerships, or a specific country.</p>';
-    }
-
-    function ask(q) {
-      append('user', q);
-      const tip = typing();
-      setTimeout(() => { tip.remove(); append('bot', answer(q)); bindChips(); }, 500 + Math.random() * 500);
-    }
-
-    function bindChips() {
-      $$('[data-ai-chip]', log).forEach(b => {
-        if (b.dataset.bound) return;
-        b.dataset.bound = '1';
-        on(b, 'click', () => ask(b.textContent.trim()));
-      });
-    }
-    bindChips();
-
-    on(form, 'submit', (e) => {
-      e.preventDefault();
-      const v = (input.value || '').trim();
-      if (!v) return;
-      input.value = '';
-      ask(v);
-    });
-  }
+  /* ─── Gee, the page-aware guide, now lives in /assets/js/gee.js ───
+     (replaced the old scripted #aiAssistant widget; see components/gee.css) */
 
   /* ─── Boot ─────────────────────────────────────────────────── */
   /* ─── Spotlight — auto-rotating featured nominee ─────────────── */
@@ -1082,7 +1008,6 @@
     bindAtlasHero();
     bindFaceMosaic();
     bindSpline();
-    bindAiAssistant();
     bindMegaNav();
     bindImmersiveStack();
     bindSpotlight();

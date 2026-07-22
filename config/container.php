@@ -2,8 +2,8 @@
 declare(strict_types=1);
 use Psr\Container\ContainerInterface;
 use Slim\Views\Twig;
-use AfricaGates\Services\{CacheService,ProfileService,AwardService,LegacyService,OpportunityService,OtpService,VoteService,BonusVoteService,RateLimitService,SpamService,CommunityService,GoogleSheetsService,TurnstileService,StatsService,FraudService,EventService,MilestoneService,PaymentService};
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController};
+use AfricaGates\Services\{CacheService,ProfileService,AwardService,LegacyService,OpportunityService,OtpService,VoteService,BonusVoteService,RateLimitService,SpamService,AiService,CommunityService,GoogleSheetsService,TurnstileService,StatsService,FraudService,EventService,MilestoneService,PaymentService,GuideService,CurrencyService,UserAccountService};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController};
 use AfricaGates\Judge\Services\JudgeService;
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
@@ -15,16 +15,24 @@ use AfricaGates\Admin\Controllers\{
     DashboardController as AdminDashboardController,
     ProfilesController as AdminProfilesController,
     NominationsController as AdminNominationsController,
+    ModerationController as AdminModerationController,
     ProgrammesController as AdminProgrammesController,
     NomineesController as AdminNomineesController,
     LegacyController as AdminLegacyController,
     OpportunitiesController as AdminOpportunitiesController,
     EventsController as AdminEventsController,
+    RegistrationsController as AdminRegistrationsController,
+    DataController as AdminDataController,
+    FormsController as AdminFormsController,
     PostsController as AdminPostsController,
     PartnersController as AdminPartnersController,
     JudgesController as AdminJudgesController,
     AdminsController as AdminAdminsController,
-    SettingsController as AdminSettingsController
+    SettingsController as AdminSettingsController,
+    AwardsPageController as AdminAwardsPageController,
+    MediaController as AdminMediaController,
+    ProductsController as AdminProductsController,
+    WebhooksController as AdminWebhooksController
 };
 
 return [
@@ -47,25 +55,87 @@ return [
             // is never shown as real data in production (APP_ENV=demo only).
             'is_demo'           => (($_ENV['APP_ENV'] ?? 'production') === 'demo'),
             'app_url'           => rtrim($_ENV['APP_URL'] ?? '', '/'),
-            // In debug/dev, derive from the redesign stylesheet's mtime so every
-            // CSS edit busts the browser cache automatically; in prod use the
-            // pinned ASSET_VERSION (set at deploy) for stable far-future caching.
-            'asset_version'     => (($_ENV['APP_DEBUG'] ?? 'false') === 'true')
-                ? (string) (@filemtime(__DIR__ . '/../public/assets/css/redesign-2026.css') ?: 'dev')
-                : ($_ENV['ASSET_VERSION'] ?? 'v1'),
+            // In debug/dev, bust the browser cache from the NEWEST mtime across
+            // every css/js file (so editing ANY asset forces a fresh fetch); in
+            // prod use the pinned ASSET_VERSION (set at deploy) for far-future caching.
+            'asset_version'     => \AfricaGates\Support\Assets::version(
+                ($_ENV['APP_DEBUG'] ?? 'false') === 'true',
+                $_ENV['ASSET_VERSION'] ?? null,
+                __DIR__ . '/../public/assets'
+            ),
             'csrf_token'        => $_SESSION['csrf_token'] ?? '',
             'current_section'   => 'projects',
             'has_hero'          => false,
             'announcement_text' => $settings['announce_text'] ?? ($_ENV['ANNOUNCE_TEXT'] ?? 'Nominations open — live in Nigeria, building toward 54'),
             'announcement_url'  => $settings['announce_url']  ?? '/africa-gates/nominate',
             'announcement_cta'  => $settings['announce_cta']  ?? 'Nominate now →',
+            // Real, admin-configurable bonus-vote ratio (so methodology copy never hardcodes it).
+            'donation_votes_per_1000' => (int)($settings['donation_votes_per_1000'] ?? 5),
+            // Admin-configurable display constants — so copy across the site never hardcodes
+            // these numbers. Settings override the defaults; templates read the globals.
+            'nations_count'       => (int)($settings['nations_count'] ?? 54),
+            'cpi_recompute_hours' => (int)($settings['cpi_recompute_hours'] ?? 6),
+            'review_sla_hours'    => (int)($settings['review_sla_hours'] ?? 48),
+            'nomination_seconds'  => (int)($settings['nomination_seconds'] ?? 90),
+            'otp_expiry_minutes'  => (int)($settings['otp_expiry_minutes'] ?? 10),
+            'processing_fee_pct'  => (string)($settings['processing_fee_pct'] ?? '1.5'),
+            // Social card image (OG/Twitter) — admin-settable; defaults to a hosted,
+            // on-brand asset (NEVER an external stock URL). Pages can override per-record.
+            'og_image' => (function() use ($settings) {
+                $v = trim((string)($settings['og_image'] ?? ''));
+                if ($v !== '') return $v;
+                return (rtrim($_ENV['APP_URL'] ?? '', '/') ?: 'https://afg.afrovanguard.org.ng') . '/gates-logo.png';
+            })(),
+            // Admin-configurable social presence (footer links + rel=me). Empty = hidden.
+            'social_links' => array_filter([
+                'x'         => trim((string)($settings['social_x'] ?? '')),
+                'facebook'  => trim((string)($settings['social_facebook'] ?? '')),
+                'instagram' => trim((string)($settings['social_instagram'] ?? '')),
+                'linkedin'  => trim((string)($settings['social_linkedin'] ?? '')),
+                'youtube'   => trim((string)($settings['social_youtube'] ?? '')),
+                'tiktok'    => trim((string)($settings['social_tiktok'] ?? '')),
+            ]),
+            // Ad monetization (Google AdSense). Off until a publisher client + slot are
+            // configured — admin setting overrides env; empty means no ads render at all.
+            'adsense_client' => trim((string)($settings['adsense_client'] ?? ($_ENV['ADSENSE_CLIENT'] ?? ''))),
+            'adsense_slot'   => trim((string)($settings['adsense_slot']   ?? ($_ENV['ADSENSE_SLOT']   ?? ''))),
+            'adsense_slot_2' => trim((string)($settings['adsense_slot_2'] ?? ($_ENV['ADSENSE_SLOT_2'] ?? ''))),
+            // Canonical shop delivery regions — drives the checkout region selector.
+            'shop_regions'   => \AfricaGates\Admin\Controllers\ProductsController::REGIONS,
             'gas_url'           => $_ENV['GAS_URL'] ?? '',
+            // Email transport health for the admin banner — config check only
+            // (no network). Null-safe when the mailer can't build.
+            'smtp_ok'           => (function () use ($c) {
+                if (empty($_SESSION['admin_id'])) return true; // only admins see the banner
+                try { return $c->get(OtpService::class)->smtpConfigured(); } catch (\Throwable) { return true; }
+            })(),
+            // Pending DB migrations — the #1 cause of admin "action 500s" after a
+            // deploy: writes touch new columns/tables that were never applied,
+            // while reads keep working. Surface it LOUDLY (admins only, one cheap
+            // ledger query) so the operator sees an instruction, not a mystery 500.
+            'migrations_pending' => (function () {
+                if (empty($_SESSION['admin_id'])) return [];
+                try { return \AfricaGates\Services\MigrationRunner::status()['pending'] ?? []; }
+                catch (\Throwable) { return []; }
+            })(),
             'admin_name'        => $_SESSION['admin_name']  ?? null,
             'admin_role'        => $_SESSION['admin_role']  ?? null,
             'admin_email'       => $_SESSION['admin_email'] ?? null,
+            // Sections this admin's role may view — drives the sidebar (mirrors
+            // the server-side SectionGuardMiddleware so UI never offers a 403).
+            'admin_sections'    => isset($_SESSION['admin_role'])
+                ? \AfricaGates\Admin\Support\Permissions::allowedSections((string)$_SESSION['admin_role'])
+                : [],
+            'admin_role_label'  => isset($_SESSION['admin_role'])
+                ? \AfricaGates\Admin\Support\Permissions::label((string)$_SESSION['admin_role'])
+                : null,
             'judge_id'          => $_SESSION['judge_id']    ?? null,
             'judge_name'        => $_SESSION['judge_name']  ?? null,
             'judge_email'       => $_SESSION['judge_email'] ?? null,
+            // Signed-in MEMBER (public account) — session-only, no DB read.
+            // Drives members-only UI (community composer, Gee suppression there).
+            'is_member'         => !empty($_SESSION['user_id']),
+            'member_name'       => $_SESSION['user_name'] ?? null,
             // Per-request canonical/og:url inputs (were undefined → every page
             // self-reported as the homepage). site_url tracks APP_URL so canonical
             // + Open Graph use the real deployed host.
@@ -108,6 +178,7 @@ return [
     VoteService::class          => fn(ContainerInterface $c)=>new VoteService($c->get(\Psr\Log\LoggerInterface::class)),
     BonusVoteService::class     => fn(ContainerInterface $c)=>new BonusVoteService($c->get(\Psr\Log\LoggerInterface::class)),
     PaymentService::class       => fn(ContainerInterface $c)=>new PaymentService($c->get(\Psr\Log\LoggerInterface::class)),
+    GuideService::class         => fn(ContainerInterface $c)=>new GuideService($c->get(\Psr\Log\LoggerInterface::class), $c->get(CacheService::class)),
     FraudService::class         => fn(ContainerInterface $c)=>new FraudService($c->get(\Psr\Log\LoggerInterface::class)),
     EventService::class         => fn()=>new EventService(),
     MilestoneService::class     => fn(ContainerInterface $c)=>new MilestoneService($c->get(OtpService::class), $c->get(EventService::class), $c->get(\Psr\Log\LoggerInterface::class)),
@@ -115,26 +186,36 @@ return [
         (string)($_ENV['TURNSTILE_SECRET'] ?? ''),
         $c->get(\Psr\Log\LoggerInterface::class)
     ),
-    SpamService::class          => fn()=>new SpamService(
-        $_ENV['GROQ_API_KEY']      ?? null,
-        $_ENV['GEMINI_API_KEY']    ?? null,
-        $_ENV['ANTHROPIC_API_KEY'] ?? null,
-        $_ENV['OPENAI_API_KEY']    ?? null
-    ),
+    // Pluggable AI gateway — resolves provider keys from admin settings (with
+    // .env fallback); inert until a key is set, then auto-upgrades moderation
+    // + powers auto-filter presets / AI integrations across the platform.
+    AiService::class            => fn()=>AiService::boot(),
+    // Moderation gets its OWN AiService (dedicated Groq key + best model, with
+    // a free fallback to the general key) so safety decisions are isolated from
+    // high-volume public AI traffic.
+    SpamService::class          => fn(ContainerInterface $c)=>new SpamService(AiService::boot('moderation')),
     CommunityService::class     => fn(ContainerInterface $c)=>new CommunityService($c->get(SpamService::class)),
     JudgeService::class         => fn()=>new JudgeService(),
     GoogleSheetsService::class  => fn(ContainerInterface $c)=>new GoogleSheetsService(
         (string)($_ENV['GAS_URL'] ?? ''),
         $c->has(\AfricaGates\Admin\Services\LogService::class) ? $c->get(\AfricaGates\Admin\Services\LogService::class) : null
     ),
-    OtpService::class           => fn(ContainerInterface $c)=>new OtpService([
-        'host' => $_ENV['SMTP_HOST'] ?? 'smtp-relay.brevo.com',
-        'port' => (int)($_ENV['SMTP_PORT'] ?? 587),
-        'username' => $_ENV['SMTP_USER'] ?? '',
-        'password' => $_ENV['SMTP_PASS'] ?? '',
-        'from_address' => $_ENV['MAIL_FROM_ADDRESS'] ?? 'noreply@afrovanguard.org.ng',
-        'from_name'    => $_ENV['MAIL_FROM_NAME'] ?? 'Africa GATES',
-    ], $c->get(\Psr\Log\LoggerInterface::class)),
+    OtpService::class           => function(ContainerInterface $c) {
+        // Sender identity (from name/address, reply-to) is admin-configurable in
+        // Settings with .env as the fallback. Credentials stay env-only.
+        $s = [];
+        try { $s = $c->get(SettingsService::class)->all(); } catch (\Throwable $e) {}
+        $pick = fn(string $key, string $env, string $dft) => trim((string)($s[$key] ?? '')) ?: (string)($_ENV[$env] ?? $dft);
+        return new OtpService([
+            'host' => $_ENV['SMTP_HOST'] ?? 'smtp-relay.brevo.com',
+            'port' => (int)($_ENV['SMTP_PORT'] ?? 587),
+            'username' => $_ENV['SMTP_USER'] ?? '',
+            'password' => $_ENV['SMTP_PASS'] ?? '',
+            'from_address' => $pick('mail_from_address', 'MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
+            'from_name'    => $pick('mail_from_name', 'MAIL_FROM_NAME', 'Africa GATES'),
+            'reply_to'     => $pick('mail_reply_to', 'MAIL_REPLY_TO', ''),
+        ], $c->get(\Psr\Log\LoggerInterface::class));
+    },
 
     // Admin services
     LogService::class       => fn()=>new LogService(),
@@ -146,18 +227,31 @@ return [
 
     // Public controllers
     HomeController::class        => fn(ContainerInterface $c)=>new HomeController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(AwardService::class), $c->get(LegacyService::class), $c->get(OpportunityService::class), $c->get(StatsService::class)),
-    ApiController::class         => fn(ContainerInterface $c)=>new ApiController($c->get(CacheService::class), $c->get(ProfileService::class), $c->get(AwardService::class), $c->get(VoteService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(TurnstileService::class), $c->get(FraudService::class), $c->get(EventService::class), $c->get(MilestoneService::class)),
+    ApiController::class         => fn(ContainerInterface $c)=>new ApiController($c->get(CacheService::class), $c->get(ProfileService::class), $c->get(AwardService::class), $c->get(VoteService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(TurnstileService::class), $c->get(FraudService::class), $c->get(EventService::class), $c->get(MilestoneService::class), $c->get(LegacyService::class), $c->get(OpportunityService::class)),
     RegistryController::class    => fn(ContainerInterface $c)=>new RegistryController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(OtpService::class)),
-    AwardsController::class      => fn(ContainerInterface $c)=>new AwardsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class)),
+    AwardsController::class      => fn(ContainerInterface $c)=>new AwardsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class), $c->get(SettingsService::class)),
+    CurrencyService::class        => fn(ContainerInterface $c)=>new CurrencyService($c->get(CacheService::class)),
+    ShopController::class         => fn(ContainerInterface $c)=>new ShopController($c->get(Twig::class), $c->get(PaymentService::class), $c->get(CurrencyService::class)),
+    JudgesController::class       => fn(ContainerInterface $c)=>new JudgesController($c->get(Twig::class), $c->get(JudgeService::class)),
+    UserAccountService::class     => fn()=>new UserAccountService(),
+    AccountController::class      => fn(ContainerInterface $c)=>new AccountController($c->get(Twig::class), $c->get(UserAccountService::class), $c->get(OtpService::class), $c->get(RateLimitService::class), $c->get(CommunityService::class)),
     LeaderboardController::class => fn(ContainerInterface $c)=>new LeaderboardController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class)),
     LegacyController::class      => fn(ContainerInterface $c)=>new LegacyController($c->get(Twig::class), $c->get(CacheService::class), $c->get(LegacyService::class), $c->get(CommunityService::class)),
     OpportunityController::class => fn(ContainerInterface $c)=>new OpportunityController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OpportunityService::class)),
-    EventsController::class      => fn(ContainerInterface $c)=>new EventsController($c->get(Twig::class), $c->get(CacheService::class)),
-    BlogController::class        => fn(ContainerInterface $c)=>new BlogController($c->get(Twig::class), $c->get(CacheService::class)),
+    EventsController::class      => fn(ContainerInterface $c)=>new EventsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OtpService::class)),
+    BlogController::class        => fn(ContainerInterface $c)=>new BlogController($c->get(Twig::class), $c->get(CacheService::class), $c->get(CommunityService::class)),
+    GatedFormController::class   => fn(ContainerInterface $c)=>new GatedFormController($c->get(Twig::class)),
+    FormController::class        => fn(ContainerInterface $c)=>new FormController($c->get(Twig::class), $c->get(RateLimitService::class)),
     NominationController::class  => fn(ContainerInterface $c)=>new NominationController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(CommunityService::class), $c->get(OtpService::class)),
-    PartnerController::class     => fn(ContainerInterface $c)=>new PartnerController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(OtpService::class), $c->get(PaymentService::class)),
-    PaymentController::class     => fn(ContainerInterface $c)=>new PaymentController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(\Psr\Log\LoggerInterface::class)),
-    VoteController::class        => fn(ContainerInterface $c)=>new VoteController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class)),
+    PartnerController::class     => fn(ContainerInterface $c)=>new PartnerController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(OtpService::class), $c->get(PaymentService::class), $c->get(StatsService::class)),
+    PaymentController::class     => fn(ContainerInterface $c)=>new PaymentController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(\Psr\Log\LoggerInterface::class), $c->get(RateLimitService::class)),
+    ShopCheckoutController::class => fn(ContainerInterface $c)=>new ShopCheckoutController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(OtpService::class), $c->get(\Psr\Log\LoggerInterface::class), $c->get(RateLimitService::class)),
+    GuideController::class        => fn(ContainerInterface $c)=>new GuideController($c->get(GuideService::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
+    DonationController::class     => fn(ContainerInterface $c)=>new DonationController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(OtpService::class), $c->get(\Psr\Log\LoggerInterface::class)),
+    PaidVoteController::class     => fn(ContainerInterface $c)=>new PaidVoteController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
+    \AfricaGates\Admin\Controllers\AssistantController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AssistantController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
+    PulseController::class        => fn(ContainerInterface $c)=>new PulseController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class)),
+    VoteController::class        => fn(ContainerInterface $c)=>new VoteController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class), $c->get(PaymentService::class)),
     CommunityController::class   => fn(ContainerInterface $c)=>new CommunityController($c->get(Twig::class), $c->get(CommunityService::class), $c->get(CacheService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
     JudgeAuthController::class   => fn(ContainerInterface $c)=>new JudgeAuthController($c->get(Twig::class), $c->get(JudgeService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
     JudgeBallotController::class => fn(ContainerInterface $c)=>new JudgeBallotController($c->get(Twig::class), $c->get(JudgeService::class)),
@@ -166,15 +260,26 @@ return [
     AdminAuthController::class         => fn(ContainerInterface $c)=>new AdminAuthController($c->get(Twig::class), $c->get(AuthService::class), $c->get(LogService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
     AdminDashboardController::class    => fn(ContainerInterface $c)=>new AdminDashboardController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminProfilesController::class     => fn(ContainerInterface $c)=>new AdminProfilesController($c->get(Twig::class), $c->get(AuditService::class)),
-    AdminNominationsController::class  => fn(ContainerInterface $c)=>new AdminNominationsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class)),
-    AdminProgrammesController::class   => fn(ContainerInterface $c)=>new AdminProgrammesController($c->get(Twig::class), $c->get(AuditService::class)),
-    AdminNomineesController::class     => fn(ContainerInterface $c)=>new AdminNomineesController($c->get(Twig::class), $c->get(AuditService::class)),
+    AdminNominationsController::class  => fn(ContainerInterface $c)=>new AdminNominationsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class), $c->get(AwardService::class)),
+    AdminModerationController::class   => fn(ContainerInterface $c)=>new AdminModerationController($c->get(Twig::class), $c->get(AuditService::class)),
+    AdminProgrammesController::class   => fn(ContainerInterface $c)=>new AdminProgrammesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class)),
+    AdminNomineesController::class     => fn(ContainerInterface $c)=>new AdminNomineesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
     AdminLegacyController::class       => fn(ContainerInterface $c)=>new AdminLegacyController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
     AdminOpportunitiesController::class=> fn(ContainerInterface $c)=>new AdminOpportunitiesController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminEventsController::class       => fn(ContainerInterface $c)=>new AdminEventsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class)),
-    AdminPostsController::class        => fn(ContainerInterface $c)=>new AdminPostsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class)),
+    AdminRegistrationsController::class => fn(ContainerInterface $c)=>new AdminRegistrationsController($c->get(Twig::class)),
+    AdminDataController::class          => fn(ContainerInterface $c)=>new AdminDataController($c->get(Twig::class)),
+    AdminFormsController::class         => fn(ContainerInterface $c)=>new AdminFormsController($c->get(Twig::class), $c->get(AuditService::class)),
+    AdminPostsController::class        => fn(ContainerInterface $c)=>new AdminPostsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class), $c->get(CommunityService::class)),
     AdminPartnersController::class     => fn(ContainerInterface $c)=>new AdminPartnersController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminJudgesController::class       => fn(ContainerInterface $c)=>new AdminJudgesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class), $c->get(OtpService::class)),
+    AdminWebhooksController::class     => fn(ContainerInterface $c)=>new AdminWebhooksController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminAdminsController::class       => fn(ContainerInterface $c)=>new AdminAdminsController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminSettingsController::class     => fn(ContainerInterface $c)=>new AdminSettingsController($c->get(Twig::class), $c->get(SettingsService::class), $c->get(AuditService::class), $c->get(OtpService::class)),
+    AdminAwardsPageController::class   => fn(ContainerInterface $c)=>new AdminAwardsPageController($c->get(Twig::class), $c->get(SettingsService::class), $c->get(AuditService::class)),
+    AdminMediaController::class        => fn(ContainerInterface $c)=>new AdminMediaController($c->get(Twig::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\LegalController::class    => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\LegalController($c->get(Twig::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\AiAssistController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AiAssistController($c->get(RateLimitService::class)),
+    AdminProductsController::class     => fn(ContainerInterface $c)=>new AdminProductsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
+    \AfricaGates\Admin\Controllers\UsersController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\UsersController($c->get(AuditService::class)),
 ];

@@ -1,126 +1,162 @@
 {% extends "layout/gates.twig" %}
-{% block content %}
 
+{% block head_styles %}
+<style>
+  body[data-page="leaderboard"]{ background:#eef0ec; color:var(--ag-ink); }
+  .lb{ max-width:1100px; margin:0 auto; padding:clamp(2rem,5vw,2.6rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+
+  .lb-head{ max-width:600px; }
+  .lb-head .lb-eyebrow{ margin:0 0 8px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
+  .lb-head h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4.4vw,2.5rem); letter-spacing:-.02em; }
+  .lb-head p{ margin:12px 0 0; font-size:15px; line-height:1.6; color:#4a5256; }
+
+  /* podium */
+  .lb-podium{ display:flex; gap:16px; align-items:flex-end; margin-top:28px; }
+  .lbp{ flex:1; min-width:0; border-radius:20px; padding:24px 18px; text-align:center; border:1px solid rgba(16,41,44,.08); background:var(--ag-surface); }
+  .lbp--1{ order:2; padding-block:34px; border-color:transparent; background:radial-gradient(130% 130% at 50% 0%,#1d5b2a,#10292C 70%); color:#fff; }
+  .lbp--2{ order:1; }
+  .lbp--3{ order:3; }
+  .lbp__medal{ font:700 13px/1 var(--ag-font-mono); color:#7a5600; }
+  .lbp--1 .lbp__medal{ color:#fbc329; }
+  .lbp__av{ width:60px; height:60px; margin:12px auto 0; border-radius:50%; background:#fff8df; color:#7a5600; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:24px; border:3px solid #f3e3b8; }
+  .lbp--1 .lbp__av{ width:76px; height:76px; font-size:30px; background:rgba(127,200,124,.18); color:var(--ag-green-light); border-color:rgba(127,200,124,.4); }
+  .lbp__name{ font-weight:700; font-size:15px; margin-top:12px; color:var(--ag-ink); }
+  .lbp--1 .lbp__name{ font-size:18px; color:#fff; }
+  .lbp__cat{ font-size:12px; color:#626a6e; margin-top:3px; }
+  .lbp--1 .lbp__cat{ color:rgba(255,255,255,.7); }
+  .lbp__cpi{ font:700 24px/1 var(--ag-font-mono); color:var(--ag-green); margin-top:12px; }
+  .lbp--1 .lbp__cpi{ font-size:30px; color:var(--ag-green-light); }
+  .lbp__lbl{ font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:#5a6d6f; margin-top:2px; }
+  .lbp--1 .lbp__lbl{ color:rgba(255,255,255,.55); }
+  .lbp a{ text-decoration:none; color:inherit; }
+
+  /* filters */
+  .lb-filters{ display:flex; gap:8px; overflow-x:auto; padding:24px 0 16px; scrollbar-width:none; }
+  .lb-filters::-webkit-scrollbar{ display:none; }
+  .lb-chip{ flex:none; cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; padding:9px 16px; border-radius:999px; border:1px solid rgba(16,41,44,.12); background:var(--ag-surface); color:#4a5256; transition:background .15s,color .15s,border-color .15s; }
+  .lb-chip.is-active{ background:var(--ag-ink); color:#fff; border-color:var(--ag-ink); }
+
+  /* table */
+  .lb-table{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; overflow:hidden; }
+  .lb-thead{ display:flex; align-items:center; gap:16px; padding:13px 22px; border-bottom:1px solid rgba(16,41,44,.07); font:600 11px/1 var(--ag-font-body); letter-spacing:.05em; text-transform:uppercase; color:#5a6d6f; }
+  .lb-row{ display:flex; align-items:center; gap:16px; padding:14px 22px; border-bottom:1px solid rgba(16,41,44,.05); text-decoration:none; color:inherit; transition:background .12s; }
+  .lb-row:last-child{ border-bottom:0; }
+  .lb-row:hover{ background:#f6f8f5; }
+  .lb-c-rank{ width:30px; font:700 14px/1 var(--ag-font-mono); color:#5a6d6f; flex:none; }
+  .lb-row--top .lb-c-rank{ color:#7a5600; }
+  .lb-c-who{ flex:1; display:flex; align-items:center; gap:12px; min-width:0; }
+  .lb-av{ flex:none; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:16px; }
+  .lb-who__name{ font-weight:600; font-size:14px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lb-who__tier{ font-size:11.5px; color:#5a6d6f; }
+  .lb-c-cat{ width:130px; font-size:12.5px; color:#626a6e; flex:none; }
+  .lb-c-cpi{ width:70px; text-align:right; font:700 15px/1 var(--ag-font-mono); color:var(--ag-ink); flex:none; }
+  .lb-note{ margin:16px 2px 0; font-size:12px; color:#5a6d6f; text-align:center; }
+  .lb-note a{ color:var(--ag-green); font-weight:500; text-decoration:none; }
+
+  /* empty */
+  .lb-empty{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(2rem,5vw,3rem); text-align:center; margin-top:28px; }
+  .lb-empty img{ width:64px; height:64px; opacity:.7; }
+  .lb-empty h3{ margin:1rem 0 .4rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; }
+  .lb-empty p{ margin:0 auto 1.4rem; max-width:38rem; color:#4a5256; line-height:1.6; }
+  .lb-btns{ display:flex; gap:.75rem; flex-wrap:wrap; justify-content:center; }
+  .lb-btn{ display:inline-flex; align-items:center; gap:.5rem; text-decoration:none; font-weight:600; font-size:14.5px; padding:13px 24px; border-radius:999px; }
+  .lb-btn--p{ background:var(--ag-green); color:#fff; box-shadow:0 12px 24px -12px rgba(35,123,34,.6); }
+  .lb-btn--p:hover{ background:var(--ag-green-dark); }
+  .lb-btn--g{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.16); color:var(--ag-ink); }
+
+  @media (max-width:620px){
+    .lbp{ padding:16px 10px; }
+    .lbp__av{ width:48px; height:48px; font-size:20px; }
+    .lbp--1 .lbp__av{ width:60px; height:60px; font-size:24px; }
+    .lbp__name{ font-size:13px; }
+    .lbp--1 .lbp__name{ font-size:15px; }
+    .lb-c-cat{ display:none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
 {% set FLAGS = {
   'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮',
-  'CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','AO':'🇦🇴','CD':'🇨🇩','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪'
+  'CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','AO':'🇦🇴','CD':'🇨🇩','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪','BW':'🇧🇼'
 } %}
+{% set AV = [['#fff8df','#7a5600'],['#effaf0','#1a6118'],['#e9efef','#2b373d'],['#f3eef7','#5b3a8a'],['#fdeaf0','#b03a5b']] %}
+{% set rows = entries|default([]) %}
+{% set has_entries = rows|length > 0 %}
 
-{% set has_entries = entries|default([])|length > 0 %}
-{% set rows = has_entries ? entries : [] %}
-{% set top = rows|length > 0 ? rows[0] : {cpi_score: 0} %}
-{% set max_score = top.cpi_score|default(1000) %}
+<div class="lb">
+  <header class="lb-head">
+    <p class="lb-eyebrow">{{ has_entries ? '2026 cycle · live' : 'Cultural Power Index' }}</p>
+    <h1>Cultural Power Index</h1>
+    <p>{% if has_entries %}{{ rows|length }} verified profiles, ranked by community votes and an independent judge panel. Recomputed every 6 hours.{% else %}One transparent score across community votes and judge panels — recomputed every 6 hours once the first cycle is live.{% endif %}</p>
+  </header>
 
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">{{ has_entries ? 'Live · Cultural Power Index' : 'Cultural Power Index' }}</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">The continental <em style="color:var(--emerald-600)">ranking.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">
-        {% if has_entries %}{{ rows|length }} verified profiles. One transparent score. Recomputed every 6 hours from community votes and judge panels.
-        {% else %}One transparent score across community votes and judge panels. Recomputed every 6 hours once the first cycle is live.
-        {% endif %}
-      </p>
-      <div class="r26-cta r26-reveal r26-d3">
-        <a href="/register" class="btn btn--emerald">
-          Get on the board
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </a>
-        <a href="/vote" class="btn btn--white">
-          Cast a vote
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </a>
+  {% if not has_entries %}
+    <div class="lb-empty">
+      <img src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+      <h2>The first cycle hasn’t been ranked yet</h2>
+      <p>The Cultural Power Index goes live once nominations are scored and community votes are in. Get involved now and help shape the inaugural board.</p>
+      <div class="lb-btns">
+        <a href="/nominate" class="lb-btn lb-btn--p">Submit a nomination</a>
+        <a href="/vote" class="lb-btn lb-btn--g">Cast your vote</a>
       </div>
     </div>
-  </div>
-</section>
+  {% else %}
 
-{% if not has_entries %}
-{# No real rankings yet — honest empty state instead of demo data #}
-<section class="section" style="padding-top:1.5rem">
-  <div class="wrap">
-    <div class="r26-empty">
-      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-      <h3>The first cycle hasn’t been ranked yet</h3>
-      <p>The Cultural Power Index goes live once nominations are scored and the community votes are in. Get involved now and help shape the inaugural board.</p>
-      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;justify-content:center">
-        <a href="/nominate" class="btn btn--emerald">
-          Submit a nomination
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </a>
-        <a href="/vote" class="btn btn--white">Cast your vote</a>
-      </div>
-    </div>
-  </div>
-</section>
-{% else %}
-
-{# Top-3 podium #}
-<section class="section" style="padding-top:1.5rem">
-  <div class="wrap">
-    <div class="r26-head r26-head--center" data-anim>
-      <p class="r26-eyebrow">The podium</p>
-      <h2 class="r26-h2" data-text-anim>Continental <em>champions</em> this cycle</h2>
-    </div>
-
-    <div class="card-grid" data-anim>
-      {% for e in rows|slice(0, 3) %}
-      <a href="/registry/{{ e.slug }}" class="card" data-hover-scale>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <div style="font-size:2.25rem;line-height:1">{{ FLAGS[e.country_code]|default('🌍') }}</div>
-          <div style="font-family:var(--font-body);font-weight:800;font-size:3.25rem;line-height:1;letter-spacing:-.02em;color:rgba(16,41,44,0.12)">{{ loop.index }}</div>
+    {# ── Podium (top 3) ── #}
+    <div class="lb-podium">
+      {% for e in rows|slice(0,3) %}
+        <div class="lbp lbp--{{ loop.index }}">
+          <a href="/registry/{{ e.slug }}">
+            <div class="lbp__medal">{{ loop.index == 1 ? '🥇 #1' : (loop.index == 2 ? '🥈 #2' : '🥉 #3') }}</div>
+            <div class="lbp__av">{{ e.display_name|first|upper }}</div>
+            <div class="lbp__name">{{ FLAGS[e.country_code]|default('🌍') }} {{ e.display_name }}</div>
+            <div class="lbp__cat">{{ e.category }}</div>
+            <div class="lbp__cpi">{{ e.cpi_score }}</div>
+            <div class="lbp__lbl">CPI</div>
+          </a>
         </div>
-        <div>
-          <div style="font-weight:600;font-size:1.25rem;color:var(--kale-700);line-height:1.2">{{ e.display_name }}</div>
-          <div class="text-sm text-soft" style="margin-top:0.25rem">{{ e.category }}</div>
-        </div>
-        <div class="card__foot">
-          <span style="font-family:var(--font-mono);font-size:1.5rem;font-weight:700;color:var(--emerald-600)">{{ e.cpi_score }}</span>
-          <span class="tier-badge tier-badge--{{ e.cpi_tier }}">{{ e.cpi_tier }}</span>
-        </div>
-      </a>
-      {% endfor %}
-    </div>
-  </div>
-</section>
-
-{# Long-list rankings #}
-<section class="section" style="padding-top:0">
-  <div class="wrap">
-    <div class="r26-surface">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1.5rem;flex-wrap:wrap;gap:0.625rem" data-anim>
-      <h2 class="r26-h2" style="margin:0" data-text-anim>The long <em>list</em></h2>
-      <span class="text-sm text-soft" style="font-family:var(--font-mono)">{{ rows|length }} ranked profiles</span>
-    </div>
-
-    <div class="lb-list" data-anim>
-      {% for e in rows|slice(0, 24) %}
-        {% set rank = loop.index %}
-        {% set pct = ((e.cpi_score / max_score) * 100)|round %}
-        <a href="/registry/{{ e.slug }}" class="lb-row-2 {% if rank <= 3 %}lb-row-2--top{% endif %}">
-          <span class="rank">{{ rank }}</span>
-          <span class="flag">{{ FLAGS[e.country_code]|default('🌍') }}</span>
-          <div class="who">
-            <div class="who__name">{{ e.display_name }}</div>
-            <div class="who__meta">{{ e.category }} · <span class="tier-badge tier-badge--{{ e.cpi_tier }}" style="vertical-align:middle">{{ e.cpi_tier }}</span></div>
-          </div>
-          <div class="bar"><div class="bar__fill" style="width:{{ pct }}%"></div></div>
-          <div class="score">{{ e.cpi_score }}</div>
-        </a>
       {% endfor %}
     </div>
 
-    <div class="text-center" style="margin-top:2rem" data-anim>
-      <a href="/register" class="btn btn--emerald">
-        Add your profile
-        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
-    </div>
-    </div>
-  </div>
-</section>
-{% endif %}
+    {# ── Filters + table (Alpine client-side category filter) ── #}
+    {% set catset = [] %}
+    {% for e in rows %}{% if e.category and e.category not in catset %}{% set catset = catset|merge([e.category]) %}{% endif %}{% endfor %}
 
+    <div x-data="{ cat:'All' }">
+      <div class="lb-filters">
+        <button type="button" class="lb-chip" :class="cat==='All' && 'is-active'" @click="cat='All'" :aria-pressed="cat==='All'">All</button>
+        {% for c in catset %}
+          <button type="button" class="lb-chip" :class="cat==='{{ c|e('js') }}' && 'is-active'" @click="cat='{{ c|e('js') }}'" :aria-pressed="cat==='{{ c|e('js') }}'">{{ c }}</button>
+        {% endfor %}
+      </div>
+
+      <div class="lb-table">
+        <div class="lb-thead">
+          <span class="lb-c-rank">#</span>
+          <span class="lb-c-who">Nominee</span>
+          <span class="lb-c-cat">Category</span>
+          <span class="lb-c-cpi">CPI</span>
+        </div>
+        {% for e in rows|slice(0,40) %}
+          {% set pal = AV[loop.index0 % AV|length] %}
+          <a href="/registry/{{ e.slug }}" class="lb-row {{ loop.index <= 3 ? 'lb-row--top' : '' }}"
+             x-show="cat==='All' || cat==='{{ e.category|e('js') }}'">
+            <span class="lb-c-rank">{{ loop.index }}</span>
+            <span class="lb-c-who">
+              <span class="lb-av" style="background:{{ pal[0] }};color:{{ pal[1] }}">{{ e.display_name|first|upper }}</span>
+              <span style="min-width:0">
+                <span class="lb-who__name">{{ FLAGS[e.country_code]|default('🌍') }} {{ e.display_name }}</span>
+                <span class="lb-who__tier">{{ e.cpi_tier }}</span>
+              </span>
+            </span>
+            <span class="lb-c-cat">{{ e.category }}</span>
+            <span class="lb-c-cpi">{{ e.cpi_score }}</span>
+          </a>
+        {% endfor %}
+      </div>
+      <p class="lb-note">Showing {{ rows|slice(0,40)|length }} of {{ rows|length }} verified profiles · <a href="/integrity">How scoring works →</a></p>
+    </div>
+  {% endif %}
+</div>
 {% endblock %}

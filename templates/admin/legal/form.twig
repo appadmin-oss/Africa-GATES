@@ -1,0 +1,33 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Content</small>{% endblock %}
+{% block topbar_title %}{{ is_new ? 'New document' : 'Edit · ' ~ doc.title }}{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/legal">← Legal &amp; policies</a>{% endblock %}
+{% block content %}
+<form method="post" action="/admin/legal/{{ is_new ? 'new' : doc.slug }}">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="ad-card"><div class="ad-card__body"><div class="ad-form">
+    <div class="row">
+      <div><label for="f-title">Title *</label><input type="text" name="title" id="f-title" value="{{ doc.title }}" required></div>
+      <div>
+        <label for="f-slug">URL slug {% if is_core %}<small>(fixed for core policies)</small>{% else %}<small>(public URL: /legal/&lt;slug&gt;)</small>{% endif %}</label>
+        <input type="text" name="slug" id="f-slug" value="{{ doc.slug }}" {% if is_core or not is_new %}readonly{% endif %} placeholder="e.g. community-guidelines">
+      </div>
+    </div>
+    <div class="row">
+      <div><label for="f-updated_label">"Last updated" label</label><input type="text" name="updated_label" id="f-updated_label" value="{{ doc.updated_label }}" placeholder="e.g. {{ 'now'|date('j F Y') }}"></div>
+      <div><label for="f-sort_order">Sort order</label><input type="number" name="sort_order" id="f-sort_order" value="{{ doc.sort_order|default(0) }}" min="0" step="1"></div>
+    </div>
+    <label class="checkbox" style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="is_published" value="1" {% if doc.is_published %}checked{% endif %}> <span><strong>Published</strong> — visible to the public. Uncheck to hide without deleting.</span></label>
+  </div></div></div>
+
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Document body <small>rich text — headings, lists, links; sanitized on save &amp; render</small></div></div><div class="ad-card__body">
+    {% include 'admin/partials/ai-assist.twig' with { target: 'f-body', kind: doc.title|default('policy') ~ ' document' } only %}
+    <textarea name="body_html" id="f-body" data-richtext rows="18" placeholder="Write the policy — use headings for each section.">{{ doc.body_html }}</textarea>
+  </div></div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+    <a class="ad-btn" href="/admin/legal">Cancel</a>
+    <button class="ad-btn ad-btn--primary" type="submit">Save &amp; publish</button>
+  </div>
+</form>
+{% endblock %}

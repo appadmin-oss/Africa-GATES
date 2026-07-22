@@ -1,0 +1,154 @@
+{# Shared shop cart — FAB + drawer + checkout modal. Uses the global Alpine
+   $store.cart (registered below). Caller must render this INSIDE an x-data scope
+   and provide `providers` (array of {id,label}) + csrf_token. #}
+<style>
+  /* Anchored bottom-LEFT so it never collides with the sitewide right-edge
+     FAB stack (Gee · Community · Back-to-top). */
+  .sc-fab{ position:fixed; left:22px; bottom:22px; z-index:80; width:56px; height:56px; border-radius:50%; border:none; cursor:pointer; background:#10292C; color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 14px 30px -12px rgba(16,41,44,.6); }
+  .sc-fab__n{ position:absolute; top:-3px; right:-3px; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background:#e0245e; color:#fff; font:700 11px/20px var(--ag-font-mono,monospace); }
+  .sc-ov{ position:fixed; inset:0; z-index:90; background:rgba(5,12,13,.5); backdrop-filter:blur(3px); }
+  .sc-drawer{ position:absolute; top:0; right:0; bottom:0; width:400px; max-width:92vw; background:#fbfbfa; display:flex; flex-direction:column; box-shadow:-20px 0 50px -20px rgba(0,0,0,.4); }
+  .sc-hd{ display:flex; align-items:center; justify-content:space-between; padding:20px 22px; border-bottom:1px solid rgba(16,41,44,.08); }
+  .sc-hd h2{ margin:0; font-family:var(--ag-font-display,serif); font-weight:700; font-size:19px; color:#10292C; }
+  .sc-x{ cursor:pointer; border:1px solid rgba(16,41,44,.12); background:#fff; width:34px; height:34px; border-radius:50%; font-size:18px; color:#10292C; }
+  .sc-lines{ flex:1; overflow-y:auto; padding:16px 22px; display:flex; flex-direction:column; gap:13px; }
+  .sc-line{ display:flex; gap:12px; align-items:center; }
+  .sc-line__img{ flex:none; width:56px; height:56px; border-radius:11px; background-size:cover; background-position:center; }
+  .sc-line__b{ flex:1; min-width:0; }
+  .sc-line__n{ font-weight:600; font-size:13.5px; color:#10292C; }
+  .sc-line__p{ font-size:12px; color:#5a6d6f; }
+  .sc-qty{ display:flex; align-items:center; gap:8px; }
+  .sc-qty button{ cursor:pointer; width:26px; height:26px; border-radius:8px; border:1px solid rgba(16,41,44,.14); background:#fff; font-size:15px; color:#10292C; }
+  .sc-qty span{ font:700 13px var(--ag-font-mono,monospace); min-width:14px; text-align:center; }
+  .sc-empty{ text-align:center; padding:50px 20px; color:#5a6d6f; font-size:14px; }
+  .sc-ft{ padding:18px 22px; border-top:1px solid rgba(16,41,44,.08); }
+  .sc-sub{ display:flex; align-items:center; justify-content:space-between; margin-bottom:13px; }
+  .sc-sub span:first-child{ font-size:14px; color:#4a5256; }
+  .sc-sub b{ font:700 18px var(--ag-font-mono,monospace); color:#10292C; }
+  .sc-go{ display:block; width:100%; text-align:center; cursor:pointer; border:none; background:#237b22; color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:14px; border-radius:999px; }
+  .sc-go:hover{ background:#1a6118; }
+  .sc-modal{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:460px; max-width:94vw; max-height:92vh; overflow-y:auto; background:#fbfbfa; border-radius:22px; box-shadow:0 40px 90px -30px rgba(0,0,0,.6); }
+  .sc-co{ padding:22px; }
+  .sc-co h2{ margin:0 0 14px; font-family:var(--ag-font-display,serif); font-weight:700; font-size:20px; color:#10292C; }
+  .sc-card{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:14px; padding:15px; }
+  .sc-srow{ display:flex; justify-content:space-between; font-size:13.5px; color:#4a5256; }
+  .sc-srow + .sc-srow{ margin-top:8px; }
+  .sc-srow.tot{ font-size:15px; font-weight:600; color:#10292C; padding-top:12px; margin-top:12px; border-top:1px solid rgba(16,41,44,.08); }
+  .sc-mono{ font-family:var(--ag-font-mono,monospace); font-weight:700; }
+  .sc-field{ margin-top:11px; }
+  .sc-field label{ display:block; font-size:12px; font-weight:600; color:#4a5256; margin-bottom:5px; }
+  .sc-field input, .sc-field select, .sc-field textarea{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:11px; padding:12px 14px; font-family:inherit; font-size:14px; color:#10292C; outline:none; background:#fff; }
+  .sc-field input:focus, .sc-field select:focus, .sc-field textarea:focus{ border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.1); }
+  .sc-prov{ display:flex; gap:9px; flex-wrap:wrap; margin-top:6px; }
+  .sc-prov label{ flex:1; min-width:120px; display:flex; align-items:center; gap:8px; border:1.5px solid rgba(16,41,44,.14); border-radius:11px; padding:11px 13px; cursor:pointer; font-size:13.5px; font-weight:600; color:#10292C; }
+  .sc-prov input{ accent-color:#237b22; }
+  .sc-soon{ background:#fff8df; border:1px solid #ecdca0; color:#7a5a08; border-radius:12px; padding:14px 16px; font-size:13.5px; line-height:1.5; }
+  .sc-soon a{ color:#237b22; font-weight:600; }
+  .sc-toast{ position:fixed; left:50%; bottom:90px; transform:translateX(-50%); z-index:95; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:12px 20px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); }
+  /* clear the full-width mobile bottom nav (same offset as the Gee launcher) */
+  @media(max-width:560px){ .sc-fab{ left:18px; bottom:calc(84px + env(safe-area-inset-bottom,0px)); } }
+</style>
+
+{# FAB #}
+<button class="sc-fab" x-show="$store.cart.count > 0" x-cloak @click="$store.cart.open = true" aria-label="Open cart">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2 3h3l2.4 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.6L23 7H6"/></svg>
+  <span class="sc-fab__n" x-text="$store.cart.count"></span>
+</button>
+
+{# Drawer #}
+<div class="sc-ov" x-show="$store.cart.open" x-cloak @click="$store.cart.open=false">
+  <aside class="sc-drawer" @click.stop role="dialog" aria-modal="true" aria-labelledby="scCartTitle">
+    <div class="sc-hd"><h2 id="scCartTitle">Your cart</h2><button class="sc-x" @click="$store.cart.open=false" aria-label="Close cart">×</button></div>
+    <div class="sc-lines">
+      <template x-for="l in $store.cart.lines" :key="l.slug">
+        <div class="sc-line">
+          <span class="sc-line__img" :style="l.cover ? 'background-image:url('+l.cover+')' : 'background:linear-gradient(135deg,#10292C,#1a6118)'"></span>
+          <div class="sc-line__b"><div class="sc-line__n" x-text="l.name"></div><div class="sc-line__p" x-text="$store.cart.ngn(l.price)"></div></div>
+          <div class="sc-qty">
+            <button @click="$store.cart.dec(l.slug)" aria-label="Decrease">−</button>
+            <span x-text="l.qty"></span>
+            <button @click="$store.cart.inc(l.slug)" aria-label="Increase">+</button>
+          </div>
+        </div>
+      </template>
+      <div class="sc-empty" x-show="$store.cart.count===0">Your cart is empty.</div>
+    </div>
+    <div class="sc-ft" x-show="$store.cart.count>0" x-cloak>
+      <div class="sc-sub"><span>Subtotal</span><b x-text="$store.cart.ngn($store.cart.subtotal)"></b></div>
+      <button class="sc-go" @click="$store.cart.open=false; $store.cart.checkoutOpen=true">Checkout →</button>
+    </div>
+  </aside>
+</div>
+
+{# Checkout modal #}
+<div class="sc-ov" x-show="$store.cart.checkoutOpen" x-cloak @click="$store.cart.checkoutOpen=false">
+  <div class="sc-modal" @click.stop role="dialog" aria-modal="true" aria-labelledby="scCheckoutTitle">
+    <div class="sc-hd"><h2 id="scCheckoutTitle">Checkout</h2><button class="sc-x" @click="$store.cart.checkoutOpen=false" aria-label="Close checkout">×</button></div>
+    <div class="sc-co">
+      <div class="sc-card" style="margin-bottom:14px">
+        <template x-for="l in $store.cart.lines" :key="l.slug">
+          <div class="sc-srow"><span><span x-text="l.name"></span> × <span x-text="l.qty"></span></span><span class="sc-mono" x-text="$store.cart.ngn(l.price*l.qty)"></span></div>
+        </template>
+        <div class="sc-srow tot"><span>Total</span><span class="sc-mono" x-text="$store.cart.ngn($store.cart.subtotal)"></span></div>
+        {% if currency is defined and currency != 'NGN' %}<div class="sc-srow" style="margin-top:8px;font-size:12px;color:#5a6d6f"><span>Charged in Naira</span><span class="sc-mono" x-text="$store.cart.ngnRaw($store.cart.subtotal)"></span></div>{% endif %}
+      </div>
+
+      {% if providers is empty %}
+        <div class="sc-soon">Online checkout is being set up. To order now, <a href="/partner">contact our team</a> and we’ll arrange payment & delivery.</div>
+      {% else %}
+        <form method="post" action="/shop/checkout">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="cart" :value="JSON.stringify($store.cart.items)">
+          <div class="sc-field"><label for="scCoName">Full name</label><input id="scCoName" type="text" name="name" required placeholder="Your name"></div>
+          <div class="sc-field"><label for="scCoEmail">Email</label><input id="scCoEmail" type="email" name="email" required placeholder="you@email.com"></div>
+          <div class="sc-field"><label for="scCoPhone">Phone</label><input id="scCoPhone" type="tel" name="phone" required placeholder="+234…"></div>
+          <div class="sc-field"><label for="scCoAddress">Delivery address</label><textarea id="scCoAddress" name="address" rows="2" required placeholder="Street, city, state, country"></textarea></div>
+          <div class="sc-field"><label for="scCoRegion">Delivery region</label>
+            <select id="scCoRegion" name="region" required>
+              <option value="" disabled>Select your region…</option>
+              {% for r in shop_regions %}<option value="{{ r }}" {% if r == region %}selected{% endif %}>{{ r }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="sc-field"><label>Pay with</label>
+            <div class="sc-prov">
+              {% for pv in providers %}
+              <label><input type="radio" name="provider" value="{{ pv.id }}" {% if loop.first %}checked{% endif %}> {{ pv.label }}</label>
+              {% endfor %}
+            </div>
+          </div>
+          <button type="submit" class="sc-go" style="margin-top:16px" :disabled="$store.cart.count===0">
+            Pay <span x-text="$store.cart.ngn($store.cart.subtotal)"></span> securely →
+          </button>
+          <p style="margin:10px 0 0;text-align:center;font-size:11.5px;color:#5a6d6f">Secure payment via the gateway — your card details never touch our servers.</p>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="sc-toast" x-show="$store.cart.toast" x-cloak role="status" x-text="$store.cart.toast"></div>
+
+<script>
+window.AG_FX = {{ {cur: currency|default('NGN'), rate: fx_rate|default(1), sym: fx_symbol|default('₦')}|json_encode|raw }};
+document.addEventListener('alpine:init', () => {
+  Alpine.store('cart', {
+    items: {}, open: false, checkoutOpen: false, toast: '', _t: null,
+    init(){ try { this.items = JSON.parse(localStorage.getItem('afg_cart') || '{}') || {}; } catch (e) { this.items = {}; } },
+    save(){ try { localStorage.setItem('afg_cart', JSON.stringify(this.items)); } catch (e) {} },
+    add(p){
+      const k = p.slug; if (!k) return;
+      if (this.items[k]) this.items[k].qty += (p.qty || 1);
+      else this.items[k] = { slug: k, name: p.name, price: +p.price || 0, cover: p.cover || '', qty: p.qty || 1 };
+      this.save(); this.ping((p.name || 'Item') + ' added to cart'); this.open = true;
+    },
+    inc(k){ if (this.items[k]) { this.items[k].qty++; this.save(); } },
+    dec(k){ if (this.items[k]) { if (--this.items[k].qty <= 0) delete this.items[k]; this.save(); } },
+    get lines(){ return Object.values(this.items); },
+    get count(){ return this.lines.reduce((a, i) => a + i.qty, 0); },
+    get subtotal(){ return this.lines.reduce((a, i) => a + i.price * i.qty, 0); },
+    ngn(n){ n = Number(n) || 0; var fx = window.AG_FX || {}; if (fx.cur && fx.cur !== 'NGN' && fx.rate) { var v = n * fx.rate; return (fx.sym || '') + v.toLocaleString(undefined, { maximumFractionDigits: v < 100 ? 2 : 0 }); } return '₦' + n.toLocaleString(); },
+    ngnRaw(n){ return '₦' + (Number(n) || 0).toLocaleString(); },
+    ping(m){ this.toast = m; clearTimeout(this._t); this._t = setTimeout(() => this.toast = '', 1800); },
+  });
+});
+</script>

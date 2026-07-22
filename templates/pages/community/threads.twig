@@ -1,56 +1,403 @@
 {% extends "layout/gates.twig" %}
+
+{# ── Community forum index (community v2) ─────────────────────────────
+   Access model: guests read everything; every write needs a member.
+   Data: threads, spaces, active_programme, active_sort, stats, trending,
+   next_event, flash_notice, member_logged_in, member_name. #}
+
+{% macro rel(dt) %}
+  {%- set ts = dt|date('U') -%}
+  {%- set diff = ("now"|date('U')) - ts -%}
+  <time datetime="{{ dt|date('c') }}">
+    {%- if diff < 60 -%}just now
+    {%- elseif diff < 3600 -%}{{ (diff / 60)|round(0, 'floor') }}m ago
+    {%- elseif diff < 86400 -%}{{ (diff / 3600)|round(0, 'floor') }}h ago
+    {%- elseif diff < 604800 -%}{{ (diff / 86400)|round(0, 'floor') }}d ago
+    {%- else -%}{{ dt|date('j M Y') }}
+    {%- endif -%}
+  </time>
+{% endmacro %}
+
+{% macro initials(name) -%}
+  {%- set n = (name|default(''))|trim -%}
+  {%- if n == '' %}?{% else %}{{ n|split(' ')|slice(0, 2)|map(w => w|slice(0, 1))|join|upper }}{% endif -%}
+{%- endmacro %}
+
+{% block head_styles %}
+<style>
+  body[data-page="community"]{ background:#eef0ec; color:var(--ag-ink,#10292C); }
+  body[data-page="community"] [x-cloak]{ display:none !important; }
+  .cm-wrap{ max-width:1180px; margin:0 auto; padding:0 var(--ag-gutter,28px); }
+
+  /* hero */
+  .cm-hero{ position:relative; overflow:hidden; border-radius:24px; margin-top:22px; background:radial-gradient(130% 130% at 84% 0%,#1d5b2a,#10292C 60%); padding:30px 34px; color:#fff; }
+  .cm-hero__orb{ position:absolute; right:-60px; top:-80px; width:300px; height:300px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%); }
+  .cm-hero__in{ position:relative; display:flex; align-items:flex-end; justify-content:space-between; gap:26px; flex-wrap:wrap; }
+  .cm-badge{ display:inline-flex; align-items:center; gap:8px; font-size:11.5px; font-weight:600; letter-spacing:.05em; color:#8fd28c; background:rgba(127,200,124,.14); padding:7px 14px; border-radius:999px; }
+  .cm-badge__dot{ width:8px; height:8px; border-radius:50%; background:#7FC87C; }
+  .cm-hero h1{ margin:13px 0 0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,5vw,2.6rem); line-height:1.04; letter-spacing:-.02em; color:#fff; }
+  .cm-hero p{ margin:11px 0 0; font-size:14.5px; line-height:1.6; color:rgba(255,255,255,.85); max-width:560px; }
+  .cm-hstats{ display:flex; gap:12px; list-style:none; margin:0; padding:0; }
+  .cm-hstat{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:16px; padding:14px 18px; text-align:center; min-width:88px; }
+  .cm-hstat b{ display:block; font:700 23px/1 var(--ag-font-mono,monospace); color:#fff; }
+  .cm-hstat b.g{ color:#7FC87C; }
+  .cm-hstat span{ font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:rgba(255,255,255,.75); margin-top:5px; display:block; }
+
+  /* 3-region grid */
+  .cm-grid{ display:grid; grid-template-columns:236px minmax(0,1fr) 292px; gap:22px; align-items:start; margin:22px auto 0; padding-bottom:60px; }
+  .cm-rail{ position:sticky; top:90px; display:flex; flex-direction:column; gap:16px; }
+  .cm-feed{ display:flex; flex-direction:column; gap:15px; min-width:0; }
+  @media(max-width:980px){
+    .cm-grid{ grid-template-columns:1fr; }
+    .cm-rail{ position:static; }
+    .cm-rail--r{ order:3; }
+  }
+
+  .cm-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; }
+  .cm-h2{ margin:0; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#5f7273; }
+
+  /* spaces rail */
+  .cm-spaces{ padding:10px; }
+  .cm-spaces .cm-h2{ margin:8px 12px 6px; }
+  .cm-spaces__list{ list-style:none; margin:0; padding:0; }
+  .cm-space{ display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:11px; text-decoration:none; color:#3a4448; font-size:13.5px; font-weight:500; }
+  .cm-space:hover{ background:rgba(16,41,44,.05); }
+  .cm-space.is-on{ background:#f0f4f0; color:var(--ag-ink,#10292C); font-weight:700; }
+  .cm-space__dot{ flex:none; width:28px; height:28px; border-radius:9px; display:flex; align-items:center; justify-content:center; }
+  .cm-space__dot i{ width:9px; height:9px; border-radius:3px; background:currentColor; display:block; }
+  .cm-space__n{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cm-space__c{ flex:none; font:700 10px/1 var(--ag-font-mono,monospace); color:#fff; background:#237b22; padding:3px 7px; border-radius:999px; }
+  @media(max-width:980px){
+    .cm-spaces__list{ display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; padding:2px; }
+    .cm-spaces__list::-webkit-scrollbar{ display:none; }
+    .cm-space{ flex:none; }
+  }
+  .cm-guide{ padding:18px; }
+  .cm-guide__row{ display:flex; gap:9px; align-items:flex-start; font-size:12.5px; line-height:1.45; color:#4a5256; }
+  .cm-guide__row + .cm-guide__row{ margin-top:11px; }
+  .cm-guide a{ display:inline-block; margin-top:14px; text-decoration:none; font-size:12.5px; font-weight:600; color:#1a6118; }
+
+  /* composer strip / sign-in strip */
+  .cm-start{ display:flex; gap:13px; align-items:center; padding:16px 18px; flex-wrap:wrap; }
+  .cm-start__av{ flex:none; width:42px; height:42px; border-radius:12px; background:#fff8df; color:#7a5600; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display,serif); font-weight:700; font-size:16px; }
+  .cm-start__btn{ flex:1; min-width:180px; text-align:left; border:1px solid rgba(16,41,44,.12); background:#f6f8f5; border-radius:13px; padding:13px 16px; font-family:inherit; font-size:14.5px; color:#5f7273; text-decoration:none; }
+  .cm-start__btn:hover{ border-color:rgba(16,41,44,.26); color:#3a4448; }
+  .cm-cta{ display:inline-flex; align-items:center; gap:8px; background:var(--ag-green,#237b22); color:#fff; font-weight:600; font-size:13.5px; padding:11px 20px; border-radius:999px; text-decoration:none; border:none; cursor:pointer; font-family:inherit; }
+  .cm-cta:hover{ background:#1a6118; }
+  .cm-start__hint{ flex-basis:100%; margin:0; font-size:12.5px; color:#5f7273; }
+
+  /* sort bar */
+  .cm-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .cm-sort{ display:flex; gap:4px; background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:12px; padding:4px; list-style:none; margin:0; }
+  .cm-tab{ display:inline-block; font-size:13px; font-weight:600; padding:8px 16px; border-radius:9px; text-decoration:none; color:#4a5256; }
+  .cm-tab.is-on{ background:var(--ag-ink,#10292C); color:#fff; }
+  .cm-bar__n{ font-size:12.5px; color:#5f6d6f; }
+
+  /* thread cards */
+  .cm-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:15px; }
+  .cm-post{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; overflow:hidden; }
+  .cm-post--pin{ border-color:rgba(16,41,44,.16); }
+  .cm-post__flag{ display:flex; align-items:center; gap:8px; padding:10px 22px; background:#10292C; color:#8fd28c; font-size:11.5px; font-weight:600; }
+  .cm-post__flag--lock{ color:#ffd24a; }
+  .cm-post__in{ padding:18px 20px; }
+  .cm-post__head{ display:flex; align-items:flex-start; gap:12px; }
+  .cm-av{ flex:none; width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display,serif); font-weight:700; font-size:16px; }
+  .cm-post__who{ flex:1; min-width:0; }
+  .cm-post__name{ font-weight:700; font-size:14.5px; color:var(--ag-ink,#10292C); }
+  .cm-post__meta{ font-size:12.5px; color:#5f7273; margin-top:2px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .cm-chip{ display:inline-block; font-size:11px; font-weight:600; padding:3px 10px; border-radius:999px; }
+  .cm-lockchip{ display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; background:#f2ede0; color:#71570a; }
+  .cm-post__title{ display:block; margin:13px 0 0; font-family:var(--ag-font-display,serif); font-weight:700; font-size:17px; line-height:1.25; color:var(--ag-ink,#10292C); text-decoration:none; }
+  .cm-post__title:hover{ color:#1a6118; }
+  .cm-post__text{ margin:8px 0 0; font-size:14.5px; line-height:1.6; color:#3a4448; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .cm-post__bar{ display:flex; align-items:center; gap:6px; margin-top:15px; padding-top:13px; border-top:1px solid rgba(16,41,44,.06); }
+  .cm-act{ display:inline-flex; align-items:center; gap:7px; cursor:pointer; border:none; background:none; font-family:inherit; font-size:13px; font-weight:600; color:#4a5256; padding:8px 13px; border-radius:999px; text-decoration:none; }
+  .cm-act:hover{ background:#f0f4f0; color:var(--ag-ink,#10292C); }
+  .cm-act[aria-pressed="true"]{ color:#c21c50; }
+  .cm-act[aria-pressed="true"] svg{ fill:#c21c50; }
+  @keyframes cmHeart{ 0%{transform:scale(1)} 40%{transform:scale(1.35)} 100%{transform:scale(1)} }
+  @media(prefers-reduced-motion:no-preference){ .cm-act[aria-pressed="true"] svg{ animation:cmHeart .4s ease; } }
+  .cm-act--end{ margin-left:auto; color:#5f7273; }
+
+  /* empty state */
+  .cm-empty{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:clamp(2rem,5vw,3rem); text-align:center; }
+  .cm-empty h3{ margin:0 0 .4rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.3rem; color:var(--ag-ink,#10292C); }
+  .cm-empty p{ margin:0 auto 16px; color:#4a5256; max-width:400px; }
+
+  /* right rail */
+  .cm-pulse{ background:#10292C; border-radius:18px; padding:20px; position:relative; overflow:hidden; }
+  .cm-pulse__orb{ position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.2),transparent 68%); }
+  .cm-pulse .cm-h2{ color:#8fd28c; position:relative; }
+  .cm-pulse__grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px 10px; margin:16px 0 0; padding:0; list-style:none; position:relative; }
+  .cm-pulse__n{ font:700 22px/1 var(--ag-font-mono,monospace); color:#fff; }
+  .cm-pulse__n.g{ color:#7FC87C; }
+  .cm-pulse__l{ font-size:10.5px; color:rgba(255,255,255,.72); margin-top:4px; }
+  .cm-side{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:20px; }
+  .cm-side__h{ margin:0 0 14px; font-family:var(--ag-font-display,serif); font-weight:700; font-size:16px; color:var(--ag-ink,#10292C); }
+  .cm-trends{ list-style:none; margin:0; padding:0; }
+  .cm-trend{ display:flex; align-items:center; gap:12px; padding:9px 8px; border-radius:11px; text-decoration:none; }
+  .cm-trend:hover{ background:#f6f8f5; }
+  .cm-trend__r{ flex:none; font:700 13px/1 var(--ag-font-mono,monospace); color:#5f7273; width:16px; }
+  .cm-trend__t{ display:block; font-weight:600; font-size:13.5px; color:var(--ag-ink,#10292C); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cm-trend__s{ display:block; font-size:11.5px; color:#5f7273; margin-top:1px; }
+  .cm-event__k{ display:inline-block; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:5px 11px; border-radius:999px; background:#fff8df; color:#7a5600; }
+  .cm-event__cta{ display:block; width:100%; text-align:center; margin-top:14px; background:var(--ag-green,#237b22); color:#fff; font-weight:600; font-size:13.5px; padding:11px; border-radius:999px; text-decoration:none; }
+  .cm-event__cta:hover{ background:#1a6118; }
+
+  /* flash + toast */
+  .cm-flash{ padding:13px 16px; background:#fff8df; border:1px solid #ecdca0; border-radius:14px; color:#6b4e06; font-size:13.5px; }
+  .cm-toast{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:95; background:#10292C; color:#fff; font-size:13.5px; font-weight:600; padding:12px 20px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); display:flex; align-items:center; gap:10px; max-width:min(92vw,480px); }
+  .cm-toast a{ color:#8fd28c; text-decoration:underline; white-space:nowrap; }
+</style>
+{% endblock %}
+
 {% block content %}
+{% import _self as ui %}
+{% set AV = [['#fff8df','#7a5600'],['#effaf0','#1a6118'],['#e9efef','#2b373d'],['#f3eef7','#5b3a8a'],['#fdeaf0','#9c2b48'],['#e6f0f4','#225a67']] %}
+{% set spaceMap = {} %}{% for s in spaces %}{% set spaceMap = spaceMap|merge({(s.id): s}) %}{% endfor %}
+{% set cur_path = '/community' ~ (active_programme ? '?programme=' ~ active_programme : '') %}
+{% set login_url = '/account/login?next=' ~ cur_path|url_encode %}
 
-{% set has_threads = (threads|default([])|length > 0) %}
-{% set rows = has_threads ? threads : [] %}
-{% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','RW':'🇷🇼'} %}
+<div class="cm-wrap" x-data="cmForum({{ {signedIn: member_logged_in ? true : false}|json_encode|e('html_attr') }})">
 
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Community channels</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Where the <em style="color:var(--emerald-600)">conversation</em> lives.</h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Programme-specific channels, moderated for signal. Open to every verified profile.</p>
-      <div class="r26-reveal r26-d4" style="margin-top:1.5rem">
-        <a href="/community/new" class="btn btn--emerald">Start a thread</a>
+  <header class="cm-hero">
+    <div class="cm-hero__orb" aria-hidden="true"></div>
+    <div class="cm-hero__in">
+      <div>
+        <span class="cm-badge"><span class="cm-badge__dot" aria-hidden="true"></span>Verified members · fully moderated</span>
+        <h1>The Community</h1>
+        <p>Where the people behind the Cultural Power Index talk, debate the nominees, and lift each other up. Anyone can read — members join the conversation.</p>
       </div>
+      <ul class="cm-hstats">
+        <li class="cm-hstat"><b class="g">{{ stats.threads }}</b><span>Threads</span></li>
+        <li class="cm-hstat"><b>{{ stats.replies }}</b><span>Replies</span></li>
+        <li class="cm-hstat"><b>{{ stats.spaces }}</b><span>Spaces</span></li>
+      </ul>
     </div>
-  </div>
-</section>
+  </header>
 
-<section class="section" style="padding-top:1rem">
-  <div class="wrap">
-    {% if rows is empty %}
-    <div class="r26-empty">
-      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-      <h3>No threads yet</h3>
-      <p>The community channels are open — be the first to start a conversation.</p>
-      <a href="/community/new" class="btn btn--emerald">Start a thread</a>
-    </div>
-    {% else %}
-    <div class="r26-surface">
-      <div class="r26-head">
-        <p class="r26-eyebrow">Latest</p>
-        <h2 class="r26-h2">Open <em>threads</em></h2>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:0.75rem" data-anim>
-        {% for t in rows %}
-        <a href="/community/{{ t.slug }}" style="display:flex;align-items:center;gap:1rem;background:#fff;border:1px solid var(--r26-hair,rgba(16,41,44,0.08));border-radius:16px;padding:1rem 1.25rem;text-decoration:none;color:inherit">
-          <span style="font-size:1.375rem;flex:none" aria-hidden="true">{{ FLAGS[t.country_code]|default('💬') }}</span>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;color:var(--r26-ink,#10292c);line-height:1.3">{{ t.title }}</div>
-            <div style="font-size:0.85rem;color:var(--neutral-500,#6b7478);margin-top:0.2rem">{{ t.programme }} · {{ t.author }} · {{ t.last_at|date('d M, H:i') }}</div>
-          </div>
-          <span class="r26-chip2" style="flex:none">{{ t.replies }} replies</span>
-          <span class="r26-chip2" style="flex:none">♡ {{ t.cheers }}</span>
-        </a>
+  <div class="cm-grid">
+    {# ── LEFT RAIL · spaces + charter ─────────────────────────── #}
+    <aside class="cm-rail cm-rail--l">
+      <nav class="cm-card cm-spaces" aria-label="Community spaces">
+        <h2 class="cm-h2" id="cmSpacesH">Spaces</h2>
+        <ul class="cm-spaces__list">
+          <li>
+            <a href="/community{{ active_sort == 'top' ? '?sort=top' : '' }}" class="cm-space {{ active_programme == 0 ? 'is-on' : '' }}" {% if active_programme == 0 %}aria-current="true"{% endif %}>
+              <span class="cm-space__dot" style="background:#eef5ed;color:#1a6118" aria-hidden="true"><i></i></span>
+              <span class="cm-space__n">All activity</span>
+            </a>
+          </li>
+          {% for s in spaces %}
+          <li>
+            <a href="/community?programme={{ s.id }}{{ active_sort == 'top' ? '&sort=top' : '' }}" class="cm-space {{ active_programme == s.id ? 'is-on' : '' }}" {% if active_programme == s.id %}aria-current="true"{% endif %}>
+              <span class="cm-space__dot" style="background:{{ s.bg }};color:{{ s.fg }}" aria-hidden="true"><i></i></span>
+              <span class="cm-space__n">{{ s.name }}</span>
+              {% if s.count > 0 %}<span class="cm-space__c" aria-label="{{ s.count }} thread{{ s.count == 1 ? '' : 's' }}">{{ s.count }}</span>{% endif %}
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      </nav>
+
+      <section class="cm-card cm-guide" aria-labelledby="cmCharterH">
+        <h2 class="cm-h2" id="cmCharterH" style="margin:0 0 12px">Community charter</h2>
+        {% for rule in ['Debate the work, never the person.', 'Vote canvassing stays out of threads.', 'Sources beat opinions every time.'] %}
+        <div class="cm-guide__row"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:1px" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5"/></svg>{{ rule }}</div>
         {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-  </div>
-</section>
+        <a href="/integrity">How moderation works →</a>
+      </section>
+    </aside>
 
+    {# ── CENTER · thread feed ─────────────────────────────────── #}
+    <section class="cm-feed" aria-labelledby="cmFeedH">
+      <h2 class="sr-only" id="cmFeedH">Discussion threads</h2>
+
+      {% if member_logged_in %}
+      <div class="cm-card cm-start">
+        <span class="cm-start__av" aria-hidden="true">{{ ui.initials(member_name) }}</span>
+        <a href="/community/new" class="cm-start__btn">Share something with the community{{ member_name ? ', ' ~ member_name : '' }}…</a>
+        <a href="/community/new" class="cm-cta">Start a thread</a>
+      </div>
+      {% else %}
+      <div class="cm-card cm-start">
+        <span class="cm-start__av" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </span>
+        <span class="cm-start__btn" style="cursor:default">You're browsing as a guest — reading is open to everyone.</span>
+        <a href="{{ login_url }}" class="cm-cta">Sign in to join the conversation</a>
+        <p class="cm-start__hint">Members can start threads, reply, cheer and vote in polls.</p>
+      </div>
+      {% endif %}
+
+      {% if flash_notice %}<p class="cm-flash" role="status">{{ flash_notice }}</p>{% endif %}
+
+      <div class="cm-bar">
+        <nav aria-label="Sort threads">
+          <ul class="cm-sort">
+            <li><a href="/community?sort=latest{{ active_programme ? '&programme=' ~ active_programme : '' }}" class="cm-tab {{ active_sort == 'latest' ? 'is-on' : '' }}" {% if active_sort == 'latest' %}aria-current="true"{% endif %}>Latest</a></li>
+            <li><a href="/community?sort=top{{ active_programme ? '&programme=' ~ active_programme : '' }}" class="cm-tab {{ active_sort == 'top' ? 'is-on' : '' }}" {% if active_sort == 'top' %}aria-current="true"{% endif %}>Top</a></li>
+          </ul>
+        </nav>
+        <span class="cm-bar__n">{{ threads|length }} thread{{ threads|length == 1 ? '' : 's' }}{% if active_programme and spaceMap[active_programme] is defined %} in {{ spaceMap[active_programme].name }}{% endif %}</span>
+      </div>
+
+      {% if threads is empty %}
+      <div class="cm-empty">
+        <h3>{% if active_programme %}This space is quiet — for now{% else %}No threads here yet{% endif %}</h3>
+        <p>{% if active_programme %}Nobody has started a conversation in this space yet.{% else %}Every great debate starts with one post.{% endif %} {% if member_logged_in %}Be the first to open one.{% else %}Sign in and be the first to open one.{% endif %}</p>
+        {% if member_logged_in %}
+        <a href="/community/new" class="cm-cta">Start a thread →</a>
+        {% else %}
+        <a href="{{ login_url }}" class="cm-cta">Sign in to join the conversation</a>
+        {% endif %}
+      </div>
+      {% else %}
+      <ul class="cm-list">
+        {% for p in threads %}
+        {% set av = AV[(p.author_name|default('')|length) % AV|length] %}
+        {% set sp = spaceMap[p.programme_id]|default(null) %}
+        <li>
+          <article class="cm-post {{ p.is_pinned ? 'cm-post--pin' : '' }}" aria-labelledby="cmT{{ p.id }}">
+            {% if p.is_pinned %}
+            <p class="cm-post__flag" style="margin:0"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M9 4v6l-2 4v2h10v-2l-2-4V4z"/></svg>📌 Pinned by moderators</p>
+            {% endif %}
+            <div class="cm-post__in">
+              <div class="cm-post__head">
+                <span class="cm-av" style="background:{{ av[0] }};color:{{ av[1] }}" aria-hidden="true">{{ ui.initials(p.author_name) }}</span>
+                <div class="cm-post__who">
+                  <p class="cm-post__name" style="margin:0">{{ p.author_name }}</p>
+                  <p class="cm-post__meta" style="margin:0">
+                    {{ ui.rel(p.last_activity|default(p.created_at)) }}
+                    {% if sp %}<span class="cm-chip" style="background:{{ sp.bg }};color:{{ sp.fg }}">{{ sp.name }}</span>{% endif %}
+                    {% if p.status == 'locked' %}<span class="cm-lockchip">🔒 Locked</span>{% endif %}
+                  </p>
+                </div>
+              </div>
+              <h3 style="margin:0"><a class="cm-post__title" id="cmT{{ p.id }}" href="/community/{{ p.slug }}">{{ p.title }}</a></h3>
+              {% if p.body %}<p class="cm-post__text">{{ p.body|striptags|slice(0, 220) }}{% if p.body|striptags|length > 220 %}…{% endif %}</p>{% endif %}
+              <div class="cm-post__bar">
+                {% if member_logged_in %}
+                <button type="button" class="cm-act" x-data="{ on:false, n:{{ p.cheer_count|default(0) }}, busy:false }"
+                        :aria-pressed="on" @click="cheer('thread', {{ p.id }}, $data)"
+                        aria-label="Cheer this thread ({{ p.cheer_count|default(0) }} cheers)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true" focusable="false"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg><span x-text="n"></span>
+                </button>
+                {% else %}
+                <a class="cm-act" href="{{ login_url }}" aria-label="Sign in to cheer this thread ({{ p.cheer_count|default(0) }} cheers)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true" focusable="false"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>{{ p.cheer_count|default(0) }}
+                </a>
+                {% endif %}
+                <a class="cm-act" href="/community/{{ p.slug }}" aria-label="{{ p.reply_count|default(0) }} repl{{ p.reply_count|default(0) == 1 ? 'y' : 'ies' }} — open thread">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20l1-3.1A8.4 8.4 0 1 1 21 11.5Z"/></svg>{{ p.reply_count|default(0) }}
+                </a>
+                <button type="button" class="cm-act cm-act--end" @click="copyLink('/community/{{ p.slug }}')" aria-label="Copy link to this thread">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>
+                </button>
+              </div>
+            </div>
+          </article>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </section>
+
+    {# ── RIGHT RAIL · pulse + trending + event ────────────────── #}
+    <aside class="cm-rail cm-rail--r">
+      <section class="cm-pulse" aria-labelledby="cmPulseH">
+        <div class="cm-pulse__orb" aria-hidden="true"></div>
+        <h2 class="cm-h2" id="cmPulseH">Community pulse</h2>
+        <ul class="cm-pulse__grid">
+          <li><span class="cm-pulse__n g">{{ stats.threads }}</span><span class="cm-pulse__l">Threads</span></li>
+          <li><span class="cm-pulse__n">{{ stats.replies }}</span><span class="cm-pulse__l">Replies</span></li>
+          <li><span class="cm-pulse__n">{{ stats.spaces }}</span><span class="cm-pulse__l">Spaces</span></li>
+          <li><span class="cm-pulse__n">{{ trending|length }}</span><span class="cm-pulse__l">Trending now</span></li>
+        </ul>
+      </section>
+
+      {% if trending is not empty %}
+      <section class="cm-side" aria-labelledby="cmTrendH">
+        <h2 class="cm-side__h" id="cmTrendH">Trending now</h2>
+        <ol class="cm-trends">
+          {% for tr in trending %}
+          <li>
+            <a class="cm-trend" href="/community/{{ tr.slug }}">
+              <span class="cm-trend__r" aria-hidden="true">{{ loop.index }}</span>
+              <span style="flex:1;min-width:0">
+                <span class="cm-trend__t">{{ tr.title }}</span>
+                <span class="cm-trend__s">{{ (tr.reply_count|default(0)) + (tr.cheer_count|default(0)) }} interactions{% if spaceMap[tr.programme_id] is defined %} · {{ spaceMap[tr.programme_id].name }}{% endif %}</span>
+              </span>
+            </a>
+          </li>
+          {% endfor %}
+        </ol>
+      </section>
+      {% endif %}
+
+      {% if next_event %}
+      <section class="cm-side" aria-labelledby="cmEventH">
+        <span class="cm-event__k">Upcoming event</span>
+        <h2 class="cm-side__h" id="cmEventH" style="margin:12px 0 0">{{ next_event.title }}</h2>
+        <p style="margin:7px 0 0;font-size:12.5px;line-height:1.5;color:#5f7273">
+          <time datetime="{{ next_event.event_date|date('c') }}">{{ next_event.event_date|date('l, j M · H:i') }}</time> WAT{% if next_event.location %} · {{ next_event.location }}{% endif %}
+        </p>
+        {% if next_event.slug %}<a class="cm-event__cta" href="/events/{{ next_event.slug }}">Details &amp; RSVP →</a>{% endif %}
+      </section>
+      {% endif %}
+    </aside>
+  </div>
+
+  {# toast — link inside so a 401 CTA is never a dead end #}
+  <div x-show="toast.msg" x-cloak class="cm-toast" role="status">
+    <span x-text="toast.msg"></span>
+    <a x-show="toast.href" x-cloak :href="toast.href">Sign in →</a>
+  </div>
+</div>
+
+<script>
+function cmForum(cfg){
+  var API = '/api/v1/community';
+  var H = { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' };
+  return {
+    signedIn: !!cfg.signedIn,
+    toast: { msg: '', href: '' },
+    _tt: null,
+    flash(msg, href){
+      this.toast = { msg: msg, href: href || '' };
+      clearTimeout(this._tt);
+      this._tt = setTimeout(() => { this.toast = { msg: '', href: '' }; }, 6000);
+    },
+    askSignIn(){
+      this.flash('Sign in to join the conversation', '/account/login?next=' + encodeURIComponent(location.pathname + location.search));
+    },
+    copyLink(path){
+      var url = location.origin + path;
+      if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => {
+        this.flash('Link copied to clipboard');
+        if (window.agAnnounce) window.agAnnounce('Link copied');
+      }).catch(() => {});
+    },
+    /* optimistic cheer toggle; c = the button's local Alpine scope */
+    cheer(type, id, c){
+      if (c.busy) return;
+      c.busy = true;
+      var was = { on: c.on, n: c.n };
+      c.on = !c.on; c.n = Math.max(0, c.n + (c.on ? 1 : -1));
+      fetch(API + '/cheer', { method: 'POST', headers: H, body: new URLSearchParams({ target_type: type, target_id: id }) })
+        .then(r => r.json().then(d => ({ s: r.status, d: d })))
+        .then(({ s, d }) => {
+          if (d && d.success) { c.on = !!d.cheered; c.n = d.count; }
+          else {
+            c.on = was.on; c.n = was.n;
+            if (s === 401 || (d && d.code === 'SIGN_IN')) this.askSignIn();
+            else if (d && d.message) this.flash(d.message);
+          }
+        })
+        .catch(() => { c.on = was.on; c.n = was.n; this.flash('Network error — please try again.'); })
+        .finally(() => { c.busy = false; });
+    }
+  };
+}
+</script>
 {% endblock %}

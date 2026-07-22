@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;0,800;1,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="image-slot.js"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'DM Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#eef0ec}
+  image-slot::part(frame){background:transparent}
+  image-slot[data-deco]::part(empty){display:none}
+  @keyframes rgRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#eef0ec">
+  <!-- NAV -->
+  <header style="position:sticky;top:0;z-index:50;background:rgba(251,251,250,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(16,41,44,.07)">
+    <div style="max-width:1160px;margin:0 auto;padding:0 32px;height:72px;display:flex;align-items:center;justify-content:space-between;gap:28px">
+      <a href="#" style="text-decoration:none;display:flex;align-items:center;gap:11px"><span style="width:38px;height:38px;border-radius:11px;background:#10292C;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:21px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#10292C">Africa</span><span style="font-size:10px;font-weight:700;letter-spacing:.26em;color:#237b22">GATES</span></span></a>
+      <nav style="display:flex;align-items:center;gap:4px">
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:600;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:7px"><span style="width:7px;height:7px;border-radius:50%;background:#e0245e"></span>Pulse</a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Participate <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px;display:flex;align-items:center;gap:6px">Explore <svg width="11" height="11" viewBox="0 0 20 20" fill="currentColor"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></a>
+        <a href="#" style="text-decoration:none;font-size:14.5px;font-weight:500;color:#3a4448;padding:9px 14px;border-radius:10px">Leaderboard</a>
+      </nav>
+      <div style="display:flex;align-items:center;gap:10px">
+        <a href="#" style="text-decoration:none;font-size:14px;font-weight:600;color:#10292C;padding:9px 12px;border-radius:10px">Vote</a>
+        <a href="#" style="text-decoration:none;background:#237b22;color:#fff;font-size:14px;font-weight:600;padding:10px 20px;border-radius:999px;display:flex;align-items:center;gap:7px;box-shadow:0 8px 18px -8px rgba(35,123,34,.6)">Register <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      </div>
+    </div>
+  </header>
+
+  <!-- HEADER + SEARCH -->
+  <div style="max-width:1160px;margin:0 auto;padding:40px 32px 0">
+    <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#237b22">The continental record</p>
+    <h1 style="margin:0;font-family:'Playfair Display',serif;font-weight:700;font-size:40px;letter-spacing:-.02em;color:#10292C">Registry</h1>
+    <p style="margin:12px 0 0;font-size:15px;line-height:1.6;color:#4a5256;max-width:560px">{{ count }} verified profiles across six programmes. Every entry is panel-verified before it joins the index.</p>
+    <div style="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid rgba(16,41,44,.14);border-radius:14px;padding:14px 18px;margin-top:22px;max-width:560px">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#92a6a7" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input value="{{ query }}" onInput="{{ onQuery }}" placeholder="Search by name…" style="flex:1;border:none;outline:none;font-family:inherit;font-size:15px;color:#10292C;background:none"/>
+    </div>
+  </div>
+
+  <!-- FILTERS -->
+  <div style="max-width:1160px;margin:20px auto 0;padding:0 32px">
+    <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px">
+      <sc-for list="{{ filters }}" as="f" hint-placeholder-count="7">
+        <button onClick="{{ f.set }}" style="flex:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;border-radius:999px;border:1px solid {{ f.border }};background:{{ f.bg }};color:{{ f.fg }}">{{ f.label }}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- GRID -->
+  <div style="max-width:1160px;margin:24px auto 0;padding:0 32px 60px">
+    <sc-if value="{{ hasResults }}" hint-placeholder-val="{{ true }}">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:18px">
+      <sc-for list="{{ cards }}" as="c" hint-placeholder-count="8">
+        <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:18px;overflow:hidden;animation:rgRise .3s ease both">
+          <div style="position:relative;aspect-ratio:1/1;background:{{ c.cover }}">
+            <image-slot id="{{ c.slot }}" data-deco fit="cover" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none" placeholder=""></image-slot>
+            <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(7,20,22,.6),transparent 50%)"></div>
+            <span style="position:absolute;top:11px;left:11px;font-size:10px;font-weight:600;padding:4px 9px;border-radius:999px;background:{{ c.tierBg }};color:{{ c.tierFg }}">{{ c.tier }}</span>
+            <span style="position:absolute;top:11px;right:11px;font-size:18px">{{ c.flag }}</span>
+            <div style="position:absolute;left:13px;right:13px;bottom:11px"><div style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#fff;line-height:1.1">{{ c.name }}</div></div>
+          </div>
+          <div style="padding:14px">
+            <div style="font-size:12px;color:#92a6a7">{{ c.category }}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+              <div><span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:17px;color:#237b22">{{ c.cpi }}</span><span style="font-size:10px;color:#92a6a7"> CPI</span></div>
+              <button style="cursor:pointer;border:1px solid #237b22;background:#fff;color:#237b22;font-family:inherit;font-size:12px;font-weight:600;padding:7px 14px;border-radius:999px">Vote</button>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <!-- empty -->
+    <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+    <div style="background:#fff;border:1px solid rgba(16,41,44,.08);border-radius:20px;padding:30px 40px;text-align:center;max-width:520px;margin:10px auto 0">
+      <img src="assets/illo-search.jpg" alt="" style="display:block;width:200px;margin:0 auto;height:auto;border-radius:14px"/>
+      <h2 style="margin:8px 0 0;font-family:'Playfair Display',serif;font-weight:700;font-size:24px;color:#10292C">No nominees match</h2>
+      <p style="margin:10px 0 0;font-size:14.5px;line-height:1.55;color:#4a5256">Nothing for “{{ query }}”. Try another name, clear filters, or nominate someone who belongs here.</p>
+      <div style="display:flex;gap:11px;justify-content:center;margin-top:20px">
+        <button onClick="{{ clear }}" style="cursor:pointer;border:1px solid rgba(16,41,44,.16);background:#fff;color:#10292C;font-family:inherit;font-weight:600;font-size:14px;padding:12px 22px;border-radius:999px">Clear filters</button>
+        <button style="cursor:pointer;border:none;background:#237b22;color:#fff;font-family:inherit;font-weight:600;font-size:14px;padding:12px 22px;border-radius:999px">Nominate someone →</button>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+
+  <footer style="background:#0c2225"><div style="max-width:1160px;margin:0 auto;padding:52px 32px 30px;display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:40px">
+      <div>
+        <div style="display:flex;align-items:center;gap:11px;margin-bottom:16px"><span style="width:34px;height:34px;border-radius:10px;background:rgba(127,200,124,.16);display:flex;align-items:center;justify-content:center;font-family:'Playfair Display',serif;font-weight:700;font-size:18px;color:#7FC87C">G</span><span style="display:flex;flex-direction:column;line-height:1"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:16px;color:#fff">Africa</span><span style="font-size:9px;font-weight:700;letter-spacing:.26em;color:#7FC87C">GATES</span></span></div>
+        <p style="margin:0 0 18px;font-size:13.5px;line-height:1.65;color:rgba(255,255,255,.6);max-width:280px">The continental Cultural Power Index. An Afrovanguard initiative — live in Nigeria, building toward 54 nations.</p>
+        <div style="display:flex;gap:9px"><a href="#" aria-label="X" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.24 2.25h3.31l-7.23 8.26L22.5 21.75h-6.34l-4.97-6.5-5.68 6.5H2.2l7.73-8.84L1.5 2.25h6.5l4.49 5.94 5.75-5.94Z"/></svg></a><a href="#" aria-label="Instagram" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg></a><a href="#" aria-label="LinkedIn" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.55v-5.57c0-1.33-.02-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.36V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45z"/></svg></a><a href="#" aria-label="YouTube" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);text-decoration:none" style-hover="background:#fff;color:#10292C"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23 12s0-3.4-.43-5.03a2.6 2.6 0 0 0-1.83-1.84C19.1 4.7 12 4.7 12 4.7s-7.1 0-8.74.43a2.6 2.6 0 0 0-1.83 1.84C1 8.6 1 12 1 12s0 3.4.43 5.03a2.6 2.6 0 0 0 1.83 1.84C4.9 19.3 12 19.3 12 19.3s7.1 0 8.74-.43a2.6 2.6 0 0 0 1.83-1.84C23 15.4 23 12 23 12ZM9.75 15.02V8.98L15 12l-5.25 3.02Z"/></svg></a></div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Participate</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Nominate</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Vote</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Register</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Awards Gala</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Donate</a>
+        </div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Explore</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Leaderboard</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Registry</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Pulse</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">How it works</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Status</a>
+        </div>
+      </div>
+      <div>
+        <p style="margin:0 0 14px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7FC87C">Company</p>
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">About Afrovanguard</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Help Center</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Support &amp; appeals</a>
+          <a href="#" style="text-decoration:none;font-size:13.5px;color:rgba(255,255,255,.7)" style-hover="color:#fff">Contact</a>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:1160px;margin:0 auto;padding:20px 32px 40px;border-top:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <span style="font-size:12.5px;color:rgba(255,255,255,.5)">© 2026 Africa GATES · An Afrovanguard initiative · RC 1234567 · Lagos, Nigeria</span>
+      <div style="display:flex;align-items:center;gap:18px"><a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Privacy</a><a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Terms</a><a href="#" style="text-decoration:none;font-size:12.5px;color:rgba(255,255,255,.6)" style-hover="color:#fff">Integrity Center</a></div>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1160,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = { filter:'All', query:'' };
+  renderVals(){
+    const s = this.state;
+    const COV=['linear-gradient(135deg,#10292C,#1a6118)','linear-gradient(135deg,#a47306,#d49a0e)','linear-gradient(135deg,#1a2629,#5d7374)','linear-gradient(135deg,#237b22,#7FC87C)','linear-gradient(135deg,#5b3a8a,#8a5fc0)','linear-gradient(135deg,#b03a5b,#e0245e)'];
+    const TB={ Luminary:['#fff8df','#a47306'], Icon:['#effaf0','#1a6118'], Rising:['#e9efef','#2b373d'] };
+    const raw=[
+      ['Amara Okonkwo','🇳🇬','Education',942,'Luminary'],
+      ['Kwame Mensah','🇬🇭','Music',931,'Luminary'],
+      ['Thandiwe Dlamini','🇿🇦','Integrity',918,'Luminary'],
+      ['Daniel Kiprop','🇰🇪','Sport',902,'Icon'],
+      ['Fatima Al-Amin','🇪🇬','Science',889,'Icon'],
+      ['Chidi Okeke','🇳🇬','Business',877,'Icon'],
+      ['Aïssata Diallo','🇸🇳','Arts',864,'Icon'],
+      ['Tariro Banda','🇿🇲','Education',851,'Rising'],
+      ['Liya Tesfaye','🇪🇹','Music',839,'Rising'],
+      ['Kofi Asante','🇬🇭','Business',822,'Rising'],
+      ['Naledi Moyo','🇧🇼','Integrity',810,'Rising'],
+      ['Zara Mwangi','🇰🇪','Science',784,'Rising']
+    ];
+    const cats=['All','Education','Music','Integrity','Business','Science','Arts','Sport'];
+    const filters=cats.map(c=>{ const on=s.filter===c; return { label:c, set:()=>this.setState({filter:c}), bg:on?'#10292C':'#fff', fg:on?'#fff':'#4a5256', border:on?'#10292C':'rgba(16,41,44,.12)' }; });
+    const q=s.query.trim().toLowerCase();
+    const filtered=raw.filter(r=>(s.filter==='All'||r[2]===s.filter)&&(!q||r[0].toLowerCase().includes(q)));
+    const cards=filtered.map((r,i)=>({ name:r[0], flag:r[1], category:r[2], cpi:r[3], tier:r[4], slot:'rg-'+r[0].split(' ')[0].toLowerCase(),
+      cover:COV[i%COV.length], tierBg:TB[r[4]][0], tierFg:TB[r[4]][1] }));
+    return { filters, cards, count:'4,214', query:s.query,
+      onQuery:(e)=>this.setState({query:e.target.value}),
+      hasResults:cards.length>0, noResults:cards.length===0,
+      clear:()=>this.setState({filter:'All',query:''}) };
+  }
+}
+</script>
+</body>
+</html>

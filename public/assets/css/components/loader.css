@@ -1,0 +1,30 @@
+/* ════════════════════════════════════════════════════════════════
+   Africa GATES — Mobile entrance loader
+   The disc + continent reveal is driven by SMIL inside the SVG
+   (Safari-safe — no CSS transform/clip-path on SVG). This file only
+   handles the overlay, the wordmark, and the fade-out (HTML elements).
+   Shown once per session on mobile (gated by html.ag-loading), then
+   removed by JS (+ failsafe) so it can never block the site.
+   ════════════════════════════════════════════════════════════════ */
+.ag-loader{
+  position:fixed; inset:0; z-index:var(--ag-z-loader,2147483000);
+  display:none; flex-direction:column; align-items:center; justify-content:center; gap:30px;
+  background:var(--ag-bg,#fbfbfa);
+}
+html.ag-loading .ag-loader{
+  display:flex;
+  animation:agExit .7s 4.9s ease forwards;   /* fade only after the full reveal + a hold */
+}
+@keyframes agExit{ to{ opacity:0; visibility:hidden; } }
+
+.ag-loader__logo{ width:min(52vw,190px); height:auto; overflow:visible; }
+
+/* Wordmark — appears as the SMIL reveal completes (~3.1s) */
+.ag-loader__word{
+  font-family:var(--ag-font-display,"Playfair Display",serif); font-weight:700;
+  font-size:clamp(1.4rem,6vw,1.9rem); color:var(--ag-ink,#10292c);
+  opacity:0; transform:translateY(10px);
+  animation:agWord .6s 3.1s ease forwards;
+}
+.ag-loader__word span{ color:var(--ag-green,#237b22); letter-spacing:.16em; font-size:.6em; font-weight:700; vertical-align:.14em; margin-left:.4em; }
+@keyframes agWord{ to{opacity:1;transform:none} }

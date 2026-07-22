@@ -1,0 +1,215 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style>
+  body[data-page="pulse"]{ background:#fbfbfa; color:var(--ag-ink); }
+  body[data-page="pulse"] [x-cloak]{ display:none !important; }
+  .pl{ max-width:1180px; margin:0 auto; padding:clamp(1.6rem,4vw,2.5rem) var(--ag-gutter,40px) 90px; }
+  .pl-x::-webkit-scrollbar{ height:0; } .pl-x{ scrollbar-width:none; }
+
+  /* header */
+  .pl-eyebrow{ margin:0 0 8px; font:700 12px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:#e0245e; }
+  .pl-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4.6vw,2.75rem); line-height:1.02; letter-spacing:-.02em; color:var(--ag-ink); }
+  .pl-h1 em{ color:var(--ag-green); font-style:italic; }
+
+  /* stories tray */
+  .pl-stories{ display:flex; gap:16px; overflow-x:auto; padding:22px 2px 6px; }
+  .pl-story{ flex:none; display:flex; flex-direction:column; align-items:center; gap:8px; width:74px; text-decoration:none; }
+  .pl-story__ring{ width:70px; height:70px; border-radius:50%; padding:2.5px; background:conic-gradient(from 210deg,#237b22,#7fc87c,#d49a0e,#237b22); display:flex; }
+  .pl-story__av{ width:100%; height:100%; border-radius:50%; border:2.5px solid #fbfbfa; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:23px; background-size:cover; background-position:center; }
+  .pl-story__n{ font-size:11.5px; font-weight:500; color:#4a5256; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:74px; }
+
+  /* tabs */
+  .pl-tabs{ display:flex; gap:4px; border-bottom:1px solid rgba(16,41,44,.08); margin:20px 0 26px; overflow-x:auto; }
+  .pl-tab{ flex:none; cursor:pointer; border:0; background:none; font-family:inherit; font-size:14.5px; font-weight:600; color:#5a6d6f; padding:12px 16px; border-bottom:2px solid transparent; margin-bottom:-1px; }
+  .pl-tab.is-on{ color:var(--ag-green); border-bottom-color:var(--ag-green); }
+
+  /* layout */
+  .pl-grid{ display:grid; grid-template-columns:1fr 340px; gap:36px; align-items:start; }
+  .pl-rail{ position:sticky; top:96px; display:flex; flex-direction:column; gap:18px; }
+
+  /* feed */
+  .pl-feed{ display:flex; flex-direction:column; gap:22px; }
+  .pl-post{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; overflow:hidden; }
+  .pl-post__hd{ display:flex; align-items:center; gap:12px; padding:16px 18px; }
+  .pl-post__av{ width:44px; height:44px; border-radius:13px; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:19px; flex:none; }
+  .pl-post__au{ font-weight:600; font-size:15px; color:var(--ag-ink); }
+  .pl-post__mt{ font-size:12.5px; color:#5a6d6f; margin-top:2px; }
+  .pl-post__cover{ display:block; width:100%; aspect-ratio:16/9; background-size:cover; background-position:center; background-color:#10292C; }
+  .pl-post__bd{ padding:16px 18px 18px; }
+  .pl-post__cat{ font:700 11px/1 var(--ag-font-mono); letter-spacing:.1em; text-transform:uppercase; color:var(--ag-green); }
+  .pl-post__t{ margin:8px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:19px; line-height:1.25; color:var(--ag-ink); text-decoration:none; display:block; }
+  .pl-post__x{ margin:8px 0 0; font-size:14px; line-height:1.55; color:#4a5256; }
+  .pl-post__a{ display:inline-flex; align-items:center; gap:6px; margin-top:8px; padding:8px 0; min-height:40px; font-size:13.5px; font-weight:600; color:var(--ag-green); text-decoration:none; }
+
+  .pl-empty{ background:#fff; border:1px dashed rgba(16,41,44,.16); border-radius:20px; padding:48px 24px; text-align:center; color:#5a6d6f; font-size:14.5px; }
+  .pl-empty a{ color:var(--ag-green); font-weight:600; }
+
+  /* rail cards */
+  .pl-card{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px; }
+  .pl-card__k{ margin:0 0 16px; font:700 12px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase; color:#5a6d6f; }
+  .pl-lead{ display:flex; align-items:center; gap:12px; text-decoration:none; }
+  .pl-lead + .pl-lead{ margin-top:14px; }
+  .pl-lead__r{ font-family:var(--ag-font-mono); font-weight:700; font-size:14px; color:#5a6d6f; width:18px; flex:none; }
+  .pl-lead__av{ width:40px; height:40px; border-radius:12px; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:16px; flex:none; background-size:cover; background-position:center; }
+  .pl-lead__n{ flex:1; min-width:0; font-weight:600; font-size:14px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pl-lead__c{ font-family:var(--ag-font-mono); font-weight:700; font-size:15px; color:var(--ag-green); flex:none; }
+  .pl-dark{ background:#10292C; border-radius:20px; padding:24px; position:relative; overflow:hidden; }
+  .pl-dark__orb{ position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.22),transparent 70%); }
+  .pl-dark__k{ position:relative; margin:0 0 6px; font:700 11px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase; color:#fbc329; }
+  .pl-dark__t{ position:relative; font-family:var(--ag-font-display); font-weight:700; font-size:20px; color:#fff; }
+  .pl-dark__p{ position:relative; margin:8px 0 16px; font-size:13px; line-height:1.5; color:rgba(255,255,255,.68); }
+  .pl-dark__btn{ position:relative; display:block; width:100%; text-align:center; cursor:pointer; text-decoration:none; border:0; background:#fff; color:#10292C; font-family:inherit; font-weight:600; font-size:14px; padding:12px; border-radius:999px; }
+
+  /* events */
+  .pl-evs{ display:flex; flex-direction:column; gap:14px; }
+  .pl-ev{ display:flex; gap:18px; align-items:center; background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:18px 20px; text-decoration:none; transition:border-color .15s; }
+  .pl-ev:hover{ border-color:rgba(16,41,44,.2); }
+  .pl-ev__d{ flex:none; width:72px; height:78px; border-radius:16px; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .pl-ev__mon{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+  .pl-ev__day{ font-family:var(--ag-font-mono); font-weight:700; font-size:27px; line-height:1; }
+  .pl-ev__t{ font-family:var(--ag-font-display); font-weight:700; font-size:20px; color:var(--ag-ink); }
+  .pl-ev__m{ margin-top:5px; font-size:13px; color:#5a6d6f; }
+  .pl-ev__cta{ flex:none; font-size:14px; font-weight:600; color:var(--ag-green); }
+
+  /* community */
+  .pl-chs{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .pl-ch{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px; text-decoration:none; transition:border-color .15s; }
+  .pl-ch:hover{ border-color:rgba(16,41,44,.2); }
+  .pl-ch__t{ font-family:var(--ag-font-display); font-weight:700; font-size:18px; color:var(--ag-ink); }
+  .pl-ch__x{ margin:8px 0 0; font-size:13.5px; line-height:1.5; color:#5a6d6f; }
+  .pl-ch__m{ margin-top:14px; padding-top:14px; border-top:1px solid rgba(16,41,44,.06); font-size:12.5px; color:#5a6d6f; }
+
+  @media (max-width:900px){ .pl-grid{ grid-template-columns:1fr; } .pl-rail{ position:static; } }
+  @media (max-width:560px){ .pl-chs{ grid-template-columns:1fr; } .pl-ev{ flex-wrap:wrap; } .pl-ev__cta{ width:100%; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pl" x-data="{ tab:'foryou' }">
+
+  <header>
+    <p class="pl-eyebrow">Pulse · the living feed</p>
+    <h1 class="pl-h1">What the continent is <em>talking about.</em></h1>
+  </header>
+
+  {# Featured profiles (real top of the index) — the design's stories tray #}
+  {% if leaders is not empty %}
+  <div class="pl-stories pl-x">
+    {% for p in leaders %}
+    <a class="pl-story" href="/registry/{{ p.slug }}">
+      <span class="pl-story__ring"><span class="pl-story__av" {% if p.avatar_path %}style="background-image:url('{{ p.avatar_path }}')"{% endif %}>{% if not p.avatar_path %}{{ p.display_name|default('?')|first|upper }}{% endif %}</span></span>
+      <span class="pl-story__n">{{ p.display_name|default('Profile')|split(' ')|first }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# Tabs #}
+  <div class="pl-tabs">
+    <button type="button" class="pl-tab" :class="tab==='foryou' && 'is-on'" @click="tab='foryou'" :aria-pressed="tab==='foryou'">For you</button>
+    <button type="button" class="pl-tab" :class="tab==='events' && 'is-on'" @click="tab='events'" :aria-pressed="tab==='events'">Events</button>
+    <button type="button" class="pl-tab" :class="tab==='community' && 'is-on'" @click="tab='community'" :aria-pressed="tab==='community'">Community</button>
+  </div>
+
+  {# ── FOR YOU ── #}
+  <div x-show="tab==='foryou'">
+    <div class="pl-grid">
+      <div class="pl-feed">
+        {% if posts is not empty %}
+          {% for post in posts %}
+          {% set cover = post.cover_image|default(post.cover_path|default(post.hero_image|default(''))) %}
+          <article class="pl-post">
+            <div class="pl-post__hd">
+              <span class="pl-post__av">{{ post.author_name|default('Africa GATES')|first|upper }}</span>
+              <div><div class="pl-post__au">{{ post.author_name|default('Africa GATES') }}</div><div class="pl-post__mt">{% if post.published_at %}{{ post.published_at|date('M j, Y') }}{% endif %}</div></div>
+            </div>
+            {% if cover %}<a href="/blog/{{ post.slug }}" class="pl-post__cover" style="background-image:url('{{ cover }}')" aria-label="{{ post.title }}"></a>{% endif %}
+            <div class="pl-post__bd">
+              {% if post.category is defined and post.category %}<div class="pl-post__cat">{{ post.category }}</div>{% endif %}
+              <a class="pl-post__t" href="/blog/{{ post.slug }}">{{ post.title }}</a>
+              <p class="pl-post__x">{{ post.excerpt|default(post.body|default('')|striptags)|slice(0,160) }}{% if (post.excerpt|default(post.body|default('')|striptags))|length > 160 %}…{% endif %}</p>
+              <a class="pl-post__a" href="/blog/{{ post.slug }}">Read more
+                <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            </div>
+          </article>
+          {% endfor %}
+        {% else %}
+          <div class="pl-empty">The feed is just getting started. Follow the cycle as nominations open — or read the latest on the <a href="/blog">journal</a>.</div>
+        {% endif %}
+      </div>
+
+      <aside class="pl-rail">
+        <div class="pl-card">
+          <p class="pl-card__k">Leading the index</p>
+          {% if leaders is not empty %}
+            {% for p in leaders|slice(0,4) %}
+            <a class="pl-lead" href="/registry/{{ p.slug }}">
+              <span class="pl-lead__r">{{ loop.index }}</span>
+              <span class="pl-lead__av" {% if p.avatar_path %}style="background-image:url('{{ p.avatar_path }}')"{% endif %}>{% if not p.avatar_path %}{{ p.display_name|default('?')|first|upper }}{% endif %}</span>
+              <span class="pl-lead__n">{{ p.display_name }}</span>
+              <span class="pl-lead__c">{{ p.cpi_score|default(0)|number_format }}</span>
+            </a>
+            {% endfor %}
+          {% else %}
+            <p style="margin:0;font-size:13px;color:#5a6d6f">Rankings appear once the first cycle is scored.</p>
+          {% endif %}
+        </div>
+        <div class="pl-dark">
+          <div class="pl-dark__orb" aria-hidden="true"></div>
+          <p class="pl-dark__k">Your vote moves the index</p>
+          <div class="pl-dark__t">One verified vote per category</div>
+          <p class="pl-dark__p">Cross-checked, fraud-scored, recomputed every six hours.</p>
+          <a class="pl-dark__btn" href="/vote">Cast a vote</a>
+        </div>
+        <div class="pl-card">
+          <p class="pl-card__k">Join the conversation</p>
+          <p style="margin:0 0 14px;font-size:13.5px;line-height:1.5;color:#4a5256">Programme channels where the community gathers between cycles — OTP-verified, moderated.</p>
+          <a class="pl-post__a" href="/community" style="margin-top:0">Open the community
+            <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  {# ── EVENTS ── #}
+  <div x-show="tab==='events'" x-cloak>
+    {% if events is not empty %}
+    <div class="pl-evs">
+      {% for e in events %}
+      <a class="pl-ev" href="/events">
+        <span class="pl-ev__d"><span class="pl-ev__mon">{{ e.event_date|date('M') }}</span><span class="pl-ev__day">{{ e.event_date|date('d') }}</span></span>
+        <div style="flex:1;min-width:0">
+          <div class="pl-ev__t">{{ e.title }}</div>
+          <div class="pl-ev__m">{{ e.event_date|date('D, j M · g:i a') }}{% if e.location %} · {{ e.location }}{% endif %}</div>
+        </div>
+        <span class="pl-ev__cta">Details →</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="pl-empty">No upcoming events are scheduled right now. The calendar fills as the cycle progresses — check <a href="/events">events</a> for the latest.</div>
+    {% endif %}
+  </div>
+
+  {# ── COMMUNITY ── #}
+  <div x-show="tab==='community'" x-cloak>
+    {% if threads is not empty %}
+    <div class="pl-chs">
+      {% for t in threads %}
+      <a class="pl-ch" href="/community/{{ t.slug }}">
+        <div class="pl-ch__t">{{ t.title }}</div>
+        <p class="pl-ch__x">{{ t.body|default('')|striptags|slice(0,120) }}{% if (t.body|default('')|striptags)|length > 120 %}…{% endif %}</p>
+        <div class="pl-ch__m">{% if t.created_at %}{{ t.created_at|date('M j, Y') }} · {% endif %}Open thread →</div>
+      </a>
+      {% endfor %}
+    </div>
+    <div style="margin-top:18px"><a class="pl-post__a" href="/community">See all community channels
+      <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
+    {% else %}
+    <div class="pl-empty">The community channels are open — be the first to start a thread in the <a href="/community">community</a>.</div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

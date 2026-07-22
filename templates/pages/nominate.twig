@@ -1,283 +1,506 @@
 {% extends "layout/gates.twig" %}
-{% block content %}
 
-{# Programme→categories map for JS — ALWAYS from real DB data (the controller passes
-   `all_programmes` on every render path, including errors). No hardcoded fallback:
-   stale category IDs here previously mismatched the DB and could misfile a nomination. #}
-{% set awards = all_programmes|default(awards_data|default([])) %}
+{# Programme→categories map for JS — ALWAYS from real DB data (controller passes
+   `all_programmes` on every render path, including errors). #}
+{% set awards = programmes|default(all_programmes|default(awards_data|default([]))) %}
+{% set COUNTRIES = {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':"Côte d'Ivoire",'CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','AO':'Angola','CD':'DR Congo'} %}
+{% set TINT = [['#eef7ee','#1a6118'],['#fff8df','#7a5600'],['#e9efef','#2b373d'],['#f3eef7','#5b3a8a'],['#fdeaf0','#9c2b48'],['#e0eef1','#225a67']] %}
 
-{# Hero #}
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">Nominations open · 2026 Cycle</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Put someone <em style="color:var(--emerald-600)">on the stage.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Free, OTP-verified, and live to voters the moment moderators approve. Takes under 3 minutes.</p>
-      <p class="r26-trust r26-reveal r26-d4" style="margin-top:1.6rem">Nominee details · Verify by email · Go live to voters</p>
-    </div>
-  </div>
-</section>
+{% block head_styles %}
+<style>
+  body[data-page="nominate"]{ background:#eef0ec; color:#10292C; }
+  body[data-page="nominate"] [x-cloak]{ display:none !important; }
+  .nm{ --green:#237b22; --green-d:#1a6118; --ink:#10292C; --soft:#4a5256; --faint:#5a6d6f; --line:rgba(16,41,44,.08); }
 
-<section class="section" style="padding-top:2rem;padding-bottom:4rem">
-  <div class="wrap" style="max-width:52rem">
+  .nm-head{ max-width:1000px; margin:0 auto; padding:clamp(1.6rem,4vw,2.2rem) var(--ag-gutter,32px) 0; text-align:center; }
+  .nm-head .nm-ey{ margin:0 0 7px; font-size:11px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--green); }
+  .nm-head h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.9rem,5vw,2.4rem); letter-spacing:-.02em; color:var(--ink); }
+  .nm-head p{ margin:12px auto 0; font-size:15px; line-height:1.6; color:var(--soft); max-width:520px; }
 
-    {% if error is defined and error %}
-    <div class="form-alert form-alert--error" data-anim style="border-radius:14px;padding:1rem 1.25rem;display:flex;align-items:center;gap:0.75rem;background:#fef2f2;border:1.5px solid #fecaca;color:#b91c1c;font-weight:500;margin-bottom:2rem">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-      {{ error }}
-    </div>
-    {% endif %}
+  /* stepper */
+  .nm-steps{ max-width:680px; margin:26px auto 0; padding:0 var(--ag-gutter,32px); }
+  .nm-steps__row{ display:flex; align-items:flex-start; }
+  .nm-st{ display:flex; align-items:flex-start; }
+  .nm-st__col{ display:flex; flex-direction:column; align-items:center; gap:7px; flex:none; width:62px; }
+  .nm-st__n{ width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-mono); font-weight:700; font-size:13px; background:#fff; color:var(--faint); border:2px solid rgba(16,41,44,.14); transition:.25s; }
+  .nm-st__name{ font-size:11px; font-weight:600; color:var(--faint); white-space:nowrap; transition:.25s; }
+  .nm-st__line{ flex:1; height:2px; background:rgba(16,41,44,.12); margin:16px 4px 0; transition:.3s; }
+  .nm-st.is-cur .nm-st__n{ background:var(--ink); color:#fff; border-color:transparent; }
+  .nm-st.is-cur .nm-st__name{ color:var(--ink); }
+  .nm-st.is-done .nm-st__n{ background:var(--green); color:#fff; border-color:transparent; }
 
-    <div id="draftBanner" hidden class="draft-banner" data-anim>
-      <span class="draft-banner__icon">💾</span>
-      <span class="draft-banner__label">You have a saved draft — your previous answers have been restored.</span>
-      <button class="draft-banner__action" id="draftClear" type="button">Clear draft</button>
-    </div>
+  /* card */
+  .nm-wrap{ max-width:680px; margin:24px auto 0; padding:0 var(--ag-gutter,32px) 70px; }
+  .nm-card{ background:#fff; border:1px solid var(--line); border-radius:22px; padding:clamp(20px,4vw,34px); }
+  .nm-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:22px; color:var(--ink); }
+  .nm-card .lead{ margin:8px 0 22px; font-size:14px; color:#626a6e; line-height:1.5; }
+  .nm-panel{ animation:nmFade .3s ease both; }
+  @keyframes nmFade{ from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+  @media(prefers-reduced-motion:reduce){ .nm-panel{ animation:none !important; } }
 
-    <div class="completion-ring" id="completionRing" data-anim>
-      <svg class="completion-ring__svg" width="60" height="60" viewBox="0 0 60 60">
-        <circle cx="30" cy="30" r="26" fill="none" stroke="#e5e7eb" stroke-width="5"/>
-        <circle class="completion-circle" cx="30" cy="30" r="26" fill="none" stroke="#e5e7eb"
-                stroke-width="5" stroke-linecap="round" transform="rotate(-90 30 30)"
-                style="stroke-dasharray:163.4;stroke-dashoffset:163.4;transition:stroke-dashoffset .4s ease,stroke .3s ease"/>
-      </svg>
-      <div class="completion-ring__text">
-        <div class="completion-ring__pct">0%</div>
-        <div class="completion-ring__label">Form complete</div>
-        <div class="completion-ring__hint">Fill in the required fields to submit</div>
-      </div>
-    </div>
+  .nm-lab{ display:block; font-size:12px; font-weight:600; color:var(--soft); margin-bottom:7px; }
+  .nm-in{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:14.5px; color:var(--ink); outline:none; background:#fff; transition:border-color .18s,box-shadow .18s; appearance:none; }
+  .nm-in:focus{ border-color:var(--green); box-shadow:0 0 0 4px rgba(35,123,34,.1); }
+  .nm-in.is-error{ border-color:#b4452f; box-shadow:0 0 0 4px rgba(180,69,47,.1); }
+  textarea.nm-in{ min-height:150px; resize:vertical; line-height:1.55; }
+  select.nm-in{ cursor:pointer; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23237b22' stroke-width='2.4'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; padding-right:40px; }
+  .nm-row{ display:flex; gap:12px; flex-wrap:wrap; } .nm-row > div{ flex:1; min-width:140px; }
+  .nm-stack{ display:flex; flex-direction:column; gap:14px; }
 
-    <form method="POST" action="/nominate" data-anim x-data="nominateForm()" x-init="init()" data-no-float id="nominationForm">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
+  /* portrait — fields wrap around it (portrait spans the first two rows;
+     longer fields flow full-width beneath) */
+  .nm-who{ display:grid; grid-template-columns:130px 1fr; gap:14px 20px; align-items:start; }
+  .nm-who__full{ grid-column:1 / -1; }
+  .nm-portrait{ grid-row:span 2; width:130px; text-align:center; }
+  .nm-drop{ position:relative; width:130px; height:150px; border-radius:16px; background:#f4f7f4; border:1.5px dashed #bcd9bb; overflow:hidden; display:flex; align-items:center; justify-content:center; cursor:pointer; background-size:cover; background-position:center; }
+  .nm-drop input{ position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .nm-drop__ph{ display:flex; flex-direction:column; align-items:center; gap:6px; color:var(--faint); font-size:11px; pointer-events:none; }
+  .nm-photomsg{ display:block; margin-top:8px; font-size:11px; line-height:1.35; color:var(--faint); }
+  @media(max-width:520px){ .nm-who{ grid-template-columns:1fr; } .nm-portrait{ grid-row:auto; justify-self:center; } .nm-who__full{ grid-column:1; } }
 
-      {# ── 01 Award Programme ───────────────────────────────── #}
-      <div class="form-section-card">
-        <div class="form-section-card__header">
-          <div class="form-section-card__num">01</div>
-          <div>
-            <div class="form-section-card__title">Award Programme</div>
-            <div class="form-section-card__sub">Choose the recognition track that best fits the nominee.</div>
-          </div>
-        </div>
-        <div class="field-row field-row--2">
-          <div class="field">
-            <select id="nProgramme" name="programme_id" class="field__input field__select" required
-                    x-model="selectedProg" @change="onProgChange()">
-              <option value=""> </option>
-              {% for a in awards %}
-              <option value="{{ a.id }}">{{ a.icon_emoji }} {{ a.title }}</option>
-              {% endfor %}
-            </select>
-            <label class="field__label" for="nProgramme">Programme <span style="color:var(--emerald-600)">*</span></label>
-          </div>
-          <div class="field" x-show="selectedProg" x-cloak x-transition>
-            <select id="nCategory" name="category_id" class="field__input field__select"
-                    :required="!!selectedProg" x-model="selectedCat" :disabled="!categories.length">
-              <option value=""> </option>
-              <template x-for="c in categories" :key="c.id">
-                <option :value="c.id" x-text="c.title"></option>
-              </template>
-            </select>
-            <label class="field__label" for="nCategory">Category <span style="color:var(--emerald-600)">*</span></label>
-          </div>
-        </div>
-      </div>
+  .nm-cards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px; }
+  @media(max-width:540px){ .nm-cards{ grid-template-columns:1fr; } }
+  /* many programmes → keep the step compact with a bounded, scrollable grid (same card style) */
+  .nm-cards--scroll{ max-height:382px; overflow-y:auto; padding:2px 8px 2px 2px; scrollbar-width:thin; }
+  .nm-cards--scroll::-webkit-scrollbar{ width:8px; }
+  .nm-cards--scroll::-webkit-scrollbar-thumb{ background:rgba(16,41,44,.14); border-radius:8px; }
+  .nm-pc{ cursor:pointer; position:relative; text-align:left; border:1.5px solid rgba(16,41,44,.12); background:#fff; border-radius:14px; padding:15px 36px 15px 15px; display:flex; align-items:center; gap:12px; font-family:inherit; transition:.18s; }
+  .nm-pc:hover{ border-color:#bcd9bb; }
+  .nm-pc.is-sel{ border-color:var(--green); background:#f6fcf5; }
+  .nm-pc__ic{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:19px; }
+  .nm-pc__t{ font-weight:600; font-size:14px; color:var(--ink); line-height:1.25; }
+  /* Info "i" — reveals the programme blurb on hover (desktop) or tap/focus (mobile). */
+  .nm-pc__i{ position:absolute; top:8px; right:8px; width:19px; height:19px; border-radius:50%; border:1.5px solid rgba(16,41,44,.22); background:#fff; color:#5a6d6f; font:italic 700 11px/1 Georgia,serif; display:flex; align-items:center; justify-content:center; cursor:help; z-index:2; }
+  .nm-pc__i:hover, .nm-pc__i:focus{ border-color:#237b22; color:#237b22; outline:none; }
+  .nm-pc__i::after{ content:attr(data-tip); position:absolute; bottom:calc(100% + 8px); right:-6px; width:max-content; max-width:230px; white-space:normal; background:#10292C; color:#fff; font:400 12px/1.45 var(--font-body,sans-serif); text-align:left; padding:9px 12px; border-radius:10px; box-shadow:0 12px 30px -12px rgba(0,0,0,.5); opacity:0; visibility:hidden; transform:translateY(4px); transition:opacity .15s, transform .15s; pointer-events:none; z-index:5; }
+  .nm-pc__i:hover::after, .nm-pc__i:focus::after{ opacity:1; visibility:visible; transform:translateY(0); }
 
-      {# ── 02 Nominee Details ───────────────────────────────── #}
-      <div class="form-section-card">
-        <div class="form-section-card__header">
-          <div class="form-section-card__num">02</div>
-          <div>
-            <div class="form-section-card__title">Nominee Details</div>
-            <div class="form-section-card__sub">Full name and location — be as precise as possible.</div>
-          </div>
-        </div>
+  .nm-hint{ font-size:12px; color:var(--faint); }
+  .nm-count{ font-size:12px; font-family:var(--ag-font-mono); }
+  .nm-check{ display:flex; align-items:flex-start; gap:9px; cursor:pointer; }
+  .nm-check input{ margin-top:2px; width:16px; height:16px; accent-color:var(--green); }
+  .nm-check span{ font-size:12.5px; line-height:1.5; color:#626a6e; }
+  .nm-check a{ color:var(--green); font-weight:600; text-decoration:none; }
+  .nm-file{ border:1px dashed #bcd9bb; background:#f6fcf5; border-radius:12px; padding:13px 15px; }
+  .nm-file input{ width:100%; font-size:13px; color:var(--soft); }
 
-        <div class="field">
-          <input id="nName" name="nominee_name" class="field__input" type="text" required placeholder=" ">
-          <label class="field__label" for="nName">Nominee's Full Name <span style="color:var(--emerald-600)">*</span></label>
-        </div>
+  .nm-alert{ display:flex; gap:.6rem; align-items:flex-start; border-radius:12px; padding:.8rem 1rem; margin-bottom:1.2rem; font-size:14px; font-weight:500; background:#fdeaea; border:1px solid #f5c2c2; color:#9c2b2b; }
+  .nm-perr{ color:#b4452f; font-size:12.5px; margin-top:10px; }
 
-        <div class="field-row field-row--3" style="margin-top:1rem">
-          <div class="field field__select-wrap">
-            <select id="nCountry" name="country_code" class="field__input field__select" required>
-              <option value=""> </option>
-              {% for code,name in {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':'Côte d\'Ivoire','CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','AO':'Angola','CD':'DR Congo'} %}
-              <option value="{{ code }}">{{ name }}</option>
-              {% endfor %}
-            </select>
-            <label class="field__label" for="nCountry">Country <span style="color:var(--emerald-600)">*</span></label>
-          </div>
-          <div class="field">
-            <input id="nState" name="nominee_state" class="field__input" type="text" placeholder=" ">
-            <label class="field__label" for="nState">State / Region</label>
-          </div>
-          <div class="field">
-            <input id="nLGA" name="nominee_lga" class="field__input" type="text" placeholder=" ">
-            <label class="field__label" for="nLGA">LGA / County</label>
-          </div>
-        </div>
+  .nm-nav{ display:flex; align-items:center; justify-content:space-between; margin-top:26px; padding-top:22px; border-top:1px solid var(--line); }
+  .nm-back{ cursor:pointer; border:none; background:none; font-family:inherit; font-size:14px; font-weight:600; color:#626a6e; padding:8px 4px; }
+  .nm-next{ cursor:pointer; border:none; background:var(--green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:13px 28px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; box-shadow:0 10px 20px -10px rgba(35,123,34,.6); transition:.18s; }
+  .nm-next:hover{ background:var(--green-d); }
+  .nm-next[disabled]{ opacity:.7; cursor:default; }
+  .nm-foot{ margin:16px 0 0; text-align:center; font-size:12.5px; color:var(--faint); }
 
-        <div class="field" style="margin-top:1rem">
-          <textarea id="nWhy" name="reason" class="field__input field__textarea" rows="5" required minlength="60" placeholder=" "></textarea>
-          <label class="field__label" for="nWhy" style="top:1.25rem;transform:none">Why do they deserve recognition? <span style="color:var(--emerald-600)">*</span></label>
-          <div class="field__hint">Be specific — concrete examples land better than adjectives. 80–600 characters.</div>
-        </div>
-      </div>
-
-      {# ── 03 Reference Links ───────────────────────────────── #}
-      <div class="form-section-card">
-        <div class="form-section-card__header">
-          <div class="form-section-card__num">03</div>
-          <div>
-            <div class="form-section-card__title">Reference Links <span style="font-weight:400;font-size:0.875rem;color:var(--neutral-500)">(Optional · up to 3)</span></div>
-            <div class="form-section-card__sub">News articles, social profiles, or school records that back this nomination.</div>
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:0.875rem">
-          {% for i in [1,2,3] %}
-          {% set fname = i == 1 ? 'reference_url' : 'reference_url_' ~ i %}
-          <div class="field">
-            <input id="nLink{{ i }}" name="{{ fname }}" class="field__input" type="url" placeholder=" ">
-            <label class="field__label" for="nLink{{ i }}">Link {{ i }}</label>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-
-      {# ── 04 Your Details ──────────────────────────────────── #}
-      <div class="form-section-card">
-        <div class="form-section-card__header">
-          <div class="form-section-card__num">04</div>
-          <div>
-            <div class="form-section-card__title">Your Details</div>
-            <div class="form-section-card__sub">The person making this nomination. We hash your email — plain text is never stored.</div>
-          </div>
-        </div>
-
-        <div class="field-row field-row--2">
-          <div class="field">
-            <input id="nByName" name="nominator_name" class="field__input" type="text" required placeholder=" ">
-            <label class="field__label" for="nByName">Your Full Name <span style="color:var(--emerald-600)">*</span></label>
-          </div>
-          <div class="field">
-            <input id="nByPhone" name="nominator_phone" class="field__input" type="tel" required placeholder=" ">
-            <label class="field__label" for="nByPhone">Your Phone <span style="color:var(--emerald-600)">*</span></label>
-          </div>
-        </div>
-
-        <div class="field-row field-row--3" style="margin-top:0.875rem">
-          <div class="field">
-            <select id="nByCountry" name="nominator_country" class="field__input field__input--select" required>
-              <option value=""> </option>
-              {% for code,name in {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':'Côte d\'Ivoire','CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','AO':'Angola','CD':'DR Congo'} %}
-              <option value="{{ code }}">{{ name }}</option>
-              {% endfor %}
-            </select>
-            <label class="field__label" for="nByCountry">Your Country <span style="color:var(--emerald-600)">*</span></label>
-          </div>
-          <div class="field">
-            <input id="nByState" name="nominator_state" class="field__input" type="text" required placeholder=" ">
-            <label class="field__label" for="nByState">State / Region <span style="color:var(--emerald-600)">*</span></label>
-          </div>
-          <div class="field">
-            <input id="nByLGA" name="nominator_lga" class="field__input" type="text" required placeholder=" ">
-            <label class="field__label" for="nByLGA">LGA / County <span style="color:var(--emerald-600)">*</span></label>
-          </div>
-        </div>
-
-        <div class="field" style="margin-top:0.875rem">
-          <input id="nEmail" name="nominator_email" class="field__input" type="email" required placeholder=" ">
-          <label class="field__label" for="nEmail">Your Email (for OTP verification) <span style="color:var(--emerald-600)">*</span></label>
-        </div>
-      </div>
-
-      <p class="text-xs" style="color:var(--neutral-500);margin-bottom:1.25rem">
-        By submitting you agree to the
-        <a href="/terms" style="color:var(--emerald-600);font-weight:600">terms</a> and
-        <a href="/privacy" style="color:var(--emerald-600);font-weight:600">privacy policy</a>.
-      </p>
-
-      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-        <button class="btn btn--emerald btn--lg" type="submit">
-          Submit nomination
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <p class="text-sm" style="color:var(--neutral-500)">Takes about 3 minutes</p>
-      </div>
-    </form>
-  </div>
-</section>
-
+  /* "How it works" orientation strip */
+  .nm-how{ list-style:none; margin:22px auto 0; padding:0 var(--ag-gutter,32px); max-width:820px; display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .nm-how li{ display:flex; align-items:flex-start; gap:11px; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px; padding:14px 16px; }
+  .nm-how__n{ flex:none; width:26px; height:26px; border-radius:50%; background:#eef7ee; color:#1a6118; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; }
+  .nm-how li strong{ display:block; font-size:14px; color:var(--ink); margin-bottom:2px; }
+  .nm-how li small{ display:block; font-size:12.5px; line-height:1.5; color:#5a6d6f; }
+  @media (max-width:640px){ .nm-how{ grid-template-columns:1fr; gap:10px; } }
+</style>
 {% endblock %}
+
+{% block content %}
+<div class="nm" data-no-smooth>
+  <div class="nm-head">
+    <p class="nm-ey">Nominate</p>
+    <h1>Surface someone who matters</h1>
+    <p>Put forward a creative, business or changemaker for continental recognition on Africa GATES — the Cultural Power Index. Our panel verifies every profile before it joins the cycle.</p>
+  </div>
+
+  {# Orientation: many nominators arrive from a shared link with no idea what a
+     nomination actually does. Spell out the journey before we ask for anything. #}
+  <ol class="nm-how" aria-label="How nominating works">
+    <li><span class="nm-how__n">1</span><span><strong>You nominate</strong><small>Tell us who they are and why they deserve recognition.</small></span></li>
+    <li><span class="nm-how__n">2</span><span><strong>We verify</strong><small>Our panel reviews the profile, then publishes it into the live cycle.</small></span></li>
+    <li><span class="nm-how__n">3</span><span><strong>The community decides</strong><small>People vote and judges score — together building their Cultural Power Index.</small></span></li>
+  </ol>
+
+  <div class="nm-steps" x-data="nomWizard()" x-init="init()" id="nomRoot">
+    <div class="nm-steps__row" role="group" aria-label="Nomination progress" :aria-description="'Step ' + step + ' of ' + steps.length + ': ' + steps[step-1]">
+      <template x-for="(s,i) in steps" :key="i">
+        <div class="nm-st" :class="{'is-done':step>i+1,'is-cur':step===i+1}" :style="i<steps.length-1 ? 'flex:1' : 'flex:none'" :aria-current="step===i+1 ? 'step' : false">
+          <div class="nm-st__col">
+            <span class="nm-st__n" aria-hidden="true" x-text="step>i+1 ? '✓' : (i+1)"></span>
+            <span class="nm-st__name" x-text="s"></span>
+            <span class="sr-only" x-text="step>i+1 ? '(completed)' : (step===i+1 ? '(current step)' : '')"></span>
+          </div>
+          <span class="nm-st__line" aria-hidden="true" x-show="i<steps.length-1" :style="step>i+1 ? 'background:#237b22' : ''"></span>
+        </div>
+      </template>
+    </div>
+
+    <div class="nm-wrap" style="margin-top:24px;padding-bottom:0">
+      <form method="POST" action="/nominate" id="nominationForm" class="nm-card" enctype="multipart/form-data" data-no-float @input="$event.target.classList.remove('is-error'); $event.target.removeAttribute('aria-invalid'); formError=''" @keydown.enter="if(step<4 && $event.target.matches('input:not([type=checkbox]):not([type=radio]):not([type=file])')){ $event.preventDefault(); next(); }" @submit="if(!valid(4)){ $event.preventDefault(); return } submitting=true">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="device_fp" id="deviceFp">
+        <input type="hidden" name="programme_id" :value="selectedProg">
+        <input type="hidden" name="programme_title" :value="progTitle">
+
+        {% if error is defined and error %}
+        <div class="nm-alert" role="alert">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        {# Client-side validation message — clear, single, styled (no native bubbles) #}
+        <div class="nm-alert" role="alert" aria-live="assertive" x-show="formError" x-cloak style="margin-bottom:16px">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span x-text="formError"></span>
+        </div>
+
+        {# STEP 1 · WHO #}
+        <section class="nm-panel" data-step="1" x-show="step===1" x-cloak>
+          <h2>Who are you nominating?</h2>
+          <p class="lead">Tell us about the person you believe deserves recognition.</p>
+          {% if prefill %}
+          <div style="background:#eef7ee;border:1px solid #cfe6cf;border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:13.5px;color:#1d4d1f">
+            <strong>Shared nomination link</strong> — we've pre-filled {{ prefill.nominee_name|default('the nominee') }}'s details for you. Review and edit anything before you submit your own nomination.
+          </div>
+          {% elseif share_expired %}
+          <div style="background:#fdf3ec;border:1px solid #f2d9c4;border-radius:12px;padding:10px 14px;margin:0 0 14px;font-size:13.5px;color:#7a4a1f">
+            That share link has expired or is invalid — no problem, you can still nominate from scratch below.
+          </div>
+          {% endif %}
+          <div class="nm-who">
+            <div class="nm-portrait">
+              <label class="nm-drop" :style="photoUrl ? 'background-image:url('+photoUrl+');border-style:solid' : ''">
+                <input type="file" name="nominee_photo" accept="image/png,image/jpeg,image/webp" @change="analyzePhoto($event)">
+                <span class="nm-drop__ph" x-show="!photoUrl">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9cbf9a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                  Photo
+                </span>
+              </label>
+              <small class="nm-photomsg" :style="photoMsg ? (photoOk ? 'color:#1a9c34' : 'color:#b4452f') : ''" x-text="photoMsg || 'Optional portrait'"></small>
+            </div>
+            <div><label class="nm-lab" for="nName">Nominee's full name *</label><input id="nName" name="nominee_name" class="nm-in" type="text" required pattern="^\s*\S+(\s+\S+)+.*$" title="Please enter the nominee's first and last name." placeholder="e.g. Amara Okonkwo" value="{{ old.nominee_name ?? prefill.nominee_name ?? '' }}"></div>
+            <div><label class="nm-lab" for="nCountry">Country *</label>
+              <select id="nCountry" name="country_code" class="nm-in" required x-model="nomineeCountry" @change="nomineeState=''">
+                <option value="" disabled {% if not (old.country_code ?? prefill.country_code ?? '') %}selected{% endif %} hidden>Select…</option>
+                {% for code,name in COUNTRIES %}<option value="{{ code }}" {% if (old.country_code ?? prefill.country_code ?? '') == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="nm-who__full"><label class="nm-lab" for="nOrg">Organisation / school <span style="color:#5a6d6f;font-weight:400">(optional)</span></label><input id="nOrg" name="nominee_org" class="nm-in" type="text" maxlength="200" placeholder="School, company or organisation they belong to" value="{{ old.nominee_org ?? prefill.nominee_org ?? '' }}"></div>
+            <div class="nm-who__full nm-row">
+              <div>
+                <label class="nm-lab" for="nStateSel" x-show="nomineeStates.length">State / Region *</label>
+                <select id="nStateSel" name="nominee_state" class="nm-in" required x-show="nomineeStates.length" :disabled="!nomineeStates.length" x-model="nomineeState" x-cloak>
+                  <option value="" disabled selected hidden>Select…</option>
+                  <template x-for="s in nomineeStates" :key="s"><option :value="s" x-text="s"></option></template>
+                </select>
+                <label class="nm-lab" for="nState" x-show="!nomineeStates.length">State / Region *</label>
+                <input id="nState" name="nominee_state" class="nm-in" type="text" required x-show="!nomineeStates.length" :disabled="nomineeStates.length>0" placeholder="e.g. state, region or province" value="{{ old.nominee_state ?? prefill.nominee_state ?? '' }}">
+              </div>
+              <div><label class="nm-lab" for="nLGA">LGA / County *</label><input id="nLGA" name="nominee_lga" class="nm-in" type="text" required placeholder="e.g. Nsukka" value="{{ old.nominee_lga ?? prefill.nominee_lga ?? '' }}"></div>
+            </div>
+            <div class="nm-who__full nm-row">
+              <div><label class="nm-lab" for="nEmail">Nominee's email <span style="color:#5a6d6f;font-weight:400">(email or phone — at least one)</span></label><input id="nEmail" name="nominee_email" class="nm-in" type="email" placeholder="So we can reach them about the nomination" value="{{ old.nominee_email ?? prefill.nominee_email ?? '' }}"></div>
+              <div><label class="nm-lab" for="nPhone">Nominee's phone <span style="color:#5a6d6f;font-weight:400">(with country code)</span></label><input id="nPhone" name="nominee_phone" class="nm-in" type="tel" maxlength="40" placeholder="e.g. +234 801 234 5678" value="{{ old.nominee_phone ?? prefill.nominee_phone ?? '' }}"></div>
+            </div>
+            <div class="nm-who__full"><small style="color:#5a6d6f">We use this to tell the nominee about their nomination — share their email, phone, or both. Phone works with SMS and WhatsApp.</small></div>
+          </div>
+        </section>
+
+        {# STEP 2 · PROGRAMME #}
+        <section class="nm-panel" data-step="2" x-show="step===2" x-cloak>
+          <h2>Which programme?</h2>
+          <p class="lead">Pick the honour that best fits their contribution.</p>
+          <div class="nm-cards {% if awards|length > 8 %}nm-cards--scroll{% endif %}">
+            {% for a in awards %}
+            {% set tc = TINT[loop.index0 % TINT|length] %}
+            <button type="button" class="nm-pc" :class="selectedProg==='{{ a.id }}' ? 'is-sel' : ''" @click='pickProg("{{ a.id }}", {{ a.title|json_encode(15)|raw }})'>
+              <span class="nm-pc__ic" style="background:{{ tc[0] }};color:{{ tc[1] }}">{{ a.icon_emoji|default('🏆') }}</span>
+              <span class="nm-pc__t">{{ a.title }}</span>
+              {% set ptip = (a.subtitle|default('')) ?: (a.description|default('')) %}
+              {% if ptip %}<span class="nm-pc__i" tabindex="0" role="img" aria-label="About {{ a.title }}" data-tip="{{ ptip }}" @click.stop @keydown.enter.stop>i</span>{% endif %}
+            </button>
+            {% else %}
+            <p class="nm-hint">No programmes are open for nominations right now. Please check back soon.</p>
+            {% endfor %}
+          </div>
+          <p class="nm-perr" x-show="progErr && !selectedProg" x-cloak>Please choose a programme to continue.</p>
+          <div x-show="selectedProg && categories.length" x-cloak style="margin-top:16px">
+            <label class="nm-lab" for="nCat">Category *</label>
+            <select id="nCat" name="category_id" class="nm-in" x-model="selectedCat" :required="categories.length>0">
+              <option value="" disabled selected hidden>Choose a category…</option>
+              <template x-for="c in categories" :key="c.id"><option :value="c.id" x-text="c.title"></option></template>
+            </select>
+          </div>
+        </section>
+
+        {# STEP 3 · STORY #}
+        <section class="nm-panel" data-step="3" x-show="step===3" x-cloak>
+          <h2>Why do they deserve this?</h2>
+          <p class="lead">Tell their story. Specific impact carries the most weight with our panel.</p>
+          <textarea id="nWhy" name="reason" class="nm-in" required minlength="60" placeholder="What have they built or changed? Who has it helped?" x-model="story"></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:7px;flex-wrap:wrap">
+            <span class="nm-hint">Minimum 60 characters</span>
+            <span style="display:inline-flex;align-items:center;gap:10px">
+              <button type="button" x-show="polishAvail" x-cloak @click="polish()" x-bind:disabled="polishing || story.trim().length < 60"
+                      style="border:1px solid #cfe6cf;background:#f4f9f4;color:#1a6118;font-weight:600;font-size:12px;padding:6px 13px;border-radius:999px;cursor:pointer"
+                      aria-describedby="polishNote">
+                <span x-text="polishing ? '✦ Polishing…' : '✦ Polish my story'"></span>
+              </button>
+              <span class="nm-count" :style="story.trim().length>=60 ? 'color:#1a9c34' : 'color:#5a6d6f'" x-text="story.trim().length + ' chars'"></span>
+            </span>
+          </div>
+          <p id="polishNote" class="nm-hint" x-show="polishMsg" x-cloak role="status" style="margin-top:5px">
+            <span x-text="polishMsg"></span>
+            <button type="button" x-show="_storyBackup" @click="story=_storyBackup; _storyBackup=''; polishMsg='Restored your original wording.'"
+                    style="border:none;background:none;color:#1a6118;font-weight:700;font-size:12px;cursor:pointer;text-decoration:underline;padding:0 2px">Undo</button>
+          </p>
+          <label class="nm-lab" style="margin:18px 0 7px">Reference links (optional)</label>
+          <div class="nm-stack">
+            <input name="reference_url" class="nm-in" type="url" placeholder="Reference 1 — article, video, or programme website" value="{{ old.reference_url ?? '' }}">
+            <input name="reference_url_2" class="nm-in" type="url" placeholder="Reference 2 (optional)" value="{{ old.reference_url_2 ?? '' }}">
+            <input name="reference_url_3" class="nm-in" type="url" placeholder="Reference 3 (optional)" value="{{ old.reference_url_3 ?? '' }}">
+          </div>
+          <label class="nm-lab" style="margin:18px 0 7px">Supporting document (optional)</label>
+          <div class="nm-file"><input type="file" name="evidence" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"></div>
+          <p class="nm-hint" style="margin-top:7px">PDF or image, up to 15MB — an impact report, letter of support, or photo. Reviewed by our team.</p>
+        </section>
+
+        {# STEP 4 · YOU #}
+        <section class="nm-panel" data-step="4" x-show="step===4" x-cloak>
+          <h2>About you</h2>
+          <p class="lead">We verify nominators to keep the registry trustworthy. Your email is hashed — the plain address is never stored.</p>
+          {% include 'partials/member-autofill.twig' with {
+            member: member|default(null),
+            maf_fields: [
+              {sel: '#byName',  key: 'name'},
+              {sel: '#byEmail', key: 'email'},
+              {sel: '#byPhone', key: 'phone'},
+            ],
+          } only %}
+          <div class="nm-stack">
+            <div class="nm-row">
+              <div><label class="nm-lab" for="byName">Your full name *</label><input id="byName" name="nominator_name" class="nm-in" type="text" required pattern="^\s*\S+(\s+\S+)+.*$" title="Please enter your first and last name." placeholder="e.g. Chidi Okeke" value="{{ old.nominator_name ?? '' }}"></div>
+              <div><label class="nm-lab" for="byPhone">Your phone *</label><input id="byPhone" name="nominator_phone" class="nm-in" type="tel" required placeholder="e.g. +234 801 234 5678" value="{{ old.nominator_phone ?? '' }}"></div>
+            </div>
+            <div class="nm-row">
+              <div><label class="nm-lab" for="byEmail">Your email *</label><input id="byEmail" name="nominator_email" class="nm-in" type="email" required placeholder="you@email.com" x-model="email"></div>
+              <div><label class="nm-lab" for="byAge">Your age range *</label>
+                <select id="byAge" name="nominator_age_range" class="nm-in" required>
+                  <option value="" disabled selected hidden>Select…</option>
+                  {% for a in ['Under 18','18–24','25–34','35–44','45–54','55+'] %}<option value="{{ a }}" {% if (old.nominator_age_range ?? '') == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="nm-row">
+              <div><label class="nm-lab" for="byCountry">Your country *</label>
+                <select id="byCountry" name="nominator_country" class="nm-in" required x-model="nominatorCountry" @change="nominatorState=''">
+                  <option value="" disabled {% if not (old.nominator_country ?? '') %}selected{% endif %} hidden>Select…</option>
+                  {% for code,name in COUNTRIES %}<option value="{{ code }}" {% if (old.nominator_country ?? '') == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
+                </select>
+              </div>
+              <div>
+                <label class="nm-lab" for="byStateSel" x-show="nominatorStates.length">Your state / region *</label>
+                <select id="byStateSel" name="nominator_state" class="nm-in" required x-show="nominatorStates.length" :disabled="!nominatorStates.length" x-model="nominatorState" x-cloak>
+                  <option value="" disabled selected hidden>Select…</option>
+                  <template x-for="s in nominatorStates" :key="s"><option :value="s" x-text="s"></option></template>
+                </select>
+                <label class="nm-lab" for="byState" x-show="!nominatorStates.length">State / Region *</label>
+                <input id="byState" name="nominator_state" class="nm-in" type="text" required x-show="!nominatorStates.length" :disabled="nominatorStates.length>0" placeholder="e.g. state, region or province" value="{{ old.nominator_state ?? '' }}">
+              </div>
+              <div><label class="nm-lab" for="byLGA">LGA / County *</label><input id="byLGA" name="nominator_lga" class="nm-in" type="text" required placeholder="e.g. Ikeja" value="{{ old.nominator_lga ?? '' }}"></div>
+            </div>
+            <label class="nm-check"><input type="checkbox" required><span>I confirm this nomination is genuine and I accept the <a :href="termsUrl()" target="_blank" rel="noopener">programme terms</a> &amp; <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.</span></label>
+          </div>
+        </section>
+
+        <div class="nm-nav">
+          <button type="button" class="nm-back" x-show="step>1" @click="prev()">← Back</button>
+          <span style="flex:1"></span>
+          <button type="button" class="nm-next" x-show="step<4" @click="next()">
+            Continue <svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="submit" class="nm-next" x-show="step===4" x-cloak :disabled="submitting">
+            <span x-text="submitting ? 'Submitting…' : 'Submit nomination'"></span>
+            <svg x-show="!submitting" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M4 10.5 8.5 15 16 5.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </form>
+      <p class="nm-foot">Free · takes a few minutes · OTP-secured</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
 {% block foot_scripts %}
 <script>
+// Lightweight device fingerprint — a stable hash of non-identifying device
+// traits (UA, language, screen, timezone, a tiny canvas render). Used only to
+// stop the same device nominating the same person twice in a cycle.
+(function(){
+  function hashStr(str){ var h=2166136261; for(var i=0;i<str.length;i++){ h^=str.charCodeAt(i); h+=(h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24); } return (h>>>0).toString(16); }
+  function fingerprint(){
+    var n=navigator, s=screen, parts=[
+      n.userAgent||'', n.language||'', (n.languages||[]).join(','),
+      (s.width||0)+'x'+(s.height||0)+'x'+(s.colorDepth||0),
+      new Date().getTimezoneOffset(), n.hardwareConcurrency||'', n.deviceMemory||'', n.platform||''
+    ];
+    try { var c=document.createElement('canvas'), x=c.getContext('2d'); x.textBaseline='top'; x.font="14px 'Arial'"; x.fillStyle='#f60'; x.fillRect(0,0,100,20); x.fillStyle='#069'; x.fillText('AfricaGATES',2,2); parts.push(c.toDataURL().slice(-80)); } catch(e){}
+    var str=parts.join('|'); return hashStr(str)+hashStr(str.split('').reverse().join(''));
+  }
+  function set(){ var el=document.getElementById('deviceFp'); if(el) el.value=fingerprint(); }
+  if(document.readyState!=='loading') set(); else document.addEventListener('DOMContentLoaded', set);
+})();
 const AFG_PROG_CATS = {
-{% for a in awards %}
-  {{ a.id }}: [{% if a.categories is defined %}{% for c in a.categories %}{id:{{ c.id }},title:{{ c.title|json_encode(constant('JSON_HEX_TAG') b-or constant('JSON_HEX_AMP'))|raw }}},{% endfor %}{% endif %}],
-{% endfor %}
-};
-function nominateForm() {
+{% for a in awards %}  "{{ a.id }}": [{% if a.categories is defined %}{% for c in a.categories %}{id:{{ c.id }},title:{{ c.title|json_encode(15)|raw }}},{% endfor %}{% endif %}],
+{% endfor %}};
+const AFG_PROG_SLUGS = {
+{% for a in awards %}  "{{ a.id }}": {{ a.slug|default('')|json_encode|raw }},
+{% endfor %}};
+{% set _pf = old ?? prefill %}const AFG_PREFILL = {{ _pf ? _pf|json_encode(15)|raw : 'null' }};
+// First-level regions per country (ISO2 → [names]); drives the dependent
+// State/Region select. Sourced from a frozen open dataset — see Support\Regions.
+const AFG_STATES = {{ regions|default({})|json_encode|raw }};
+
+function nomWizard(){
   return {
-    selectedProg: '', selectedCat: '', categories: [],
-    init() { const keys = Object.keys(AFG_PROG_CATS); if (keys.length===1){this.selectedProg=keys[0];this.onProgChange();} },
-    onProgChange() { this.selectedCat=''; this.categories = AFG_PROG_CATS[this.selectedProg]||[]; }
+    step:1,
+    steps:['Who','Programme','Story','You'],
+    selectedProg:'', selectedCat:'', categories:[], progErr:false, progTitle:'', formError:'',
+    nomineeCountry:'{{ (old.country_code ?? prefill.country_code ?? '')|e('js') }}',
+    nominatorCountry:'{{ (old.nominator_country ?? '')|e('js') }}',
+    nomineeState:'{{ (old.nominee_state ?? prefill.nominee_state ?? '')|e('js') }}',
+    nominatorState:'{{ (old.nominator_state ?? '')|e('js') }}',
+    get nomineeStates(){ return (typeof AFG_STATES!=='undefined' && AFG_STATES[this.nomineeCountry]) || []; },
+    get nominatorStates(){ return (typeof AFG_STATES!=='undefined' && AFG_STATES[this.nominatorCountry]) || []; },
+    story:'{{ (old.reason ?? '')|e('js') }}', email:'{{ (old.nominator_email ?? '')|e('js') }}', photoName:'', photoUrl:'', photoOk:true, photoMsg:'', _photoInput:null, submitting:false,
+    polishAvail:true, polishing:false, polishMsg:'', _storyBackup:'',
+    /* AI story polish — optional nicety with INVISIBLE limits: any budget/
+       provider issue silently hides the button; the wizard never errors. */
+    async polish(){
+      if(this.polishing) return;
+      this.polishing = true; this.polishMsg = '';
+      try{
+        const r = await fetch('/api/v1/nominations/polish', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ reason: this.story })
+        });
+        const j = await r.json();
+        if(j && j.text){
+          this._storyBackup = this.story;
+          this.story = j.text;
+          this.polishMsg = 'Polished — your facts are unchanged. Edit freely, or undo below.';
+          if(window.agAnnounce) window.agAnnounce('Story polished — review the updated text.');
+        } else {
+          this.polishAvail = false; /* AI_OFF or budget — quietly step aside */
+        }
+      }catch(e){ this.polishAvail = false; }
+      finally{ this.polishing = false; }
+    },
+    termsUrl(){ var s = (typeof AFG_PROG_SLUGS !== 'undefined') ? AFG_PROG_SLUGS[this.selectedProg] : ''; return s ? '/terms/' + s : '/terms'; },
+    init(){
+      const k=Object.keys(AFG_PROG_CATS);
+      if(k.length===1){ const a=document.querySelector('.nm-pc'); this.pickProg(k[0], a?a.querySelector('.nm-pc__t').textContent.trim():''); }
+      // Shared-link prefill: select the programme (and category) the link carried,
+      // as long as that programme is still open for nominations.
+      if(AFG_PREFILL && AFG_PREFILL.programme_id && AFG_PROG_CATS[String(AFG_PREFILL.programme_id)]){
+        const id=String(AFG_PREFILL.programme_id);
+        const btns=document.querySelectorAll('.nm-pc');
+        let title='';
+        btns.forEach(b=>{ if((b.getAttribute('@click')||b.outerHTML).indexOf('"'+id+'"')>-1){ const t=b.querySelector('.nm-pc__t'); if(t) title=t.textContent.trim(); } });
+        this.pickProg(id, title);
+        if(AFG_PREFILL.category_id && this.categories.some(c=>String(c.id)===String(AFG_PREFILL.category_id))){
+          this.selectedCat=String(AFG_PREFILL.category_id);
+        }
+      }
+    },
+    pickProg(id, title){ this.selectedProg=String(id); this.progTitle=title||''; this.progErr=false; this.onProgChange(); },
+    onProgChange(){ this.selectedCat=''; this.categories=AFG_PROG_CATS[this.selectedProg]||[]; },
+    /* Photo analyzer — rejects unsuitable images before they ever leave the browser
+       (type, size, min dimensions, aspect, and a brightness/variance check that
+       catches blank, near-black or washed-out frames). The server re-validates. */
+    analyzePhoto(e){
+      this._photoInput = e.target;
+      const f = e.target.files && e.target.files[0];
+      if(!f){ this.clearPhoto(); return; }
+      if(!/^image\/(png|jpe?g|webp)$/.test(f.type)){ this.rejectPhoto('Use a PNG, JPG or WebP image.'); return; }
+      if(f.size > 8*1024*1024){ this.rejectPhoto('Image is over 8MB — please compress it.'); return; }
+      this.photoMsg = 'Checking image…'; this.photoOk = true;
+      const url = URL.createObjectURL(f);
+      const img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth, h = img.naturalHeight, ar = w / h;
+        if(w < 200 || h < 200){ URL.revokeObjectURL(url); this.rejectPhoto('Too small — use at least 200×200px.'); return; }
+        if(ar < 0.4 || ar > 2.5){ URL.revokeObjectURL(url); this.rejectPhoto('Unusual shape — use a portrait or square photo.'); return; }
+        try {
+          const S = 32, cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+          const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0, S, S);
+          const d = cx.getImageData(0, 0, S, S).data; let sum = 0, sum2 = 0; const n = S * S;
+          for(let i = 0; i < d.length; i += 4){ const L = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]; sum += L; sum2 += L*L; }
+          const mean = sum / n, variance = sum2 / n - mean * mean;
+          if(mean < 22){ URL.revokeObjectURL(url); this.rejectPhoto('Too dark to make out — try a brighter photo.'); return; }
+          if(mean > 242){ URL.revokeObjectURL(url); this.rejectPhoto('Too washed out — try a clearer photo.'); return; }
+          if(variance < 60){ URL.revokeObjectURL(url); this.rejectPhoto('Looks blank or flat — upload an actual photo.'); return; }
+        } catch(err){ /* canvas blocked — let the server make the call */ }
+        this.photoUrl = url; this.photoName = f.name; this.photoOk = true; this.photoMsg = 'Looks good ✓';
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); this.rejectPhoto("Couldn't read that image — try another file."); };
+      img.src = url;
+    },
+    rejectPhoto(msg){ this.photoOk = false; this.photoMsg = msg; this.photoUrl = ''; this.photoName = ''; if(this._photoInput) this._photoInput.value = ''; },
+    clearPhoto(){ this.photoOk = true; this.photoMsg = ''; this.photoUrl = ''; this.photoName = ''; },
+    valid(n){
+      this.formError='';
+      if(n===2 && !this.selectedProg){ this.progErr=true; this.formError='Please choose a programme to continue.'; return false; }
+      const panel = this.$root.querySelector('[data-step="'+n+'"]');
+      if(!panel) return true;
+      for(const f of panel.querySelectorAll('input,select,textarea')){
+        if(f.disabled || f.type==='file') continue;
+        if(!f.checkValidity()){
+          f.classList.add('is-error');
+          f.setAttribute('aria-invalid','true');
+          const lab = ((panel.querySelector('label[for="'+f.id+'"]')||{}).textContent||'this field').replace('*','').trim();
+          if(f.validity.valueMissing)              this.formError = 'Please fill in “'+lab+'”.';
+          else if(f.validity.patternMismatch && f.title) this.formError = f.title;
+          else if(f.validity.typeMismatch && f.type==='email') this.formError = 'Please enter a valid email address.';
+          else                                     this.formError = f.validationMessage || 'Please check “'+lab+'”.';
+          f.focus({preventScroll:true});
+          try{ f.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+          return false;
+        }
+      }
+      if(n===1){
+        // Nominee contact: email OR phone — at least one (server enforces the same rule).
+        const em=((this.$root.querySelector('#nEmail')||{}).value||'').trim();
+        const ph=((this.$root.querySelector('#nPhone')||{}).value||'').trim();
+        if(!em && !ph){
+          this.formError="Please provide the nominee's email or phone — at least one is required.";
+          const f=this.$root.querySelector('#nEmail');
+          if(f){ f.classList.add('is-error'); f.setAttribute('aria-invalid','true'); f.focus({preventScroll:true}); }
+          return false;
+        }
+        if(ph && ph.replace(/\D/g,'').length<8){
+          this.formError='Please enter a valid phone number for the nominee — include the country code (e.g. +234 803 123 4567).';
+          const f=this.$root.querySelector('#nPhone');
+          if(f){ f.classList.add('is-error'); f.setAttribute('aria-invalid','true'); f.focus({preventScroll:true}); }
+          return false;
+        }
+      }
+      return true;
+    },
+    announceStep(){ if(window.agAnnounce) window.agAnnounce('Step '+this.step+' of '+this.steps.length+': '+this.steps[this.step-1]); },
+    next(){ if(!this.valid(this.step)) return; if(this.step<4){ this.step++; this.top(); this.announceStep(); } },
+    prev(){ if(this.step>1){ this.step--; this.top(); this.announceStep(); } },
+    top(){ try{ this.$root.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} }
   };
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function(){
   const form = document.getElementById('nominationForm');
-  const ring = document.getElementById('completionRing');
-
-  // Draft auto-save via AFG feature layer
-  if (window.AFG && AFG.initDraftSave)
-    AFG.initDraftSave(form, (window.AFG_SESSION||'anon') + '_nominate');
-
-  // Re-sync Alpine with any draft-restored select values.
-  // initDraftSave sets el.value directly (no DOM event), so x-model / @change
-  // never fire — selectedProg stays '' and the category div stays hidden.
-  (function () {
-    var progEl = document.getElementById('nProgramme');
-    if (!progEl || !progEl.value) return;
-    var savedCat = document.getElementById('nCategory')?.value || '';
-    progEl.dispatchEvent(new Event('change', { bubbles: true }));
-    if (savedCat) requestAnimationFrame(function () {
-      var catEl = document.getElementById('nCategory');
-      if (catEl) catEl.value = savedCat;
-    });
-  })();
-
-  // Completion percentage ring
-  if (window.AFG && AFG.initCompletionRing)
-    AFG.initCompletionRing(form, ring);
-
-  // Funnel: nomination started
-  if (window.AFG && AFG.trackFunnel)
-    AFG.trackFunnel('nominate_start');
-
-  // Real-time floating-label validation
-  document.querySelectorAll('.field__input').forEach(function (el) {
-    el.addEventListener('blur', function () {
-      if (!el.value.trim()) {
-        if (el.required) { el.classList.add('is-error'); el.classList.remove('is-valid'); }
-      } else if (el.validity && !el.validity.valid) {
-        el.classList.add('is-error'); el.classList.remove('is-valid');
-      } else {
-        el.classList.add('is-valid'); el.classList.remove('is-error');
-      }
-    });
-    el.addEventListener('input', function () {
-      if (el.value.trim()) el.classList.remove('is-error');
-    });
-  });
-
-  // Funnel: submitted
-  if (form) form.addEventListener('submit', function () {
-    if (window.AFG && AFG.trackFunnel) AFG.trackFunnel('nominate_submitted');
-  });
+  if(!form) return;
+  if(window.AFG && AFG.initDraftSave) AFG.initDraftSave(form, (window.AFG_SESSION||'anon')+'_nominate');
+  if(window.AFG && AFG.trackFunnel) AFG.trackFunnel('nominate_start');
+  form.addEventListener('submit', function(){ if(window.AFG && AFG.trackFunnel) AFG.trackFunnel('nominate_submitted'); });
+  form.querySelectorAll('.nm-in').forEach(el => el.addEventListener('input', () => { if(el.value.trim()) el.classList.remove('is-error'); }));
 });
 </script>
 {% endblock %}

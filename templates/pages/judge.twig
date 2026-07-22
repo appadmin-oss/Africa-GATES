@@ -1,0 +1,125 @@
+{% extends "layout/gates.twig" %}
+
+{# ── A JUROR'S CITATION — formal, portrait-led, in the roster's honour
+   language (arch portrait, gold keylines, small-caps engraving). #}
+
+{% set COUNTRY_NAMES = {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':"Côte d'Ivoire",'CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','AO':'Angola','CD':'DR Congo','BW':'Botswana','NA':'Namibia','US':'United States','GB':'United Kingdom','FR':'France','DE':'Germany','CA':'Canada'} %}
+{% set country = COUNTRY_NAMES[judge.country_code]|default(judge.country_code)|default('') %}
+
+{% block head_styles %}
+<style>
+  body[data-page="judges"]{ background:#f2f1ec; color:var(--ag-ink); }
+  .jd{ max-width:980px; margin:0 auto; padding:0 var(--ag-gutter,28px) 64px; }
+  .jd-caps{ font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.22em; text-transform:uppercase; color:#8a6d1a; }
+  .jd-crumb{ font-size:12.5px; color:#5a6d6f; padding:18px 0 0; }
+  .jd-crumb a{ color:#5a6d6f; text-decoration:none; } .jd-crumb a:hover{ color:var(--ag-ink); }
+
+  /* ── Citation header: arch portrait beside the formal announcement ── */
+  .jd-head{ display:grid; grid-template-columns:minmax(200px,260px) 1fr; gap:clamp(1.6rem,5vw,3rem); align-items:end; margin-top:clamp(1.6rem,4vw,2.6rem); }
+  @media(max-width:680px){ .jd-head{ grid-template-columns:1fr; justify-items:center; text-align:center; } }
+  .jd-arch{ position:relative; width:100%; max-width:260px; aspect-ratio:4/5; border-radius:999px 999px 14px 14px; padding:8px; background:linear-gradient(180deg,#d9b95c,#b98f2e 55%,#d9b95c); box-shadow:0 30px 54px -32px rgba(16,41,44,.6); }
+  .jd-arch__in{ width:100%; height:100%; border-radius:992px 992px 8px 8px; overflow:hidden; border:1px solid rgba(255,255,255,.55); background:#10292C center top/cover no-repeat; }
+  .jd-arch__mono{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:radial-gradient(120% 120% at 70% 8%,#1d5b2a,#10292C); color:#d9b95c; font-family:var(--ag-font-display); font-weight:700; font-size:76px; }
+  .jd-head__b{ padding-bottom:6px; }
+  .jd-head h1{ margin:12px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,5.4vw,3rem); line-height:1.02; letter-spacing:-.02em; color:var(--ag-ink); }
+  .jd-role{ margin:12px 0 0; font-size:16.5px; line-height:1.5; color:#2b373d; }
+  .jd-role b{ color:var(--ag-ink); }
+  .jd-rule{ display:flex; align-items:center; gap:12px; margin-top:18px; max-width:360px; }
+  @media(max-width:680px){ .jd-rule{ margin-left:auto; margin-right:auto; } }
+  .jd-rule::before, .jd-rule::after{ content:''; flex:1; height:1px; background:linear-gradient(90deg,transparent,#c9a648); }
+  .jd-rule::after{ background:linear-gradient(90deg,#c9a648,transparent); }
+
+  /* ── The citation ── */
+  .jd-cite{ margin-top:clamp(1.8rem,4vw,2.6rem); background:#fff; border:1px solid rgba(16,41,44,.09); border-top:3px solid #c9a648; border-radius:4px 4px 18px 18px; padding:clamp(1.6rem,4vw,2.4rem); }
+  .jd-cite h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.25rem; color:var(--ag-ink); }
+  .jd-cite__txt{ margin:16px 0 0; font-size:16px; line-height:1.8; color:#2b373d; white-space:pre-line; }
+  .jd-cite__txt::first-letter{ font-family:var(--ag-font-display); font-weight:700; font-size:3.1em; line-height:.82; float:left; padding:4px 10px 0 0; color:#8a6d1a; }
+
+  /* ── Presides over ── */
+  .jd-progs{ margin-top:18px; display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:12px; }
+  .jd-prog{ display:flex; align-items:center; gap:13px; background:#fff; border:1px solid #d9c489; border-radius:12px; padding:15px 17px; text-decoration:none; color:var(--ag-ink); transition:border-color .15s, transform .15s; }
+  .jd-prog:hover{ border-color:#b98f2e; transform:translateY(-2px); }
+  .jd-prog:focus-visible{ outline:2px solid #8a6d1a; outline-offset:2px; }
+  .jd-prog__ic{ flex:none; width:40px; height:40px; border-radius:10px; background:#fbf7ec; display:flex; align-items:center; justify-content:center; font-size:19px; }
+  .jd-prog__t b{ display:block; font-weight:700; font-size:14.5px; }
+  .jd-prog__t span{ font-size:11.5px; color:#8a6d1a; font-weight:600; letter-spacing:.06em; text-transform:uppercase; }
+  @media (prefers-reduced-motion: reduce){ .jd-prog, .jd-prog:hover{ transition:none; transform:none; } }
+
+  /* ── Standards + note ── */
+  .jd-oath{ margin-top:18px; display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  @media(max-width:760px){ .jd-oath{ grid-template-columns:repeat(2,1fr); } }
+  .jd-oath__t{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:12px; padding:13px 14px; }
+  .jd-oath__t b{ display:block; font-family:var(--ag-font-display); font-size:15px; color:var(--ag-ink); }
+  .jd-oath__t span{ font:700 10px/1 var(--ag-font-mono,monospace); color:#c9a648; }
+  .jd-note{ margin-top:22px; background:#10292C; color:rgba(255,255,255,.88); border-radius:16px; padding:18px 22px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .jd-note p{ margin:0; flex:1; min-width:220px; font-size:13.5px; line-height:1.6; }
+  .jd-note a{ flex:none; display:inline-flex; align-items:center; gap:7px; background:#c9a648; color:#10292C; font-weight:700; font-size:13.5px; padding:10px 18px; border-radius:999px; text-decoration:none; }
+  .jd-note a:hover{ background:#ffd24a; }
+  .jd-back{ margin-top:26px; text-align:center; }
+  .jd-back a{ display:inline-flex; align-items:center; gap:7px; border:1px solid rgba(16,41,44,.16); background:#fff; color:var(--ag-ink); font-weight:600; font-size:14px; padding:10px 20px; border-radius:999px; text-decoration:none; }
+  .jd-sec-k{ margin-top:clamp(1.8rem,4vw,2.4rem); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="jd">
+  <nav class="jd-crumb" aria-label="Breadcrumb"><a href="/judges">The Jury</a> · <span aria-current="page">{{ judge.name }}</span></nav>
+
+  <header class="jd-head">
+    <div class="jd-arch" role="img" aria-label="Portrait of {{ judge.name }}">
+      <div class="jd-arch__in" {% if judge.avatar_path %}style="background-image:url('{{ judge.avatar_path }}')"{% endif %}>
+        {% if not judge.avatar_path %}<div class="jd-arch__mono" aria-hidden="true">{{ judge.name|first|upper }}</div>{% endif %}
+      </div>
+    </div>
+    <div class="jd-head__b">
+      <p class="jd-caps">Juror · Africa GATES panel{% if country %} · {{ country }}{% endif %}</p>
+      <h1>{{ judge.name }}</h1>
+      {% if judge.title or judge.organisation %}
+      <p class="jd-role">{% if judge.title %}<b>{{ judge.title }}</b>{% endif %}{% if judge.title and judge.organisation %} — {% endif %}{{ judge.organisation }}</p>
+      {% endif %}
+      <div class="jd-rule" aria-hidden="true">
+        <svg width="12" height="12" viewBox="0 0 14 14" fill="#c9a648" style="flex:none"><path d="M7 0l1.8 5.2L14 7l-5.2 1.8L7 14 5.2 8.8 0 7l5.2-1.8z"/></svg>
+      </div>
+    </div>
+  </header>
+
+  {% if judge.bio %}
+  <section class="jd-cite" aria-labelledby="jdCiteH">
+    <h2 id="jdCiteH">Citation</h2>
+    <p class="jd-cite__txt">{{ judge.bio }}</p>
+  </section>
+  {% endif %}
+
+  {% if judge.programmes is not empty %}
+  <section aria-labelledby="jdProgH" class="jd-sec-k">
+    <p class="jd-caps" id="jdProgH">Presides over</p>
+    <div class="jd-progs">
+      {% for p in judge.programmes %}
+      <a class="jd-prog" href="/vote/{{ p.slug }}">
+        <span class="jd-prog__ic" aria-hidden="true">{{ p.icon_emoji|default('🏆') }}</span>
+        <span class="jd-prog__t"><b>{{ p.title }}</b><span>Award programme</span></span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section aria-labelledby="jdOathH" class="jd-sec-k">
+    <p class="jd-caps" id="jdOathH">The measures they weigh</p>
+    <div class="jd-oath">
+      <div class="jd-oath__t"><span aria-hidden="true">I</span><b>Impact</b></div>
+      <div class="jd-oath__t"><span aria-hidden="true">II</span><b>Originality</b></div>
+      <div class="jd-oath__t"><span aria-hidden="true">III</span><b>Reach</b></div>
+      <div class="jd-oath__t"><span aria-hidden="true">IV</span><b>Integrity</b></div>
+    </div>
+  </section>
+
+  <div class="jd-note">
+    <p>{{ judge.name|split(' ')|first }}'s ballots are confidential, scored alone against the published rubric, and combine with verified community votes into the Cultural Power Index.</p>
+    <a href="/integrity">How scoring works
+      <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+  </div>
+
+  <div class="jd-back"><a href="/judges">← The full panel</a></div>
+</div>
+{% endblock %}

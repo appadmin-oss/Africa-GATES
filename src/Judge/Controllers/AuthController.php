@@ -58,6 +58,13 @@ class AuthController
             $_SESSION['flash_error'] = 'Too many requests. Please try again later.';
             return $res->withHeader('Location', '/judge/login')->withStatus(302);
         }
+        // Per-EMAIL throttle (anti mail-bomb of one judge's inbox) — 3/hour. Uses
+        // the same non-revealing notice so it doesn't disclose whether the address
+        // is a registered judge.
+        if ($this->rateLimit && !$this->rateLimit->check(hash('sha256', $email), 'judge_otp_req_email', 3, 3600)) {
+            $_SESSION['flash_notice'] = 'If that email belongs to an active judge, a 6-digit code is on the way.';
+            return $res->withHeader('Location', '/judge/login?sent=1')->withStatus(302);
+        }
         $judge = $this->judges->findByEmail($email);
         if ($judge) {
             // Reuse the OtpService — purpose='judge_login'
@@ -76,10 +83,17 @@ class AuthController
                 'expires_at' => Carbon::now()->addMinutes(15)->toDateTimeString(),
                 'created_at' => Carbon::now()->toDateTimeString(),
             ]);
-            $this->otp->sendCustom(
+            $jn = htmlspecialchars((string)$judge->name, ENT_QUOTES, 'UTF-8');
+            $jhtml = "<h1 style=\"margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:24px;color:#10292C\">Judges sign-in</h1>"
+                . "<p style=\"margin:13px 0 0;font-size:15px;line-height:1.6;color:#4a5256\">Hello <strong>{$jn}</strong>, enter this code to access the judging panel. It expires in <strong>15 minutes</strong>.</p>"
+                . "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"margin:22px 0\"><tr><td style=\"background:#f4f7f4;border:1px solid #d6e8d3;border-radius:14px;padding:22px;text-align:center\"><div style=\"font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#92a6a7;margin-bottom:10px\">Your sign-in code</div><div style=\"font-family:'JetBrains Mono',Consolas,monospace;font-weight:700;font-size:36px;letter-spacing:.32em;color:#10292C;padding-left:.32em\">{$code}</div></td></tr></table>"
+                . "<p style=\"margin:0;font-size:13px;color:#92a6a7\">Didn't request this? Ignore this email — your account stays secure.</p>";
+            $this->otp->sendBranded(
                 $email,
-                'Your Africa GATES judges sign-in code: ' . $code,
-                "Hello {$judge->name},\n\nYour 6-digit sign-in code is: $code\n\nIt expires in 15 minutes."
+                'Africa GATES — your judges sign-in code',
+                $jhtml,
+                "Hello {$judge->name},\n\nYour 6-digit judges sign-in code is: $code\n\nIt expires in 15 minutes.\n\nDidn't request this? Ignore this email.",
+                'Judges'
             );
         }
         $_SESSION['judge_login_email'] = $email; // remember for the verify step
@@ -141,6 +155,10 @@ class AuthController
     public function logout(Request $req, Response $res): Response
     {
         unset($_SESSION['judge_id'], $_SESSION['judge_name'], $_SESSION['judge_email']);
+        // Rotate the session id on logout so the pre-logout id can't be reused,
+        // and cycle the CSRF token (matches the admin logout flow).
+        Session::rotate();
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
         return $res->withHeader('Location', '/judge/login')->withStatus(302);
     }
 }

@@ -12,21 +12,21 @@
         <div class="ad-card__body">
           <div class="ad-form">
             <div class="row">
-              <div><label>Year</label><input type="number" name="year" value="{{ cycle.year|default('now'|date('Y')) }}" required></div>
-              <div><label>Status</label>
-                <select name="status">{% for s in ['upcoming','nominations','voting','judging','results','archived'] %}<option value="{{ s }}" {% if cycle.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select>
+              <div><label for="f-year">Year</label><input type="number" name="year" id="f-year" value="{{ cycle.year|default('now'|date('Y')) }}" required></div>
+              <div><label for="f-status">Status</label>
+                <select name="status" id="f-status">{% for s in ['upcoming','nominations','voting','judging','results','archived'] %}<option value="{{ s }}" {% if cycle.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select>
               </div>
             </div>
-            <div><label>Edition label</label><input type="text" name="edition_label" value="{{ cycle.edition_label|default('') }}"></div>
+            <div><label for="f-edition_label">Edition label</label><input type="text" name="edition_label" id="f-edition_label" value="{{ cycle.edition_label|default('') }}"></div>
             <div class="row">
-              <div><label>Nominations open</label><input type="datetime-local" name="nominations_open" value="{{ cycle.nominations_open|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
-              <div><label>Nominations close</label><input type="datetime-local" name="nominations_close" value="{{ cycle.nominations_close|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+              <div><label for="f-nominations_open">Nominations open</label><input type="datetime-local" name="nominations_open" id="f-nominations_open" value="{{ cycle.nominations_open|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+              <div><label for="f-nominations_close">Nominations close</label><input type="datetime-local" name="nominations_close" id="f-nominations_close" value="{{ cycle.nominations_close|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
             </div>
             <div class="row">
-              <div><label>Voting open</label><input type="datetime-local" name="voting_open" value="{{ cycle.voting_open|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
-              <div><label>Voting close</label><input type="datetime-local" name="voting_close" value="{{ cycle.voting_close|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+              <div><label for="f-voting_open">Voting open</label><input type="datetime-local" name="voting_open" id="f-voting_open" value="{{ cycle.voting_open|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+              <div><label for="f-voting_close">Voting close</label><input type="datetime-local" name="voting_close" id="f-voting_close" value="{{ cycle.voting_close|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
             </div>
-            <div><label>Results date</label><input type="datetime-local" name="results_date" value="{{ cycle.results_date|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+            <div><label for="f-results_date">Results date</label><input type="datetime-local" name="results_date" id="f-results_date" value="{{ cycle.results_date|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
           </div>
         </div>
       </div>
@@ -47,12 +47,12 @@
           <form class="ad-form" method="post" action="/admin/programmes/{{ programme.id }}/categories" style="margin-top:12px">
             <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ c.id }}">
             <div class="row">
-              <div><label>Title</label><input type="text" name="title" value="{{ c.title }}" required></div>
-              <div><label>Slug</label><input type="text" name="slug" value="{{ c.slug }}" required></div>
+              <div><label for="f-title-{{ c.id }}">Title</label><input type="text" name="title" id="f-title-{{ c.id }}" value="{{ c.title }}" required></div>
+              <div><label for="f-slug-{{ c.id }}">Slug</label><input type="text" name="slug" id="f-slug-{{ c.id }}" value="{{ c.slug }}" required></div>
             </div>
-            <div><label>Description</label><textarea name="description" rows="2">{{ c.description }}</textarea></div>
+            <div><label for="f-description-{{ c.id }}">Description</label><textarea name="description" id="f-description-{{ c.id }}" rows="2">{{ c.description }}</textarea></div>
             <div class="row">
-              <div><label>Sort order</label><input type="number" name="sort_order" value="{{ c.sort_order }}"></div>
+              <div><label for="f-sort_order-{{ c.id }}">Sort order</label><input type="number" name="sort_order" id="f-sort_order-{{ c.id }}" value="{{ c.sort_order }}"></div>
               <div style="display:flex;gap:8px;align-items:flex-end">
                 <button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Update</button>
                 <form method="post" action="/admin/categories/{{ c.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--danger ad-btn--sm" type="submit" data-confirm="Delete category?">Delete</button></form>
@@ -66,12 +66,12 @@
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <strong style="font-size:13px">+ Add category</strong>
           <div class="row">
-            <div><label>Title</label><input type="text" name="title" required></div>
-            <div><label>Slug</label><input type="text" name="slug" required></div>
+            <div><label for="f-title">Title</label><input type="text" name="title" id="f-title" required></div>
+            <div><label for="f-slug">Slug</label><input type="text" name="slug" id="f-slug" required></div>
           </div>
-          <div><label>Description</label><textarea name="description" rows="2"></textarea></div>
+          <div><label for="f-description">Description</label><textarea name="description" id="f-description" rows="2"></textarea></div>
           <div class="row">
-            <div><label>Sort order</label><input type="number" name="sort_order" value="0"></div>
+            <div><label for="f-sort_order">Sort order</label><input type="number" name="sort_order" id="f-sort_order" value="0"></div>
             <div style="display:flex;align-items:flex-end"><button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Add</button></div>
           </div>
         </form>

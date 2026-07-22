@@ -1,0 +1,176 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Nominations</small>{% endblock %}
+{% block topbar_title %}Review desk{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/nominations">Exit desk</a>
+{% endblock %}
+
+{% block content %}
+{# Progressive enhancement: the first nomination is server-rendered, and every
+   decision form posts to the same audited endpoints. Without JS the forms do a
+   normal POST → redirect back here for the next one (full reload, still works).
+   With JS the script below intercepts the posts, swaps in the next nomination
+   as a fetched fragment, and never reloads the page. #}
+<div id="deskSPA" data-desk-current="{{ nom.id }}">
+
+  <div class="ad-card" role="region" aria-label="Review desk controls" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;margin-bottom:14px;border-left:4px solid var(--ad-accent,#237b22)">
+    <strong style="font-size:13.5px">Review desk</strong>
+    <span id="deskPos" style="font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+      {% if queue %}Nomination <strong>{{ queue.position }}</strong> of <strong>{{ queue.total }}</strong> pending (oldest first){% endif %}
+    </span>
+    <span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span style="font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">Keys: <kbd>A</kbd> approve · <kbd>R</kbd> reject · <kbd>S</kbd> skip</span>
+      <button type="button" class="ad-btn ad-btn--sm" id="deskSkip">Skip for now →</button>
+    </span>
+  </div>
+
+  {# Live status for assistive tech: decisions + navigation are announced here. #}
+  <p id="deskLive" class="sr-only" role="status" aria-live="polite"></p>
+
+  <div id="deskBody" aria-busy="false">
+    {% include 'admin/nominations/_review_body.twig' with {
+      nom: nom, categories: categories, eligibility: eligibility,
+      duplicates: duplicates, insight: insight, spa: true
+    } %}
+  </div>
+
+  <div id="deskDone" class="ad-card" hidden style="text-align:center;padding:40px 20px">
+    <p style="font-size:16px;font-weight:700;margin:0 0 6px">Review queue is clear 🎉</p>
+    <p style="color:var(--ad-text-soft);margin:0 0 16px" id="deskDoneMsg">No more pending nominations.</p>
+    <a class="ad-btn ad-btn--primary" href="/admin/nominations?status=pending&sort=oldest">Back to nominations</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  var spa = document.getElementById('deskSPA');
+  if (!spa) return;
+  var body   = document.getElementById('deskBody');
+  var posEl  = document.getElementById('deskPos');
+  var live   = document.getElementById('deskLive');
+  var done   = document.getElementById('deskDone');
+  var doneMsg= document.getElementById('deskDoneMsg');
+  var skip   = document.getElementById('deskSkip');
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  var csrf   = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+  function currentId() { return parseInt(spa.getAttribute('data-desk-current') || '0', 10) || 0; }
+  function announce(msg) { if (live) live.textContent = msg; }
+  function busy(on) { body.setAttribute('aria-busy', on ? 'true' : 'false'); body.style.opacity = on ? '.55' : ''; }
+
+  function showDone(msg) {
+    body.hidden = true;
+    posEl.textContent = '';
+    if (skip) skip.disabled = true;
+    doneMsg.textContent = msg || 'No more pending nominations.';
+    done.hidden = false;
+    announce('Review queue is clear.');
+  }
+
+  // Load the next pending nomination as a fragment and swap it in.
+  function loadNext(afterId) {
+    busy(true);
+    announce('Loading the next nomination…');
+    fetch('/admin/nominations/review/next' + (afterId ? ('?after=' + afterId) : ''), {
+      headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        busy(false);
+        if (!j || j.ok === false) { announce('Could not load the next nomination.'); return; }
+        if (j.done) { showDone(j.message); return; }
+        body.innerHTML = j.html;
+        spa.setAttribute('data-desk-current', j.id);
+        if (posEl && j.position && j.total) {
+          posEl.innerHTML = 'Nomination <strong>' + j.position + '</strong> of <strong>' + j.total + '</strong> pending (oldest first)';
+        }
+        // Move focus to the new submission heading so keyboard/SR users land in context.
+        var focusEl = body.querySelector('[data-desk-focus]');
+        if (focusEl) focusEl.focus();
+        announce('Reviewing ' + (j.nominee || 'the next nomination') + '.');
+      })
+      .catch(function () { busy(false); announce('Network error loading the next nomination — reload to retry.'); });
+  }
+
+  // Submit an approve/reject decision over fetch, then advance.
+  function submitDecision(form) {
+    var id = currentId();
+    busy(true);
+    var fd = new FormData(form);
+    fetch(form.action, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'fetch' },
+      credentials: 'same-origin',
+      body: fd
+    })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, j: j }; }); })
+      .then(function (res) {
+        if (res.j && res.j.ok) {
+          announce(res.j.message || 'Decision recorded.');
+          loadNext(id);
+        } else {
+          // Validation / DB error — stay on this nomination and surface it.
+          busy(false);
+          announce((res.j && res.j.error) || 'The action could not be completed.');
+          window.agToast ? window.agToast((res.j && res.j.error) || 'The action could not be completed.', true)
+                         : alert((res.j && res.j.error) || 'The action could not be completed.');
+        }
+      })
+      .catch(function () { busy(false); announce('Network error — nothing was changed.'); });
+  }
+
+  // Intercept the desk decision forms (approve / reject).
+  body.addEventListener('submit', function (e) {
+    var form = e.target.closest('form[data-desk-form]');
+    if (!form) return;
+    e.preventDefault();
+    e.stopPropagation(); // keep the global submit handlers (NProgress, confirm) out of the SPA flow
+    var rejectBtn = form.querySelector('[data-desk-confirm]');
+    if (rejectBtn) {
+      var msg = rejectBtn.getAttribute('data-desk-confirm') || 'Are you sure?';
+      if (!window.confirm(msg)) return;
+    }
+    submitDecision(form);
+  });
+
+  // AI "Suggest with AI" — delegated so it survives fragment swaps.
+  body.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-suggest]');
+    if (!b) return;
+    e.preventDefault();
+    var ta = document.getElementById(b.getAttribute('data-target'));
+    if (!ta) return;
+    var nom = b.getAttribute('data-nom');
+    var orig = b.textContent; b.disabled = true; b.textContent = '✦ Thinking…';
+    fetch('/admin/nominations/' + nom + '/suggest-reason', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': csrf },
+      credentials: 'same-origin',
+      body: 'decision=' + encodeURIComponent(b.getAttribute('data-suggest'))
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.j.reason) { ta.value = res.j.reason; ta.focus(); b.textContent = orig; b.disabled = false; }
+        else if (res.j && res.j.error && String(res.j.error).indexOf('No AI') === 0) { b.style.display = 'none'; }
+        else { b.textContent = orig; b.disabled = false; }
+      })
+      .catch(function () { b.textContent = orig; b.disabled = false; });
+  });
+
+  // Skip → next in queue without a decision.
+  if (skip) skip.addEventListener('click', function () { loadNext(currentId()); });
+
+  // Keyboard flow: A approve · R reject · S skip. Ignored while typing.
+  document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (body.hidden) return;
+    var t = (e.target || {}).tagName || '';
+    if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].indexOf(t) !== -1 || (e.target && e.target.isContentEditable)) return;
+    var k = (e.key || '').toLowerCase();
+    if (k === 'a') { var af = body.querySelector('form[data-desk-form="approve"]'); if (af) { e.preventDefault(); af.requestSubmit ? af.requestSubmit() : submitDecision(af); } }
+    else if (k === 'r') { var rf = body.querySelector('form[data-desk-form="reject"]'); if (rf) { e.preventDefault(); rf.requestSubmit ? rf.requestSubmit() : submitDecision(rf); } }
+    else if (k === 's') { e.preventDefault(); loadNext(currentId()); }
+  });
+})();
+</script>
+{% endblock %}

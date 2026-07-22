@@ -9,7 +9,14 @@
   AFG.sessionId = (() => {
     const k = 'afg_sid';
     let id = sessionStorage.getItem(k);
-    if (!id) { id = Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem(k, id); }
+    if (!id) {
+      // Crypto-random (128-bit) so derived keys (e.g. the nomination draft key) are
+      // unguessable; fall back to Math.random only on very old browsers.
+      id = (window.crypto && crypto.getRandomValues)
+        ? Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('')
+        : (Math.random().toString(36).slice(2) + Date.now().toString(36));
+      sessionStorage.setItem(k, id);
+    }
     return id;
   })();
 

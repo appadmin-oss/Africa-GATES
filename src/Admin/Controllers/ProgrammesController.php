@@ -9,13 +9,18 @@ use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Services\CacheService;
 
 class ProgrammesController
 {
     public function __construct(
         private readonly Twig $view,
         private readonly AuditService $audit,
+        private readonly ?CacheService $cache = null,
     ) {}
+
+    /** Bust the public programmes cache so /nominate, /vote and /awards reflect edits at once. */
+    private function bustAwardsCache(): void { $this->cache?->forget('awards:active'); }
 
     public function index(Request $req, Response $res): Response
     {
@@ -59,15 +64,22 @@ class ProgrammesController
             'icon_emoji'  => (string)($b['icon_emoji'] ?? '🏆'),
             'sort_order'  => (int)($b['sort_order'] ?? 0),
             'is_active'   => isset($b['is_active']) ? 1 : 0,
+            'terms'       => trim((string)($b['terms'] ?? '')) ?: null,
         ];
-        if ($id) {
-            DB::table('gates_award_programmes')->where('id', $id)->update($data);
-            $this->audit->record((int)$_SESSION['admin_id'], 'programme.update', 'programme', $id);
-        } else {
-            $data['created_at'] = Carbon::now()->toDateTimeString();
-            $id = (int)DB::table('gates_award_programmes')->insertGetId($data);
-            $this->audit->record((int)$_SESSION['admin_id'], 'programme.create', 'programme', $id);
+        try {
+            if ($id) {
+                DB::table('gates_award_programmes')->where('id', $id)->update($data);
+                $this->audit->record((int)$_SESSION['admin_id'], 'programme.update', 'programme', $id);
+            } else {
+                $data['created_at'] = Carbon::now()->toDateTimeString();
+                $id = (int)DB::table('gates_award_programmes')->insertGetId($data);
+                $this->audit->record((int)$_SESSION['admin_id'], 'programme.create', 'programme', $id);
+            }
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ActionError::dbMessage($e);
+            return $res->withHeader('Location', $id ? '/admin/programmes/' . $id : '/admin/programmes/new')->withStatus(302);
         }
+        $this->bustAwardsCache();
         $_SESSION['flash_ok'] = 'Programme saved.';
         return $res->withHeader('Location', '/admin/programmes')->withStatus(302);
     }
@@ -106,14 +118,45 @@ class ProgrammesController
             'voting_close'      => $b['voting_close']      ?: null,
             'results_date'      => $b['results_date']      ?: null,
         ];
-        if ($cycle) {
-            DB::table('gates_award_cycles')->where('id', $cycle->id)->update($data);
-            $cid = (int)$cycle->id;
-        } else {
-            $data['created_at'] = Carbon::now()->toDateTimeString();
-            $cid = (int)DB::table('gates_award_cycles')->insertGetId($data);
+        // Guard manual status transitions so the editor can't produce a cycle
+        // state the automated, quorum-checked lifecycle machine never would:
+        // no hand-jump to 'results' (winners promote through the date-driven
+        // path), no backward regression, no phase-skipping.
+        $from = $cycle ? (string)$cycle->status : null;
+        $to   = (string)$data['status'];
+        if (($err = \AfricaGates\Services\CycleService::manualTransitionError($from, $to)) !== null) {
+            $_SESSION['flash_error'] = $err;
+            return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
+        }
+        $cid = 0;
+        try {
+            if ($cycle) {
+                DB::table('gates_award_cycles')->where('id', $cycle->id)->update($data);
+                $cid = (int)$cycle->id;
+            } else {
+                $data['created_at'] = Carbon::now()->toDateTimeString();
+                $cid = (int)DB::table('gates_award_cycles')->insertGetId($data);
+            }
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ActionError::dbMessage($e);
+            return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
+        }
+        // Record a manual phase change in the same tamper-evident ledger the cron
+        // writes to, so gates_cycle_transitions is a complete history (auto + manual).
+        if ($from !== null && $from !== $to) {
+            try {
+                DB::table('gates_cycle_transitions')->insert([
+                    'cycle_id'    => $cid,
+                    'from_status' => $from,
+                    'to_status'   => $to,
+                    'reason'      => 'manual: admin cycle editor',
+                    'actor'       => 'admin:' . (int)($_SESSION['admin_id'] ?? 0),
+                    'created_at'  => Carbon::now()->toDateTimeString(),
+                ]);
+            } catch (\Throwable $e) { /* ledger insert is best-effort — never block the save */ }
         }
         $this->audit->record((int)$_SESSION['admin_id'], 'cycle.save', 'cycle', $cid);
+        $this->bustAwardsCache();
         $_SESSION['flash_ok'] = 'Cycle saved.';
         return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
     }
@@ -141,6 +184,7 @@ class ProgrammesController
             $catId = (int)DB::table('gates_award_categories')->insertGetId($data);
         }
         $this->audit->record((int)$_SESSION['admin_id'], 'category.save', 'category', $catId);
+        $this->bustAwardsCache();
         $_SESSION['flash_ok'] = 'Category saved.';
         return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
     }
@@ -150,6 +194,7 @@ class ProgrammesController
         $catId = (int)$args['catId'];
         DB::table('gates_award_categories')->where('id', $catId)->delete();
         $this->audit->record((int)$_SESSION['admin_id'], 'category.delete', 'category', $catId);
+        $this->bustAwardsCache();
         $_SESSION['flash_ok'] = 'Category deleted.';
         return $res->withHeader('Location', '/admin/programmes')->withStatus(302);
     }

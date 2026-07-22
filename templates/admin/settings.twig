@@ -5,15 +5,219 @@
   <input type="hidden" name="_token" value="{{ csrf_token }}">
   <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Public site<small>Surfaces on every page</small></div></div><div class="ad-card__body">
     <div class="ad-form">
-      <div><label>Announcement banner text</label><input type="text" name="announce_text" value="{{ values.announce_text|default('') }}"></div>
+      <div><label for="f-announce_text">Announcement banner text</label><input type="text" name="announce_text" id="f-announce_text" value="{{ values.announce_text|default('') }}"></div>
       <div class="row">
-        <div><label>Announcement link URL</label><input type="text" name="announce_url" value="{{ values.announce_url|default('') }}"></div>
-        <div><label>Link label</label><input type="text" name="announce_cta" value="{{ values.announce_cta|default('') }}"></div>
+        <div><label for="f-announce_url">Announcement link URL</label><input type="text" name="announce_url" id="f-announce_url" value="{{ values.announce_url|default('') }}"></div>
+        <div><label for="f-announce_cta">Link label</label><input type="text" name="announce_cta" id="f-announce_cta" value="{{ values.announce_cta|default('') }}"></div>
       </div>
       <div class="row">
-        <div><label>Site title</label><input type="text" name="site_title" value="{{ values.site_title|default('Africa GATES') }}"></div>
-        <div><label>Contact email</label><input type="email" name="contact_email" value="{{ values.contact_email|default('africa-gates@afrovanguard.org.ng') }}"></div>
+        <div><label for="f-site_title">Site title</label><input type="text" name="site_title" id="f-site_title" value="{{ values.site_title|default('Africa GATES') }}"></div>
+        <div><label for="f-contact_email">Contact email</label><input type="email" name="contact_email" id="f-contact_email" value="{{ values.contact_email|default('africa-gates@afrovanguard.org.ng') }}"></div>
       </div>
+    </div>
+  </div></div>
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Email &amp; sender<small>{% if smtp_configured %}SMTP is configured — mail sends live.{% else %}SMTP not set — mail is written to var/logs/outgoing-mail.log.{% endif %}</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <div class="row">
+        <div><label for="f-mail_from_name">From name</label><input type="text" name="mail_from_name" id="f-mail_from_name" value="{{ values.mail_from_name|default('Africa GATES') }}"></div>
+        <div><label for="f-mail_from_address">From address <small>must be a sender verified with your mail provider</small></label><input type="email" name="mail_from_address" id="f-mail_from_address" value="{{ values.mail_from_address|default('noreply@afrovanguard.org.ng') }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-mail_reply_to">Reply-to <small>where replies should land — optional</small></label><input type="email" name="mail_reply_to" id="f-mail_reply_to" value="{{ values.mail_reply_to|default('') }}" placeholder="africa-gates@afrovanguard.org.ng"></div>
+        <div><label for="f-admin_alert_email">Admin alerts to</label><input type="email" name="admin_alert_email" id="f-admin_alert_email" value="{{ values.admin_alert_email|default('') }}" placeholder="app.admin@afrovanguard.org.ng"></div>
+      </div>
+      <div><button class="ad-btn" type="submit" formaction="/admin/settings/smtp-test" formnovalidate>Send a test email to me</button></div>
+
+      {# ── Delivery health: is mail ACTUALLY leaving the building? ── #}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+          <strong style="font-size:13px">Delivery — last 24h:</strong>
+          <span class="ad-chip ad-chip--green">{{ mail_health.sent_24h }} sent</span>
+          {% if mail_health.failed_24h > 0 %}<span class="ad-chip ad-chip--red">{{ mail_health.failed_24h }} FAILED</span>{% else %}<span class="ad-chip ad-chip--grey">0 failed</span>{% endif %}
+          {% if mail_health.dev_24h > 0 %}<span class="ad-chip ad-chip--gold" title="SMTP is unconfigured — these went to var/logs/outgoing-mail.log, NOT to inboxes">{{ mail_health.dev_24h }} dev-logged (not delivered)</span>{% endif %}
+        </div>
+        {% if mail_health.last_error %}
+        <div class="ad-flash ad-flash--err" role="alert" style="margin-bottom:10px;font-size:12.5px">Most recent failure: {{ mail_health.last_error }}</div>
+        {% endif %}
+        {% if mail_health.recent is not empty %}
+        <details>
+          <summary style="cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ad-text-soft)">Recent sends ({{ mail_health.recent|length }})</summary>
+          <div class="ad-table-wrap" style="margin-top:8px">
+            <table class="ad-table" style="font-size:12.5px">
+              <thead><tr><th scope="col">When</th><th scope="col">To</th><th scope="col">Subject</th><th scope="col">Status</th></tr></thead>
+              <tbody>
+                {% for m in mail_health.recent %}
+                <tr>
+                  <td style="white-space:nowrap;font-family:'Space Mono',monospace">{{ m.created_at|slice(5,11) }}</td>
+                  <td>{{ m.to_masked }}</td>
+                  <td>{{ m.subject|length > 44 ? m.subject|slice(0,44) ~ '…' : m.subject }}</td>
+                  <td>{% if m.status == 'sent' %}<span class="ad-chip ad-chip--green">sent</span>{% elseif m.status == 'failed' %}<span class="ad-chip ad-chip--red" {% if m.error %}title="{{ m.error }}"{% endif %}>failed</span>{% else %}<span class="ad-chip ad-chip--gold" title="SMTP unconfigured — written to the dev log only">dev log</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+        {% endif %}
+      </div>
+    </div>
+  </div></div>
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Shop · location-based pricing<small>Per-region price multiplier — 1.0 = base price. Leave all at 1.0 to disable.</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="currency_conversion" value="1" {% if values.currency_conversion == '1' %}checked{% endif %}> <span><strong>Currency conversion</strong> — let shoppers view prices in their local currency (USD, GBP, EUR…). Orders are still charged in Naira (₦); rates are fetched live and cached.</span></label>
+      <p style="margin:0 0 4px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Each product's base naira price is multiplied by its delivery region's factor at checkout (computed server-side). e.g. <strong>1.25</strong> charges +25% in that region; <strong>0.9</strong> charges −10%.</p>
+      <div class="row">
+        {% for r in shop_regions %}
+        <div><label>{{ r }}</label><input type="number" aria-label="Price multiplier for {{ r }}" name="region_mult[{{ r }}]" min="0.1" max="10" step="0.05" value="{{ shop_mults[r]|default('1') }}"></div>
+        {% endfor %}
+      </div>
+    </div>
+  </div></div>
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Voting points<small>Members earn points from purchases and redeem them for votes.</small></div></div><div class="ad-card__body">
+    <div class="ad-form">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="points_enabled" value="1" {% if values.points_enabled == '1' %}checked{% endif %}> <span><strong>Enable voting points</strong> — members accrue points from shop orders, paid tickets &amp; donations, redeemable for votes.</span></label>
+      <div class="row">
+        <div><label for="f-points_per_1000_naira">Points earned per ₦1,000 spent</label><input type="number" name="points_per_1000_naira" id="f-points_per_1000_naira" min="0" step="1" value="{{ values.points_per_1000_naira|default('50') }}"></div>
+        <div><label for="f-points_per_vote">Points to redeem one vote</label><input type="number" name="points_per_vote" id="f-points_per_vote" min="1" step="1" value="{{ values.points_per_vote|default('500') }}"></div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Redeemed votes count toward the public tally only — they never affect judged/CPI rank.</p>
+    </div>
+  </div></div>
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Paid voting<small>Make voting a paid action — supporters buy votes for a nominee. Off = classic free OTP voting.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="paid_vote_settings" value="1">
+    <div class="ad-form">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px"><input type="checkbox" name="paid_voting_enabled" value="1" {% if values.paid_voting_enabled == '1' %}checked{% endif %}> <span><strong>Enable paid voting</strong> — the nominee ballot leads with a "Buy votes" checkout (Paystack/Flutterwave, verified server-side).</span></label>
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="paid_voting_disable_free" value="1" {% if values.paid_voting_disable_free == '1' %}checked{% endif %}> <span><strong>Disable free voting</strong> — the OTP path closes and ALL voting is paid (only takes effect while paid voting is enabled).</span></label>
+      <div class="row">
+        <div><label for="f-vote_price_naira">Amount per vote (₦)</label><input type="number" name="vote_price_naira" id="f-vote_price_naira" min="10" step="10" value="{{ values.vote_price_naira|default('100') }}"></div>
+        <div><label for="f-vote_votes_per_1000">Votes per ₦1,000 bundle</label><input type="number" name="vote_votes_per_1000" id="f-vote_votes_per_1000" min="1" step="1" value="{{ values.vote_votes_per_1000|default('10') }}"></div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Buyers are always charged the cheaper of the two rules (full ₦1,000 bundles + per-vote remainder). Paid votes raise the <strong>public tally only</strong> — the organic CPI community signal is never moved by money. With free voting disabled, CPI ranking is effectively decided by the jury component.</p>
+    </div>
+  </div></div>
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Display values<small>Numbers shown in site copy — edit here instead of hardcoding them in templates.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="display_settings" value="1">
+    <div class="ad-form">
+      <div class="row">
+        <div><label for="f-nations_count">Nations in scope</label><input type="number" name="nations_count" id="f-nations_count" min="0" step="1" value="{{ values.nations_count|default('54') }}"></div>
+        <div><label for="f-cpi_recompute_hours">CPI recompute interval (hours)</label><input type="number" name="cpi_recompute_hours" id="f-cpi_recompute_hours" min="0" step="1" value="{{ values.cpi_recompute_hours|default('6') }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-review_sla_hours">Nomination review SLA (hours)</label><input type="number" name="review_sla_hours" id="f-review_sla_hours" min="0" step="1" value="{{ values.review_sla_hours|default('48') }}"></div>
+        <div><label for="f-nomination_seconds">Nomination time estimate (seconds)</label><input type="number" name="nomination_seconds" id="f-nomination_seconds" min="0" step="1" value="{{ values.nomination_seconds|default('90') }}"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-otp_expiry_minutes">OTP code expiry (minutes)</label><input type="number" name="otp_expiry_minutes" id="f-otp_expiry_minutes" min="0" step="1" value="{{ values.otp_expiry_minutes|default('10') }}"></div>
+        <div><label for="f-processing_fee_pct">Payment processing fee (%)</label><input type="number" name="processing_fee_pct" id="f-processing_fee_pct" min="0" step="0.1" value="{{ values.processing_fee_pct|default('1.5') }}"></div>
+      </div>
+    </div>
+  </div></div>
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Moderation thresholds<small>Where content scores (0–1) flip to review or auto-reject. Applies to comments, threads &amp; nominations.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="moderation_settings" value="1">
+    <div class="ad-form">
+      <div class="row">
+        <div><label for="f-mod_q">Quarantine at ≥</label><input type="number" name="mod_threshold_quarantine" id="f-mod_q" min="0.05" max="0.90" step="0.05" value="{{ values.mod_threshold_quarantine|default('0.30') }}"></div>
+        <div><label for="f-mod_r">Auto-reject at ≥</label><input type="number" name="mod_threshold_reject" id="f-mod_r" min="0.10" max="0.99" step="0.05" value="{{ values.mod_threshold_reject|default('0.65') }}"></div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Lower = stricter. Below the quarantine line content publishes instantly; between the lines it waits in <a href="/admin/moderation" style="color:var(--ad-accent,#237b22)">the review queue</a>; above the reject line it is blocked outright. Values are clamped so moderation can never be switched off by accident.</p>
+    </div>
+  </div></div>
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Nomination eligibility<small>Require nominations from multiple locations before a nominee can be approved.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="nomination_settings" value="1">
+    <div class="ad-form">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="nomination_eligibility_enabled" value="1" {% if values.nomination_eligibility_enabled == '1' %}checked{% endif %}> <span><strong>Enforce eligibility threshold</strong> — block approving a nominee until they have enough nominations from different locations.</span></label>
+      <div><label for="f-nomination_min_locations">Minimum distinct locations</label><input type="number" name="nomination_min_locations" id="f-nomination_min_locations" min="1" step="1" value="{{ values.nomination_min_locations|default('5') }}"></div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">"Different locations" = distinct nominator country + state. The eligibility count shows on every nomination; when enforced, approval is blocked below the threshold.</p>
+    </div>
+  </div></div>
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">AI providers<small>Free-tier moderation &amp; AI features. The platform runs on built-in heuristics until you add a key.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="ai_settings" value="1">
+    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Keys are stored server-side and never shown again. The first configured provider is used, in order: <strong>Groq</strong> → <strong>Gemini</strong> → <strong>Anthropic</strong> → <strong>OpenAI</strong>. {% if ai_status.active %}Active now: <strong>{{ ai_status.active|capitalize }}</strong>.{% else %}No provider configured — using built-in heuristics.{% endif %}</p>
+    <div class="ad-form">
+      {% set ai_providers = [
+        {'name':'groq','label':'Groq API key','hint':'console.groq.com — free &amp; fast (Llama)'},
+        {'name':'gemini','label':'Google Gemini API key','hint':'aistudio.google.com — generous free tier'},
+        {'name':'anthropic','label':'Anthropic API key','hint':'console.anthropic.com (Claude Haiku)'},
+        {'name':'openai','label':'OpenAI API key','hint':'platform.openai.com'}
+      ] %}
+      {% for p in ai_providers %}
+      <div>
+        <label>{{ p.label }} {% if ai_status[p.name] %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">not set</span>{% endif %}</label>
+        <input type="password" name="ai_{{ p.name }}_key" aria-label="{{ p.label }} API key" autocomplete="new-password" placeholder="{% if ai_status[p.name] %}•••••••••• (leave blank to keep){% else %}paste key to enable{% endif %}">
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
+          <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c)">{{ p.hint|raw }}</small>
+          {% if ai_status[p.name] %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[{{ p.name }}]" value="1"> remove</label>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      <div class="row">
+        <div><label for="f-ai_groq_model">Groq model <small>general / public — fast &amp; cheap</small></label><input type="text" name="ai_groq_model" id="f-ai_groq_model" value="{{ values.ai_groq_model|default('') }}" placeholder="llama-3.1-8b-instant"></div>
+        <div><label for="f-ai_gemini_model">Gemini model <small>optional</small></label><input type="text" name="ai_gemini_model" id="f-ai_gemini_model" value="{{ values.ai_gemini_model|default('') }}" placeholder="gemini-2.0-flash"></div>
+      </div>
+
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <label style="font-weight:600">Dedicated moderation Groq key
+          {% if ai_mod_dedicated %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">using the general key as a free backup</span>{% endif %}
+        </label>
+        <input type="password" name="ai_groq_key_mod" aria-label="Dedicated moderation Groq API key" autocomplete="new-password" placeholder="{% if ai_mod_dedicated %}•••••••••• (leave blank to keep){% else %}optional — a 2nd Groq key just for moderation{% endif %}">
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
+          <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c)">A separate Groq key for the spam/abuse classifier — isolates safety decisions from public AI traffic and runs the <strong>best model</strong>. Free-falls back to the general Groq key when blank.</small>
+          {% if ai_mod_dedicated %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[groq_mod]" value="1"> remove</label>{% endif %}
+        </div>
+        <div style="margin-top:8px"><label for="f-ai_groq_model_mod">Moderation model <small>defaults to the best available</small></label><input type="text" name="ai_groq_model_mod" id="f-ai_groq_model_mod" value="{{ values.ai_groq_model_mod|default('') }}" placeholder="{{ ai_mod_model }}"></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <div>
+          <label for="f-gee_make_url">Make.com agent URL <small>optional — lets Gee use an external agent &amp; its tools</small></label>
+          <input type="url" name="gee_make_agent_url" id="f-gee_make_url" value="{{ values.gee_make_agent_url|default('') }}" placeholder="https://hook.eu1.make.com/…">
+        </div>
+        <div>
+          <label for="f-gee_make_key">Make.com bridge key {% if values.gee_make_agent_key|default('') != '' %}<span style="color:#16794d;font-weight:600">● configured</span>{% endif %}</label>
+          <input type="password" name="gee_make_agent_key" id="f-gee_make_key" autocomplete="new-password" placeholder="{% if values.gee_make_agent_key|default('') != '' %}•••••••••• (leave blank to keep){% else %}shared secret (16+ chars){% endif %}">
+          <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
+            <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c)">Same key authenticates Make's inbound calls to <code>/api/v1/agent/gee</code></small>
+            {% if values.gee_make_agent_key|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[make_key]" value="1"> remove</label>{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Messaging — SMS &amp; WhatsApp<small>Nomination &amp; notification texts. Off by default; nothing sends until a channel is enabled and configured.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="messaging_settings" value="1">
+    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+      Secrets are stored server-side and never shown again.
+      SMS: {% if sms_status.sms %}<strong style="color:#16794d">● active (Twilio)</strong>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">inactive</span>{% endif %} ·
+      WhatsApp: {% if sms_status.whatsapp %}<strong style="color:#16794d">● active ({{ sms_status.wa_provider == 'meta' ? 'WhatsApp Business Cloud API' : 'Twilio WhatsApp' }})</strong>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">inactive</span>{% endif %}.
+      When both channels are configured, recipients with a phone get the SMS first, then the WhatsApp message.
+    </p>
+    <div class="ad-form">
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px"><input type="checkbox" name="sms_enabled" value="1" {% if values.sms_enabled == '1' %}checked{% endif %}> <span><strong>Enable SMS</strong> (Twilio)</span></label>
+      <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="wa_enabled" value="1" {% if values.wa_enabled == '1' %}checked{% endif %}> <span><strong>Enable WhatsApp</strong> (Meta Cloud API preferred, Twilio WhatsApp as alternative)</span></label>
+      <div class="row">
+        <div>
+          <label for="f-sms_twilio_sid">Twilio Account SID {% if values.sms_twilio_sid|default('') != '' %}<span style="color:#16794d;font-weight:600">● configured</span>{% endif %}</label>
+          <input type="password" name="sms_twilio_sid" id="f-sms_twilio_sid" autocomplete="new-password" placeholder="{% if values.sms_twilio_sid|default('') != '' %}•••••••••• (leave blank to keep){% else %}AC…{% endif %}">
+          {% if values.sms_twilio_sid|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[sms_twilio_sid]" value="1"> remove</label>{% endif %}
+        </div>
+        <div>
+          <label for="f-sms_twilio_token">Twilio Auth Token {% if values.sms_twilio_token|default('') != '' %}<span style="color:#16794d;font-weight:600">● configured</span>{% endif %}</label>
+          <input type="password" name="sms_twilio_token" id="f-sms_twilio_token" autocomplete="new-password" placeholder="{% if values.sms_twilio_token|default('') != '' %}•••••••••• (leave blank to keep){% else %}auth token{% endif %}">
+          {% if values.sms_twilio_token|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[sms_twilio_token]" value="1"> remove</label>{% endif %}
+        </div>
+      </div>
+      <div class="row">
+        <div><label for="f-sms_twilio_from">Twilio SMS sender <small>E.164</small></label><input type="text" name="sms_twilio_from" id="f-sms_twilio_from" value="{{ values.sms_twilio_from|default('') }}" placeholder="+15551234567"></div>
+        <div><label for="f-sms_twilio_wa_from">Twilio WhatsApp sender <small>optional, E.164</small></label><input type="text" name="sms_twilio_wa_from" id="f-sms_twilio_wa_from" value="{{ values.sms_twilio_wa_from|default('') }}" placeholder="+14155238886"></div>
+      </div>
+      <div class="row">
+        <div><label for="f-wa_phone_number_id">WhatsApp Business phone-number ID <small>Meta Cloud API</small></label><input type="text" name="wa_phone_number_id" id="f-wa_phone_number_id" value="{{ values.wa_phone_number_id|default('') }}" placeholder="e.g. 106540352242922"></div>
+        <div>
+          <label for="f-wa_access_token">WhatsApp access token {% if values.wa_access_token|default('') != '' %}<span style="color:#16794d;font-weight:600">● configured</span>{% endif %}</label>
+          <input type="password" name="wa_access_token" id="f-wa_access_token" autocomplete="new-password" placeholder="{% if values.wa_access_token|default('') != '' %}•••••••••• (leave blank to keep){% else %}EAAG… (permanent token){% endif %}">
+          {% if values.wa_access_token|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center;margin-top:3px"><input type="checkbox" name="messaging_clear[wa_access_token]" value="1"> remove</label>{% endif %}
+        </div>
+      </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Delivery is best-effort with automatic retries; every send is audited (numbers stored hashed &amp; masked). Recipients are normalised to E.164, compatible with Twilio and the WhatsApp Business API.</p>
     </div>
   </div></div>
   <div style="display:flex;justify-content:flex-end"><button class="ad-btn ad-btn--primary" type="submit">Save settings</button></div>

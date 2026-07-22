@@ -1,0 +1,38 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+{% if confirmed %}
+{% include 'partials/success.twig' with {
+  sc_accent: 'green',
+  sc_art: 'gold',
+  sc_glyph: 'heart',
+  sc_kicker: 'Donation received',
+  sc_heading: 'Thank you',
+  sc_body: 'Your gift funds child-leadership programmes across the continent — mentorship, scholarships and classrooms. This page is your receipt.',
+  sc_receipt: { label: 'Receipt', code: reference, amount: '₦' ~ (amount_naira|number_format) },
+  sc_primary: { label: 'See the leaderboard', href: '/leaderboard' },
+  sc_secondary: { label: 'Give again', href: '/donate' },
+  sc_email_note: 'A full receipt has been emailed to you.',
+  sc_confetti: true,
+  sc_next_label: 'Your gift at work',
+  sc_steps: [
+    'Every naira is allocated transparently to our programmes.',
+    'We’ll share an impact update as the cycle progresses.',
+    'Make it recurring any time to compound the impact.'
+  ]
+} only %}
+{% else %}
+{% include 'partials/success.twig' with {
+  sc_accent: 'slate',
+  sc_art: 'slate',
+  sc_glyph: 'clock',
+  sc_kicker: 'Confirming your gift',
+  sc_heading: 'We’re confirming your payment',
+  sc_body: 'We haven’t been able to confirm this gift yet. If you completed payment, your receipt will arrive by email shortly — gateway confirmations can take a moment. If something looks wrong, our team can help.',
+  sc_receipt: reference ? { label: 'Reference', code: reference } : null,
+  sc_primary: { label: 'Back to giving', href: '/donate' },
+  sc_secondary: { label: 'Contact support', href: '/support' },
+  sc_email_note: 'No charge is confirmed until you receive an emailed receipt.',
+  sc_confetti: false
+} only %}
+{% endif %}
+{% endblock %}

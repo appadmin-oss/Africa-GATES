@@ -61,12 +61,13 @@ body[data-page-admin] {
 .ad-side__brand .label small { display: block; font-weight: 500; color: rgba(255, 255, 255, 0.5); font-size: 11px; letter-spacing: 0.05em; margin-top: 2px; }
 
 .ad-side__group { padding: 16px 12px; }
-.ad-side__group h6 {
+.ad-side__group h6, .ad-side__grouptitle {
   font-family: 'Space Mono', monospace;
   font-size: 10px; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.14em;
   color: rgba(255, 255, 255, 0.35);
   padding: 0 10px 8px;
+  margin: 0;
 }
 .ad-side__link {
   display: flex; align-items: center; gap: 12px;
@@ -382,3 +383,124 @@ body[data-page-admin] {
 
 /* Avatar pill */
 .ad-avatar { width: 28px; height: 28px; border-radius: 50%; background-size: cover; background-position: center; background-color: var(--ad-line); display: inline-block; vertical-align: middle; margin-right: 8px; }
+
+/* Info icon (tooltip on hover/focus via tippy [data-tip]) — admin help everywhere */
+.ad-info { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; border:1.5px solid var(--ad-info,#2563eb); color:var(--ad-info,#2563eb); font:700 10px/1 Georgia, 'Times New Roman', serif; font-style:italic; cursor:help; vertical-align:middle; margin-left:6px; flex:none; user-select:none; transition:background .12s, color .12s; }
+.ad-info:hover, .ad-info:focus { background:var(--ad-info,#2563eb); color:#fff; outline:none; }
+.ad-h1 .ad-info { width:18px; height:18px; font-size:11px; }
+.ad-side__group h6 .ad-info, .ad-side__grouptitle .ad-info { width:13px; height:13px; font-size:8.5px; margin-left:5px; opacity:.55; }
+.ad-side__group h6 .ad-info:hover, .ad-side__group h6 .ad-info:focus,
+.ad-side__grouptitle .ad-info:hover, .ad-side__grouptitle .ad-info:focus { opacity:1; }
+.ad-card__title .ad-info { border-color:var(--ad-text-mute,#8a9a9c); color:var(--ad-text-mute,#8a9a9c); }
+.ad-card__title .ad-info:hover { background:var(--ad-text-mute,#8a9a9c); color:#fff; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ADMIN POLISH — data legibility · table scannability · button/badge
+   consistency · form clarity · keyboard-focus floor. Appended so it layers
+   over the base rules above (equal specificity → later declaration wins).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* 1 · Data legibility. Force lining + tabular figures wherever a number
+   carries meaning, so the display serif's old-style "1" stops reading as an
+   "I", and columns of counts, dates, references and prices line up
+   digit-for-digit for fast scanning. */
+.ad-stat__num,
+.ad-table,
+.ad-pager,
+.ad-h1 small,
+[data-countup] {
+  font-variant-numeric: lining-nums tabular-nums;
+  font-feature-settings: "lnum" 1, "tnum" 1;
+}
+
+/* 2 · Table scannability. The header stays pinned while you scroll a long
+   list (review 1,000 rows without losing the columns); cells align to a
+   consistent middle baseline; a calmer, clearer hover; no trailing hairline. */
+.ad-table-wrap { overflow: auto; max-height: calc(100vh - 190px); }
+.ad-table th {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--ad-bg);
+  /* border-collapse hides a th's own border when sticky — paint it as a shadow */
+  box-shadow: inset 0 -1px 0 var(--ad-line);
+}
+.ad-table th, .ad-table td { vertical-align: middle; }
+.ad-table tbody tr { transition: background 90ms ease; }
+.ad-table tbody tr:hover { background: #f3f7ff; }
+.ad-table tbody tr:last-child td { border-bottom: 0; }
+
+/* 3 · Buttons & badges. A visible keyboard focus ring everywhere (the
+   accessibility floor), buttons that never wrap or fall below a tap target,
+   an honest disabled state, and badges that hold the text baseline. */
+.ad-btn { min-height: 34px; white-space: nowrap; justify-content: center; }
+.ad-btn--sm { min-height: 28px; }
+.ad-btn--xs { min-height: 22px; }
+.ad-btn:focus-visible,
+.ad-tab:focus-visible,
+.ad-pager a:focus-visible {
+  outline: 2px solid var(--ad-primary);
+  outline-offset: 2px;
+}
+.ad-btn:disabled, .ad-btn[aria-disabled="true"] {
+  opacity: 0.5; cursor: not-allowed; pointer-events: none;
+}
+.ad-chip { white-space: nowrap; vertical-align: middle; line-height: 1.4; }
+
+/* 4 · Forms. Inputs answer to hover, keyboard focus rings match the buttons,
+   controls tint to the brand, disabled fields read as disabled, and the
+   select chevron is identical across browsers. */
+.ad-form input:hover, .ad-form select:hover, .ad-form textarea:hover,
+.ad-filters input:hover, .ad-filters select:hover { border-color: #ccd2dc; }
+.ad-form input:focus-visible, .ad-form select:focus-visible, .ad-form textarea:focus-visible,
+.ad-filters input:focus-visible, .ad-filters select:focus-visible {
+  outline: none; border-color: var(--ad-primary);
+  box-shadow: 0 0 0 3px rgba(8, 100, 17, 0.12);
+}
+.ad-form input::placeholder, .ad-form textarea::placeholder { color: var(--ad-text-mute); }
+.ad-form input:disabled, .ad-form select:disabled, .ad-form textarea:disabled {
+  background: var(--ad-line-soft); color: var(--ad-text-mute); cursor: not-allowed;
+}
+.ad-form input[type=checkbox], .ad-form input[type=radio],
+.ad-form .checkbox input { accent-color: var(--ad-primary); width: 16px; height: 16px; }
+.ad-form select, .ad-filters select {
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%235b667a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 14px center;
+  padding-right: 38px;
+}
+
+/* Honour reduced-motion for the transitions introduced above. */
+@media (prefers-reduced-motion: reduce) {
+  .ad-btn, .ad-table tbody tr, .ad-tab, .ad-form .file-zone { transition: none; }
+}
+
+/* ── Accessibility helpers ─────────────────────────────────────────────────
+   sr-only: visible to screen readers, hidden visually (used by the review-desk
+   live region and "opens in a new tab" hints). skip-link: keyboard/SR users
+   jump straight to page content past the sidebar. */
+.sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0);
+  white-space: nowrap; border: 0;
+}
+.skip-link {
+  position: absolute; left: 8px; top: -48px; z-index: 1000;
+  background: var(--ad-primary, #10292c); color: #fff;
+  padding: 10px 16px; border-radius: 0 0 8px 8px;
+  font-weight: 700; text-decoration: none;
+  transition: top .15s ease;
+}
+.skip-link:focus { top: 0; outline: 3px solid #f3b416; outline-offset: 2px; }
+.ad-main:focus { outline: none; }
+
+/* Site-wide reduced-motion safety net for the admin console — covers any
+   animation/transition not already individually guarded above. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,56 @@
+{# ── Reusable Lottie illustration ───────────────────────────────────────────
+   Professional animated illustrations (lottie-web, MIT; assets self-hosted —
+   see /assets/anim/NOTICE.md). Decorative by default (aria-hidden).
+
+   Usage:
+     {% include 'partials/lottie.twig' with { src: '/assets/anim/otp-verify.json', size: 180 } only %}
+     {% include 'partials/lottie.twig' with { src: '...', width: 260, height: 200, label: 'People waving' } only %}
+
+   - size / width+height : box in px (max-width 100%, so it shrinks on mobile)
+   - label               : optional — when set, the element is exposed to AT
+                           as an image with this name instead of hidden
+   Behaviour: the library loads ONCE per page (shared loader), each animation
+   plays only while on screen, and prefers-reduced-motion gets a static frame. #}
+{% set _w = width|default(size|default(180)) %}
+{% set _h = height|default(size|default(180)) %}
+<div class="ag-lottie" data-ag-lottie="{{ src }}"
+     {% if label|default('') %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}
+     style="width:{{ _w }}px;height:{{ _h }}px;max-width:100%;margin:0 auto"></div>
+<script>
+if (!window.agLottieBoot) {
+  window.agLottieBoot = true;
+  (function () {
+    function init() {
+      var mounts = document.querySelectorAll('[data-ag-lottie]:not([data-ag-done])');
+      if (!mounts.length || typeof lottie === 'undefined') return;
+      var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      mounts.forEach(function (m) {
+        m.setAttribute('data-ag-done', '1');
+        try {
+          var a = lottie.loadAnimation({
+            container: m, renderer: 'svg', loop: true, autoplay: false,
+            path: m.getAttribute('data-ag-lottie'),
+            rendererSettings: { preserveAspectRatio: 'xMidYMid meet', progressiveLoad: true }
+          });
+          if (reduced) {
+            a.addEventListener('DOMLoaded', function () { a.goToAndStop(a.totalFrames * 0.5, true); });
+          } else if ('IntersectionObserver' in window) {
+            var io = new IntersectionObserver(function (en) {
+              en[0].isIntersecting ? a.play() : a.pause();
+            }, { threshold: 0.15 });
+            io.observe(m);
+          } else {
+            a.play();
+          }
+        } catch (e) { /* decorative — absence is fine */ }
+      });
+    }
+    if (typeof lottie !== 'undefined') { init(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/lottie-web@5.12.2/build/player/lottie_light.min.js';
+    s.defer = true;
+    s.onload = init;
+    document.head.appendChild(s);
+  })();
+}
+</script>

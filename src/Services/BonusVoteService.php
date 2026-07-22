@@ -12,18 +12,18 @@ use Psr\Log\LoggerInterface;
  *
  * A CONFIRMED donation grants N bonus votes. Redeeming them mints ONE weighted
  * row in gates_votes (vote_type='bonus', weight=N, donation_id=…) and bumps the
- * nominee's vote_count by N. Because the Cultural Power Index community component
- * is cohort-normalised over vote_count, bonus votes flow through the EXISTING CPI
- * math unchanged — and they never touch the judge component, so expert scoring
- * stays clean. A bonus vote is auditable (its donation_id) and reversible at the
- * data layer.
+ * nominee's vote_count — the public "total support" display — by N.
+ *
+ * INTEGRITY: bonus votes are EXCLUDED from the Cultural Power Index. CPI's
+ * community component is cohort-normalised over organic_vote_count only, which
+ * this path never touches — so purchased votes are visible as supporter backing
+ * but cannot move rank or winner selection. They also never touch the judge
+ * component. Each bonus vote is auditable (donation_id) and reversible.
  *
  * Integrity guards mirror the organic path: confirmed donation only, cannot
  * redeem more than remain, nominee must be approved, cycle must be in 'voting'.
- *
- * POLICY NOTE: bonus weight currently counts in full. A per-cycle cap on paid
- * influence (e.g. RuleEngine 'max_paid_weight_pct') is a deliberate follow-up —
- * the seam is the increment below, not the CPI formula.
+ * A per-nominee cap (RuleEngine 'max_paid_weight_pct', default 50% of organic
+ * support, with a small floor) bounds how large the paid display boost can get.
  */
 class BonusVoteService
 {
@@ -79,7 +79,7 @@ class BonusVoteService
             // donations through before a nominee has built organic support.
             $pct = (int) ((new RuleEngine())->effective((int) $cycle->programme_id, (int) $cycle->id)['max_paid_weight_pct'] ?? 50);
             $bonusSoFar = (int) DB::table('gates_votes')->where('nominee_id', $nomineeId)->where('vote_type', 'bonus')->sum('weight');
-            $organic = max(0, (int) $nominee->vote_count - $bonusSoFar);
+            $organic = (int) $nominee->organic_vote_count;   // stable organic base (excludes paid)
             $cap = max(self::MIN_BONUS_CAP, (int) floor($organic * $pct / 100));
             if ($bonusSoFar + $count > $cap) {
                 return ['ok' => false, 'message' => "Bonus votes for this nominee are capped at {$cap} ({$pct}% of organic support)."];
@@ -101,8 +101,9 @@ class BonusVoteService
                 'voted_at'         => Carbon::now()->toDateTimeString(),
             ]);
 
-            // The weight (not 1) flows into vote_count, so the existing
-            // cohort-normalised community CPI absorbs it with no formula change.
+            // Bonus weight bumps ONLY the display total (vote_count). organic_vote_count
+            // is left untouched, so paid votes never enter the cohort-normalised CPI
+            // community signal — money cannot move rank, only the visible support tally.
             DB::table('gates_nominees')->where('id', $nomineeId)->increment('vote_count', $count);
             DB::table('gates_donations')->where('id', $donationId)->increment('votes_used', $count);
 

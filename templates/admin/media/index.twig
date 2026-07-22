@@ -1,0 +1,87 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Media{% endblock %}
+
+{% block head_styles %}
+<style>
+  .md-tabs{ display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
+  .md-tab{ text-decoration:none; font-size:13px; font-weight:600; padding:8px 15px; border-radius:999px; border:1px solid var(--ad-line,rgba(16,41,44,.12)); color:var(--ad-text-soft,#5a646a); background:var(--ad-surface,#fff); }
+  .md-tab.is-on{ background:var(--ad-ink,#10292C); color:#fff; border-color:var(--ad-ink,#10292C); }
+  .md-tab span{ opacity:.6; font-family:'Space Mono',monospace; margin-left:5px; }
+
+  .md-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; }
+  .md-card{ background:var(--ad-surface,#fff); border:1px solid var(--ad-line,rgba(16,41,44,.1)); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+  .md-prev{ position:relative; aspect-ratio:4/3; background:#0e1f22; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .md-prev img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .md-prev a{ position:absolute; inset:0; }
+  .md-doc{ display:flex; flex-direction:column; align-items:center; gap:8px; color:#7FC87C; }
+  .md-doc__ext{ font:700 13px/1 'Space Mono',monospace; letter-spacing:.04em; color:#cfe9ce; }
+  .md-tagrow{ position:absolute; top:8px; left:8px; display:flex; gap:6px; flex-wrap:wrap; }
+  .md-tag{ font-size:10px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; padding:3px 8px; border-radius:999px; background:rgba(255,255,255,.92); color:#10292C; }
+  .md-body{ padding:12px 13px; display:flex; flex-direction:column; gap:6px; flex:1; }
+  .md-meta{ font-size:11.5px; color:var(--ad-text-soft,#5a646a); line-height:1.45; }
+  .md-meta b{ color:var(--ad-text,#10292C); font-weight:600; }
+  .md-foot{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 13px; border-top:1px solid var(--ad-line,rgba(16,41,44,.08)); }
+  .md-view{ font-size:12.5px; font-weight:600; color:var(--ad-accent,#237b22); text-decoration:none; }
+  .md-empty{ background:var(--ad-surface,#fff); border:1px solid var(--ad-line,rgba(16,41,44,.1)); border-radius:16px; padding:48px 24px; text-align:center; color:var(--ad-text-soft,#5a646a); }
+  .md-empty__i{ font-size:30px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="md-tabs">
+  <a class="md-tab {% if filter == '' %}is-on{% endif %}" href="/admin/media">All <span>{{ counts.all|default(0) }}</span></a>
+  <a class="md-tab {% if filter == 'image' %}is-on{% endif %}" href="/admin/media?type=image">Images <span>{{ counts.image|default(0) }}</span></a>
+  <a class="md-tab {% if filter == 'doc' %}is-on{% endif %}" href="/admin/media?type=doc">Documents <span>{{ counts.doc|default(0) }}</span></a>
+</div>
+
+{% if rows is empty %}
+  <div class="md-empty">
+    <div class="md-empty__i">🖼️</div>
+    <h3 style="margin:.5rem 0 .25rem;font-family:'Cormorant Garamond',serif;font-size:1.4rem">No media yet</h3>
+    <p style="margin:0">Uploads from nominations, profiles and content will appear here for review.</p>
+  </div>
+{% else %}
+  <div class="md-grid">
+    {% for r in rows %}
+    {% set isImg = r.mime starts with 'image/' %}
+    <div class="md-card">
+      <div class="md-prev">
+        {% if r.attached_to_type %}<div class="md-tagrow"><span class="md-tag">{{ r.attached_to_type }}</span></div>{% endif %}
+        {# Preview through the streaming viewer so every type (PDF, docs, odd
+           extensions) renders with the right Content-Type — in the modal, with
+           an open-in-new-tab escape hatch. #}
+        {% if isImg %}
+          <button type="button" data-view-media="/admin/media/{{ r.id }}/view" data-view-mime="{{ r.mime }}" data-view-title="{{ r.alt|default(r.path|split('/')|last) }}"
+                  aria-label="Preview image" style="position:absolute;inset:0;background:none;border:none;cursor:zoom-in"></button>
+          <img src="{{ r.path }}" alt="{{ r.alt|default('') }}" loading="lazy">
+        {% else %}
+          <button type="button" data-view-media="/admin/media/{{ r.id }}/view" data-view-mime="{{ r.mime }}" data-view-title="{{ r.path|split('/')|last }}"
+                  class="md-doc" style="border:none;background:none;cursor:pointer" aria-label="Preview document">
+            <svg aria-hidden="true" focusable="false" width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            <span class="md-doc__ext">{{ r.path|split('.')|last|upper }}</span>
+          </button>
+        {% endif %}
+      </div>
+      <div class="md-body">
+        <div class="md-meta"><b>{{ r.mime }}</b></div>
+        <div class="md-meta">
+          {% if isImg and r.width %}{{ r.width }}×{{ r.height }} · {% endif %}
+          {% if r.size_bytes > 1048576 %}{{ (r.size_bytes / 1048576)|round(1) }} MB{% else %}{{ (r.size_bytes / 1024)|round }} KB{% endif %}
+        </div>
+        <div class="md-meta">By {{ r.uploader_type|default('—') }}{% if r.attached_to_id %} · #{{ r.attached_to_id }}{% endif %}</div>
+        <div class="md-meta">{{ r.created_at ? r.created_at|date('d M Y, H:i') : '—' }}</div>
+      </div>
+      <div class="md-foot">
+        <button type="button" class="md-view" data-view-media="/admin/media/{{ r.id }}/view" data-view-mime="{{ r.mime }}" data-view-title="{{ r.path|split('/')|last }}" style="border:none;background:none;cursor:pointer;padding:0">Preview</button>
+        <a class="md-view" href="/admin/media/{{ r.id }}/view?download=1">Download ⤓</a>
+        <form method="post" action="/admin/media/{{ r.id }}/delete" data-confirm="Delete this media permanently? This removes the file.">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="type" value="{{ filter }}">
+          <button class="ad-btn ad-btn--sm ad-btn--danger" type="submit">Delete</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

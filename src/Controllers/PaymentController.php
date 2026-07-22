@@ -9,7 +9,7 @@ use Psr\Log\LoggerInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
 use Slim\Views\Twig;
-use AfricaGates\Services\PaymentService;
+use AfricaGates\Services\{PaymentService, RateLimitService};
 
 /**
  * Checkout orchestration for the partner page (vote packs, event tickets, child
@@ -83,6 +83,7 @@ final class PaymentController
         private readonly PaymentService $payments,
         private readonly Twig $view,
         private readonly ?LoggerInterface $log = null,
+        private readonly ?RateLimitService $rateLimit = null,
     ) {}
 
     /** Where to send the buyer when checkout can't start. Keeps the enquiry fallback alive. */
@@ -137,6 +138,14 @@ final class PaymentController
             }
             return $this->redirect($res, $this->fallbackUrl());
         };
+
+        // Abuse control: cap pending-row + gateway churn per IP. Financial abuse is
+        // already impossible (amounts are server-authoritative); this throttles the
+        // noise/table-growth a scripted caller could otherwise generate.
+        $ip = (string)($req->getServerParams()['REMOTE_ADDR'] ?? '');
+        if ($this->rateLimit && $ip !== '' && !$this->rateLimit->check(hash('sha256', $ip . '|pay-init'), 'pay_init', 12, 3600)) {
+            return $bail('Too many attempts — please wait a few minutes and try again.');
+        }
 
         // 1. Provider must be one we can actually transact with right now.
         if (!$this->payments->isEnabled($provider)) {
@@ -367,6 +376,24 @@ final class PaymentController
 
         if ($changed > 0) {
             $this->log?->info('[payment] confirmed', ['src' => $source, 'ref' => $reference, 'amount' => $v['amount']]);
+            // Post-commit, best-effort (dispatch never throws) — additive to the
+            // audited payment path. Reference + amount only; no donor PII.
+            \AfricaGates\Services\WebhookService::dispatch('donation.confirmed', [
+                'reference' => $reference,
+                'amount'    => $v['amount'] ?? null,
+                'source'    => $source,
+            ]);
+            // Paid-vote orders: a confirmed payment auto-mints the votes for the
+            // nominee the order was created for. Idempotent (guarded votes_used
+            // flip) so the browser callback minting the same order is harmless.
+            try {
+                $row = DB::table('gates_donations')->where('payment_ref', $reference)->first(['id', 'tier', 'intent_nominee_id']);
+                if ($row && ($row->tier ?? '') === 'paid-vote' && !empty($row->intent_nominee_id)) {
+                    \AfricaGates\Services\PaidVoteService::mint((int) $row->id);
+                }
+            } catch (\Throwable $e) {
+                $this->log?->error('[payment] paid-vote mint failed', ['ref' => $reference, 'err' => $e->getMessage()]);
+            }
             return 'confirmed';
         }
 

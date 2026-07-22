@@ -1,0 +1,29 @@
+{% extends "layout/gates.twig" %}
+{% block content %}
+{% include 'partials/success.twig' with {
+  sc_accent: 'green',
+  sc_art: 'green',
+  sc_glyph: 'check',
+  sc_kicker: confirmed ? 'Votes confirmed' : 'Almost there',
+  sc_heading: confirmed
+    ? (votes ~ ' vote' ~ (votes == 1 ? '' : 's') ~ ' counted' ~ (nominee_name ? ' for ' ~ nominee_name : ''))
+    : 'We could not confirm that payment yet',
+  sc_body: confirmed
+    ? 'Your payment of ₦' ~ amount_naira|number_format ~ ' was verified and your votes are already in the public tally. Paid votes raise the tally — the jury/CPI score stays independent.'
+    : 'If you completed the payment, the confirmation can take a moment to land — refresh this page shortly, or contact support with your reference.',
+  sc_receipt: reference ? { label: 'Reference', code: reference } : null,
+  sc_primary: { label: confirmed ? 'Back to the ballot' : 'Try again', href: ballot_url },
+  sc_secondary: { label: 'See the leaderboard', href: '/leaderboard' },
+  sc_email_note: confirmed ? 'A receipt is on its way to your email.' : null,
+  sc_confetti: confirmed,
+  sc_next_label: 'What happens next',
+  sc_steps: confirmed ? [
+    'The public tally updates immediately; leaderboards refresh every few minutes.',
+    'Rally more support — share the nominee\'s page with your community.',
+    'The independent jury score (55% of the CPI) is never affected by paid votes.'
+  ] : [
+    'Payments are verified server-side with the gateway before any vote counts.',
+    'If you were charged but see no votes within a few minutes, contact /support with your reference.'
+  ]
+} only %}
+{% endblock %}

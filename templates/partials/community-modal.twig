@@ -1,0 +1,32 @@
+{# ── "Join our community" modal ────────────────────────────────────────────
+   Shown once per session after a successful vote or nomination. Behaviour +
+   accessibility (focus trap, ESC, scroll-lock, once-per-session) live in
+   /assets/js/community-modal.js; styles in components/community-modal.css.
+   The WhatsApp invite URL is overridable via the `community_whatsapp_url`
+   global, defaulting to the live community link. #}
+<div class="agcm" id="agCommunityModal" hidden>
+  <div class="agcm__overlay" data-agcm-close tabindex="-1" aria-hidden="true"></div>
+  <div class="agcm__dialog" role="dialog" aria-modal="true"
+       aria-labelledby="agcmTitle" aria-describedby="agcmBody">
+    <button type="button" class="agcm__close" data-agcm-close aria-label="Close">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <span class="agcm__badge" aria-hidden="true">
+      <svg viewBox="0 0 32 32" width="30" height="30" fill="currentColor" aria-hidden="true"><path d="M16 3C9.4 3 4 8.4 4 15c0 2.1.6 4.2 1.6 6L4 29l8.2-1.6c1.7.9 3.7 1.4 5.8 1.4 6.6 0 12-5.4 12-12S22.6 3 16 3Zm0 21.8c-1.8 0-3.5-.5-5-1.4l-.4-.2-4.9 1 1-4.7-.2-.4A9.8 9.8 0 1 1 16 24.8Zm5.4-7.3c-.3-.2-1.8-.9-2-1-.3-.1-.5-.2-.7.2s-.8 1-1 1.2c-.2.2-.4.2-.7.1a8 8 0 0 1-2.4-1.5 9 9 0 0 1-1.6-2c-.2-.3 0-.5.1-.6l.5-.6.3-.5c.1-.2 0-.4 0-.5l-1-2.3c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4a3.2 3.2 0 0 0-1 2.4c0 1.4 1 2.8 1.2 3 .1.2 2 3 4.8 4.2.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.6-.1 1.8-.7 2-1.4.3-.7.3-1.3.2-1.4-.1-.2-.3-.3-.6-.4Z"/></svg>
+    </span>
+    <p class="agcm__kicker">Thank you</p>
+    <h2 class="agcm__title" id="agcmTitle">Join the Africa GATES community</h2>
+    <p class="agcm__body" id="agcmBody">
+      Get cycle updates, results the moment they drop, and connect with others
+      championing African excellence — on our WhatsApp community.
+    </p>
+    <div class="agcm__actions">
+      <a class="agcm__cta" href="{{ community_whatsapp_url|default('https://chat.whatsapp.com/CQyjtaLB7RhLY6q5xAZzkc') }}"
+         target="_blank" rel="noopener noreferrer" data-agcm-join>
+        <svg viewBox="0 0 32 32" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M16 3C9.4 3 4 8.4 4 15c0 2.1.6 4.2 1.6 6L4 29l8.2-1.6c1.7.9 3.7 1.4 5.8 1.4 6.6 0 12-5.4 12-12S22.6 3 16 3Z"/></svg>
+        Join on WhatsApp
+      </a>
+      <button type="button" class="agcm__dismiss" data-agcm-close>Maybe later</button>
+    </div>
+  </div>
+</div>

@@ -6,23 +6,23 @@
   <input type="hidden" name="_token" value="{{ csrf_token }}">
   <div class="ad-card"><div class="ad-card__body">
     <div class="ad-form">
-      <div class="row"><div><label>Title</label><input type="text" name="title" value="{{ row.title|default('') }}" required></div><div><label>Slug</label><input type="text" name="slug" value="{{ row.slug|default('') }}" required></div></div>
+      <div class="row"><div><label for="f-title">Title</label><input type="text" name="title" id="f-title" value="{{ row.title|default('') }}" required></div><div><label for="f-slug">Slug</label><input type="text" name="slug" id="f-slug" value="{{ row.slug|default('') }}" required></div></div>
       <div class="row">
-        <div><label>Type</label><select name="opportunity_type">{% for t in ['grant','mentorship','training','job','fellowship','competition'] %}<option value="{{ t }}" {% if row.opportunity_type == t %}selected{% endif %}>{{ t|capitalize }}</option>{% endfor %}</select></div>
-        <div><label>Scope</label><input type="text" name="scope" value="{{ row.scope|default('Pan-African') }}"></div>
+        <div><label for="f-opportunity_type">Type</label><select name="opportunity_type" id="f-opportunity_type">{% for t in ['grant','mentorship','training','job','fellowship','competition'] %}<option value="{{ t }}" {% if row.opportunity_type == t %}selected{% endif %}>{{ t|capitalize }}</option>{% endfor %}</select></div>
+        <div><label for="f-scope">Scope</label><input type="text" name="scope" id="f-scope" value="{{ row.scope|default('Pan-African') }}"></div>
       </div>
-      <div><label>Provider</label><input type="text" name="provider" value="{{ row.provider|default('') }}" required></div>
-      <div><label>Description</label><textarea name="description" rows="4">{{ row.description|default('') }}</textarea></div>
-      <div><label>Eligibility</label><textarea name="eligibility" rows="2">{{ row.eligibility|default('') }}</textarea></div>
+      <div><label for="f-provider">Provider</label><input type="text" name="provider" id="f-provider" value="{{ row.provider|default('') }}" required></div>
+      <div><label for="f-description">Description</label><textarea name="description" id="f-description" rows="4">{{ row.description|default('') }}</textarea></div>
+      <div><label for="f-eligibility">Eligibility</label><textarea name="eligibility" id="f-eligibility" rows="2">{{ row.eligibility|default('') }}</textarea></div>
       <div class="row">
-        <div><label>Value</label><input type="text" name="value" value="{{ row.value|default('') }}" placeholder="e.g. $25,000"></div>
-        <div><label>Deadline</label><input type="date" name="deadline" value="{{ row.deadline|default('') }}"></div>
+        <div><label for="f-value">Value</label><input type="text" name="value" id="f-value" value="{{ row.value|default('') }}" placeholder="e.g. $25,000"></div>
+        <div><label for="f-deadline">Deadline</label><input type="date" name="deadline" id="f-deadline" value="{{ row.deadline|default('') }}"></div>
       </div>
       <div class="row">
-        <div><label>Apply URL</label><input type="url" name="apply_url" value="{{ row.apply_url|default('') }}"></div>
-        <div><label>Min CPI tier</label><select name="min_cpi_tier"><option value="">Any</option>{% for t in ['bronze','silver','gold','platinum','diamond'] %}<option value="{{ t }}" {% if row.min_cpi_tier == t %}selected{% endif %}>{{ t|capitalize }}</option>{% endfor %}</select></div>
+        <div><label for="f-apply_url">Apply URL</label><input type="url" name="apply_url" id="f-apply_url" value="{{ row.apply_url|default('') }}"></div>
+        <div><label for="f-min_cpi_tier">Min CPI tier</label><select name="min_cpi_tier" id="f-min_cpi_tier"><option value="">Any</option>{% for t in ['bronze','silver','gold','platinum','diamond'] %}<option value="{{ t }}" {% if row.min_cpi_tier == t %}selected{% endif %}>{{ t|capitalize }}</option>{% endfor %}</select></div>
       </div>
-      <div><label>Status</label><select name="status">{% for s in ['active','closed','draft'] %}<option value="{{ s }}" {% if row.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select></div>
+      <div><label for="f-status">Status</label><select name="status" id="f-status">{% for s in ['active','closed','draft'] %}<option value="{{ s }}" {% if row.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select></div>
     </div>
   </div></div>
   <div style="display:flex;justify-content:flex-end;gap:10px">

@@ -10,13 +10,17 @@ $dotenv->safeLoad();
 
 use Illuminate\Database\Capsule\Manager as DB;
 use Symfony\Component\Console\Application;
+use AfricaGates\Services\{PaymentService, OtpService};
 use AfricaGates\Console\Commands\{
     AdminCreateCommand,
     CacheClearCommand,
     CollusionScanCommand,
     CpiRecomputeCommand,
     CycleAdvanceCommand,
-    MigrateCommand
+    MigrateCommand,
+    PaymentReconcileCommand,
+    PrivacyPurgeCommand,
+    PrivacyEraseUserCommand
 };
 
 $capsule = new DB();
@@ -31,4 +35,17 @@ $app->add(new CollusionScanCommand());
 $app->add(new CpiRecomputeCommand());
 $app->add(new CycleAdvanceCommand());
 $app->add(new MigrateCommand());
+$app->add(new PaymentReconcileCommand(
+    new PaymentService(),
+    new OtpService([
+        'host'         => $_ENV['SMTP_HOST'] ?? 'smtp-relay.brevo.com',
+        'port'         => (int)($_ENV['SMTP_PORT'] ?? 587),
+        'username'     => $_ENV['SMTP_USER'] ?? '',
+        'password'     => $_ENV['SMTP_PASS'] ?? '',
+        'from_address' => $_ENV['MAIL_FROM_ADDRESS'] ?? 'noreply@afrovanguard.org.ng',
+        'from_name'    => $_ENV['MAIL_FROM_NAME'] ?? 'Africa GATES',
+    ])
+));
+$app->add(new PrivacyPurgeCommand());
+$app->add(new PrivacyEraseUserCommand());
 $app->run();

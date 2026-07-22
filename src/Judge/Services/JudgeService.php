@@ -22,6 +22,65 @@ class JudgeService
         return $row ?: null;
     }
 
+    /**
+     * Public-facing roster for the "Meet the Judges" page: active judges only,
+     * with display fields (never email or programme assignments). Judges with a
+     * photo are surfaced first, then alphabetical — so the showcase always leads
+     * with complete cards.
+     */
+    public function publicRoster(): array
+    {
+        $judges = DB::table('gates_judges')
+            ->where('is_active', 1)
+            ->orderByRaw("CASE WHEN avatar_path IS NULL OR avatar_path = '' THEN 1 ELSE 0 END")
+            ->orderBy('name')
+            ->get();
+        $progs = DB::table('gates_award_programmes')->get()->keyBy('id'); // resolved once
+        return $judges->map(fn ($r) => $this->shapePublic($r, $progs))->all();
+    }
+
+    /** One judge's public profile (for /judges/{slug}); null if missing or inactive. */
+    public function publicJudge(int $id): ?array
+    {
+        $r = DB::table('gates_judges')->where('id', $id)->where('is_active', 1)->first();
+        if (!$r) return null;
+        $progs = DB::table('gates_award_programmes')->get()->keyBy('id');
+        return $this->shapePublic($r, $progs, true);
+    }
+
+    /** Public, non-sensitive shape of a judge row (never email or assignments JSON). */
+    private function shapePublic(object $r, $progs, bool $rich = false): array
+    {
+        $ids = $r->programme_ids ? (json_decode((string) $r->programme_ids, true) ?: []) : [];
+        $jp = [];
+        foreach ($ids as $pid) {
+            $p = $progs[$pid] ?? null;
+            if ($p && (int) $p->is_active === 1) {
+                $jp[] = $rich
+                    ? ['slug' => $p->slug, 'title' => $p->title, 'icon_emoji' => $p->icon_emoji, 'subtitle' => $p->subtitle]
+                    : ['slug' => $p->slug, 'title' => $p->title];
+            }
+        }
+        return [
+            'id'           => (int) $r->id,
+            'name'         => (string) $r->name,
+            'title'        => (string) ($r->title ?? ''),
+            'organisation' => (string) ($r->organisation ?? ''),
+            'bio'          => (string) ($r->bio ?? ''),
+            'avatar_path'  => (string) ($r->avatar_path ?? ''),
+            'country_code' => strtoupper((string) ($r->country_code ?? '')),
+            'programmes'   => $jp,
+            'slug'         => $this->judgeSlug((int) $r->id, (string) $r->name),
+        ];
+    }
+
+    /** Canonical judge slug: {id}-{name}. */
+    public function judgeSlug(int $id, string $name): string
+    {
+        $s = trim(strtolower((string) preg_replace('/[^a-z0-9]+/i', '-', $name)), '-');
+        return $id . ($s !== '' ? '-' . $s : '');
+    }
+
     /** Programmes this judge is assigned to. */
     public function programmes(int $judgeId): array
     {
@@ -92,10 +151,25 @@ class JudgeService
             $byCategory[$n['category_id']]['nominees'][] = $n;
         }
 
+        // Whether this judge can actually write scores now — the same gate
+        // saveScore() enforces server-side. The template uses it to render a
+        // read-only ballot with a clear reason instead of live sliders that
+        // would only fail on submit.
+        $coi = $this->hasConflict($judgeId, $programmeId);
+        $judgingOpen = ($cycle->status === 'judging') && !$coi;
+        $lockReason = $coi
+            ? 'You have declared a conflict of interest for this programme, so scoring is disabled.'
+            : (($cycle->status !== 'judging')
+                ? 'Scoring is closed — this cycle is not in the judging phase yet.'
+                : '');
+
         return [
             'cycle' => (array)$cycle,
             'criteria' => $criteria,
             'categories' => array_values($byCategory),
+            'judging_open' => $judgingOpen,
+            'coi' => $coi,
+            'lock_reason' => $lockReason,
             'progress' => [
                 'total' => count($nominees),
                 'scored' => count(array_filter($nominees, fn($n) => count($byNominee[$n['id']] ?? []) === count($criteria))),
@@ -189,6 +263,13 @@ class JudgeService
                 'created_at' => Carbon::now()->toDateTimeString(),
             ]
         );
+    }
+
+    /** Withdraw a previously-declared conflict of interest (a judge may have declared in error). */
+    public function withdrawConflict(int $judgeId, int $programmeId): void
+    {
+        DB::table('gates_judge_coi')
+            ->where('judge_id', $judgeId)->where('programme_id', $programmeId)->delete();
     }
 
     /** True if the judge has declared a conflict of interest for the programme. */

@@ -1,0 +1,29 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ form.title }} · Submissions{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/forms">← Forms</a> <a class="ad-btn" href="/admin/data/form-submissions?q={{ form.form_key|url_encode }}">Open in Data explorer</a>{% endblock %}
+{% block content %}
+<div class="ad-card"><div class="ad-table-wrap">
+  <div style="padding:4px 4px 12px"><strong style="font-size:14px">{{ total|number_format }} submission{{ total == 1 ? '' : 's' }}</strong>{% if pages > 1 %} <span style="font-size:12px;color:var(--ad-text-mute,#5a6d6f)">· page {{ page }}/{{ pages }}</span>{% endif %}</div>
+  <table class="ad-table">
+    <thead><tr>{% for f in fields|slice(0, 6) %}<th scope="col">{{ f.label }}</th>{% endfor %}<th scope="col">When</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        {% for f in fields|slice(0, 6) %}
+          {% set v = r.data[f.name]|default('') %}
+          <td>{% if v is iterable %}{{ v|join(', ') }}{% elseif v == '' %}<span style="color:var(--ad-text-mute,#8a9a9c)">—</span>{% else %}{{ v|slice(0, 70) }}{% if v|length > 70 %}…{% endif %}{% endif %}</td>
+        {% endfor %}
+        <td style="font-family:'Space Mono',monospace;font-size:12px">{{ r.created_at|slice(0, 16) }}</td>
+      </tr>
+      {% else %}<tr><td colspan="{{ (fields|slice(0, 6)|length) + 1 }}" style="text-align:center;padding:30px;color:var(--ad-text-mute)">No submissions yet.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% if pages > 1 %}
+  <div style="display:flex;gap:8px;justify-content:center;align-items:center;padding:14px 0 4px">
+    {% if page > 1 %}<a class="ad-btn ad-btn--sm" href="/admin/forms/{{ form.id }}/submissions?page={{ page - 1 }}">← Prev</a>{% endif %}
+    <span style="font-size:13px;color:var(--ad-text-mute,#5a6d6f)">{{ page }} / {{ pages }}</span>
+    {% if page < pages %}<a class="ad-btn ad-btn--sm" href="/admin/forms/{{ form.id }}/submissions?page={{ page + 1 }}">Next →</a>{% endif %}
+  </div>
+  {% endif %}
+</div></div>
+{% endblock %}

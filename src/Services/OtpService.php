@@ -42,6 +42,23 @@ class OtpService
         return !in_array($u, $bad, true) && !in_array($p, $bad, true);
     }
 
+    /** Absolute site base URL for every link/image in email — from APP_URL, no trailing slash. */
+    private function base(): string
+    {
+        return rtrim((string)($_ENV['APP_URL'] ?? 'https://afg.afrovanguard.org.ng'), '/');
+    }
+
+    /**
+     * True in production. The var/logs/outgoing-mail.log fallback is a DEV
+     * convenience only — in production a missing SMTP config is a real outage,
+     * so transactional sends (OTP, magic-link) must report failure rather than
+     * silently "succeed" to a log nobody reads.
+     */
+    private function isProduction(): bool
+    {
+        return strtolower((string)($_ENV['APP_ENV'] ?? 'production')) === 'production';
+    }
+
     /** Build a configured PHPMailer instance ready to send to $to. */
     private function mailer(string $to): PHPMailer
     {
@@ -61,10 +78,36 @@ class OtpService
 
         $from     = (string)($this->smtp['from_address'] ?? 'noreply@afrovanguard.org.ng');
         $fromName = (string)($this->smtp['from_name']    ?? 'Africa GATES');
+        // Reply-To can point at a monitored inbox (e.g. africa-gates@…) while
+        // From stays the domain-aligned envelope sender for SPF/DMARC. Falls
+        // back to the From address when no reply-to is configured.
+        $replyTo  = trim((string)($this->smtp['reply_to'] ?? '')) ?: $from;
         $m->setFrom($from, $fromName);
-        $m->addReplyTo($from, $fromName);
+        $m->addReplyTo($replyTo, $fromName);
+        $m->Sender = $from; // envelope-from aligned with From for SPF/DMARC
         $m->addAddress($to);
         return $m;
+    }
+
+    /**
+     * Delivery audit: one row per attempted send, recipient masked. Powers the
+     * admin Email-health card so failures are visible instead of silent.
+     * Fault-tolerant — auditing can never break sending.
+     */
+    private function mailLog(string $to, string $subject, string $category, string $status, ?string $error = null): void
+    {
+        try {
+            [$local, $domain] = array_pad(explode('@', $to, 2), 2, '');
+            $masked = mb_substr($local, 0, 2) . '***@' . $domain;
+            \Illuminate\Database\Capsule\Manager::table('gates_mail_log')->insert([
+                'to_masked'  => mb_substr($masked, 0, 120),
+                'subject'    => mb_substr($subject, 0, 200),
+                'category'   => $category !== '' ? mb_substr($category, 0, 40) : null,
+                'status'     => $status,
+                'error'      => $error !== null ? mb_substr($error, 0, 300) : null,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable) {}
     }
 
     /** Append to the dev log file (fallback when SMTP is unconfigured). */
@@ -87,23 +130,32 @@ class OtpService
      * Send a fully-branded HTML email.
      * Falls back to plain text log when SMTP is unconfigured.
      */
-    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = ''): array
+    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = ''): array
     {
         if (!$this->smtpConfigured()) {
             $this->devLog($to, $subject, $plainBody ?: strip_tags($htmlBody));
+            if ($this->isProduction()) {
+                $this->log?->error('[mail] SMTP not configured in production — message NOT delivered', ['to' => $to, 'subject' => $subject]);
+                $this->mailLog($to, $subject, $category, 'failed', 'SMTP not configured (SMTP_USER / SMTP_PASS)');
+                return ['success' => false, 'fallback' => 'log',
+                        'error' => 'Email is not configured (set SMTP_USER / SMTP_PASS). The message was written to var/logs/outgoing-mail.log but was NOT delivered.'];
+            }
+            $this->mailLog($to, $subject, $category, 'logged_dev');
             return ['success' => true, 'fallback' => 'log'];
         }
         try {
             $m = $this->mailer($to);
             $m->isHTML(true);
             $m->Subject = $subject;
-            $m->Body    = $this->brandWrap($subject, $htmlBody);
+            $m->Body    = $this->brandWrap($subject, $htmlBody, $category, $hero);
             $m->AltBody = $plainBody ?: strip_tags($htmlBody);
             $m->send();
             $this->log?->info('[mail] sent', ['to' => $to, 'subject' => $subject]);
+            $this->mailLog($to, $subject, $category, 'sent');
             return ['success' => true];
         } catch (MailException|\Throwable $e) {
             $this->log?->error('[mail] send failed: ' . $e->getMessage(), ['to' => $to]);
+            $this->mailLog($to, $subject, $category, 'failed', $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -116,6 +168,12 @@ class OtpService
     {
         if (!$this->smtpConfigured()) {
             $this->devLog($to, $subject, $body);
+            if ($this->isProduction()) {
+                $this->mailLog($to, $subject, 'custom', 'failed', 'SMTP not configured (SMTP_USER / SMTP_PASS)');
+                return ['success' => false, 'fallback' => 'log',
+                        'error' => 'Email is not configured (set SMTP_USER / SMTP_PASS). Written to var/logs/outgoing-mail.log but NOT delivered.'];
+            }
+            $this->mailLog($to, $subject, 'custom', 'logged_dev');
             return ['success' => true, 'fallback' => 'log'];
         }
         try {
@@ -124,9 +182,11 @@ class OtpService
             $m->Subject = $subject;
             $m->Body    = $body;
             $m->send();
+            $this->mailLog($to, $subject, 'custom', 'sent');
             return ['success' => true];
         } catch (MailException|\Throwable $e) {
             $this->log?->error('[mail] sendCustom failed: ' . $e->getMessage(), ['to' => $to]);
+            $this->mailLog($to, $subject, 'custom', 'failed', $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -220,21 +280,24 @@ class OtpService
     private function sendOtpEmail(string $to, string $code): array
     {
         $html = <<<HTML
-<p style="margin:0 0 18px;font-size:15px;color:#4b5563">Your one-time voting code is:</p>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto 20px">
-  <tr>
-    <td style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:18px 32px;text-align:center;font-family:Courier New,Courier,monospace;font-size:36px;font-weight:700;letter-spacing:12px;color:#15803d">$code</td>
-  </tr>
+<h1 style="margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:26px;color:#10292C;letter-spacing:-.01em">Confirm it's you</h1>
+<p style="margin:13px 0 0;font-size:15px;line-height:1.65;color:#4a5256">Enter this one-time code to verify your email and cast your vote. It expires in <strong style="color:#10292C">10 minutes</strong>.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0">
+  <tr><td style="background:#f4f7f4;border:1px solid #d6e8d3;border-radius:14px;padding:24px;text-align:center">
+    <div style="font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#92a6a7;margin-bottom:12px">Your verification code</div>
+    <div style="font-family:'JetBrains Mono',Consolas,'Courier New',monospace;font-weight:700;font-size:38px;letter-spacing:.34em;color:#10292C;padding-left:.34em">$code</div>
+  </td></tr>
 </table>
-<p style="margin:0 0 10px;font-size:13px;color:#6b7280">Expires in <strong>10 minutes</strong>. One vote per email per category.</p>
-<p style="margin:0;font-size:12px;color:#9ca3af">Didn't request this? You can safely ignore this email — your vote has not been submitted.</p>
+<p style="margin:0;font-size:13px;line-height:1.6;color:#92a6a7">Didn't request this? Ignore this email — no one can vote as you, and your account stays secure. One vote per email per category.</p>
 HTML;
 
         return $this->sendBranded(
             $to,
-            "[Africa GATES] Your code: $code",
+            'Africa GATES — your verification code',
             $html,
-            "Africa GATES verification code: $code\n\nExpires in 10 minutes. One vote per email per category.\n\nDidn't request this? Ignore this email."
+            "Africa GATES verification code: $code\n\nExpires in 10 minutes. One vote per email per category.\n\nDidn't request this? Ignore this email.",
+            'Security',
+            $this->base() . '/assets/img/illustrations/illo-envelope.jpg'
         );
     }
 
@@ -274,7 +337,9 @@ HTML;
             $html,
             "Hi $nominatorName,\n\nThank you for nominating $nomineeName for the $programme. "
                 . "Your submission is now in our moderation queue.\n\nOnce approved, "
-                . "$nomineeName will appear on the public shortlist for community voting.\n\n— Africa GATES"
+                . "$nomineeName will appear on the public shortlist for community voting.\n\n— Africa GATES",
+            'Confirmation',
+            $this->base() . '/assets/img/illustrations/illo-plane.jpg'
         );
     }
 
@@ -285,6 +350,7 @@ HTML;
         string $organisation,
         string $tier,
     ): array {
+        $base = $this->base();
         $html = <<<HTML
 <p style="margin:0 0 14px;font-size:15px;color:#374151">Hi <strong>$contactName</strong>,</p>
 <p style="margin:0 0 14px;font-size:15px;color:#374151">
@@ -294,8 +360,8 @@ HTML;
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:14px 18px">
   <tr>
     <td style="font-size:14px;color:#92400e">
-      In the meantime, you can explore the <a href="https://afg.afrovanguard.org.ng/awards" style="color:#b45309">award programmes</a>
-      and the <a href="https://afg.afrovanguard.org.ng/legacy" style="color:#b45309">legacy vault</a> to see the reach of each cycle.
+      In the meantime, you can explore the <a href="{$base}/awards" style="color:#b45309">award programmes</a>
+      and the <a href="{$base}/legacy" style="color:#b45309">legacy vault</a> to see the reach of each cycle.
     </td>
   </tr>
 </table>
@@ -309,7 +375,9 @@ HTML;
             "Your partnership enquiry with Africa GATES",
             $html,
             "Hi $contactName,\n\nThank you for your $tier partnership enquiry on behalf of $organisation. "
-                . "A programme director will be in touch within two working days.\n\n— Africa GATES"
+                . "A programme director will be in touch within two working days.\n\n— Africa GATES",
+            'Partnership',
+            $this->base() . '/assets/img/illustrations/illo-ribbon.jpg'
         );
     }
 
@@ -322,9 +390,16 @@ HTML;
      * Uses <table> layout throughout for maximum email-client compatibility
      * (Outlook, Gmail app, Apple Mail, Yahoo Mail).
      */
-    private function brandWrap(string $subject, string $body): string
+    private function brandWrap(string $subject, string $body, string $category = '', string $hero = ''): string
     {
-        $year = date('Y');
+        $year    = date('Y');
+        $base    = $this->base();
+        $catCell = $category !== ''
+            ? '<span style="font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,0.5)">' . htmlspecialchars($category, ENT_QUOTES) . '</span>'
+            : '';
+        $heroRow = $hero !== ''
+            ? '<tr><td style="padding:0;font-size:0;line-height:0"><img src="' . htmlspecialchars($hero, ENT_QUOTES) . '" alt="" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>'
+            : '';
         return <<<HTML
 <!DOCTYPE html>
 <html lang="en">
@@ -334,45 +409,55 @@ HTML;
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <title>$subject</title>
 </head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f3f4f6;padding:32px 16px">
-    <tr>
-      <td align="center">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="520" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(16,41,44,0.10)">
+<body style="margin:0;padding:0;background:#dfe1dc;font-family:'DM Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#dfe1dc;padding:28px 16px">
+    <tr><td align="center">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;background:#ffffff;border-radius:6px;overflow:hidden;border:1px solid rgba(16,41,44,0.06);box-shadow:0 6px 24px -12px rgba(16,41,44,0.3)">
 
-          <!-- Header -->
-          <tr>
-            <td style="background:linear-gradient(135deg,#10292C 0%,#1a4a30 100%);padding:28px 32px;text-align:center">
-              <span style="font-size:22px;font-weight:800;letter-spacing:0.04em;color:#ffffff">
-                Africa <span style="color:#f3b416">GATES</span>
-              </span>
-              <p style="margin:6px 0 0;font-size:12px;color:rgba(255,255,255,0.6);letter-spacing:0.08em;text-transform:uppercase">Cultural Power Index</p>
+        <!-- Pre-header -->
+        <tr><td style="background:#fbfbfa;border-bottom:1px solid rgba(16,41,44,0.06);padding:9px 20px">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td align="left" style="font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#a9b0ad">Africa GATES</td>
+            <td align="right" style="font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#a9b0ad">Cultural Power Index</td>
+          </tr></table>
+        </td></tr>
+
+        <!-- Masthead -->
+        <tr><td style="background:#10292C;padding:18px 32px">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td align="left">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+                <td width="34" style="width:34px;height:34px;background:rgba(127,200,124,0.16);border-radius:9px;text-align:center;vertical-align:middle;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:18px;color:#7FC87C">G</td>
+                <td style="padding-left:11px;vertical-align:middle;line-height:1.1">
+                  <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:15px;color:#ffffff">Africa</span><br>
+                  <span style="font-size:9px;font-weight:700;letter-spacing:.26em;color:#7FC87C">GATES</span>
+                </td>
+              </tr></table>
             </td>
-          </tr>
+            <td align="right" style="vertical-align:middle">$catCell</td>
+          </tr></table>
+        </td></tr>
 
-          <!-- Body -->
-          <tr>
-            <td style="padding:32px 32px 24px">
-              $body
-            </td>
-          </tr>
+        $heroRow
 
-          <!-- Footer -->
-          <tr>
-            <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:20px 32px;text-align:center">
-              <p style="margin:0;font-size:12px;color:#9ca3af">
-                © $year Afrovanguard · Africa GATES &nbsp;·&nbsp;
-                <a href="https://afg.afrovanguard.org.ng" style="color:#6b7280;text-decoration:none">afg.afrovanguard.org.ng</a>
-              </p>
-              <p style="margin:6px 0 0;font-size:11px;color:#d1d5db">
-                You received this email because of activity on the Africa GATES platform.
-              </p>
-            </td>
-          </tr>
+        <!-- Body -->
+        <tr><td style="padding:34px 40px 30px;color:#4a5256;font-size:15px;line-height:1.65">
+          $body
+        </td></tr>
 
-        </table>
-      </td>
-    </tr>
+        <!-- Footer -->
+        <tr><td style="background:#0c2225;padding:24px 40px">
+          <span style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:14px;color:#ffffff">Africa<span style="color:#7FC87C">GATES</span></span>
+          <div style="height:1px;background:rgba(255,255,255,0.1);margin:14px 0"></div>
+          <p style="margin:0;font-size:11.5px;line-height:1.7;color:rgba(255,255,255,0.55)">
+            © $year Afrovanguard Initiative · Lagos, Nigeria · We hash every email — plain text is never stored.<br>
+            <a href="{$base}/help" style="color:rgba(255,255,255,0.8);text-decoration:underline">Help Center</a> ·
+            <a href="{$base}/privacy" style="color:rgba(255,255,255,0.8);text-decoration:underline">Privacy</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
   </table>
 </body>
 </html>
@@ -391,6 +476,7 @@ HTML;
         string $closingDate,
         array  $topNominees = [],
     ): array {
+        $base = $this->base();
         $rows = '';
         foreach (array_slice($topNominees, 0, 5) as $n) {
             $rows .= '<tr><td style="padding:6px 0;font-size:14px;color:#374151;border-bottom:1px solid #e5e7eb">'
@@ -411,7 +497,7 @@ HTML;
 </p>
 {$leaderTable}
 <p style="text-align:center;margin:24px 0">
-  <a href="https://afg.afrovanguard.org.ng/vote"
+  <a href="{$base}/vote"
      style="display:inline-block;padding:14px 32px;background:#10292C;color:#fff;border-radius:999px;font-weight:700;text-decoration:none;font-size:16px">
     Cast my vote now →
   </a>
@@ -424,7 +510,9 @@ HTML;
             $to,
             "⏰ {$cycleName} voting closes {$closingDate} — have you voted?",
             $html,
-            "{$cycleName} voting closes {$closingDate}. Vote now at https://afg.afrovanguard.org.ng/vote"
+            "{$cycleName} voting closes {$closingDate}. Vote now at {$base}/vote",
+            'Reminder',
+            $this->base() . '/assets/img/illustrations/illo-ballot-countdown.jpg'
         );
     }
 
@@ -460,7 +548,9 @@ HTML;
             $to,
             "You've been appointed as a judge — {$programme}",
             $html,
-            "Hi {$judgeName},\n\nYou've been appointed as a judge for {$programme} in Africa GATES 2026.\n\nAccess the panel: {$loginUrl}\n\n— Africa GATES"
+            "Hi {$judgeName},\n\nYou've been appointed as a judge for {$programme} in Africa GATES 2026.\n\nAccess the panel: {$loginUrl}\n\n— Africa GATES",
+            'Judges',
+            $this->base() . '/assets/img/illustrations/illo-shield.jpg'
         );
     }
 }

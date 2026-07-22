@@ -1,0 +1,87 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   a11y.css — site-wide accessibility layer (WCAG 2.2 AA)
+   Loaded LAST so its corrections win. Complements base/reset.css
+   (:focus-visible) and tokens.motion.css (reduced motion).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Screen-reader-only text (canonical copy; safe duplicate) ─────────── */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.sr-only-focusable:focus,
+.sr-only-focusable:focus-within {
+  position: static; width: auto; height: auto; margin: 0;
+  overflow: visible; clip: auto; white-space: normal;
+}
+
+/* ── Form validation states (paired with aria-invalid wiring in JS) ───── */
+[aria-invalid="true"] {
+  border-color: #b4452f !important;
+  outline-color: #b4452f;
+}
+[aria-invalid="true"]:focus-visible { outline: 2px solid #b4452f; outline-offset: 2px; }
+
+/* Error + status messages: readable, never colour-only (JS adds role) */
+[role="alert"], .nm-perr, .vn-err, .ed-err, .ac-err {
+  font-weight: 600;
+}
+
+/* ── Known low-contrast text tokens, corrected globally ───────────────────
+   #92a6a7 on white ≈ 2.9:1 and #9cbf9a ≈ 2.1:1 — both fail AA for text.
+   These appear as metadata/hint colours across cards; darken to pass 4.5:1
+   while keeping the muted look. Decorative SVG strokes are exempt. */
+.ac-row__d, .ac-row__bal { color: #5f7273 !important; }
+
+/* ── Touch-target minimums on coarse pointers (WCAG 2.5.8) ────────────── */
+@media (pointer: coarse) {
+  button, [role="button"], input[type="submit"], input[type="button"],
+  select, .nm-next, .nm-back, .vn-go, .ed-cta, .ag-maf__btn {
+    min-height: 44px;
+  }
+  input[type="checkbox"], input[type="radio"] {
+    width: 20px; height: 20px;
+  }
+}
+
+/* ── :target landing highlight (skip-link / anchor jumps stay visible) ── */
+:target {
+  scroll-margin-top: 90px;
+}
+main:target, section:target, div[id]:target {
+  animation: ag-target-flash 1.2s ease 1;
+}
+@keyframes ag-target-flash {
+  0%   { box-shadow: 0 0 0 3px rgba(35, 123, 34, .55); }
+  100% { box-shadow: 0 0 0 3px rgba(35, 123, 34, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  main:target, section:target, div[id]:target { animation: none; }
+}
+
+/* ── High-contrast preference: strengthen muted text + borders ────────── */
+@media (prefers-contrast: more) {
+  body { color: #0c1f22; }
+  .nm-hint, .vn-sub, .ed-label, .ac-empty, .ac-row__d,
+  small, .lead, [class*="__sub"], [class*="-mute"] { color: #33484a !important; }
+  input, select, textarea, button { border-color: #0c1f22 !important; }
+}
+
+/* ── Forced colors (Windows High Contrast Mode) ───────────────────────── */
+@media (forced-colors: active) {
+  button, [role="button"], a { forced-color-adjust: auto; }
+  :focus-visible { outline: 3px solid Highlight; outline-offset: 2px; }
+  .skip-link:focus { background: Canvas; color: LinkText; }
+}
+
+/* ── Keyboard affordance for custom interactive cards (nm-pc etc.) ────── */
+.nm-pc:focus-visible, .ag-maf__btn:focus-visible {
+  outline: 2px solid var(--ag-green, #237b22);
+  outline-offset: 3px;
+}
+
+/* ── Disabled controls still need discernible (not colour-only) state ─── */
+button:disabled, [aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: .62;
+}

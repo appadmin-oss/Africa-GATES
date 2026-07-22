@@ -24,6 +24,6 @@ class LegacyController {
         $blurb=trim(strip_tags((string)($event['excerpt'] ?? '') ?: (string)($event['tagline'] ?? '')));
         $meta=$blurb!==''?(mb_strlen($blurb)>160?rtrim(mb_substr($blurb,0,157)).'…':$blurb):($event['title'].' — a milestone edition preserved in the Africa GATES Legacy Vault, with winners and highlights from the continental cultural record.');
         $meta=mb_strlen($meta)>160?rtrim(mb_substr($meta,0,157)).'…':$meta;
-        return $this->view->render($res,'pages/legacy/event.twig',['page_title'=>$event['title'].' — Legacy Vault | Africa GATES','meta_description'=>$meta,'og_title'=>$event['title'].' — Africa GATES Legacy Vault','gates_page'=>'legacy','has_hero'=>false,'current_section'=>'projects','event'=>$event,'comments'=>$comments,'cheer_count'=>$cheerCount]);
+        return $this->view->render($res,'pages/legacy/event.twig',['page_title'=>$event['title'].' — Legacy Vault | Africa GATES','meta_description'=>$meta,'og_title'=>$event['title'].' — Africa GATES Legacy Vault','gates_page'=>'legacy','has_hero'=>false,'current_section'=>'projects','event'=>$event,'comments'=>$comments,'cheer_count'=>$cheerCount]+array_filter(['og_image'=>\AfricaGates\Support\Assets::absoluteOg($event['cover_path']??null),'og_image_alt'=>$event['title'].' — Africa GATES Legacy Vault'],fn($v)=>$v!==null));
     }
 }

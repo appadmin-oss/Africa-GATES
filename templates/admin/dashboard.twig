@@ -3,7 +3,7 @@
 {% block topbar_title %}Welcome back, {{ admin_name|split(' ')|first }}{% endblock %}
 {% block topbar_actions %}
   <a class="ad-btn" href="/" target="_blank">
-    <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+    <svg aria-hidden="true" focusable="false" class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
     View site
   </a>
 {% endblock %}
@@ -41,7 +41,7 @@
     <div class="ad-card__head"><div class="ad-card__title">Top nominees<small>Highest vote counts right now</small></div></div>
     <div class="ad-card__body">
       <table class="ad-table">
-        <thead><tr><th>Nominee</th><th>Category</th><th style="text-align:right">Votes</th></tr></thead>
+        <thead><tr><th scope="col">Nominee</th><th scope="col">Category</th><th scope="col" style="text-align:right">Votes</th></tr></thead>
         <tbody>
           {% for n in top_nominees %}
           <tr>
@@ -62,7 +62,7 @@
   <div class="ad-card__head"><div class="ad-card__title">Recent admin activity<small>Latest 12 actions</small></div></div>
   <div class="ad-card__body">
     <table class="ad-table">
-      <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th></tr></thead>
+      <thead><tr><th scope="col">When</th><th scope="col">Admin</th><th scope="col">Action</th><th scope="col">Target</th></tr></thead>
       <tbody>
         {% for e in recent_activity %}
         <tr>

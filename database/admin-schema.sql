@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS gates_admins (
   email VARCHAR(191) NOT NULL,
   password_hash VARCHAR(255) DEFAULT NULL,
   name VARCHAR(200) NOT NULL,
-  role ENUM('superadmin','admin','editor','judge','viewer') NOT NULL DEFAULT 'editor',
+  role ENUM('superadmin','admin','editor','moderator','judge','viewer') NOT NULL DEFAULT 'editor',
   avatar_path VARCHAR(400) DEFAULT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
   last_login_at TIMESTAMP NULL DEFAULT NULL,
@@ -75,22 +75,9 @@ CREATE TABLE IF NOT EXISTS gates_judges (
   CONSTRAINT fk_judge_admin FOREIGN KEY (admin_id) REFERENCES gates_admins(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS gates_judge_scores (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  judge_id BIGINT UNSIGNED NOT NULL,
-  nominee_id BIGINT UNSIGNED NOT NULL,
-  category_id BIGINT UNSIGNED NOT NULL,
-  score TINYINT NOT NULL,
-  notes TEXT,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_jscore (judge_id, nominee_id),
-  KEY idx_jscore_judge (judge_id),
-  KEY idx_jscore_nominee (nominee_id),
-  CONSTRAINT fk_jscore_judge    FOREIGN KEY (judge_id)    REFERENCES gates_judges(id)           ON DELETE CASCADE,
-  CONSTRAINT fk_jscore_nominee  FOREIGN KEY (nominee_id)  REFERENCES gates_nominees(id)         ON DELETE CASCADE,
-  CONSTRAINT fk_jscore_category FOREIGN KEY (category_id) REFERENCES gates_award_categories(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- (Removed) gates_judge_scores — the legacy single-score table is dead (zero code
+-- references; scoring uses gates_judge_criteria_scores). Kept out of fresh installs
+-- to match the SQLite schema, which already omits it.
 
 CREATE TABLE IF NOT EXISTS gates_settings (
   key_name VARCHAR(100) NOT NULL,
@@ -116,6 +103,32 @@ CREATE TABLE IF NOT EXISTS gates_uploads (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_uploads_attached (attached_to_type, attached_to_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_webhooks (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  url VARCHAR(500) NOT NULL,
+  secret VARCHAR(120) NOT NULL,
+  events TEXT NOT NULL,
+  description VARCHAR(200) DEFAULT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  last_status INT DEFAULT NULL,
+  last_event_at TIMESTAMP NULL DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_webhook_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_webhook_deliveries (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  webhook_id BIGINT UNSIGNED NOT NULL,
+  event VARCHAR(60) NOT NULL,
+  status_code INT DEFAULT NULL,
+  ok TINYINT(1) NOT NULL DEFAULT 0,
+  error VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_delivery_hook (webhook_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

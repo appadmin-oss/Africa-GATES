@@ -4,7 +4,7 @@
 {% block content %}
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
-    <thead><tr><th>Judge</th><th>Affiliation</th><th>Country</th><th>Programmes</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Judge</th><th scope="col">Affiliation</th><th scope="col">Country</th><th scope="col">Programmes</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
@@ -23,6 +23,7 @@
         <td>{% if r.is_active %}<span class="ad-chip ad-chip--green">Active</span>{% else %}<span class="ad-chip ad-chip--grey">Inactive</span>{% endif %}</td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/judges/{{ r.id }}">Edit</a>
+          <form method="post" action="/admin/judges/{{ r.id }}/regenerate-form" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm" type="submit" data-confirm="Email this judge a fresh single-use onboarding form link? Any previous link will stop working." title="Resend / regenerate onboarding form link">✉</button></form>
           <form method="post" action="/admin/judges/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Remove judge?">×</button></form>
         </td>
       </tr>

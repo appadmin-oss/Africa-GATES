@@ -3,7 +3,7 @@
 **Continental Cultural Recognition Platform · An Afrovanguard Initiative**
 
 ## Stack
-PHP 8.1+ · Slim 4 · Twig 3 · Eloquent ORM · MySQL 8.0+ · Brevo SMTP · Google Apps Script · Vanilla JS · Leaflet.js · Chart.js
+PHP 8.4+ · Slim 4 · Twig 3 · Eloquent ORM · MySQL 8.0+ · Brevo SMTP · Google Apps Script · Vanilla JS · Leaflet.js · Chart.js
 
 ## Quick Start (Production · MySQL)
 
@@ -64,13 +64,28 @@ the production host (typically the case on standard hosting).
 
 ## cPanel Setup
 - **Document root**: point to `/africa-gates/public`
-- **PHP**: 8.1+ via MultiPHP Manager
+- **PHP**: 8.4+ via MultiPHP Manager (matches the `>=8.4` constraint in `composer.json`)
 
 ## Cron Jobs
+
+The platform self-runs via a single **automation hub**, `cron/maintenance.php`, which
+selects work by the clock: every run drains the job queue (Google Sheets sync) + advances
+award cycles + prunes cache; hourly it purges expired OTP/magic/rate-limit rows; every 6h it
+recomputes CPI + writes tamper-evident snapshots; daily it runs the collusion scan + voting
+reminders. **This one line is required** — without it the queue is never drained and cycles
+never advance:
+
 ```
-0 */6 * * *  /usr/bin/php /path/to/cron/recalculate-cpi.php
-0 */4 * * *  /usr/bin/php /path/to/cron/aggregate-dashboard.php
+*/15 * * * * /usr/bin/php /path/to/cron/maintenance.php
+*/10 * * * * /usr/bin/php /path/to/bin/console payments:reconcile   # confirm paid orders whose browser callback dropped
+0 */4 * * *  /usr/bin/php /path/to/cron/aggregate-dashboard.php      # OPTIONAL: pre-warm the dashboard stats cache
+15 3 * * *   /usr/bin/php /path/to/bin/console privacy:purge --commit # OPTIONAL: PII retention purge — only after setting RETAIN_* (see docs/SECURITY-HARDENING-V3.md)
 ```
+
+`cron/recalculate-cpi.php` is a **standalone** CPI recompute (it delegates to the same
+`bin/console cpi:recompute`). It is redundant when `maintenance.php` is scheduled — use it
+only if you prefer discrete cron lines over the hub. **Do not schedule both**, or CPI will
+recompute twice every 6 hours.
 
 ## Google Apps Script
 1. Open Google Sheets → Extensions → Apps Script
@@ -92,28 +107,47 @@ the production host (typically the case on standard hosting).
 | `/africa-gates/opportunities` | Opportunities |
 
 ## Award Cycle Management
-```sql
--- Open voting for Business Awards
-UPDATE gates_award_cycles SET status='voting',
-  voting_open=NOW(), voting_close='2025-09-15 23:59:59'
-WHERE programme_id=4 AND year=2025;
 
--- Close voting
-UPDATE gates_award_cycles SET status='results'
-WHERE programme_id=4 AND year=2025;
-```
+Manage cycles from the admin console — **Programmes → (a programme) → Cycle**
+(`/admin/programmes/{id}/cycle`, superadmin). Set the phase **date windows**
+(nominations open/close, voting open/close, results date) and let the platform
+run the lifecycle itself: the hourly `cycles:advance` job moves each cycle
+**forward one phase at a time** (`upcoming → nominations → voting → judging →
+results → archived`) as those dates pass, writes a tamper-evident entry to
+`gates_cycle_transitions`, and — on entry to `results` — promotes winners/
+runners-up **by CPI rank, subject to the judge quorum**.
+
+Prefer the date windows over flipping the status by hand. The editor enforces
+the same rules as the automated machine — it is **forward-only, one phase at a
+time**, and **won't set `results` manually** (that transition has to run through
+the judged, quorum-checked promotion path, so the published standings stay
+tamper-evident). To publish results, set the results date rather than selecting
+`results` in the dropdown.
+
+Do **not** change `gates_award_cycles.status` with raw SQL: it bypasses the
+audit log, the cycle-transition ledger, the cache-bust, and the quorum/winner
+promotion — leaving the cycle in a state the platform can't vouch for.
 
 **Note:** Voting and nominations are MUTUALLY EXCLUSIVE per programme. The pages automatically show a "closed" state when not in the relevant cycle phase.
 
-## CPI Score Factors
-| Factor | Weight |
-|--------|--------|
-| Vote Engagement | 25% |
-| Verification Tier | 20% |
-| Profile Completeness | 15% |
-| Activity & Recency | 15% |
-| Legacy Participation | 15% |
-| Continental Reach | 10% |
+## CPI Score (Cultural Power Index)
+
+Scores run 0–1000. A **nominee's score** (per award category) blends two signals
+(`CpiService::nomineeScore`; weights resolved by `RuleEngine`, defaults below):
+
+| Component | Weight | Source |
+|-----------|--------|--------|
+| Community votes | 45% | this nominee's **organic** votes ÷ the category's top organic vote count (purchased bonus votes are excluded, so money can't move rank) |
+| Expert judges | 55% | weighted average of judges' **complete** scorecards (0–10), counted only once the per-cycle judge quorum is met |
+
+Weights and quorum are overridable per programme/cycle via `gates_rule_sets`.
+
+A **profile's CPI** is the mean of its linked nominee scores
+(`CpiService::profileRollup`). A profile not yet linked to any nominee gets a
+baseline (`CpiService::baselineScore`): **50% verification tier + 30% profile
+completeness + 20% reach** (views capped at 5,000).
+
+**Tiers:** diamond ≥850 · platinum ≥650 · gold ≥450 · silver ≥250 · bronze ≥100 · unranked <100.
 
 ## Environment Variables
 ```
@@ -158,7 +192,7 @@ RewriteBase /myapp/
 
 ### 5. cPanel shared hosting
 - Set document root to the `public/` folder
-- PHP must be 8.1+ (MultiPHP Manager)
+- PHP must be 8.4+ (MultiPHP Manager)
 - Run `composer install` via SSH or cPanel Terminal
 
 ### 6. Local development (PHP built-in server)
@@ -180,16 +214,15 @@ tables existed, run:
 # On the production server, in the repo root:
 php bin/console db:migrate --with-seed-admin --with-seed-rubric
 
-# Equivalent manual approach:
+# Schemas only (the console command above already creates the admin):
 mysql africa_gates < database/admin-schema.sql
 mysql africa_gates < database/community-schema.sql
-mysql africa_gates -e "INSERT INTO gates_admins (email, password_hash, name, role, is_active) VALUES \
-  ('admin@afrovanguard.org.ng', '$(php -r \"echo password_hash('AfricaGates!2025', PASSWORD_BCRYPT);\")', \
-   'Afrovanguard Admin', 'superadmin', 1)"
 ```
 
-Then sign in at `/admin/login` with `admin@afrovanguard.org.ng` /
-`AfricaGates!2025` and rotate the password immediately.
+`db:migrate --with-seed-admin` creates the first superadmin with a **strong random
+password printed once** (or set `SEED_ADMIN_PASSWORD` to your own value beforehand).
+Save it to a password manager, sign in at `/admin/login`, and rotate it immediately.
+Never deploy with a shared or known default credential.
 
 The schemas are idempotent (`CREATE TABLE IF NOT EXISTS` everywhere) — running
 them on a DB that already has the tables is safe and a no-op.

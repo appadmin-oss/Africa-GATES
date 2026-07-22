@@ -1,0 +1,85 @@
+{% extends "layout/gates.twig" %}
+
+{# Content is admin-editable (gates_legal_docs via LegalService) — no longer
+   hardcoded here. `legal_doc` (the current doc) and `legal_tabs` (published
+   docs) are supplied by the controller; each doc's body is already sanitized
+   rich HTML. #}
+{% set cur = legal_doc %}
+
+{% block head_styles %}
+<style>
+  body[data-page="legal"]{ background:#eef0ec; color:var(--ag-ink); }
+  .lg-head{ max-width:1000px; margin:0 auto; padding:clamp(2rem,5vw,2.6rem) var(--ag-gutter,32px) 0; }
+  .lg-eyebrow{ margin:0 0 8px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
+  .lg-title{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4vw,2.375rem); letter-spacing:-.02em; color:var(--ag-ink); }
+  .lg-updated{ margin:12px 0 0; font-size:14px; color:#5a6d6f; }
+
+  .lg-grid{ max-width:1000px; margin:24px auto 0; padding:0 var(--ag-gutter,32px) clamp(3rem,6vw,3.75rem);
+    display:grid; grid-template-columns:220px 1fr; gap:32px; align-items:start; }
+
+  .lg-side{ position:sticky; top:88px; display:flex; flex-direction:column; gap:4px; }
+  .lg-tab{ display:flex; align-items:center; gap:10px; text-decoration:none; cursor:pointer;
+    font-size:14px; font-weight:500; color:#4a5256; padding:11px 14px; border-radius:10px; transition:background .15s, color .15s; }
+  .lg-tab svg{ color:#5a6d6f; flex:none; }
+  .lg-tab:hover{ background:rgba(16,41,44,.04); }
+  .lg-tab.is-active{ background:var(--ag-ink); color:#fff; font-weight:600; }
+  .lg-tab.is-active svg{ color:var(--ag-green-light); }
+
+  .lg-help{ margin-top:14px; padding:14px; background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:12px; }
+  .lg-help p{ margin:0 0 8px; font:600 11px/1 var(--ag-font-body); letter-spacing:.06em; text-transform:uppercase; color:#5a6d6f; }
+  .lg-help a{ font-size:13px; color:var(--ag-green); text-decoration:none; font-weight:500; }
+
+  .lg-doc{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(1.6rem,3vw,2.25rem) clamp(1.5rem,3vw,2.5rem);
+    animation:lgFade .3s ease both; }
+  .lg-sec{ margin-bottom:26px; }
+  .lg-sec h2{ margin:0 0 10px; font-family:var(--ag-font-display); font-weight:700; font-size:19px; color:var(--ag-ink); }
+  .lg-sec p{ margin:0; font-size:14.5px; line-height:1.7; color:#3a4448; }
+  .lg-sec a{ color:var(--ag-green); }
+  /* Rich (admin-authored) body: match the old sectioned rhythm. */
+  .lg-rich h2{ margin:26px 0 10px; font-family:var(--ag-font-display); font-weight:700; font-size:19px; color:var(--ag-ink); }
+  .lg-rich h2:first-child{ margin-top:0; }
+  .lg-rich h3{ margin:18px 0 8px; font-weight:700; font-size:16px; color:var(--ag-ink); }
+  .lg-rich p{ margin:0 0 12px; font-size:14.5px; line-height:1.7; color:#3a4448; }
+  .lg-rich ul,.lg-rich ol{ margin:0 0 14px; padding-left:1.3em; font-size:14.5px; line-height:1.7; color:#3a4448; }
+  .lg-rich a{ color:var(--ag-green); }
+  .lg-rich blockquote{ border-left:3px solid var(--ag-green); margin:0 0 14px; padding:2px 14px; color:#475; }
+  .lg-fine{ margin-top:8px; padding-top:22px; border-top:1px solid rgba(16,41,44,.08); font-size:13px; line-height:1.6; color:#5a6d6f; }
+
+  @keyframes lgFade{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:translateY(0)} }
+
+  @media (max-width:760px){
+    .lg-grid{ grid-template-columns:1fr; gap:16px; }
+    .lg-side{ position:static; top:auto; flex-direction:row; gap:8px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch; }
+    .lg-tab{ white-space:nowrap; }
+    .lg-help{ display:none; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="lg-head">
+  <p class="lg-eyebrow">Legal</p>
+  <h1 class="lg-title">{{ cur.title }}</h1>
+  {% if cur.updated_label %}<p class="lg-updated">Last updated {{ cur.updated_label }} · effective immediately</p>{% endif %}
+</div>
+
+<div class="lg-grid">
+  <aside class="lg-side" aria-label="Legal documents">
+    {% for t in legal_tabs %}
+      <a class="lg-tab {{ t.slug == cur.slug ? 'is-active' : '' }}" href="/{{ t.slug }}"{{ t.slug == cur.slug ? ' aria-current="page"' : '' }}>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>
+        {{ t.title }}
+      </a>
+    {% endfor %}
+    <div class="lg-help">
+      <p>Questions?</p>
+      <a href="mailto:legal@afrovanguard.org.ng">legal@afrovanguard.org.ng</a>
+    </div>
+  </aside>
+
+  <div class="lg-doc lg-rich">
+    {{ cur.body_html|sanitize_html }}
+    <div class="lg-fine">An initiative of <a href="https://afrovanguard.org.ng">Afrovanguard</a>, Lagos, Nigeria, and governed by the laws of the Federal Republic of Nigeria. Provided for transparency — this document does not constitute legal advice.</div>
+  </div>
+</div>
+{% endblock %}

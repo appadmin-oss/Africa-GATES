@@ -18,10 +18,14 @@ class VoteService {
 
     public function __construct(private readonly ?LoggerInterface $log = null) {}
 
-    public function castVote(string $email, string $otp, int $nomineeId, int $awardId, string $ip = '', ?string $deviceHash = null, ?string $idempotencyKey = null): array {
+    public function castVote(string $email, string $otp, int $nomineeId, int $awardId, string $ip = '', ?string $deviceHash = null, ?string $idempotencyKey = null, ?string $voterName = null, ?string $voterPhone = null): array {
         $eh = hash('sha256', strtolower(trim($email)));
         $th = hash('sha256', trim($otp));
         $ipHash = $ip !== '' ? hash('sha256', $ip) : null;
+        // Voter identity captured alongside the (hashed) email — stored as-is for
+        // accountability/contact. Required-validation lives at the API boundary.
+        $voterName  = $voterName  !== null ? mb_substr(trim($voterName), 0, 120) : null;
+        $voterPhone = $voterPhone !== null ? mb_substr(trim($voterPhone), 0, 40) : null;
 
         // Idempotent replay: a retry carrying the same key returns the ORIGINAL
         // outcome rather than a confusing ALREADY_VOTED / INVALID_OTP (the first
@@ -40,7 +44,7 @@ class VoteService {
             }
         }
 
-        $result = DB::transaction(function () use ($eh, $th, $nomineeId, $awardId, $ipHash, $deviceHash, $idempotencyKey) {
+        $result = DB::transaction(function () use ($eh, $th, $nomineeId, $awardId, $ipHash, $deviceHash, $idempotencyKey, $voterName, $voterPhone) {
             // Latest live token for this email; lock it for the duration.
             $token = DB::table('gates_otp_tokens')
                 ->where('email_hash', $eh)->where('purpose', 'vote')->where('is_used', 0)
@@ -98,13 +102,20 @@ class VoteService {
                     'ip_hash'          => $ipHash,
                     'device_hash'      => $deviceHash,
                     'idempotency_key'  => $idempotencyKey,
+                    'voter_name'       => $voterName,
+                    'voter_phone'      => $voterPhone,
                     'voted_at'         => Carbon::now()->toDateTimeString(),
                 ]);
             } catch (\Throwable $e) {
                 return ['success' => false, 'code' => 'ALREADY_VOTED', 'message' => 'You have already voted in this category.'];
             }
             DB::table('gates_otp_tokens')->where('id', $token->id)->update(['is_used' => 1]);
-            DB::table('gates_nominees')->where('id', $nomineeId)->increment('vote_count');
+            // Organic vote: bump both the display total AND the organic-only count
+            // that feeds the CPI community signal (paid bonus votes bump only vote_count).
+            DB::table('gates_nominees')->where('id', $nomineeId)->update([
+                'vote_count'         => DB::raw('vote_count + 1'),
+                'organic_vote_count' => DB::raw('organic_vote_count + 1'),
+            ]);
 
             $voteId   = DB::table('gates_votes')->where('voter_email_hash', $eh)->where('category_id', $nominee->category_id)->value('id');
             $newCount = (int)DB::table('gates_nominees')->where('id', $nomineeId)->value('vote_count');

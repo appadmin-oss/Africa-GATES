@@ -1,0 +1,104 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style>
+  body[data-page="awards"]{ background:#eef0ec; color:var(--ag-ink); }
+  .vp{ max-width:1180px; margin:0 auto; padding:0 var(--ag-gutter,28px) 56px; }
+  .vp-crumb{ font-size:12.5px; color:#5a6d6f; padding:16px 0 0; }
+  .vp-crumb a{ color:#5a6d6f; text-decoration:none; } .vp-crumb a:hover{ color:var(--ag-ink); }
+
+  .vp-hero{ position:relative; overflow:hidden; border-radius:22px; margin-top:14px; background:radial-gradient(130% 130% at 82% 0%,#1d5b2a,#10292C 60%); padding:clamp(1.8rem,5vw,2.9rem) clamp(1.4rem,4vw,2.6rem); color:#fff; }
+  .vp-hero__orb{ position:absolute; right:-50px; bottom:-70px; width:300px; height:300px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%); }
+  .vp-hero__in{ position:relative; max-width:680px; }
+  .vp-hero__ico{ font-size:30px; line-height:1; }
+  .vp-hero h1{ margin:12px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.8rem,5vw,2.7rem); line-height:1.05; letter-spacing:-.02em; }
+  .vp-hero p{ margin:12px 0 0; font-size:15px; line-height:1.6; color:rgba(255,255,255,.85); }
+  .vp-hero__meta{ display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+  .vp-pill{ display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:600; padding:7px 13px; border-radius:999px; background:rgba(255,255,255,.1); box-shadow:inset 0 0 0 1px rgba(255,255,255,.16); color:#fff; }
+  .vp-pill--open{ background:rgba(127,200,124,.18); color:#bff0bc; box-shadow:inset 0 0 0 1px rgba(127,200,124,.4); }
+  .vp-pill b{ font-family:var(--ag-font-mono,monospace); color:#7FC87C; }
+
+  .vp-cat{ margin-top:34px; }
+  .vp-cat__head{ display:flex; align-items:baseline; gap:10px; margin-bottom:14px; }
+  .vp-cat__title{ margin:0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.25rem,3vw,1.6rem); color:var(--ag-ink); }
+  .vp-cat__n{ font-size:12.5px; color:#626a6e; }
+  .vp-cat__desc{ margin:-8px 0 14px; font-size:13.5px; color:#5a6d6f; max-width:640px; line-height:1.5; }
+
+  .vp-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  @media(max-width:820px){ .vp-grid{ grid-template-columns:repeat(2,1fr); gap:12px; } }
+  @media(max-width:480px){ .vp-grid{ grid-template-columns:1fr; } }
+  .vp-card{ display:flex; gap:14px; align-items:center; background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:13px; text-decoration:none; color:inherit; transition:transform .15s, box-shadow .15s, border-color .15s; }
+  .vp-card:hover{ transform:translateY(-2px); border-color:rgba(16,41,44,.16); box-shadow:0 16px 34px -24px rgba(16,41,44,.45); }
+  .vp-card__av{ flex:none; width:58px; height:58px; border-radius:13px; background-size:cover; background-position:center top; background-color:#10292C; display:flex; align-items:center; justify-content:center; }
+  .vp-card__mono{ font-family:var(--ag-font-display,serif); font-weight:800; font-size:24px; color:#7FC87C; }
+  .vp-card__b{ flex:1; min-width:0; }
+  .vp-card__name{ font-weight:700; font-size:15px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .vp-card__tag{ font-size:12.5px; color:#5a6d6f; margin-top:2px; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+  .vp-card__foot{ display:flex; align-items:center; gap:10px; margin-top:7px; }
+  .vp-card__votes{ font:700 12px/1 var(--ag-font-mono,monospace); color:#1a6118; }
+  .vp-card__cta{ font-size:12.5px; font-weight:600; color:var(--ag-green,#237b22); }
+  .vp-card__chev{ flex:none; color:#c4cdc6; }
+
+  .vp-empty{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:clamp(1.8rem,5vw,2.6rem); text-align:center; margin-top:18px; }
+  .vp-empty h3{ margin:0 0 .35rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.3rem; }
+  .vp-empty p{ margin:0 auto 16px; color:#4a5256; max-width:420px; }
+  .vp-empty a{ display:inline-flex; align-items:center; gap:6px; background:var(--ag-green,#237b22); color:#fff; font-weight:600; font-size:14px; padding:11px 20px; border-radius:999px; text-decoration:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set cy = programme.cycle %}
+<div class="vp">
+  <nav class="vp-crumb" aria-label="Breadcrumb"><a href="/vote">Vote</a> · <span>{{ programme.title }}</span></nav>
+
+  <header class="vp-hero">
+    <div class="vp-hero__orb" aria-hidden="true"></div>
+    <div class="vp-hero__in">
+      <span class="vp-hero__ico" aria-hidden="true">{{ programme.icon_emoji|default('🏆') }}</span>
+      <h1>{{ programme.title }}</h1>
+      {% if programme.subtitle or programme.description %}<p>{{ programme.subtitle|default(programme.description) }}</p>{% endif %}
+      <div class="vp-hero__meta">
+        {% if voting_open %}<span class="vp-pill vp-pill--open">● Voting open{% if cy.year %} · {{ cy.year }}{% endif %}</span>
+        {% else %}<span class="vp-pill">{{ (cy.status|default('Coming soon'))|capitalize }}{% if cy.year %} · {{ cy.year }}{% endif %}</span>{% endif %}
+        <span class="vp-pill"><b>{{ total_nominees }}</b> nominee{{ total_nominees == 1 ? '' : 's' }}</span>
+        <span class="vp-pill"><b>{{ categories|length }}</b> categor{{ categories|length == 1 ? 'y' : 'ies' }}</span>
+      </div>
+    </div>
+  </header>
+
+  {% if categories is not empty %}
+    {% for c in categories %}
+    <section class="vp-cat">
+      <div class="vp-cat__head">
+        <h2 class="vp-cat__title">{{ c.category.title }}</h2>
+        <span class="vp-cat__n">{{ c.nominees|length }} nominee{{ c.nominees|length == 1 ? '' : 's' }}</span>
+      </div>
+      {% if c.category.description %}<p class="vp-cat__desc">{{ c.category.description }}</p>{% endif %}
+      <div class="vp-grid">
+        {% for n in c.nominees %}
+        <a class="vp-card" href="{{ n.url }}">
+          <span class="vp-card__av" {% if n.photo_path %}style="background-image:url('{{ n.photo_path }}')"{% endif %}>
+            {% if not n.photo_path %}<span class="vp-card__mono" aria-hidden="true">{{ n.name|first|upper }}</span>{% endif %}
+          </span>
+          <span class="vp-card__b">
+            <span class="vp-card__name">{{ n.name }}</span>
+            {% if n.tagline %}<span class="vp-card__tag">{{ n.tagline }}</span>{% endif %}
+            <span class="vp-card__foot">
+              <span class="vp-card__votes">{{ n.vote_count|number_format }} vote{{ n.vote_count == 1 ? '' : 's' }}</span>
+              <span class="vp-card__cta">{{ voting_open ? 'Vote →' : 'View →' }}</span>
+            </span>
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  {% else %}
+    <div class="vp-empty">
+      <h2>Nominees coming soon</h2>
+      <p>This programme’s nominees for the current cycle are being finalised. Check back shortly — or nominate someone now.</p>
+      <a href="/nominate">Submit a nomination →</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

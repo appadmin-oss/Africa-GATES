@@ -61,8 +61,8 @@ class ProfilesController
             'page_title' => 'Edit Profile — Admin',
             'admin_page' => 'profiles',
             'profile'    => (array)$row,
-            'flash_ok'   => $_SESSION['flash_ok']    ?? null,
-            'flash_err'  => $_SESSION['flash_error'] ?? null,
+            // Flash renders from the Twig globals via the layout — do not shadow them.
+            // (The old 'flash_err' key was also a typo: the template uses flash_error.)
         ]);
     }
 
@@ -86,7 +86,17 @@ class ProfilesController
             'completeness_pct'  => max(0, min(100, (int)($b['completeness_pct'] ?? 0))),
             'updated_at'        => Carbon::now()->toDateTimeString(),
         ];
-        DB::table('gates_profiles')->where('id',$id)->update($patch);
+        // Integrity fields are admin+ only — a moderator may edit descriptive
+        // fields and moderate status, but never rewrite the score/verification.
+        if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            unset($patch['cpi_score'], $patch['cpi_tier'], $patch['verification_tier'], $patch['completeness_pct']);
+        }
+        try {
+            DB::table('gates_profiles')->where('id',$id)->update($patch);
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = \AfricaGates\Admin\Support\ActionError::dbMessage($e);
+            return $res->withHeader('Location', '/admin/profiles/' . $id)->withStatus(302);
+        }
         $this->audit->record((int)$_SESSION['admin_id'], 'profile.update', 'profile', $id, ['fields' => array_keys($patch)]);
         $_SESSION['flash_ok'] = 'Profile updated.';
         return $res->withHeader('Location', '/admin/profiles/' . $id)->withStatus(302);

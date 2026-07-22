@@ -1,17 +1,117 @@
 {% extends "layout/gates.twig" %}
+
+{% set code = code|default(404) %}
+{% set dark = code >= 500 %}
+
+{% if code == 403 %}
+  {% set _h = 'This area is protected' %}
+  {% set _m = 'You need to be signed in — or hold the right permissions — to view this page. Verify your email to continue.' %}
+  {% set _illo = 'illo-shield' %}
+  {% set _pL = 'Sign in to continue' %}{% set _pU = '/account/login' %}
+  {% set _gL = 'Go home' %}{% set _gU = '/' %}
+{% elseif dark %}
+  {% set _h = 'Something went wrong on our end' %}
+  {% set _m = 'Our team has been notified and is on it. Your votes and data are safe — please try again in a moment.' %}
+  {% set _pL = 'Reload page' %}{% set _pU = 'reload' %}
+  {% set _gL = 'Status page' %}{% set _gU = '/status' %}
+{% elseif code == 404 %}
+  {% set _h = 'This path leads nowhere' %}
+  {% set _m = 'The page you’re looking for has moved or never existed. The road to recognition is still wide open — let’s get you back on it.' %}
+  {% set _illo = 'illo-pathway' %}
+  {% set _pL = 'Back to home' %}{% set _pU = '/' %}
+  {% set _gL = 'Browse the registry' %}{% set _gU = '/registry' %}
+{% else %}
+  {% set _h = 'Something went sideways' %}
+  {% set _m = 'That didn’t work as expected. Let’s get you back on track.' %}
+  {% set _pL = 'Back to home' %}{% set _pU = '/' %}
+  {% set _gL = 'Leaderboard' %}{% set _gU = '/leaderboard' %}
+{% endif %}
+
+{% set heading = heading|default(_h) %}
+{% set message = message|default(_m) %}
+{% set hasIllo = (_illo is defined) and not dark %}
+
+{% block head_styles %}
+<style>
+  /* warm panel matched to the illustration's own background so the art reads as one surface with the page */
+  body[data-page=""]{ }
+  .err{ min-height:74vh; display:flex; align-items:center; justify-content:center; text-align:center;
+    padding:clamp(2rem,5vw,3.5rem) var(--ag-gutter,24px) clamp(2.5rem,6vw,4rem);
+    background:var(--ag-bg); }
+  .err__wrap{ max-width:600px; margin:0 auto; width:100%; }
+
+  /* illustration: centered, dissolves softly into the light page on every edge — no box, no seam, no cut */
+  .err__media{ margin:0 auto; width:100%; max-width:clamp(300px, 56vw, 460px); }
+  .err__media img{ display:block; width:100%; height:auto;
+    -webkit-mask-image:radial-gradient(125% 135% at 50% 44%, #000 50%, transparent 82%);
+            mask-image:radial-gradient(125% 135% at 50% 44%, #000 50%, transparent 82%); }
+
+  .err__code{ margin:.4rem 0 0; font:700 13px/1 var(--ag-font-mono); letter-spacing:.22em; text-transform:uppercase; color:#7a5600; }
+  .err__h{ margin:.65rem 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,5vw,2.75rem); line-height:1.05; letter-spacing:-.015em; color:var(--ag-ink); }
+  .err__m{ margin:1rem auto 0; max-width:34rem; font-size:1.0625rem; line-height:1.65; color:#557a6e; }
+  .err__cta{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:1.9rem; }
+  .err__btn{ text-decoration:none; font-weight:600; font-size:14.5px; padding:13px 28px; border-radius:999px; cursor:pointer; border:1px solid transparent; transition:background .15s, border-color .15s, transform .15s; font-family:inherit; }
+  .err__btn:hover{ transform:translateY(-1px); }
+  .err__btn--p{ background:var(--ag-green); color:#fff; box-shadow:0 12px 24px -12px rgba(35,123,34,.6); }
+  .err__btn--p:hover{ background:var(--ag-green-dark); }
+  .err__btn--g{ background:var(--ag-surface); border-color:rgba(16,41,44,.16); color:var(--ag-ink); }
+  .err__btn--g:hover{ border-color:rgba(16,41,44,.34); }
+
+  /* ── Dark 500 variant: centered card, no illustration ── */
+  .err--dark{ background:var(--ag-bg); }
+  .err--dark .err__wrap{ background:radial-gradient(120% 120% at 20% 0%,#1d5b2a,#10292C 62%);
+    border-radius:26px; padding:clamp(2.8rem,5vw,3.8rem) clamp(1.6rem,4vw,3.4rem); color:#fff; }
+  .err--dark .err__h{ color:#fff; }
+  .err--dark .err__code{ color:#ffd24a; }
+  .err--dark .err__m{ color:rgba(255,255,255,.78); }
+  .err__warn{ width:80px; height:80px; margin:0 auto 1.4rem; border-radius:50%; background:rgba(255,255,255,.1); display:flex; align-items:center; justify-content:center; }
+  .err__btn--light{ background:#fff; color:var(--ag-ink); }
+  .err__btn--light:hover{ background:rgba(255,255,255,.88); }
+  .err__btn--darkg{ background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.25); color:#fff; }
+  .err__btn--darkg:hover{ background:rgba(255,255,255,.2); }
+  .err__ref{ margin:1.5rem 0 0; font:11.5px/1 var(--ag-font-mono); color:rgba(255,255,255,.45); }
+
+  @media (max-width:560px){
+    .err{ min-height:auto; padding-block:clamp(1.25rem,5vw,2.25rem) clamp(2.25rem,8vw,3.25rem); }
+    .err__media{ max-width:min(74vw,300px); }
+    .err__h{ font-size:clamp(1.7rem,7.4vw,2.1rem); }
+    .err__m{ font-size:1rem; margin-top:.8rem; }
+    .err__cta{ flex-direction:column; gap:10px; margin-top:1.6rem; }
+    .err__btn{ width:100%; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<section class="r26-hero" style="padding-block:clamp(3rem,7vw,5rem) clamp(2rem,4vw,3rem);text-align:center">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex;font-family:var(--font-mono)">Error {{ code|default(404) }}</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">{{ heading|default('Something went sideways.') }}</h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">{{ message|default('The page you were after isn\'t here. Let\'s get you back on track.') }}</p>
-      <div class="r26-reveal r26-d4" style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;margin-top:1.9rem">
-        <a href="/" class="btn btn--emerald">Back home <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        <a href="/leaderboard" class="btn btn--ghost">Leaderboard</a>
+<section class="err {{ dark ? 'err--dark' : (hasIllo ? '' : 'err--plain') }}">
+  <div class="err__wrap">
+
+    {% if dark %}
+      <div class="err__warn" aria-hidden="true">
+        <svg aria-hidden="true" focusable="false" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fbc329" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
       </div>
+    {% elseif hasIllo %}
+      <div class="err__media">
+        <img src="/assets/img/illustrations/{{ _illo }}.jpg?v={{ asset_version }}" alt="" aria-hidden="true">
+      </div>
+    {% endif %}
+
+    <p class="err__code">Error {{ code }}</p>
+    <h1 class="err__h">{{ heading }}</h1>
+    <p class="err__m">{{ message }}</p>
+
+    <div class="err__cta">
+      {% if _pU == 'reload' %}
+        <button type="button" class="err__btn {{ dark ? 'err__btn--light' : 'err__btn--p' }}" onclick="location.reload()">{{ _pL }}</button>
+      {% else %}
+        <a class="err__btn {{ dark ? 'err__btn--light' : 'err__btn--p' }}" href="{{ _pU }}">{{ _pL }}</a>
+      {% endif %}
+      <a class="err__btn {{ dark ? 'err__btn--darkg' : 'err__btn--g' }}" href="{{ _gU }}">{{ _gL }}</a>
     </div>
+
+    {% if dark and error_ref is defined and error_ref %}
+      <p class="err__ref">Ref · {{ error_ref }}</p>
+    {% endif %}
   </div>
 </section>
 {% endblock %}

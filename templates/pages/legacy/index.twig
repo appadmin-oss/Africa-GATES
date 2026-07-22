@@ -55,7 +55,7 @@
           <div class="r26-mcard__foot">
             <span>{{ L.attendee_count|number_format }} delegates · {{ L.award_count }} awards</span>
             <span class="r26-mcard__link">View edition
-              <svg viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </div>
         </div>
       </a>
@@ -64,7 +64,7 @@
     {% else %}
     <div class="r26-empty">
       <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-      <h3>The vault opens after the first cycle</h3>
+      <h2>The vault opens after the first cycle</h2>
       <p>Once an edition closes, its winners, jury rationales and full attribution are archived here permanently.</p>
       <a class="btn btn--emerald" href="/events">See upcoming events</a>
     </div>

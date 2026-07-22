@@ -1,322 +1,344 @@
 {% extends "judge/layout.twig" %}
 {% block content %}
-<section class="wrap">
-  <a href="/judge/ballot" style="font-size:12px;color:var(--ink-500)">← All programmes</a>
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:14px">
+
+{# The whole ballot shares one Alpine component so the progress strip stays in
+   sync with scores saved live (it used to freeze at the page-load count until
+   a full reload). The payload is parsed from the JSON island below. #}
+<script id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }}, "judgingOpen": {{ ballot.judging_open ? 'true' : 'false' }}, "lockReason": {{ ballot.lock_reason|default('')|json_encode(JSON_SAFE)|raw }} }</script>
+
+<div x-data="ballotApp(JSON.parse(document.getElementById('ballotData').textContent))">
+
+{# ── Progress strip ── #}
+<div class="jc-strip">
+  <div class="wrap jc-strip__in">
     <div>
-      <p class="jd-eyebrow">Score nominees</p>
-      <h1 class="jd-h1">{{ programme.icon_emoji }} {{ programme.title }} <em style="font-size:0.7em">·</em> <span class="tx-gradient" style="font-style:italic">{{ ballot.cycle.year }}</span></h1>
+      <div class="jc-strip__title">{{ programme.icon_emoji }} {{ programme.title }}</div>
+      <div class="jc-strip__sub">Score each nominee across {{ ballot.criteria|length }} criteria · {{ ballot.cycle.year }}</div>
     </div>
-    {# Progress ring #}
-    <div class="jd-progress-ring" title="{{ ballot.progress.scored }} of {{ ballot.progress.total }} nominees scored">
+    <div class="jc-strip__prog">
       {% set pct = ballot.progress.total > 0 ? (ballot.progress.scored / ballot.progress.total * 100)|round : 0 %}
-      <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
-        <circle cx="32" cy="32" r="27" fill="none" stroke="#e5e7eb" stroke-width="5"/>
-        <circle cx="32" cy="32" r="27" fill="none" stroke="var(--emerald-500)" stroke-width="5"
-                stroke-dasharray="{{ (27 * 2 * 3.14159)|round(1) }}"
-                stroke-dashoffset="{{ ((1 - pct/100) * 27 * 2 * 3.14159)|round(1) }}"
-                stroke-linecap="round" transform="rotate(-90 32 32)"/>
-        <text x="32" y="37" text-anchor="middle" font-size="13" font-weight="700" fill="var(--kale-700)">{{ pct }}%</text>
-      </svg>
-      <div style="font-size:11px;color:var(--ink-500);text-align:center;margin-top:2px">{{ ballot.progress.scored }}/{{ ballot.progress.total }}<br>scored</div>
+      <div class="jc-strip__count"><b x-text="scoredCount + ' / ' + totalCount">{{ ballot.progress.scored }} / {{ ballot.progress.total }}</b><span>scored</span></div>
+      <div class="jc-strip__bar"><span :style="'width:'+progressPct+'%'" style="width:{{ pct }}%"></span></div>
     </div>
   </div>
+</div>
 
-  {# Programme tabs if assigned to multiple #}
+<section class="wrap" style="padding-top:18px">
   {% if programmes|length > 1 %}
-  <div class="jd-tabs" style="margin-top:20px">
+  <div class="jd-tabs" style="margin-bottom:18px">
     {% for p in programmes %}
     <a class="jd-tab {% if p.id == programme.id %}is-active{% endif %}" href="/judge/ballot/{{ p.id }}">{{ p.icon_emoji }} {{ p.title|split(' ')|first }}</a>
     {% endfor %}
   </div>
   {% endif %}
 
-  {# Conflict of interest declaration — shown once per session #}
-  <div id="conflictBar" class="jd-conflict" x-data="{declared: sessionStorage.getItem('coi_declared_{{ programme.id }}') === '1'}" x-show="!declared" x-cloak>
-    <div class="jd-conflict__body">
-      <strong>⚖️ Conflict of interest check</strong>
-      <p>Do you have a personal, financial, or professional relationship with any nominee in this programme that could affect your impartiality?</p>
-    </div>
-    <div class="jd-conflict__actions">
-      <form method="post" action="/judge/conflict/{{ programme.id }}" style="display:inline">
-        <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <button class="jd-conflict__btn jd-conflict__btn--yes" type="submit">Yes — declare a conflict</button>
-      </form>
-      <button class="jd-conflict__btn jd-conflict__btn--no" type="button"
-              @click="declared=true; sessionStorage.setItem('coi_declared_{{ programme.id }}','1')">No conflict — proceed to scoring</button>
-    </div>
-  </div>
+  {# Conflict of interest declaration — per programme. Only shown when no COI is on record. #}
+  {% if not ballot.coi %}
+  <div class="jd-conflict"
+       x-data="{declared: sessionStorage.getItem('coi_declared_{{ programme.id }}') === '1', step:'ask'}"
+       x-show="!declared" x-cloak>
 
-  {# Scoring criteria legend #}
-  {% if ballot.criteria %}
-  <div class="jd-legend" style="margin-top:24px">
-    <p class="jd-legend__title">Scoring criteria (0–10 each, weighted average)</p>
-    <div class="jd-legend__grid">
-      {% for c in ballot.criteria %}
-      <div class="jd-legend__item">
-        <span class="jd-legend__label">{{ c.label }}</span>
-        <span class="jd-legend__weight">×{{ c.weight }}%</span>
-        <span class="jd-legend__desc">{{ c.description }}</span>
+    {# Step 1 — the check #}
+    <template x-if="step==='ask'">
+      <div class="jd-conflict__row">
+        <div class="jd-conflict__body">
+          <strong>⚖️ Conflict of interest check</strong>
+          <p>Do you have a personal, financial, or professional relationship with any nominee here that could affect your impartiality?</p>
+        </div>
+        <div class="jd-conflict__actions">
+          <button class="jd-conflict__btn jd-conflict__btn--yes" type="button" @click="step='confirm'">Yes — I have a conflict</button>
+          <button class="jd-conflict__btn jd-conflict__btn--no" type="button"
+                  @click="declared=true; sessionStorage.setItem('coi_declared_{{ programme.id }}','1')">No conflict — proceed</button>
+        </div>
       </div>
-      {% endfor %}
-    </div>
+    </template>
+
+    {# Step 2 — confirm the recusal (destructive & disables scoring) #}
+    <template x-if="step==='confirm'">
+      <form method="post" action="/judge/conflict/{{ programme.id }}" class="jd-conflict__form">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <strong>Recuse yourself from this programme?</strong>
+        <p>This locks your ballot for <b>{{ programme.title }}</b> and removes you from its scoring. You can withdraw a recusal made in error afterwards.</p>
+        <label class="jd-conflict__lbl" for="coi_reason">Reason <span>(optional — shared with administrators only)</span></label>
+        <textarea id="coi_reason" name="reason" class="jd-conflict__ta" maxlength="500" rows="3"
+                  placeholder="e.g. I mentor one of the nominees."></textarea>
+        <div class="jd-conflict__actions">
+          <button class="jd-conflict__btn jd-conflict__btn--no" type="button" @click="step='ask'">← Back</button>
+          <button class="jd-conflict__btn jd-conflict__btn--yes" type="submit">Confirm recusal</button>
+        </div>
+      </form>
+    </template>
   </div>
   {% endif %}
 
-  {# Main ballot app #}
-  <script id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }} }</script>
+  {% if not ballot.judging_open %}
+  <div class="jc-lock" role="status">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <p>{{ ballot.lock_reason ?: 'Scoring is currently closed for this programme.' }}</p>
+    {% if ballot.coi %}
+    <form method="post" action="/judge/conflict/{{ programme.id }}/withdraw" class="jc-lock__act"
+          x-data @submit="return confirm('Withdraw your conflict-of-interest recusal for this programme and re-open scoring?')">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button type="submit" class="jc-lock__btn">Withdraw recusal</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
 
-  <div x-data="ballotApp(JSON.parse(document.getElementById('ballotData').textContent))" style="margin-top:28px">
+  <div class="jc" x-cloak>
+    <div x-show="!queue.length" class="jd-empty">No nominees yet for this programme's current cycle.</div>
 
-    {# View toggle #}
-    <div style="display:flex;gap:8px;margin-bottom:20px;align-items:center">
-      <span style="font-size:12px;color:var(--ink-500);margin-right:4px">View:</span>
-      <button type="button" class="jd-view-btn" :class="view==='score'?'is-active':''" @click="view='score'">📋 Score</button>
-      <button type="button" class="jd-view-btn" :class="view==='compare'?'is-active':''" @click="view='compare'">📊 Compare</button>
-    </div>
-
-    {# ── SCORE VIEW ────────────────────────────────────────────────── #}
-    <div x-show="view==='score'">
-      <template x-for="cat in groups" :key="cat.category.id">
-        <div class="jd-cat">
-          <div class="jd-cat__head">
-            <h2 class="jd-cat__title" x-text="cat.category.title"></h2>
-            <span class="jd-cat__count">
-              <span x-text="cat.scored" style="color:var(--emerald-600);font-weight:700"></span>/<span x-text="cat.nominees.length"></span> scored
-            </span>
-          </div>
-
-          <template x-for="n in cat.nominees" :key="n.id">
-            <article class="jd-nom" :class="n.complete ? 'is-complete' : ''">
-              <div class="jd-nom__head">
-                <div class="jd-nom__avatar" x-text="(n.name||'?').charAt(0).toUpperCase()"></div>
-                <div style="min-width:0;flex:1">
-                  <div class="jd-nom__name" x-text="n.name"></div>
-                  <div class="jd-nom__meta">
-                    <span x-text="n.country_code"></span>
-                    <span x-show="n.tagline" x-text="' · ' + (n.tagline||'').substring(0,60)"></span>
-                  </div>
-                </div>
-                <div class="jd-nom__avg">
-                  <div class="jd-nom__avg-n" x-text="n.complete ? n.avg.toFixed(1) : '—'"></div>
-                  <div class="jd-nom__avg-l">avg <span x-show="n.complete" style="color:var(--emerald-500)">✓</span></div>
-                </div>
-              </div>
-
-              {# Score inputs with live bar #}
-              <div class="jd-criteria">
-                <template x-for="c in criteria" :key="c.id">
-                  <div class="jd-crit">
-                    <div class="jd-crit__top">
-                      <label class="jd-crit__label" x-text="c.label"></label>
-                      <span class="jd-crit__val"
-                            :class="n.scores[c.id] >= 8 ? 'is-high' : (n.scores[c.id] <= 3 && n.scores[c.id] !== undefined ? 'is-low' : '')"
-                            x-text="n.scores[c.id] !== undefined ? n.scores[c.id] : '—'"></span>
-                    </div>
-                    <div class="jd-crit__track">
-                      <input class="jd-slider" type="range" min="0" max="10" step="1"
-                             :aria-label="c.label + ' score for ' + n.name"
-                             :aria-valuetext="(n.scores[c.id] !== undefined ? n.scores[c.id] : 'not scored') + ' out of 10'"
-                             :value="n.scores[c.id] !== undefined ? n.scores[c.id] : ''"
-                             @input="onScore(n, c.id, $event.target.value)">
-                      <div class="jd-crit__bar" :style="'width:' + ((n.scores[c.id]||0)/10*100) + '%'"></div>
-                    </div>
-                    <div class="jd-crit__scale"><span>0</span><span>5</span><span>10</span></div>
-                  </div>
-                </template>
-              </div>
-
-              {# Notes #}
-              <div class="jd-nom__notes">
-                <label style="font-size:11px;color:var(--ink-500);display:block;margin-bottom:4px">Private notes (only you see these)</label>
-                <textarea x-model="n.notes" @input.debounce.700ms="onNotes(n)"
-                          placeholder="Observations, context, justification for your scores…" rows="2"></textarea>
-              </div>
-
-              {# Save row #}
-              <div class="jd-nom__row">
-                <span class="jd-save-state"
-                      :class="{'is-ok': n._state==='ok', 'is-err': n._state==='err'}"
-                      x-text="n._state==='saving' ? 'Saving…' : (n._state==='ok' ? '✓ Saved' : (n._state==='err' ? '✗ Could not save' : (n.complete ? 'Fully scored' : 'Not yet scored')))">
+    <div class="jc-grid" x-show="queue.length">
+      {# ── Queue ── #}
+      <aside class="jc-queue">
+        <div class="jc-queue__card">
+          <div class="jc-queue__head">Nominees</div>
+          <div class="jc-scroll">
+            <template x-for="(n, i) in queue" :key="n.id">
+              <button type="button" class="jc-qrow" :class="active===i && 'is-active'" @click="pick(i)">
+                <span class="jc-qrow__av" x-text="(n.name||'?').charAt(0).toUpperCase()"></span>
+                <span class="jc-qrow__who">
+                  <span class="jc-qrow__name" x-text="flag(n.country_code) + ' ' + n.name"></span>
+                  <span class="jc-qrow__status" x-text="n.complete ? ('Scored · ' + n.avg.toFixed(1)) : 'Awaiting score'"></span>
                 </span>
-                <button type="button" class="jd-save-btn" @click="saveAll(n)" :disabled="n._state==='saving'">
-                  <span x-text="n.complete ? 'Update scores' : 'Save scores'"></span>
-                </button>
-              </div>
-            </article>
-          </template>
-
-          <div x-show="!cat.nominees.length" class="jd-empty" style="padding:1.5rem">
-            No nominees in this category yet.
-          </div>
-        </div>
-      </template>
-    </div>
-
-    {# ── COMPARE VIEW — ranked table of all nominees with their scores ── #}
-    <div x-show="view==='compare'" x-cloak>
-      <template x-for="cat in groups" :key="cat.category.id">
-        <div class="jd-cat" x-show="cat.nominees.length">
-          <div class="jd-cat__head">
-            <h2 class="jd-cat__title" x-text="cat.category.title"></h2>
-          </div>
-          <div class="jd-compare-table">
-            <div class="jd-compare-head">
-              <span style="flex:1">Nominee</span>
-              <template x-for="c in criteria" :key="c.id">
-                <span class="jd-compare-head__crit" x-text="c.label"></span>
-              </template>
-              <span style="width:60px;text-align:right">Avg</span>
-            </div>
-            <template x-for="(n, idx) in ranked(cat.nominees)" :key="n.id">
-              <div class="jd-compare-row" :class="idx===0 ? 'is-top' : ''">
-                <div style="flex:1;display:flex;align-items:center;gap:8px;min-width:0">
-                  <span class="jd-rank" x-text="n.complete ? (idx+1) : '—'"></span>
-                  <div>
-                    <div style="font-weight:600;font-size:13.5px" x-text="n.name"></div>
-                    <div style="font-size:11px;color:var(--ink-500)" x-text="n.country_code"></div>
-                  </div>
-                </div>
-                <template x-for="c in criteria" :key="c.id">
-                  <div class="jd-compare-cell">
-                    <span :class="n.scores[c.id] >= 8 ? 'is-high' : (n.scores[c.id] <= 3 && n.scores[c.id] !== undefined ? 'is-low' : '')"
-                          x-text="n.scores[c.id] !== undefined ? n.scores[c.id] : '—'"></span>
-                  </div>
-                </template>
-                <div style="width:60px;text-align:right">
-                  <strong :class="n.complete ? 'jd-avg-num' : ''" x-text="n.complete ? n.avg.toFixed(1) : '—'"></strong>
-                </div>
-              </div>
+                <svg class="jc-qrow__tick" :style="n.complete ? 'color:#237b22' : 'color:#dbe3dd'" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              </button>
             </template>
           </div>
         </div>
-      </template>
-    </div>
+      </aside>
 
-    <div x-show="!groups.length" class="jd-empty">No nominees yet for this programme's current cycle.</div>
+      {# ── Scoring panel ── #}
+      <div class="jc-panel" x-show="cur">
+        <div class="jc-card">
+          <div class="jc-hero">
+            <div class="jc-hero__orb" aria-hidden="true"></div>
+            <span class="jc-hero__av" x-text="(cur?.name||'?').charAt(0).toUpperCase()"></span>
+            <div class="jc-hero__body">
+              <h2 x-text="flag(cur?.country_code) + ' ' + (cur?.name||'')"></h2>
+              <p x-text="cur?.category + (cur?.country_code ? (' · ' + cur.country_code) : '')"></p>
+            </div>
+            <div class="jc-hero__score">
+              <div class="jc-hero__n" x-text="curScore"></div>
+              <div class="jc-hero__l">Your score · /<span x-text="maxScore"></span></div>
+            </div>
+          </div>
+
+          <div class="jc-dossier" x-show="cur?.tagline">
+            <p class="jc-klabel">Submission dossier</p>
+            <p class="jc-dossier__txt" x-text="cur?.tagline"></p>
+          </div>
+
+          <div class="jc-crits">
+            <p class="jc-klabel">Score the criteria · 0–10 each</p>
+            <template x-for="c in criteria" :key="c.id">
+              <div class="jc-crit">
+                <div class="jc-crit__top">
+                  <div><div class="jc-crit__label" x-text="c.label"></div><div class="jc-crit__hint" x-text="c.description || ('Weighted ' + (c.weight||25) + '%')"></div></div>
+                  <span class="jc-crit__val" x-text="cur.scores[c.id] !== undefined ? cur.scores[c.id] : '–'"></span>
+                </div>
+                <input class="jc-range" type="range" min="0" max="10" step="1"
+                       :value="cur.scores[c.id] !== undefined ? cur.scores[c.id] : 0"
+                       :aria-label="c.label + ' score'"
+                       :disabled="locked"
+                       @input="setScore(c.id, $event.target.value)">
+              </div>
+            </template>
+
+            <div class="jc-note">
+              <label>Panel note (optional)</label>
+              <textarea x-model="cur.notes" :disabled="locked" placeholder="Why this score? Notes are shared with the panel, never public."></textarea>
+            </div>
+
+            <div class="jc-actions">
+              <div class="jc-save" :class="cur._state" x-text="saveLabel"></div>
+              <div style="flex:1"></div>
+              <button type="button" class="jc-btn jc-btn--ghost" @click="advance()">Skip</button>
+              <button type="button" class="jc-btn jc-btn--p" @click="submit()" :disabled="locked || cur._state==='saving'">
+                <span x-text="cur.complete ? 'Update score' : 'Submit score'"></span>
+                <svg width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="jc-guide">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <p>Judge on documented impact, not popularity — public votes are scored separately. Your scores are confidential and combine with other judges’ before contributing to the CPI.</p>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
+</div>{# /x-data ballotApp #}
 {% endblock %}
 
 {% block foot_scripts %}
 <style>
-/* ── Judge ballot extras ─────────────────────────────────────── */
-.jd-progress-ring { display:flex;flex-direction:column;align-items:center;gap:2px; }
-.jd-conflict { background:#fffbeb;border:1.5px solid #fde68a;border-radius:16px;padding:1.125rem 1.25rem;margin-top:24px;display:flex;flex-wrap:wrap;gap:1rem;align-items:center;justify-content:space-between; }
-.jd-conflict__body { flex:1;min-width:220px; }
-.jd-conflict__body strong { font-size:0.9375rem;color:#92400e; }
-.jd-conflict__body p { font-size:0.875rem;color:#78350f;margin:4px 0 0; }
-.jd-conflict__actions { display:flex;gap:8px;flex-wrap:wrap; }
-.jd-conflict__btn { padding:0.5rem 0.875rem;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;border:1.5px solid transparent;transition:background-color .18s ease,transform .18s ease,box-shadow .18s ease; }
-.jd-conflict__btn:hover { transform:translateY(-1px);box-shadow:0 4px 12px rgba(16,41,44,0.12); }
-.jd-conflict__btn:active { transform:translateY(0); }
-.jd-conflict__btn--yes { background:#fef2f2;color:#b91c1c;border-color:#fecaca; }
-.jd-conflict__btn--no { background:var(--emerald-600);color:#fff; }
-.jd-legend { background:#f9fafb;border:1px solid #e5e7eb;border-radius:14px;padding:1rem 1.125rem; }
-.jd-legend__title { font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-500);margin:0 0 10px; }
-.jd-legend__grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px; }
-.jd-legend__item { display:flex;flex-direction:column;gap:2px; }
-.jd-legend__label { font-size:13px;font-weight:700;color:var(--kale-700); }
-.jd-legend__weight { font-size:11px;color:var(--emerald-600);font-weight:600; }
-.jd-legend__desc { font-size:11.5px;color:var(--ink-500);line-height:1.4; }
-.jd-view-btn { padding:5px 12px;border-radius:8px;font-size:12.5px;font-weight:600;background:#f3f4f6;border:1px solid #e5e7eb;cursor:pointer;transition:background-color .2s ease,color .2s ease,border-color .2s ease; }
-.jd-view-btn.is-active { background:var(--kale-700);color:#fff;border-color:var(--kale-700); }
-.jd-crit__top { display:flex;justify-content:space-between;align-items:center;margin-bottom:4px; }
-.jd-crit__label { font-size:12.5px;font-weight:600;color:var(--kale-700); }
-.jd-crit__val { font-family:var(--font-mono);font-size:14px;font-weight:700;color:var(--ink-500);min-width:20px;text-align:right; }
-.jd-crit__val.is-high { color:var(--emerald-600); }
-.jd-crit__val.is-low  { color:#ef4444; }
-.jd-crit__track { position:relative;height:28px;display:flex;align-items:center; }
-.jd-crit__bar { position:absolute;left:0;top:50%;transform:translateY(-50%);height:4px;background:var(--emerald-500);border-radius:2px;pointer-events:none;transition:width .15s; }
-.jd-crit__scale { display:flex;justify-content:space-between;font-size:10px;color:var(--ink-400);margin-top:-2px; }
-.jd-save-state { font-size:12px;color:var(--ink-500); }
-.jd-save-state.is-ok  { color:var(--emerald-600); }
-.jd-save-state.is-err { color:#ef4444; }
-/* Compare view */
-.jd-compare-table { border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;margin-bottom:12px; }
-.jd-compare-head { display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f9fafb;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-500); }
-.jd-compare-head__crit { width:64px;text-align:center;font-size:10.5px; }
-.jd-compare-row { display:flex;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid #f3f4f6;transition:background .15s; }
-.jd-compare-row:hover { background:#fafafa; }
-.jd-compare-row.is-top { background:linear-gradient(90deg,#f0fdf4,#fff); }
-.jd-compare-cell { width:64px;text-align:center;font-size:13px;font-weight:600;color:var(--ink-500); }
-.jd-compare-cell .is-high { color:var(--emerald-600); }
-.jd-compare-cell .is-low  { color:#ef4444; }
-.jd-rank { width:22px;height:22px;border-radius:50%;background:#e5e7eb;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink-500);flex-shrink:0; }
-.jd-compare-row.is-top .jd-rank { background:var(--gold-300);color:var(--kale-700); }
-.jd-avg-num { color:var(--kale-700);font-size:14px; }
-/* The criteria-column table can exceed a phone viewport — let it scroll
-   horizontally instead of crushing/overflowing the columns. */
-.jd-compare-table { overflow-x:auto; }
-.jd-compare-head, .jd-compare-row { min-width:480px; }
+  .jc-strip{ background:#10292C; }
+  .jc-strip__in{ display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; padding-top:16px; padding-bottom:16px; }
+  .jc-strip__title{ font-family:var(--font-display,'Playfair Display',serif); font-weight:700; font-size:19px; color:#fff; }
+  .jc-strip__sub{ font-size:12.5px; color:rgba(255,255,255,.6); margin-top:2px; }
+  .jc-strip__prog{ display:flex; align-items:center; gap:16px; }
+  .jc-strip__count b{ font-family:var(--font-mono,monospace); font-weight:700; font-size:18px; color:#7FC87C; display:block; text-align:right; }
+  .jc-strip__count span{ font-size:10.5px; color:rgba(255,255,255,.5); }
+  .jc-strip__bar{ width:150px; height:8px; border-radius:5px; background:rgba(255,255,255,.14); overflow:hidden; }
+  .jc-strip__bar span{ display:block; height:100%; border-radius:5px; background:linear-gradient(90deg,#7FC87C,#fbc329); }
+
+  .jc-grid{ display:grid; grid-template-columns:300px 1fr; gap:24px; align-items:start; }
+  .jc-queue{ position:sticky; top:84px; }
+  .jc-queue__card{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:16px; overflow:hidden; }
+  .jc-queue__head{ padding:14px 16px; border-bottom:1px solid rgba(16,41,44,.07); font:600 11px/1 var(--font-body,sans-serif); letter-spacing:.06em; text-transform:uppercase; color:#5a6d6f; }
+  .jc-scroll{ max-height:560px; overflow-y:auto; }
+  .jc-qrow{ width:100%; cursor:pointer; border:none; text-align:left; display:flex; align-items:center; gap:12px; padding:13px 16px; background:#fff; border-left:3px solid transparent; border-bottom:1px solid rgba(16,41,44,.05); }
+  .jc-qrow.is-active{ background:#f6fcf5; border-left-color:#237b22; }
+  .jc-qrow__av{ flex:none; width:38px; height:38px; border-radius:11px; background:#fff8df; color:#7a5600; display:flex; align-items:center; justify-content:center; font-family:var(--font-display,serif); font-weight:700; font-size:15px; }
+  .jc-qrow__who{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .jc-qrow__name{ font-weight:600; font-size:13.5px; color:#10292C; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .jc-qrow__status{ font-size:11.5px; color:#5a6d6f; }
+  .jc-qrow__tick{ flex:none; }
+
+  .jc-card{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:18px; overflow:hidden; }
+  .jc-hero{ position:relative; overflow:hidden; background:radial-gradient(130% 130% at 82% 0%,#1d5b2a,#10292C 60%); padding:26px 28px; display:flex; align-items:center; gap:20px; }
+  .jc-hero__orb{ position:absolute; right:-40px; bottom:-50px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%); }
+  .jc-hero__av{ position:relative; flex:none; width:72px; height:72px; border-radius:18px; background:rgba(127,200,124,.18); color:#7FC87C; display:flex; align-items:center; justify-content:center; font-family:var(--font-display,serif); font-weight:700; font-size:30px; border:3px solid rgba(255,255,255,.2); }
+  .jc-hero__body{ position:relative; flex:1; min-width:0; }
+  .jc-hero__body h2{ margin:0; font-family:var(--font-display,serif); font-weight:700; font-size:24px; color:#fff; }
+  .jc-hero__body p{ margin:6px 0 0; font-size:13.5px; color:rgba(255,255,255,.78); }
+  .jc-hero__score{ position:relative; text-align:right; }
+  .jc-hero__n{ font-family:var(--font-mono,monospace); font-weight:700; font-size:30px; color:#7FC87C; line-height:1; }
+  .jc-hero__l{ font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:rgba(255,255,255,.55); margin-top:3px; }
+
+  .jc-klabel{ margin:0; font:600 11px/1 var(--font-body,sans-serif); letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f; }
+  .jc-dossier{ padding:22px 28px; border-bottom:1px solid rgba(16,41,44,.07); }
+  .jc-dossier__txt{ margin:10px 0 0; font-size:14.5px; line-height:1.65; color:#3a4448; }
+
+  .jc-crits{ padding:22px 28px; }
+  .jc-crits .jc-klabel{ margin-bottom:18px; }
+  .jc-crit{ margin-bottom:22px; }
+  .jc-crit__top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .jc-crit__label{ font-weight:600; font-size:14.5px; color:#10292C; }
+  .jc-crit__hint{ font-size:12px; color:#5a6d6f; margin-top:2px; }
+  .jc-crit__val{ font-family:var(--font-mono,monospace); font-weight:700; font-size:18px; color:#237b22; min-width:34px; text-align:right; }
+  .jc-range{ -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:5px; background:#dde6df; outline:none; }
+  .jc-range::-webkit-slider-thumb{ -webkit-appearance:none; width:22px; height:22px; border-radius:50%; background:#237b22; cursor:pointer; border:3px solid #fff; box-shadow:0 2px 6px rgba(16,41,44,.3); }
+  .jc-range::-moz-range-thumb{ width:22px; height:22px; border-radius:50%; background:#237b22; cursor:pointer; border:3px solid #fff; }
+  .jc-note{ margin-top:24px; }
+  .jc-note label{ display:block; font-size:12px; font-weight:600; color:#4a5256; margin-bottom:8px; }
+  .jc-note textarea{ width:100%; min-height:84px; resize:vertical; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:14px; line-height:1.5; color:#10292C; outline:none; }
+  .jc-note textarea:focus{ border-color:#237b22; }
+  .jc-actions{ display:flex; align-items:center; gap:12px; margin-top:20px; }
+  .jc-save{ font-size:12.5px; color:#5a6d6f; }
+  .jc-save.ok{ color:#237b22; } .jc-save.err{ color:#c0392b; } .jc-save.saving{ color:#7a5600; }
+  .jc-btn{ cursor:pointer; font-family:inherit; font-size:14px; font-weight:600; padding:13px 22px; border-radius:999px; display:inline-flex; align-items:center; gap:8px; }
+  .jc-btn--ghost{ border:1px solid rgba(16,41,44,.16); background:#fff; color:#10292C; }
+  .jc-btn--p{ border:none; background:#237b22; color:#fff; }
+  .jc-btn--p:hover{ background:#1a6118; }
+  .jc-btn--p:disabled{ opacity:.6; cursor:not-allowed; }
+  .jc-guide{ background:#f4f7f4; border:1px solid #d6e8d3; border-radius:14px; padding:16px 18px; margin-top:16px; display:flex; align-items:flex-start; gap:12px; }
+  .jc-guide svg{ flex:none; margin-top:1px; }
+  .jc-guide p{ margin:0; font-size:12.5px; line-height:1.6; color:#1a6118; }
+
+  .jc-lock{ display:flex; align-items:center; gap:12px; background:#fff8e6; border:1px solid #f2d68a; color:#7a5600; border-radius:14px; padding:14px 18px; margin-bottom:18px; }
+  .jc-lock svg{ flex:none; }
+  .jc-lock p{ margin:0; font-size:13.5px; font-weight:500; line-height:1.5; }
+  .jc-lock__act{ margin-left:auto; }
+  .jc-lock__btn{ cursor:pointer; font-family:inherit; font-size:12.5px; font-weight:600; color:#7a5600; background:#fff; border:1px solid #e2c477; border-radius:999px; padding:8px 16px; white-space:nowrap; }
+  .jc-lock__btn:hover{ background:#fffdf5; border-color:#d4a90e; }
+
+  /* Conflict-of-interest declaration card */
+  .jd-conflict{ background:#fff; border:1px solid rgba(16,41,44,.1); border-left:4px solid #d49a0e; border-radius:14px; padding:18px 20px; margin-bottom:20px; }
+  .jd-conflict__row{ display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+  .jd-conflict__body strong, .jd-conflict__form strong{ display:block; font-family:var(--font-display,serif); font-weight:700; font-size:16px; color:#10292C; }
+  .jd-conflict__body p, .jd-conflict__form p{ margin:5px 0 0; font-size:13.5px; line-height:1.55; color:#5a6d6f; max-width:52ch; }
+  .jd-conflict__actions{ display:flex; gap:10px; flex-wrap:wrap; flex:none; }
+  .jd-conflict__form .jd-conflict__actions{ margin-top:14px; }
+  .jd-conflict__btn{ cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; padding:10px 18px; border-radius:999px; border:1px solid transparent; }
+  .jd-conflict__btn--yes{ background:#fff4f2; color:#c0392b; border-color:#f0c4bd; }
+  .jd-conflict__btn--yes:hover{ background:#fdeae7; border-color:#e2a79d; }
+  .jd-conflict__btn--yes[type=submit]{ background:#c0392b; color:#fff; border-color:#c0392b; }
+  .jd-conflict__btn--yes[type=submit]:hover{ background:#a5301f; }
+  .jd-conflict__btn--no{ background:#f4f7f4; color:#1a6118; border-color:#d6e8d3; }
+  .jd-conflict__btn--no:hover{ background:#ecf3ea; }
+  .jd-conflict__lbl{ display:block; margin:14px 0 6px; font-size:12.5px; font-weight:600; color:#4a5256; }
+  .jd-conflict__lbl span{ font-weight:400; color:#8a9698; }
+  .jd-conflict__ta{ width:100%; resize:vertical; border:1px solid rgba(16,41,44,.16); border-radius:10px; padding:11px 13px; font-family:inherit; font-size:13.5px; line-height:1.5; color:#10292C; outline:none; }
+  .jd-conflict__ta:focus{ border-color:#d49a0e; }
+
+  @media (max-width:860px){ .jc-grid{ grid-template-columns:1fr; } .jc-queue{ position:static; } .jc-scroll{ max-height:280px; } }
 </style>
 <script>
-function ballotApp(initial) {
+function ballotApp(initial){
+  var crit = initial.criteria || [];
+  var queue = [];
+  (initial.nominees || []).forEach(function(g){
+    (g.nominees || []).forEach(function(n){ queue.push(Object.assign({}, n, { _state:'', category: g.category.title })); });
+  });
   return {
-    view: 'score',
-    criteria: initial.criteria || [],
-    groups: (initial.nominees || []).map(g => ({
-      category: g.category,
-      nominees: (g.nominees || []).map(n => ({ ...n, _state: '' })),
-      get scored() { return this.nominees.filter(x => x.complete).length; },
-    })),
+    criteria: crit,
+    queue: queue,
+    active: 0,
+    _timers: {},
+    locked: initial.judgingOpen === false,
+    lockReason: initial.lockReason || '',
+    get cur(){ return this.queue[this.active] || null; },
+    get scoredCount(){ return this.queue.filter(function(n){ return n.complete; }).length; },
+    get totalCount(){ return this.queue.length; },
+    get progressPct(){ return this.totalCount > 0 ? Math.round(this.scoredCount / this.totalCount * 100) : 0; },
+    get maxScore(){ return this.criteria.length * 10; },
+    get curScore(){ var n=this.cur; if(!n) return 0; return this.criteria.reduce(function(s,c){ return s + (n.scores[c.id]||0); },0); },
+    get saveLabel(){ var n=this.cur; if(!n) return ''; return n._state==='saving'?'Saving…':(n._state==='ok'?'✓ Saved':(n._state==='err'?('✗ '+(n._err||'Could not save')):(n.complete?'Fully scored':'Not yet scored'))); },
 
-    ranked(nominees) {
-      return [...nominees].sort((a, b) => {
-        if (a.complete && b.complete) return b.avg - a.avg;
-        if (a.complete) return -1;
-        if (b.complete) return 1;
-        return 0;
-      });
-    },
+    flag(cc){ cc=(cc||'').toUpperCase(); if(cc.length!==2) return '🌍'; return String.fromCodePoint.apply(null,[].map.call(cc,function(c){return 127397+c.charCodeAt(0);})); },
+    pick(i){ this.active = i; },
 
-    onScore(n, critId, val) {
-      n.scores = { ...n.scores, [critId]: parseInt(val) };
-      n.complete = this.criteria.every(c => n.scores[c.id] !== undefined);
+    setScore(critId, val){
+      var n=this.cur; if(!n || this.locked) return;
+      var sc = Object.assign({}, n.scores); sc[critId] = parseInt(val); n.scores = sc;
+      n.complete = this.criteria.every(function(c){ return n.scores[c.id] !== undefined; });
       n.avg = this._avg(n.scores);
       this._debouncedSave(n);
     },
-    onNotes(n) { this._debouncedSave(n); },
-    saveAll(n) { this._save(n); },
 
-    _avg(scores) {
-      const weights = Object.fromEntries(this.criteria.map(c => [c.id, c.weight || 25]));
-      let ws = 0, wt = 0;
-      Object.entries(scores).forEach(([cid, s]) => { const w = weights[cid] || 25; ws += s * w; wt += w; });
-      return wt > 0 ? Math.round(ws / wt * 10) / 10 : 0;
+    _avg(scores){
+      var weights = {}; this.criteria.forEach(function(c){ weights[c.id] = c.weight || 25; });
+      var ws=0, wt=0;
+      Object.keys(scores).forEach(function(cid){ var w = weights[cid]||25; ws += scores[cid]*w; wt += w; });
+      return wt>0 ? Math.round(ws/wt*10)/10 : 0;
     },
 
-    _timers: {},
-    _debouncedSave(n) {
-      n._state = 'saving';
+    advance(){
+      var t=this.queue.length, nx=this.active;
+      for(var k=1;k<=t;k++){ var c=(this.active+k)%t; if(!this.queue[c].complete){ nx=c; break; } }
+      this.active = nx;
+    },
+
+    _debouncedSave(n){
+      n._state='saving';
       clearTimeout(this._timers[n.id]);
-      this._timers[n.id] = setTimeout(() => this._save(n), 800);
+      var self=this; this._timers[n.id] = setTimeout(function(){ self._save(n); }, 800);
     },
 
-    async _save(n) {
-      try {
-        n._state = 'saving';
-        const params = new URLSearchParams({ notes: n.notes || '' });
-        Object.entries(n.scores).forEach(([k, v]) => params.append(`scores[${k}]`, v));
-        const r = await fetch('/judge/score/' + n.id, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRF-Token': document.querySelector('meta[name=csrf-token]')?.content || '',
-          },
+    submit(){ var n=this.cur; if(!n || this.locked) return; var self=this; this._save(n).then(function(ok){ if(ok) self.advance(); }); },
+
+    async _save(n){
+      if(this.locked){ n._state='err'; n._err = this.lockReason || 'Scoring is closed'; return false; }
+      try{
+        n._state='saving';
+        var params = new URLSearchParams({ notes: n.notes || '' });
+        Object.keys(n.scores).forEach(function(k){ params.append('scores['+k+']', n.scores[k]); });
+        var r = await fetch('/judge/score/' + n.id, {
+          method:'POST',
+          headers:{ 'Content-Type':'application/x-www-form-urlencoded', 'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]')||{}).content || '' },
           body: params,
         });
-        const d = await r.json().catch(() => ({}));
-        if (d.ok) {
-          n._state = 'ok';
-          setTimeout(() => { if (n._state === 'ok') n._state = ''; }, 2500);
-        } else {
-          n._state = 'err';
-          console.error('Score save failed:', d.message);
-        }
-      } catch (e) {
-        n._state = 'err';
-      }
+        if(r.status===401){ n._err='Your session expired — redirecting to sign in…'; n._state='err'; window.location='/judge/login?next=' + encodeURIComponent(location.pathname); return false; }
+        var d = await r.json().catch(function(){ return {}; });
+        if(r.ok && d.ok){ n._state='ok'; n._err=''; setTimeout(function(){ if(n._state==='ok') n._state=''; },2500); return true; }
+        n._err = (d && d.message) || (r.status===403 ? 'Scoring is closed for this cycle' : ('Save failed (' + r.status + ')'));
+        n._state='err';
+        return false;
+      }catch(e){ n._err='Network error — check your connection'; n._state='err'; return false; }
     },
   };
 }

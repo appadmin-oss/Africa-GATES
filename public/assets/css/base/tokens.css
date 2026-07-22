@@ -1,0 +1,69 @@
+/* ════════════════════════════════════════════════════════════════
+   Africa GATES — Design Tokens (single source of truth)
+   Values lifted directly from the approved design prototype.
+   Part of the modular system: base/ → components/ → pages/.
+   ════════════════════════════════════════════════════════════════ */
+:root{
+  /* ── Color: surfaces & ink ── */
+  --ag-bg:#fbfbfa;
+  --ag-surface:#ffffff;
+  --ag-surface-2:#f6f7f6;
+  --ag-ink:#10292c;          /* dark teal — primary text */
+  --ag-ink-soft:#626a6e;     /* secondary text — WCAG AA (≥4.5:1) on light surfaces */
+  --ag-line:rgba(16,41,44,.07);
+  --ag-line-strong:rgba(16,41,44,.12);
+
+  /* ── Color: brand ── */
+  --ag-green:#237b22;        /* primary CTA / accent */
+  --ag-green-dark:#1a6118;   /* hover */
+  --ag-green-light:#7fc87c;  /* logo glyph / soft accents */
+  --ag-green-wash:rgba(127,200,124,.16);
+  --ag-pulse:#e0245e;        /* Pulse / "living feed" accent */
+  --ag-gold:#c9a24b;         /* sparing warm accent */
+
+  /* ── Typography ── */
+  --ag-font-display:"Playfair Display",Georgia,"Times New Roman",serif;
+  --ag-font-body:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --ag-font-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+
+  /* fluid display sizes */
+  --ag-fs-hero:clamp(2.6rem,6vw,4.5rem);
+  --ag-fs-h2:clamp(1.9rem,3.4vw,2.9rem);
+  --ag-fs-h3:clamp(1.35rem,2.2vw,1.75rem);
+  --ag-fs-body:1.0625rem;
+  --ag-fs-sm:.9rem;
+  --ag-fs-label:.72rem;      /* mono micro-labels */
+  --ag-tracking-label:.22em;
+
+  /* ── Radii ── */
+  --ag-r-sm:10px;
+  --ag-r-md:14px;
+  --ag-r-lg:24px;
+  --ag-r-pill:999px;
+
+  /* ── Shadow / elevation ── */
+  --ag-shadow-cutout:drop-shadow(0 28px 40px rgba(7,20,22,.32));
+  --ag-shadow-card:0 24px 48px -28px rgba(16,41,44,.25);
+  --ag-shadow-nav:0 1px 0 rgba(16,41,44,.04);
+  --ag-shadow-cta:0 8px 18px -8px rgba(35,123,34,.6);
+  --ag-shadow-pop:0 24px 48px -28px rgba(16,41,44,.25);
+
+  /* ── Layout ── */
+  --ag-maxw:1240px;
+  --ag-gutter:clamp(1rem,4vw,2.5rem);
+  --ag-nav-h:72px;
+  --ag-mobile-nav-h:64px;    /* bottom tab bar on mobile */
+
+  /* ── Motion ── */
+  --ag-ease:cubic-bezier(.2,.7,.3,1);
+  --ag-dur-fast:.15s;
+  --ag-dur:.25s;
+  --ag-dur-slow:.45s;
+
+  /* ── Z-index scale ── */
+  --ag-z-nav:50;
+  --ag-z-mega:55;
+  --ag-z-mobile-nav:60;
+  --ag-z-overlay:80;         /* full-screen mobile menu */
+  --ag-z-loader:2147483000;  /* above everything — full-screen site entrance */
+}

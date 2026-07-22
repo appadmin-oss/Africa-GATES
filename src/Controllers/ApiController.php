@@ -4,7 +4,7 @@ namespace AfricaGates\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Illuminate\Database\Capsule\Manager as DB;
-use AfricaGates\Services\{CacheService,ProfileService,AwardService,VoteService,OtpService,RateLimitService,GoogleSheetsService,CommunityService,TurnstileService,FraudService,EventService,MilestoneService};
+use AfricaGates\Services\{CacheService,ProfileService,AwardService,VoteService,OtpService,RateLimitService,GoogleSheetsService,CommunityService,TurnstileService,FraudService,EventService,MilestoneService,LegacyService,OpportunityService};
 
 class ApiController {
     public function __construct(
@@ -17,6 +17,8 @@ class ApiController {
         private readonly ?FraudService $fraud = null,
         private readonly ?EventService $events = null,
         private readonly ?MilestoneService $milestones = null,
+        private readonly ?LegacyService $legacyService = null,
+        private readonly ?OpportunityService $oppService = null,
     ){}
     private function json(Response $r,array $d,int $s=200):Response{ $r->getBody()->write(json_encode($d,JSON_UNESCAPED_UNICODE)); return $r->withHeader('Content-Type','application/json')->withStatus($s); }
     private function ok(Response $r,array $d=[]):Response{ return $this->json($r,['success'=>true]+$d); }
@@ -56,6 +58,10 @@ class ApiController {
         return $this->ok($res,['awards'=>$this->cache->remember('api:awards',1800,fn()=>$this->awards->getActiveProgrammesWithStatus())]);
     }
     public function otpRequest(Request $req,Response $res):Response {
+        // Paid-voting mode with free voting disabled: the OTP flow is closed at
+        // the boundary — the audited vote path itself stays untouched.
+        if(\AfricaGates\Services\PaidVoteService::freeVotingDisabled())
+            return $this->err($res,'Voting on this platform is by paid votes — use the "Buy votes" option on the nominee page.','PAID_VOTING_ONLY',403);
         $b=(array)$req->getParsedBody(); $email=strtolower(trim($b['email']??''));
         if(!filter_var($email,FILTER_VALIDATE_EMAIL)) return $this->err($res,'Invalid email address.');
         $tsToken = $b['turnstile_token'] ?? $b['cf-turnstile-response'] ?? null;
@@ -75,6 +81,8 @@ class ApiController {
     }
 
     public function castVote(Request $req,Response $res):Response {
+        if(\AfricaGates\Services\PaidVoteService::freeVotingDisabled())
+            return $this->err($res,'Voting on this platform is by paid votes — use the "Buy votes" option on the nominee page.','PAID_VOTING_ONLY',403);
         $b=(array)$req->getParsedBody();
         $email=strtolower(trim($b['email']??'')); $otp=trim($b['otp']??'');
         $nId=(int)($b['nominee_id']??0); $aId=(int)($b['award_id']??0);
@@ -84,6 +92,10 @@ class ApiController {
         $sessionId=$b['session_id']??$ipHash;
         if(!$email||!$otp||!$nId) return $this->err($res,'email, otp and nominee_id required.');
         if(strlen($otp)!==6||!ctype_digit($otp)) return $this->err($res,'OTP must be 6 digits.','INVALID_OTP');
+        // Voting requires the voter's full name + phone (stored with the vote for accountability).
+        $name=trim($b['name']??($b['full_name']??'')); $phone=trim($b['phone']??'');
+        if($name===''||!preg_match('/\S+\s+\S+/u',$name)) return $this->err($res,'Please enter your full name (first and last).','INVALID_NAME');
+        if(strlen((string)preg_replace('/\D+/','',$phone))<7) return $this->err($res,'Please enter a valid phone number.','INVALID_PHONE');
         if(!$this->rateLimit->check($ipHash,'vote_attempt',10,3600)) return $this->err($res,'Too many attempts.','RATE_LIMITED',429);
 
         // Pre-vote fraud scoring
@@ -101,7 +113,7 @@ class ApiController {
             }
         }
 
-        $r=$this->votes->castVote($email,$otp,$nId,$aId,$ip,$deviceHash,$idemKey?:null);
+        $r=$this->votes->castVote($email,$otp,$nId,$aId,$ip,$deviceHash,$idemKey?:null,$name,$phone);
         if(!$r['success']) return $this->err($res,$r['message'],$r['code']);
 
         // Post-vote: record fraud score, events, milestones, cache invalidation
@@ -115,6 +127,17 @@ class ApiController {
         $this->cache->forgetByTag('leaderboard');
 
         $nom=DB::table('gates_nominees')->where('id',$nId)->first();
+
+        // Post-commit vote webhook — additive to the audited vote path (dispatch
+        // never throws). Counts + ids only; the voter's identity stays hashed.
+        \AfricaGates\Services\WebhookService::dispatch('vote.cast', [
+            'vote_id'     => (int)($r['vote_id'] ?? 0),
+            'nominee_id'  => $nId,
+            'nominee'     => (string)($nom->name ?? ''),
+            'category_id' => (int)($r['category_id'] ?? 0),
+            'new_count'   => (int)($r['new_count'] ?? 0),
+            'new_rank'    => (int)($r['new_rank'] ?? 0),
+        ]);
 
         // Vote confirmation email — tells the voter their vote was recorded
         if ($this->otp && $nom && filter_var($b['email']??'', FILTER_VALIDATE_EMAIL)) {
@@ -170,9 +193,50 @@ HTML;
         $step=$b['step']??''; $sid=$b['session_id']??'';
         if(!$step||!$sid) return $this->err($res,'step and session_id required.');
         $ipHash=hash('sha256',$this->ip($req));
+        // Cap funnel ingestion per IP so the analytics table can't be flooded.
+        // 500/hr is far above any real user's event rate; over-limit is dropped
+        // silently (the client ignores the response anyway).
+        if(!$this->rateLimit->check($ipHash,'funnel',500,3600)) return $this->ok($res);
         $deviceHash=!empty($b['device_hash'])?substr($b['device_hash'],0,64):null;
         $this->events?->funnelStep($sid,$step,(int)($b['nominee_id']??0),(int)($b['award_id']??0),$deviceHash,$ipHash,$b['meta']??[]);
         return $this->ok($res);
+    }
+
+    /**
+     * "Polish my story" — public AI assist on the nomination wizard. Improves
+     * clarity of the nominator's own words; never invents achievements.
+     * INVISIBLE limits: over budget / no provider / AI failure all return
+     * {ok:true, code:'AI_OFF'} — the button quietly does nothing more, the
+     * wizard never shows an error for an optional nicety.
+     */
+    public function polishStory(Request $req,Response $res):Response {
+        $b=(array)$req->getParsedBody(); $draft=trim((string)($b['reason']??''));
+        if($draft===''||mb_strlen($draft)>3000) return $this->err($res,'Write your story first (up to 3000 characters).');
+        $ip=$this->ip($req);
+        $withinBudget=$this->rateLimit->check(hash('sha256',$ip.'|polish'),'story_polish',5,3600)
+            && $this->rateLimit->check('global|gee','gee_ai_day',4000,86400);
+        if(!$withinBudget) return $this->ok($res,['code'=>'AI_OFF']);
+        $ai=\AfricaGates\Services\AiService::boot();
+        if(!$ai->configured()) return $this->ok($res,['code'=>'AI_OFF']);
+        $out=$ai->complete(
+            'You polish award-nomination stories for Africa GATES. Improve clarity, flow and specificity while KEEPING the writer\'s voice, language and every factual claim exactly as given — never add achievements, numbers or facts. Plain text only, no markdown, similar length or shorter. Reply with ONLY the improved story.',
+            $draft, 700, false, 0.4);
+        if($out===null||trim($out)==='') return $this->ok($res,['code'=>'AI_OFF']);
+        return $this->ok($res,['text'=>mb_substr(trim($out),0,3000)]);
+    }
+
+    public function createShareLink(Request $req,Response $res):Response {
+        // Shareable prefill link: nominee-side fields only (whitelisted in the
+        // service), opaque 32-byte token, 30-day expiry. Throttled per-IP so
+        // the table can't be flooded.
+        if(!$this->rateLimit->check(hash('sha256',$this->ip($req).'|sharelink'),'share_link',10,3600))
+            return $this->err($res,'Too many share links — try again later.','RATE_LIMITED',429);
+        $b=(array)$req->getParsedBody();
+        try {
+            $token=(new \AfricaGates\Services\NominationLinkService())->create($b,$this->ip($req));
+        } catch(\RuntimeException $e){ return $this->err($res,$e->getMessage()); }
+        $base=rtrim((string)($_ENV['APP_URL']??''),'/');
+        return $this->ok($res,['token'=>$token,'url'=>$base.'/nominate?share='.$token,'expires_days'=>\AfricaGates\Services\NominationLinkService::DEFAULT_TTL_DAYS]);
     }
 
     public function saveDraft(Request $req,Response $res):Response {
@@ -190,6 +254,11 @@ HTML;
     }
 
     public function loadDraft(Request $req,Response $res):Response {
+        // Draft rows hold nomination PII and are addressed only by an opaque
+        // client session_key (a capability). Throttle reads per-IP so the key
+        // space can never be enumerated, even though it is already high-entropy.
+        if(!$this->rateLimit->check(hash('sha256',$this->ip($req).'|draftload'),'draft_load',60,3600))
+            return $this->err($res,'Too many requests.','RATE_LIMITED',429);
         $key=trim($req->getQueryParams()['session_key']??'');
         if(!$key) return $this->ok($res,['draft'=>null]);
         try {
@@ -221,11 +290,11 @@ HTML;
         return $this->ok($res,['pins'=>$this->cache->remember('api:map_pins',7200,fn()=>$this->profiles->getMapPins(),['registry'])]);
     }
     public function legacy(Request $req,Response $res):Response {
-        $svc=new \AfricaGates\Services\LegacyService();
+        $svc=$this->legacyService ?? new \AfricaGates\Services\LegacyService();
         return $this->ok($res,['events'=>$this->cache->remember('api:legacy',7200,fn()=>$svc->getAllPublished())]);
     }
     public function opportunities(Request $req,Response $res):Response {
-        $svc=new \AfricaGates\Services\OpportunityService();
+        $svc=$this->oppService ?? new \AfricaGates\Services\OpportunityService();
         return $this->ok($res,['opportunities'=>$this->cache->remember('api:opps',3600,fn()=>$svc->getActiveOpportunities())]);
     }
     public function submitNomination(Request $req,Response $res):Response {
@@ -233,6 +302,11 @@ HTML;
         if(!$this->rateLimit->check($fp,'nominate',5,86400)) return $this->err($res,'Daily nomination limit reached.','RATE_LIMITED',429);
         foreach(['programme_id','nominee_name','country_code','reason','nominator_name','nominator_email'] as $f) if(empty(trim($b[$f]??''))) return $this->err($res,"Field '$f' is required.");
         if(!filter_var($b['nominator_email'],FILTER_VALIDATE_EMAIL)) return $this->err($res,'Invalid nominator email.');
+        // Nominee contact: email OR phone — at least one; anything provided must validate.
+        $ne=trim((string)($b['nominee_email']??'')); $np=trim((string)($b['nominee_phone']??''));
+        if($ne==='' && $np==='') return $this->err($res,"Provide 'nominee_email' or 'nominee_phone' — at least one is required.");
+        if($ne!=='' && !filter_var($ne,FILTER_VALIDATE_EMAIL)) return $this->err($res,'Invalid nominee email.');
+        if($np!=='' && \AfricaGates\Support\Phone::normalize($np,(string)($b['country_code']??''))===null) return $this->err($res,'Invalid nominee phone — use E.164 (e.g. +2348031234567).');
         try{ $this->awards->submitNomination($b,$ip); }catch(\RuntimeException $e){ return $this->err($res,$e->getMessage()); }
         return $this->ok($res,['message'=>'Nomination submitted.']);
     }
@@ -243,6 +317,12 @@ HTML;
         if(!filter_var($b['email'],FILTER_VALIDATE_EMAIL)) return $this->err($res,'Invalid email.');
         try{ $id=$this->profiles->register($b); }catch(\Exception $e){ return $this->err($res,str_contains($e->getMessage(),'Duplicate')?'Email already registered.':'Registration failed.'); }
         $this->cache->forgetByTag('registry');
+        \AfricaGates\Services\WebhookService::dispatch('profile.registered', [
+            'profile_id'   => (int)$id,
+            'display_name' => trim((string)($b['display_name'] ?? '')),
+            'category'     => trim((string)($b['category'] ?? '')),
+            'country'      => strtoupper(trim((string)($b['country_code'] ?? ''))),
+        ]);
         return $this->ok($res,['message'=>'Registration successful.','id'=>$id]);
     }
 
@@ -262,6 +342,7 @@ HTML;
             return $this->err($res, 'Too many requests. Try again later.', 'RATE_LIMITED', 429);
         }
         $hash = hash('sha256', $email);
+        $isNew = false;
         try {
             DB::table('gates_newsletter')->insert([
                 'email_hash' => $hash, 'email' => $email,
@@ -269,8 +350,22 @@ HTML;
                 'source' => substr((string)($b['source'] ?? 'homepage'), 0, 50),
                 'subscribed_at' => date('Y-m-d H:i:s'),
             ]);
+            $isNew = true;
         } catch (\Throwable $e) {
             // UNIQUE violation on re-subscribe is fine — idempotent + non-leaky.
+        }
+        // Welcome only a genuinely-new subscriber (re-subscribe sends nothing → no mail-bomb).
+        if ($isNew && $this->otp) {
+            try {
+                $base = rtrim((string)($_ENV['APP_URL'] ?? 'https://afg.afrovanguard.org.ng'), '/');
+                $whtml = "<h1 style=\"margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:24px;color:#10292C\">You're on the list</h1>"
+                    . "<p style=\"margin:13px 0 0;font-size:15px;line-height:1.6;color:#4a5256\">Thanks for subscribing to Africa GATES. We'll let you know when nominations open, voting goes live, and each cycle's winners are crowned.</p>"
+                    . "<p style=\"text-align:center;margin:22px 0\"><a href=\"{$base}/leaderboard\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Explore the leaderboard &rarr;</a></p>"
+                    . "<p style=\"margin:0;font-size:12.5px;color:#92a6a7\">Didn't subscribe? You can ignore this email and you won't hear from us again.</p>";
+                $this->otp->sendBranded($email, "You're subscribed — Africa GATES", $whtml,
+                    "Thanks for subscribing to Africa GATES. We'll let you know when nominations open and voting goes live.\n\n{$base}/leaderboard\n\nDidn't subscribe? Ignore this email.",
+                    'Newsletter');
+            } catch (\Throwable $e) {}
         }
         return $this->ok($res, ['message' => 'Subscribed.']);
     }

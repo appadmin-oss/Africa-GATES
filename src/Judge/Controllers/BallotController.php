@@ -77,4 +77,14 @@ class BallotController
         $_SESSION['flash_ok'] = 'Conflict of interest recorded — you are recused from scoring this programme.';
         return $res->withHeader('Location', '/judge')->withStatus(302);
     }
+
+    /** Withdraw a conflict-of-interest recusal declared in error, re-opening scoring. */
+    public function withdrawConflict(Request $req, Response $res, array $args): Response
+    {
+        $judgeId = (int)$_SESSION['judge_id'];
+        $programmeId = (int)$args['programmeId'];
+        $this->judges->withdrawConflict($judgeId, $programmeId);
+        $_SESSION['flash_ok'] = 'Conflict of interest withdrawn — you can score this programme again.';
+        return $res->withHeader('Location', '/judge/ballot/' . $programmeId)->withStatus(302);
+    }
 }

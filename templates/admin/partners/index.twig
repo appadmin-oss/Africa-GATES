@@ -1,4 +1,5 @@
 {% extends "admin/layout.twig" %}
+{% import "admin/partials/ui.twig" as ui %}
 {% block topbar_title %}Partner Enquiries{% endblock %}
 {% block topbar_actions %}<a class="ad-btn" href="/admin/partners/export.csv">Export CSV</a>{% endblock %}
 {% block content %}
@@ -14,15 +15,13 @@
 
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
-    <thead><tr><th>Organisation</th><th>Contact</th><th>Tier</th><th>When</th><th>Status</th><th class="col-actions">Actions</th></tr></thead>
+    <thead><tr><th scope="col">Organisation</th><th scope="col">Contact</th><th scope="col">Message</th><th scope="col">Tier</th><th scope="col">When</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
-      <tr x-data="{open:false}">
-        <td><strong>{{ r.org_name }}</strong>
-          <button class="ad-btn ad-btn--xs ad-btn--ghost" type="button" @click="open=!open" style="margin-top:4px"><span x-text="open?'Hide':'Show message'"></span></button>
-          <div x-show="open" x-cloak style="margin-top:8px;padding:10px;background:var(--ad-bg);border-radius:6px;font-size:12.5px;color:var(--ad-text-soft);max-width:480px">{{ r.message }}</div>
-        </td>
-        <td>{{ r.contact_name }}<div style="font-size:12px;color:var(--ad-text-soft)">{{ r.contact_email }}{% if r.contact_phone %} · {{ r.contact_phone }}{% endif %}</div></td>
+      <tr>
+        <td><strong>{{ r.org_name }}</strong></td>
+        <td>{{ ui.cell(r.contact_name, 24, 'Contact') }}<div style="font-size:12px;color:var(--ad-text-soft)">{{ ui.cell(r.contact_email, 26, 'Contact email') }}{% if r.contact_phone %} · {{ r.contact_phone }}{% endif %}</div></td>
+        <td style="max-width:280px">{{ ui.cell(r.message, 70, 'Message from ' ~ r.org_name) }}</td>
         <td><span class="ad-chip ad-chip--grey">{{ r.partnership_type|default('—')|capitalize }}</span></td>
         <td style="font-size:12px;color:var(--ad-text-soft);font-family:'Space Mono',monospace">{{ r.created_at|slice(0,16) }}</td>
         <td>
@@ -35,7 +34,7 @@
           {% if r.status != 'closed' %}<form method="post" action="/admin/partners/{{ r.id }}/closed" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--danger" type="submit">Close</button></form>{% endif %}
         </td>
       </tr>
-      {% else %}<tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No enquiries yet.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="7" style="text-align:center;color:var(--ad-text-mute);padding:30px">No enquiries yet.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div></div>

@@ -19,6 +19,19 @@ class ErrorHandler {
             $allowed = array_map('strtoupper', $ex->getAllowedMethods());
             $code = (array_diff($allowed, ['OPTIONS']) === []) ? 404 : 405;
         }
+        // Always record full 5xx details to an easy-to-find file, so a production
+        // crash can be diagnosed even though detail DISPLAY is hardened off on
+        // public hosts. Best-effort; never let logging cause a second failure.
+        if ($code >= 500) {
+            try {
+                $dir = dirname(__DIR__, 2) . '/var/logs';
+                if (!is_dir($dir)) @mkdir($dir, 0775, true);
+                @file_put_contents($dir . '/error-detail.log',
+                    '[' . date('c') . '] ' . get_class($ex) . ': ' . $ex->getMessage()
+                    . ' in ' . $ex->getFile() . ':' . $ex->getLine() . "\n"
+                    . $ex->getTraceAsString() . "\n\n", FILE_APPEND);
+            } catch (\Throwable $ignore) {}
+        }
         $isJson=str_contains($req->getHeaderLine('Accept'),'application/json')||str_starts_with($req->getUri()->getPath(),'/api/');
         $res=$this->app->getResponseFactory()->createResponse($code);
         // Never leak internal exception details to clients on 5xx; 4xx messages
@@ -36,11 +49,22 @@ class ErrorHandler {
         catch(\Throwable $e){ try { $c=$this->app->getContainer(); $twig = $c?->get(\Slim\Views\Twig::class); } catch(\Throwable $e2){} }
         if($twig){
             try {
+                $pageHeading = match(true){
+                    $code===404 => 'This path leads nowhere',
+                    $code===405 => "That request isn’t allowed here.",
+                    $code>=500  => 'Something went wrong on our end',
+                    default     => 'Something went sideways.',
+                };
+                $pageMessage = match(true){
+                    $code===404 => 'The page you’re looking for has moved or never existed. The road to recognition is still wide open — let’s get you back on it.',
+                    $code>=500  => ($displayDetails ? $ex->getMessage() : 'Our team has been notified and is on it. Your votes and data are safe — please try again in a moment.'),
+                    default     => $safeMsg,
+                };
                 return $twig->render($res,'pages/error.twig',[
                     'code'    => $code,
-                    'heading' => $code===404 ? 'Page not found.' : ($code===405 ? "That request isn't allowed here." : 'Something went sideways.'),
-                    'message' => $safeMsg,
-                    'gates_page' => '', 'has_hero' => false,
+                    'heading' => $pageHeading,
+                    'message' => $pageMessage,
+                    'gates_page' => '', 'has_hero' => false, 'lite_page' => true,
                 ]);
             } catch(\Throwable $e3){ /* fall through to minimal output */ }
         }

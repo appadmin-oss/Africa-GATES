@@ -1,134 +1,162 @@
 {% extends "layout/gates.twig" %}
-{% block content %}
 
+{% block head_styles %}
+<style>
+  body[data-page="registry"]{ background:#eef0ec; color:var(--ag-ink); }
+  .rg{ max-width:1160px; margin:0 auto; padding:clamp(2rem,5vw,2.6rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+
+  .rg-head .rg-eyebrow{ margin:0 0 8px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
+  .rg-head h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4.4vw,2.5rem); letter-spacing:-.02em; }
+  .rg-head p{ margin:12px 0 0; font-size:15px; line-height:1.6; color:#4a5256; max-width:560px; }
+  .rg-search{ display:flex; align-items:center; gap:11px; background:var(--ag-surface); border:1px solid rgba(16,41,44,.14); border-radius:14px; padding:14px 18px; margin-top:22px; max-width:560px; }
+  .rg-search:focus-within{ border-color:var(--ag-green); }
+  .rg-search input{ flex:1; border:none; outline:none; font-family:inherit; font-size:15px; color:var(--ag-ink); background:none; }
+
+  .rg-filters{ display:flex; gap:8px; overflow-x:auto; padding:20px 0 6px; scrollbar-width:none; }
+  .rg-filters::-webkit-scrollbar{ display:none; }
+  .rg-chip{ flex:none; cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; padding:9px 16px; border-radius:999px; border:1px solid rgba(16,41,44,.12); background:var(--ag-surface); color:#4a5256; transition:background .15s,color .15s,border-color .15s; }
+  .rg-chip.is-active{ background:var(--ag-ink); color:#fff; border-color:var(--ag-ink); }
+
+  .rg-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-top:24px; }
+  .rg-card{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; overflow:hidden; transition:transform .15s, box-shadow .15s; }
+  .rg-card:hover{ transform:translateY(-3px); box-shadow:0 16px 32px -18px rgba(16,41,44,.4); }
+  .rg-card__cover{ position:relative; display:block; aspect-ratio:1/1; background-size:cover; background-position:center; text-decoration:none; }
+  .rg-card__scrim{ position:absolute; inset:0; background:linear-gradient(to top,rgba(7,20,22,.62),transparent 52%); }
+  .rg-card__tier{ position:absolute; top:11px; left:11px; font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:capitalize; padding:4px 9px; border-radius:999px; }
+  .rg-card__flag{ position:absolute; top:9px; right:11px; font-size:18px; }
+  .rg-card__name{ position:absolute; left:13px; right:13px; bottom:11px; font-family:var(--ag-font-display); font-weight:700; font-size:17px; color:#fff; line-height:1.12; }
+  .rg-card__body{ padding:14px; }
+  .rg-card__cat{ font-size:12px; color:#5a6d6f; }
+  .rg-card__row{ display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
+  .rg-card__cpi{ font:700 17px/1 var(--ag-font-mono); color:var(--ag-green); }
+  .rg-card__cpi small{ font-size:10px; color:#5a6d6f; font-family:var(--ag-font-body); }
+  .rg-card__vote{ cursor:pointer; border:1px solid var(--ag-green); background:var(--ag-surface); color:var(--ag-green); font-family:inherit; font-size:12px; font-weight:600; padding:7px 14px; border-radius:999px; text-decoration:none; }
+  .rg-card__vote:hover{ background:var(--ag-green); color:#fff; }
+
+  .rg-empty{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(2rem,5vw,2.5rem); text-align:center; max-width:520px; margin:10px auto 0; }
+  .rg-empty img{ width:180px; max-width:60%; height:auto; border-radius:14px; }
+  .rg-empty h3{ margin:1rem 0 .4rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; }
+  .rg-empty p{ margin:0 auto 1.2rem; color:#4a5256; line-height:1.6; }
+  .rg-btns{ display:flex; gap:.65rem; flex-wrap:wrap; justify-content:center; }
+  .rg-btn{ display:inline-flex; align-items:center; gap:.5rem; text-decoration:none; font-weight:600; font-size:14px; padding:12px 22px; border-radius:999px; cursor:pointer; }
+  .rg-btn--p{ background:var(--ag-green); color:#fff; border:none; }
+  .rg-btn--g{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.16); color:var(--ag-ink); }
+
+  @media (max-width:980px){ .rg-grid{ grid-template-columns:repeat(3,1fr); } }
+  @media (max-width:680px){ .rg-grid{ grid-template-columns:repeat(2,1fr); } }
+  @media (max-width:420px){ .rg-grid{ grid-template-columns:1fr 1fr; gap:12px; } }
+</style>
+{% endblock %}
+
+{% block content %}
 {% set FLAGS = {
   'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮',
-  'CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','AO':'🇦🇴','CD':'🇨🇩','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪'
+  'CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','AO':'🇦🇴','CD':'🇨🇩','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪','BW':'🇧🇼'
 } %}
+{% set TIERCOL = {
+  'diamond':  ['#e6f1f4','#2a6b7a'],
+  'platinum': ['#eef0f1','#566b72'],
+  'gold':     ['#fff8df','#7a5600'],
+  'silver':   ['#f0f2f2','#626a6e']
+} %}
+{% set COV = ['linear-gradient(135deg,#10292C,#1a6118)','linear-gradient(135deg,#a47306,#d49a0e)','linear-gradient(135deg,#1a2629,#5d7374)','linear-gradient(135deg,#237b22,#7FC87C)','linear-gradient(135deg,#5b3a8a,#8a5fc0)','linear-gradient(135deg,#b03a5b,#e0245e)'] %}
+{% set rows = profiles|default([]) %}
+{% set has_profiles = rows|length > 0 %}
+{% set catset = [] %}
+{% for p in rows %}{% if p.category and p.category not in catset %}{% set catset = catset|merge([p.category]) %}{% endif %}{% endfor %}
 
-{% set has_profiles = profiles|default([])|length > 0 %}
-{% set rows = has_profiles ? profiles : [] %}
-
-<section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
-  <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">The registry</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(2.2rem,5.2vw,3.9rem)">Real people. <em style="color:var(--emerald-600)">Real rankings.</em></h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto">Every profile is OTP-verified, attributable, and tied to a transparent CPI score. Filter by region, tier, or category.</p>
-      <div class="r26-cta r26-reveal r26-d3">
-        <a href="/register" class="btn btn--emerald">
-          Register your profile
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </a>
-        <a href="/leaderboard" class="btn btn--white">
-          See the leaderboard
-          <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="section" style="padding-top:1rem">
-  <div class="wrap">
-
+<div class="rg">
+  <header class="rg-head">
+    <p class="rg-eyebrow">The continental record</p>
+    <h1>Registry</h1>
+    <p>{% if has_profiles %}{{ rows|length }} verified profile{{ rows|length == 1 ? '' : 's' }} — every entry is panel-verified before it joins the index.{% else %}The verified profile registry. Every entry is panel-verified before it joins the continental record.{% endif %}</p>
     {% if has_profiles %}
-    <div class="r26-head">
-      <p class="r26-eyebrow">Verified profiles</p>
-      <h2 class="r26-h2">Browse the <em>registry</em></h2>
+    <div class="rg-search">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5a6d6f" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="rgSearch" type="search" placeholder="Search by name…" aria-label="Search the registry">
     </div>
-    <div class="filter-row" data-anim>
-      <input id="regSearch" class="filter-search" type="search" placeholder="Search nominees by name, category, or country…" aria-label="Search registry">
-      <button class="filter-chip is-active" data-tier="">All tiers</button>
-      <button class="filter-chip" data-tier="diamond">Diamond</button>
-      <button class="filter-chip" data-tier="platinum">Platinum</button>
-      <button class="filter-chip" data-tier="gold">Gold</button>
-      <button class="filter-chip" data-tier="silver">Silver</button>
+    {% endif %}
+  </header>
+
+  {% if has_profiles %}
+    <div class="rg-filters">
+      <button type="button" class="rg-chip is-active" data-cat="">All</button>
+      {% for c in catset %}<button type="button" class="rg-chip" data-cat="{{ c }}">{{ c }}</button>{% endfor %}
     </div>
 
-    <div id="regGrid" class="card-grid">
+    <div class="rg-grid" id="rgGrid">
       {% for p in rows %}
-      <a href="/registry/{{ p.slug }}" class="profile-card" data-tier="{{ p.cpi_tier }}" data-anim data-anim-delay="{{ loop.index0 % 4 }}">
-        <div class="profile-card__media" style="background-image:url('{{ p.avatar_path }}')">
-          <div class="profile-card__top">
-            <span class="flag-chip"><span class="flag-chip__icon">{{ FLAGS[p.country_code]|default('🌍') }}</span> {{ p.country_code }}</span>
-            <span class="tier-badge tier-badge--{{ p.cpi_tier }}">{{ p.cpi_tier }}</span>
+        {% set tc = TIERCOL[p.cpi_tier]|default(['#eef7ee','#1a6118']) %}
+        <article class="rg-card" data-cat="{{ p.category }}" data-name="{{ (p.display_name ~ ' ' ~ p.category ~ ' ' ~ p.country_code)|lower }}">
+          <a class="rg-card__cover" href="/registry/{{ p.slug }}"
+             style="{% if p.avatar_path %}background-image:url('{{ p.avatar_path }}'){% else %}background:{{ COV[loop.index0 % COV|length] }}{% endif %}">
+            <span class="rg-card__scrim"></span>
+            <span class="rg-card__tier" style="background:{{ tc[0] }};color:{{ tc[1] }}">{{ p.cpi_tier }}</span>
+            <span class="rg-card__flag">{{ FLAGS[p.country_code]|default('🌍') }}</span>
+            <span class="rg-card__name">{{ p.display_name }}</span>
+          </a>
+          <div class="rg-card__body">
+            <div class="rg-card__cat">{{ p.category }}</div>
+            <div class="rg-card__row">
+              <div class="rg-card__cpi">{{ p.cpi_score }}<small> CPI</small></div>
+              <a class="rg-card__vote" href="/vote">Vote</a>
+            </div>
           </div>
-          <div class="profile-card__bottom">
-            <div class="profile-card__name">{{ p.display_name }}</div>
-            <div class="profile-card__cat">{{ p.category }}</div>
-          </div>
-        </div>
-        <div class="profile-card__body">
-          <span class="text-xs text-soft" style="text-transform:uppercase;letter-spacing:0.08em;font-family:var(--font-mono)">CPI</span>
-          <span class="profile-card__score">{{ p.cpi_score }}</span>
-        </div>
-      </a>
+        </article>
       {% endfor %}
     </div>
 
-    <div id="regEmpty" class="r26-empty" style="display:none;margin-top:2rem">
-      <div style="font-size:2.25rem;line-height:1;margin-bottom:1rem">🔍</div>
-      <h3>No profiles match that filter</h3>
-      <p>Try a different tier or clear the search to see every verified profile across the continent.</p>
-      <button type="button" class="btn btn--white" onclick="document.getElementById('regSearch').value='';document.querySelectorAll('.filter-chip').forEach(c=>c.classList.toggle('is-active',c.dataset.tier===''));window.__regFilter && window.__regFilter()">Clear filters</button>
+    <div class="rg-empty" id="rgEmpty" style="display:none">
+      <img src="/assets/img/illustrations/illo-search.jpg?v={{ asset_version }}" alt="" aria-hidden="true">
+      <h2>No profiles match</h2>
+      <p>Try another name, clear the filters, or nominate someone who belongs on the record.</p>
+      <div class="rg-btns">
+        <button type="button" class="rg-btn rg-btn--g" id="rgClear">Clear filters</button>
+        <a class="rg-btn rg-btn--p" href="/nominate">Nominate someone →</a>
+      </div>
     </div>
-    {% else %}
-    {# Genuinely-empty registry (no verified profiles in the DB yet) #}
-    <div class="r26-empty" style="margin-top:1rem" data-anim>
-      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-      <h3>The registry is just getting started</h3>
+  {% else %}
+    <div class="rg-empty" style="margin-top:24px">
+      <img src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true" style="width:64px;opacity:.7">
+      <h2>The registry is just getting started</h2>
       <p>No verified profiles yet. Be among the first names on the continental record — registration is free and OTP-verified.</p>
-      <a href="/register" class="btn btn--emerald">
-        Get on the board
-        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
+      <div class="rg-btns"><a class="rg-btn rg-btn--p" href="/account/register">Get on the board →</a></div>
     </div>
-    {% endif %}
-
-    <div class="text-center" style="margin-top:2.5rem" data-anim>
-      <a href="/register" class="btn btn--emerald">
-        Get on the board
-        <svg class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
-    </div>
-  </div>
-</section>
-
+  {% endif %}
+</div>
 {% endblock %}
 
 {% block foot_scripts %}
 <script>
 (function(){
-  const grid = document.getElementById('regGrid');
-  const empty = document.getElementById('regEmpty');
-  const search = document.getElementById('regSearch');
-  let activeTier = '';
-  function apply() {
-    if (!grid) return;
-    const q = (search?.value || '').trim().toLowerCase();
-    let shown = 0;
-    grid.querySelectorAll('.profile-card').forEach(card => {
-      const tier = card.dataset.tier || '';
-      const text = card.textContent.toLowerCase();
-      const match = (!activeTier || activeTier === tier) && (!q || text.includes(q));
-      card.style.display = match ? '' : 'none';
-      if (match) shown++;
+  var grid = document.getElementById('rgGrid'); if (!grid) return;
+  var empty = document.getElementById('rgEmpty');
+  var search = document.getElementById('rgSearch');
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.rg-chip'));
+  var cat = '';
+  function apply(){
+    var q = (search && search.value || '').trim().toLowerCase();
+    var shown = 0;
+    grid.querySelectorAll('.rg-card').forEach(function(card){
+      var okCat = !cat || card.getAttribute('data-cat') === cat;
+      var okQ = !q || (card.getAttribute('data-name') || '').indexOf(q) !== -1;
+      var on = okCat && okQ;
+      card.style.display = on ? '' : 'none';
+      if (on) shown++;
     });
     if (empty) empty.style.display = shown ? 'none' : 'block';
   }
-  window.__regFilter = apply;
-  document.querySelectorAll('.filter-chip').forEach(c => {
-    c.addEventListener('click', () => {
-      document.querySelectorAll('.filter-chip').forEach(x => x.classList.remove('is-active'));
-      c.classList.add('is-active');
-      activeTier = c.dataset.tier || '';
-      apply();
-    });
-  });
+  chips.forEach(function(c){ c.addEventListener('click', function(){
+    chips.forEach(function(x){ x.classList.remove('is-active'); });
+    c.classList.add('is-active'); cat = c.getAttribute('data-cat') || ''; apply();
+  });});
   if (search) search.addEventListener('input', apply);
+  var clear = document.getElementById('rgClear');
+  if (clear) clear.addEventListener('click', function(){
+    cat = ''; if (search) search.value = '';
+    chips.forEach(function(x){ x.classList.toggle('is-active', (x.getAttribute('data-cat')||'') === ''); });
+    apply();
+  });
 })();
 </script>
 {% endblock %}

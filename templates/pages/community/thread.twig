@@ -1,31 +1,684 @@
 {% extends "layout/gates.twig" %}
+
+{# ── Single community thread (community v2) ───────────────────────────
+   Guests read everything; every write control either belongs to a member
+   or is a clear sign-in CTA. Data: thread, replies, poll, member,
+   member_logged_in, member_id, member_state, related. #}
+
+{% macro rel(dt) %}
+  {%- set ts = dt|date('U') -%}
+  {%- set diff = ("now"|date('U')) - ts -%}
+  <time datetime="{{ dt|date('c') }}">
+    {%- if diff < 60 -%}just now
+    {%- elseif diff < 3600 -%}{{ (diff / 60)|round(0, 'floor') }}m ago
+    {%- elseif diff < 86400 -%}{{ (diff / 3600)|round(0, 'floor') }}h ago
+    {%- elseif diff < 604800 -%}{{ (diff / 86400)|round(0, 'floor') }}d ago
+    {%- else -%}{{ dt|date('j M Y') }}
+    {%- endif -%}
+  </time>
+{% endmacro %}
+
+{% macro initials(name) -%}
+  {%- set n = (name|default(''))|trim -%}
+  {%- if n == '' %}?{% else %}{{ n|split(' ')|slice(0, 2)|map(w => w|slice(0, 1))|join|upper }}{% endif -%}
+{%- endmacro %}
+
+{% block head_styles %}
+<style>
+  body[data-page="community"]{ background:#eef0ec; color:var(--ag-ink,#10292C); }
+  body[data-page="community"] [x-cloak]{ display:none !important; }
+  .cm-wrap{ max-width:1080px; margin:0 auto; padding:0 var(--ag-gutter,28px); }
+  .cm-crumb{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:#5f7273; padding:18px 0 0; flex-wrap:wrap; margin:0; list-style:none; }
+  .cm-crumb a{ color:#4a5f60; text-decoration:none; } .cm-crumb a:hover{ color:#1a6118; text-decoration:underline; }
+  .cm-crumb b{ color:var(--ag-ink,#10292C); font-weight:500; }
+
+  .cm-grid{ display:grid; grid-template-columns:minmax(0,1fr) 296px; gap:26px; align-items:start; margin:14px auto 0; padding-bottom:60px; }
+  .cm-main{ display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .cm-rail{ position:sticky; top:90px; display:flex; flex-direction:column; gap:16px; }
+  @media(max-width:880px){ .cm-grid{ grid-template-columns:1fr; } .cm-rail{ position:static; } }
+
+  .cm-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; }
+  .cm-op{ padding:26px 28px; }
+  .cm-flags{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 4px; }
+  .cm-lockchip{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; padding:5px 12px; border-radius:999px; background:#f2ede0; color:#71570a; }
+  .cm-pinchip{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; padding:5px 12px; border-radius:999px; background:#10292C; color:#8fd28c; }
+  .cm-op h1{ margin:12px 0 0; font-family:var(--ag-font-display,serif); font-weight:800; font-size:clamp(1.5rem,4vw,1.95rem); line-height:1.14; letter-spacing:-.01em; color:var(--ag-ink,#10292C); }
+  .cm-author{ display:flex; align-items:center; gap:13px; margin-top:18px; }
+  .cm-av{ flex:none; border-radius:13px; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display,serif); font-weight:700; }
+  .cm-op__name{ margin:0; font-weight:700; font-size:15px; color:var(--ag-ink,#10292C); }
+  .cm-op__meta{ margin:2px 0 0; font-size:12.5px; color:#5f7273; }
+  .cm-op__body{ margin-top:18px; font-size:16px; line-height:1.72; color:#283133; white-space:pre-wrap; overflow-wrap:break-word; }
+  .cm-pollcta{ margin:12px 0 0; font-size:13px; color:#4a5256; background:#f4f7f4; border:1px solid #d6e8d3; border-radius:11px; padding:10px 14px; }
+  .cm-pollcta a{ color:#1a6118; font-weight:600; }
+
+  .cm-bar{ display:flex; align-items:center; gap:6px; margin-top:20px; padding-top:15px; border-top:1px solid rgba(16,41,44,.06); flex-wrap:wrap; }
+  .cm-act{ display:inline-flex; align-items:center; gap:7px; cursor:pointer; border:none; background:none; font-family:inherit; font-size:13.5px; font-weight:600; color:#4a5256; padding:9px 14px; border-radius:999px; text-decoration:none; }
+  .cm-act:hover{ background:#f0f4f0; color:var(--ag-ink,#10292C); }
+  .cm-act--cheer[aria-pressed="true"]{ color:#c21c50; }
+  .cm-act--cheer[aria-pressed="true"] svg{ fill:#c21c50; }
+  @keyframes cmHeart{ 0%{transform:scale(1)} 40%{transform:scale(1.35)} 100%{transform:scale(1)} }
+  @media(prefers-reduced-motion:no-preference){ .cm-act--cheer[aria-pressed="true"] svg{ animation:cmHeart .4s ease; } }
+  .cm-act--repost[aria-pressed="true"]{ color:#1a6118; }
+  .cm-act--save[aria-pressed="true"]{ color:#7a5600; }
+  .cm-act--follow[aria-pressed="true"]{ color:#1a6118; }
+  .cm-act--danger:hover{ background:#fdeaea; color:#9c2b2b; }
+  .cm-act--sm{ font-size:12.5px; padding:6px 10px; }
+
+  /* composer */
+  .cm-composer{ padding:18px; }
+  .cm-composer__row{ display:flex; gap:13px; align-items:flex-start; }
+  .cm-ta{ width:100%; min-height:64px; resize:vertical; border:1px solid rgba(16,41,44,.16); background:#f6f8f5; border-radius:12px; padding:12px 14px; font-family:inherit; font-size:14.5px; line-height:1.55; color:var(--ag-ink,#10292C); }
+  .cm-ta:focus{ border-color:#237b22; }
+  .cm-composer__foot{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:11px; flex-wrap:wrap; }
+  .cm-composer__note{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:#5f7273; }
+  .cm-send{ cursor:pointer; border:none; background:#237b22; color:#fff; font-family:inherit; font-size:13.5px; font-weight:600; padding:10px 22px; border-radius:999px; }
+  .cm-send:hover{ background:#1a6118; }
+  .cm-send:disabled{ background:#5f7273; cursor:not-allowed; }
+  .cm-replying{ font-size:12.5px; color:#1a6118; background:#eef7ee; border-radius:9px; padding:7px 11px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .cm-replying button{ cursor:pointer; border:none; background:none; color:#4a5f60; font-size:16px; line-height:1; padding:2px 6px; border-radius:6px; }
+  .cm-replying button:hover{ background:#dcecdb; }
+  .cm-err{ margin:10px 0 0; font-size:13px; color:#9c2b2b; background:#fdeaea; border:1px solid #f5c2c2; border-radius:10px; padding:9px 13px; }
+  .cm-pending{ margin:0; padding:13px 16px; background:#fff8df; border:1px solid #ecdca0; border-radius:14px; color:#6b4e06; font-size:13.5px; }
+  .cm-locked{ margin:0; padding:16px 18px; background:#f2ede0; border:1px solid #e4d9be; border-radius:16px; color:#5d4708; font-size:14px; display:flex; align-items:center; gap:10px; }
+  .cm-signin{ padding:20px; text-align:center; }
+  .cm-signin p{ margin:0 0 13px; font-size:14px; color:#4a5256; }
+  .cm-cta{ display:inline-flex; align-items:center; gap:8px; background:var(--ag-green,#237b22); color:#fff; font-weight:600; font-size:13.5px; padding:11px 20px; border-radius:999px; text-decoration:none; border:none; cursor:pointer; font-family:inherit; }
+  .cm-cta:hover{ background:#1a6118; }
+
+  /* replies */
+  .cm-rhead{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:4px; }
+  .cm-rhead h2{ margin:0; font-family:var(--ag-font-display,serif); font-weight:700; font-size:18px; color:var(--ag-ink,#10292C); }
+  .cm-replies{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:16px; }
+  .cm-reply{ padding:18px 20px; }
+  .cm-reply__head{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:0; }
+  .cm-reply__name{ font-weight:700; font-size:14.5px; color:var(--ag-ink,#10292C); }
+  .cm-reply__when{ font-size:12.5px; color:#5f7273; }
+  .cm-reply__txt{ margin:8px 0 0; font-size:14.5px; line-height:1.62; color:#283133; white-space:pre-wrap; overflow-wrap:break-word; }
+  .cm-reply__bar{ display:flex; align-items:center; gap:4px; margin-top:11px; flex-wrap:wrap; }
+  .cm-children{ margin-top:15px; padding:0 0 0 16px; border-left:2px solid #e3eae3; display:flex; flex-direction:column; gap:14px; list-style:none; }
+  .cm-child__txt{ margin:6px 0 0; font-size:13.5px; line-height:1.55; color:#3a4448; white-space:pre-wrap; overflow-wrap:break-word; }
+  .cm-fading{ opacity:0; }
+  @media(prefers-reduced-motion:no-preference){ .cm-reply, .cm-childrow{ transition:opacity .4s ease; } }
+  .cm-newtag{ display:inline-block; font-size:11px; font-weight:700; padding:3px 10px; border-radius:999px; background:#eef7ee; color:#1a6118; }
+  .cm-confirm{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:#9c2b2b; font-weight:600; }
+  .cm-confirm button{ cursor:pointer; font-family:inherit; font-size:12.5px; font-weight:700; border-radius:999px; padding:5px 12px; border:1px solid #f5c2c2; }
+  .cm-confirm .yes{ background:#9c2b2b; color:#fff; border-color:#9c2b2b; }
+  .cm-confirm .no{ background:#fff; color:#4a5256; border-color:rgba(16,41,44,.2); }
+  .cm-empty{ padding:26px; text-align:center; }
+  .cm-empty h3{ margin:0 0 6px; font-family:var(--ag-font-display,serif); font-weight:700; font-size:16px; color:var(--ag-ink,#10292C); }
+  .cm-empty p{ margin:0 0 14px; font-size:13.5px; color:#4a5256; }
+
+  /* sidebar */
+  .cm-side__h{ margin:0 0 14px; font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#5f7273; }
+  .cm-meta{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .cm-meta + .cm-meta{ margin-top:12px; }
+  .cm-meta dt{ font-size:13px; color:#4a5f60; margin:0; }
+  .cm-meta dd{ font-size:13px; font-weight:600; color:var(--ag-ink,#10292C); margin:0; text-align:right; }
+  .cm-rel{ display:block; padding:11px 10px; border-radius:12px; text-decoration:none; }
+  .cm-rel:hover{ background:#f6f8f5; }
+  .cm-rel__t{ display:block; font-weight:600; font-size:13.5px; line-height:1.4; color:var(--ag-ink,#10292C); }
+  .cm-rel__s{ display:block; font-size:11.5px; color:#5f7273; margin-top:4px; }
+  .cm-mod{ background:#10292C; border-radius:18px; padding:20px; position:relative; overflow:hidden; }
+  .cm-mod__orb{ position:absolute; right:-40px; top:-40px; width:140px; height:140px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.2),transparent 68%); }
+  .cm-mod p{ margin:11px 0 0; font-size:13px; line-height:1.55; color:rgba(255,255,255,.82); position:relative; }
+  .cm-mod a{ display:inline-block; margin-top:12px; text-decoration:none; font-size:12.5px; font-weight:600; color:#8fd28c; position:relative; }
+
+  /* report dialog */
+  .cm-dlgwrap{ position:fixed; inset:0; z-index:96; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .cm-dlgback{ position:absolute; inset:0; background:rgba(16,41,44,.5); }
+  .cm-dlg{ position:relative; width:min(440px,100%); background:#fff; border-radius:18px; padding:22px 24px; box-shadow:0 24px 60px -20px rgba(0,0,0,.45); }
+  .cm-dlg h2{ margin:0; font-family:var(--ag-font-display,serif); font-weight:700; font-size:18px; color:var(--ag-ink,#10292C); }
+  .cm-dlg p{ margin:8px 0 12px; font-size:13.5px; line-height:1.5; color:#4a5256; }
+  .cm-dlg__foot{ display:flex; justify-content:flex-end; gap:10px; margin-top:14px; }
+  .cm-dlg__cancel{ cursor:pointer; border:1px solid rgba(16,41,44,.2); background:#fff; color:#4a5256; font-family:inherit; font-size:13.5px; font-weight:600; padding:10px 18px; border-radius:999px; }
+  .cm-dlg__cancel:hover{ background:#f0f4f0; }
+
+  /* toast */
+  .cm-toast{ position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:95; background:#10292C; color:#fff; font-size:13.5px; font-weight:600; padding:12px 20px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); display:flex; align-items:center; gap:10px; max-width:min(92vw,480px); }
+  .cm-toast a{ color:#8fd28c; text-decoration:underline; white-space:nowrap; }
+</style>
+{% endblock %}
+
 {% block content %}
-
+{% import _self as ui %}
+{% set AV = [['#fff8df','#7a5600'],['#effaf0','#1a6118'],['#e9efef','#2b373d'],['#f3eef7','#5b3a8a'],['#fdeaf0','#9c2b48'],['#e6f0f4','#225a67']] %}
 {% set t = thread %}
+{% set tops = replies|filter(r => not r.parent_id) %}
+{% set is_locked = t.status == 'locked' %}
+{% set login_url = '/account/login?next=' ~ ('/community/' ~ t.slug)|url_encode %}
+{% set op_av = AV[(t.author_name|default('')|length) % AV|length] %}
 
-<section class="r26-hero" style="padding-block:clamp(2rem,4.5vw,3.25rem) clamp(1.25rem,2.5vw,2rem);text-align:center">
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
-  <div class="wrap">
-    <div class="r26-hero__inner">
-      <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">{{ t.programme|default('Community') }} · Thread</p>
-      <h1 class="r26-hl r26-reveal r26-d2" style="font-size:clamp(1.7rem,3.6vw,2.5rem)">{{ t.title }}</h1>
-      <p class="r26-sub r26-reveal r26-d3" style="margin-left:auto;margin-right:auto;font-size:0.95rem">Started by {{ t.author }} · {{ t.created_at|default(t.last_at)|date('d M Y, H:i') }}</p>
+<div class="cm-wrap" x-data="cmThread({{ {
+      signedIn: member_logged_in ? true : false,
+      memberName: member ? member.name : '',
+      threadId: t.id,
+      slug: t.slug,
+      locked: is_locked ? true : false
+    }|json_encode|e('html_attr') }})">
+
+  <nav aria-label="Breadcrumb">
+    <ol class="cm-crumb">
+      <li><a href="/community">Community</a></li>
+      <li aria-hidden="true">›</li>
+      <li><b aria-current="page">{{ t.title|length > 48 ? t.title|slice(0, 48) ~ '…' : t.title }}</b></li>
+    </ol>
+  </nav>
+
+  <div class="cm-grid">
+    <div class="cm-main">
+      {# ── OP ─────────────────────────────────────────────────── #}
+      <article class="cm-card cm-op" aria-labelledby="cmTitle">
+        {% if t.is_pinned or is_locked %}
+        <p class="cm-flags">
+          {% if t.is_pinned %}<span class="cm-pinchip">📌 Pinned</span>{% endif %}
+          {% if is_locked %}<span class="cm-lockchip">🔒 Locked</span>{% endif %}
+        </p>
+        {% endif %}
+        <h1 id="cmTitle">{{ t.title }}</h1>
+        <div class="cm-author">
+          <span class="cm-av" style="width:48px;height:48px;font-size:19px;background:{{ op_av[0] }};color:{{ op_av[1] }}" aria-hidden="true">{{ ui.initials(t.author_name) }}</span>
+          <div style="flex:1;min-width:0">
+            <p class="cm-op__name">{{ t.author_name }}</p>
+            <p class="cm-op__meta">Started <time datetime="{{ t.created_at|default(t.last_activity)|date('c') }}">{{ t.created_at|default(t.last_activity)|date('j M Y · H:i') }}</time></p>
+          </div>
+        </div>
+        <div class="cm-op__body">{{ t.body }}</div>
+
+        {% include 'partials/poll.twig' %}
+        {% if poll and not member_logged_in %}
+        <p class="cm-pollcta">Polls are for members — <a href="{{ login_url }}">sign in to cast your vote</a>.</p>
+        {% endif %}
+
+        <div class="cm-bar">
+          {% if member_logged_in %}
+          <button type="button" class="cm-act cm-act--cheer" x-data="{ on:false, n:{{ t.cheer_count|default(0) }}, busy:false }"
+                  :aria-pressed="on" @click="cheer('thread', {{ t.id }}, $data)" aria-label="Cheer this thread">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true" focusable="false"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg><span x-text="n"></span>
+          </button>
+          {% else %}
+          <a class="cm-act cm-act--cheer" href="{{ login_url }}" aria-label="Sign in to cheer this thread ({{ t.cheer_count|default(0) }} cheers)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true" focusable="false"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>{{ t.cheer_count|default(0) }}
+          </a>
+          {% endif %}
+
+          <span class="cm-act" style="cursor:default" aria-label="{{ t.reply_count|default(tops|length) }} replies">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20l1-3.1A8.4 8.4 0 1 1 21 11.5Z"/></svg><span x-text="replyCount">{{ t.reply_count|default(tops|length) }}</span>
+          </span>
+
+          {% if member_logged_in %}
+          <button type="button" class="cm-act cm-act--repost" x-data="{ on:{{ member_state.reposted|default(false) ? 'true' : 'false' }}, n:{{ t.repost_count|default(0) }}, busy:false }"
+                  :aria-pressed="on" @click="social('/repost', { thread_id: {{ t.id }} }, $data, 'reposted')" aria-label="Repost this thread">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span x-text="n > 0 ? n : 'Repost'"></span>
+          </button>
+          <button type="button" class="cm-act cm-act--save" x-data="{ on:{{ member_state.bookmarked|default(false) ? 'true' : 'false' }}, busy:false }"
+                  :aria-pressed="on" @click="social('/bookmark', { thread_id: {{ t.id }} }, $data, 'bookmarked')" aria-label="Bookmark this thread">
+            <svg width="17" height="17" viewBox="0 0 24 24" :fill="on ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span x-text="on ? 'Saved' : 'Save'"></span>
+          </button>
+          <button type="button" class="cm-act cm-act--follow" x-data="{ on:{{ member_state.following|default(false) ? 'true' : 'false' }}, busy:false }"
+                  :aria-pressed="on" @click="social('/follow', { target_type: 'thread', target_id: {{ t.id }} }, $data, 'following')" aria-label="Follow this thread">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg><span x-text="on ? 'Following' : 'Follow'"></span>
+          </button>
+          <button type="button" class="cm-act cm-act--danger" @click="openReport('thread', {{ t.id }})">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg>Report
+          </button>
+          {% else %}
+          <a class="cm-act" href="{{ login_url }}" aria-label="Sign in to repost">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>Repost
+          </a>
+          <a class="cm-act" href="{{ login_url }}" aria-label="Sign in to bookmark">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Save
+          </a>
+          <a class="cm-act" href="{{ login_url }}" aria-label="Sign in to follow this thread">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg>Follow
+          </a>
+          {% endif %}
+
+          {% if member_id > 0 and (t.author_user_id|default(0)) == member_id %}
+          <span x-data="{ confirm: false }" style="display:inline-flex;align-items:center">
+            <button type="button" class="cm-act cm-act--danger" x-show="!confirm" @click="confirm = true">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Delete
+            </button>
+            <span class="cm-confirm" x-show="confirm" x-cloak>
+              Delete this thread?
+              <button type="button" class="yes" @click="del('thread', {{ t.id }}, $data)">Yes, delete</button>
+              <button type="button" class="no" @click="confirm = false">Keep it</button>
+            </span>
+          </span>
+          {% endif %}
+
+          <button type="button" class="cm-act" style="margin-left:auto;color:#5f7273" @click="copyLink()" aria-label="Copy link to this thread">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>Share
+          </button>
+        </div>
+      </article>
+
+      {# ── COMPOSER · locked notice / member composer / guest CTA ─ #}
+      {% if is_locked %}
+      <p class="cm-locked" role="status">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        This thread has been locked by the moderators.
+      </p>
+      {% elseif member_logged_in %}
+      <section class="cm-card cm-composer" id="cm-composer" aria-labelledby="cmComposerH">
+        <h2 class="sr-only" id="cmComposerH">Reply to this thread</h2>
+        <div x-show="replyingTo" x-cloak class="cm-replying">
+          <span>Replying to <strong x-text="replyingTo"></strong></span>
+          <button type="button" @click="cancelReply()" aria-label="Cancel replying to this comment">×</button>
+        </div>
+        <div class="cm-composer__row">
+          <span class="cm-av" style="flex:none;width:42px;height:42px;font-size:17px;background:#fff8df;color:#7a5600" aria-hidden="true">{{ ui.initials(member.name) }}</span>
+          <div style="flex:1;min-width:0">
+            <label class="sr-only" for="cmReplyBody">Your reply</label>
+            <textarea id="cmReplyBody" class="cm-ta" x-ref="ta" x-model="body" :aria-invalid="err ? 'true' : 'false'" placeholder="Add your reasoning to the thread…"></textarea>
+            <p class="cm-err" x-show="err" x-cloak role="alert" x-text="err"></p>
+            <div class="cm-composer__foot">
+              <span class="cm-composer__note">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>
+                Posting as {{ member.name }} · be kind, cite sources
+              </span>
+              <span style="display:inline-flex;gap:8px;align-items:center">
+                <button type="button" x-show="aiAvail" x-cloak class="cm-act cm-act--sm" @click="assist()" :disabled="assisting || body.trim().length < 15"
+                        title="Improve clarity and tone — your meaning is kept" style="border:1px solid #cfe6cf;border-radius:999px;padding:6px 12px;color:#1a6118;font-weight:600;font-size:12.5px;background:#f4f9f4">
+                  <span x-text="assisting ? '✦ Improving…' : '✦ Improve'"></span>
+                </button>
+                <button type="button" class="cm-send" :disabled="busy || !body.trim()" @click="submit()" x-text="busy ? 'Posting…' : 'Reply'">Reply</button>
+              </span>
+            </div>
+            <p class="cm-composer__note" x-show="assistMsg" x-cloak role="status" x-text="assistMsg" style="margin-top:6px;color:#1a6118"></p>
+          </div>
+        </div>
+      </section>
+      {% else %}
+      <section class="cm-card cm-signin" aria-labelledby="cmSigninH">
+        <h2 class="sr-only" id="cmSigninH">Join the conversation</h2>
+        <p>You're reading as a guest. Members reply, cheer and vote in polls.</p>
+        <a class="cm-cta" href="{{ login_url }}">Sign in to join the conversation</a>
+      </section>
+      {% endif %}
+
+      <p class="cm-pending" x-show="pending" x-cloak role="status">Your post is awaiting review — it will appear here once a moderator approves it.</p>
+
+      {# ── REPLIES ────────────────────────────────────────────── #}
+      <section aria-labelledby="cmRepliesH" style="display:flex;flex-direction:column;gap:16px;min-width:0">
+        <div class="cm-rhead" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <h2 id="cmRepliesH"><span x-text="replyCount">{{ t.reply_count|default(tops|length) }}</span> replies</h2>
+          {% if member_logged_in %}
+          <button type="button" x-show="aiAvail" x-cloak class="cm-act cm-act--sm" @click="summarize()" :disabled="summarizing"
+                  title="AI recap of the discussion so far" style="border:1px solid #cfe6cf;border-radius:999px;padding:6px 12px;color:#1a6118;font-weight:600;font-size:12.5px;background:#f4f9f4">
+            <span x-text="summarizing ? '✦ Summarizing…' : '✦ Summarize thread'"></span>
+          </button>
+          {% endif %}
+        </div>
+        <div x-show="summary" x-cloak role="status" style="background:#f4f9f4;border:1px solid #d5e8d5;border-radius:12px;padding:13px 16px;font-size:13.5px;line-height:1.6;color:#283133">
+          <strong style="display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:#1a6118;margin-bottom:5px">AI recap — advisory</strong>
+          <span x-text="summary"></span>
+        </div>
+
+        {% if tops is empty %}
+        <div class="cm-card cm-empty" x-show="fresh.length === 0">
+          <h3>No replies yet</h3>
+          {% if is_locked %}
+          <p>This thread was locked before anyone replied.</p>
+          {% elseif member_logged_in %}
+          <p>Be the first to add your reasoning — the community reads every reply.</p>
+          <button type="button" class="cm-cta" @click="$refs.ta && $refs.ta.focus()">Write the first reply</button>
+          {% else %}
+          <p>Be the first to add your reasoning — sign in to reply.</p>
+          <a class="cm-cta" href="{{ login_url }}">Sign in to join the conversation</a>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <ul class="cm-replies">
+          {% for r in tops %}
+          {% set av = AV[(r.author_name|default('')|length) % AV|length] %}
+          <li x-data="{ confirm: false, fading: false, hidden: false }" x-show="!hidden">
+            <article class="cm-card cm-reply" :class="fading ? 'cm-fading' : ''" aria-label="Reply by {{ r.author_name }}">
+              <div style="display:flex;align-items:flex-start;gap:12px">
+                <span class="cm-av" style="flex:none;width:44px;height:44px;font-size:17px;background:{{ av[0] }};color:{{ av[1] }}" aria-hidden="true">{{ ui.initials(r.author_name) }}</span>
+                <div style="flex:1;min-width:0">
+                  <p class="cm-reply__head">
+                    <span class="cm-reply__name">{{ r.author_name }}</span>
+                    <span class="cm-reply__when">{{ ui.rel(r.created_at) }}</span>
+                  </p>
+                  <p class="cm-reply__txt">{{ r.body }}</p>
+                  <div class="cm-reply__bar">
+                    {% if member_logged_in %}
+                    <button type="button" class="cm-act cm-act--cheer cm-act--sm" x-data="{ on:false, n:0, busy:false }"
+                            :aria-pressed="on" @click="cheer('comment', {{ r.id }}, $data)" aria-label="Cheer this reply">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true" focusable="false"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg><span x-text="n > 0 ? n : 'Cheer'"></span>
+                    </button>
+                      {% if not is_locked %}
+                      <button type="button" class="cm-act cm-act--sm" @click="replyTo({{ r.id }}, {{ r.author_name|json_encode|e('html_attr') }})">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20l1-3.1A8.4 8.4 0 1 1 21 11.5Z"/></svg>Reply
+                      </button>
+                      {% endif %}
+                    <button type="button" class="cm-act cm-act--danger cm-act--sm" @click="openReport('comment', {{ r.id }})" aria-label="Report this reply to moderators">Report</button>
+                      {% if member_id > 0 and (r.author_user_id|default(0)) == member_id %}
+                      <button type="button" class="cm-act cm-act--danger cm-act--sm" x-show="!confirm" @click="confirm = true" aria-label="Delete your reply">Delete</button>
+                      <span class="cm-confirm" x-show="confirm" x-cloak>
+                        Delete?
+                        <button type="button" class="yes" @click="del('comment', {{ r.id }}, $data)">Yes</button>
+                        <button type="button" class="no" @click="confirm = false">No</button>
+                      </span>
+                      {% endif %}
+                    {% else %}
+                    <a class="cm-act cm-act--sm" href="{{ login_url }}" aria-label="Sign in to cheer this reply">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true" focusable="false"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>Cheer
+                    </a>
+                      {% if not is_locked %}
+                      <a class="cm-act cm-act--sm" href="{{ login_url }}" aria-label="Sign in to reply">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20l1-3.1A8.4 8.4 0 1 1 21 11.5Z"/></svg>Reply
+                      </a>
+                      {% endif %}
+                    {% endif %}
+                  </div>
+
+                  {% set kids = replies|filter(c => c.parent_id == r.id) %}
+                  {% if kids|length %}
+                  <ul class="cm-children">
+                    {% for c in kids %}
+                    {% set cav = AV[(c.author_name|default('')|length + 2) % AV|length] %}
+                    <li class="cm-childrow" x-data="{ confirm: false, fading: false, hidden: false }" x-show="!hidden" :class="fading ? 'cm-fading' : ''">
+                      <article style="display:flex;align-items:flex-start;gap:10px" aria-label="Reply by {{ c.author_name }}">
+                        <span class="cm-av" style="flex:none;width:34px;height:34px;font-size:13px;background:{{ cav[0] }};color:{{ cav[1] }}" aria-hidden="true">{{ ui.initials(c.author_name) }}</span>
+                        <div style="flex:1;min-width:0">
+                          <p class="cm-reply__head">
+                            <span class="cm-reply__name" style="font-size:13px">{{ c.author_name }}</span>
+                            <span class="cm-reply__when" style="font-size:11.5px">{{ ui.rel(c.created_at) }}</span>
+                          </p>
+                          <p class="cm-child__txt">{{ c.body }}</p>
+                          {% if member_logged_in %}
+                          <div class="cm-reply__bar" style="margin-top:6px">
+                            <button type="button" class="cm-act cm-act--danger cm-act--sm" @click="openReport('comment', {{ c.id }})" aria-label="Report this reply to moderators">Report</button>
+                            {% if member_id > 0 and (c.author_user_id|default(0)) == member_id %}
+                            <button type="button" class="cm-act cm-act--danger cm-act--sm" x-show="!confirm" @click="confirm = true" aria-label="Delete your reply">Delete</button>
+                            <span class="cm-confirm" x-show="confirm" x-cloak>
+                              Delete?
+                              <button type="button" class="yes" @click="del('comment', {{ c.id }}, $data)">Yes</button>
+                              <button type="button" class="no" @click="confirm = false">No</button>
+                            </span>
+                            {% endif %}
+                          </div>
+                          {% endif %}
+                        </div>
+                      </article>
+                    </li>
+                    {% endfor %}
+                  </ul>
+                  {% endif %}
+                </div>
+              </div>
+            </article>
+          </li>
+          {% endfor %}
+
+          {# replies posted this visit (optimistic append) #}
+          <template x-for="f in fresh" :key="f.key">
+            <li>
+              <article class="cm-card cm-reply" aria-label="Your new reply">
+                <div style="display:flex;align-items:flex-start;gap:12px">
+                  <span class="cm-av" style="flex:none;width:44px;height:44px;font-size:17px;background:#fff8df;color:#7a5600" aria-hidden="true" x-text="memberInitials"></span>
+                  <div style="flex:1;min-width:0">
+                    <p class="cm-reply__head">
+                      <span class="cm-reply__name" x-text="memberName"></span>
+                      <span class="cm-reply__when">just now</span>
+                      <span class="cm-newtag">New</span>
+                      <span class="cm-newtag" x-show="f.parent" style="background:#f3eef7;color:#5b3a8a">Replying to <span x-text="f.parent"></span></span>
+                    </p>
+                    <p class="cm-reply__txt" x-text="f.body"></p>
+                  </div>
+                </div>
+              </article>
+            </li>
+          </template>
+        </ul>
+      </section>
+    </div>
+
+    {# ── SIDEBAR ───────────────────────────────────────────────── #}
+    <aside class="cm-rail">
+      <section class="cm-card" style="padding:22px" aria-labelledby="cmAboutH">
+        <h2 class="cm-side__h" id="cmAboutH">About this thread</h2>
+        <dl style="margin:0">
+          <div class="cm-meta"><dt>Started by</dt><dd>{{ t.author_name }}</dd></div>
+          <div class="cm-meta"><dt>Replies</dt><dd x-text="replyCount">{{ t.reply_count|default(tops|length) }}</dd></div>
+          <div class="cm-meta"><dt>Reactions</dt><dd>{{ t.cheer_count|default(0) }}</dd></div>
+          <div class="cm-meta"><dt>Last activity</dt><dd>{{ ui.rel(t.last_activity|default(t.created_at)) }}</dd></div>
+          {% if is_locked %}<div class="cm-meta"><dt>Status</dt><dd>🔒 Locked</dd></div>{% endif %}
+        </dl>
+      </section>
+
+      {% if related is not empty %}
+      <section class="cm-card" style="padding:22px" aria-labelledby="cmRelatedH">
+        <h2 class="cm-side__h" id="cmRelatedH">Related threads</h2>
+        <ul style="list-style:none;margin:0;padding:0">
+          {% for rl in related %}
+          <li>
+            <a class="cm-rel" href="/community/{{ rl.slug }}">
+              <span class="cm-rel__t">{{ rl.title }}</span>
+              <span class="cm-rel__s">{{ rl.reply_count|default(0) }} repl{{ rl.reply_count|default(0) == 1 ? 'y' : 'ies' }}</span>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      <section class="cm-mod" aria-labelledby="cmModH">
+        <div class="cm-mod__orb" aria-hidden="true"></div>
+        <div style="position:relative;display:flex;align-items:center;gap:9px">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>
+          <h2 class="cm-side__h" id="cmModH" style="margin:0;color:#8fd28c">Moderated space</h2>
+        </div>
+        <p>Replies are reviewed against the community charter. Off-topic canvassing is removed.</p>
+        <a href="/integrity">How moderation works →</a>
+      </section>
+    </aside>
+  </div>
+
+  {# ── Report dialog ─────────────────────────────────────────── #}
+  <div x-show="rep.open" x-cloak class="cm-dlgwrap" @keydown.escape.window="rep.open = false">
+    <div class="cm-dlgback" @click="rep.open = false" aria-hidden="true"></div>
+    <div class="cm-dlg" role="dialog" aria-modal="true" aria-labelledby="cmRepH">
+      <h2 id="cmRepH">Report to the moderators</h2>
+      <p>Tell us briefly what's wrong — the reason is optional but helps our team act faster.</p>
+      <label class="sr-only" for="cmRepReason">Reason for reporting (optional)</label>
+      <textarea id="cmRepReason" class="cm-ta" x-ref="repReason" x-model="rep.reason" maxlength="500" placeholder="Optional — e.g. spam, harassment, canvassing…"></textarea>
+      <div class="cm-dlg__foot">
+        <button type="button" class="cm-dlg__cancel" @click="rep.open = false">Cancel</button>
+        <button type="button" class="cm-send" :disabled="rep.busy" @click="sendReport()" x-text="rep.busy ? 'Sending…' : 'Send report'">Send report</button>
+      </div>
     </div>
   </div>
-</section>
 
-<section class="section" style="padding-top:1rem">
-  <div class="wrap" style="max-width:48rem">
-    <div class="r26-surface" data-anim>
-      <p style="font-size:1.0625rem;line-height:1.65;color:var(--r26-ink,#10292c);white-space:pre-wrap;margin:0">{{ t.body|default('—') }}</p>
-    </div>
-
-    {% include 'partials/comments.twig' with {target_type:'thread', target_id:t.id, comments:replies|default([]), cheer_count:t.cheers|default(0)} %}
-
-    <div style="margin-top:2rem;text-align:center">
-      <a href="/community" class="btn btn--white">All channels</a>
-    </div>
+  {# toast — link inside so a 401 CTA is never a dead end #}
+  <div x-show="toast.msg" x-cloak class="cm-toast" role="status">
+    <span x-text="toast.msg"></span>
+    <a x-show="toast.href" x-cloak :href="toast.href">Sign in →</a>
   </div>
-</section>
+</div>
 
+<script>
+function cmThread(cfg){
+  var API = '/api/v1/community';
+  var H = { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' };
+  return {
+    signedIn: !!cfg.signedIn,
+    memberName: cfg.memberName || 'You',
+    threadId: cfg.threadId,
+    slug: cfg.slug || '',
+    locked: !!cfg.locked,
+    body: '', parentId: null, replyingTo: '', busy: false, err: '', pending: false,
+    fresh: [], replyCount: {{ t.reply_count|default(tops|length) }},
+    rep: { open: false, type: '', id: 0, reason: '', busy: false },
+    toast: { msg: '', href: '' }, _tt: null,
+    // Community AI (members only): summarize the thread, improve a draft reply.
+    // aiAvail flips off silently on AI_OFF/budget so the buttons never dead-end.
+    aiAvail: true, summarizing: false, summary: '', assisting: false, assistMsg: '', _bodyBackup: '',
+    async summarize(){
+      if(this.summarizing) return;
+      this.summarizing = true;
+      try{
+        var r = await fetch(API + '/summarize', { method:'POST', headers:H, body:new URLSearchParams({ slug:this.slug }) });
+        var j = await r.json();
+        if(j && j.ok && j.summary){ this.summary = j.summary; if(window.agAnnounce) window.agAnnounce('Thread summary ready'); }
+        else if(j && j.code === 'AI_OFF'){ this.aiAvail = false; }
+        else { this.flash((j && j.message) || 'Could not summarize right now.'); }
+      }catch(e){ this.aiAvail = false; }
+      finally{ this.summarizing = false; }
+    },
+    async assist(){
+      if(this.assisting || this.body.trim().length < 15) return;
+      this.assisting = true; this.assistMsg = '';
+      try{
+        var r = await fetch(API + '/assist', { method:'POST', headers:H, body:new URLSearchParams({ draft:this.body }) });
+        var j = await r.json();
+        if(j && j.ok && j.text){
+          this._bodyBackup = this.body; this.body = j.text;
+          this.assistMsg = 'Improved — edit freely.';
+        } else if(j && j.code === 'AI_OFF'){ this.aiAvail = false; }
+        else { this.flash((j && j.message) || 'Could not improve that right now.'); }
+      }catch(e){ this.aiAvail = false; }
+      finally{ this.assisting = false; }
+    },
+
+    get memberInitials(){
+      return this.memberName.trim().split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase() || '?';
+    },
+    flash(msg, href){
+      this.toast = { msg: msg, href: href || '' };
+      clearTimeout(this._tt);
+      this._tt = setTimeout(() => { this.toast = { msg: '', href: '' }; }, 6000);
+    },
+    askSignIn(){
+      this.flash('Sign in to join the conversation', '/account/login?next=' + encodeURIComponent(location.pathname));
+    },
+    copyLink(){
+      if (navigator.clipboard) navigator.clipboard.writeText(location.href).then(() => {
+        this.flash('Link copied to clipboard');
+        if (window.agAnnounce) window.agAnnounce('Link copied');
+      }).catch(() => {});
+    },
+
+    replyTo(id, name){
+      this.parentId = id; this.replyingTo = name; this.err = '';
+      var ta = this.$refs.ta;
+      if (ta){ ta.scrollIntoView({ behavior: 'smooth', block: 'center' }); setTimeout(() => ta.focus(), 300); }
+    },
+    cancelReply(){ this.parentId = null; this.replyingTo = ''; },
+
+    /* shared optimistic cheer; c = calling button's local scope */
+    cheer(type, id, c){
+      if (c.busy) return;
+      c.busy = true;
+      var was = { on: c.on, n: c.n };
+      c.on = !c.on; c.n = Math.max(0, c.n + (c.on ? 1 : -1));
+      fetch(API + '/cheer', { method: 'POST', headers: H, body: new URLSearchParams({ target_type: type, target_id: id }) })
+        .then(r => r.json().then(d => ({ s: r.status, d: d })))
+        .then(({ s, d }) => {
+          if (d && d.success) { c.on = !!d.cheered; c.n = d.count; }
+          else {
+            c.on = was.on; c.n = was.n;
+            if (s === 401 || (d && d.code === 'SIGN_IN')) this.askSignIn();
+            else if (d && d.message) this.flash(d.message);
+          }
+        })
+        .catch(() => { c.on = was.on; c.n = was.n; this.flash('Network error — please try again.'); })
+        .finally(() => { c.busy = false; });
+    },
+
+    /* follow / bookmark / repost toggles; key = response field with new state */
+    social(path, params, c, key){
+      if (c.busy) return;
+      c.busy = true;
+      fetch(API + path, { method: 'POST', headers: H, body: new URLSearchParams(params) })
+        .then(r => r.json().then(d => ({ s: r.status, d: d })))
+        .then(({ s, d }) => {
+          if (d && d.success) {
+            c.on = !!d[key];
+            if (typeof d.count !== 'undefined') c.n = d.count;
+          }
+          else if (s === 401 || (d && (d.code === 'SIGN_IN' || d.auth))) this.askSignIn();
+          else if (d && d.message) this.flash(d.message);
+        })
+        .catch(() => { this.flash('Network error — please try again.'); })
+        .finally(() => { c.busy = false; });
+    },
+
+    submit(){
+      var text = this.body.trim();
+      if (!text || this.busy) return;
+      this.busy = true; this.err = '';
+      var parent = this.replyingTo;
+      fetch(API + '/comment', { method: 'POST', headers: H,
+          body: new URLSearchParams({ target_type: 'thread', target_id: this.threadId, body: text, parent_id: this.parentId || '' }) })
+        .then(r => r.json().then(d => ({ s: r.status, d: d })))
+        .then(({ s, d }) => {
+          this.busy = false;
+          if (d && d.success) {
+            this.body = ''; this.cancelReply();
+            if ((d.status || '') === 'quarantined') {
+              this.pending = true;
+              if (window.agAnnounce) window.agAnnounce('Your post is awaiting review');
+            } else {
+              this.fresh.push({ key: d.id || Date.now(), body: text, parent: parent });
+              this.replyCount++;
+              if (window.agAnnounce) window.agAnnounce('Reply posted');
+            }
+          }
+          else if (s === 401 || (d && d.code === 'SIGN_IN')) this.askSignIn();
+          else this.err = (d && d.message) || 'Could not post your reply.';
+        })
+        .catch(() => { this.busy = false; this.err = 'Network error — please try again.'; });
+    },
+
+    openReport(type, id){
+      this.rep = { open: true, type: type, id: id, reason: '', busy: false };
+      this.$nextTick(() => { if (this.$refs.repReason) this.$refs.repReason.focus(); });
+    },
+    sendReport(){
+      if (this.rep.busy) return;
+      this.rep.busy = true;
+      fetch(API + '/report', { method: 'POST', headers: H,
+          body: new URLSearchParams({ target_type: this.rep.type, target_id: this.rep.id, reason: this.rep.reason }) })
+        .then(r => r.json().then(d => ({ s: r.status, d: d })))
+        .then(({ s, d }) => {
+          this.rep.busy = false;
+          if (d && d.success) {
+            this.rep.open = false;
+            this.flash((d.message) || 'Thanks — our moderators will take a look.');
+            if (window.agAnnounce) window.agAnnounce('Report sent');
+          }
+          else if (s === 401 || (d && (d.code === 'SIGN_IN' || d.auth))) { this.rep.open = false; this.askSignIn(); }
+          else this.flash((d && d.message) || 'Could not send the report.');
+        })
+        .catch(() => { this.rep.busy = false; this.flash('Network error — please try again.'); });
+    },
+
+    /* delete own post; c = local scope {confirm, fading, hidden} */
+    del(type, id, c){
+      fetch(API + '/delete', { method: 'POST', headers: H,
+          body: new URLSearchParams({ target_type: type, target_id: id }) })
+        .then(r => r.json().then(d => ({ s: r.status, d: d })))
+        .then(({ s, d }) => {
+          if (d && d.success) {
+            if (type === 'thread') {
+              this.flash('Thread deleted — taking you back to the community');
+              setTimeout(() => { location.href = '/community'; }, 700);
+            } else {
+              c.confirm = false; c.fading = true;
+              setTimeout(() => { c.hidden = true; }, 450);
+              this.replyCount = Math.max(0, this.replyCount - 1);
+              if (window.agAnnounce) window.agAnnounce('Post deleted');
+            }
+          }
+          else if (s === 401 || (d && (d.code === 'SIGN_IN' || d.auth))) this.askSignIn();
+          else this.flash((d && d.message) || 'Could not delete the post.');
+        })
+        .catch(() => { this.flash('Network error — please try again.'); });
+    }
+  };
+}
+</script>
 {% endblock %}
