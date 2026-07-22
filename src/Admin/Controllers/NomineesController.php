@@ -52,6 +52,30 @@ class NomineesController
         $rows  = $pg['rows'];
         $total = $pg['total']; $pages = $pg['pages']; $page = $pg['page'];
 
+        // Batch the photo galleries for this page in ONE query (gates_uploads
+        // rows attached to each nominee), grouped by nominee id — avoids an
+        // N+1 while giving each row its extra (non-primary) photos.
+        $rowIds  = $rows->map(fn($r)=>(int)$r->id)->all();
+        $gallery = [];
+        if ($rowIds) {
+            try {
+                foreach (DB::table('gates_uploads')
+                    ->where('attached_to_type', 'nominee')->whereIn('attached_to_id', $rowIds)
+                    ->orderBy('id')->get(['attached_to_id', 'path']) as $u) {
+                    $gallery[(int)$u->attached_to_id][] = (string)$u->path;
+                }
+            } catch (\Throwable) {}
+        }
+        $rowsOut = $rows->map(function ($r) use ($gallery) {
+            $a = (array) $r;
+            // Primary first, then any additional gallery images (deduped).
+            $paths = [];
+            if (!empty($a['photo_path'])) $paths[] = (string)$a['photo_path'];
+            foreach ($gallery[(int)$a['id']] ?? [] as $p) { if ($p !== '' && !in_array($p, $paths, true)) $paths[] = $p; }
+            $a['photos'] = $paths;
+            return $a;
+        })->all();
+
         $cycles = DB::table('gates_award_cycles as c')
             ->join('gates_award_programmes as p','p.id','=','c.programme_id')
             ->select(['c.id','c.year','p.title'])->orderByDesc('c.year')->get();
@@ -62,7 +86,7 @@ class NomineesController
         return $this->view->render($res, 'admin/nominees/index.twig', [
             'page_title' => 'Nominees — Admin',
             'admin_page' => 'nominees',
-            'rows'       => $rows->map(fn($r)=>(array)$r)->all(),
+            'rows'       => $rowsOut,
             'cycles'     => $cycles->map(fn($r)=>(array)$r)->all(),
             'filters'    => ['cycle' => $cycleId, 'status' => $status, 'q' => $q, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']],
             'total'      => $total,
@@ -128,14 +152,14 @@ class NomineesController
     }
 
     /**
-     * Add or replace a nominee's photo. Multipart upload routed through the
+     * ADD a photo to a nominee's gallery. Multipart upload routed through the
      * hardened UploadService (bytes-sniffed MIME, re-encoded, min-dimension
-     * gate) into the `nominees` bucket, then photo_path is repointed. The old
-     * file is best-effort removed so replacing does not orphan storage.
+     * gate) into the `nominees` bucket, which also records a gates_uploads row
+     * (attached_to_type='nominee') — that row set IS the gallery. The nominee's
+     * photo_path holds the PRIMARY image; the first upload becomes primary.
      *
      * Not an integrity/award decision, so it stays open to every role that can
-     * already reach the nominees screen (the section guard governs that) — no
-     * extra canManageIntegrity gate.
+     * already reach the nominees screen (the section guard governs that).
      */
     public function photo(Request $req, Response $res, array $args): Response
     {
@@ -156,7 +180,8 @@ class NomineesController
 
         try {
             // 200px min side keeps thumbnails/cards from pixelating; 1200px cap
-            // + re-encode keeps the stored file lean.
+            // + re-encode keeps the stored file lean. The upload is recorded in
+            // gates_uploads attached to this nominee (that's the gallery).
             $result = $this->uploads->uploadImage(
                 $file, 'nominees', 1200, 82,
                 (int)($_SESSION['admin_id'] ?? 0) ?: null, 'nominee', $id, 200
@@ -168,23 +193,90 @@ class NomineesController
             return $res->withHeader('Location', $back)->withStatus(302);
         }
 
-        $old = (string)($nom->photo_path ?? '');
+        // The first photo becomes the primary (the one shown on cards / vote page).
+        $makePrimary = empty($nom->photo_path);
+        if ($makePrimary) {
+            try {
+                DB::table('gates_nominees')->where('id', $id)->update(['photo_path' => $result['path']]);
+            } catch (\Throwable $e) {
+                $_SESSION['flash_error'] = ActionError::dbMessage($e);
+                return $res->withHeader('Location', $back)->withStatus(302);
+            }
+        }
+
+        $this->audit->record((int)$_SESSION['admin_id'], 'nominee.photo.add', 'nominee', $id, ['path' => $result['path'], 'primary' => $makePrimary]);
+        $_SESSION['flash_ok'] = $makePrimary ? 'Photo added and set as the primary.' : 'Photo added to the gallery.';
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /** Every gallery photo path for a nominee (primary first), from gates_uploads + photo_path. */
+    private function galleryFor(int $id, ?string $primary): array
+    {
+        $paths = [];
+        if ($primary) $paths[] = $primary;
         try {
-            DB::table('gates_nominees')->where('id', $id)->update(['photo_path' => $result['path']]);
+            $rows = DB::table('gates_uploads')
+                ->where('attached_to_type', 'nominee')->where('attached_to_id', $id)
+                ->orderBy('id')->pluck('path');
+            foreach ($rows as $p) { $p = (string)$p; if ($p !== '' && !in_array($p, $paths, true)) $paths[] = $p; }
+        } catch (\Throwable) {}
+        return $paths;
+    }
+
+    /** POST /admin/nominees/{id}/photo/primary — promote a gallery photo to the primary shown publicly. */
+    public function photoPrimary(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int)$args['id'];
+        $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/nominees';
+        $nom  = DB::table('gates_nominees')->where('id', $id)->first();
+        if (!$nom) throw new \Slim\Exception\HttpNotFoundException($req);
+        $path = trim((string)(((array)$req->getParsedBody())['path'] ?? ''));
+        // Only accept a path that is genuinely one of this nominee's gallery images.
+        if ($path === '' || !in_array($path, $this->galleryFor($id, (string)($nom->photo_path ?? '')), true)) {
+            $_SESSION['flash_error'] = 'That photo is not in this nominee’s gallery.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        try {
+            DB::table('gates_nominees')->where('id', $id)->update(['photo_path' => $path]);
         } catch (\Throwable $e) {
             $_SESSION['flash_error'] = ActionError::dbMessage($e);
             return $res->withHeader('Location', $back)->withStatus(302);
         }
+        $this->audit->record((int)$_SESSION['admin_id'], 'nominee.photo.primary', 'nominee', $id, ['path' => $path]);
+        $_SESSION['flash_ok'] = 'Primary photo updated.';
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
 
-        // Best-effort cleanup of the replaced file — only within our own nominees
-        // bucket, never an arbitrary path, and never the file we just wrote.
-        if ($old !== '' && $old !== $result['path'] && str_starts_with($old, '/uploads/nominees/')) {
-            $abs = dirname(__DIR__, 3) . '/public' . $old;
+    /** POST /admin/nominees/{id}/photo/delete — remove one gallery photo (and its file); repoint primary if needed. */
+    public function photoDelete(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int)$args['id'];
+        $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/nominees';
+        $nom  = DB::table('gates_nominees')->where('id', $id)->first();
+        if (!$nom) throw new \Slim\Exception\HttpNotFoundException($req);
+        $path = trim((string)(((array)$req->getParsedBody())['path'] ?? ''));
+        if ($path === '' || !in_array($path, $this->galleryFor($id, (string)($nom->photo_path ?? '')), true)) {
+            $_SESSION['flash_error'] = 'That photo is not in this nominee’s gallery.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        try {
+            DB::table('gates_uploads')->where('attached_to_type', 'nominee')->where('attached_to_id', $id)->where('path', $path)->delete();
+            // If we removed the primary, promote the next remaining gallery photo (or clear).
+            if ((string)($nom->photo_path ?? '') === $path) {
+                $next = $this->galleryFor($id, null)[0] ?? null;
+                DB::table('gates_nominees')->where('id', $id)->update(['photo_path' => $next]);
+            }
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = ActionError::dbMessage($e);
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        // Best-effort file cleanup — only within our own nominees bucket.
+        if (str_starts_with($path, '/uploads/nominees/')) {
+            $abs = dirname(__DIR__, 3) . '/public' . $path;
             if (is_file($abs)) @unlink($abs);
         }
-
-        $this->audit->record((int)$_SESSION['admin_id'], 'nominee.photo', 'nominee', $id, ['path' => $result['path']]);
-        $_SESSION['flash_ok'] = 'Nominee photo updated.';
+        $this->audit->record((int)$_SESSION['admin_id'], 'nominee.photo.delete', 'nominee', $id, ['path' => $path]);
+        $_SESSION['flash_ok'] = 'Photo removed.';
         return $res->withHeader('Location', $back)->withStatus(302);
     }
 

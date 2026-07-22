@@ -90,14 +90,40 @@
           <span class="ad-chip ad-chip--{{ chip }}">{{ r.status|replace({'_':' '})|capitalize }}</span>
         </td>
         <td class="col-actions">
+          {% set photo_count = r.photos|default([])|length %}
           <details class="ad-photo-edit" style="display:inline-block;margin-bottom:4px">
-            <summary class="ad-btn ad-btn--xs" style="list-style:none;cursor:pointer">{{ r.photo_path ? '↺ Photo' : '＋ Photo' }}</summary>
-            <form method="post" action="/admin/nominees/{{ r.id }}/photo" enctype="multipart/form-data" style="margin-top:6px;display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--ad-line,#dfe4e3);border-radius:8px;background:var(--ad-bg,#f7faf9)">
-              <input type="hidden" name="_token" value="{{ csrf_token }}">
-              <label for="photo-{{ r.id }}" style="font-size:11px;font-weight:600;color:var(--ad-text-soft)">{{ r.photo_path ? 'Replace photo' : 'Add photo' }} <span style="font-weight:400">(JPEG/PNG/WebP, min 200px)</span></label>
-              <input id="photo-{{ r.id }}" type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required style="font-size:12px">
-              <button class="ad-btn ad-btn--xs ad-btn--primary" type="submit">Upload</button>
-            </form>
+            <summary class="ad-btn ad-btn--xs" style="list-style:none;cursor:pointer">{{ photo_count > 0 ? '🖼 Photos (' ~ photo_count ~ ')' : '＋ Photo' }}</summary>
+            <div style="margin-top:6px;padding:8px;border:1px solid var(--ad-line,#dfe4e3);border-radius:8px;background:var(--ad-bg,#f7faf9);width:230px">
+              {% if photo_count > 0 %}
+              <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+                {% for ph in r.photos %}
+                {% set is_primary = (ph == r.photo_path) %}
+                <div style="width:64px;text-align:center">
+                  <img src="{{ ph }}" alt="Photo {{ loop.index }} of {{ r.name }}" width="64" height="64" loading="lazy"
+                       style="width:64px;height:64px;object-fit:cover;border-radius:7px;border:2px solid {{ is_primary ? 'var(--ad-accent,#237b22)' : 'var(--ad-line,#dfe4e3)' }}">
+                  {% if is_primary %}
+                    <div style="font-size:9.5px;font-weight:700;color:var(--ad-accent,#237b22);margin-top:2px">★ Primary</div>
+                  {% else %}
+                    <form method="post" action="/admin/nominees/{{ r.id }}/photo/primary" style="margin-top:2px">
+                      <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="path" value="{{ ph }}">
+                      <button class="ad-btn ad-btn--xs" type="submit" style="font-size:9.5px;padding:1px 5px" title="Make primary">Set ★</button>
+                    </form>
+                  {% endif %}
+                  <form method="post" action="/admin/nominees/{{ r.id }}/photo/delete" style="margin-top:2px">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="path" value="{{ ph }}">
+                    <button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" style="font-size:9.5px;padding:1px 5px" data-confirm="Remove this photo?" title="Remove">×</button>
+                  </form>
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+              <form method="post" action="/admin/nominees/{{ r.id }}/photo" enctype="multipart/form-data" style="display:flex;flex-direction:column;gap:6px">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <label for="photo-{{ r.id }}" style="font-size:11px;font-weight:600;color:var(--ad-text-soft)">Add {{ photo_count > 0 ? 'another ' : '' }}photo <span style="font-weight:400">(JPEG/PNG/WebP, min 200px)</span></label>
+                <input id="photo-{{ r.id }}" type="file" name="photo" accept="image/jpeg,image/png,image/webp,image/gif" required style="font-size:12px">
+                <button class="ad-btn ad-btn--xs ad-btn--primary" type="submit">Upload</button>
+              </form>
+            </div>
           </details>
           {% if admin_role in ['superadmin','admin'] %}
           {% if r.status != 'winner' %}<form method="post" action="/admin/nominees/{{ r.id }}/winner" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--xs ad-btn--gold" type="submit">Winner</button></form>{% endif %}

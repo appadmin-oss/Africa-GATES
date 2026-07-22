@@ -93,7 +93,7 @@ class NomineePhotoTest extends TestCase
         $this->written[] = $abs;
         $this->assertFileExists($abs);
         $this->assertNotEmpty($_SESSION['flash_ok'] ?? '');
-        $this->assertSame(1, (int) DB::table('gates_audit_log')->where('action', 'nominee.photo')->count());
+        $this->assertSame(1, (int) DB::table('gates_audit_log')->where('action', 'nominee.photo.add')->count());
     }
 
     public function test_too_small_image_is_rejected(): void
