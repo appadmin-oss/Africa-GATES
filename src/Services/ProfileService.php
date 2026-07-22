@@ -60,11 +60,19 @@ class ProfileService {
         return DB::table('gates_profiles')->where('status','approved')->whereNotNull('latitude')->whereNotNull('longitude')->get(['id','slug','display_name','category','cpi_tier','cpi_score','latitude','longitude','country_code'])->map(fn($r)=>['id'=>$r->id,'slug'=>$r->slug,'display_name'=>$r->display_name,'category'=>$r->category,'cpi_tier'=>$r->cpi_tier,'cpi_score'=>(int)$r->cpi_score,'lat'=>(float)$r->latitude,'lng'=>(float)$r->longitude,'country_code'=>$r->country_code])->values()->all();
     }
 
+    /**
+     * Build a unique profile slug. The base is AI-generated when a provider is
+     * configured (transliterates accents/non-Latin names, drops honorifics —
+     * e.g. "Dr. Chinwé Okónkwò" → "chinwe-okonkwo"), with a deterministic
+     * slugifier as the guaranteed fallback; uniqueness (-2, -3…) is enforced
+     * against gates_profiles either way.
+     */
     private function makeSlug(string $name): string {
-        $base=trim(strtolower(preg_replace('/[^a-z0-9]+/i','-',$name)),'-');
-        $slug=$base;$i=1;
-        while(DB::table('gates_profiles')->where('slug',$slug)->exists()) $slug="$base-".$i++;
-        return $slug;
+        return AiHelper::uniqueSlug(
+            $name,
+            fn(string $slug): bool => DB::table('gates_profiles')->where('slug', $slug)->exists(),
+            'profile'
+        );
     }
 
     private function completeness(array $d): int {

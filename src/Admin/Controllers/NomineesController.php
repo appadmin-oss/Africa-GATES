@@ -73,6 +73,40 @@ class NomineesController
         ]);
     }
 
+    /**
+     * Merge duplicate nominees into one survivor (counters vote-splitting).
+     * Reassigns votes + judge scores + everything else, rebuilds counters and
+     * deletes the folded rows via MergeService. Admin+ only — it moves votes,
+     * judge scores and the CPI rollup, an award-integrity decision.
+     */
+    public function merge(Request $req, Response $res): Response
+    {
+        $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/nominees';
+        if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            $_SESSION['flash_error'] = 'Only an admin can merge nominees (it moves votes and judge scores).';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $b        = (array) $req->getParsedBody();
+        $keepId   = (int) ($b['keep_id'] ?? 0);
+        $mergeIds = array_map('intval', (array) ($b['merge_ids'] ?? []));
+        if (!$keepId) {
+            $_SESSION['flash_error'] = 'Choose which nominee to keep before merging.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $r = \AfricaGates\Services\MergeService::mergeNominees($keepId, $mergeIds, (int)($_SESSION['admin_id'] ?? 0) ?: null);
+        if ($r['ok']) {
+            $_SESSION['flash_ok'] = sprintf(
+                'Merged %d duplicate%s into one nominee — %s vote%s now count together. Rankings refresh on the next CPI recompute.',
+                $r['merged'], $r['merged'] === 1 ? '' : 's',
+                number_format($r['votes']), $r['votes'] === 1 ? '' : 's'
+            );
+        } else {
+            $_SESSION['flash_error'] = $r['error'] ?? 'The merge could not be completed.';
+        }
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
     public function action(Request $req, Response $res, array $args): Response
     {
         $id = (int)$args['id'];

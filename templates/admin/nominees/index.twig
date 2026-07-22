@@ -22,12 +22,37 @@
 </p>
 {% endif %}
 
+{% if admin_role in ['superadmin','admin'] %}
+{# Merge duplicates: tick the rows that are the same person, choose which one to
+   KEEP, then merge — votes + judge scores fold together. The inputs live in the
+   rows but belong to this form via form="mergeForm" (so they don't nest inside
+   the per-row action forms). All merged nominees must be in one category. #}
+<form id="mergeForm" method="post" action="/admin/nominees/merge"
+      style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px;padding:10px 14px;background:var(--ad-bg,#f7faf9);border:1px solid var(--ad-line,#dfe4e3);border-radius:10px">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <strong style="font-size:13px">Merge duplicates</strong>
+  <span style="font-size:12px;color:var(--ad-text-soft)">Tick the duplicate rows, pick one to <em>keep</em>, then:</span>
+  <button class="ad-btn ad-btn--sm ad-btn--primary" type="submit"
+          data-confirm="Merge the ticked nominees into the one marked “keep”? Their votes and judge scores will be combined and the duplicates removed. This can't be undone.">⤵ Merge selected</button>
+</form>
+{% endif %}
+
 <div class="ad-card"><div class="ad-table-wrap">
   <table class="ad-table">
-    <thead><tr><th scope="col">Nominee</th><th scope="col">Programme · Category</th><th scope="col">Country</th><th scope="col">Votes</th><th scope="col">Profile (CPI link)</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
+    <thead><tr>{% if admin_role in ['superadmin','admin'] %}<th scope="col">Merge</th>{% endif %}<th scope="col">Nominee</th><th scope="col">Programme · Category</th><th scope="col">Country</th><th scope="col">Votes</th><th scope="col">Profile (CPI link)</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
     <tbody>
       {% for r in rows %}
       <tr>
+        {% if admin_role in ['superadmin','admin'] %}
+        <td style="white-space:nowrap">
+          <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ad-text-soft)" title="Include in a merge">
+            <input type="checkbox" name="merge_ids[]" value="{{ r.id }}" form="mergeForm" aria-label="Select {{ r.name }} for merge">
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--ad-text-soft)" title="Keep this one as the survivor">
+            <input type="radio" name="keep_id" value="{{ r.id }}" form="mergeForm" aria-label="Keep {{ r.name }} as the merge survivor"> keep
+          </label>
+        </td>
+        {% endif %}
         <td>
           <div style="display:flex;gap:10px;align-items:center">
             {% if r.photo_path %}
@@ -81,7 +106,7 @@
           {% endif %}
         </td>
       </tr>
-      {% else %}<tr><td colspan="7" style="text-align:center;color:var(--ad-text-mute);padding:30px">No nominees.</td></tr>{% endfor %}
+      {% else %}<tr><td colspan="8" style="text-align:center;color:var(--ad-text-mute);padding:30px">No nominees.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div></div>
