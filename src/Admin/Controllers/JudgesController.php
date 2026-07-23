@@ -28,11 +28,18 @@ class JudgesController
             return $arr;
         })->all();
         $programmes = DB::table('gates_award_programmes')->orderBy('sort_order')->get()->map(fn($r)=>(array)$r)->all();
+
+        // Advisory judge-score anomaly scan (never changes a score/result) — a
+        // judge whose scorecards are statistical outliers vs. the panel.
+        $anomalies = ['flags' => [], 'judges' => [], 'nominees_scanned' => 0];
+        try { $anomalies = (new \AfricaGates\Services\JudgeAnomalyService())->scanActive(); } catch (\Throwable) {}
+
         return $this->view->render($res, 'admin/judges/index.twig', [
             'page_title' => 'Judges — Admin',
             'admin_page' => 'judges',
             'rows'       => $rows,
             'programmes' => $programmes,
+            'anomalies'  => $anomalies,
         ]);
     }
 

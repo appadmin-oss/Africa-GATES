@@ -94,6 +94,29 @@ class NomineeScoringService
      */
     public function judgeStatsFor(array $nomineeIds): array
     {
+        $out = [];
+        foreach ($this->judgePanelsFor($nomineeIds) as $nomId => $byJudge) {
+            if (!$byJudge) continue;
+            $out[$nomId] = [
+                'avg'    => round(array_sum($byJudge) / count($byJudge), 2),
+                'judges' => count($byJudge),
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Per-nominee, per-judge weighted average (0–10), counting ONLY complete
+     * scorecards (every active criterion scored) — the same definition quorum
+     * and the CPI use. This is the raw panel spread the leaderboard hides behind
+     * a single average; {@see \AfricaGates\Services\JudgeAnomalyService} uses it
+     * to spot a judge who is a statistical outlier vs. the rest of the panel.
+     *
+     * @param int[] $nomineeIds
+     * @return array<int, array<int,float>> nomineeId => [judgeId => weightedAvg]
+     */
+    public function judgePanelsFor(array $nomineeIds): array
+    {
         if (!$nomineeIds) return [];
 
         // Resolve each nominee's programme so "complete" is measured against the
@@ -124,7 +147,7 @@ class NomineeScoringService
             if ($required === 0) continue;
 
             $perJudge = [];
-            foreach ($byJudge as $scoresByCrit) {
+            foreach ($byJudge as $judgeId => $scoresByCrit) {
                 $ws = 0; $wt = 0; $covered = 0;
                 foreach ($activeIds as $cid) {
                     if (!array_key_exists($cid, $scoresByCrit)) continue;
@@ -135,15 +158,10 @@ class NomineeScoringService
                 }
                 // Only a COMPLETE scorecard (every required criterion scored) counts.
                 if ($covered === $required && $wt > 0) {
-                    $perJudge[] = $ws / $wt;
+                    $perJudge[(int) $judgeId] = $ws / $wt;
                 }
             }
-            if ($perJudge) {
-                $out[(int) $nomId] = [
-                    'avg'    => round(array_sum($perJudge) / count($perJudge), 2),
-                    'judges' => count($perJudge),
-                ];
-            }
+            if ($perJudge) $out[(int) $nomId] = $perJudge;
         }
         return $out;
     }
