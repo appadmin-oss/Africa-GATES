@@ -131,8 +131,8 @@
         {% endfor %}
       </div>
 
-      <div class="lb-table">
-        <div class="lb-thead">
+      <div class="lb-table" role="list" aria-label="Cultural Power Index ranking">
+        <div class="lb-thead" aria-hidden="true">
           <span class="lb-c-rank">#</span>
           <span class="lb-c-who">Nominee</span>
           <span class="lb-c-cat">Category</span>
@@ -141,6 +141,8 @@
         {% for e in rows|slice(0,40) %}
           {% set pal = AV[loop.index0 % AV|length] %}
           <a href="/registry/{{ e.slug }}" class="lb-row {{ loop.index <= 3 ? 'lb-row--top' : '' }}"
+             role="listitem"
+             aria-label="Rank {{ loop.index }}: {{ e.display_name }}, {{ e.category }}, CPI {{ e.cpi_score }}, {{ e.cpi_tier }} tier"
              x-show="cat==='All' || cat==='{{ e.category|e('js') }}'">
             <span class="lb-c-rank">{{ loop.index }}</span>
             <span class="lb-c-who">

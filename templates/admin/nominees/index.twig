@@ -70,7 +70,7 @@
         <td><strong style="font-family:'Space Mono',monospace">{{ r.vote_count|number_format }}</strong></td>
         <td>
           {% if r.profile_id %}
-            <a href="/registry/{{ r.profile_slug }}" target="_blank" style="font-size:12px">{{ r.profile_name }}</a>
+            <a href="/registry/{{ r.profile_slug }}" target="_blank" rel="noopener noreferrer" style="font-size:12px">{{ r.profile_name }}<span class="sr-only"> (opens in a new tab)</span></a>
             {% if admin_role in ['superadmin','admin'] %}
             <form method="post" action="/admin/nominees/{{ r.id }}/link" style="display:inline">
               <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="profile_slug" value="">

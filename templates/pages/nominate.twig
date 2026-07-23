@@ -199,10 +199,10 @@
               <div><label class="nm-lab" for="nLGA">LGA / County *</label><input id="nLGA" name="nominee_lga" class="nm-in" type="text" required placeholder="e.g. Nsukka" value="{{ old.nominee_lga ?? prefill.nominee_lga ?? '' }}"></div>
             </div>
             <div class="nm-who__full nm-row">
-              <div><label class="nm-lab" for="nEmail">Nominee's email <span style="color:#5a6d6f;font-weight:400">(email or phone — at least one)</span></label><input id="nEmail" name="nominee_email" class="nm-in" type="email" placeholder="So we can reach them about the nomination" value="{{ old.nominee_email ?? prefill.nominee_email ?? '' }}"></div>
-              <div><label class="nm-lab" for="nPhone">Nominee's phone <span style="color:#5a6d6f;font-weight:400">(with country code)</span></label><input id="nPhone" name="nominee_phone" class="nm-in" type="tel" maxlength="40" placeholder="e.g. +234 801 234 5678" value="{{ old.nominee_phone ?? prefill.nominee_phone ?? '' }}"></div>
+              <div><label class="nm-lab" for="nEmail">Nominee's email <span style="color:#5a6d6f;font-weight:400">(email or phone — at least one)</span></label><input id="nEmail" name="nominee_email" class="nm-in" type="email" aria-describedby="contactHint" placeholder="So we can reach them about the nomination" value="{{ old.nominee_email ?? prefill.nominee_email ?? '' }}"></div>
+              <div><label class="nm-lab" for="nPhone">Nominee's phone <span style="color:#5a6d6f;font-weight:400">(with country code)</span></label><input id="nPhone" name="nominee_phone" class="nm-in" type="tel" maxlength="40" aria-describedby="contactHint" placeholder="e.g. +234 801 234 5678" value="{{ old.nominee_phone ?? prefill.nominee_phone ?? '' }}"></div>
             </div>
-            <div class="nm-who__full"><small style="color:#5a6d6f">We use this to tell the nominee about their nomination — share their email, phone, or both. Phone works with SMS and WhatsApp.</small></div>
+            <div class="nm-who__full"><small id="contactHint" style="color:#5a6d6f">We use this to tell the nominee about their nomination — share their email, phone, or both. Phone works with SMS and WhatsApp.</small></div>
           </div>
         </section>
 
@@ -237,9 +237,9 @@
         <section class="nm-panel" data-step="3" x-show="step===3" x-cloak>
           <h2>Why do they deserve this?</h2>
           <p class="lead">Tell their story. Specific impact carries the most weight with our panel.</p>
-          <textarea id="nWhy" name="reason" class="nm-in" required minlength="60" placeholder="What have they built or changed? Who has it helped?" x-model="story"></textarea>
+          <textarea id="nWhy" name="reason" class="nm-in" required minlength="60" aria-describedby="storyHint" placeholder="What have they built or changed? Who has it helped?" x-model="story"></textarea>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:7px;flex-wrap:wrap">
-            <span class="nm-hint">Minimum 60 characters</span>
+            <span class="nm-hint" id="storyHint">Minimum 60 characters</span>
             <span style="display:inline-flex;align-items:center;gap:10px">
               <button type="button" x-show="polishAvail" x-cloak @click="polish()" x-bind:disabled="polishing || story.trim().length < 60"
                       style="border:1px solid #cfe6cf;background:#f4f9f4;color:#1a6118;font-weight:600;font-size:12px;padding:6px 13px;border-radius:999px;cursor:pointer"

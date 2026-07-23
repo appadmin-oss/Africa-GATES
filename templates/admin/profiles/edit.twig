@@ -2,7 +2,7 @@
 {% block topbar_eyebrow %}<small>Profiles</small>{% endblock %}
 {% block topbar_title %}{{ profile.display_name }}{% endblock %}
 {% block topbar_actions %}
-  <a class="ad-btn" href="/registry/{{ profile.slug }}" target="_blank">View public →</a>
+  <a class="ad-btn" href="/registry/{{ profile.slug }}" target="_blank" rel="noopener noreferrer">View public →<span class="sr-only"> (opens in a new tab)</span></a>
   <a class="ad-btn" href="/admin/profiles">← Back</a>
 {% endblock %}
 

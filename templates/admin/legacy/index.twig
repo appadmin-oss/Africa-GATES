@@ -19,7 +19,7 @@
         <td>{% if r.is_published %}<span class="ad-chip ad-chip--green">Published</span>{% else %}<span class="ad-chip ad-chip--grey">Draft</span>{% endif %}</td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/legacy/{{ r.id }}">Edit</a>
-          <a class="ad-btn ad-btn--sm" href="/legacy/{{ r.slug }}" target="_blank">View</a>
+          <a class="ad-btn ad-btn--sm" href="/legacy/{{ r.slug }}" target="_blank" rel="noopener noreferrer">View<span class="sr-only"> (opens in a new tab)</span></a>
           <form method="post" action="/admin/legacy/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete event?">×</button></form>
         </td>
       </tr>
