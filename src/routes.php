@@ -472,6 +472,8 @@ return function(App $app) {
         $a->get('/dashboard',       AdminDashboardController::class.':index');
 
         $a->get('/profiles',        AdminProfilesController::class.':index');
+        $a->post('/profiles/merge',   AdminProfilesController::class.':merge');
+        $a->post('/profiles/unmerge', AdminProfilesController::class.':unmerge');
         $a->get('/profiles/{id:[0-9]+}',          AdminProfilesController::class.':edit');
         $a->post('/profiles/{id:[0-9]+}',         AdminProfilesController::class.':update');
         $a->post('/profiles/{id:[0-9]+}/{action}', AdminProfilesController::class.':action');

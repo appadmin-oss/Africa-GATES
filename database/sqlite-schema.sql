@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS gates_profiles (
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','suspended','rejected')),
   completeness_pct INTEGER NOT NULL DEFAULT 0,
   view_count INTEGER NOT NULL DEFAULT 0,
+  merged_into INTEGER DEFAULT NULL,   -- survivor id when this profile is a merge tombstone (NULL = live)
+  merged_at TEXT DEFAULT NULL,
   registered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -117,6 +119,17 @@ CREATE TABLE IF NOT EXISTS gates_merge_log (
 );
 CREATE INDEX IF NOT EXISTS idx_merge_log_merged ON gates_merge_log(merged_id);
 CREATE INDEX IF NOT EXISTS idx_merge_log_batch ON gates_merge_log(batch);
+
+-- Same undo journal, for registry-profile merges.
+CREATE TABLE IF NOT EXISTS gates_profile_merge_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  batch TEXT NOT NULL, keep_id INTEGER NOT NULL, merged_id INTEGER NOT NULL,
+  op TEXT NOT NULL, tbl TEXT NOT NULL, row_pk INTEGER DEFAULT NULL,
+  col TEXT DEFAULT NULL, old_val TEXT DEFAULT NULL, snapshot TEXT DEFAULT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pmerge_log_merged ON gates_profile_merge_log(merged_id);
+CREATE INDEX IF NOT EXISTS idx_pmerge_log_batch ON gates_profile_merge_log(batch);
 CREATE INDEX IF NOT EXISTS idx_nominees_cat ON gates_nominees(category_id);
 CREATE INDEX IF NOT EXISTS idx_nominees_votes ON gates_nominees(vote_count DESC);
 

@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS gates_profiles (
   status ENUM('pending','approved','suspended','rejected') NOT NULL DEFAULT 'pending',
   completeness_pct TINYINT UNSIGNED NOT NULL DEFAULT 0,
   view_count INT UNSIGNED NOT NULL DEFAULT 0,
+  merged_into BIGINT UNSIGNED DEFAULT NULL,
+  merged_at TIMESTAMP NULL DEFAULT NULL,
   registered_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id), UNIQUE KEY uq_slug(slug), UNIQUE KEY uq_email(email),
@@ -90,6 +92,22 @@ CREATE TABLE IF NOT EXISTS gates_merge_log (
   snapshot TEXT DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id), KEY idx_merge_log_merged(merged_id), KEY idx_merge_log_batch(batch)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Same undo journal, for registry-profile merges (see gates_merge_log).
+CREATE TABLE IF NOT EXISTS gates_profile_merge_log (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  batch VARCHAR(40) NOT NULL,
+  keep_id BIGINT UNSIGNED NOT NULL,
+  merged_id BIGINT UNSIGNED NOT NULL,
+  op ENUM('reassign','delete') NOT NULL,
+  tbl VARCHAR(64) NOT NULL,
+  row_pk BIGINT UNSIGNED DEFAULT NULL,
+  col VARCHAR(64) DEFAULT NULL,
+  old_val VARCHAR(64) DEFAULT NULL,
+  snapshot TEXT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(id), KEY idx_pmerge_log_merged(merged_id), KEY idx_pmerge_log_batch(batch)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gates_votes (

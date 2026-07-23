@@ -27,13 +27,32 @@
   </div>
 </form>
 
+{% if admin_role in ['superadmin','admin'] %}
+{# Merge duplicate profiles: tick the duplicates + one KEEP, then submit. Inputs
+   live in the rows but belong to this form via form="pmergeForm". Reversible. #}
+<form id="pmergeForm" method="post" action="/admin/profiles/merge" style="margin:10px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap"
+      data-confirm="Merge the ticked profiles into the KEEP one? Their linked nominees, CPI history and community reactions combine; duplicates are hidden but can be restored with Undo merge.">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <span style="font-size:12px;color:var(--ad-text-soft)">Tick duplicate profiles + one KEEP, then</span>
+  <button class="ad-btn ad-btn--sm ad-btn--primary" type="submit">Merge selected</button>
+</form>
+{% endif %}
+
 <div class="ad-card">
   <div class="ad-table-wrap">
     <table class="ad-table">
-      <thead><tr><th scope="col">Profile</th><th scope="col">Type</th><th scope="col">Country</th><th scope="col">CPI</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
+      <thead><tr>{% if admin_role in ['superadmin','admin'] %}<th scope="col">Merge</th>{% endif %}<th scope="col">Profile</th><th scope="col">Type</th><th scope="col">Country</th><th scope="col">CPI</th><th scope="col">Status</th><th scope="col" class="col-actions">Actions</th></tr></thead>
       <tbody>
         {% for r in rows %}
         <tr>
+          {% if admin_role in ['superadmin','admin'] %}
+          <td style="white-space:nowrap">
+            <label style="display:inline-flex;align-items:center;gap:3px;font-size:11px" title="Include in a merge">
+              <input type="checkbox" name="merge_ids[]" value="{{ r.id }}" form="pmergeForm" aria-label="Select {{ r.display_name }} for merge"></label>
+            <label style="display:inline-flex;align-items:center;gap:3px;font-size:11px">
+              <input type="radio" name="keep_id" value="{{ r.id }}" form="pmergeForm" aria-label="Keep {{ r.display_name }} as the merge survivor"> keep</label>
+          </td>
+          {% endif %}
           <td>
             <strong>{{ r.display_name }}</strong>
             <div style="font-size:12px;color:var(--ad-text-soft)">{{ r.email }} · {{ r.category }}</div>
@@ -55,7 +74,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No profiles match.</td></tr>
+        <tr><td colspan="{{ admin_role in ['superadmin','admin'] ? 7 : 6 }}" style="text-align:center;color:var(--ad-text-mute);padding:30px">No profiles match.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -71,5 +90,28 @@
     {% endif %}
   {% endfor %}
 </div>
+{% endif %}
+
+{% if admin_role in ['superadmin','admin'] and merged is defined and merged|length %}
+<details class="ad-card" style="margin-top:18px">
+  <summary style="cursor:pointer;font-weight:600;font-size:13px">↩ Recently merged profiles ({{ merged|length }}) — undo a merge</summary>
+  <p style="font-size:11.5px;color:var(--ad-text-mute,#8a9a9c);margin:6px 0 10px">
+    These profiles were folded into a survivor and hidden from the registry, leaderboard and search.
+    Undoing restores the profile and moves its linked nominees + reactions back off the survivor.
+  </p>
+  <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px">
+    {% for m in merged %}
+    <li style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px">
+      <span><strong>{{ m.name }}</strong> → kept as <strong>{{ m.keep_name ?? ('#' ~ m.keep_id) }}</strong>
+        {% if m.merged_at %}<small style="color:var(--ad-text-mute,#8a9a9c)"> · {{ m.merged_at }}</small>{% endif %}</span>
+      <form method="post" action="/admin/profiles/unmerge" style="margin-left:auto">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="merged_id" value="{{ m.id }}">
+        <button class="ad-btn ad-btn--xs" type="submit" data-confirm="Undo this merge? {{ m.name }} becomes live again and its linked nominees + reactions move back off the survivor.">Undo merge</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+</details>
 {% endif %}
 {% endblock %}

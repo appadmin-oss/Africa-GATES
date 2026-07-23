@@ -55,7 +55,7 @@ class CpiRecomputeCommand extends Command
 
         // ── Profile rollup ───────────────────────────────────────────────
         $count = 0;
-        $profiles = DB::table('gates_profiles')->where('status', 'approved')->get();
+        $profiles = \AfricaGates\Services\ProfileMergeService::notMerged(DB::table('gates_profiles')->where('status', 'approved'))->get();
         foreach ($profiles as $p) {
             $linked = $byProf[$p->id] ?? [];
             $final  = $cpi->profileRollup($linked)
