@@ -115,6 +115,35 @@ final class MergeSuggestionService
         return ['groups' => $groups, 'scanned' => $scanned, 'capped' => $capped, 'ai' => $usedAi];
     }
 
+    /**
+     * The id of an existing LIVE nominee in $categoryId that is CONFIDENTLY the
+     * same person as $name — i.e. its normalised name is EQUAL (honorific / case /
+     * punctuation / whitespace insensitive, via {@see norm()}). 0 when none.
+     *
+     * This is the auto-attach-on-approval resolver: approving a nomination for
+     * someone who already has a nominee links to that nominee instead of minting
+     * a duplicate that would split their votes. It is deliberately conservative —
+     * only an EXACT normalised match auto-links. Near-but-unequal names
+     * (edit-distance) are left to the human-confirmed duplicate-scan + (now
+     * reversible) merge flow, so two genuinely different people are never silently
+     * folded together by an automatic step. Tombstones are excluded.
+     */
+    public static function findLiveMatch(int $categoryId, string $name): int
+    {
+        $target = self::norm($name);
+        if ($target === '') return 0;
+        try {
+            $q = DB::table('gates_nominees')
+                ->where('category_id', $categoryId)
+                ->whereIn('status', ['pending', 'approved', 'winner', 'runner_up']);
+            MergeService::notMerged($q);
+            foreach ($q->orderBy('id')->limit(self::SCAN_CAP)->get(['id', 'name']) as $row) {
+                if (self::norm((string) $row->name) === $target) return (int) $row->id;
+            }
+        } catch (\Throwable) {}
+        return 0;
+    }
+
     /** Deterministic clusters: union nominees with equal-or-near normalised names. */
     private static function ruleGroups(array $nominees): array
     {

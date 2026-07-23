@@ -243,13 +243,12 @@ HTML;
                     'decision_reason' => $approveReason !== '' ? $approveReason : null,
                 ]);
 
-                // Normalised dedup (case-insensitive + trimmed) so "Dr. Jane Doe" and
-                // "dr. jane doe " don't both become separate nominees that split votes.
-                $normName = strtolower(trim((string)$nom->nominee_name));
-                $nomineeId = (int)(\AfricaGates\Services\MergeService::notMerged(
-                        DB::table('gates_nominees')->where('category_id', $catId)
-                            ->whereRaw('LOWER(TRIM(name)) = ?', [$normName])
-                    )->value('id') ?? 0);   // never re-attach to a merged-away tombstone
+                // Auto-attach on approval: if a nominee for this person already
+                // exists in the category, link to it instead of minting a duplicate
+                // that would split their votes. The resolver is honorific / case /
+                // punctuation insensitive ("Dr. Jane Doe" → existing "jane doe") and
+                // skips tombstones — the prevention that pairs with the merge cure.
+                $nomineeId = \AfricaGates\Services\MergeSuggestionService::findLiveMatch($catId, (string)$nom->nominee_name);
                 if ($nomineeId < 1) {
                     // Best-effort auto-link to an existing registry profile so this
                     // nominee's votes + judge scores roll up into the CPI leaderboard.
@@ -355,11 +354,9 @@ HTML;
             $_SESSION['flash_error'] = 'Approve the nomination before sending an acceptance form.';
             return $res->withHeader('Location', '/admin/nominations/' . $id)->withStatus(302);
         }
-        $normName = strtolower(trim((string)$nom->nominee_name));
-        $nomineeId = (int)(\AfricaGates\Services\MergeService::notMerged(
-                DB::table('gates_nominees')->where('category_id', $nom->category_id)
-                    ->whereRaw('LOWER(TRIM(name)) = ?', [$normName])
-            )->value('id') ?? 0);
+        // Same resolver as approval, so we find the nominee even when it was
+        // auto-attached under a slightly different spelling of the name.
+        $nomineeId = \AfricaGates\Services\MergeSuggestionService::findLiveMatch((int)$nom->category_id, (string)$nom->nominee_name);
         if ($nomineeId < 1) {
             $_SESSION['flash_error'] = 'Could not locate the created nominee record.';
             return $res->withHeader('Location', '/admin/nominations/' . $id)->withStatus(302);

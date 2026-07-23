@@ -65,4 +65,45 @@ class MergeSuggestionServiceTest extends TestCase
         sort($cats);
         $this->assertSame(['Alpha', 'Beta'], $cats);
     }
+
+    // ── findLiveMatch (auto-attach on approval) ─────────────────────────────────
+
+    public function test_findLiveMatch_links_honorific_and_punctuation_variants(): void
+    {
+        $this->nominee(1, 'Jane Doe');
+        // Approving a nomination worded "Dr. Jane Doe" resolves to the existing nominee.
+        $this->assertSame(1, MergeSuggestionService::findLiveMatch(10, 'Dr. Jane Doe'));
+        $this->assertSame(1, MergeSuggestionService::findLiveMatch(10, '  jane   doe '));
+        $this->assertSame(1, MergeSuggestionService::findLiveMatch(10, 'Prof Jane-Doe'));
+    }
+
+    public function test_findLiveMatch_returns_zero_for_a_different_person(): void
+    {
+        $this->nominee(1, 'Jane Doe');
+        $this->assertSame(0, MergeSuggestionService::findLiveMatch(10, 'John Doe'));
+        // Conservative: a near-miss (edit-distance) is NOT auto-attached — that's
+        // left to the human-confirmed merge flow.
+        $this->assertSame(0, MergeSuggestionService::findLiveMatch(10, 'Jane Doo'));
+    }
+
+    public function test_findLiveMatch_ignores_other_categories(): void
+    {
+        $this->nominee(1, 'Jane Doe', 20);
+        $this->assertSame(0, MergeSuggestionService::findLiveMatch(10, 'Jane Doe'));
+    }
+
+    public function test_findLiveMatch_skips_tombstones(): void
+    {
+        $this->nominee(1, 'Jane Doe');
+        $this->nominee(2, 'Jane Doe');
+        // Tombstone #1 (as if merged into #2); the resolver must return the live one.
+        DB::table('gates_nominees')->where('id', 1)->update(['merged_into' => 2]);
+        $this->assertSame(2, MergeSuggestionService::findLiveMatch(10, 'Dr Jane Doe'));
+
+        // With the only match tombstoned, there's nothing to attach to.
+        DB::table('gates_nominees')->where('id', 2)->update(['merged_into' => 1, 'status' => 'approved']);
+        DB::table('gates_nominees')->where('id', 1)->update(['merged_into' => null]);
+        DB::table('gates_nominees')->where('id', 1)->update(['name' => 'Someone Else']);
+        $this->assertSame(0, MergeSuggestionService::findLiveMatch(10, 'Jane Doe'));
+    }
 }
