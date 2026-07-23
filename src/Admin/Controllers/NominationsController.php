@@ -502,7 +502,29 @@ HTML;
             'duplicates'  => \AfricaGates\Services\NominationTriageService::duplicatesFor($nom),
             'insight'     => \AfricaGates\Services\NominationTriageService::insight((int)$nom->id),
             'queue'       => ($nom->status === 'pending') ? \AfricaGates\Services\NominationTriageService::queuePosition((int)$nom->id) : null,
+            'ai_enabled'  => (function () { try { return \AfricaGates\Services\AiService::boot()->configured(); } catch (\Throwable) { return false; } })(),
         ];
+    }
+
+    /**
+     * Generate (or refresh) the AI triage insight for a nomination ON DEMAND —
+     * quality score + summary + duplicate hints — so a reviewer isn't waiting on
+     * the background cron. Advisory only; never decides. Redirects back to the
+     * review screen with the fresh insight rendered.
+     */
+    public function aiInsight(Request $req, Response $res, array $args): Response
+    {
+        $back = $req->getServerParams()['HTTP_REFERER'] ?? ('/admin/nominations/' . (int)($args['id'] ?? 0));
+        $id   = (int)($args['id'] ?? 0);
+        if (!DB::table('gates_nominations')->where('id', $id)->exists()) {
+            $_SESSION['flash_error'] = 'Nomination not found.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $insight = \AfricaGates\Services\NominationTriageService::generate($id);
+        $_SESSION[$insight ? 'flash_ok' : 'flash_error'] = $insight
+            ? 'AI insight generated.'
+            : 'AI is not configured (add a Groq/Gemini/Anthropic/OpenAI key in Settings) — nothing generated.';
+        return $res->withHeader('Location', $back)->withStatus(302);
     }
 
     /**

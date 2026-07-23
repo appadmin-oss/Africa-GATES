@@ -485,6 +485,7 @@ return function(App $app) {
         $a->get('/nominations/review/next', AdminNominationsController::class.':deskFragment');
         $a->get('/nominations/{id:[0-9]+}',           AdminNominationsController::class.':review');
         $a->post('/nominations/{id:[0-9]+}/suggest-reason', AdminNominationsController::class.':suggestReason');
+        $a->post('/nominations/{id:[0-9]+}/ai-insight', AdminNominationsController::class.':aiInsight');
         $a->post('/nominations/{id:[0-9]+}/regenerate-form', AdminNominationsController::class.':regenerateForm');
         $a->post('/nominations/{id:[0-9]+}/{action}', AdminNominationsController::class.':action');
 

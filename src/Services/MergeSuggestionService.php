@@ -35,8 +35,26 @@ final class MergeSuggestionService
     private static function norm(string $name): string
     {
         $s = mb_strtolower(trim($name));
+        $s = self::foldDiacritics($s);   // "José" → "jose" so it isn't gutted to "jos"
         $s = (string) preg_replace('/^(dr|prof|professor|chief|hon|honou?rable|mr|mrs|ms|miss|engr|sir|rev|pastor|alhaji|hajia)\.?\s+/u', '', $s);
         return (string) preg_replace('/[^a-z0-9]+/u', '', $s);
+    }
+
+    /** Fold accents to their base letter (é→e, ç→c) so diacritic variants match. No-op without ext-intl. */
+    private static function foldDiacritics(string $s): string
+    {
+        if (class_exists('\Normalizer')) {
+            $d = \Normalizer::normalize($s, \Normalizer::FORM_D);
+            if (is_string($d)) $s = (string) preg_replace('/\p{Mn}+/u', '', $d);
+        }
+        return $s;
+    }
+
+    /** Character-similarity percentage (0–100) between two normalised names. */
+    private static function similarPct(string $a, string $b): float
+    {
+        similar_text($a, $b, $pct);
+        return (float) $pct;
     }
 
     /**
@@ -157,19 +175,36 @@ final class MergeSuggestionService
             for ($j = $i + 1; $j < $n; $j++) {
                 $a = $norms[$i]; $b = $norms[$j];
                 if ($a === '' || $b === '') continue;
+                // Exact (honorific/case/punctuation/diacritic-insensitive) OR a
+                // TIGHT fuzzy match — small edit distance AND a high character
+                // similarity, so "janedoe"/"johndoe" (distance 2 but different
+                // people) is NOT wrongly clustered.
                 $same = ($a === $b)
-                    || (strlen($a) >= 6 && abs(strlen($a) - strlen($b)) <= 2 && levenshtein($a, $b) <= 2);
+                    || (strlen($a) >= 6 && abs(strlen($a) - strlen($b)) <= 2
+                        && levenshtein($a, $b) <= 2 && self::similarPct($a, $b) >= 80.0);
                 if ($same) $union($i, $j);
             }
         }
         $buckets = [];
-        for ($i = 0; $i < $n; $i++) { $buckets[$find($i)][] = (int) $nominees[$i]->id; }
+        for ($i = 0; $i < $n; $i++) { $buckets[$find($i)][] = $i; }
 
         $groups = [];
-        foreach ($buckets as $ids) {
-            if (count($ids) < 2) continue;
+        foreach ($buckets as $idx) {
+            if (count($idx) < 2) continue;
+            $ids   = array_map(fn($i) => (int) $nominees[$i]->id, $idx);
+            $gn    = array_map(fn($i) => $norms[$i], $idx);
             sort($ids);
-            $groups[] = ['nominee_ids' => $ids, 'confidence' => 0.95, 'reason' => 'Near-identical names in the same category.', 'source' => 'rule'];
+            // High confidence only when two names are IDENTICAL once normalised;
+            // a group held together purely by fuzzy links is advisory ("confirm").
+            $hasExact = count($gn) !== count(array_unique($gn));
+            $groups[] = [
+                'nominee_ids' => $ids,
+                'confidence'  => $hasExact ? 0.97 : 0.74,
+                'reason'      => $hasExact
+                    ? 'Identical names once normalised (honorifics/case/accents).'
+                    : 'Very similar names — confirm they are the same person before merging.',
+                'source'      => 'rule',
+            ];
         }
         return $groups;
     }

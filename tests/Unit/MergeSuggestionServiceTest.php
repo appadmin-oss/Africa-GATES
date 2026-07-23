@@ -41,6 +41,40 @@ class MergeSuggestionServiceTest extends TestCase
         $this->assertSame([], MergeSuggestionService::forCategory(10)['groups']);
     }
 
+    public function test_low_similarity_pairs_within_edit_distance_are_not_clustered(): void
+    {
+        // "sunday"/"monday": same length, edit-distance 2, but only ~67% similar —
+        // the tightened rule (similarity >= 80%) must NOT treat them as duplicates.
+        $this->nominee(1, 'Sunday');
+        $this->nominee(2, 'Monday');
+        $this->assertSame([], MergeSuggestionService::forCategory(10)['groups'], 'different names must not merge on edit-distance alone');
+    }
+
+    public function test_confidence_is_high_for_identical_and_lower_for_fuzzy(): void
+    {
+        $this->nominee(1, 'Dr. Jane Doe');
+        $this->nominee(2, 'jane doe');        // identical once normalised
+        $g = MergeSuggestionService::forCategory(10)['groups'];
+        $this->assertCount(1, $g);
+        $this->assertGreaterThanOrEqual(0.95, $g[0]['confidence'], 'identical names = high confidence');
+
+        // Fresh category with only a fuzzy (typo) pair — advisory, lower confidence.
+        $this->nominee(3, 'Chidinma', 20);
+        $this->nominee(4, 'Chidimma', 20);    // one-letter typo
+        $g2 = MergeSuggestionService::forCategory(20)['groups'];
+        $this->assertCount(1, $g2);
+        $this->assertLessThan(0.95, $g2[0]['confidence'], 'a typo-only match is advisory, not certain');
+    }
+
+    public function test_diacritic_variants_are_treated_as_identical(): void
+    {
+        $this->nominee(1, 'José Adébáyò');
+        $this->nominee(2, 'Jose Adebayo');    // same name, no accents
+        $g = MergeSuggestionService::forCategory(10)['groups'];
+        $this->assertCount(1, $g, 'accented and unaccented spellings are the same person');
+        $this->assertGreaterThanOrEqual(0.95, $g[0]['confidence']);
+    }
+
     public function test_same_name_different_category_not_grouped(): void
     {
         $this->nominee(1, 'Ada Obi', 10);

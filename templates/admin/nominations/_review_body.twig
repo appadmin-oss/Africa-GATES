@@ -11,8 +11,20 @@
 {% if duplicates and (duplicates.same_cycle is not empty or duplicates.live_nominee or duplicates.similar is not empty) %}
 <div class="ad-flash" role="alert" style="display:block;margin-bottom:14px;background:#fdf6e3;border:1px solid #e8d9a8;color:#6b5514;border-radius:12px;padding:12px 16px">
   <strong>⚠ Duplicate signals — check before deciding.</strong>
-  {% if duplicates.live_nominee %}
-    <div style="margin-top:6px;font-size:13px">“{{ nom.nominee_name }}” is <strong>already a live nominee</strong> ({{ duplicates.live_nominee.status }}) — approving again could split their votes. <a href="/admin/nominees" style="color:#6b5514;font-weight:700">Check nominees →</a></div>
+  {% if duplicates.merge_candidates %}
+    {% set mc = duplicates.merge_candidates %}
+    <div style="margin-top:6px;font-size:13px">
+      “{{ nom.nominee_name }}” already has <strong>{{ mc.count }} live nominees</strong> in one category ({{ mc.names|join('”, “')|slice(0, 120) }}”) — their votes and judge scores are split. Fold them into one:
+      <form method="post" action="/admin/nominees/merge" style="display:inline-block;margin-top:6px"
+            data-confirm="Merge these {{ mc.count }} duplicate nominees into one? Votes and judge scores combine; the duplicates are hidden but can be restored with Undo merge.">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="keep_id" value="{{ mc.keep_id }}">
+        {% for mid in mc.merge_ids %}<input type="hidden" name="merge_ids[]" value="{{ mid }}">{% endfor %}
+        <button type="submit" class="ad-btn ad-btn--xs ad-btn--primary">⤳ Merge {{ mc.count }} duplicates now</button>
+      </form>
+    </div>
+  {% elseif duplicates.live_nominee %}
+    <div style="margin-top:6px;font-size:13px">“{{ nom.nominee_name }}” is <strong>already a live nominee</strong> ({{ duplicates.live_nominee.status }}) — approving links to them (no duplicate is created). <a href="/admin/nominees" style="color:#6b5514;font-weight:700">Check nominees →</a></div>
   {% endif %}
   {% if duplicates.same_cycle is not empty %}
     <div style="margin-top:6px;font-size:13px">{{ duplicates.same_cycle|length }} other nomination{{ duplicates.same_cycle|length == 1 ? '' : 's' }} for this person in this cycle:
@@ -85,6 +97,18 @@
         <p style="margin:0 0 8px;font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">Completeness &amp; specificity of the submission — NOT whether the nominee deserves to win.</p>
         {% endif %}
         {% if insight.summary %}<p style="font-size:13.5px;line-height:1.65;color:var(--ad-text)">{{ insight.summary }}</p>{% endif %}
+      </div>
+    </div>
+    {% elseif ai_enabled|default(false) %}
+    {# No insight yet — offer to generate one on demand (doesn't wait on the cron). #}
+    <div class="ad-card" style="margin-top:14px">
+      <div class="ad-card__head"><div class="ad-card__title">AI triage <small>advisory only — you decide</small></div></div>
+      <div class="ad-card__body">
+        <p style="font-size:13px;color:var(--ad-text-soft);margin:0 0 10px">Get an AI read on this submission — a completeness/specificity score, a one-paragraph summary, and duplicate hints.</p>
+        <form method="post" action="/admin/nominations/{{ nom.id }}/ai-insight">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button type="submit" class="ad-btn ad-btn--sm">✨ Generate AI insight</button>
+        </form>
       </div>
     </div>
     {% endif %}

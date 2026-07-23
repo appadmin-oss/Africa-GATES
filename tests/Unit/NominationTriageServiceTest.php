@@ -38,6 +38,38 @@ final class NominationTriageServiceTest extends TestCase
         $this->assertNull($d['live_nominee']);
     }
 
+    public function test_merge_candidates_when_person_has_duplicate_live_nominees(): void
+    {
+        $a = $this->nom(['nominee_name' => 'Ada Obi']);
+        // Two live nominees for the same person in one category → vote-splitting.
+        DB::table('gates_nominees')->insert(['id' => 51, 'category_id' => 10, 'name' => 'Ada Obi', 'status' => 'approved', 'vote_count' => 2, 'organic_vote_count' => 2]);
+        DB::table('gates_nominees')->insert(['id' => 52, 'category_id' => 10, 'name' => 'ada obi', 'status' => 'approved', 'vote_count' => 9, 'organic_vote_count' => 9]);
+
+        $d = Triage::duplicatesFor(DB::table('gates_nominations')->find($a));
+        $this->assertNotNull($d['merge_candidates']);
+        $this->assertSame(2, $d['merge_candidates']['count']);
+        $this->assertSame(52, $d['merge_candidates']['keep_id'], 'survivor is the strongest by vote_count');
+        $this->assertSame([51], $d['merge_candidates']['merge_ids']);
+    }
+
+    public function test_no_merge_candidates_across_different_categories(): void
+    {
+        $a = $this->nom(['nominee_name' => 'Bola Ade']);
+        DB::table('gates_nominees')->insert(['id' => 61, 'category_id' => 10, 'name' => 'Bola Ade', 'status' => 'approved', 'vote_count' => 3, 'organic_vote_count' => 3]);
+        DB::table('gates_nominees')->insert(['id' => 62, 'category_id' => 20, 'name' => 'Bola Ade', 'status' => 'approved', 'vote_count' => 4, 'organic_vote_count' => 4]);
+        // Two live nominees but in DIFFERENT categories — not one-click mergeable.
+        $d = Triage::duplicatesFor(DB::table('gates_nominations')->find($a));
+        $this->assertNull($d['merge_candidates']);
+    }
+
+    public function test_tombstoned_live_nominee_is_ignored(): void
+    {
+        $a = $this->nom(['nominee_name' => 'Zara Musa']);
+        DB::table('gates_nominees')->insert(['id' => 71, 'category_id' => 10, 'name' => 'Zara Musa', 'status' => 'approved', 'vote_count' => 5, 'organic_vote_count' => 5, 'merged_into' => 99]);
+        $d = Triage::duplicatesFor(DB::table('gates_nominations')->find($a));
+        $this->assertSame([], $d['live_nominees'], 'a merged-away tombstone is not a live duplicate');
+    }
+
     public function test_fuzzy_similar_spellings_are_flagged(): void
     {
         $a = $this->nom(['nominee_name' => 'Mohammed Bello']);

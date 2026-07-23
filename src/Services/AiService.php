@@ -65,15 +65,22 @@ class AiService
             return ($env !== null && $env !== '') ? (string) $env : null;
         };
 
-        $groqKey   = $resolve('ai_groq_key', 'GROQ_API_KEY');
-        $groqModel = $resolve('ai_groq_model', 'GROQ_MODEL');
+        // Resolve BOTH Groq keys up front so either slot can power the other —
+        // an admin who pasted only ONE Groq key (in either field) gets working
+        // AI everywhere, not just half the platform.
+        $generalKey = $resolve('ai_groq_key', 'GROQ_API_KEY');
+        $modKey     = $resolve('ai_groq_key_mod', 'GROQ_MODERATION_KEY');
+        $groqModel  = $resolve('ai_groq_model', 'GROQ_MODEL');
 
         if ($purpose === 'moderation') {
-            $modKey = $resolve('ai_groq_key_mod', 'GROQ_MODERATION_KEY');
-            // Dedicated key when present; otherwise the general Groq key as a
-            // free backup. Either way, moderation runs the best model.
-            $groqKey   = $modKey ?: $groqKey;
+            // Dedicated moderation key when present; otherwise the general Groq
+            // key as a free backup. Either way, moderation runs the best model.
+            $groqKey   = $modKey ?: $generalKey;
             $groqModel = $resolve('ai_groq_model_mod', 'GROQ_MODERATION_MODEL') ?: self::MODERATION_MODEL;
+        } else {
+            // General features prefer the general key, but fall back to the
+            // moderation key so a single configured Groq key runs everything.
+            $groqKey = $generalKey ?: $modKey;
         }
 
         return new self(

@@ -57,7 +57,7 @@ class NominationTriageService
     {
         $nom = (object) $nom;
         $norm = self::norm((string) $nom->nominee_name);
-        $out = ['same_cycle' => [], 'similar' => [], 'live_nominee' => null];
+        $out = ['same_cycle' => [], 'similar' => [], 'live_nominee' => null, 'live_nominees' => [], 'merge_candidates' => null];
         if ($norm === '') return $out;
         try {
             $rows = DB::table('gates_nominations')
@@ -75,11 +75,39 @@ class NominationTriageService
             ], $rows->all());
         } catch (\Throwable) {}
         try {
-            $live = DB::table('gates_nominees')
+            // ALL live nominees for this person, strongest first — when there are
+            // 2+, they are vote-splitting duplicates the reviewer can merge right
+            // from the desk (see _review_body.twig). Tombstones excluded.
+            $lq = DB::table('gates_nominees')
                 ->whereRaw("LOWER(REPLACE(name, ' ', '')) = ?", [$norm])
                 ->whereIn('status', ['approved', 'winner', 'runner_up'])
-                ->first(['id', 'name', 'status']);
-            if ($live) $out['live_nominee'] = ['id' => (int) $live->id, 'name' => (string) $live->name, 'status' => (string) $live->status];
+                ->orderByDesc('vote_count');
+            \AfricaGates\Services\MergeService::notMerged($lq);
+            $lives = $lq->limit(10)->get(['id', 'name', 'status', 'vote_count', 'category_id']);
+            $out['live_nominees'] = array_map(static fn($r) => [
+                'id' => (int) $r->id, 'name' => (string) $r->name, 'status' => (string) $r->status,
+                'vote_count' => (int) $r->vote_count, 'category_id' => (int) $r->category_id,
+            ], $lives->all());
+            $out['live_nominee'] = $out['live_nominees'][0] ?? null;   // back-compat (first/strongest)
+
+            // If 2+ live nominees for this person sit in ONE category, they are
+            // vote-splitting duplicates the reviewer can merge in a single click
+            // (MergeService only folds within a category). Pick the largest such
+            // group; survivor = its strongest (highest vote_count, already first).
+            $byCat = [];
+            foreach ($out['live_nominees'] as $ln) { $byCat[$ln['category_id']][] = $ln; }
+            $best = [];
+            foreach ($byCat as $grp) { if (count($grp) > count($best)) $best = $grp; }
+            if (count($best) >= 2) {
+                $ids = array_map(static fn($g) => (int) $g['id'], $best);
+                $out['merge_candidates'] = [
+                    'keep_id'     => $ids[0],
+                    'merge_ids'   => array_slice($ids, 1),
+                    'names'       => array_map(static fn($g) => (string) $g['name'], $best),
+                    'category_id' => (int) $best[0]['category_id'],
+                    'count'       => count($best),
+                ];
+            }
         } catch (\Throwable) {}
         // Fuzzy near-misses: bounded scan of this cycle's names, edit distance
         // ≤ 2 on the normalised form (min 6 chars — short names are too noisy).
@@ -95,7 +123,10 @@ class NominationTriageService
                     if (in_array((int) $c->id, $exactIds, true)) continue;
                     $cn = self::norm((string) $c->nominee_name);
                     if ($cn === '' || $cn === $norm || abs(strlen($cn) - strlen($norm)) > 2) continue;
-                    if (levenshtein($norm, $cn) <= 2) {
+                    // Small edit distance AND high character similarity, so a
+                    // distance-2 pair of DIFFERENT names isn't flagged as a dup.
+                    similar_text($norm, $cn, $pct);
+                    if (levenshtein($norm, $cn) <= 2 && $pct >= 80.0) {
                         $out['similar'][] = ['id' => (int) $c->id, 'name' => (string) $c->nominee_name, 'status' => (string) $c->status];
                         if (count($out['similar']) >= 10) break;
                     }
