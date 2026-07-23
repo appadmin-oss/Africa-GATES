@@ -239,4 +239,16 @@ class SettingsController
         $this->audit->record($adminId, 'settings.smtp_test', null, null);
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);
     }
+
+    /** Make one live AI call and report which provider answered — diagnoses "AI doesn't work". */
+    public function testAi(Request $req, Response $res): Response
+    {
+        $adminId = (int)($_SESSION['admin_id'] ?? 0);
+        $r = \AfricaGates\Services\AiService::boot()->selfTest();
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
+            ? sprintf('AI OK — answered by %s (%s).', $r['provider'] ?? '?', $r['model'] ?? '?')
+            : 'AI test failed: ' . ($r['error'] ?? 'no response') . '. Check the provider key and that the host can reach the provider API.';
+        try { $this->audit->record($adminId, 'settings.ai_test', null, null, ['ok' => $r['ok'], 'provider' => $r['provider']]); } catch (\Throwable) {}
+        return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+    }
 }

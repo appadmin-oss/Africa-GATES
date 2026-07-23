@@ -621,6 +621,7 @@ return function(App $app) {
             $s->get('',  AdminSettingsController::class.':form');
             $s->post('', AdminSettingsController::class.':save');
             $s->post('/smtp-test', AdminSettingsController::class.':smtpTest');
+            $s->post('/test-ai',   AdminSettingsController::class.':testAi');
         })->add(new RoleMiddleware('superadmin'));
 
         // Outbound webhooks — integration endpoints for AI agents & platforms.

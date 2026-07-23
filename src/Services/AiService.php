@@ -160,19 +160,85 @@ class AiService
         }
     }
 
+    /** Last provider error seen during a call, for diagnostics ({@see selfTest()}). */
+    private ?string $lastError = null;
+
+    /** Configured providers in priority order. */
+    private function providerChain(): array
+    {
+        $chain = [];
+        if ($this->groqKey)      $chain[] = 'groq';
+        if ($this->geminiKey)    $chain[] = 'gemini';
+        if ($this->anthropicKey) $chain[] = 'anthropic';
+        if ($this->openaiKey)    $chain[] = 'openai';
+        return $chain;
+    }
+
     /**
      * General-purpose completion. Returns the model's text (or a JSON string
-     * when $json=true) or null when no provider is available / the call fails.
+     * when $json=true) or null when no provider is available / all fail.
+     *
+     * REAL FAILOVER: tries each configured provider in priority order and moves
+     * on to the next when one errors or returns empty — previously it stopped at
+     * the first configured provider, so a single Groq hiccup silently killed the
+     * feature even with Gemini/Anthropic/OpenAI keys also set. When $json=true
+     * the reply is unwrapped from any ```json fence before being returned.
      */
     public function complete(string $system, string $user, int $maxTokens = 512, bool $json = false, float $temperature = 0.2): ?string
     {
-        try {
-            if ($this->groqKey)      return $this->groqChat($system, $user, $maxTokens, $json, $temperature);
-            if ($this->geminiKey)    return $this->geminiChat($system, $user, $maxTokens, $json, $temperature);
-            if ($this->anthropicKey) return $this->anthropicChat($system, $user, $maxTokens, $json, $temperature);
-            if ($this->openaiKey)    return $this->openaiChat($system, $user, $maxTokens, $json, $temperature);
-        } catch (\Throwable) {}
+        foreach ($this->providerChain() as $provider) {
+            try {
+                $out = match ($provider) {
+                    'groq'      => $this->groqChat($system, $user, $maxTokens, $json, $temperature),
+                    'gemini'    => $this->geminiChat($system, $user, $maxTokens, $json, $temperature),
+                    'anthropic' => $this->anthropicChat($system, $user, $maxTokens, $json, $temperature),
+                    'openai'    => $this->openaiChat($system, $user, $maxTokens, $json, $temperature),
+                    default     => null,
+                };
+                if (is_string($out) && $out !== '') {
+                    return $json ? self::stripJsonFence($out) : $out;
+                }
+                $this->lastError = $provider . ': empty/failed response';
+            } catch (\Throwable $e) {
+                $this->lastError = $provider . ': ' . $e->getMessage();
+            }
+            // fall through to the next configured provider
+        }
+        if ($this->lastError !== null) error_log('[AiService] all providers failed — ' . $this->lastError);
         return null;
+    }
+
+    /**
+     * On-demand health check: make one tiny real completion and report which
+     * provider answered (or the error). Powers the admin Settings "test AI"
+     * button so "AI doesn't work" is diagnosable instead of silent.
+     *
+     * @return array{ok:bool,provider:?string,model:?string,error:?string}
+     */
+    public function selfTest(): array
+    {
+        if (!$this->configured()) {
+            return ['ok' => false, 'provider' => null, 'model' => null, 'error' => 'No provider key configured.'];
+        }
+        $this->lastError = null;
+        $out = $this->complete('You are a health check. Reply with the single word OK.', 'ping', 8, false, 0.0);
+        return [
+            'ok'       => is_string($out) && $out !== '',
+            'provider' => $this->activeProvider(),
+            'model'    => $this->activeModel(),
+            'error'    => (is_string($out) && $out !== '') ? null : ($this->lastError ?? 'No response from any provider.'),
+        ];
+    }
+
+    /** Strip a leading/trailing markdown ```json … ``` fence some models wrap JSON in. */
+    private static function stripJsonFence(string $s): string
+    {
+        $t = trim($s);
+        if (str_starts_with($t, '```')) {
+            $t = (string) preg_replace('/^```[a-zA-Z0-9]*\s*/', '', $t);
+            $t = (string) preg_replace('/\s*```$/', '', $t);
+        }
+        return trim($t);
     }
 
     // ── Provider: Groq (free, fast, OpenAI-compatible) ─────────────────────
@@ -262,20 +328,36 @@ class AiService
     // ── Shared HTTP + parsing helpers ──────────────────────────────────────
     private function httpPost(string $url, array $headers, array $payload): ?array
     {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => $this->timeout,
-            CURLOPT_HTTPHEADER     => array_merge(['Content-Type: application/json'], $headers),
-            CURLOPT_POSTFIELDS     => json_encode($payload),
-        ]);
-        $resp = curl_exec($ch);
-        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-        if ($code !== 200 || !$resp) return null;
-        $j = json_decode((string) $resp, true);
-        return is_array($j) ? $j : null;
+        $body = json_encode($payload);
+        // Up to 2 attempts: retry once on a TRANSIENT failure (network/timeout,
+        // 429 rate-limit, or 5xx), which are exactly the errors that made AI
+        // "randomly not work". Permanent errors (4xx auth/bad-request) don't retry.
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => $this->timeout,
+                CURLOPT_HTTPHEADER     => array_merge(['Content-Type: application/json'], $headers),
+                CURLOPT_POSTFIELDS     => $body,
+            ]);
+            $resp = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $cerr = curl_error($ch);
+            curl_close($ch);
+
+            if ($code === 200 && $resp) {
+                $j = json_decode((string) $resp, true);
+                return is_array($j) ? $j : null;
+            }
+
+            $transient = ($code === 0 || $code === 429 || $code >= 500);
+            $this->lastError = 'HTTP ' . $code . ($cerr !== '' ? ' (' . $cerr . ')' : '')
+                . ($resp ? ' ' . substr((string) $resp, 0, 160) : '');
+            if (!$transient || $attempt === 2) return null;
+            usleep(300000); // 0.3s backoff before the single retry
+        }
+        return null;
     }
 
     /** Pull the first {"score":..,"reason":..} object out of a model reply. */

@@ -119,4 +119,43 @@ class AiServiceTest extends TestCase
 
         unset($_ENV['ANTHROPIC_API_KEY']);                     // don't leak into later tests
     }
+
+    public function test_general_features_fall_back_to_the_moderation_groq_key(): void
+    {
+        // Admin pasted ONLY the moderation Groq key. General features (Gee, filter,
+        // triage, dedup) must still work — the symmetric fallback.
+        $this->clearEnv();
+        DB::table('gates_settings')->where('key_name', 'like', 'ai_%')->delete();
+        DB::table('gates_settings')->insert([['key_name' => 'ai_groq_key_mod', 'value' => 'only-a-mod-key']]);
+
+        $gen = AiService::boot();               // 'general' purpose
+        $this->assertTrue($gen->configured(), 'a moderation-only Groq key must power general AI too');
+        $this->assertSame('groq', $gen->activeProvider());
+    }
+
+    public function test_selftest_reports_missing_provider(): void
+    {
+        $r = (new AiService())->selfTest();
+        $this->assertFalse($r['ok']);
+        $this->assertNull($r['provider']);
+        $this->assertStringContainsStringIgnoringCase('no provider', $r['error']);
+    }
+
+    public function test_provider_chain_is_priority_ordered(): void
+    {
+        $m = new \ReflectionMethod(AiService::class, 'providerChain');
+        $m->setAccessible(true);
+        $this->assertSame(['groq', 'gemini', 'anthropic', 'openai'], $m->invoke(new AiService('g', 'm', 'a', 'o')));
+        $this->assertSame(['anthropic', 'openai'], $m->invoke(new AiService(null, null, 'a', 'o')));
+        $this->assertSame([], $m->invoke(new AiService()));
+    }
+
+    public function test_json_fence_is_stripped(): void
+    {
+        $m = new \ReflectionMethod(AiService::class, 'stripJsonFence');
+        $m->setAccessible(true);
+        $this->assertSame('{"a":1}', $m->invoke(null, "```json\n{\"a\":1}\n```"));
+        $this->assertSame('{"a":1}', $m->invoke(null, "```\n{\"a\":1}\n```"));
+        $this->assertSame('{"a":1}', $m->invoke(null, '{"a":1}'));
+    }
 }
