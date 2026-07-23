@@ -533,6 +533,7 @@ return function(App $app) {
         $a->get('/nominees',        AdminNomineesController::class.':index');
         $a->get('/nominees/duplicate-scan', AdminNomineesController::class.':duplicateScan');
         $a->post('/nominees/merge', AdminNomineesController::class.':merge');
+        $a->post('/nominees/unmerge', AdminNomineesController::class.':unmerge');
         $a->post('/nominees/{id:[0-9]+}/link',     AdminNomineesController::class.':link');
         $a->post('/nominees/{id:[0-9]+}/photo',         AdminNomineesController::class.':photo');
         $a->post('/nominees/{id:[0-9]+}/photo/primary', AdminNomineesController::class.':photoPrimary');

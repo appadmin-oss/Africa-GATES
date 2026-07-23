@@ -124,6 +124,7 @@ class VoteController {
             ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
             ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
             ->where('n.id', $id)->where('n.status', 'approved')
+            ->where(fn($q) => \AfricaGates\Services\MergeService::notMerged($q, 'n.merged_into'))
             ->select(['n.id', 'n.name', 'p.slug as programme_slug'])->first();
         if (!$row) return $res->withHeader('Location', '/vote')->withStatus(302);
         return $res->withHeader('Location', $this->nomineeUrl($id, (string) $row->name, (string) $row->programme_slug))->withStatus(302);
@@ -138,6 +139,7 @@ class VoteController {
             ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
             ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
             ->where('n.id', $id)->where('n.status', 'approved')
+            ->where(fn($q) => \AfricaGates\Services\MergeService::notMerged($q, 'n.merged_into'))
             ->select([
                 'n.id', 'n.name', 'n.tagline', 'n.photo_path', 'n.vote_count', 'n.country_code', 'n.profile_id',
                 'c.id as category_id', 'c.title as category',

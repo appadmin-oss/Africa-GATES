@@ -246,8 +246,10 @@ HTML;
                 // Normalised dedup (case-insensitive + trimmed) so "Dr. Jane Doe" and
                 // "dr. jane doe " don't both become separate nominees that split votes.
                 $normName = strtolower(trim((string)$nom->nominee_name));
-                $nomineeId = (int)(DB::table('gates_nominees')->where('category_id', $catId)
-                    ->whereRaw('LOWER(TRIM(name)) = ?', [$normName])->value('id') ?? 0);
+                $nomineeId = (int)(\AfricaGates\Services\MergeService::notMerged(
+                        DB::table('gates_nominees')->where('category_id', $catId)
+                            ->whereRaw('LOWER(TRIM(name)) = ?', [$normName])
+                    )->value('id') ?? 0);   // never re-attach to a merged-away tombstone
                 if ($nomineeId < 1) {
                     // Best-effort auto-link to an existing registry profile so this
                     // nominee's votes + judge scores roll up into the CPI leaderboard.
@@ -354,8 +356,10 @@ HTML;
             return $res->withHeader('Location', '/admin/nominations/' . $id)->withStatus(302);
         }
         $normName = strtolower(trim((string)$nom->nominee_name));
-        $nomineeId = (int)(DB::table('gates_nominees')->where('category_id', $nom->category_id)
-            ->whereRaw('LOWER(TRIM(name)) = ?', [$normName])->value('id') ?? 0);
+        $nomineeId = (int)(\AfricaGates\Services\MergeService::notMerged(
+                DB::table('gates_nominees')->where('category_id', $nom->category_id)
+                    ->whereRaw('LOWER(TRIM(name)) = ?', [$normName])
+            )->value('id') ?? 0);
         if ($nomineeId < 1) {
             $_SESSION['flash_error'] = 'Could not locate the created nominee record.';
             return $res->withHeader('Location', '/admin/nominations/' . $id)->withStatus(302);

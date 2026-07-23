@@ -37,6 +37,7 @@ class NomineesController
             ->join('gates_award_categories as c','c.id','=','n.category_id')
             ->join('gates_award_cycles as cy','cy.id','=','c.cycle_id')
             ->join('gates_award_programmes as p','p.id','=','cy.programme_id');
+        \AfricaGates\Services\MergeService::notMerged($base, 'n.merged_into');   // hide merge tombstones from the list
         if ($cycleId) $base->where('cy.id', $cycleId);
         if ($status)  $base->where('n.status', $status);
         if ($q)       $base->where('n.name','like',"%$q%");
@@ -94,14 +95,16 @@ class NomineesController
             'pages'      => $pages,
             'per'        => self::PER_PAGE,
             'qs'         => $qsBuilt !== '' ? '&' . $qsBuilt : '',
+            'merged'     => \AfricaGates\Services\MergeService::recentlyMerged(),   // tombstones, with an undo action
         ]);
     }
 
     /**
      * Merge duplicate nominees into one survivor (counters vote-splitting).
      * Reassigns votes + judge scores + everything else, rebuilds counters and
-     * deletes the folded rows via MergeService. Admin+ only — it moves votes,
-     * judge scores and the CPI rollup, an award-integrity decision.
+     * TOMBSTONES the folded rows via MergeService (reversible — see unmerge()).
+     * Admin+ only — it moves votes, judge scores and the CPI rollup, an
+     * award-integrity decision.
      */
     public function merge(Request $req, Response $res): Response
     {
@@ -127,6 +130,35 @@ class NomineesController
             );
         } else {
             $_SESSION['flash_error'] = $r['error'] ?? 'The merge could not be completed.';
+        }
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * Undo a merge: restore a tombstoned nominee and move its votes/scores back
+     * off the survivor (re-inserting any rows that were dropped as collisions),
+     * then rebuild both nominees' counters — via MergeService::unmerge(). Admin+
+     * only, same integrity gate as merge.
+     */
+    public function unmerge(Request $req, Response $res): Response
+    {
+        $back = $req->getServerParams()['HTTP_REFERER'] ?? '/admin/nominees';
+        if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
+            $_SESSION['flash_error'] = 'Only an admin can undo a merge (it moves votes and judge scores).';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+        $mergedId = (int) (((array) $req->getParsedBody())['merged_id'] ?? 0);
+        if (!$mergedId) {
+            $_SESSION['flash_error'] = 'Choose which merged nominee to restore.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $r = \AfricaGates\Services\MergeService::unmerge($mergedId, (int)($_SESSION['admin_id'] ?? 0) ?: null);
+        if ($r['ok']) {
+            $_SESSION['flash_ok'] = sprintf('Merge undone — the nominee is live again and %d row%s moved back. Rankings refresh on the next CPI recompute.',
+                $r['restored'], $r['restored'] === 1 ? '' : 's');
+        } else {
+            $_SESSION['flash_error'] = $r['error'] ?? 'The merge could not be undone.';
         }
         return $res->withHeader('Location', $back)->withStatus(302);
     }

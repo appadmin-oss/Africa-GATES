@@ -58,7 +58,7 @@ class BonusVoteService
                 return ['ok' => false, 'message' => "Only {$remaining} bonus vote(s) remain on this donation."];
             }
 
-            $nominee = DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved')->first();
+            $nominee = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))->first();
             if (!$nominee) {
                 return ['ok' => false, 'message' => 'Nominee is not open for voting.'];
             }

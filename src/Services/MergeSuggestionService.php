@@ -46,10 +46,11 @@ final class MergeSuggestionService
     {
         $nominees = [];
         try {
-            $nominees = DB::table('gates_nominees')
+            $q = DB::table('gates_nominees')
                 ->where('category_id', $categoryId)
-                ->whereIn('status', ['pending', 'approved', 'winner', 'runner_up'])
-                ->orderBy('id')->limit(self::SCAN_CAP + 1)->get(['id', 'name'])->all();
+                ->whereIn('status', ['pending', 'approved', 'winner', 'runner_up']);
+            MergeService::notMerged($q);                 // never suggest merging a tombstone
+            $nominees = $q->orderBy('id')->limit(self::SCAN_CAP + 1)->get(['id', 'name'])->all();
         } catch (\Throwable) {}
 
         $capped = count($nominees) > self::SCAN_CAP;

@@ -67,10 +67,29 @@ CREATE TABLE IF NOT EXISTS gates_nominees (
   country_code CHAR(2) DEFAULT NULL, vote_count INT UNSIGNED NOT NULL DEFAULT 0,
   organic_vote_count INT UNSIGNED NOT NULL DEFAULT 0,
   status ENUM('pending','approved','winner','runner_up') NOT NULL DEFAULT 'pending',
+  merged_into BIGINT UNSIGNED DEFAULT NULL,
+  merged_at TIMESTAMP NULL DEFAULT NULL,
   nominated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY(id), KEY idx_category(category_id), KEY idx_votes(vote_count DESC),
+  PRIMARY KEY(id), KEY idx_category(category_id), KEY idx_votes(vote_count DESC), KEY idx_merged_into(merged_into),
   CONSTRAINT fk_nominee_cat FOREIGN KEY(category_id) REFERENCES gates_award_categories(id) ON DELETE CASCADE,
   CONSTRAINT fk_nominee_profile FOREIGN KEY(profile_id) REFERENCES gates_profiles(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Per-row undo journal for nominee merges: every reassigned row (old value) and
+-- every collision-dropped row (full snapshot) so an unmerge restores exactly.
+CREATE TABLE IF NOT EXISTS gates_merge_log (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  batch VARCHAR(40) NOT NULL,
+  keep_id BIGINT UNSIGNED NOT NULL,
+  merged_id BIGINT UNSIGNED NOT NULL,
+  op ENUM('reassign','delete') NOT NULL,
+  tbl VARCHAR(64) NOT NULL,
+  row_pk BIGINT UNSIGNED DEFAULT NULL,
+  col VARCHAR(64) DEFAULT NULL,
+  old_val VARCHAR(64) DEFAULT NULL,
+  snapshot TEXT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(id), KEY idx_merge_log_merged(merged_id), KEY idx_merge_log_batch(batch)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gates_votes (

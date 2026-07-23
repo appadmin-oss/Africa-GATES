@@ -94,10 +94,29 @@ CREATE TABLE IF NOT EXISTS gates_nominees (
   vote_count INTEGER NOT NULL DEFAULT 0,          -- total display support (organic + paid boost)
   organic_vote_count INTEGER NOT NULL DEFAULT 0,  -- organic OTP votes only; the CPI community signal
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','winner','runner_up')),
+  merged_into INTEGER DEFAULT NULL,   -- survivor id when this row is a merge tombstone (NULL = live)
+  merged_at TEXT DEFAULT NULL,
   nominated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(category_id) REFERENCES gates_award_categories(id) ON DELETE CASCADE,
   FOREIGN KEY(profile_id) REFERENCES gates_profiles(id) ON DELETE SET NULL
 );
+
+-- Per-row undo journal for nominee merges (see schema.sql for the rationale).
+CREATE TABLE IF NOT EXISTS gates_merge_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  batch TEXT NOT NULL,
+  keep_id INTEGER NOT NULL,
+  merged_id INTEGER NOT NULL,
+  op TEXT NOT NULL,             -- 'reassign' | 'delete'
+  tbl TEXT NOT NULL,
+  row_pk INTEGER DEFAULT NULL,  -- pk of the affected row (reassign)
+  col TEXT DEFAULT NULL,        -- column moved (reassign)
+  old_val TEXT DEFAULT NULL,    -- prior value = merged_id (reassign)
+  snapshot TEXT DEFAULT NULL,   -- JSON of the dropped row (delete)
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_merge_log_merged ON gates_merge_log(merged_id);
+CREATE INDEX IF NOT EXISTS idx_merge_log_batch ON gates_merge_log(batch);
 CREATE INDEX IF NOT EXISTS idx_nominees_cat ON gates_nominees(category_id);
 CREATE INDEX IF NOT EXISTS idx_nominees_votes ON gates_nominees(vote_count DESC);
 

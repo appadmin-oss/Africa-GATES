@@ -27,8 +27,10 @@ class NomineeScoringService
      */
     public function scoreCategory(int $categoryId): array
     {
-        $nominees = DB::table('gates_nominees')->where('category_id', $categoryId)
-            ->whereIn('status', ['approved', 'winner', 'runner_up'])->get();
+        $nq = DB::table('gates_nominees')->where('category_id', $categoryId)
+            ->whereIn('status', ['approved', 'winner', 'runner_up']);
+        \AfricaGates\Services\MergeService::notMerged($nq);          // merge tombstones never score
+        $nominees = $nq->get();
         if ($nominees->isEmpty()) return [];
 
         // Effective CPI weights for this category's cycle (config over defaults).

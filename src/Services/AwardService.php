@@ -38,7 +38,7 @@ class AwardService {
         $cycle=DB::table('gates_award_cycles')->where('programme_id',$p->id)
             ->orderByRaw("CASE WHEN status IN ('nominations','voting','judging','results') THEN 0 ELSE 1 END")
             ->orderByDesc('year')->orderByDesc('id')->first();
-        $cats=$cycle?DB::table('gates_award_categories')->where('cycle_id',$cycle->id)->orderBy('sort_order')->get()->map(fn($c)=>['id'=>$c->id,'slug'=>$c->slug,'title'=>$c->title,'description'=>$c->description,'nominee_count'=>DB::table('gates_nominees')->where('category_id',$c->id)->where('status','approved')->count()])->values()->all():[];
+        $cats=$cycle?DB::table('gates_award_categories')->where('cycle_id',$cycle->id)->orderBy('sort_order')->get()->map(fn($c)=>['id'=>$c->id,'slug'=>$c->slug,'title'=>$c->title,'description'=>$c->description,'nominee_count'=>MergeService::notMerged(DB::table('gates_nominees')->where('category_id',$c->id)->where('status','approved'))->count()])->values()->all():[];
         return['id'=>$p->id,'slug'=>$p->slug,'title'=>$p->title,'subtitle'=>$p->subtitle ?? null,'description'=>$p->description ?? null,'icon_emoji'=>$p->icon_emoji ?? null,'cycle'=>$cycle?(array)$cycle:null,'categories'=>$cats];
     }
 
@@ -48,6 +48,7 @@ class AwardService {
         if(!$cycle) return [];
         $q=DB::table('gates_nominees as n')->join('gates_award_categories as c','c.id','=','n.category_id')
             ->where('c.cycle_id',$cycle->id)->where('n.status','approved');
+        MergeService::notMerged($q, 'n.merged_into');
         if($categoryId) $q->where('n.category_id',$categoryId);
         return $q->select(['n.id','n.name','n.tagline','n.photo_path','n.vote_count','n.category_id','n.country_code','c.title as category'])
             ->orderByDesc('n.vote_count')->get()

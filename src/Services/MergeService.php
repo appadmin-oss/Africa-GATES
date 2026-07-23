@@ -13,9 +13,15 @@ use Illuminate\Database\Capsule\Manager as DB;
  * comments, uploads, form tokens and analytics into the survivor, DEDUPING
  * wherever a UNIQUE key would collide (a judge who scored two of the duplicates
  * on the same criterion; a voter — impossible within one category — etc.), then
- * rebuilds the survivor's vote counters from the reassigned rows and deletes the
- * merged rows. The whole thing runs in one transaction: any failure rolls back
- * and nothing is lost or half-merged.
+ * rebuilds the survivor's vote counters from the reassigned rows.
+ *
+ * REVERSIBLE (since 2026-07-22): a merge no longer deletes the duplicate rows.
+ * It **tombstones** them (`gates_nominees.merged_into` = survivor id) so they
+ * vanish from every public/scoring surface via {@see notMerged()}, and it writes
+ * a per-row undo journal to `gates_merge_log` — the old value of every reassigned
+ * row and a full snapshot of every collision-dropped row — so {@see unmerge()}
+ * restores the exact pre-merge state. The whole thing runs in one transaction:
+ * any failure rolls back and nothing is lost or half-merged.
  *
  * Constrained to nominees in the SAME category — the actual vote-splitting case,
  * and the reason it is safe: "one vote per voter per category" is already
@@ -39,6 +45,7 @@ final class MergeService
 
         $keep = DB::table('gates_nominees')->where('id', $keepId)->first();
         if (!$keep) return $fail('The nominee to keep no longer exists.');
+        if (!empty($keep->merged_into ?? null)) return $fail('The nominee to keep has itself been merged away — unmerge it first.');
 
         $ids = array_values(array_unique(array_filter(
             array_map('intval', $mergeIds),
@@ -46,7 +53,9 @@ final class MergeService
         )));
         if (!$ids) return $fail('Select at least one other nominee to merge into this one.');
 
-        $others = DB::table('gates_nominees')->whereIn('id', $ids)->get();
+        // Never fold in a nominee that is already a tombstone (it would double-merge).
+        $others = DB::table('gates_nominees')->whereIn('id', $ids)
+            ->where(function ($q) { self::notMerged($q); })->get();
         if ($others->isEmpty()) return $fail('None of the selected nominees exist any more.');
 
         foreach ($others as $o) {
@@ -55,25 +64,50 @@ final class MergeService
             }
         }
         $mergedIds = array_map(static fn($o) => (int) $o->id, $others->all());
+        $batch = self::token();
+        $now   = date('Y-m-d H:i:s');
+        $log   = [];
 
         try {
-            DB::transaction(function () use ($keepId, $mergedIds, $keep, $others) {
+            DB::transaction(function () use ($keepId, $mergedIds, $keep, $others, $batch, $now, &$log) {
                 foreach ($mergedIds as $from) {
-                    self::reassignAll($from, $keepId);
+                    self::reassignAll($from, $keepId, $batch, $log);
                 }
                 // The survivor inherits a profile link / photo from a merged row
-                // only if it doesn't already have one of its own.
+                // only if it doesn't already have one of its own. We journal the
+                // survivor's PRIOR value so an unmerge can put it back.
                 $adopt = [];
                 if (empty($keep->profile_id)) {
-                    foreach ($others as $o) { if (!empty($o->profile_id)) { $adopt['profile_id'] = (int) $o->profile_id; break; } }
+                    foreach ($others as $o) {
+                        if (!empty($o->profile_id)) {
+                            $adopt['profile_id'] = (int) $o->profile_id;
+                            $log[] = self::entry($batch, $keepId, (int) $o->id, 'reassign', 'gates_nominees', $keepId, 'profile_id', $keep->profile_id ?? null);
+                            break;
+                        }
+                    }
                 }
                 if (empty($keep->photo_path)) {
-                    foreach ($others as $o) { if (!empty($o->photo_path)) { $adopt['photo_path'] = (string) $o->photo_path; break; } }
+                    foreach ($others as $o) {
+                        if (!empty($o->photo_path)) {
+                            $adopt['photo_path'] = (string) $o->photo_path;
+                            $log[] = self::entry($batch, $keepId, (int) $o->id, 'reassign', 'gates_nominees', $keepId, 'photo_path', $keep->photo_path ?? null);
+                            break;
+                        }
+                    }
                 }
                 if ($adopt) DB::table('gates_nominees')->where('id', $keepId)->update($adopt);
 
                 self::rebuildCounters($keepId);
-                DB::table('gates_nominees')->whereIn('id', $mergedIds)->delete();
+
+                // Tombstone (not delete) — hidden everywhere via notMerged(), restorable via unmerge().
+                DB::table('gates_nominees')->whereIn('id', $mergedIds)
+                    ->update(['merged_into' => $keepId, 'merged_at' => $now]);
+
+                if ($log) {
+                    foreach (array_chunk($log, 200) as $chunk) {
+                        DB::table('gates_merge_log')->insert($chunk);
+                    }
+                }
             });
         } catch (\Throwable $e) {
             error_log('[MergeService] ' . $e->getMessage());
@@ -82,7 +116,7 @@ final class MergeService
 
         try {
             (new \AfricaGates\Admin\Services\AuditService())->record(
-                (int) ($adminId ?? 0), 'nominee.merge', 'nominee', $keepId, ['merged' => $mergedIds]
+                (int) ($adminId ?? 0), 'nominee.merge', 'nominee', $keepId, ['merged' => $mergedIds, 'batch' => $batch]
             );
         } catch (\Throwable) {}
 
@@ -90,40 +124,145 @@ final class MergeService
         return ['ok' => true, 'merged' => count($mergedIds), 'votes' => $votes, 'keep_id' => $keepId];
     }
 
-    /** Reassign every row referencing nominee $from to nominee $to, deduping where a UNIQUE key collides. */
-    private static function reassignAll(int $from, int $to): void
+    /**
+     * Reverse a merge for one tombstoned nominee: move its rows back off the
+     * survivor, re-insert the rows that were dropped as UNIQUE collisions,
+     * un-tombstone it, and rebuild BOTH nominees' counters. Transactional.
+     *
+     * @return array{ok:bool,error?:string,restored:int,keep_id:int,merged_id:int}
+     */
+    public static function unmerge(int $mergedId, ?int $adminId = null): array
+    {
+        $fail = static fn(string $msg): array => ['ok' => false, 'error' => $msg, 'restored' => 0, 'keep_id' => 0, 'merged_id' => $mergedId];
+
+        if (!self::hasCol('gates_nominees', 'merged_into') || !self::hasTable('gates_merge_log')) {
+            return $fail('Merge-undo is not available until the database migration has run.');
+        }
+        $nominee = DB::table('gates_nominees')->where('id', $mergedId)->first();
+        if (!$nominee) return $fail('That nominee no longer exists.');
+        $keepId = (int) ($nominee->merged_into ?? 0);
+        if ($keepId <= 0) return $fail('That nominee is not a merge tombstone — nothing to undo.');
+
+        $rows = DB::table('gates_merge_log')->where('merged_id', $mergedId)->orderBy('id')->get();
+        $restored = 0;
+
+        try {
+            DB::transaction(function () use ($mergedId, $keepId, $rows, &$restored) {
+                foreach ($rows as $r) {
+                    if ($r->op === 'delete') {
+                        // Re-insert the row that was dropped on a UNIQUE collision.
+                        $snap = json_decode((string) $r->snapshot, true);
+                        if (is_array($snap) && $snap) {
+                            try { DB::table($r->tbl)->insert($snap); $restored++; }
+                            catch (\Throwable) {
+                                // id may already be taken — retry letting the DB assign one.
+                                unset($snap['id']);
+                                try { DB::table($r->tbl)->insert($snap); $restored++; } catch (\Throwable) {}
+                            }
+                        }
+                    } else { // reassign — put the old value back on the specific row.
+                        if ($r->row_pk === null || $r->col === null) continue;
+                        try {
+                            $val = $r->old_val;
+                            if ($val !== null && ctype_digit((string) $val)) $val = (int) $val;
+                            DB::table($r->tbl)->where('id', (int) $r->row_pk)->update([$r->col => $val]);
+                            $restored++;
+                        } catch (\Throwable) {}
+                    }
+                }
+
+                DB::table('gates_nominees')->where('id', $mergedId)->update(['merged_into' => null, 'merged_at' => null]);
+
+                self::rebuildCounters($keepId);
+                self::rebuildCounters($mergedId);
+
+                DB::table('gates_merge_log')->where('merged_id', $mergedId)->delete();
+            });
+        } catch (\Throwable $e) {
+            error_log('[MergeService::unmerge] ' . $e->getMessage());
+            return $fail(\AfricaGates\Admin\Support\ActionError::dbMessage($e));
+        }
+
+        try {
+            (new \AfricaGates\Admin\Services\AuditService())->record(
+                (int) ($adminId ?? 0), 'nominee.unmerge', 'nominee', $mergedId, ['from_keep' => $keepId, 'restored' => $restored]
+            );
+        } catch (\Throwable) {}
+
+        return ['ok' => true, 'restored' => $restored, 'keep_id' => $keepId, 'merged_id' => $mergedId];
+    }
+
+    /**
+     * Tombstoned nominees the admin might want to undo — newest first, with the
+     * survivor's name for context. Empty when the migration hasn't run.
+     */
+    public static function recentlyMerged(int $limit = 20): array
+    {
+        if (!self::hasCol('gates_nominees', 'merged_into')) return [];
+        try {
+            return DB::table('gates_nominees as m')
+                ->leftJoin('gates_nominees as k', 'k.id', '=', 'm.merged_into')
+                ->whereNotNull('m.merged_into')
+                ->orderByDesc('m.merged_at')
+                ->limit(max(1, $limit))
+                ->get(['m.id', 'm.name', 'm.category_id', 'm.merged_at', 'm.merged_into as keep_id', 'k.name as keep_name'])
+                ->map(static fn($r) => (array) $r)->all();
+        } catch (\Throwable) { return []; }
+    }
+
+    /**
+     * Append a "not a merge tombstone" filter to a nominee query, guarded so it
+     * no-ops on a pre-migration DB (the column won't exist yet). $col may be
+     * alias-qualified, e.g. 'n.merged_into'.
+     */
+    public static function notMerged($query, string $col = 'merged_into')
+    {
+        $base = str_contains($col, '.') ? substr($col, strpos($col, '.') + 1) : $col;
+        if (self::hasCol('gates_nominees', $base)) $query->whereNull($col);
+        return $query;
+    }
+
+    /** Reassign every row referencing nominee $from to nominee $to, journaling each move/drop. */
+    private static function reassignAll(int $from, int $to, string $batch, array &$log): void
     {
         // Votes — same category guarantees no uq_one_vote(voter,category) collision, so plain reassign.
-        self::reassignPlain('gates_votes', 'nominee_id', $from, $to);
+        self::reassignPlain('gates_votes', 'nominee_id', $from, $to, $batch, $log);
 
         // Judge data — dedupe on the unique key's non-nominee columns (keep the survivor's row, drop the duplicate).
-        self::reassignDedup('gates_judge_criteria_scores', 'nominee_id', $from, $to, ['judge_id', 'criterion_id']);
-        self::reassignDedup('gates_judge_notes',           'nominee_id', $from, $to, ['judge_id']);
-        self::reassignDedup('gates_vote_milestones',       'nominee_id', $from, $to, ['milestone']);
-        self::reassignDedup('gates_collusion_findings',    'nominee_id', $from, $to, ['kind', 'shared_key']);
+        self::reassignDedup('gates_judge_criteria_scores', 'nominee_id', $from, $to, ['judge_id', 'criterion_id'], $batch, $log);
+        self::reassignDedup('gates_judge_notes',           'nominee_id', $from, $to, ['judge_id'], $batch, $log);
+        self::reassignDedup('gates_vote_milestones',       'nominee_id', $from, $to, ['milestone'], $batch, $log);
+        self::reassignDedup('gates_collusion_findings',    'nominee_id', $from, $to, ['kind', 'shared_key'], $batch, $log);
 
         // Plain soft references (no UNIQUE key involving the nominee).
-        self::reassignPlain('gates_funnel_events', 'nominee_id', $from, $to);
-        self::reassignPlain('gates_otp_tokens',    'nominee_id', $from, $to);
-        self::reassignPlain('gates_donations',     'intent_nominee_id', $from, $to);
+        self::reassignPlain('gates_funnel_events', 'nominee_id', $from, $to, $batch, $log);
+        self::reassignPlain('gates_otp_tokens',    'nominee_id', $from, $to, $batch, $log);
+        self::reassignPlain('gates_donations',     'intent_nominee_id', $from, $to, $batch, $log);
 
         // Polymorphic references (type column = 'nominee').
-        self::reassignPlain('gates_comments',    'target_id',      $from, $to, ['target_type', 'nominee']);
-        self::reassignDedup('gates_cheers',      'target_id',      $from, $to, ['fp'], ['target_type', 'nominee']);
-        self::reassignPlain('gates_uploads',     'attached_to_id', $from, $to, ['attached_to_type', 'nominee']);
-        self::reassignPlain('gates_form_tokens', 'subject_id',     $from, $to, ['purpose', 'nominee']);
-        self::reassignPlain('gates_events',      'subject_id',     $from, $to, ['subject_type', 'nominee']);
-        self::reassignPlain('gates_activity',    'target_id',      $from, $to, ['target_type', 'nominee']);
+        self::reassignPlain('gates_comments',    'target_id',      $from, $to, $batch, $log, ['target_type', 'nominee']);
+        self::reassignDedup('gates_cheers',      'target_id',      $from, $to, ['fp'], $batch, $log, ['target_type', 'nominee']);
+        self::reassignPlain('gates_uploads',     'attached_to_id', $from, $to, $batch, $log, ['attached_to_type', 'nominee']);
+        self::reassignPlain('gates_form_tokens', 'subject_id',     $from, $to, $batch, $log, ['purpose', 'nominee']);
+        self::reassignPlain('gates_events',      'subject_id',     $from, $to, $batch, $log, ['subject_type', 'nominee']);
+        self::reassignPlain('gates_activity',    'target_id',      $from, $to, $batch, $log, ['target_type', 'nominee']);
         // Deliberately untouched: gates_vote_snapshots (hash chain), gates_audit_log (history), gates_nominations (decoupled).
     }
 
-    /** UPDATE $col $from→$to, optionally scoped to a polymorphic [typeCol, typeVal]. Guarded for missing tables/columns. */
-    private static function reassignPlain(string $table, string $col, int $from, int $to, ?array $scope = null): void
+    /** UPDATE $col $from→$to (scoped to a polymorphic [typeCol,typeVal] if given), journaling each moved row's id + old value. */
+    private static function reassignPlain(string $table, string $col, int $from, int $to, string $batch, array &$log, ?array $scope = null): void
     {
         if (!self::hasCol($table, $col)) return;
+        $hasId = self::hasCol($table, 'id');
         try {
             $q = DB::table($table)->where($col, $from);
             if ($scope) $q->where($scope[0], $scope[1]);
+
+            if ($hasId) {
+                foreach ($q->pluck('id') as $pk) {
+                    $log[] = self::entry($batch, $to, $from, 'reassign', $table, (int) $pk, $col, (string) $from);
+                }
+            }
             $q->update([$col => $to]);
         } catch (\Throwable) {}
     }
@@ -131,10 +270,11 @@ final class MergeService
     /**
      * Dedupe-then-reassign: for each $from row whose ($otherKeyCols) already
      * exist on a $to row, delete the $from row (it would violate the UNIQUE
-     * key); reassign the rest. Portable across MySQL/SQLite (done in PHP, not a
-     * DELETE…JOIN). Requires an `id` PK on the table.
+     * key) after snapshotting it; reassign the rest (journaling the old value).
+     * Portable across MySQL/SQLite (done in PHP, not a DELETE…JOIN). Requires
+     * an `id` PK on the table.
      */
-    private static function reassignDedup(string $table, string $col, int $from, int $to, array $otherKeyCols, ?array $scope = null): void
+    private static function reassignDedup(string $table, string $col, int $from, int $to, array $otherKeyCols, string $batch, array &$log, ?array $scope = null): void
     {
         if (!self::hasCol($table, $col) || !self::hasCol($table, 'id')) return;
         foreach ($otherKeyCols as $c) { if (!self::hasCol($table, $c)) return; }
@@ -146,13 +286,17 @@ final class MergeService
 
             $fromQ = DB::table($table)->where($col, $from);
             if ($scope) $fromQ->where($scope[0], $scope[1]);
-            foreach ($fromQ->get(array_merge(['id'], $otherKeyCols)) as $r) {
+            foreach ($fromQ->get() as $r) {                                    // full rows — we may need to snapshot
                 $row = (array) $r;
-                if (isset($taken[self::keyOf($row, $otherKeyCols)])) {
-                    DB::table($table)->where('id', $row['id'])->delete();       // collision → drop the duplicate
+                $k   = self::keyOf($row, $otherKeyCols);
+                if (isset($taken[$k])) {
+                    // collision → snapshot then drop the duplicate (so unmerge can re-insert it verbatim)
+                    $log[] = self::entry($batch, $to, $from, 'delete', $table, (int) ($row['id'] ?? 0), $col, (string) $from, json_encode($row));
+                    DB::table($table)->where('id', $row['id'])->delete();
                 } else {
+                    $log[] = self::entry($batch, $to, $from, 'reassign', $table, (int) ($row['id'] ?? 0), $col, (string) $from);
                     DB::table($table)->where('id', $row['id'])->update([$col => $to]);
-                    $taken[self::keyOf($row, $otherKeyCols)] = true;            // guard against dup-within-$from
+                    $taken[$k] = true;                                          // guard against dup-within-$from
                 }
             }
         } catch (\Throwable) {}
@@ -182,13 +326,40 @@ final class MergeService
         } catch (\Throwable) {}
     }
 
+    /** Build one journal row. */
+    private static function entry(string $batch, int $keepId, int $mergedId, string $op, string $table, ?int $rowPk, ?string $col, ?string $oldVal, ?string $snapshot = null): array
+    {
+        return [
+            'batch' => $batch, 'keep_id' => $keepId, 'merged_id' => $mergedId,
+            'op' => $op, 'tbl' => $table, 'row_pk' => $rowPk, 'col' => $col,
+            'old_val' => $oldVal, 'snapshot' => $snapshot,
+        ];
+    }
+
+    private static function token(): string
+    {
+        try { return bin2hex(random_bytes(16)); }
+        catch (\Throwable) { return str_replace('.', '', uniqid('m', true)); }
+    }
+
     private static function keyOf(array $row, array $cols): string
     {
         return implode('|', array_map(static fn($c) => (string) ($row[$c] ?? ''), $cols));
     }
 
+    /** @var array<string,bool> per-process memo — the schema is stable within a request. */
+    private static array $colMemo = [];
+
     private static function hasCol(string $table, string $col): bool
     {
-        try { return DB::schema()->hasColumn($table, $col); } catch (\Throwable) { return false; }
+        $k = $table . '.' . $col;
+        if (isset(self::$colMemo[$k])) return self::$colMemo[$k];
+        try { return self::$colMemo[$k] = DB::schema()->hasColumn($table, $col); }
+        catch (\Throwable) { return false; }   // don't memo a transient failure
+    }
+
+    private static function hasTable(string $table): bool
+    {
+        try { return DB::schema()->hasTable($table); } catch (\Throwable) { return false; }
     }
 }

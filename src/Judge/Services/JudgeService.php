@@ -120,9 +120,10 @@ class JudgeService
         $catIds = array_column($cats, 'id');
         if (!$catIds) return ['cycle' => (array)$cycle, 'categories' => []];
 
-        $nominees = DB::table('gates_nominees')->whereIn('category_id', $catIds)
-            ->whereIn('status', ['approved','winner','runner_up'])
-            ->orderByDesc('vote_count')->get()->map(fn($r) => (array)$r)->all();
+        $nq = DB::table('gates_nominees')->whereIn('category_id', $catIds)
+            ->whereIn('status', ['approved','winner','runner_up']);
+        \AfricaGates\Services\MergeService::notMerged($nq);       // tombstones drop off the ballot
+        $nominees = $nq->orderByDesc('vote_count')->get()->map(fn($r) => (array)$r)->all();
 
         $criteria = $this->criteria($programmeId);
         $criteriaIds = array_column($criteria, 'id');
@@ -198,8 +199,9 @@ class JudgeService
         $nominee = DB::table('gates_nominees')->where('id', $nomineeId)->first();
         if (!$nominee) return ['ok' => false, 'message' => 'Nominee not found'];
         // Only nominees actually on the ballot are scoreable — a crafted POST must
-        // not let a judge pre-score a pending/rejected nominee before it surfaces.
-        if (!in_array($nominee->status, ['approved', 'winner', 'runner_up'], true)) {
+        // not let a judge pre-score a pending/rejected nominee, or a merged-away
+        // tombstone, before/after it leaves the ballot.
+        if (!in_array($nominee->status, ['approved', 'winner', 'runner_up'], true) || !empty($nominee->merged_into ?? null)) {
             return ['ok' => false, 'message' => 'This nominee is not open for scoring.'];
         }
         // Authorisation: a judge may only score nominees in a programme they're

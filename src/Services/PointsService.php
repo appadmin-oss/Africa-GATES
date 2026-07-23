@@ -135,7 +135,7 @@ final class PointsService
                 if ((int) $u->points < $cost) {
                     return ['ok' => false, 'message' => 'You need ' . number_format($cost) . ' points to redeem a vote — you have ' . number_format((int) $u->points) . '.'];
                 }
-                $nom = DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved')->first();
+                $nom = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))->first();
                 if (!$nom) return ['ok' => false, 'message' => 'That nominee is not open for voting.'];
 
                 $cycle = DB::table('gates_award_cycles AS cy')

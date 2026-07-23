@@ -73,7 +73,7 @@ class VoteService {
                         'message' => 'This code was issued for a different nominee. Please request a new code.'];
             }
 
-            $nominee = DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved')->first();
+            $nominee = MergeService::notMerged(DB::table('gates_nominees')->where('id', $nomineeId)->where('status', 'approved'))->first();
             if (!$nominee) return ['success' => false, 'code' => 'INVALID_NOMINEE', 'message' => 'Nominee not found.'];
 
             if (DB::table('gates_votes')->where('voter_email_hash', $eh)->where('category_id', $nominee->category_id)->exists()) {
