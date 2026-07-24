@@ -32,7 +32,8 @@ final class PulseController
                 'events'  => $this->safe(fn() => DB::table('gates_site_events')->where('status', 'published')
                     ->where('event_date', '>=', date('Y-m-d H:i:s'))->orderBy('event_date')->limit(6)
                     ->get()->map(fn($r) => (array)$r)->all()),
-                'threads' => $this->safe(fn() => DB::table('gates_community_threads')
+                'threads' => $this->safe(fn() => DB::table('gates_threads')
+                    ->where('status', 'approved')
                     ->orderByDesc('id')->limit(5)->get()->map(fn($r) => (array)$r)->all()),
             ];
         }, ['registry']);

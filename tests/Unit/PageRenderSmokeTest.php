@@ -89,4 +89,39 @@ class PageRenderSmokeTest extends TestCase
         $this->assertStringContainsString('Continental Gala Night', $body);
         $this->assertStringNotContainsString('No upcoming events just yet', $body);
     }
+
+    public function test_awards_renders_active_programmes(): void
+    {
+        DB::table('gates_award_programmes')->insert([
+            'slug' => 'music-excellence', 'title' => 'Music Excellence Award',
+            'scope' => 'continental', 'sort_order' => 1, 'is_active' => 1,
+        ]);
+        [$status, $body] = $this->render(\AfricaGates\Controllers\AwardsController::class, 'index', '/awards');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Music Excellence Award', $body);
+    }
+
+    public function test_pulse_renders_community_threads(): void
+    {
+        // Guards the fix for the gates_community_threads → gates_threads table typo
+        // (the thread rail was permanently empty because the safe() wrapper hid the
+        // missing-table error).
+        DB::table('gates_threads')->insert([
+            'slug' => 'welcome-thread', 'title' => 'Welcome to the community',
+            'author_name' => 'Ada', 'author_email_hash' => str_repeat('a', 64),
+            'body' => 'Say hello here.', 'status' => 'approved',
+        ]);
+        [$status, $body] = $this->render(\AfricaGates\Controllers\PulseController::class, 'index', '/pulse');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Welcome to the community', $body, 'community threads must show on Pulse');
+    }
+
+    public function test_home_renders_seeded_profiles(): void
+    {
+        // Home aggregates many sources; the seeded profiles must surface through
+        // the leaderboard / ticker / spotlight rails.
+        [$status, $body] = $this->render(\AfricaGates\Controllers\HomeController::class, 'index', '/');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Ada Obi', $body);
+    }
 }
