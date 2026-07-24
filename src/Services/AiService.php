@@ -32,6 +32,8 @@ class AiService
         private readonly ?string $openaiKey = null,
         private readonly ?string $groqModel = null,
         private readonly ?string $geminiModel = null,
+        private readonly ?string $anthropicModel = null,
+        private readonly ?string $openaiModel = null,
         private readonly int $timeout = 6,
     ) {}
 
@@ -90,6 +92,8 @@ class AiService
             $resolve('ai_openai_key', 'OPENAI_API_KEY'),
             $groqModel,
             $resolve('ai_gemini_model', 'GEMINI_MODEL'),
+            $resolve('ai_anthropic_model', 'ANTHROPIC_MODEL'),
+            $resolve('ai_openai_model', 'OPENAI_MODEL'),
         );
     }
 
@@ -115,8 +119,8 @@ class AiService
         return match ($this->activeProvider()) {
             'groq'      => $this->groqModel ?: 'llama-3.1-8b-instant',
             'gemini'    => $this->geminiModel ?: 'gemini-2.0-flash',
-            'anthropic' => 'claude-haiku-4-5-20251001',
-            'openai'    => $_ENV['OPENAI_MODEL'] ?? 'gpt-4o-mini',
+            'anthropic' => $this->anthropicModel ?: 'claude-haiku-4-5-20251001',
+            'openai'    => $this->openaiModel ?: ($_ENV['OPENAI_MODEL'] ?? 'gpt-4o-mini'),
             default     => null,
         };
     }
@@ -280,7 +284,7 @@ class AiService
     private function anthropicChat(string $system, string $user, int $maxTokens, bool $json, float $temp): ?string
     {
         $payload = [
-            'model'      => 'claude-haiku-4-5-20251001',
+            'model'      => $this->anthropicModel ?: 'claude-haiku-4-5-20251001',
             'max_tokens' => $maxTokens,
             'temperature'=> $temp,
             'system'     => $system . ($json ? ' Reply with ONLY a valid JSON object.' : ''),
@@ -295,7 +299,7 @@ class AiService
     private function openaiChat(string $system, string $user, int $maxTokens, bool $json, float $temp): ?string
     {
         $payload = [
-            'model'       => $_ENV['OPENAI_MODEL'] ?? 'gpt-4o-mini',
+            'model'       => $this->openaiModel ?: ($_ENV['OPENAI_MODEL'] ?? 'gpt-4o-mini'),
             'max_tokens'  => $maxTokens,
             'temperature' => $temp,
             'messages'    => [

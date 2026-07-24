@@ -154,6 +154,11 @@
         <div><label for="f-ai_groq_model">Groq model <small>general / public — fast &amp; cheap</small></label><input type="text" name="ai_groq_model" id="f-ai_groq_model" value="{{ values.ai_groq_model|default('') }}" placeholder="llama-3.1-8b-instant"></div>
         <div><label for="f-ai_gemini_model">Gemini model <small>optional</small></label><input type="text" name="ai_gemini_model" id="f-ai_gemini_model" value="{{ values.ai_gemini_model|default('') }}" placeholder="gemini-2.0-flash"></div>
       </div>
+      <div class="row">
+        <div><label for="f-ai_anthropic_model">Anthropic model <small>optional — point at your best Claude</small></label><input type="text" name="ai_anthropic_model" id="f-ai_anthropic_model" value="{{ values.ai_anthropic_model|default('') }}" placeholder="claude-haiku-4-5-20251001"></div>
+        <div><label for="f-ai_openai_model">OpenAI model <small>optional</small></label><input type="text" name="ai_openai_model" id="f-ai_openai_model" value="{{ values.ai_openai_model|default('') }}" placeholder="gpt-4o-mini"></div>
+      </div>
+      <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">Every provider's model is yours to set — leave blank for a sensible default. Point each at the strongest model your plan allows to get the best output; the platform fails over across whichever providers are configured.</p>
 
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
         <label style="font-weight:600">Dedicated moderation Groq key

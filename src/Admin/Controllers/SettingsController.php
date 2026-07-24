@@ -149,7 +149,7 @@ class SettingsController
                 $val = trim((string) ($b[$settingKey] ?? ''));
                 if ($val !== '') $this->settings->set($settingKey, $val, $adminId);
             }
-            foreach (['ai_groq_model', 'ai_groq_model_mod', 'ai_gemini_model'] as $modelKey) {
+            foreach (['ai_groq_model', 'ai_groq_model_mod', 'ai_gemini_model', 'ai_anthropic_model', 'ai_openai_model'] as $modelKey) {
                 if (array_key_exists($modelKey, $b)) $this->settings->set($modelKey, trim((string) $b[$modelKey]), $adminId);
             }
             // Gee ↔ Make.com agent bridge: URL is plain (echoed), the shared

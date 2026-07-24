@@ -150,6 +150,32 @@ class AiServiceTest extends TestCase
         $this->assertSame([], $m->invoke(new AiService()));
     }
 
+    public function test_every_provider_model_is_configurable(): void
+    {
+        // Constructor: anthropic/openai models are now injectable (positions 7/8).
+        $ai = new AiService(null, null, 'ak', null, null, null, 'claude-best-model');
+        $this->assertSame('anthropic', $ai->activeProvider());
+        $this->assertSame('claude-best-model', $ai->activeModel());
+
+        $ai2 = new AiService(null, null, null, 'ok', null, null, null, 'gpt-best-model');
+        $this->assertSame('gpt-best-model', $ai2->activeModel());
+
+        // …and resolved from settings by boot().
+        $this->clearEnv();
+        DB::table('gates_settings')->where('key_name', 'like', 'ai_%')->delete();
+        DB::table('gates_settings')->insert([
+            ['key_name' => 'ai_anthropic_key',   'value' => 'ak'],
+            ['key_name' => 'ai_anthropic_model', 'value' => 'claude-from-settings'],
+        ]);
+        $this->assertSame('claude-from-settings', AiService::boot()->activeModel());
+    }
+
+    public function test_provider_defaults_when_model_unset(): void
+    {
+        $this->assertSame('claude-haiku-4-5-20251001', (new AiService(null, null, 'ak'))->activeModel());
+        $this->assertSame('gpt-4o-mini', (new AiService(null, null, null, 'ok'))->activeModel());
+    }
+
     public function test_json_fence_is_stripped(): void
     {
         $m = new \ReflectionMethod(AiService::class, 'stripJsonFence');
