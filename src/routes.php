@@ -99,6 +99,49 @@ return function(App $app) {
                    ->withHeader('Cache-Control', 'no-store')
                    ->withHeader('X-Robots-Tag', 'noindex, nofollow');
     });
+
+    // ── Webcron: drive the maintenance hub over HTTP (token-gated) ───────────
+    // For hosts without reliable shell cron: set CRON_TOKEN in .env, then point a
+    // webcron service (cron-job.org, EasyCron, or a cPanel "curl a URL" job) at
+    //   https://your-site/__cron/run?token=THAT          (every ~15 min)
+    // It runs the SAME single-source orchestration as cron/maintenance.php
+    // (AfricaGates\Support\Maintenance), selecting work by the clock. Optional
+    // ?task=cpi|queue|cycles|… runs one job. A single-instance lock means an
+    // overlapping hit exits cleanly (200, skipped) rather than double-running.
+    // Invisible (404) without the correct token; the token also accepted via the
+    // X-Cron-Token header so it needn't sit in access logs.
+    $cronGuard = static function ($req): bool {
+        $token = trim((string)($_ENV['CRON_TOKEN'] ?? ''));
+        if ($token === '') return false;
+        $given = (string)($req->getQueryParams()['token'] ?? ($req->getHeaderLine('X-Cron-Token') ?: ''));
+        return strlen($given) >= 12 && hash_equals($token, $given);
+    };
+    $cronRun = static function ($req, $res) use ($cronGuard, $app) {
+        if (!$cronGuard($req)) return $res->withStatus(404);
+        $root = dirname(__DIR__);
+        // Single-instance: don't overlap the CLI cron or another webcron hit.
+        if (!\AfricaGates\Support\CronGuard::acquire('maintenance', $root . '/var/data')) {
+            $res->getBody()->write(json_encode(['ok' => true, 'skipped' => 'another run in progress']));
+            return $res->withHeader('Content-Type', 'application/json')->withHeader('Cache-Control', 'no-store')->withStatus(200);
+        }
+        $task = (string)($req->getQueryParams()['task'] ?? 'auto');
+        try {
+            $container = $app->getContainer();   // full services; Maintenance degrades gracefully if null
+            $result = (new \AfricaGates\Support\Maintenance($container, false))->run($task);
+            $res->getBody()->write(json_encode(['ok' => true] + $result, JSON_UNESCAPED_SLASHES));
+            $code = 200;
+        } catch (\Throwable $e) {
+            error_log('[webcron] ' . $e->getMessage());
+            $res->getBody()->write(json_encode(['ok' => false, 'error' => 'maintenance run failed']));
+            $code = 500;
+        }
+        return $res->withHeader('Content-Type', 'application/json')
+                   ->withHeader('Cache-Control', 'no-store')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow')
+                   ->withStatus($code);
+    };
+    $app->get('/__cron/run',  $cronRun);
+    $app->post('/__cron/run', $cronRun);
     // No-SSH admin bootstrap: create the FIRST superadmin, or reset the password +
     // clear the lockout for an existing admin. Token-gated (same SETUP_TOKEN). The
     // password is sent by POST (never in the URL). Returns 404 without the token.
