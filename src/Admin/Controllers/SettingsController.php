@@ -83,6 +83,14 @@ class SettingsController
             }
         }
 
+        // Voting-integrity: admin-extensible disposable-email blocklist + optional
+        // MX deliverability check. The textarea always posts (even empty), so its
+        // presence marks this section as submitted and drives the checkbox flag.
+        if (array_key_exists('disposable_domains_extra', $b)) {
+            $this->settings->set('disposable_domains_extra', trim((string)$b['disposable_domains_extra']), $adminId);
+            $this->settings->set('disposable_require_mx', !empty($b['disposable_require_mx']) ? '1' : '0', $adminId);
+        }
+
         // Admin-configurable settings (gates_admin_settings table)
         $adminKeys = [
             'donation_votes_per_1000' => 'integer',

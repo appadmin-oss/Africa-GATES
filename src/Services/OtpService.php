@@ -213,23 +213,14 @@ class OtpService
        OTP FLOW
     ══════════════════════════════════════════════════════════ */
 
-    /** Domains known to issue temporary/disposable addresses. */
-    private const DISPOSABLE_DOMAINS = [
-        'mailinator.com','guerrillamail.com','10minutemail.com','tempmail.com',
-        'throwam.com','yopmail.com','dispostable.com','fakeinbox.com',
-        'trashmail.com','mailnull.com','spamgourmet.com','jetable.fr',
-        'spam4.me','sharklasers.com','guerrillamailblock.com','grr.la',
-        'guerrillamail.info','guerrillamail.biz','guerrillamail.de',
-        'guerrillamail.net','guerrillamail.org','spam.la','maildrop.cc',
-        'tempr.email','tempm.com','throwam.com','temp-mail.org',
-        'discard.email','mailnesia.com','trashmail.at','trashmail.io',
-        'filzmail.com','spamboy.com','akerd.com','bongobongo.cf',
-    ];
-
+    /**
+     * Disposable/throwaway detection lives in the shared, admin-extensible
+     * {@see \AfricaGates\Support\DisposableEmail} so the blocklist can grow
+     * without a code deploy and is reused by other entry points (registration).
+     */
     private function isDisposable(string $email): bool
     {
-        $domain = strtolower(substr(strrchr($email, '@'), 1));
-        return in_array($domain, self::DISPOSABLE_DOMAINS, true);
+        return \AfricaGates\Support\DisposableEmail::isDisposable($email);
     }
 
     /**

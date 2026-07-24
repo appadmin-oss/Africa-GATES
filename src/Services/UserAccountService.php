@@ -35,6 +35,7 @@ final class UserAccountService
 
         if ($name === '' || !preg_match('/\S+\s+\S+/u', $name)) return ['ok' => false, 'error' => 'Please enter your full name (first and last).'];
         if (!filter_var($email, FILTER_VALIDATE_EMAIL))          return ['ok' => false, 'error' => 'Please enter a valid email address.'];
+        if (\AfricaGates\Support\DisposableEmail::isDisposable($email)) return ['ok' => false, 'error' => 'Please use a permanent email address — disposable inboxes are not accepted.'];
         if (strlen((string) preg_replace('/\D+/', '', $phone)) < 7) return ['ok' => false, 'error' => 'Please enter a valid phone number.'];
         if ($password !== null && $password !== '' && strlen($password) < 8) return ['ok' => false, 'error' => 'Password must be at least 8 characters.'];
         if (DB::table('gates_users')->where('email', $email)->exists()) return ['ok' => false, 'error' => 'An account with that email already exists — please sign in.'];
