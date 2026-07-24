@@ -191,6 +191,41 @@
       </div>
     </div>
   </div></div>
+  <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Automation &amp; cron<small>Keep the platform self-running — no SSH or server cron needed.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="automation_settings" value="1">
+    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
+      The platform needs a periodic “maintenance” run (advance award cycles, drain the queue, recompute the CPI, purge expired tokens, snapshots, reminders).
+      Last run:
+      {% if cron_last %}<strong>{{ cron_last.ran_at }}</strong> ({{ cron_last.status }}, {{ cron_last.runtime_ms }}ms){% else %}<strong style="color:#b4452f">never</strong>{% endif %}.
+    </p>
+
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-bottom:6px">
+      <input type="checkbox" name="webcron_auto" value="1" {% if values.webcron_auto|default('') in ['1','true','on','yes'] %}checked{% endif %} style="margin-top:3px">
+      <span><strong>Run automatically from site traffic</strong> — recommended when you have no cron. Maintenance runs in the background after a page load, at most once every ~15 minutes, so the site keeps itself up to date whenever anyone visits. Costs visitors nothing (it runs after their page is delivered).</span>
+    </label>
+
+    <div style="margin:12px 0">
+      <button class="ad-btn ad-btn--primary" type="submit" formaction="/admin/settings/run-cron" formnovalidate>Run maintenance now</button>
+      <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c);margin-left:8px">Runs the full hub immediately, once.</small>
+    </div>
+
+    <details style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:12.5px;font-weight:600">Prefer an external scheduler? (optional)</summary>
+      <p style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin:8px 0">
+        Point a free webcron service (cron-job.org, EasyCron) or a cPanel “fetch a URL” job at this URL every ~15 minutes:
+      </p>
+      {% if values.cron_token|default('') %}
+      <input type="text" readonly onclick="this.select()" value="{{ app_url }}/__cron/run?token={{ values.cron_token }}"
+             style="width:100%;font-family:'Space Mono',monospace;font-size:12px;padding:8px;background:#f6f8f5">
+      {% else %}
+      <p style="font-size:12px;color:#b4452f">No cron token yet — save this section once to generate one.</p>
+      {% endif %}
+      <label style="font-size:11.5px;display:inline-flex;gap:6px;align-items:center;margin-top:8px">
+        <input type="checkbox" name="cron_token_generate" value="1"> Regenerate the token on save (invalidates the old URL)
+      </label>
+    </details>
+  </div></div>
+
   <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Voting integrity — disposable emails<small>Block throwaway inboxes used to stuff votes. A built-in list + your additions.</small></div></div><div class="ad-card__body">
     <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">The OTP + registration gates already reject known disposable-mail providers. Add any new ones here (comma- or line-separated domains) to block them immediately — no deploy needed.</p>
     <label for="f-disposable">Extra blocked domains</label>

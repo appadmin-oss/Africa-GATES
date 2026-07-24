@@ -111,7 +111,13 @@ return function(App $app) {
     // Invisible (404) without the correct token; the token also accepted via the
     // X-Cron-Token header so it needn't sit in access logs.
     $cronGuard = static function ($req): bool {
+        // Token from .env (SSH hosts) OR admin Settings (no-SSH hosts set it in
+        // the browser). Either matching a >=12-char given token unlocks the run.
         $token = trim((string)($_ENV['CRON_TOKEN'] ?? ''));
+        if ($token === '') {
+            try { $token = trim((string)(\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cron_token')->value('value') ?? '')); }
+            catch (\Throwable) { $token = ''; }
+        }
         if ($token === '') return false;
         $given = (string)($req->getQueryParams()['token'] ?? ($req->getHeaderLine('X-Cron-Token') ?: ''));
         return strlen($given) >= 12 && hash_equals($token, $given);
@@ -665,6 +671,7 @@ return function(App $app) {
             $s->post('', AdminSettingsController::class.':save');
             $s->post('/smtp-test', AdminSettingsController::class.':smtpTest');
             $s->post('/test-ai',   AdminSettingsController::class.':testAi');
+            $s->post('/run-cron',  AdminSettingsController::class.':runCron');
         })->add(new RoleMiddleware('superadmin'));
 
         // Outbound webhooks — integration endpoints for AI agents & platforms.

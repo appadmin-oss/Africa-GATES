@@ -48,6 +48,12 @@ class SettingsController
             // Email delivery health — recent sends with status/error so "links
             // aren't arriving" is diagnosable at a glance.
             'mail_health'    => $this->mailHealth(),
+            // Automation / webcron status for the no-SSH setup card.
+            'app_url'        => rtrim((string)($_ENV['APP_URL'] ?? ''), '/'),
+            'cron_last'      => (function () {
+                try { return \Illuminate\Database\Capsule\Manager::table('gates_cron_log')->where('job_name', 'maintenance')->orderByDesc('id')->first(); }
+                catch (\Throwable) { return null; }
+            })(),
         ]);
     }
 
@@ -80,6 +86,16 @@ class SettingsController
                   'mail_from_name','mail_from_address','mail_reply_to','admin_alert_email'] as $k) {
             if (array_key_exists($k, $b)) {
                 $this->settings->set($k, trim((string)$b[$k]), $adminId);
+            }
+        }
+
+        // Automation / webcron: toggle opportunistic self-maintenance + manage the
+        // browser-set cron token (no SSH needed). Marker field gates the section.
+        if (array_key_exists('automation_settings', $b)) {
+            $this->settings->set('webcron_auto', !empty($b['webcron_auto']) ? '1' : '0', $adminId);
+            $current = trim((string) ($this->settings->get('cron_token') ?? ''));
+            if (!empty($b['cron_token_generate']) || $current === '') {
+                $this->settings->set('cron_token', bin2hex(random_bytes(24)), $adminId);
             }
         }
 
@@ -245,6 +261,22 @@ class SettingsController
         }
 
         $this->audit->record($adminId, 'settings.smtp_test', null, null);
+        return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+    }
+
+    /** Run the maintenance hub now, from the browser — for no-SSH hosts. */
+    public function runCron(Request $req, Response $res): Response
+    {
+        $adminId = (int)($_SESSION['admin_id'] ?? 0);
+        try {
+            $r = (new \AfricaGates\Support\Maintenance(null, false))->run('auto');
+            $done = array_sum(array_map(static fn($x) => (int)($x[1] ?? 0), $r['ran'] ?? []));
+            $_SESSION['flash_ok'] = sprintf('Maintenance ran (%d task groups, %dms). Queue delivery + integrations run on the automatic tick.', count($r['ran'] ?? []), (int)($r['runtime_ms'] ?? 0));
+        } catch (\Throwable $e) {
+            error_log('[settings run-cron] ' . $e->getMessage());
+            $_SESSION['flash_error'] = 'Maintenance run failed — check the logs.';
+        }
+        try { $this->audit->record($adminId, 'settings.run_cron', null, null); } catch (\Throwable) {}
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);
     }
 

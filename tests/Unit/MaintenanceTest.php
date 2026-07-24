@@ -46,4 +46,24 @@ class MaintenanceTest extends TestCase
         $this->assertSame([], $r['ran']);
         $this->assertNotEmpty($r['lines']);   // it logged "Unknown task" + "Done."
     }
+
+    public function test_tick_is_gated_by_the_setting_then_runs(): void
+    {
+        $sentinel = dirname(__DIR__, 2) . '/var/data/.maintenance_tick';
+        @unlink($sentinel);
+
+        // Disabled (no setting) → skips BEFORE any lock/work.
+        DB::table('gates_settings')->where('key_name', 'webcron_auto')->delete();
+        $this->assertSame('disabled', (Maintenance::tick(null))['skipped'] ?? null);
+        $this->assertFalse(Maintenance::autoEnabled());
+
+        // Enabled + nothing run recently → it actually runs and logs.
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'webcron_auto'], ['value' => '1']);
+        @unlink($sentinel);
+        $this->assertTrue(Maintenance::autoEnabled());
+        $r = Maintenance::tick(null);
+        $this->assertArrayNotHasKey('skipped', $r, 'should run when enabled and due');
+        $this->assertSame('auto', $r['task'] ?? null);
+        $this->assertGreaterThanOrEqual(1, (int) DB::table('gates_cron_log')->where('job_name', 'maintenance')->count());
+    }
 }

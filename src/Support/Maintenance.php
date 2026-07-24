@@ -126,6 +126,57 @@ final class Maintenance
         return ['task' => $task, 'ran' => $ran, 'lines' => $this->lines, 'runtime_ms' => $ms];
     }
 
+    /**
+     * Opportunistic "web cron" — run due maintenance off normal site traffic, for
+     * hosts with no shell cron AND no external scheduler. Called after the HTTP
+     * response is flushed (see public/index.php). Cost on a normal request is one
+     * filemtime() check; it only touches the DB / runs work when actually due.
+     *
+     * Guards: a sentinel-file throttle (fast, no DB), then an authoritative
+     * gates_cron_log due-check, then the settings toggle, then the single-instance
+     * lock. Enabled by the admin (webcron_auto) — off by default so it never
+     * surprises a host that already has real cron.
+     *
+     * @return array{skipped?:string, task?:string, ran?:array, runtime_ms?:int}
+     */
+    public static function tick(?ContainerInterface $container = null, int $intervalSec = 840): array
+    {
+        $root     = dirname(__DIR__, 2);
+        $sentinel = $root . '/var/data/.maintenance_tick';
+        $now      = time();
+
+        // Fast throttle — most requests stop here with just a filemtime() call.
+        if (is_file($sentinel) && ($now - (int) @filemtime($sentinel)) < $intervalSec) {
+            return ['skipped' => 'throttled'];
+        }
+        if (!self::autoEnabled()) return ['skipped' => 'disabled'];
+
+        // Authoritative due-check against the cron log (the sentinel can lie if the
+        // FS isn't writable or was cleared).
+        try {
+            $last = DB::table('gates_cron_log')->where('job_name', 'maintenance')->max('ran_at');
+            if ($last !== null && strtotime((string) $last) > $now - $intervalSec) {
+                @touch($sentinel);
+                return ['skipped' => 'recent'];
+            }
+        } catch (\Throwable) {}
+
+        if (!\AfricaGates\Support\CronGuard::acquire('maintenance', $root . '/var/data')) {
+            return ['skipped' => 'locked'];
+        }
+        @touch($sentinel);
+        return (new self($container, false))->run('auto');
+    }
+
+    /** Whether the admin has enabled opportunistic web-traffic maintenance. */
+    public static function autoEnabled(): bool
+    {
+        try {
+            $v = DB::table('gates_settings')->where('key_name', 'webcron_auto')->value('value');
+            return in_array((string) $v, ['1', 'true', 'on', 'yes'], true);
+        } catch (\Throwable) { return false; }
+    }
+
     private function purgeExpiredOtp(): int
     {
         $c = (int) DB::table('gates_otp_tokens')->where('expires_at', '<', Carbon::now()->subDays(7))->delete();

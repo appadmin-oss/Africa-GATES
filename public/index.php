@@ -117,3 +117,14 @@ $errMiddleware->setDefaultErrorHandler(new ErrorHandler($app));
 (require __DIR__ . '/../src/routes.php')($app);
 
 $app->run();
+
+// Opportunistic "web cron" for hosts with no shell cron and no external
+// scheduler: after the response is flushed to the client, run due maintenance.
+// Throttled (~15 min) + single-instance locked + admin-gated (webcron_auto), so
+// the cost on a normal request is a single filemtime() check and the visitor
+// never waits on it. Harmless no-op when disabled or not yet due.
+register_shutdown_function(static function () use ($container) {
+    if (function_exists('fastcgi_finish_request')) { @fastcgi_finish_request(); }
+    try { \AfricaGates\Support\Maintenance::tick($container); }
+    catch (\Throwable $e) { error_log('[webcron tick] ' . $e->getMessage()); }
+});
