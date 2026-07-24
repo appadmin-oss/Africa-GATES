@@ -241,6 +241,11 @@
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:7px;flex-wrap:wrap">
             <span class="nm-hint" id="storyHint">Minimum 60 characters</span>
             <span style="display:inline-flex;align-items:center;gap:10px">
+              <button type="button" x-show="catSuggest && categories.length" x-cloak @click="suggestCat()" x-bind:disabled="catSuggesting || story.trim().length < 60"
+                      style="border:1px solid #d9e2ef;background:#f5f8fc;color:#234; font-weight:600;font-size:12px;padding:6px 13px;border-radius:999px;cursor:pointer"
+                      aria-describedby="catSuggestNote">
+                <span x-text="catSuggesting ? '✦ Matching…' : '✦ Suggest category'"></span>
+              </button>
               <button type="button" x-show="polishAvail" x-cloak @click="polish()" x-bind:disabled="polishing || story.trim().length < 60"
                       style="border:1px solid #cfe6cf;background:#f4f9f4;color:#1a6118;font-weight:600;font-size:12px;padding:6px 13px;border-radius:999px;cursor:pointer"
                       aria-describedby="polishNote">
@@ -249,6 +254,7 @@
               <span class="nm-count" :style="story.trim().length>=60 ? 'color:#1a9c34' : 'color:#5a6d6f'" x-text="story.trim().length + ' chars'"></span>
             </span>
           </div>
+          <p id="catSuggestNote" class="nm-hint" x-show="catSuggestMsg" x-cloak role="status" style="margin-top:5px" x-text="catSuggestMsg"></p>
           <p id="polishNote" class="nm-hint" x-show="polishMsg" x-cloak role="status" style="margin-top:5px">
             <span x-text="polishMsg"></span>
             <button type="button" x-show="_storyBackup" @click="story=_storyBackup; _storyBackup=''; polishMsg='Restored your original wording.'"
@@ -374,6 +380,29 @@ function nomWizard(){
     get nominatorStates(){ return (typeof AFG_STATES!=='undefined' && AFG_STATES[this.nominatorCountry]) || []; },
     story:'{{ (old.reason ?? '')|e('js') }}', email:'{{ (old.nominator_email ?? '')|e('js') }}', photoName:'', photoUrl:'', photoOk:true, photoMsg:'', _photoInput:null, submitting:false,
     polishAvail:true, polishing:false, polishMsg:'', _storyBackup:'',
+    catSuggest:true, catSuggesting:false, catSuggestMsg:'',
+    /* AI category match — reads the story against THIS programme's real
+       categories and pre-selects the best fit. Advisory; silently steps aside
+       when AI is off/over budget. */
+    async suggestCat(){
+      if(this.catSuggesting || !this.categories.length) return;
+      this.catSuggesting = true; this.catSuggestMsg = '';
+      try{
+        const r = await fetch('/api/v1/nominations/suggest-category', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ reason: this.story, categories: this.categories })
+        });
+        const j = await r.json();
+        if(j && j.id){
+          this.selectedCat = String(j.id);
+          this.catSuggestMsg = 'Suggested: ' + (j.title || 'category') + (j.why ? ' — ' + j.why : '') + '. Change it above if you disagree.';
+          if(window.agAnnounce) window.agAnnounce('Category suggested: ' + (j.title || ''));
+        } else {
+          this.catSuggest = false; /* AI_OFF or budget — quietly step aside */
+        }
+      }catch(e){ this.catSuggest = false; }
+      finally{ this.catSuggesting = false; }
+    },
     /* AI story polish — optional nicety with INVISIBLE limits: any budget/
        provider issue silently hides the button; the wizard never errors. */
     async polish(){

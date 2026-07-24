@@ -225,6 +225,21 @@ HTML;
         return $this->ok($res,['text'=>mb_substr(trim($out),0,3000)]);
     }
 
+    /** Suggest the best-fit category for a nomination story (advisory; picks only from the wizard's real options). */
+    public function suggestCategory(Request $req,Response $res):Response {
+        $b=(array)$req->getParsedBody();
+        $story=trim((string)($b['reason']??''));
+        $cats=is_array($b['categories']??null)?$b['categories']:[];
+        if($story===''||mb_strlen($story)>3000) return $this->ok($res,['code'=>'AI_OFF']);
+        $ip=$this->ip($req);
+        $withinBudget=$this->rateLimit->check(hash('sha256',$ip.'|catsuggest'),'cat_suggest',10,3600)
+            && $this->rateLimit->check('global|gee','gee_ai_day',4000,86400);
+        if(!$withinBudget) return $this->ok($res,['code'=>'AI_OFF']);
+        $r=\AfricaGates\Services\CategorySuggestService::suggest($story,$cats);
+        if($r===null) return $this->ok($res,['code'=>'AI_OFF']);
+        return $this->ok($res,$r);
+    }
+
     public function createShareLink(Request $req,Response $res):Response {
         // Shareable prefill link: nominee-side fields only (whitelisted in the
         // service), opaque 32-byte token, 30-day expiry. Throttled per-IP so

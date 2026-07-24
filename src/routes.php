@@ -429,6 +429,7 @@ return function(App $app) {
             $a->get('/nominations/draft',  ApiController::class.':loadDraft');
             $a->post('/nominations/share-link', ApiController::class.':createShareLink');
             $a->post('/nominations/polish',     ApiController::class.':polishStory');
+            $a->post('/nominations/suggest-category', ApiController::class.':suggestCategory');
             $a->get('/leaderboard',      ApiController::class.':leaderboard');
             $a->get('/dashboard',        ApiController::class.':dashboard');
             $a->get('/map-pins',         ApiController::class.':mapPins');
