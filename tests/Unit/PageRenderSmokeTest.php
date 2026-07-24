@@ -54,4 +54,39 @@ class PageRenderSmokeTest extends TestCase
         $this->assertStringContainsString('Ada Obi', $body, 'top profile must appear in the ranking');
         $this->assertStringNotContainsString("hasn’t been ranked yet", $body, 'must NOT show the pre-cycle empty state');
     }
+
+    public function test_opportunities_renders_listings_not_empty_state(): void
+    {
+        DB::table('gates_opportunities')->insert([
+            'slug' => 'mandela-fellowship', 'title' => 'Mandela Washington Fellowship', 'provider' => 'YALI',
+            'opportunity_type' => 'fellowship', 'scope' => 'Pan-African', 'status' => 'active',
+        ]);
+        [$status, $body] = $this->render(\AfricaGates\Controllers\OpportunityController::class, 'index', '/opportunities');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Mandela Washington Fellowship', $body);
+        $this->assertStringNotContainsString('No open listings right now', $body);
+    }
+
+    public function test_blog_renders_published_posts(): void
+    {
+        DB::table('gates_posts')->insert([
+            'slug' => 'announcing-2026', 'title' => 'Announcing the 2026 Cycle',
+            'status' => 'published', 'published_at' => date('Y-m-d H:i:s'),
+        ]);
+        [$status, $body] = $this->render(\AfricaGates\Controllers\BlogController::class, 'index', '/blog');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Announcing the 2026 Cycle', $body);
+    }
+
+    public function test_events_renders_upcoming_not_empty_state(): void
+    {
+        DB::table('gates_site_events')->insert([
+            'slug' => 'continental-gala', 'title' => 'Continental Gala Night',
+            'event_date' => date('Y-m-d H:i:s', time() + 7 * 86400), 'status' => 'published',
+        ]);
+        [$status, $body] = $this->render(\AfricaGates\Controllers\EventsController::class, 'index', '/events');
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Continental Gala Night', $body);
+        $this->assertStringNotContainsString('No upcoming events just yet', $body);
+    }
 }
