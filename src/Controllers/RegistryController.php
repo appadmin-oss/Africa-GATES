@@ -19,7 +19,9 @@ class RegistryController {
     public function index(Request $req,Response $res):Response {
         $page=max(1,(int)($req->getQueryParams()['page']??1));
         $data=$this->cache->remember("reg:p{$page}",300,fn()=>$this->profiles->paginatedList($page,18,'','','','cpi_desc','',''));
-        return $this->view->render($res,'pages/registry/index.twig',['page_title'=>'Registry — Africa GATES','meta_description'=>'Browse the Africa GATES registry — the verified record of African creatives, businesses and organisations, ranked by live Cultural Power Index scores.','gates_page'=>'registry','has_hero'=>false,'current_section'=>'projects','initial_profiles'=>json_encode($data['profiles']),'total_profiles'=>$data['total']]);
+        // The template derives rows/has_profiles/catset from `profiles` — pass the
+        // raw array (not a JSON string) or the grid renders the empty state always.
+        return $this->view->render($res,'pages/registry/index.twig',['page_title'=>'Registry — Africa GATES','meta_description'=>'Browse the Africa GATES registry — the verified record of African creatives, businesses and organisations, ranked by live Cultural Power Index scores.','gates_page'=>'registry','has_hero'=>false,'current_section'=>'projects','profiles'=>$data['profiles'],'total_profiles'=>$data['total']]);
     }
     public function profile(Request $req,Response $res,array $args):Response {
         $slug=$args['slug']??''; $p=$this->cache->remember("profile:{$slug}",1800,fn()=>$this->profiles->getBySlug($slug));
