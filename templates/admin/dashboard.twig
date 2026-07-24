@@ -10,6 +10,47 @@
 
 {% block content %}
 
+{# AI integrity briefing — synthesises collusion, judge-anomaly and fraud signals
+   into one prioritised read. Deterministic on load; the button upgrades to AI. #}
+{% if integrity is defined %}
+{% set border = integrity.total > 0 ? '#c79a3a' : '#237b22' %}
+<div class="ad-card" style="margin-bottom:16px;border-left:4px solid {{ border }}">
+  <div class="ad-card__head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <div class="ad-card__title">🛡 Integrity briefing
+      {% if integrity.total > 0 %}<span class="ad-chip ad-chip--gold" style="margin-left:6px">{{ integrity.total }} signal{{ integrity.total == 1 ? '' : 's' }}</span>{% else %}<span class="ad-chip ad-chip--green" style="margin-left:6px">clear</span>{% endif %}
+    </div>
+    {% if ai_enabled %}<button type="button" id="aiBriefBtn" class="ad-btn ad-btn--sm">✨ AI briefing</button>{% endif %}
+  </div>
+  <div class="ad-card__body">
+    <p id="integrityBrief" style="font-size:13.5px;line-height:1.65;color:var(--ad-text);margin:0 0 10px">{{ integrity_brief }}</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px">
+      <a href="/admin/data/collusion" class="ad-chip ad-chip--grey" style="text-decoration:none">Collusion: {{ integrity.collusion.open }} open</a>
+      <a href="/admin/judges" class="ad-chip ad-chip--grey" style="text-decoration:none">Judge anomalies: {{ integrity.judges.flags }}</a>
+      <span class="ad-chip ad-chip--grey">Fraud-flagged votes (24h): {{ integrity.fraud_votes_24h }}</span>
+      <a href="/admin/nominations/review" class="ad-chip ad-chip--grey" style="text-decoration:none">Pending review: {{ integrity.pending_nominations }}</a>
+    </div>
+  </div>
+</div>
+{% if ai_enabled %}
+<script>
+(function () {
+  var btn = document.getElementById('aiBriefBtn'), out = document.getElementById('integrityBrief');
+  if (!btn || !out) return;
+  btn.addEventListener('click', function () {
+    var orig = btn.textContent; btn.disabled = true; btn.textContent = '✦ Thinking…';
+    fetch('/admin/integrity-brief', { headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        btn.disabled = false; btn.textContent = orig;
+        if (j && j.ok && j.text) { out.textContent = j.text; if (j.ai) btn.textContent = '✓ AI briefing'; }
+      })
+      .catch(function () { btn.disabled = false; btn.textContent = orig; });
+  });
+})();
+</script>
+{% endif %}
+{% endif %}
+
 <div class="ad-stat-grid">
   <div class="ad-stat ad-stat--accent"><div class="ad-stat__lbl">Approved Profiles</div><div class="ad-stat__num">{{ stats.total_profiles|number_format }}</div><div class="ad-stat__hint">{{ stats.pending_profiles }} pending review</div></div>
   <div class="ad-stat ad-stat--accent"><div class="ad-stat__lbl">Total Votes</div><div class="ad-stat__num">{{ stats.total_votes|number_format }}</div><div class="ad-stat__hint">+{{ stats.votes_24h }} in last 24h</div></div>

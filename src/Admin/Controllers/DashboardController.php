@@ -62,6 +62,11 @@ class DashboardController
             ->select(['n.id','n.name','n.vote_count','n.country_code','c.title as category'])
             ->get()->map(fn($r)=>(array)$r)->all();
 
+        // Integrity briefing — deterministic signals + a templated summary on
+        // load (NO AI call here); the "AI briefing" button upgrades it on demand.
+        $intSignals = \AfricaGates\Services\IntegrityBriefService::signals();
+        $intBrief   = \AfricaGates\Services\IntegrityBriefService::narrative($intSignals, new \AfricaGates\Services\AiService());
+
         return $this->view->render($res, 'admin/dashboard.twig', [
             'page_title'  => 'Dashboard — Africa GATES Admin',
             'admin_page'  => 'dashboard',
@@ -71,6 +76,19 @@ class DashboardController
             'vote_series' => $voteSeries,
             'top_nominees'=> $topNominees,
             'recent_activity' => $this->audit->recent(12),
+            'integrity'       => $intSignals,
+            'integrity_brief' => $intBrief['text'],
+            'ai_enabled'      => (function () { try { return \AfricaGates\Services\AiService::boot()->configured(); } catch (\Throwable) { return false; } })(),
         ]);
+    }
+
+    /** On-demand AI integrity briefing (JSON) for the dashboard button. */
+    public function integrityBrief(Request $req, Response $res): Response
+    {
+        $r = \AfricaGates\Services\IntegrityBriefService::brief();
+        $res->getBody()->write((string) json_encode([
+            'ok' => true, 'text' => $r['text'], 'ai' => $r['ai'], 'total' => $r['signals']['total'] ?? 0,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        return $res->withHeader('Content-Type', 'application/json');
     }
 }

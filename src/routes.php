@@ -519,6 +519,7 @@ return function(App $app) {
         // Authenticated
         $a->get('[/]',              AdminDashboardController::class.':index');
         $a->get('/dashboard',       AdminDashboardController::class.':index');
+        $a->get('/integrity-brief', AdminDashboardController::class.':integrityBrief');
 
         $a->get('/profiles',        AdminProfilesController::class.':index');
         $a->post('/profiles/merge',   AdminProfilesController::class.':merge');
