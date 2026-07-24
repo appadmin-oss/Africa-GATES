@@ -409,6 +409,7 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   intent_nominee_id INTEGER, -- paid-vote orders: auto-mint target on confirm
   payment_ref TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','confirmed','failed')),
+  refunded_at TEXT DEFAULT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_donation_email ON gates_donations(donor_email);

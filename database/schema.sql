@@ -440,6 +440,7 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   intent_nominee_id BIGINT UNSIGNED DEFAULT NULL, -- paid-vote orders: auto-mint target on confirm
   payment_ref VARCHAR(200) DEFAULT NULL,
   status ENUM('pending','confirmed','failed') NOT NULL DEFAULT 'pending',
+  refunded_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id),
   KEY idx_donation_email(donor_email),

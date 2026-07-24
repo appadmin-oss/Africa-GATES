@@ -53,6 +53,9 @@ class BonusVoteService
             if ($donation->status !== 'confirmed') {
                 return ['ok' => false, 'message' => 'Donation is not confirmed.'];
             }
+            if (!empty($donation->refunded_at ?? null)) {
+                return ['ok' => false, 'message' => 'This donation was refunded — its votes can no longer be redeemed.'];
+            }
             $remaining = (int) $donation->bonus_votes - (int) $donation->votes_used;
             if ($count > $remaining) {
                 return ['ok' => false, 'message' => "Only {$remaining} bonus vote(s) remain on this donation."];
@@ -125,5 +128,66 @@ class BonusVoteService
             ->where('nominee_id', $nomineeId)
             ->where('vote_type', 'bonus')
             ->sum('weight');
+    }
+
+    /**
+     * Reverse a refunded/charged-back donation: void EVERY purchased vote row
+     * (bonus + paid) minted from it, rebuild the affected nominees' counters from
+     * the surviving rows, and stamp refunded_at so the donation can't be redeemed
+     * again. The audited ORGANIC path is untouched — organic_vote_count only ever
+     * counted 'standard' rows, so this cannot change any nominee's CPI rank; it
+     * only removes the paid display boost the refunded money bought.
+     *
+     * Idempotent (a second call finds no rows and no-ops) and transactional.
+     *
+     * @return array{ok:bool, error?:string, cleared:int, weight:int, nominees:int[]}
+     */
+    public static function clawbackDonation(int $donationId, ?int $adminId = null, string $reason = 'refund'): array
+    {
+        if ($donationId < 1) return ['ok' => false, 'error' => 'Invalid donation id.', 'cleared' => 0, 'weight' => 0, 'nominees' => []];
+
+        try {
+            $out = DB::transaction(function () use ($donationId) {
+                $rows = DB::table('gates_votes')->where('donation_id', $donationId)->get(['id', 'nominee_id', 'weight']);
+                $nominees = array_values(array_unique(array_map(static fn($r) => (int) $r->nominee_id, $rows->all())));
+                $weight   = (int) $rows->sum('weight');
+
+                if ($rows->isNotEmpty()) {
+                    DB::table('gates_votes')->where('donation_id', $donationId)->delete();
+                    foreach ($nominees as $nid) self::recountNominee($nid);
+                }
+                // Stamp the reversal (only from a live/confirmed state) so redemption
+                // is blocked and it shows as refunded. Safe to run on any status.
+                DB::table('gates_donations')->where('id', $donationId)
+                    ->update(['refunded_at' => Carbon::now()->toDateTimeString()]);
+
+                return ['cleared' => $rows->count(), 'weight' => $weight, 'nominees' => $nominees];
+            });
+        } catch (\Throwable $e) {
+            error_log('[bonus-vote clawback] ' . $e->getMessage());
+            return ['ok' => false, 'error' => 'Clawback failed.', 'cleared' => 0, 'weight' => 0, 'nominees' => []];
+        }
+
+        try {
+            (new \AfricaGates\Admin\Services\AuditService())->record(
+                (int) ($adminId ?? 0), 'donation.clawback', 'donation', $donationId,
+                ['reason' => $reason, 'cleared' => $out['cleared'], 'weight' => $out['weight'], 'nominees' => $out['nominees']]
+            );
+        } catch (\Throwable) {}
+
+        return ['ok' => true] + $out;
+    }
+
+    /** Rebuild a nominee's vote counters from surviving rows (vote_count = all weight; organic = 'standard' only). */
+    private static function recountNominee(int $nomineeId): void
+    {
+        try {
+            $all     = (int) DB::table('gates_votes')->where('nominee_id', $nomineeId)->sum('weight');
+            $organic = (int) DB::table('gates_votes')->where('nominee_id', $nomineeId)->where('vote_type', 'standard')->sum('weight');
+            DB::table('gates_nominees')->where('id', $nomineeId)->update([
+                'vote_count'         => $all,
+                'organic_vote_count' => $organic,
+            ]);
+        } catch (\Throwable) {}
     }
 }

@@ -19,6 +19,7 @@ use AfricaGates\Console\Commands\{
     CycleAdvanceCommand,
     MigrateCommand,
     PaymentReconcileCommand,
+    PaymentClawbackCommand,
     PrivacyPurgeCommand,
     PrivacyEraseUserCommand
 };
@@ -46,6 +47,7 @@ $app->add(new PaymentReconcileCommand(
         'from_name'    => $_ENV['MAIL_FROM_NAME'] ?? 'Africa GATES',
     ])
 ));
+$app->add(new PaymentClawbackCommand());
 $app->add(new PrivacyPurgeCommand());
 $app->add(new PrivacyEraseUserCommand());
 $app->run();

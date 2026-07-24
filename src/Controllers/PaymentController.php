@@ -308,6 +308,21 @@ final class PaymentController
             return $res->withStatus(400);
         }
 
+        // Refund / chargeback / dispute → claw back the purchased votes this
+        // donation bought. Purely ADDITIVE: it never runs the confirm path and
+        // only removes paid display votes (organic CPI is untouched).
+        if ($this->webhookIsReversal($payload)) {
+            $ref = $this->webhookReversalReference($provider, $payload);
+            if ($ref !== '') {
+                $d = DB::table('gates_donations')->where('payment_ref', $ref)->first();
+                if ($d) {
+                    $r = \AfricaGates\Services\BonusVoteService::clawbackDonation((int) $d->id, null, 'webhook:' . $provider);
+                    $this->log?->info('[payment] reversal clawback', ['ref' => $ref, 'provider' => $provider, 'cleared' => $r['cleared'] ?? 0]);
+                }
+            }
+            return $res->withStatus(200);   // ack either way so the gateway stops retrying
+        }
+
         $reference = $this->webhookReference($provider, $payload);
         if ($reference === '') {
             // Signed but no reference we recognise (e.g. a non-charge event). Ack so
@@ -449,5 +464,33 @@ final class PaymentController
             return trim((string)($payload['data']['tx_ref'] ?? ($payload['data']['txRef'] ?? '')));
         }
         return '';
+    }
+
+    /** True when the webhook event is a refund / chargeback / dispute / reversal. */
+    private function webhookIsReversal(array $payload): bool
+    {
+        $event = strtolower((string)($payload['event'] ?? ($payload['event.type'] ?? ($payload['type'] ?? ''))));
+        if ($event === '') return false;
+        foreach (['refund', 'dispute', 'chargeback', 'charge.back', 'reversed', 'reversal'] as $needle) {
+            if (str_contains($event, $needle)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * The original charge reference on a reversal event — tolerant across
+     * providers, since refund payloads carry it under different keys than a
+     * successful charge (e.g. Paystack's transaction_reference).
+     */
+    private function webhookReversalReference(string $provider, array $payload): string
+    {
+        $d = (array)($payload['data'] ?? []);
+        foreach (['reference', 'transaction_reference', 'tx_ref', 'txRef', 'transaction', 'flw_ref', 'flwRef'] as $k) {
+            $v = $d[$k] ?? null;
+            if (is_array($v)) $v = $v['reference'] ?? ($v['tx_ref'] ?? null);   // nested { transaction: { reference } }
+            if (is_string($v) && trim($v) !== '') return trim($v);
+        }
+        // Last resort: the normal per-provider extractor.
+        return $this->webhookReference($provider, $payload);
     }
 }
