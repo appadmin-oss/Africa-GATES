@@ -693,3 +693,20 @@ CREATE INDEX IF NOT EXISTS idx_points_user ON gates_points_ledger(user_id);
 CREATE INDEX IF NOT EXISTS idx_donations_created ON gates_donations(created_at);
 CREATE INDEX IF NOT EXISTS idx_users_created ON gates_users(created_at);
 CREATE INDEX IF NOT EXISTS idx_formsub_formid ON gates_form_submissions(form_id);
+
+-- Shadow-mode ledger for the COMPUTED cycle phase (see AfricaGates\Services\BallotGuard).
+-- One row whenever the computed phase and the stored gates_award_cycles.status
+-- disagree about whether a vote/nomination may proceed, so a mis-configured
+-- live cycle surfaces to an operator instead of silently mis-gating traffic.
+CREATE TABLE IF NOT EXISTS gates_phase_drift (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cycle_id INTEGER NOT NULL,
+  action TEXT NOT NULL DEFAULT 'vote' CHECK(action IN ('vote','nominate')),
+  computed_phase TEXT NOT NULL,
+  stored_status TEXT NOT NULL,
+  would_allow INTEGER NOT NULL DEFAULT 0,
+  phase_allows INTEGER NOT NULL DEFAULT 0,
+  mode TEXT NOT NULL DEFAULT 'strict',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_drift_cycle ON gates_phase_drift(cycle_id, created_at);

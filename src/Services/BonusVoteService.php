@@ -72,8 +72,14 @@ class BonusVoteService
                 ->join('gates_award_categories AS c', 'c.cycle_id', '=', 'cy.id')
                 ->where('c.id', $nominee->category_id)
                 ->select('cy.status', 'cy.id', 'cy.programme_id')->first();
-            if (!$cycle || $cycle->status !== 'voting') {
+            if (!$cycle) {
                 return ['ok' => false, 'message' => 'Voting is not open for this category right now.'];
+            }
+            // Same COMPUTED-phase gate as an organic vote.
+            try {
+                BallotGuard::assertVotable((int) $nominee->category_id);
+            } catch (PhaseError $e) {
+                return ['ok' => false, 'message' => $e->getMessage(), 'code' => $e->errorCode];
             }
 
             // Cap paid influence: total bonus weight on a nominee may not exceed a

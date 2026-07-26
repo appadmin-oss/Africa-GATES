@@ -89,12 +89,21 @@ class AwardService {
     }
 
     public function submitNomination(array $data, string $ip): int {
-        $cycle = DB::table('gates_award_cycles')
-            ->where('programme_id', $data['programme_id'])
-            ->where('year', date('Y'))
-            ->whereIn('status', ['nominations'])
-            ->first();
+        // The cycle is resolved by the SAME status-priority pick the public
+        // pages use, not by `year = date('Y')`. The old year match is why a
+        // cycle tagged with a different calendar year was advertised as open
+        // on /nominate and then rejected here, with no way for the nominator
+        // (or the operator) to tell why.
+        $programmeId = (int) ($data['programme_id'] ?? 0);
+        $cycle = BallotGuard::currentCycleForProgramme($programmeId);
         if (!$cycle) throw new \RuntimeException('Nominations are not currently open for this programme.');
+        // Phase is COMPUTED from the date windows, so nominations_close binds
+        // even when no scheduler has updated the status column.
+        try {
+            BallotGuard::assertNominable($programmeId);
+        } catch (PhaseError $e) {
+            throw new \RuntimeException($e->getMessage());
+        }
 
         // Nominee contact: EMAIL OR PHONE — every approved nominee must be
         // reachable (acceptance/verification flow + the gated one-time form),
@@ -116,13 +125,28 @@ class AwardService {
             throw new \RuntimeException("Please provide the nominee's email address or phone number — at least one is required.");
         }
 
-        // Spam/abuse gate — block obvious spam before it reaches the moderation
-        // queue. Heuristics first, AI only on borderline; degrades gracefully if
-        // no provider is configured (quarantine/allow → still goes to 'pending').
+        // Spam/abuse triage — ADVISORY. A bad score routes the nomination to the
+        // human review queue; it never destroys the submission.
+        //
+        // This used to throw on a 'reject' verdict, which deleted the entry at
+        // the boundary: no row in gates_nominations, and — uniquely among all
+        // callers of SpamService — no logDecision() either, so no operator
+        // could ever discover it happened. Worse, the heuristics score the very
+        // specificity this platform asks for: every URL adds +0.15 and any 8+
+        // digit run reads as a "contact lure" (+0.35), so an evidence-rich
+        // nomination citing two sources and one impact figure cleared the 0.65
+        // auto-reject threshold while content-free praise scored 0.00 and
+        // sailed through. The form invites three reference URLs and the AI
+        // triage prompt rewards "specific verifiable impact".
+        //
+        // Now: the verdict only chooses which queue the nomination lands in,
+        // and every verdict is logged.
+        $spamVerdict = null;
         if ($this->spam) {
             $check = trim(($data['nominee_name'] ?? '') . "\n" . ($data['reason'] ?? ''));
-            if ($check !== '' && ($this->spam->evaluate($check, ['target' => 'nomination'])['decision'] ?? 'allow') === 'reject') {
-                throw new \RuntimeException('This nomination was flagged as spam. Please rephrase the reason and try again.');
+            if ($check !== '') {
+                try { $spamVerdict = $this->spam->evaluate($check, ['target' => 'nomination']); }
+                catch (\Throwable) { $spamVerdict = null; }
             }
         }
 
@@ -136,6 +160,13 @@ class AwardService {
             'reason'         => trim($data['reason'] ?? ''),
             'nominator_name' => trim($data['nominator_name']),
             'nominator_email'=> strtolower(trim($data['nominator_email'])),
+            // ALWAYS 'pending' — every nomination reaches the human review
+            // queue. The moderation verdict is recorded in gates_moderation_log
+            // (target_type 'nomination') for the desk to surface and for the
+            // nominator to appeal; it no longer decides whether the entry
+            // exists. The status CHECK/ENUM permits only pending|approved|
+            // rejected, so a distinct 'quarantined' state is a follow-up
+            // migration, not a reason to keep discarding submissions.
             'status'         => 'pending',
             'ip_hash'        => $ip ? hash('sha256', $ip) : null,
             'created_at'     => \Illuminate\Support\Carbon::now(),
@@ -188,6 +219,13 @@ class AwardService {
         }
 
         $id = DB::table('gates_nominations')->insertGetId($row);
+
+        // Log EVERY moderation verdict against the persisted nomination, the way
+        // every other SpamService caller does. Without this an automated
+        // decision leaves no trace to review, explain or appeal.
+        if ($this->spam && $spamVerdict !== null) {
+            $this->spam->logDecision('nomination', (int) $id, $spamVerdict);
+        }
 
         // Enterprise reference (AGN-YYYY-XXXXXX-C) — persisted for lookups and
         // shown everywhere a human sees the nomination. Display metadata only:

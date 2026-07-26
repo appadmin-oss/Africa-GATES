@@ -58,7 +58,13 @@ final class PaidVoteController
         if ($this->rateLimit && !$this->rateLimit->check(hash('sha256', $ip . '|paidvote'), 'paid_vote', 10, 3600)) {
             return $bail('rate');
         }
-        if (!$nominee || (string)$nominee->status === 'pending')             return $bail('nominee');
+        // Allowlist + merge check, matching every other vote path. The old
+        // denylist-of-one accepted rejected/withdrawn nominees and merged-away
+        // duplicates, i.e. took money for votes on a nominee the public pages
+        // no longer show and whose tally is no longer read.
+        if (!$nominee
+            || !in_array((string)$nominee->status, ['approved', 'winner', 'runner_up'], true)
+            || !empty($nominee->merged_into ?? null))                         return $bail('nominee');
         if (!$this->votingOpenFor($nominee))                                 return $bail('closed');
         if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL))     return $bail('email');
@@ -161,18 +167,14 @@ final class PaidVoteController
         return $changed > 0 ? 'confirmed' : 'already';
     }
 
-    /** True when the nominee's cycle is in its voting window. */
+    /**
+     * True when the nominee's cycle is in its voting window, decided by the
+     * shared COMPUTED-phase guard rather than this controller's own reading of
+     * the stored status column.
+     */
     private function votingOpenFor(object $nominee): bool
     {
-        try {
-            $status = DB::table('gates_award_categories as cat')
-                ->join('gates_award_cycles as c', 'c.id', '=', 'cat.cycle_id')
-                ->where('cat.id', (int)$nominee->category_id)
-                ->value('c.status');
-            return (string)$status === 'voting';
-        } catch (\Throwable) {
-            return false;
-        }
+        return PaidVoteService::votingOpenFor((int) $nominee->category_id);
     }
 
     /** The nominee's ballot URL (or the vote index as a safe fallback). */

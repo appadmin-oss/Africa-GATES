@@ -67,6 +67,24 @@ final class CyclePolicy
         if ($results   && $now->gte($results))   return CyclePhase::Results;
         if ($voteClose && $now->gte($voteClose)) return CyclePhase::Judging;
         if ($voteOpen  && $now->gte($voteOpen))  return CyclePhase::Voting;
+
+        // CLOSE-ONLY WINDOW. An operator who sets only `voting_close` ("voting
+        // ends 15 Aug") has declared a voting window with an unstated start, so
+        // voting runs until that close — beginning when nominations close, or
+        // immediately if there is no nominations window either. Honouring this
+        // is the whole point: the close date must bind even when the start was
+        // never filled in.
+        //
+        // The stored column is consulted here, and ONLY here, as a tiebreaker:
+        // a cycle whose operator has already moved it past voting must not have
+        // voting resurrected by an inferred start. A start date was never given,
+        // so there is no window to contradict.
+        if (!$voteOpen && $voteClose && (!$nomClose || $now->gte($nomClose))) {
+            return $stored->ordinal() <= CyclePhase::Voting->ordinal()
+                ? CyclePhase::Voting
+                : $stored;   // operator already moved it to judging/results
+        }
+
         if ($nomClose  && $now->gte($nomClose)) {
             // The gap after nominations. It is only "shortlisting" if a voting
             // window is actually coming; with no voting_open set, the cycle has
@@ -138,7 +156,9 @@ final class CyclePolicy
             CyclePhase::Upcoming     => [null, $nomOpen ?: $voteOpen],
             CyclePhase::Nominations  => [$nomOpen, $nomClose],
             CyclePhase::Shortlisting => [$nomClose, $voteOpen],
-            CyclePhase::Voting       => [$voteOpen, $voteClose],
+            // A close-only window has no declared start; fall back to the
+            // nominations close so the countdown still has a real bound.
+            CyclePhase::Voting       => [$voteOpen ?: $nomClose, $voteClose],
             CyclePhase::Judging      => [$voteClose ?: $nomClose, $results],
             CyclePhase::Results      => [$results, null],
             CyclePhase::Archived     => [null, null],

@@ -40,6 +40,16 @@ class PaidVoteService
         }
     }
 
+    /**
+     * True when the category's cycle is inside its voting window, per the
+     * shared COMPUTED-phase guard. One helper so checkout, minting and any
+     * future paid-vote surface cannot drift apart.
+     */
+    public static function votingOpenFor(int $categoryId): bool
+    {
+        return BallotGuard::isVotable($categoryId);
+    }
+
     /** Master toggle — OFF by default. */
     public static function enabled(): bool
     {
@@ -104,6 +114,23 @@ class PaidVoteService
 
         $nominee = DB::table('gates_nominees')->where('id', $nomineeId)->first();
         if (!$nominee)                                    return ['ok' => false, 'message' => 'Nominee not found.'];
+
+        // PHASE GATE. `start()` checked that voting was open before taking the
+        // money, but mint() — reachable from BOTH the browser callback and the
+        // gateway webhook, either of which can land arbitrarily late — checked
+        // nothing. A payment initiated while voting was open but CONFIRMED
+        // after it closed still minted weighted votes and bumped the public
+        // tally. Refuse instead, and mark the order so it can be refunded.
+        // Deliberately leaves the order at votes_used = 0. A CONFIRMED
+        // 'paid-vote' row with votes_used = 0 is therefore the queryable
+        // "paid but never minted — refund owed" signal for ops, and the
+        // existing clawback path can reverse it. No new column needed, and the
+        // idempotency gate below is never armed, so a later retry inside a
+        // reopened window would still mint correctly.
+        if (!self::votingOpenFor((int) $nominee->category_id)) {
+            return ['ok' => false, 'code' => 'VOTING_CLOSED',
+                    'message' => 'Voting closed before this payment confirmed. No votes were added — this order is refundable.'];
+        }
 
         return DB::connection()->transaction(function () use ($don, $nominee, $qty, $nomineeId) {
             // Idempotency gate: only the first caller flips votes_used.

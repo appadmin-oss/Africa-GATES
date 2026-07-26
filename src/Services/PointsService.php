@@ -141,8 +141,15 @@ final class PointsService
                 $cycle = DB::table('gates_award_cycles AS cy')
                     ->join('gates_award_categories AS c', 'c.cycle_id', '=', 'cy.id')
                     ->where('c.id', $nom->category_id)->select('cy.status', 'cy.id', 'cy.programme_id')->first();
-                if (!$cycle || $cycle->status !== 'voting') {
+                if (!$cycle) {
                     return ['ok' => false, 'message' => 'Voting is not open for this category right now.'];
+                }
+                // Same COMPUTED-phase gate as an organic vote — the stored
+                // status column is a cache, never the authority.
+                try {
+                    BallotGuard::assertVotable((int) $nom->category_id);
+                } catch (PhaseError $e) {
+                    return ['ok' => false, 'message' => $e->getMessage(), 'code' => $e->errorCode];
                 }
 
                 // Shared paid-weight cap (RuleEngine) so points can't swamp the community signal.

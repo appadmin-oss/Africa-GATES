@@ -215,9 +215,14 @@ class CyclePolicyTest extends TestCase
             foreach ($instants as $when) {
                 $phase = CyclePolicy::phaseFor((object) $row, $this->at($when));
                 $this->assertInstanceOf(CyclePhase::class, $phase, "mask $mask at $when");
-                // Voting may only be reported when a voting_open date exists.
+                // Voting may only be reported when the operator declared a
+                // voting window — an open date, or a close date (which implies
+                // one). Never from nothing.
                 if ($phase->isVotingOpen()) {
-                    $this->assertNotNull($row['voting_open'], "mask $mask must not report voting without voting_open");
+                    $this->assertTrue(
+                        $row['voting_open'] !== null || $row['voting_close'] !== null,
+                        "mask $mask must not report voting with no voting window at all"
+                    );
                 }
                 $checked++;
             }

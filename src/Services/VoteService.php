@@ -80,16 +80,20 @@ class VoteService {
                 return ['success' => false, 'code' => 'ALREADY_VOTED', 'message' => 'You have already voted in this category.'];
             }
 
-            // Voting must be OPEN for this nominee's cycle. Without this gate an
-            // approved nominee is votable during nominations/judging/results too.
+            // Voting must be OPEN for this nominee's cycle — decided by the
+            // COMPUTED phase (date windows vs now), not by the stored status
+            // column. A scheduler that never ran used to leave `status` at
+            // 'voting' indefinitely past voting_close, and every vote cast
+            // after the published close was accepted and counted toward the CPI.
+            try {
+                BallotGuard::assertVotable((int) $nominee->category_id);
+            } catch (PhaseError $e) {
+                return ['success' => false, 'code' => $e->errorCode, 'message' => $e->getMessage()];
+            }
             $cycle = DB::table('gates_award_cycles AS cy')
                 ->join('gates_award_categories AS c', 'c.cycle_id', '=', 'cy.id')
                 ->where('c.id', $nominee->category_id)
                 ->select('cy.status', 'cy.voting_close')->first();
-            if (!$cycle || $cycle->status !== 'voting') {
-                return ['success' => false, 'code' => 'VOTING_CLOSED',
-                        'message' => 'Voting is not open for this category right now.'];
-            }
 
             // All checks passed — record the vote and consume the code atomically.
             try {
@@ -127,7 +131,7 @@ class VoteService {
                 ->count() + 1;
 
             $daysLeft = 0;
-            if (!empty($cycle->voting_close)) {
+            if (!empty($cycle->voting_close ?? null)) {
                 $daysLeft = max(0, (int)ceil((strtotime($cycle->voting_close) - time()) / 86400));
             }
 

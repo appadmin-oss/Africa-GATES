@@ -594,3 +594,21 @@ CREATE TABLE IF NOT EXISTS gates_posts (
   PRIMARY KEY (id),
   UNIQUE KEY uq_posts_slug (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shadow-mode ledger for the COMPUTED cycle phase (see AfricaGates\Services\BallotGuard).
+-- One row whenever the computed phase and the stored gates_award_cycles.status
+-- disagree about whether a vote/nomination may proceed, so a mis-configured
+-- live cycle surfaces to an operator instead of silently mis-gating traffic.
+CREATE TABLE IF NOT EXISTS gates_phase_drift (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  cycle_id BIGINT UNSIGNED NOT NULL,
+  action ENUM('vote','nominate') NOT NULL DEFAULT 'vote',
+  computed_phase VARCHAR(20) NOT NULL,
+  stored_status VARCHAR(20) NOT NULL,
+  would_allow TINYINT(1) NOT NULL DEFAULT 0,
+  phase_allows TINYINT(1) NOT NULL DEFAULT 0,
+  mode VARCHAR(10) NOT NULL DEFAULT 'strict',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_drift_cycle (cycle_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

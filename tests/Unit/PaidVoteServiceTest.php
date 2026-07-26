@@ -32,10 +32,61 @@ final class PaidVoteServiceTest extends TestCase
         ], $over));
     }
 
+    /**
+     * Seed the category -> cycle chain minting now requires. Paid votes may
+     * only be minted while voting is OPEN, and openness is computed from the
+     * cycle's date windows, so a nominee with no cycle is (correctly) not
+     * mintable at all.
+     */
+    private function seedOpenCycle(string $votingClose = '+7 days'): void
+    {
+        DB::table('gates_award_cycles')->insertOrIgnore([
+            'id' => 1, 'programme_id' => 0, 'year' => (int) date('Y'), 'status' => 'voting',
+            'voting_open'  => date('Y-m-d H:i:s', strtotime('-1 day')),
+            'voting_close' => date('Y-m-d H:i:s', strtotime($votingClose)),
+        ]);
+        DB::table('gates_award_categories')->insertOrIgnore([
+            'id' => 2, 'cycle_id' => 1, 'slug' => 'cat-2', 'title' => 'Category',
+        ]);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->seedOpenCycle();
         DB::table('gates_nominees')->insert(['id' => 5, 'name' => 'Ada Obi', 'category_id' => 2, 'status' => 'approved', 'vote_count' => 3, 'organic_vote_count' => 3]);
+    }
+
+    public function test_mint_refuses_when_voting_closed_before_the_payment_confirmed(): void
+    {
+        // The gateway webhook or a slow browser callback can land long after
+        // checkout. Money must never mint votes into a closed ballot.
+        DB::table('gates_award_cycles')->where('id', 1)->update([
+            'voting_open'  => date('Y-m-d H:i:s', strtotime('-30 days')),
+            'voting_close' => date('Y-m-d H:i:s', strtotime('-1 day')),
+        ]);
+        $id = $this->order();
+
+        $r = PaidVoteService::mint($id);
+
+        $this->assertFalse($r['ok']);
+        $this->assertSame('VOTING_CLOSED', $r['code']);
+        $this->assertSame(3, (int) DB::table('gates_nominees')->where('id', 5)->value('vote_count'), 'public tally must not move');
+        $this->assertSame(0, DB::table('gates_votes')->count(), 'no vote row may be written');
+        // votes_used stays 0 — the queryable "paid but never minted" signal.
+        $this->assertSame(0, (int) DB::table('gates_donations')->where('id', $id)->value('votes_used'));
+    }
+
+    public function test_mint_refuses_when_the_category_has_no_resolvable_cycle(): void
+    {
+        // Fail closed: an orphaned category must not be mintable.
+        DB::table('gates_award_categories')->where('id', 2)->update(['cycle_id' => 9999]);
+        $id = $this->order();
+
+        $r = PaidVoteService::mint($id);
+
+        $this->assertFalse($r['ok']);
+        $this->assertSame(3, (int) DB::table('gates_nominees')->where('id', 5)->value('vote_count'));
     }
 
     public function test_disabled_by_default(): void
