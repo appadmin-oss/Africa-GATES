@@ -92,6 +92,11 @@ final class CycleMaterialiser
             $target  = CyclePolicy::phaseFor($c, $now);
             $current = CyclePhase::fromStored($c->status ?? null);
 
+            // Keep the indexed boundary fresh on EVERY pass, not only when the
+            // phase moves. The sweep below is only trustworthy if this column is
+            // maintained for cycles that are simply waiting.
+            if (!$this->dryRun) $this->refreshBoundary($c, $now);
+
             if ($target->ordinal() === $current->ordinal()) continue;
 
             // FORWARD ONLY. A date-driven materialiser must never regress a
@@ -175,6 +180,58 @@ final class CycleMaterialiser
 
         return ['changed' => $changed, 'checked' => $checked, 'promoted' => $promoted,
                 'suppressed' => $suppressed, 'message' => $msg];
+    }
+
+    /** Keep the indexed next_boundary_at column in step with the windows. */
+    private function refreshBoundary(object $c, Carbon $now): void
+    {
+        try {
+            $at = CyclePolicy::nextBoundaryFor($c, $now);
+            if (($c->next_boundary_at ?? null) !== $at) {
+                DB::table('gates_award_cycles')->where('id', $c->id)->update(['next_boundary_at' => $at]);
+            }
+        } catch (\Throwable) { /* column may predate the migration */ }
+    }
+
+    /**
+     * Cycles whose declared boundary has passed but whose materialised status
+     * has not caught up — i.e. the materialiser is behind.
+     *
+     * This is the traffic-INDEPENDENT half of divergence detection.
+     * gates_phase_drift only records divergences observed on the vote and
+     * nominate paths, so a cycle nobody happens to interact with can drift
+     * unnoticed. This is one indexed range scan; alarm when it returns anything,
+     * and treat max(now - next_boundary_at) as the lag metric.
+     *
+     * @return list<array{cycle_id:int, stored_status:string, computed_phase:string, boundary_at:?string, seconds_behind:int}>
+     */
+    public static function divergences(?Carbon $now = null): array
+    {
+        $now = $now ?? Carbon::now();
+        $out = [];
+        try {
+            $rows = DB::table('gates_award_cycles')
+                ->where('status', '!=', 'archived')
+                ->whereNotNull('next_boundary_at')
+                ->where('next_boundary_at', '<=', $now->toDateTimeString())
+                ->get();
+        } catch (\Throwable) {
+            return [];
+        }
+        foreach ($rows as $c) {
+            $computed = CyclePolicy::phaseFor($c, $now);
+            $stored   = CyclePhase::fromStored($c->status ?? null);
+            if ($computed === $stored) continue;
+            $ts = strtotime((string) $c->next_boundary_at);
+            $out[] = [
+                'cycle_id'       => (int) $c->id,
+                'stored_status'  => $stored->value,
+                'computed_phase' => $computed->value,
+                'boundary_at'    => (string) $c->next_boundary_at,
+                'seconds_behind' => $ts === false ? 0 : max(0, $now->getTimestamp() - $ts),
+            ];
+        }
+        return $out;
     }
 
     /** How many whole days past $when we are (0 when $when is future/absent). */

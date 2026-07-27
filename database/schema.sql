@@ -47,6 +47,12 @@ CREATE TABLE IF NOT EXISTS gates_award_cycles (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, programme_id TINYINT UNSIGNED NOT NULL,
   year YEAR NOT NULL, edition_label VARCHAR(100) DEFAULT NULL,
   status ENUM('upcoming','nominations','shortlisting','voting','judging','results','archived') NOT NULL DEFAULT 'upcoming',
+  -- The next declared boundary this cycle is waiting on. A computed phase
+  -- cannot be indexed (NOW() is non-deterministic and rejected in generated
+  -- columns, and MySQL builds functional indexes as hidden generated columns),
+  -- so this materialises the one question an operator needs indexed: which
+  -- cycles need attention right now.
+  next_boundary_at DATETIME NULL DEFAULT NULL,
   nominations_open DATETIME DEFAULT NULL, nominations_close DATETIME DEFAULT NULL,
   voting_open DATETIME DEFAULT NULL, voting_close DATETIME DEFAULT NULL,
   results_date DATETIME DEFAULT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -163,8 +169,12 @@ CREATE TABLE IF NOT EXISTS gates_jobs (
   attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
   run_after TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, locked_at TIMESTAMP NULL DEFAULT NULL,
   last_error VARCHAR(500) DEFAULT NULL,
+  dedupe_key VARCHAR(191) NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id), KEY idx_jobs_due (status, run_after)
+  PRIMARY KEY (id), KEY idx_jobs_due (status, run_after),
+  -- The outbox delivers at-least-once, so anything with a user-visible effect
+  -- needs a way to refuse a duplicate enqueue.
+  UNIQUE KEY uq_jobs_dedupe (dedupe_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS gates_rule_sets (

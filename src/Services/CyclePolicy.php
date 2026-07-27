@@ -207,6 +207,42 @@ final class CyclePolicy
         return $noun . ' closes ' . self::humanRemaining($secondsLeft) . ' · ' . $closesAt->format('j M Y');
     }
 
+    /**
+     * The next declared boundary this cycle is waiting on, or null when there is
+     * nothing further scheduled.
+     *
+     * Stored on the row (indexed) because a computed phase CANNOT be indexed:
+     * MySQL and SQLite both reject non-deterministic expressions such as NOW()
+     * in generated columns, and MySQL implements functional indexes as hidden
+     * generated columns, so a clock-relative predicate cannot be indexed either.
+     * That makes "which cycles need attention?" an un-indexable question unless
+     * the answer is materialised — which is what this is for. It turns the
+     * divergence sweep into one range scan instead of a full table walk, and
+     * makes detection independent of whether anyone happens to be voting.
+     */
+    public static function nextBoundaryFor(object|array $cycle, ?Carbon $now = null): ?string
+    {
+        $c   = (object) $cycle;
+        $now = $now ?? Carbon::now();
+
+        if (CyclePhase::fromStored($c->status ?? null) === CyclePhase::Archived) return null;
+
+        $candidates = array_filter([
+            self::at($c->nominations_open  ?? null),
+            self::at($c->nominations_close ?? null),
+            self::at($c->voting_open       ?? null),
+            self::at($c->voting_close      ?? null),
+            self::at($c->results_date      ?? null),
+        ]);
+
+        $next = null;
+        foreach ($candidates as $at) {
+            if ($at->lte($now)) continue;              // already passed
+            if ($next === null || $at->lt($next)) $next = $at;
+        }
+        return $next?->toDateTimeString();
+    }
+
     /** "in 3 days" / "in 5 hours" / "in 12 minutes" — never a bare "0 days left". */
     public static function humanRemaining(int $seconds): string
     {

@@ -244,6 +244,19 @@ final class Maintenance
         foreach ($engine->lines() as $line) {
             $this->log($line);
         }
+
+        // Traffic-independent divergence check. Anything reported here means the
+        // materialised status is behind its own declared boundary — the state a
+        // computed phase is designed to survive, but which an operator still
+        // needs to see. It lands in gates_cron_log, which the admin surfaces.
+        foreach (\AfricaGates\Services\CycleMaterialiser::divergences() as $d) {
+            $this->log(sprintf(
+                '  ! DIVERGENCE cycle #%d: stored %s, computed %s, boundary %s passed %dh ago',
+                $d['cycle_id'], $d['stored_status'], $d['computed_phase'],
+                (string) $d['boundary_at'], (int) floor($d['seconds_behind'] / 3600)
+            ));
+        }
+
         return (int) $r['changed'];
     }
 

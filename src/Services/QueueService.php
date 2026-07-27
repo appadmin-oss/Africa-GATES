@@ -22,10 +22,22 @@ class QueueService
     private array $handlers = [];
 
     /** Enqueue a job. Returns its id. */
-    public function push(string $type, array $payload = [], int $delaySeconds = 0): int
+    /**
+     * Enqueue a job. Returns its id, or 0 when $dedupeKey collides with a job
+     * that is already queued.
+     *
+     * $dedupeKey makes an enqueue idempotent. The queue is the outbox for phase
+     * side effects, and the outbox pattern guarantees AT-LEAST-once delivery,
+     * never exactly-once — a relay that publishes and then crashes before
+     * marking the row done republishes on restart. For anything with a
+     * user-visible effect (a congratulations email) that means duplicates. A key
+     * like "phase:12:results:announce" is refused by the UNIQUE index the second
+     * time. Left null, behaviour is exactly as before.
+     */
+    public function push(string $type, array $payload = [], int $delaySeconds = 0, ?string $dedupeKey = null): int
     {
         $now = Carbon::now();
-        return (int) DB::table('gates_jobs')->insertGetId([
+        $row = [
             'type'       => $type,
             'payload'    => json_encode($payload),
             'status'     => 'pending',
@@ -33,7 +45,21 @@ class QueueService
             'run_after'  => $now->copy()->addSeconds(max(0, $delaySeconds))->toDateTimeString(),
             'created_at'  => $now->toDateTimeString(),
             'updated_at'  => $now->toDateTimeString(),
-        ]);
+        ];
+        if ($dedupeKey !== null && $dedupeKey !== '') {
+            $row['dedupe_key'] = mb_substr($dedupeKey, 0, 191);
+        }
+        try {
+            return (int) DB::table('gates_jobs')->insertGetId($row);
+        } catch (\Throwable $e) {
+            // A UNIQUE violation on dedupe_key is the intended outcome, not a
+            // failure: the job is already queued. Anything else re-throws.
+            if ($dedupeKey !== null && $dedupeKey !== ''
+                && DB::table('gates_jobs')->where('dedupe_key', mb_substr($dedupeKey, 0, 191))->exists()) {
+                return 0;
+            }
+            throw $e;
+        }
     }
 
     /** Register a handler for a job type. The handler receives the decoded payload. */

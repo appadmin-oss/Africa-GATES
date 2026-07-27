@@ -206,4 +206,97 @@ class CycleMaterialiserTest extends TestCase
         if ($prev === null) { unset($_ENV['APP_TIMEZONE']); } else { $_ENV['APP_TIMEZONE'] = $prev; }
         Clock::boot();
     }
+
+    public function test_the_next_boundary_is_materialised_so_the_sweep_is_indexable(): void
+    {
+        // A computed phase cannot be indexed, so "which cycles need attention?"
+        // is only answerable cheaply if the next boundary is stored.
+        $this->seedCycle(20, 'nominations', [
+            'nominations_open'  => '2020-01-01 00:00:00',
+            'nominations_close' => '2020-02-01 00:00:00',
+            'voting_open'       => '2099-03-01 00:00:00',
+            'voting_close'      => '2099-04-01 00:00:00',
+        ]);
+
+        (new CycleMaterialiser())->run();
+
+        $at = (string) DB::table('gates_award_cycles')->where('id', 20)->value('next_boundary_at');
+        $this->assertStringStartsWith('2099-03-01', $at, 'the soonest FUTURE boundary, not a passed one');
+    }
+
+    public function test_the_boundary_is_refreshed_even_when_the_phase_does_not_move(): void
+    {
+        // A cycle that is simply waiting must still get its boundary maintained,
+        // or the sweep silently stops seeing it.
+        $this->seedCycle(21, 'nominations', [
+            'nominations_open'  => '2020-01-01 00:00:00',
+            'nominations_close' => '2099-01-01 00:00:00',
+        ]);
+
+        $r = (new CycleMaterialiser())->run();
+
+        $this->assertSame(0, $r['changed'], 'nothing to advance');
+        $this->assertStringStartsWith(
+            '2099-01-01',
+            (string) DB::table('gates_award_cycles')->where('id', 21)->value('next_boundary_at'),
+            'but the boundary is still recorded'
+        );
+    }
+
+    public function test_a_cycle_left_behind_by_the_materialiser_is_reported_by_the_sweep(): void
+    {
+        // gates_phase_drift only sees the vote/nominate paths, so a cycle nobody
+        // interacts with could drift unnoticed. This sweep is traffic-independent.
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 1, 'slug' => 'p1', 'title' => 'P1']);
+        DB::table('gates_award_cycles')->insert([
+            'id' => 22, 'programme_id' => 1, 'year' => (int) date('Y'),
+            'status'           => 'voting',                                     // never updated
+            'voting_open'      => '2020-01-01 00:00:00',
+            'voting_close'     => '2020-02-01 00:00:00',
+            'next_boundary_at' => '2020-02-01 00:00:00',                        // long passed
+        ]);
+
+        $d = CycleMaterialiser::divergences();
+
+        $this->assertCount(1, $d);
+        $this->assertSame(22, $d[0]['cycle_id']);
+        $this->assertSame('voting', $d[0]['stored_status']);
+        $this->assertSame('judging', $d[0]['computed_phase']);
+        $this->assertGreaterThan(86400, $d[0]['seconds_behind'], 'lag is measurable, not just boolean');
+    }
+
+    public function test_the_sweep_is_quiet_when_everything_is_in_step(): void
+    {
+        $this->seedCycle(23, 'voting', [
+            'voting_open'  => date('Y-m-d H:i:s', strtotime('-1 day')),
+            'voting_close' => date('Y-m-d H:i:s', strtotime('+7 days')),
+        ]);
+        (new CycleMaterialiser())->run();
+
+        $this->assertSame([], CycleMaterialiser::divergences(), 'no news is the normal case');
+    }
+
+    public function test_a_deduped_job_is_only_ever_queued_once(): void
+    {
+        // The outbox delivers at-least-once, so a phase side effect with a
+        // user-visible result needs an idempotent enqueue.
+        $q = new \AfricaGates\Services\QueueService();
+
+        $first  = $q->push('phase.announce', ['cycle' => 9], 0, 'phase:9:results:announce');
+        $second = $q->push('phase.announce', ['cycle' => 9], 0, 'phase:9:results:announce');
+
+        $this->assertGreaterThan(0, $first);
+        $this->assertSame(0, $second, 'the duplicate is refused, not thrown');
+        $this->assertSame(1, DB::table('gates_jobs')->where('type', 'phase.announce')->count());
+    }
+
+    public function test_jobs_without_a_dedupe_key_are_unaffected(): void
+    {
+        $q = new \AfricaGates\Services\QueueService();
+        $q->push('plain.job', ['n' => 1]);
+        $q->push('plain.job', ['n' => 2]);
+
+        $this->assertSame(2, DB::table('gates_jobs')->where('type', 'plain.job')->count(),
+            'many NULL dedupe_keys must coexist');
+    }
 }

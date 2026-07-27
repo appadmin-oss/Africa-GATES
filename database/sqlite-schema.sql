@@ -69,10 +69,16 @@ CREATE TABLE IF NOT EXISTS gates_award_cycles (
   voting_open TEXT,
   voting_close TEXT,
   results_date TEXT,
+  -- The next declared boundary this cycle is waiting on. A computed phase
+  -- cannot be indexed (NOW() is non-deterministic and rejected in generated
+  -- columns), so this materialises the one question an operator needs indexed:
+  -- which cycles need attention right now.
+  next_boundary_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(programme_id) REFERENCES gates_award_programmes(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_cycles_prog_year ON gates_award_cycles(programme_id, year);
+CREATE INDEX IF NOT EXISTS idx_cycles_next_boundary ON gates_award_cycles(next_boundary_at);
 
 CREATE TABLE IF NOT EXISTS gates_award_categories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -674,9 +680,13 @@ CREATE TABLE IF NOT EXISTS gates_jobs (
   run_after TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   locked_at TEXT,
   last_error TEXT,
+  -- Optional idempotency key: the outbox delivers at-least-once, so anything
+  -- with a user-visible effect needs a way to refuse a duplicate enqueue.
+  dedupe_key TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE UNIQUE INDEX IF NOT EXISTS uq_jobs_dedupe ON gates_jobs(dedupe_key);
 CREATE INDEX IF NOT EXISTS idx_jobs_due ON gates_jobs(status, run_after);
 
 -- Per-scope rule overrides (CPI weights, tiers, thresholds…) layered over code
