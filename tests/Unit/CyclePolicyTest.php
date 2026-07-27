@@ -121,16 +121,25 @@ class CyclePolicyTest extends TestCase
         $this->assertTrue($state['is_voting_open']);
     }
 
-    public function test_shortlisting_materialises_as_judging_for_the_legacy_column(): void
+    public function test_every_phase_round_trips_through_the_stored_column(): void
     {
-        // The stored ENUM/CHECK has no 'shortlisting', so the materialised value
-        // collapses — but the computed phase keeps the distinction.
-        $this->assertSame('judging', CyclePhase::Shortlisting->storedValue());
-        $this->assertSame('voting', CyclePhase::Voting->storedValue());
+        // The column was widened to carry 'shortlisting'. If it ever collapses
+        // again, a one-step advance out of nominations writes 'judging' and
+        // voting becomes a backward step that can never be taken — the original
+        // bug, reappearing in the materialised column.
+        foreach (CyclePhase::cases() as $phase) {
+            $this->assertSame($phase->value, $phase->storedValue(), $phase->value . ' must round-trip');
+            $this->assertSame($phase, CyclePhase::fromStored($phase->storedValue()));
+        }
+    }
 
+    public function test_shortlisting_is_reported_as_drift_against_a_legacy_judging_column(): void
+    {
+        // A row written before the widen still says 'judging' during the gap.
         $state = CyclePolicy::stateFor($this->gapCycle('judging'), $this->at('2026-07-05 12:00:00'));
+
         $this->assertSame('shortlisting', $state['phase']);
-        $this->assertFalse($state['drifted'], 'judging is the correct materialisation of shortlisting');
+        $this->assertTrue($state['drifted'], 'a legacy judging row during shortlisting is now visible drift');
     }
 
     public function test_a_missing_voting_window_never_invents_one(): void

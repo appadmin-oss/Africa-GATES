@@ -227,34 +227,35 @@ final class Maintenance
         } catch (\Throwable $e) { return 0; }
     }
 
+    /**
+     * Delegates to the single {@see \AfricaGates\Services\CycleMaterialiser}.
+     *
+     * This method used to be a SECOND, weaker lifecycle engine — and the only
+     * one actually scheduled. It jumped straight to the target status with no
+     * forward-only guard, wrote no transitions ledger row, and never promoted
+     * winners, so cycles reached 'results' and crowned nobody. Meanwhile the
+     * documented, tested engine in CycleAdvanceCommand was scheduled nowhere.
+     * There is now one implementation behind both entry points.
+     */
     private function advanceCycles(): int
     {
-        $now = Carbon::now();
-        $changed = 0;
+        $engine = new \AfricaGates\Services\CycleMaterialiser(false, $this->cacheService());
+        $r = $engine->run();
+        foreach ($engine->lines() as $line) {
+            $this->log($line);
+        }
+        return (int) $r['changed'];
+    }
+
+    /** The container's CacheService when available, otherwise a bare one. */
+    private function cacheService(): \AfricaGates\Services\CacheService
+    {
         try {
-            $cycles = DB::table('gates_award_cycles')->where('status', '!=', 'archived')->get();
-            foreach ($cycles as $c) {
-                $hasWindows = $c->nominations_open || $c->nominations_close || $c->voting_open || $c->voting_close || $c->results_date;
-                if (!$hasWindows) continue;
-                $want = \AfricaGates\Console\Commands\CycleAdvanceCommand::statusFor($c, $now);
-                if ($want === $c->status) continue;
-                DB::table('gates_award_cycles')->where('id', $c->id)->update(['status' => $want]);
-                $this->log("Cycle #{$c->id} (prog {$c->programme_id}, {$c->year}): {$c->status} → {$want}");
-                WebhookService::dispatch('cycle.status_changed', [
-                    'cycle_id'     => (int) $c->id,
-                    'programme_id' => (int) $c->programme_id,
-                    'year'         => (int) $c->year,
-                    'from'         => (string) $c->status,
-                    'to'           => (string) $want,
-                ]);
-                $changed++;
+            if ($this->container && $this->container->has(\AfricaGates\Services\CacheService::class)) {
+                return $this->container->get(\AfricaGates\Services\CacheService::class);
             }
-            if ($changed > 0) {
-                DB::table('gates_cache')->where('cache_key', 'like', 'awards:%')->delete();
-            }
-        } catch (\Throwable $e) { $this->log('Cycle advance error: ' . $e->getMessage()); }
-        $this->log("Cycle advance: $changed changed");
-        return $changed;
+        } catch (\Throwable) {}
+        return new \AfricaGates\Services\CacheService();
     }
 
     private function recomputeCpi(): int

@@ -20,7 +20,13 @@ class ProgrammesController
     ) {}
 
     /** Bust the public programmes cache so /nominate, /vote and /awards reflect edits at once. */
-    private function bustAwardsCache(): void { $this->cache?->forget('awards:active'); }
+    /**
+     * Drop every cached view derived from a cycle's phase — not just
+     * `awards:active`. Clearing only that one key is why an admin could change
+     * a cycle, see "Cycle saved.", and watch /vote keep advertising the old
+     * phase for up to ten minutes.
+     */
+    private function bustAwardsCache(): void { ($this->cache ?? new \AfricaGates\Services\CacheService())->forgetAwardViews(); }
 
     public function index(Request $req, Response $res): Response
     {

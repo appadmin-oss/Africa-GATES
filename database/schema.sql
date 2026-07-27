@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS gates_award_programmes (
 CREATE TABLE IF NOT EXISTS gates_award_cycles (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, programme_id TINYINT UNSIGNED NOT NULL,
   year YEAR NOT NULL, edition_label VARCHAR(100) DEFAULT NULL,
-  status ENUM('upcoming','nominations','voting','judging','results','archived') NOT NULL DEFAULT 'upcoming',
+  status ENUM('upcoming','nominations','shortlisting','voting','judging','results','archived') NOT NULL DEFAULT 'upcoming',
   nominations_open DATETIME DEFAULT NULL, nominations_close DATETIME DEFAULT NULL,
   voting_open DATETIME DEFAULT NULL, voting_close DATETIME DEFAULT NULL,
   results_date DATETIME DEFAULT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

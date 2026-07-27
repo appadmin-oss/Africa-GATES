@@ -16,7 +16,7 @@ class AwardService {
             // cycle from going dark at the New Year boundary or when seeded ahead.
             $c = DB::table('gates_award_cycles')
                 ->where('programme_id', $p->id)
-                ->orderByRaw("CASE WHEN status IN ('nominations','voting','judging','results') THEN 0 ELSE 1 END")
+                ->orderByRaw("CASE WHEN status IN ('nominations','shortlisting','voting','judging','results') THEN 0 ELSE 1 END")
                 ->orderByDesc('year')->orderByDesc('id')
                 ->first();
             return [
@@ -36,7 +36,7 @@ class AwardService {
         // Same status-aware "current cycle" pick as getActiveProgrammesWithStatus,
         // so a programme's voting state is consistent between the /vote hub and page.
         $cycle=DB::table('gates_award_cycles')->where('programme_id',$p->id)
-            ->orderByRaw("CASE WHEN status IN ('nominations','voting','judging','results') THEN 0 ELSE 1 END")
+            ->orderByRaw("CASE WHEN status IN ('nominations','shortlisting','voting','judging','results') THEN 0 ELSE 1 END")
             ->orderByDesc('year')->orderByDesc('id')->first();
         $cats=$cycle?DB::table('gates_award_categories')->where('cycle_id',$cycle->id)->orderBy('sort_order')->get()->map(fn($c)=>['id'=>$c->id,'slug'=>$c->slug,'title'=>$c->title,'description'=>$c->description,'nominee_count'=>MergeService::notMerged(DB::table('gates_nominees')->where('category_id',$c->id)->where('status','approved'))->count()])->values()->all():[];
         return['id'=>$p->id,'slug'=>$p->slug,'title'=>$p->title,'subtitle'=>$p->subtitle ?? null,'description'=>$p->description ?? null,'icon_emoji'=>$p->icon_emoji ?? null,'cycle'=>$cycle?(array)$cycle:null,'categories'=>$cats];

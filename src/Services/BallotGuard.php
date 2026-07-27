@@ -163,7 +163,7 @@ final class BallotGuard
         try {
             $row = DB::table('gates_award_cycles')
                 ->where('programme_id', $programmeId)
-                ->orderByRaw("CASE WHEN status IN ('nominations','voting','judging','results') THEN 0 ELSE 1 END")
+                ->orderByRaw("CASE WHEN status IN ('nominations','shortlisting','voting','judging','results') THEN 0 ELSE 1 END")
                 ->orderByDesc('year')->orderByDesc('id')
                 ->first();
         } catch (\Throwable) {

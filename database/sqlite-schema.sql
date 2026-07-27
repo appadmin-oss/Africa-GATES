@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS gates_award_cycles (
   programme_id INTEGER NOT NULL,
   year INTEGER NOT NULL,
   edition_label TEXT,
-  status TEXT NOT NULL DEFAULT 'upcoming' CHECK(status IN ('upcoming','nominations','voting','judging','results','archived')),
+  status TEXT NOT NULL DEFAULT 'upcoming' CHECK(status IN ('upcoming','nominations','shortlisting','voting','judging','results','archived')),
   nominations_open TEXT,
   nominations_close TEXT,
   voting_open TEXT,

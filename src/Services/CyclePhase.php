@@ -18,10 +18,9 @@ namespace AfricaGates\Services;
  * never opened at all. Because it sorts BEFORE Voting, forward-only
  * advancement and "never skip voting" are satisfiable at the same time.
  *
- * The stored ENUM/CHECK on `status` only permits the six legacy values, so
- * Shortlisting materialises as 'judging' via {@see storedValue()} until that
- * column is widened. The computed phase — the one that gates every action and
- * renders every label — carries the distinction regardless.
+ * The stored column's ENUM/CHECK was widened to carry this phase, so the
+ * materialised status and the transitions ledger can record it truthfully
+ * rather than describing a phase that never happened.
  */
 enum CyclePhase: string
 {
@@ -89,13 +88,17 @@ enum CyclePhase: string
     }
 
     /**
-     * The value written to `gates_award_cycles.status`. Shortlisting collapses
-     * to 'judging' because the column's ENUM/CHECK predates this phase; every
-     * other phase round-trips unchanged.
+     * The value written to `gates_award_cycles.status`.
+     *
+     * Every phase now round-trips, including Shortlisting — the column's
+     * ENUM/CHECK was widened by 2026_07_26_cycle_shortlisting_phase.php. It
+     * previously collapsed to 'judging', which reintroduced the original bug in
+     * the materialised column: a one-step advance out of nominations wrote
+     * 'judging', and voting was then a backward step that could never be taken.
      */
     public function storedValue(): string
     {
-        return $this === self::Shortlisting ? self::Judging->value : $this->value;
+        return $this->value;
     }
 
     /**
