@@ -75,10 +75,25 @@ final class CyclePolicy
         // is the whole point: the close date must bind even when the start was
         // never filled in.
         //
+        // ⚠ KNOWN COUPLING — the one place a computed phase reads the
+        // materialised column as an INPUT rather than comparing against it.
+        //
         // The stored column is consulted here, and ONLY here, as a tiebreaker:
         // a cycle whose operator has already moved it past voting must not have
         // voting resurrected by an inferred start. A start date was never given,
         // so there is no window to contradict.
+        //
+        // The cost is real and worth stating plainly: on this branch a WRONG
+        // MATERIALISATION CAN CAUSE A WRONG AUTHORIZATION. Everywhere else the
+        // column is a cache that cannot affect a decision; here a bad `status`
+        // on a close-only cycle can open or close voting. It is bounded — the
+        // branch is unreachable once `voting_open` is set, and unreachable after
+        // `voting_close` or `results_date` pass, because those are tested first
+        // — but it is a genuine dependency, not a formality.
+        //
+        // The fix is data, not code: set `voting_open` on every cycle and this
+        // branch stops executing. The admin cycle editor should warn when a
+        // close date is saved without an open date, precisely for this reason.
         if (!$voteOpen && $voteClose && (!$nomClose || $now->gte($nomClose))) {
             return $stored->ordinal() <= CyclePhase::Voting->ordinal()
                 ? CyclePhase::Voting
