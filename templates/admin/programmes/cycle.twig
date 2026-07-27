@@ -7,14 +7,49 @@
   <div>
     <form method="post" action="/admin/programmes/{{ programme.id }}/cycle" class="ad-form">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
+      {% if phase %}
+      {# WHAT THE PLATFORM ACTUALLY THINKS. The editor previously showed only the
+         stored status and five bare date fields, so an admin had no way to know
+         which phase the site was really in — and the phase is COMPUTED from
+         these dates, not from the dropdown. `drifted` means the cached column
+         disagrees with the dates; the dates win everywhere that matters. #}
+      <div class="ad-card" style="margin-bottom:14px">
+        <div class="ad-card__head">
+          <div class="ad-card__title">Current phase<small>Computed from the date windows below — this is what the public site does</small></div>
+          <span class="ad-chip ad-chip--{{ phase.is_open ? 'green' : (phase.is_finished ? 'grey' : 'gold') }}">{{ phase.label }}</span>
+        </div>
+        <div class="ad-card__body">
+          <p style="margin:0;font-size:14px;color:var(--ad-text)">{{ phase.detail }}</p>
+          <p style="margin:8px 0 0;font-size:12.5px;color:var(--ad-text-mute)">
+            Votes accepted: <strong>{{ phase.is_voting_open ? 'yes' : 'no' }}</strong> ·
+            Nominations accepted: <strong>{{ phase.is_nominations_open ? 'yes' : 'no' }}</strong>
+            {% if cycle.next_boundary_at %} · Next change <strong>{{ cycle.next_boundary_at|date('j M Y, H:i') }}</strong>{% endif %}
+          </p>
+          {% if phase.drifted %}
+          <div class="ad-flash ad-flash--err" role="alert" style="margin:14px 0 0">
+            ⚠ The stored status column says <code>{{ phase.stored_status }}</code> but the dates compute
+            <code>{{ phase.phase }}</code>. The dates are authoritative for voting and nominations, so the
+            site is behaving correctly — but reports and lists reading the column will be wrong until the
+            scheduled task catches up. Saving this form re-syncs it.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
       <div class="ad-card">
-        <div class="ad-card__head"><div class="ad-card__title">Cycle window</div></div>
+        <div class="ad-card__head"><div class="ad-card__title">Cycle window<small>All times are {{ timezone }}</small></div></div>
         <div class="ad-card__body">
           <div class="ad-form">
+            {# Target this cycle by ID. Matching on the submitted YEAR meant that
+               editing the year field silently created a brand-new empty cycle. #}
+            <input type="hidden" name="cycle_id" value="{{ cycle.id|default('') }}">
             <div class="row">
               <div><label for="f-year">Year</label><input type="number" name="year" id="f-year" value="{{ cycle.year|default('now'|date('Y')) }}" required></div>
-              <div><label for="f-status">Status</label>
-                <select name="status" id="f-status">{% for s in ['upcoming','nominations','voting','judging','results','archived'] %}<option value="{{ s }}" {% if cycle.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select>
+              <div><label for="f-status">Status <span class="hint" style="font-weight:400">cached · dates decide the real phase</span></label>
+                {# Only transitions the guard will accept. The list used to
+                   include 'results', which is refused unconditionally. #}
+                <select name="status" id="f-status">{% for s in selectable %}<option value="{{ s }}" {% if cycle.status == s %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}</select>
               </div>
             </div>
             <div><label for="f-edition_label">Edition label</label><input type="text" name="edition_label" id="f-edition_label" value="{{ cycle.edition_label|default('') }}"></div>
@@ -27,9 +62,56 @@
               <div><label for="f-voting_close">Voting close</label><input type="datetime-local" name="voting_close" id="f-voting_close" value="{{ cycle.voting_close|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
             </div>
             <div><label for="f-results_date">Results date</label><input type="datetime-local" name="results_date" id="f-results_date" value="{{ cycle.results_date|default('')|replace({' ': 'T'})|slice(0,16) }}"></div>
+            <p class="hint" style="margin:0">
+              Entered and stored in <strong>{{ timezone }}</strong> — your browser's timezone is not applied.
+              Leave a field blank to skip that phase. A voting close date with no open date is accepted,
+              but setting both is strongly preferred.
+            </p>
           </div>
         </div>
       </div>
+
+      {% if history|length %}
+      {# The transitions ledger was written but never displayed, so an admin
+         could not see what changed the phase or when. `boundary_at` is the date
+         that caused it; `observed_at` is when the platform noticed — a large gap
+         means the scheduled task was not running. #}
+      <div class="ad-card" style="margin-top:14px">
+        <div class="ad-card__head"><div class="ad-card__title">Phase history<small>Most recent first</small></div></div>
+        <div class="ad-table-wrap">
+          <table class="ad-table">
+            <thead><tr><th scope="col">Change</th><th scope="col">Due</th><th scope="col">Applied</th><th scope="col">By</th><th scope="col">Notified</th></tr></thead>
+            <tbody>
+              {% for h in history %}
+              <tr>
+                <td><code style="font-size:11px">{{ h.from_status|default('—') }} → {{ h.to_status }}</code></td>
+                <td>{{ h.boundary_at ? h.boundary_at|date('j M Y, H:i') : '—' }}</td>
+                <td>{{ (h.observed_at ?: h.created_at)|date('j M Y, H:i') }}</td>
+                <td>{{ h.actor|default('—') }}</td>
+                <td>{% if h.notify is defined and not h.notify %}<span class="ad-chip ad-chip--grey">suppressed</span>{% else %}<span class="ad-chip ad-chip--green">sent</span>{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if all_cycles|length > 1 %}
+      {# With several cycles on one programme, make it unmistakable which one is
+         being edited — the editor used to silently pick the highest year while
+         the public site ran a different one. #}
+      <div class="ad-card" style="margin-top:14px">
+        <div class="ad-card__head"><div class="ad-card__title">Other cycles<small>This programme has {{ all_cycles|length }}; you are editing the one the site is running</small></div></div>
+        <div class="ad-card__body">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            {% for c in all_cycles %}
+            <span class="ad-chip ad-chip--{{ c.id == cycle.id ? 'green' : 'grey' }}">{{ c.year }} · {{ c.status }}{% if c.id == cycle.id %} (editing){% endif %}</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
       <div style="display:flex;justify-content:flex-end;margin-top:14px">
         <button class="ad-btn ad-btn--primary" type="submit">Save cycle</button>
       </div>

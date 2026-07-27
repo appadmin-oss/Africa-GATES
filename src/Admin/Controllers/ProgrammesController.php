@@ -95,8 +95,22 @@ class ProgrammesController
         $programmeId = (int)$args['id'];
         $programme = DB::table('gates_award_programmes')->where('id', $programmeId)->first();
         if (!$programme) throw new \Slim\Exception\HttpNotFoundException($req);
-        $cycle = DB::table('gates_award_cycles')->where('programme_id', $programmeId)->orderByDesc('year')->first();
+        // The cycle the PUBLIC SITE is running, not merely the highest year.
+        // Editing by `orderByDesc('year')` meant that with a future cycle seeded
+        // the admin edited one cycle while the site ran another — status changes
+        // appeared to do nothing.
+        $cycle = \AfricaGates\Services\BallotGuard::currentCycleForProgramme($programmeId)
+            ?? DB::table('gates_award_cycles')->where('programme_id', $programmeId)->orderByDesc('year')->first();
         $categories = $cycle ? DB::table('gates_award_categories')->where('cycle_id', $cycle->id)->orderBy('sort_order')->get()->map(fn($r)=>(array)$r)->all() : [];
+
+        $phase = $cycle ? \AfricaGates\Services\CyclePolicy::stateFor($cycle) : null;
+        $history = [];
+        if ($cycle) {
+            try {
+                $history = DB::table('gates_cycle_transitions')->where('cycle_id', $cycle->id)
+                    ->orderByDesc('id')->limit(12)->get()->map(fn($r) => (array) $r)->all();
+            } catch (\Throwable $e) { $history = []; }
+        }
 
         return $this->view->render($res, 'admin/programmes/cycle.twig', [
             'page_title' => $programme->title . ' — Cycle',
@@ -104,6 +118,16 @@ class ProgrammesController
             'programme'  => (array)$programme,
             'cycle'      => $cycle ? (array)$cycle : null,
             'categories' => $categories,
+            // What the platform ACTUALLY thinks, so the admin can trust the
+            // automation instead of inferring it from five date fields.
+            'phase'      => $phase,
+            'history'    => $history,
+            'timezone'   => \AfricaGates\Support\Clock::timezone(),
+            // Statuses the transition guard will actually accept, so the
+            // dropdown stops offering options that always fail.
+            'selectable' => \AfricaGates\Services\CycleService::selectableFrom($cycle->status ?? null),
+            'all_cycles' => DB::table('gates_award_cycles')->where('programme_id', $programmeId)
+                ->orderByDesc('year')->get()->map(fn($r) => (array) $r)->all(),
         ]);
     }
 
@@ -112,7 +136,21 @@ class ProgrammesController
         $programmeId = (int)$args['id'];
         $b = (array)$req->getParsedBody();
         $year = (int)($b['year'] ?? date('Y'));
-        $cycle = DB::table('gates_award_cycles')->where('programme_id', $programmeId)->where('year', $year)->first();
+        // Resolve by ID. Matching on the SUBMITTED year meant that changing the
+        // year field silently INSERTED a brand-new cycle with no categories and
+        // no nominees — and, because $from was then null, the transition guard
+        // waved any starting status through. Creating a cycle is now explicit.
+        $cycleId = (int)($b['cycle_id'] ?? 0);
+        $cycle = $cycleId > 0
+            ? DB::table('gates_award_cycles')->where('id', $cycleId)->where('programme_id', $programmeId)->first()
+            : DB::table('gates_award_cycles')->where('programme_id', $programmeId)->where('year', $year)->first();
+
+        // Window ordering. Nothing validated these, so it was possible to save a
+        // cycle that could never open, or one whose windows overlap.
+        if (($err = \AfricaGates\Services\CycleService::windowError($b)) !== null) {
+            $_SESSION['flash_error'] = $err;
+            return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
+        }
         $data = [
             'programme_id'      => $programmeId,
             'year'              => $year,
@@ -161,9 +199,22 @@ class ProgrammesController
                 ]);
             } catch (\Throwable $e) { /* ledger insert is best-effort — never block the save */ }
         }
+        // Keep the indexed boundary in step immediately, so the divergence sweep
+        // and the admin's own view agree with the dates just saved.
+        try {
+            $fresh = DB::table('gates_award_cycles')->where('id', $cid)->first();
+            if ($fresh) {
+                DB::table('gates_award_cycles')->where('id', $cid)
+                    ->update(['next_boundary_at' => \AfricaGates\Services\CyclePolicy::nextBoundaryFor($fresh)]);
+            }
+        } catch (\Throwable $e) { /* column may predate the migration */ }
+
         $this->audit->record((int)$_SESSION['admin_id'], 'cycle.save', 'cycle', $cid);
         $this->bustAwardsCache();
-        $_SESSION['flash_ok'] = 'Cycle saved.';
+        // A close date with no open date is savable but reaches the one branch
+        // where a stale status column can affect authorization, so say so.
+        $_SESSION['flash_ok'] = 'Cycle saved.'
+            . (\AfricaGates\Services\CycleService::windowWarning($b) ?? '');
         return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
     }
 
@@ -171,7 +222,8 @@ class ProgrammesController
     {
         $programmeId = (int)$args['id'];
         $b = (array)$req->getParsedBody();
-        $cycle = DB::table('gates_award_cycles')->where('programme_id', $programmeId)->orderByDesc('year')->first();
+        $cycle = \AfricaGates\Services\BallotGuard::currentCycleForProgramme($programmeId)
+            ?? DB::table('gates_award_cycles')->where('programme_id', $programmeId)->orderByDesc('year')->first();
         if (!$cycle) {
             $_SESSION['flash_error'] = 'Create the cycle first.';
             return $res->withHeader('Location', "/admin/programmes/$programmeId/cycle")->withStatus(302);
