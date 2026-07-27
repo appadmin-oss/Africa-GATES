@@ -117,6 +117,21 @@ final class CycleMaterialiser
 
             if ($this->dryRun) { $changed++; continue; }
 
+            // CLAIM FIRST. The ledger's UNIQUE (cycle_id, to_status) makes this
+            // INSERT the mutex: exactly one caller wins and fires the side
+            // effects, everyone else conflicts and does nothing. This is what
+            // makes concurrent runs safe — CronGuard deliberately fails OPEN,
+            // so two schedulers CAN overlap by design.
+            $boundary = self::boundaryFor($want, $c);
+            $late     = self::daysLate($boundary, $now);
+            $announce = $late <= self::ANNOUNCE_GRACE_DAYS;
+
+            if (!$this->claim((int) $c->id, $current->value, $want->value, $boundary, $announce, $now)) {
+                $this->log(sprintf('  cycle #%d: %s already claimed by another run — skipping side effects',
+                    (int) $c->id, $want->value));
+                continue;
+            }
+
             try {
                 DB::table('gates_award_cycles')->where('id', $c->id)
                     ->update(['status' => $want->storedValue()]);
@@ -125,7 +140,6 @@ final class CycleMaterialiser
                 continue;
             }
 
-            $this->logTransition((int) $c->id, $current->value, $want->value);
             WebhookService::dispatch('cycle.status_changed', [
                 'cycle_id'     => (int) $c->id,
                 'programme_id' => (int) $c->programme_id,
@@ -134,16 +148,16 @@ final class CycleMaterialiser
                 'to'           => $want->value,
             ]);
 
+            if (!$announce) {
+                $suppressed++;
+                $this->log(sprintf(
+                    '  ! cycle #%d entered %s %d days late — state corrected, ANNOUNCEMENTS SUPPRESSED '
+                    . '(a months-old result must not email congratulations now)',
+                    (int) $c->id, $want->value, $late));
+            }
             if ($want === CyclePhase::Results) {
-                $late = self::daysLate($c->results_date ?? null, $now);
-                $announce = $late <= self::ANNOUNCE_GRACE_DAYS;
-                if (!$announce) {
-                    $suppressed++;
-                    $this->log(sprintf(
-                        '  ! cycle #%d entered results %d days late — winners promoted, ANNOUNCEMENTS SUPPRESSED '
-                        . '(a months-old result must not email congratulations now)',
-                        (int) $c->id, $late));
-                }
+                // Durable derived data (winner promotion) is ALWAYS replayed —
+                // it is correctness. Only the outbound notification is withheld.
                 $promoted += $this->promoteWinners((int) $c->id, $announce);
             }
 
@@ -241,22 +255,51 @@ final class CycleMaterialiser
         return $promoted;
     }
 
-    /** Append an auditable record of a cycle phase change. */
-    private function logTransition(int $cycleId, string $from, string $to): void
+    /**
+     * Claim a phase entry by inserting the ledger row. Returns true only for
+     * the caller that won.
+     *
+     * `boundary_at` is the DECLARED date that caused the transition;
+     * `observed_at` is when the system first noticed. Recording both restores
+     * the audit trail a computed phase would otherwise destroy — a phase change
+     * driven by the passage of time is not a write, so without this there is no
+     * row, no actor and no evidence anyone noticed. It also distinguishes
+     * "closed on time" from "closed on time, but nobody looked for three weeks".
+     */
+    private function claim(int $cycleId, string $from, string $to, ?string $boundary, bool $notify, Carbon $now): bool
     {
         try {
             DB::table('gates_cycle_transitions')->insert([
                 'cycle_id'    => $cycleId,
                 'from_status' => $from,
                 'to_status'   => $to,
-                'reason'      => 'auto: date window',
+                'reason'      => 'auto: date window' . ($notify ? '' : ' (stale — notifications suppressed)'),
                 'actor'       => 'cron',
-                'created_at'  => Carbon::now()->toDateTimeString(),
+                'boundary_at' => $boundary,
+                'observed_at' => $now->toDateTimeString(),
+                'notify'      => $notify ? 1 : 0,
+                'created_at'  => $now->toDateTimeString(),
             ]);
+            return true;
         } catch (\Throwable $e) {
-            // Never block a transition because the audit insert failed — surface it.
-            $this->log('    ! transition log failed: ' . $e->getMessage());
+            // A UNIQUE violation means another run already claimed this phase —
+            // the correct, expected outcome, not an error.
+            return false;
         }
+    }
+
+    /** The declared date that causes entry into $phase, if there is one. */
+    private static function boundaryFor(CyclePhase $phase, object $c): ?string
+    {
+        $v = match ($phase) {
+            CyclePhase::Nominations  => $c->nominations_open  ?? null,
+            CyclePhase::Shortlisting => $c->nominations_close ?? null,
+            CyclePhase::Voting       => $c->voting_open       ?? null,
+            CyclePhase::Judging      => $c->voting_close      ?? ($c->nominations_close ?? null),
+            CyclePhase::Results      => $c->results_date      ?? null,
+            default                  => null,
+        };
+        return $v ? (string) $v : null;
     }
 
     /**

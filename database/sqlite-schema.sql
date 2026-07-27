@@ -653,10 +653,16 @@ CREATE TABLE IF NOT EXISTS gates_cycle_transitions (
   to_status TEXT NOT NULL,
   reason TEXT,
   actor TEXT,
+  boundary_at TEXT,
+  observed_at TEXT,
+  notify INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(cycle_id) REFERENCES gates_award_cycles(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_cyctrans_cycle ON gates_cycle_transitions(cycle_id);
+-- The INSERT is the claim: exactly one caller records a phase entry and fires
+-- its side effects, even when two schedulers run concurrently.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_cyctrans_phase ON gates_cycle_transitions(cycle_id, to_status);
 
 -- Background job queue (async side-effects off the request hot path).
 CREATE TABLE IF NOT EXISTS gates_jobs (

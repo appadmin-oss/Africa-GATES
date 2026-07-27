@@ -148,8 +148,13 @@ CREATE TABLE IF NOT EXISTS gates_cycle_transitions (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, cycle_id BIGINT UNSIGNED NOT NULL,
   from_status VARCHAR(20) DEFAULT NULL, to_status VARCHAR(20) NOT NULL,
   reason VARCHAR(200) DEFAULT NULL, actor VARCHAR(80) DEFAULT NULL,
+  boundary_at DATETIME NULL DEFAULT NULL, observed_at DATETIME NULL DEFAULT NULL,
+  notify TINYINT(1) NOT NULL DEFAULT 1,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id), KEY idx_cyctrans_cycle (cycle_id)
+  PRIMARY KEY (id), KEY idx_cyctrans_cycle (cycle_id),
+  -- The INSERT is the claim: exactly one caller records a phase entry and
+  -- fires its side effects, even when two schedulers run concurrently.
+  UNIQUE KEY uq_cyctrans_phase (cycle_id, to_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS gates_jobs (

@@ -8,3 +8,7 @@ require __DIR__ . '/../vendor/autoload.php';
 $_ENV['APP_ENV']   = 'testing';
 $_SERVER['APP_ENV'] = 'testing';
 $_ENV['DB_DRIVER'] = 'sqlite';
+
+// Pin the test clock's timezone the same way every production entrypoint
+// does, so a phase computed in a test means what it means in production.
+\AfricaGates\Support\Clock::boot();

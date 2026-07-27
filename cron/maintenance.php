@@ -19,6 +19,12 @@ require $root . '/vendor/autoload.php';
 
 Dotenv\Dotenv::createImmutable($root)->safeLoad();
 
+// Every process must agree on what time it is: the award-cycle phase is
+// computed from date windows against the clock, so a CLI/web SAPI timezone
+// disagreement would make cron and web requests disagree about whether voting
+// is open — permanently and silently. Runs after .env so APP_TIMEZONE applies.
+\AfricaGates\Support\Clock::boot();
+
 use Illuminate\Database\Capsule\Manager as DB;
 
 $capsule = new DB();

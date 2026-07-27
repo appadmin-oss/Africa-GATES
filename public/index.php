@@ -27,6 +27,12 @@ try {
     }
 }
 
+// Every process must agree on what time it is: the award-cycle phase is
+// computed from date windows against the clock, so a CLI/web SAPI timezone
+// disagreement would make cron and web requests disagree about whether voting
+// is open — permanently and silently. Runs after .env so APP_TIMEZONE applies.
+\AfricaGates\Support\Clock::boot();
+
 // Production hardening: never leak PHP warnings / notices / stack traces to the
 // browser outside genuine local development. The decision lives in one tested
 // seam (AfricaGates\Support\Environment) so no single stale value — e.g. a
