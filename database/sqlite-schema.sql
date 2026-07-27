@@ -726,3 +726,28 @@ CREATE TABLE IF NOT EXISTS gates_phase_drift (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_drift_cycle ON gates_phase_drift(cycle_id, created_at);
+
+-- AI audit log. Every model call, whatever the outcome: which capability ran,
+-- which provider answered, tokens spent, and what happened. The prompt itself is
+-- NOT stored — only a hash — so the log does not become a second copy of every
+-- nominator's free text. Budgets are enforced against this table, so the spend
+-- figure and the record can never disagree.
+CREATE TABLE IF NOT EXISTS gates_ai_calls (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  capability TEXT NOT NULL,
+  purpose TEXT,
+  provider TEXT,
+  model TEXT,
+  subject_type TEXT,
+  subject_id INTEGER,
+  input_hash TEXT,
+  output_summary TEXT,
+  tokens_in INTEGER NOT NULL DEFAULT 0,
+  tokens_out INTEGER NOT NULL DEFAULT 0,
+  latency_ms INTEGER NOT NULL DEFAULT 0,
+  outcome TEXT NOT NULL DEFAULT 'OK',
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_ai_cap_day ON gates_ai_calls(capability, created_at);
+CREATE INDEX IF NOT EXISTS idx_ai_subject ON gates_ai_calls(subject_type, subject_id);

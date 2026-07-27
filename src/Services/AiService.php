@@ -167,6 +167,39 @@ class AiService
     /** Last provider error seen during a call, for diagnostics ({@see selfTest()}). */
     private ?string $lastError = null;
 
+    /**
+     * Token usage from the most recent successful call.
+     *
+     * Nothing captured this before, so AI spend was unknowable even after the
+     * fact — there was no way to answer "what did this cost?" for any feature.
+     * {@see AiGateway} records it per call and enforces per-capability budgets
+     * against it.
+     *
+     * @var array{in:int, out:int}
+     */
+    private array $lastUsage = ['in' => 0, 'out' => 0];
+
+    /** @return array{in:int, out:int} */
+    public function lastUsage(): array
+    {
+        return $this->lastUsage;
+    }
+
+    /** Read whichever usage shape the provider returned. */
+    private function captureUsage(?array $j): void
+    {
+        if (!$j) return;
+        // Groq + OpenAI: usage.prompt_tokens / completion_tokens
+        // Anthropic:     usage.input_tokens / output_tokens
+        // Gemini:        usageMetadata.promptTokenCount / candidatesTokenCount
+        $u = $j['usage'] ?? $j['usageMetadata'] ?? null;
+        if (!is_array($u)) return;
+        $this->lastUsage = [
+            'in'  => (int) ($u['prompt_tokens'] ?? $u['input_tokens']  ?? $u['promptTokenCount']     ?? 0),
+            'out' => (int) ($u['completion_tokens'] ?? $u['output_tokens'] ?? $u['candidatesTokenCount'] ?? 0),
+        ];
+    }
+
     /** Configured providers in priority order. */
     private function providerChain(): array
     {
@@ -190,6 +223,7 @@ class AiService
      */
     public function complete(string $system, string $user, int $maxTokens = 512, bool $json = false, float $temperature = 0.2): ?string
     {
+        $this->lastUsage = ['in' => 0, 'out' => 0];
         foreach ($this->providerChain() as $provider) {
             try {
                 $out = match ($provider) {
@@ -259,6 +293,7 @@ class AiService
         ];
         if ($json) $payload['response_format'] = ['type' => 'json_object'];
         $j = $this->httpPost('https://api.groq.com/openai/v1/chat/completions', ['Authorization: Bearer ' . $this->groqKey], $payload);
+        $this->captureUsage($j);
         $c = $j['choices'][0]['message']['content'] ?? null;
         return (is_string($c) && $c !== '') ? $c : null;
     }
@@ -276,6 +311,7 @@ class AiService
             'generationConfig'  => $cfg,
         ];
         $j = $this->httpPost($url, [], $payload);
+        $this->captureUsage($j);
         $c = $j['candidates'][0]['content']['parts'][0]['text'] ?? null;
         return (is_string($c) && $c !== '') ? $c : null;
     }
@@ -291,6 +327,7 @@ class AiService
             'messages'   => [['role' => 'user', 'content' => $user]],
         ];
         $j = $this->httpPost('https://api.anthropic.com/v1/messages', ['x-api-key: ' . $this->anthropicKey, 'anthropic-version: 2023-06-01'], $payload);
+        $this->captureUsage($j);
         $c = $j['content'][0]['text'] ?? null;
         return (is_string($c) && $c !== '') ? $c : null;
     }
@@ -309,6 +346,7 @@ class AiService
         ];
         if ($json) $payload['response_format'] = ['type' => 'json_object'];
         $j = $this->httpPost('https://api.openai.com/v1/chat/completions', ['Authorization: Bearer ' . $this->openaiKey], $payload);
+        $this->captureUsage($j);
         $c = $j['choices'][0]['message']['content'] ?? null;
         return (is_string($c) && $c !== '') ? $c : null;
     }

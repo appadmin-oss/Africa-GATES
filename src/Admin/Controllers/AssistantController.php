@@ -111,7 +111,8 @@ CONSOLE AREAS you can direct the operator to (write the bare path): /admin/dashb
 
 HOW TO RESPOND
 - Be direct and operational: lead with what matters, quantify from the live state, then say where to act.
-- If asked "what needs attention", triage: pending nominations, quarantined content, stale pending payments, cycles approaching their close dates.
+- If asked "what needs attention", triage: pending nominations, quarantined content, stale pending payments, cycles approaching their deadline, and any phase_divergences (which mean the scheduled task is behind).
+- The `phase` field is COMPUTED from each cycle's date windows and is authoritative for whether votes and nominations are being accepted. `cached_status_stale` true means the stored status column is behind — the site is still behaving correctly, but reports reading that column are wrong until the scheduled task catches up.
 - NEVER invent numbers beyond the live state above. If you don't have a figure, say which /admin page shows it.
 - You advise and point; you cannot change data yourself. Actions requiring superadmin (settings, webhooks, judges, admins) should be flagged as such.
 - Keep answers under ~180 words unless the operator asks for depth.
@@ -135,16 +136,39 @@ SYS;
             'members_total'           => $get(fn() => (int) DB::table('gates_users')->where('status', 'active')->count(), 0),
             'orders_pending'          => $get(fn() => (int) DB::table('gates_orders')->where('status', 'pending')->count(), 0),
             'donations_pending'       => $get(fn() => (int) DB::table('gates_donations')->where('status', 'pending')->count(), 0),
+            // The COMPUTED phase per cycle, and no `year = date('Y')` filter.
+            // This previously reported the raw status column alongside
+            // voting_close — the exact pair that can contradict each other — and
+            // filtered to the calendar year, so the copilot could confidently
+            // narrate a state that was not real while being blind to any
+            // in-flight cycle tagged with a different year.
             'cycles'                  => $get(fn() => DB::table('gates_award_cycles as c')
                 ->join('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
-                ->where('c.year', (int) date('Y'))
-                ->get(['p.title', 'c.status', 'c.nominations_close', 'c.voting_close'])
-                ->map(fn($r) => [
-                    'programme'         => (string) $r->title,
-                    'status'            => (string) $r->status,
-                    'nominations_close' => $r->nominations_close ? (string) $r->nominations_close : null,
-                    'voting_close'      => $r->voting_close ? (string) $r->voting_close : null,
-                ])->all(), []),
+                ->where('c.status', '!=', 'archived')
+                ->get(['p.title', 'c.id', 'c.year', 'c.status', 'c.nominations_open', 'c.nominations_close',
+                       'c.voting_open', 'c.voting_close', 'c.results_date'])
+                ->map(function ($r) {
+                    $phase = \AfricaGates\Services\CyclePolicy::stateFor($r);
+                    return [
+                        'programme'           => (string) $r->title,
+                        'year'                => (int) $r->year,
+                        // What the platform actually does right now.
+                        'phase'               => $phase['phase'],
+                        'accepting_votes'     => $phase['is_voting_open'],
+                        'accepting_nominations' => $phase['is_nominations_open'],
+                        'deadline'            => $phase['closes_at'],
+                        'note'                => $phase['detail'],
+                        // Flagged so the assistant can tell an operator the
+                        // cached column is behind, rather than trusting it.
+                        'cached_status_stale' => $phase['drifted'],
+                    ];
+                })->all(), []),
+            // Cycles whose declared boundary has passed but whose materialised
+            // status has not caught up. Traffic-independent, so it surfaces
+            // cycles nobody happens to be voting in.
+            'phase_divergences'       => $get(fn() => count(\AfricaGates\Services\CycleMaterialiser::divergences()), 0),
+            // AI spend today, per capability — previously unknowable.
+            'ai_spend_today'          => $get(fn() => \AfricaGates\Services\AiGateway::spendReport(), []),
             'webhook_failures_24h'    => $get(fn() => (int) DB::table('gates_webhook_deliveries')->where('ok', 0)->where('created_at', '>=', date('Y-m-d H:i:s', time() - 86400))->count(), 0),
             'messages_failed_24h'     => $get(fn() => (int) DB::table('gates_messages')->where('status', 'failed')->where('created_at', '>=', date('Y-m-d H:i:s', time() - 86400))->count(), 0),
         ];

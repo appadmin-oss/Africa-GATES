@@ -4,11 +4,13 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 /**
- * Thin, dependency-light helpers layered over {@see AiService} for the small
- * "AI with a guaranteed fallback" touchpoints (slugs, dedup hints, filter
- * parsing). Every method works with NO AI provider configured — it degrades to
- * a deterministic result — so nothing here can ever break a code path when the
- * platform runs without a key.
+ * Deterministic slug helpers.
+ *
+ * These used to be "AI with a guaranteed fallback". They are now simply
+ * deterministic: an LLM round-trip to turn a name into a URL slug cost money and
+ * latency, could not be budgeted or logged, produced different answers for the
+ * same input, and had its output re-sanitised afterwards anyway — so the model
+ * could only choose WHICH valid slug you got, never whether it was safe.
  */
 final class AiHelper
 {
@@ -29,34 +31,61 @@ final class AiHelper
     }
 
     /**
-     * Produce a clean, human-readable slug BASE for a name — AI-assisted when a
-     * provider is configured, deterministic otherwise. Uniqueness is the
-     * caller's job (append -2, -3… against the target table).
+     * A clean, human-readable slug base for a name.
      *
-     * AI is asked to transliterate non-Latin scripts and drop honorifics/emoji
-     * ("Dr. Chinwé Okónkwò 🔥" → "chinwe-okonkwo", "陈伟" → "chen-wei"), but its
-     * output is ALWAYS re-run through slugify() so a misbehaving model can never
-     * emit anything unsafe. Fallback order: AI → deterministic slugify → $default
-     * (covers fully non-ASCII names that iconv can't transliterate).
+     * THIS NO LONGER CALLS A MODEL. It used to send the name to an LLM and ask
+     * for a slug back — an unbounded, unbudgeted, unlogged network round-trip
+     * with nondeterministic output, in the naming path, to do work a lookup table
+     * does deterministically in microseconds. The AI output was then re-run
+     * through slugify() anyway, so the model could only ever change WHICH valid
+     * slug you got, never whether it was safe.
+     *
+     * $ai is accepted and ignored, so existing call sites keep working.
      */
     public static function slugBase(string $name, string $default = 'item', ?AiService $ai = null): string
     {
-        $deterministic = self::slugify($name);
-        $ai ??= AiService::boot();
-        if ($ai->configured()) {
-            $system = 'You convert a person or organisation name into a short, clean, human-readable URL slug. '
-                . 'Transliterate accents and non-Latin scripts to plain ASCII (e.g. "Chinwé Okónkwò" -> "chinwe-okonkwo", "陈伟" -> "chen-wei"). '
-                . 'Drop honorifics (Dr, Prof, Chief, Hon), emoji and punctuation. '
-                . 'Lowercase; words joined by single hyphens; ASCII a-z and 0-9 only; max 60 characters. '
-                . 'Reply with ONLY the slug — no quotes, no explanation.';
-            $raw = $ai->complete($system, $name, 30, false, 0.0);
-            if (is_string($raw)) {
-                $candidate = self::slugify($raw);
-                if ($candidate !== '') return substr($candidate, 0, 60);
-            }
+        $s = self::transliterate($name);
+        // Drop honorifics the old prompt asked the model to remove.
+        $s = (string) preg_replace('/\b(dr|prof|professor|chief|hon|honourable|mr|mrs|ms|sir|dame|rev|engr|barr|alhaji|hajia)\b\.?/i', ' ', $s);
+        $s = self::slugify($s);
+        if ($s !== '') return substr($s, 0, 60);
+
+        $fallback = self::slugify($name);
+        return $fallback !== '' ? substr($fallback, 0, 60) : $default;
+    }
+
+    /**
+     * Extend iconv's transliteration for scripts it cannot handle, so non-Latin
+     * names still produce a readable slug rather than falling back to 'item'.
+     * This is the capability the model was being paid for.
+     */
+    private static function transliterate(string $s): string
+    {
+        static $map = null;
+        if ($map === null) {
+            $map = [
+                // Cyrillic
+                'а'=>'a','б'=>'b','в'=>'v','г'=>'g','д'=>'d','е'=>'e','ё'=>'e','ж'=>'zh','з'=>'z',
+                'и'=>'i','й'=>'i','к'=>'k','л'=>'l','м'=>'m','н'=>'n','о'=>'o','п'=>'p','р'=>'r',
+                'с'=>'s','т'=>'t','у'=>'u','ф'=>'f','х'=>'h','ц'=>'ts','ч'=>'ch','ш'=>'sh',
+                'щ'=>'shch','ъ'=>'','ы'=>'y','ь'=>'','э'=>'e','ю'=>'yu','я'=>'ya',
+                // Greek
+                'α'=>'a','β'=>'v','γ'=>'g','δ'=>'d','ε'=>'e','ζ'=>'z','η'=>'i','θ'=>'th','ι'=>'i',
+                'κ'=>'k','λ'=>'l','μ'=>'m','ν'=>'n','ξ'=>'x','ο'=>'o','π'=>'p','ρ'=>'r','σ'=>'s',
+                'ς'=>'s','τ'=>'t','υ'=>'y','φ'=>'f','χ'=>'ch','ψ'=>'ps','ω'=>'o',
+                // Common African-language Latin extensions
+                'ẹ'=>'e','ọ'=>'o','ṣ'=>'s','ǹ'=>'n','ń'=>'n','ɛ'=>'e','ɔ'=>'o','ŋ'=>'ng',
+                'ǀ'=>'','ǃ'=>'','ʼ'=>'','’'=>'','ʻ'=>'',
+                // Arabic (rough, readable)
+                'ا'=>'a','ب'=>'b','ت'=>'t','ث'=>'th','ج'=>'j','ح'=>'h','خ'=>'kh','د'=>'d','ذ'=>'dh',
+                'ر'=>'r','ز'=>'z','س'=>'s','ش'=>'sh','ص'=>'s','ض'=>'d','ط'=>'t','ظ'=>'z','ع'=>'a',
+                'غ'=>'gh','ف'=>'f','ق'=>'q','ك'=>'k','ل'=>'l','م'=>'m','ن'=>'n','ه'=>'h','و'=>'w','ي'=>'y',
+                // Misc
+                'ß'=>'ss','æ'=>'ae','œ'=>'oe','ø'=>'o','å'=>'a','ð'=>'d','þ'=>'th','ł'=>'l','đ'=>'d',
+            ];
         }
-        if ($deterministic !== '') return substr($deterministic, 0, 60);
-        return $default;
+        $lower = mb_strtolower(trim($s));
+        return strtr($lower, $map);
     }
 
     /**

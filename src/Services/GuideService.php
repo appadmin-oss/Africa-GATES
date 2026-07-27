@@ -49,10 +49,21 @@ final class GuideService
         catch (\Throwable) { return false; }
     }
 
+    /**
+     * The model for the LEGACY direct-Anthropic path.
+     *
+     * This defaulted to 'claude-opus-4-8', which is not an id any provider
+     * serves — and GEE_MODEL was absent from .env.example. So an installer who
+     * set ANTHROPIC_API_KEY and nothing else got isAiEnabled() === true while
+     * every call 404'd, silently falling through to the scripted keyword tier.
+     * The widget looked AI-powered and was not, with no error anywhere.
+     */
+    private const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
+
     private function model(): string
     {
         $m = trim((string)($_ENV['GEE_MODEL'] ?? ''));
-        return $m !== '' ? $m : 'claude-opus-4-8';
+        return $m !== '' ? $m : self::DEFAULT_MODEL;
     }
 
     /**

@@ -627,3 +627,29 @@ CREATE TABLE IF NOT EXISTS gates_phase_drift (
   PRIMARY KEY (id),
   KEY idx_drift_cycle (cycle_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- AI audit log. Every model call, whatever the outcome: which capability ran,
+-- which provider answered, tokens spent, and what happened. The prompt itself is
+-- NOT stored — only a hash — so the log does not become a second copy of every
+-- nominator's free text. Budgets are enforced against this table, so the spend
+-- figure and the record can never disagree.
+CREATE TABLE IF NOT EXISTS gates_ai_calls (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  capability VARCHAR(60) NOT NULL,
+  purpose VARCHAR(20) DEFAULT NULL,
+  provider VARCHAR(20) DEFAULT NULL,
+  model VARCHAR(80) DEFAULT NULL,
+  subject_type VARCHAR(40) DEFAULT NULL,
+  subject_id BIGINT UNSIGNED DEFAULT NULL,
+  input_hash CHAR(64) DEFAULT NULL,
+  output_summary VARCHAR(300) DEFAULT NULL,
+  tokens_in INT UNSIGNED NOT NULL DEFAULT 0,
+  tokens_out INT UNSIGNED NOT NULL DEFAULT 0,
+  latency_ms INT UNSIGNED NOT NULL DEFAULT 0,
+  outcome VARCHAR(24) NOT NULL DEFAULT 'OK',
+  error VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_ai_cap_day (capability, created_at),
+  KEY idx_ai_subject (subject_type, subject_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
