@@ -35,27 +35,33 @@ final class CategorySuggestService
         }
         if (count($allowed) < 2) return null;      // 0–1 options → nothing to suggest
 
-        $ai ??= AiService::boot();
-        if (!$ai->configured()) return null;
-
         $lines = [];
         foreach ($allowed as $id => $t) { $lines[] = $id . ': ' . $t; }
         $system = 'You match an award-nomination story to the single best-fit category. '
             . 'Reply ONLY with JSON {"category_id": <one id from the list>, "why": "<max 12 words>"}. '
             . 'Choose exactly one id from the provided list — never invent an id or add categories.';
-        $user = "Categories (id: name):\n" . implode("\n", $lines) . "\n\nStory:\n" . mb_substr($story, 0, 1500);
-
-        $raw = $ai->complete($system, $user, 120, true, 0.0);
-        if (!is_string($raw)) return null;
-        $j = json_decode($raw, true);
-        $id = self::pick(is_array($j) ? $j : [], array_keys($allowed));
-        if ($id === null) return null;
-
-        return [
-            'id'    => $id,
-            'title' => $allowed[$id],
-            'why'   => mb_substr(trim((string) ($j['why'] ?? '')), 0, 80),
-        ];
+        // The category list is OUR data and stays outside the fence; the
+        // nominator's story goes inside it as untrusted content.
+        $r = (new AiGateway($ai))->run('nomination.suggest_category', [
+            'system'      => $system,
+            'trusted'     => "Categories (id: name):\n" . implode("\n", $lines) . "\n\nThe nomination story follows.",
+            'user'        => mb_substr($story, 0, 1500),
+            'json'        => true,
+            'temperature' => 0.0,
+            'schema'      => static function (string $raw) use ($allowed): ?array {
+                $j = json_decode($raw, true);
+                if (!is_array($j)) return null;
+                // pick() enforces the allow-list, so an invented id is discarded.
+                $id = self::pick($j, array_keys($allowed));
+                if ($id === null) return null;
+                return [
+                    'id'    => $id,
+                    'title' => $allowed[$id],
+                    'why'   => mb_substr(trim((string) ($j['why'] ?? '')), 0, 80),
+                ];
+            },
+        ]);
+        return $r->ok ? $r->value : null;
     }
 
     /**

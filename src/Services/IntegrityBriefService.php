@@ -72,18 +72,25 @@ final class IntegrityBriefService
      */
     public static function narrative(array $signals, ?AiService $ai = null): array
     {
-        $ai ??= AiService::boot();
-        if ($ai->configured()) {
-            $facts = self::factLines($signals);
-            $system = 'You are an award-integrity analyst for Africa GATES, a continental cultural-awards platform. '
+        // The signals are counts this platform computed, so there is no untrusted
+        // text here and nothing to fence. Routed for the budget and the record.
+        $r = (new AiGateway($ai))->run('integrity.brief', [
+            'system' => 'You are an award-integrity analyst for Africa GATES, a continental cultural-awards platform. '
                 . 'Given DETECTED signals (already computed by the system), write a SHORT briefing (2–4 sentences, plain English) '
                 . 'for a human reviewer: what to look at first and why, in priority order. It is ADVISORY — never accuse anyone, '
-                . 'never state a verdict, suggest what to CHECK. If all counts are zero, say things look clean. No preamble, no markdown.';
-            $out = $ai->complete($system, "Signals:\n" . $facts, 220, false, 0.3);
-            if (is_string($out) && trim($out) !== '') {
-                return ['text' => trim($out), 'ai' => true];
-            }
+                . 'never state a verdict, suggest what to CHECK. If all counts are zero, say things look clean. No preamble, no markdown.',
+            'user'        => "Signals:\n" . self::factLines($signals),
+            'temperature' => 0.3,
+            'schema'      => static function (string $raw): ?string {
+                $t = trim($raw);
+                return $t === '' ? null : $t;
+            },
+        ]);
+        if ($r->ok) {
+            return ['text' => $r->value, 'ai' => true];
         }
+        // The deterministic template is always available, so an AI outage costs
+        // nothing here — the brief just stops being a narrative.
         return ['text' => self::templateBrief($signals), 'ai' => false];
     }
 
@@ -94,16 +101,26 @@ final class IntegrityBriefService
         return ['signals' => $s] + self::narrative($s, $ai);
     }
 
+    /**
+     * Render the signals as prompt lines.
+     *
+     * Tolerates a partial array: narrative() is public and now builds this input
+     * before the gateway decides whether to call anything, so a caller passing a
+     * subset must not emit warnings.
+     */
     private static function factLines(array $s): string
     {
-        $c = $s['collusion'];
+        $c     = is_array($s['collusion'] ?? null) ? $s['collusion'] : [];
+        $j     = is_array($s['judges'] ?? null) ? $s['judges'] : [];
         $kinds = [];
-        foreach ($c['by_kind'] as $k => $n) { $kinds[] = "$n $k"; }
+        foreach ((is_array($c['by_kind'] ?? null) ? $c['by_kind'] : []) as $k => $n) { $kinds[] = "$n $k"; }
         return implode("\n", [
-            '- Open voter-collusion findings: ' . $c['open'] . ($kinds ? ' (' . implode(', ', $kinds) . ')' : '') . '; highest risk score ' . $c['top_risk'] . '/100.',
-            '- Judge-score anomaly flags: ' . $s['judges']['flags'] . ' across ' . $s['judges']['judges'] . ' judge(s).',
-            '- Votes auto-flagged for fraud in the last 24h: ' . $s['fraud_votes_24h'] . '.',
-            '- Nominations awaiting review: ' . $s['pending_nominations'] . '.',
+            '- Open voter-collusion findings: ' . (int) ($c['open'] ?? 0)
+                . ($kinds ? ' (' . implode(', ', $kinds) . ')' : '')
+                . '; highest risk score ' . (int) ($c['top_risk'] ?? 0) . '/100.',
+            '- Judge-score anomaly flags: ' . (int) ($j['flags'] ?? 0) . ' across ' . (int) ($j['judges'] ?? 0) . ' judge(s).',
+            '- Votes auto-flagged for fraud in the last 24h: ' . (int) ($s['fraud_votes_24h'] ?? 0) . '.',
+            '- Nominations awaiting review: ' . (int) ($s['pending_nominations'] ?? 0) . '.',
         ]);
     }
 

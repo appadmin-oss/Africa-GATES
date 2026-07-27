@@ -161,6 +161,64 @@ final class AiCapability
                 'timeout'         => 20,
                 'untrusted_input' => true,
             ]),
+            // Reviewer-to-nominator decision note. Interpolates the nominator's
+            // own text, and the output is sent to a real person, so a bad reply
+            // must be discardable rather than merely clamped.
+            'nomination.decision_note' => $c('nomination.decision_note', [
+                'purpose'         => 'moderation',
+                'model'           => 'groq:llama-3.3-70b-versatile',
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 200,
+                'calls_per_day'   => 1000,
+                'tokens_per_day'  => 200_000,
+                'untrusted_input' => true,
+            ]),
+            // Community thread summary shown to readers.
+            'community.thread_summary' => $c('community.thread_summary', [
+                'purpose'         => 'assist',
+                'model'           => 'groq:llama-3.3-70b-versatile',
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 320,
+                'calls_per_day'   => 2000,
+                'tokens_per_day'  => 800_000,
+                'untrusted_input' => true,
+            ]),
+            'community.polish' => $c('community.polish', [
+                'purpose'         => 'assist',
+                'model'           => 'groq:llama-3.1-8b-instant',
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 600,
+                'calls_per_day'   => 3000,
+                'tokens_per_day'  => 600_000,
+                'untrusted_input' => true,
+            ]),
+            // Admin drafting help for legal/programme copy. Operator-authored
+            // prompt, so untrusted only in the sense that it is free text.
+            'admin.content_assist' => $c('admin.content_assist', [
+                'purpose'         => 'assist',
+                'model'           => 'groq:llama-3.3-70b-versatile',
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 1400,
+                'calls_per_day'   => 1000,
+                'tokens_per_day'  => 1_000_000,
+                'timeout'         => 20,
+                'untrusted_input' => true,
+            ]),
+            'admin.form_design' => $c('admin.form_design', [
+                'purpose'         => 'assist',
+                'model'           => 'groq:llama-3.3-70b-versatile',
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 900,
+                'calls_per_day'   => 300,
+                'tokens_per_day'  => 300_000,
+                'timeout'         => 20,
+                'untrusted_input' => true,
+            ]),
             'nominee.merge_suggest' => $c('nominee.merge_suggest', [
                 'purpose'         => 'assist',
                 'model'           => 'groq:llama-3.3-70b-versatile',

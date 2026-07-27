@@ -216,13 +216,20 @@ HTML;
         $withinBudget=$this->rateLimit->check(hash('sha256',$ip.'|polish'),'story_polish',5,3600)
             && $this->rateLimit->check('global|gee','gee_ai_day',4000,86400);
         if(!$withinBudget) return $this->ok($res,['code'=>'AI_OFF']);
-        $ai=\AfricaGates\Services\AiService::boot();
-        if(!$ai->configured()) return $this->ok($res,['code'=>'AI_OFF']);
-        $out=$ai->complete(
-            'You polish award-nomination stories for Africa GATES. Improve clarity, flow and specificity while KEEPING the writer\'s voice, language and every factual claim exactly as given — never add achievements, numbers or facts. Plain text only, no markdown, similar length or shorter. Reply with ONLY the improved story.',
-            $draft, 700, false, 0.4);
-        if($out===null||trim($out)==='') return $this->ok($res,['code'=>'AI_OFF']);
-        return $this->ok($res,['text'=>mb_substr(trim($out),0,3000)]);
+        // FAIL_DEGRADE: over budget, switched off, no provider or a bad reply all
+        // land on the same quiet AI_OFF the client already handles — the wizard
+        // must never show an error for an optional nicety.
+        $r=(new \AfricaGates\Services\AiGateway())->run('nomination.polish',[
+            'system'=>'You polish award-nomination stories for Africa GATES. Improve clarity, flow and specificity while KEEPING the writer\'s voice, language and every factual claim exactly as given — never add achievements, numbers or facts. Plain text only, no markdown, similar length or shorter. Reply with ONLY the improved story.',
+            'user'=>$draft,
+            'temperature'=>0.4,
+            'schema'=>static function(string $raw): ?string {
+                $t=trim($raw);
+                return $t===''?null:mb_substr($t,0,3000);
+            },
+        ]);
+        if(!$r->ok) return $this->ok($res,['code'=>'AI_OFF']);
+        return $this->ok($res,['text'=>$r->value]);
     }
 
     /** Suggest the best-fit category for a nomination story (advisory; picks only from the wizard's real options). */

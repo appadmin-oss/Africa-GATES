@@ -82,7 +82,9 @@ class NominationsController
             'qs_base'     => Filters::qs(['q' => $q, 'programme' => $programmeId ?: '', 'cycle' => $cycleId ?: '', 'country' => $country, 'range' => $dateMeta['range'], 'from' => $dateMeta['from'], 'to' => $dateMeta['to']]),
             'filters'     => $filterState,
             // Show the plain-English AI filter box only when a provider is set.
-            'ai_enabled'  => (function () { try { return \AfricaGates\Services\AiService::boot()->configured(); } catch (\Throwable) { return false; } })(),
+            // Would the call actually run? A configured() probe alone showed the
+            // button even when a switch was off or the budget was spent.
+            'ai_enabled'  => \AfricaGates\Services\AiGateway::available('nomination.triage'),
             'counts'      => [
                 'pending'  => (int)DB::table('gates_nominations')->where('status','pending')->count(),
                 'approved' => (int)DB::table('gates_nominations')->where('status','approved')->count(),
@@ -502,7 +504,9 @@ HTML;
             'duplicates'  => \AfricaGates\Services\NominationTriageService::duplicatesFor($nom),
             'insight'     => \AfricaGates\Services\NominationTriageService::insight((int)$nom->id),
             'queue'       => ($nom->status === 'pending') ? \AfricaGates\Services\NominationTriageService::queuePosition((int)$nom->id) : null,
-            'ai_enabled'  => (function () { try { return \AfricaGates\Services\AiService::boot()->configured(); } catch (\Throwable) { return false; } })(),
+            // Would the call actually run? A configured() probe alone showed the
+            // button even when a switch was off or the budget was spent.
+            'ai_enabled'  => \AfricaGates\Services\AiGateway::available('nomination.triage'),
         ];
     }
 

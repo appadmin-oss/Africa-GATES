@@ -285,29 +285,32 @@ class CommunityController
         $data = $slug !== '' ? $this->community->getThread($slug) : null;
         if (!$data) return $this->json($res, ['ok' => false, 'message' => 'Thread not found.']);
 
-        $ai = \AfricaGates\Services\AiService::boot();
-        if (!$ai->configured()) return $this->json($res, ['ok' => false, 'code' => 'AI_OFF']);
-
         $t = $data['thread'];
         // Cache keyed on reply_count — a new reply naturally invalidates.
         $key = 'ai:thread-sum:' . (int)$t['id'] . ':' . (int)($t['reply_count'] ?? 0);
-        $summary = $this->cache->remember($key, 21600, function () use ($ai, $t, $data): ?string {
+        $summary = $this->cache->remember($key, 21600, function () use ($t, $data): ?string {
             $lines = ['THREAD: ' . $t['title'], 'OP (' . $t['author_name'] . '): ' . mb_substr((string)$t['body'], 0, 1200)];
             foreach (array_slice($data['replies'], 0, 40) as $r) {
                 $lines[] = $r['author_name'] . ': ' . mb_substr((string)$r['body'], 0, 400);
             }
-            return $ai->complete(
-                'You summarise Africa GATES community threads. Reply with a neutral, 2-4 sentence summary of the discussion so far, then — only if distinct viewpoints exist — one line starting "Perspectives:" listing them. No preamble, no markdown headers.',
-                implode("\n", $lines),
-                300,
-                false,
-                0.2,
-            );
+            // Member-written posts, fenced as untrusted: a thread is exactly the
+            // place someone would try to write instructions to the summariser.
+            $result = (new \AfricaGates\Services\AiGateway())->run('community.thread_summary', [
+                'system' => 'You summarise Africa GATES community threads. Reply with a neutral, 2-4 sentence summary of the discussion so far, then — only if distinct viewpoints exist — one line starting "Perspectives:" listing them. No preamble, no markdown headers.',
+                'user' => implode("\n", $lines),
+                'temperature' => 0.3,
+                'subject_type' => 'thread',
+                'subject_id' => (int) $t['id'],
+                'schema' => static function (string $raw): ?string {
+                    $s = trim($raw);
+                    return $s === '' ? null : mb_substr($s, 0, 1200);
+                },
+            ]);
+            return $result->ok ? $result->value : null;
         });
-        if ($summary === null || trim((string)$summary) === '') {
-            return $this->json($res, ['ok' => false, 'code' => 'AI_OFF']);
-        }
-        return $this->json($res, ['ok' => true, 'summary' => trim((string)$summary)]);
+        return $this->json($res, $summary === null
+            ? ['ok' => false, 'code' => 'AI_OFF']
+            : ['ok' => true, 'summary' => $summary]);
     }
 
     public function assist(Request $req, Response $res): Response
@@ -320,19 +323,19 @@ class CommunityController
         if ($draft === '' || mb_strlen($draft) > 3000) {
             return $this->json($res, ['ok' => false, 'message' => 'Write a draft first (up to 3000 characters).']);
         }
-        $ai = \AfricaGates\Services\AiService::boot();
-        if (!$ai->configured()) return $this->json($res, ['ok' => false, 'code' => 'AI_OFF']);
-        $improved = $ai->complete(
-            "You polish community posts for Africa GATES (a continental cultural awards platform). Improve clarity, warmth and flow while KEEPING the author's voice, language and meaning. Never add facts. Reply with ONLY the improved text.",
-            $draft,
-            600,
-            false,
-            0.4,
-        );
-        if ($improved === null || trim($improved) === '') {
-            return $this->json($res, ['ok' => false, 'code' => 'AI_OFF']);
-        }
-        return $this->json($res, ['ok' => true, 'text' => trim($improved)]);
+        // FAIL_DEGRADE, like the nomination-story polish: an optional nicety must
+        // never surface an error, so every refusal collapses to the same AI_OFF.
+        $r = (new \AfricaGates\Services\AiGateway())->run('community.polish', [
+            'system' => "You polish community posts for Africa GATES (a continental cultural awards platform). Improve clarity, warmth and flow while KEEPING the author's voice, language and meaning. Never add facts. Reply with ONLY the improved text.",
+            'user' => $draft,
+            'temperature' => 0.4,
+            'schema' => static function (string $raw): ?string {
+                $t = trim($raw);
+                return $t === '' ? null : mb_substr($t, 0, 3000);
+            },
+        ]);
+        if (!$r->ok) return $this->json($res, ['ok' => false, 'code' => 'AI_OFF']);
+        return $this->json($res, ['ok' => true, 'text' => $r->value]);
     }
 
     // ── Member reporting + own-post removal (community v2) ──────

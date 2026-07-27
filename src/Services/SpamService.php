@@ -82,20 +82,53 @@ class SpamService
         }
 
         // ── Stage 2: AI (only borderline) ──────────────────────────
-        if ($this->ai && $this->ai->configured()) {
-            try {
-                $ai = $this->ai->moderate($text, $context);
-                if ($ai !== null) {
-                    $score = max($h['score'], $ai['score']);
-                    if ($score >= $t['reject'])     return ['decision' => 'reject', 'score' => $score, 'reason' => $ai['reason'], 'provider' => $ai['provider']];
-                    if ($score >= $t['quarantine']) return ['decision' => 'quarantine', 'score' => $score, 'reason' => $ai['reason'], 'provider' => $ai['provider']];
-                    return ['decision' => 'allow', 'score' => $score, 'reason' => $ai['reason'], 'provider' => $ai['provider']];
-                }
-            } catch (\Throwable $e) { /* fall through to heuristic */ }
+        //
+        // Through the gateway, which matters most here: this runs INSIDE a
+        // synchronous form POST, and the old path could chain four providers ×
+        // two attempts × 6s onto a user waiting on a submit button. The
+        // capability declares a 4s timeout, a daily budget and a kill switch,
+        // and every call is recorded.
+        $r = (new AiGateway($this->ai))->run('moderation.classify', [
+            'system' => 'You are a content-moderation classifier for Africa GATES, a continental cultural awards platform. '
+                . 'Reply ONLY with a JSON object {"score": 0.NN, "reason": "short"}. '
+                . '0.0 = clean and on-topic; 0.5 = irrelevant or low-effort; 1.0 = spam, scam, hate, doxxing, or harassment. '
+                . 'Your score is ADVISORY and is combined with other signals — it never decides alone.',
+            'user'         => mb_substr($text, 0, 2000),
+            'json'         => true,
+            'temperature'  => 0.0,
+            'subject_type' => isset($context['target']) ? mb_substr((string) $context['target'], 0, 40) : null,
+            'schema'       => static function (string $raw): ?array {
+                if (!preg_match('/\{[\s\S]*\}/', $raw, $m)) return null;
+                $p = json_decode($m[0], true);
+                if (!is_array($p) || !isset($p['score']) || !is_numeric($p['score'])) return null;
+                return [
+                    'score'  => max(0.0, min(1.0, (float) $p['score'])),
+                    'reason' => mb_substr(trim((string) ($p['reason'] ?? 'ai-classified')), 0, 200) ?: 'ai-classified',
+                ];
+            },
+        ]);
+
+        if ($r->ok) {
+            // The AI can only ever RAISE the heuristic score, never lower it —
+            // unchanged behaviour, stated explicitly.
+            $score    = max($h['score'], (float) $r->value['score']);
+            $provider = $r->provider ?? 'ai';
+            if ($score >= $t['reject'])     return ['decision' => 'reject', 'score' => $score, 'reason' => $r->value['reason'], 'provider' => $provider];
+            if ($score >= $t['quarantine']) return ['decision' => 'quarantine', 'score' => $score, 'reason' => $r->value['reason'], 'provider' => $provider];
+            return ['decision' => 'allow', 'score' => $score, 'reason' => $r->value['reason'], 'provider' => $provider];
         }
 
-        // Borderline + no AI available → quarantine
-        return ['decision' => 'quarantine', 'score' => $h['score'], 'reason' => $h['reason'], 'provider' => 'heuristic'];
+        // Borderline with no usable AI signal → quarantine, i.e. a HUMAN looks.
+        // FAIL_ANNOUNCE is declared for this capability so the reason names the
+        // outage rather than implying the content itself was the problem.
+        return [
+            'decision' => 'quarantine',
+            'score'    => $h['score'],
+            'reason'   => $r->shouldAnnounce()
+                ? $h['reason'] . ' · AI check unavailable (' . $r->code . ') — queued for human review'
+                : $h['reason'],
+            'provider' => 'heuristic',
+        ];
     }
 
     /** Heuristic features → score [0..1]. */

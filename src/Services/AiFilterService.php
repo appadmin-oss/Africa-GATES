@@ -19,9 +19,6 @@ final class AiFilterService
     {
         $query = trim($query);
         if ($query === '') return null;
-        $ai ??= AiService::boot();
-        if (!$ai->configured()) return null;
-
         $system = 'You convert an admin\'s plain-English request into filters for a nominations list. '
             . 'Reply ONLY with JSON using any of these keys (omit those not implied): '
             . '{"status":"pending|approved|rejected|all", '
@@ -30,12 +27,25 @@ final class AiFilterService
             . '"sort":"newest|oldest", '
             . '"q":"<a name or keyword to search, or omit>"}. '
             . 'Map country NAMES to their ISO2 code. Do not invent fields or values outside these options.';
-        $raw = $ai->complete($system, $query, 200, true, 0.0);
-        if (!is_string($raw)) return null;
-        $j = json_decode($raw, true);
-        if (!is_array($j)) return null;
-
-        return self::sanitize($j);
+        // Through the gateway for the budget, the kill switch and the record.
+        // The output contract is unchanged: sanitize() is the schema, and an
+        // unexpected shape is discarded rather than coerced — the pattern every
+        // other capability now follows.
+        $r = (new AiGateway($ai))->run('admin.filter_parse', [
+            'system'      => $system,
+            'user'        => $query,
+            'json'        => true,
+            'temperature' => 0.0,
+            'schema'      => static function (string $raw): ?array {
+                $j = json_decode($raw, true);
+                if (!is_array($j)) return null;
+                $out = self::sanitize($j);
+                // An empty result means the model proposed nothing valid; that is
+                // a miss, not a filter, so the caller should fall back to search.
+                return $out === [] ? null : $out;
+            },
+        ]);
+        return $r->ok ? $r->value : null;
     }
 
     /**

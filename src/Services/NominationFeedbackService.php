@@ -28,23 +28,28 @@ class NominationFeedbackService
     {
         $nom = (object) $nom;
         $decision = $decision === 'approved' ? 'approved' : 'rejected';
-        $ai ??= AiService::boot('moderation');
-        if (!$ai->configured()) return null;
-
         $system = 'You write brief, warm, respectful notes from the Africa GATES review team to the person who submitted a nomination. '
             . '2–3 sentences, plain language, no greeting or sign-off (the email adds those). '
             . ($decision === 'approved'
                 ? 'The nomination was APPROVED and is now live for voting — thank them and say what happens next (community voting, then judging).'
                 : 'The nomination was NOT approved this cycle. Be kind and constructive: give a plausible, non-accusatory reason and invite them to resubmit with more specific, verifiable detail. Do NOT allege bad faith.')
             . ' Never invent specific facts about the nominee.';
-        $user = 'Nominee: ' . $nom->nominee_name . "\n"
-            . 'Reason the nominator gave: ' . mb_substr((string) ($nom->reason ?? ''), 0, 1500);
-        try {
-            $out = $ai->complete($system, $user, 200, false, 0.4);
-            return ($out !== null && trim($out) !== '') ? mb_substr(trim($out), 0, 600) : null;
-        } catch (\Throwable) {
-            return null;
-        }
+        // This note is sent to a real person, so the nominator's own text is
+        // fenced as untrusted data and the reply must be non-empty prose to be
+        // used at all.
+        $r = (new AiGateway($ai))->run('nomination.decision_note', [
+            'system'       => $system,
+            'trusted'      => 'Nominee: ' . $nom->nominee_name . "\n" . 'The reason the nominator gave follows.',
+            'user'         => mb_substr((string) ($nom->reason ?? ''), 0, 1500),
+            'temperature'  => 0.4,
+            'subject_type' => 'nomination',
+            'subject_id'   => (int) ($nom->id ?? 0),
+            'schema'       => static function (string $raw): ?string {
+                $t = trim($raw);
+                return $t === '' ? null : mb_substr($t, 0, 600);
+            },
+        ]);
+        return $r->ok ? $r->value : null;
     }
 
     /**

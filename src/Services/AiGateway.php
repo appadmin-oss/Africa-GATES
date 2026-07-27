@@ -154,6 +154,30 @@ final class AiGateway
 
     // ── Switches and budget ──────────────────────────────────────────────────
 
+    /**
+     * Whether a capability would actually run right now: a provider is
+     * configured, both switches are on, and the daily budget is not spent.
+     *
+     * Views used to probe `AiService::boot()->configured()` alone, so an admin
+     * screen would happily render an AI button that the switches or the budget
+     * would then refuse. This is the question those views meant to ask.
+     */
+    public static function available(string $capabilityName): bool
+    {
+        $cap = AiCapability::find($capabilityName);
+        if ($cap === null) return false;
+        if (!self::globallyEnabled() || !self::capabilityEnabled($cap->name)) return false;
+
+        $spent = self::spentToday($cap->name);
+        if ($spent['calls'] >= $cap->callsPerDay || $spent['tokens'] >= $cap->tokensPerDay) return false;
+
+        try {
+            return AiService::boot($cap->purpose === 'moderation' ? 'moderation' : 'general')->configured();
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     /** Master switch. AI on unless an admin has explicitly turned it off. */
     public static function globallyEnabled(): bool
     {

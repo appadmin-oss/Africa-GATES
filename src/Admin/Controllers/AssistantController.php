@@ -33,12 +33,13 @@ final class AssistantController
 
     public function index(Request $req, Response $res): Response
     {
-        $ai = AiService::boot();
         return $this->view->render($res, 'admin/assistant.twig', [
             'page_title'    => 'AI Assistant — Admin',
             'admin_page'    => 'assistant',
-            'ai_configured' => $ai->configured(),
-            'ai_provider'   => $ai->activeProvider(),
+            // Availability, not merely "a key exists" — the switches and today's
+            // budget decide too, and the console must not promise what it cannot do.
+            'ai_configured' => \AfricaGates\Services\AiGateway::available('admin.assistant'),
+            'ai_provider'   => AiService::boot()->activeProvider(),
             'is_superadmin' => (($_SESSION['admin_role'] ?? '') === 'superadmin'),
         ]);
     }
@@ -65,12 +66,6 @@ final class AssistantController
         }
         $history = is_array($b['history'] ?? null) ? array_slice($b['history'], -10) : [];
 
-        $ai = AiService::boot();
-        if (!$ai->configured()) {
-            // LOUD by design: the console must never pretend AI is working.
-            return $json(['ok' => false, 'error' => 'No AI provider is configured. A superadmin can add a key (Groq is free) under Settings → AI providers.'], 503);
-        }
-
         $transcript = [];
         foreach ($history as $h) {
             if (!is_array($h)) continue;
@@ -81,16 +76,32 @@ final class AssistantController
         $transcript[] = 'Operator: ' . mb_substr($message, 0, 2000);
         $transcript[] = 'Assistant:';
 
-        try {
-            $reply = $ai->complete($this->systemPrompt($role), implode("\n", $transcript), 1024, false, 0.3);
-        } catch (\Throwable $e) {
-            $this->log?->error('[admin-assistant] AI call failed', ['err' => $e->getMessage()]);
-            $reply = null;
+        // FAIL_ANNOUNCE, and LOUD by design: the console must never pretend AI is
+        // working. Every refusal reason — no provider, switched off, over budget —
+        // is now distinguishable instead of collapsing into one 502.
+        $r = (new \AfricaGates\Services\AiGateway())->run('admin.assistant', [
+            'system'      => $this->systemPrompt($role),
+            'trusted'     => 'The operator conversation follows.',
+            'user'        => implode("\n", $transcript),
+            'temperature' => 0.3,
+            'schema'      => static function (string $raw): ?string {
+                $t = trim($raw);
+                return $t === '' ? null : $t;
+            },
+        ]);
+
+        if (!$r->ok) {
+            $this->log?->error('[admin-assistant] AI unavailable', ['code' => $r->code]);
+            return $json(['ok' => false, 'error' => match ($r->code) {
+                'NO_PROVIDER'         => 'No AI provider is configured. A superadmin can add a key (Groq is free) under Settings → AI providers.',
+                'DISABLED_GLOBAL'     => 'AI is switched off for this platform (Settings → ai_enabled).',
+                'DISABLED_CAPABILITY' => 'The assistant is switched off (Settings → ai_cap_disabled_admin_assistant).',
+                'BUDGET_CALLS',
+                'BUDGET_TOKENS'       => 'The assistant has reached today\'s AI budget. It resets at midnight.',
+                default               => 'The AI provider did not answer. Try again, or check the key under Settings → AI providers.',
+            }], $r->code === 'NO_PROVIDER' ? 503 : 502);
         }
-        if ($reply === null || trim($reply) === '') {
-            return $json(['ok' => false, 'error' => 'The AI provider did not answer (provider: ' . ($ai->activeProvider() ?? 'none') . '). Try again, or check the key under Settings → AI providers.'], 502);
-        }
-        return $json(['ok' => true, 'reply' => trim($reply)]);
+        return $json(['ok' => true, 'reply' => $r->value]);
     }
 
     // ── Grounding ──────────────────────────────────────────────────────────

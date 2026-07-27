@@ -78,7 +78,7 @@ class DashboardController
             'recent_activity' => $this->audit->recent(12),
             'integrity'       => $intSignals,
             'integrity_brief' => $intBrief['text'],
-            'ai_enabled'      => (function () { try { return \AfricaGates\Services\AiService::boot()->configured(); } catch (\Throwable) { return false; } })(),
+            'ai_enabled'      => \AfricaGates\Services\AiGateway::available('integrity.brief'),
         ]);
     }
 

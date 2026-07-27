@@ -80,9 +80,10 @@ final class MergeSuggestionService
         $groups = self::ruleGroups($nominees);
 
         $usedAi = false;
-        $aiSvc = $ai ?? AiService::boot();
-        if (count($names) >= 2 && count($names) <= 120 && $aiSvc->configured()) {
-            $aiGroups = self::aiGroups($names, $aiSvc);
+        // The gateway decides whether AI runs (key present, switch on, in budget)
+        // and records the outcome either way; the caller only bounds the input.
+        if (count($names) >= 2 && count($names) <= 120) {
+            $aiGroups = self::aiGroups($names, $ai);
             if ($aiGroups !== null) {
                 $usedAi = true;
                 $groups = self::dedupeGroups(array_merge($groups, $aiGroups));
@@ -120,7 +121,6 @@ final class MergeSuggestionService
         } catch (\Throwable) {}
 
         $groups = []; $scanned = 0; $capped = false; $usedAi = false;
-        $ai ??= AiService::boot();
         foreach ($cats as $c) {
             $r = self::forCategory((int) $c->id, $ai);
             foreach ($r['groups'] as $g) { $g['category'] = (string) $c->title; $groups[] = $g; }
@@ -210,7 +210,7 @@ final class MergeSuggestionService
     }
 
     /** Optional AI clustering. Returns null when unavailable/unparseable. */
-    private static function aiGroups(array $names, AiService $ai): ?array
+    private static function aiGroups(array $names, ?AiService $ai = null): ?array
     {
         $lines = [];
         foreach ($names as $id => $name) { $lines[] = $id . ': ' . mb_substr($name, 0, 80); }
@@ -218,27 +218,41 @@ final class MergeSuggestionService
             . '(nicknames, married/maiden names, transliteration, honorifics, spelling variants). '
             . 'Reply ONLY with JSON: {"groups":[{"ids":[<nominee ids that are the same entity>],"confidence":<0-1>,"reason":"<short why>"}]}. '
             . 'Each group MUST have 2+ ids. Do NOT group merely-similar but different people. If unsure, omit. Empty groups array if none.';
-        $user = "Nominees (id: name):\n" . implode("\n", $lines);
-        $raw = $ai->complete($system, $user, 700, true, 0.1);
-        if (!is_string($raw)) return null;
-        $j = json_decode($raw, true);
-        if (!is_array($j) || !isset($j['groups']) || !is_array($j['groups'])) return null;
-
+        // Nominee names are admin-approved data, but they originate from public
+        // nominations, so they are fenced. Every returned id is checked against
+        // the allow-list — the model cannot introduce a nominee that was not sent.
         $valid = array_keys($names);
-        $out = [];
-        foreach ($j['groups'] as $g) {
-            if (!is_array($g) || !isset($g['ids']) || !is_array($g['ids'])) continue;
-            $ids = array_values(array_unique(array_filter(array_map('intval', $g['ids']), fn($i) => in_array($i, $valid, true))));
-            if (count($ids) < 2) continue;
-            sort($ids);
-            $out[] = [
-                'nominee_ids' => $ids,
-                'confidence'  => max(0.0, min(1.0, (float) ($g['confidence'] ?? 0.6))),
-                'reason'      => mb_substr(trim((string) ($g['reason'] ?? 'AI-detected duplicate.')), 0, 200) ?: 'AI-detected duplicate.',
-                'source'      => 'ai',
-            ];
-        }
-        return $out;
+        $r = (new AiGateway($ai))->run('nominee.merge_suggest', [
+            'system'      => $system,
+            'trusted'     => 'The nominee list follows, one per line as "id: name".',
+            'user'        => implode("\n", $lines),
+            'json'        => true,
+            'temperature' => 0.1,
+            'schema'      => static function (string $raw) use ($valid): ?array {
+                $j = json_decode($raw, true);
+                if (!is_array($j) || !isset($j['groups']) || !is_array($j['groups'])) return null;
+                $out = [];
+                foreach ($j['groups'] as $g) {
+                    if (!is_array($g) || !isset($g['ids']) || !is_array($g['ids'])) continue;
+                    $ids = array_values(array_unique(array_filter(
+                        array_map('intval', $g['ids']),
+                        static fn ($i) => in_array($i, $valid, true)
+                    )));
+                    if (count($ids) < 2) continue;
+                    sort($ids);
+                    $out[] = [
+                        'nominee_ids' => $ids,
+                        'confidence'  => max(0.0, min(1.0, (float) ($g['confidence'] ?? 0.6))),
+                        'reason'      => mb_substr(trim((string) ($g['reason'] ?? 'AI-detected duplicate.')), 0, 200) ?: 'AI-detected duplicate.',
+                        'source'      => 'ai',
+                    ];
+                }
+                // An empty array is a VALID answer here ("no duplicates found"),
+                // so it must not be treated as a schema rejection.
+                return $out;
+            },
+        ]);
+        return $r->ok ? $r->value : null;
     }
 
     /** Drop groups with an identical id-set (rule + AI can both find the same pair); keep the higher-confidence one. */

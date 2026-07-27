@@ -310,4 +310,161 @@ class AiGatewayTest extends TestCase
         // synchronous nomination submit.
         $this->assertLessThanOrEqual(5, AiCapability::find('moderation.classify')->timeout);
     }
+
+    // ── Availability, for views ──────────────────────────────────────────────
+
+    public function test_availability_requires_a_provider_and_both_switches_and_budget(): void
+    {
+        // Views previously probed configured() alone, so an admin screen would
+        // render an AI button that the switches or the budget then refused.
+        $this->assertFalse(AiGateway::available('not.declared'));
+
+        $this->settings(['ai_enabled' => '0']);
+        $this->assertFalse(AiGateway::available('integrity.brief'), 'global switch off');
+
+        $this->settings(['ai_enabled' => '1', 'ai_cap_disabled_integrity_brief' => '1']);
+        $this->assertFalse(AiGateway::available('integrity.brief'), 'capability switch off');
+
+        $this->settings(['ai_cap_disabled_integrity_brief' => '0']);
+        $cap = AiCapability::find('integrity.brief');
+        DB::table('gates_ai_calls')->insert([
+            'capability' => 'integrity.brief', 'outcome' => 'OK',
+            'tokens_in' => $cap->tokensPerDay, 'tokens_out' => 0,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        $this->assertFalse(AiGateway::available('integrity.brief'), 'budget spent');
+    }
+
+    // ── Every migrated site behaves through the gateway ──────────────────────
+
+    public function test_a_refusal_never_breaks_a_caller(): void
+    {
+        // Every capability must tolerate being switched off mid-flight: a caller
+        // gets a falsy result, never an exception.
+        $this->settings(['ai_enabled' => '0']);
+
+        foreach (array_keys(AiCapability::all()) as $name) {
+            $r = (new AiGateway($this->fakeAi('x')))->run($name, ['system' => 's', 'user' => 'u']);
+            $this->assertFalse($r->ok, "$name must refuse when AI is off");
+            $this->assertNull($r->value, "$name must yield no value");
+            $this->assertFalse($r->denies(), "$name must not deny an action");
+        }
+    }
+
+    public function test_the_spam_gate_reports_an_ai_outage_without_blaming_the_content(): void
+    {
+        // Borderline text with AI unavailable must still reach a human, and the
+        // reason must name the outage rather than implying the content was bad.
+        $this->settings(['ai_enabled' => '0']);
+
+        $v = (new \AfricaGates\Services\SpamService(null))
+            // Two links = 0.30, inside the borderline band that reaches stage 2.
+            ->evaluate('Details at https://a.example.org and https://b.example.org', ['target' => 'nomination']);
+
+        $this->assertSame('quarantine', $v['decision'], 'a human reviews it');
+        $this->assertStringContainsString('AI check unavailable', $v['reason']);
+        $this->assertStringContainsString('human review', $v['reason']);
+    }
+
+    public function test_the_spam_gate_stays_quiet_about_ai_when_the_heuristics_decide(): void
+    {
+        // Clean text never reaches stage 2, so there is nothing to announce.
+        $v = (new \AfricaGates\Services\SpamService(null))
+            ->evaluate('She is amazing and deserves this award.', ['target' => 'nomination']);
+
+        $this->assertSame('allow', $v['decision']);
+        $this->assertStringNotContainsString('unavailable', $v['reason']);
+    }
+
+    public function test_the_ai_can_only_raise_a_heuristic_score_never_lower_it(): void
+    {
+        // Borderline heuristics (links) plus an AI that says "clean" must not
+        // talk the score back down below the quarantine threshold.
+        $ai = $this->fakeAi('{"score":0.0,"reason":"looks fine"}');
+        $v  = (new \AfricaGates\Services\SpamService($ai))
+            ->evaluate('Details at https://a.org, https://b.org, https://c.org', ['target' => 'nomination']);
+
+        $this->assertSame('quarantine', $v['decision'], 'the heuristic floor holds');
+        $this->assertEqualsWithDelta(0.45, (float) $v['score'], 0.0001);
+    }
+
+    public function test_a_filter_parse_that_yields_nothing_is_a_miss_not_a_filter(): void
+    {
+        // An empty filter set would silently widen an admin's query to everything.
+        $r = \AfricaGates\Services\AiFilterService::parseNominationFilter(
+            'something unparseable', $this->fakeAi('{"nonsense":true}')
+        );
+        $this->assertNull($r);
+
+        $ok = \AfricaGates\Services\AiFilterService::parseNominationFilter(
+            'pending from Kenya', $this->fakeAi('{"status":"pending","country":"KE"}')
+        );
+        $this->assertSame(['status' => 'pending', 'country' => 'KE'], $ok);
+    }
+
+    public function test_category_suggestion_cannot_invent_a_category(): void
+    {
+        $cats = [['id' => 4, 'title' => 'Music'], ['id' => 9, 'title' => 'Film']];
+        $story = str_repeat('She built a recording studio for young artists. ', 3);
+
+        // An id outside the allow-list is discarded entirely.
+        $this->assertNull(\AfricaGates\Services\CategorySuggestService::suggest(
+            $story, $cats, $this->fakeAi('{"category_id":999,"why":"made up"}')
+        ));
+
+        $ok = \AfricaGates\Services\CategorySuggestService::suggest(
+            $story, $cats, $this->fakeAi('{"category_id":4,"why":"music focus"}')
+        );
+        $this->assertSame(4, $ok['id']);
+        $this->assertSame('Music', $ok['title']);
+    }
+
+    public function test_the_integrity_brief_falls_back_to_a_template_not_an_error(): void
+    {
+        $this->settings(['ai_enabled' => '0']);
+
+        $r = \AfricaGates\Services\IntegrityBriefService::narrative(
+            ['collusion' => ['open' => 0, 'top_risk' => 0, 'by_kind' => []],
+             'judges' => ['flags' => 0, 'judges' => 0], 'fraud_votes_24h' => 0,
+             'pending_nominations' => 0, 'total' => 0]
+        );
+
+        $this->assertFalse($r['ai']);
+        $this->assertNotSame('', $r['text'], 'the deterministic brief is always available');
+    }
+
+    public function test_every_migrated_capability_is_exercised_by_a_real_call_site(): void
+    {
+        // Guards against a capability being declared and then never wired, or a
+        // call site being migrated to a name that does not exist.
+        $declared = array_keys(AiCapability::all());
+        $src = '';
+        foreach (['src/Services', 'src/Controllers', 'src/Admin/Controllers'] as $dir) {
+            foreach (glob(dirname(__DIR__, 2) . '/' . $dir . '/*.php') as $f) {
+                $src .= (string) file_get_contents($f);
+            }
+        }
+        foreach ($declared as $name) {
+            $this->assertStringContainsString("'" . $name . "'", $src,
+                "capability $name is declared but never referenced by a call site");
+        }
+    }
+
+    public function test_no_service_bypasses_the_gateway_to_call_a_model(): void
+    {
+        // The point of the gateway is that it is the ONLY door. A direct
+        // ->complete() outside AiService/AiGateway means an unlogged, unbudgeted
+        // call has crept back in.
+        $offenders = [];
+        foreach (['src/Services', 'src/Controllers', 'src/Admin/Controllers'] as $dir) {
+            foreach (glob(dirname(__DIR__, 2) . '/' . $dir . '/*.php') as $f) {
+                $base = basename($f);
+                if (in_array($base, ['AiService.php', 'AiGateway.php'], true)) continue;
+                $body = (string) file_get_contents($f);
+                if (str_contains($body, '->complete(')) $offenders[] = $base;
+            }
+        }
+        $this->assertSame([], $offenders,
+            'these call a provider directly instead of going through AiGateway: ' . implode(', ', $offenders));
+    }
 }

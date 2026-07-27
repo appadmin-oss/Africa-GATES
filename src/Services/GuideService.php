@@ -45,7 +45,7 @@ final class GuideService
     public function isAiEnabled(): bool
     {
         if (trim((string)($_ENV['ANTHROPIC_API_KEY'] ?? '')) !== '') return true;
-        try { return AiService::boot()->configured() || $this->makeConfigured(); }
+        try { return AiGateway::available('guide.chat') || $this->makeConfigured(); }
         catch (\Throwable) { return false; }
     }
 
@@ -107,18 +107,24 @@ final class GuideService
             }
         }
 
-        // 3) Shared provider chain (Groq first) — admin-configured keys.
-        try {
-            $ai = AiService::boot();
-            if ($ai->configured()) {
-                $user = $this->transcriptFor($message, $history);
-                $reply = $ai->complete($this->systemPrompt($page), $user, 1024, false, 0.4);
-                if ($reply !== null && trim($reply) !== '') {
-                    return ['reply' => trim($reply), 'source' => 'ai'];
-                }
-            }
-        } catch (\Throwable $e) {
-            $this->log?->warning('[gee] provider chain failed; using scripted fallback', ['err' => $e->getMessage()]);
+        // 3) Shared provider chain via the gateway — admin-configured keys, with
+        //    the budget, the kill switch and the record. The visitor's message is
+        //    fenced as untrusted content; the grounding prompt stays outside it.
+        $r = (new AiGateway())->run('guide.chat', [
+            'system'      => $this->systemPrompt($page),
+            'trusted'     => 'The conversation with the visitor follows.',
+            'user'        => $this->transcriptFor($message, $history),
+            'temperature' => 0.4,
+            'schema'      => static function (string $raw): ?string {
+                $t = trim($raw);
+                return $t === '' ? null : mb_substr($t, 0, 4000);
+            },
+        ]);
+        if ($r->ok) {
+            return ['reply' => $r->value, 'source' => 'ai'];
+        }
+        if ($r->code !== 'NO_PROVIDER') {
+            $this->log?->warning('[gee] AI unavailable; using scripted fallback', ['code' => $r->code]);
         }
 
         // 4) Never a dead widget.
