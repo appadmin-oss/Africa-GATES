@@ -19,10 +19,21 @@ class AwardService {
                 ->orderByRaw("CASE WHEN status IN ('nominations','shortlisting','voting','judging','results') THEN 0 ELSE 1 END")
                 ->orderByDesc('year')->orderByDesc('id')
                 ->first();
+            // `phase` is the COMPUTED lifecycle state — the single thing every
+            // template should read. `cycle_status` is the materialised column,
+            // kept for back-compat; where the two disagree, phase is right.
+            $phase = $c ? CyclePolicy::stateFor($c) : null;
             return [
                 'id'=>$p->id,'slug'=>$p->slug,'title'=>$p->title,'subtitle'=>$p->subtitle ?? null,
                 'description'=>$p->description ?? null,'icon_emoji'=>$p->icon_emoji ?? null,
-                'cycle_id'=>$c->id ?? null,'cycle_status'=>$c->status ?? 'upcoming','year'=>$c->year ?? (int)date('Y'),
+                'cycle_id'=>$c->id ?? null,'year'=>$c->year ?? (int)date('Y'),
+                // The phase name, not the raw column: a stale column is exactly
+                // what made /vote advertise a closed ballot.
+                'cycle_status'=>$phase['phase'] ?? 'upcoming',
+                'phase'=>$phase,
+                // NOTE: these are DATES. The boolean formerly also called
+                // `voting_open` in controller payloads is gone — same name, two
+                // types, both in template scope, was a standing trap.
                 'nominations_open'=>$c->nominations_open ?? null,'nominations_close'=>$c->nominations_close ?? null,
                 'voting_open'=>$c->voting_open ?? null,'voting_close'=>$c->voting_close ?? null,'results_date'=>$c->results_date ?? null,
                 'categories'=>DB::table('gates_award_categories')->where('cycle_id',$c->id ?? 0)->orderBy('sort_order')->get()->toArray(),
@@ -39,7 +50,13 @@ class AwardService {
             ->orderByRaw("CASE WHEN status IN ('nominations','shortlisting','voting','judging','results') THEN 0 ELSE 1 END")
             ->orderByDesc('year')->orderByDesc('id')->first();
         $cats=$cycle?DB::table('gates_award_categories')->where('cycle_id',$cycle->id)->orderBy('sort_order')->get()->map(fn($c)=>['id'=>$c->id,'slug'=>$c->slug,'title'=>$c->title,'description'=>$c->description,'nominee_count'=>MergeService::notMerged(DB::table('gates_nominees')->where('category_id',$c->id)->where('status','approved'))->count()])->values()->all():[];
-        return['id'=>$p->id,'slug'=>$p->slug,'title'=>$p->title,'subtitle'=>$p->subtitle ?? null,'description'=>$p->description ?? null,'icon_emoji'=>$p->icon_emoji ?? null,'cycle'=>$cycle?(array)$cycle:null,'categories'=>$cats];
+        // `cycle_status` and `phase` were MISSING here, while the programme page
+        // read `a.cycle_status` — so `status` was always 'upcoming' and the
+        // "Cast a vote" / "Submit a nomination" CTAs never rendered in ANY
+        // phase, for any programme. Both keys are now present and derived from
+        // the same policy every other surface uses.
+        $phase = $cycle ? CyclePolicy::stateFor($cycle) : null;
+        return['id'=>$p->id,'slug'=>$p->slug,'title'=>$p->title,'subtitle'=>$p->subtitle ?? null,'description'=>$p->description ?? null,'icon_emoji'=>$p->icon_emoji ?? null,'cycle'=>$cycle?(array)$cycle:null,'cycle_status'=>$phase['phase'] ?? 'upcoming','phase'=>$phase,'year'=>$cycle->year ?? (int)date('Y'),'categories'=>$cats];
     }
 
     public function getNominees(int $programmeId, int $categoryId=0, int $year=0): array {

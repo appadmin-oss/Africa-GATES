@@ -345,4 +345,19 @@ class CyclePolicyTest extends TestCase
         // Every window is unusable, so it degrades to the stored column.
         $this->assertSame(CyclePhase::Nominations, CyclePolicy::phaseFor($c, $this->at('2026-07-01 00:00:00')));
     }
+
+    public function test_an_upcoming_cycle_reports_when_it_opens(): void
+    {
+        // Regression: the opening date was being placed in `closes_at`, leaving
+        // `opens_at` null, so the detail line said "Dates to be announced" even
+        // though the date was right there.
+        $state = CyclePolicy::stateFor($this->gapCycle('upcoming'), $this->at('2026-05-01 00:00:00'));
+
+        $this->assertSame('upcoming', $state['phase']);
+        $this->assertStringStartsWith('2026-06-01', (string) $state['opens_at']);
+        $this->assertNull($state['closes_at'], 'nothing is open, so nothing is closing');
+        $this->assertNull($state['seconds_left']);
+        $this->assertFalse($state['closing_soon']);
+        $this->assertStringContainsString('Opens 1 Jun 2026', $state['detail']);
+    }
 }

@@ -1,8 +1,17 @@
 {% extends "layout/gates.twig" %}
 
 {# Programme→categories map for JS — ALWAYS from real DB data (controller passes
-   `all_programmes` on every render path, including errors). #}
-{% set awards = programmes|default(all_programmes|default(awards_data|default([]))) %}
+   `all_programmes` on every render path, including errors).
+
+   `programmes` is the OPEN-for-nominations list and is the ONLY acceptable
+   source for the picker. There used to be a `|default(all_programmes)` fallback
+   here, and Twig's `default` filter fires on an EMPTY value, not just an
+   undefined one — so whenever nothing was open the wizard silently listed every
+   programme in every phase. Users picked a closed one, completed four steps, and
+   were rejected at submit. It also made the "no programmes are open" empty state
+   below unreachable whenever any programme existed at all. #}
+{% set awards = programmes|default([]) %}
+{% set nominations_open = awards|length > 0 %}
 {% set COUNTRIES = {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':"Côte d'Ivoire",'CM':'Cameroon','SN':'Senegal','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','AO':'Angola','CD':'DR Congo'} %}
 {% set TINT = [['#eef7ee','#1a6118'],['#fff8df','#7a5600'],['#e9efef','#2b373d'],['#f3eef7','#5b3a8a'],['#fdeaf0','#9c2b48'],['#e0eef1','#225a67']] %}
 
@@ -120,6 +129,50 @@
     <li><span class="nm-how__n">3</span><span><strong>The community decides</strong><small>People vote and judges score — together building their Cultural Power Index.</small></span></li>
   </ol>
 
+  {% if not nominations_open %}
+  {# CLOSED STATE. Previously this page rendered the full four-step wizard
+     identically whether nominations were open, closed, or years away — and,
+     because of the picker fallback above, would let someone complete it and only
+     then reject them. Now the form is not in the DOM at all: there is nothing to
+     fill in that cannot be submitted. #}
+  <div class="nm-wrap">
+    <div class="nm-card" style="text-align:center">
+      <h2 style="margin-bottom:6px">Nominations are closed right now</h2>
+      {% set next_open = all_programmes|default([])|filter(p => p.phase and p.phase.phase == 'upcoming' and p.phase.opens_at)|sort((a, b) => a.phase.opens_at <=> b.phase.opens_at)|first %}
+      {% if next_open %}
+        <p class="lead" style="margin:0 auto 22px">
+          The next window opens <strong>{{ next_open.phase.opens_at|date('j F Y') }}</strong> for
+          {{ next_open.title }}. We'll announce it — and you can put someone forward the moment it does.
+        </p>
+      {% else %}
+        <p class="lead" style="margin:0 auto 22px">
+          Cycles run across the continent through the year. This one is between stages — the next
+          nomination window will be announced here and by email.
+        </p>
+      {% endif %}
+
+      {% if all_programmes|default([])|length %}
+      {# Say what IS happening, so the page is informative rather than a wall. #}
+      <div style="text-align:left;max-width:460px;margin:0 auto 24px;display:flex;flex-direction:column;gap:10px">
+        {% for p in all_programmes %}
+          {% if p.phase %}
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f6f8f6;border-radius:12px;padding:11px 14px">
+            <span style="font-size:14px;font-weight:600;color:var(--ink)">{{ p.icon_emoji|default('') }} {{ p.title }}</span>
+            <span style="font-size:12.5px;color:#5a6d6f;text-align:right">{{ p.phase.label }}</span>
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {# Always offer the nearest useful action rather than a dead end. #}
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+        <a class="nm-next" href="/leaderboard" style="text-decoration:none">See the live rankings</a>
+        <a href="/vote" style="display:inline-flex;align-items:center;padding:13px 24px;border-radius:999px;border:1px solid rgba(16,41,44,.16);background:#fff;color:var(--ink);font-weight:600;font-size:15px;text-decoration:none">Browse the programmes</a>
+      </div>
+    </div>
+  </div>
+  {% else %}
   <div class="nm-steps" x-data="nomWizard()" x-init="init()" id="nomRoot">
     <div class="nm-steps__row" role="group" aria-label="Nomination progress" :aria-description="'Step ' + step + ' of ' + steps.length + ': ' + steps[step-1]">
       <template x-for="(s,i) in steps" :key="i">
@@ -220,7 +273,10 @@
               {% if ptip %}<span class="nm-pc__i" tabindex="0" role="img" aria-label="About {{ a.title }}" data-tip="{{ ptip }}" @click.stop @keydown.enter.stop>i</span>{% endif %}
             </button>
             {% else %}
-            <p class="nm-hint">No programmes are open for nominations right now. Please check back soon.</p>
+            {# Reachable now that the picker no longer falls back to every
+               programme. In practice the closed-state panel above catches this
+               first; this remains as the in-wizard guard. #}
+            <p class="nm-hint">No programmes are open for nominations right now — <a href="/leaderboard" style="color:var(--green);font-weight:600">see the live rankings</a> instead.</p>
             {% endfor %}
           </div>
           <p class="nm-perr" x-show="progErr && !selectedProg" x-cloak>Please choose a programme to continue.</p>
@@ -334,6 +390,7 @@
       <p class="nm-foot">Free · takes a few minutes · OTP-secured</p>
     </div>
   </div>
+  {% endif %}
 </div>
 {% endblock %}
 

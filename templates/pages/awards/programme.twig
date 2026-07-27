@@ -2,19 +2,44 @@
 {% block content %}
 
 {% set a = programme %}
-{% set status = a.cycle_status|default('upcoming') %}
+{# The COMPUTED phase — see AfricaGates\Services\CyclePolicy. `a.cycle_status`
+   used to be read here while the service never returned it, so `status` was
+   permanently 'upcoming' and every CTA on this page was unreachable in every
+   phase. Read `phase` for anything the user sees. #}
+{% set phase = a.phase|default(null) %}
+{% set status = phase.phase|default(a.cycle_status|default('upcoming')) %}
 
 <section class="p-hero p-hero--image" style="--p-hero-image: url('{{ a.cover|default('https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=2000&q=82') }}')">
   <div class="aurora aurora--dark" aria-hidden="true"></div>
   <div class="wrap">
-    <p class="eyebrow" data-anim>{{ a.icon_emoji|default('🏆') }} Programme · 2026 Cycle</p>
+    <p class="eyebrow" data-anim>{{ a.icon_emoji|default('🏆') }} Programme{% if a.year %} · {{ a.year }} Cycle{% endif %}</p>
     <h1 data-text-anim>{{ a.title }}</h1>
     <p data-anim data-anim-delay="1">{{ a.description }}</p>
+    {% if phase %}
+    {# One line of state, always present. Absolute dates are the accessible
+       primary: no live ticker here, so nothing to announce repeatedly. #}
+    <p class="p-hero__state" data-anim data-anim-delay="1"
+       style="margin:14px 0 0;font-size:14px;font-weight:600;letter-spacing:.01em">
+      <span style="display:inline-flex;align-items:center;gap:8px;padding:7px 15px;border-radius:999px;background:rgba(255,255,255,.14);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)">
+        {% if phase.is_open %}<span aria-hidden="true" style="width:8px;height:8px;border-radius:50%;background:#7FC87C"></span>{% endif %}
+        {{ phase.label }}
+      </span>
+      <span style="margin-left:10px;font-weight:400;opacity:.85">{{ phase.detail }}</span>
+    </p>
+    {% endif %}
     <div class="p-hero__cta" data-anim data-anim-delay="2">
+      {# Deep-link to THIS programme, not the hub. The old links went to /vote
+         and to a /vote#{slug} anchor that no page defines. #}
       {% if status == 'voting' %}
-        <a href="/vote" class="btn btn--gold">Cast a vote <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <a href="/vote/{{ a.slug }}" class="btn btn--gold">Cast a vote <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
       {% elseif status == 'nominations' %}
         <a href="/nominate" class="btn btn--gold">Submit a nomination <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      {% elseif status == 'results' %}
+        <a href="/leaderboard" class="btn btn--gold">See the results <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+      {% elseif status == 'shortlisting' or status == 'judging' %}
+        {# No action is available, so offer the nearest useful one rather than a
+           disabled control or a dead end. #}
+        <a href="/vote/{{ a.slug }}" class="btn btn--gold">See the nominees <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
       {% endif %}
       <a href="/awards" class="btn btn--white">All programmes <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
     </div>
@@ -36,7 +61,7 @@
         <div class="card__foot">
           <span class="text-sm text-soft">{{ c.nominee_count|default(0) }} nominees</span>
           {% if status == 'voting' %}
-            <a href="/vote#{{ c.slug }}" class="btn btn--emerald btn--sm">Vote <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+            <a href="/vote/{{ a.slug }}" class="btn btn--emerald btn--sm">Vote <svg aria-hidden="true" focusable="false" class="btn__arrow" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.75" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
           {% endif %}
         </div>
       </div>

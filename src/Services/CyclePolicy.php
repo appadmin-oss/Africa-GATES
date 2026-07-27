@@ -168,7 +168,11 @@ final class CyclePolicy
         $results   = self::at($c->results_date      ?? null);
 
         return match ($phase) {
-            CyclePhase::Upcoming     => [null, $nomOpen ?: $voteOpen],
+            // An upcoming cycle OPENS at its first window; nothing is closing,
+            // so there is no close bound. Putting the opening date in the close
+            // slot made `opens_at` null and the detail line read "Dates to be
+            // announced" even when the opening date was set.
+            CyclePhase::Upcoming     => [$nomOpen ?: $voteOpen, null],
             CyclePhase::Nominations  => [$nomOpen, $nomClose],
             CyclePhase::Shortlisting => [$nomClose, $voteOpen],
             // A close-only window has no declared start; fall back to the
