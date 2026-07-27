@@ -19,19 +19,25 @@ class VoteController {
     public function index(Request $req, Response $res): Response {
         $hub = $this->cache->remember('vote:hub', 600, fn() => $this->awards->voteHub());
 
-        // Hero/sidebar meta (cheap; computed off the cached cards).
-        $votesTotal = 0; $votingCount = 0; $votingClose = null; $year = (int) date('Y');
+        // Hero/sidebar meta. Every figure here comes from the SAME phase
+        // view-model the cards render, so the page cannot contradict itself.
+        // It used to derive open/closed from the status column while deriving
+        // the countdown from voting_close, so when those disagreed — the exact
+        // reported failure — the hub simultaneously showed "Voting open",
+        // "0 Days left" and a close date already in the past.
+        $votesTotal = 0; $votingCount = 0; $year = (int) date('Y');
+        $soonest = null;   // the phase view-model of the next thing to close
         foreach ($hub as $p) {
             $votesTotal += (int) ($p['total_votes'] ?? 0);
-            if (($p['cycle_status'] ?? '') === 'voting') {
-                $votingCount++;
-                $year = (int) ($p['year'] ?? $year);
-                if (!empty($p['voting_close'])) {
-                    $votingClose = $votingClose ? min($votingClose, $p['voting_close']) : $p['voting_close'];
-                }
+            $phase = $p['phase'] ?? null;
+            if (!$phase || empty($phase['is_voting_open'])) continue;
+            $votingCount++;
+            $year = (int) ($p['year'] ?? $year);
+            if ($phase['closes_at'] === null) continue;
+            if ($soonest === null || $phase['closes_at'] < $soonest['closes_at']) {
+                $soonest = $phase;
             }
         }
-        $daysLeft = $votingClose ? max(0, (int) ceil((strtotime((string) $votingClose) - time()) / 86400)) : null;
 
         return $this->view->render($res, 'pages/vote.twig', [
             'page_title'       => 'Vote — Africa GATES | Afrovanguard',
@@ -41,12 +47,12 @@ class VoteController {
             'current_section'  => 'projects',
             'hub'              => $hub,
             'meta'             => [
-                'count'         => count($hub),
-                'votes_total'   => $votesTotal,
-                'voting_count'  => $votingCount,
-                'days_left'     => $daysLeft,
-                'voting_close'  => $votingClose,
-                'year'          => $year,
+                'count'        => count($hub),
+                'votes_total'  => $votesTotal,
+                'voting_count' => $votingCount,
+                'year'         => $year,
+                // One object, or null. The template must not recompute any of it.
+                'soonest'      => $soonest,
             ],
             'breadcrumbs' => [
                 ['label' => 'Afrovanguard', 'url' => '/'],
@@ -92,7 +98,10 @@ class VoteController {
             'current_section'  => 'projects',
             'programme'        => $p,
             'categories'       => $cats,
-            'voting_open'      => ($p['cycle']['status'] ?? null) === 'voting',
+            // The computed phase, not the stored column. `voting_open` is kept
+            // as a convenience boolean but is now derived from the same source.
+            'phase'            => $p['phase'] ?? null,
+            'voting_open'      => (bool) ($p['phase']['is_voting_open'] ?? false),
             'total_nominees'   => count($noms),
         ]);
     }
@@ -130,6 +139,26 @@ class VoteController {
         return $res->withHeader('Location', $this->nomineeUrl($id, (string) $row->name, (string) $row->programme_slug))->withStatus(302);
     }
 
+    /**
+     * Human-readable reason a paid-vote checkout bounced back here.
+     *
+     * PaidVoteController emits eight of these as a `?paid=` query parameter and
+     * NO template read any of them, so a supporter refused because voting had
+     * closed — or because their email was invalid, or the provider was off — was
+     * returned to an unchanged page with no message at all.
+     */
+    private const PAID_REASONS = [
+        'off'         => 'Paid voting is not enabled right now.',
+        'rate'        => 'That is a lot of vote purchases from this network — please try again shortly.',
+        'nominee'     => 'That nominee is not open for votes.',
+        'closed'      => 'Voting has closed for this category, so no votes could be purchased.',
+        'unavailable' => 'That payment method is unavailable right now. Please try another.',
+        'email'       => 'Please enter a valid email address for your receipt.',
+        'start'       => 'We could not start the checkout. No payment was taken — please try again.',
+        'error'       => 'Something went wrong starting the checkout. No payment was taken.',
+        'failed'      => 'That payment did not complete, so no votes were added.',
+    ];
+
     /** The individual nominee vote page (profile-style with the OTP ballot inline). */
     private function nomineeBallot(Request $req, Response $res, int $id, string $programSeg = ''): Response {
         if ($id < 1) throw new \Slim\Exception\HttpNotFoundException($req);
@@ -166,6 +195,9 @@ class VoteController {
         foreach ($catList as $i => $o) { if ((int) $o['id'] === $id) { $rank = $i + 1; break; } }
         $others = array_values(array_filter($catList, fn($o) => (int) $o['id'] !== $id));
 
+        // The one phase view-model for this ballot, from the nominee's own cycle.
+        $phase = \AfricaGates\Services\BallotGuard::stateForCategory((int) $nom->category_id);
+
         // Member voting-points context (for the redeem-a-vote control).
         $memberId      = (int) ($_SESSION['user_id'] ?? 0);
         $pointsEnabled = PointsService::enabled();
@@ -181,11 +213,15 @@ class VoteController {
             'rank'             => $rank,
             'cat_count'        => count($catList),
             'others'           => array_slice($others, 0, 5),
-            'voting_open'      => ($nom->cycle_status === 'voting'),
+            // COMPUTED phase, so a stale status column cannot present an open
+            // ballot for a closed cycle.
+            'phase'            => $phase,
+            'voting_open'      => (bool) ($phase['is_voting_open'] ?? false),
+            'paid_notice'      => self::PAID_REASONS[trim((string) ($req->getQueryParams()['paid'] ?? ''))] ?? null,
             'turnstile_site_key' => $_ENV['TURNSTILE_SITE_KEY'] ?? '',
             'member_points'    => $memberPoints,
             'points_per_vote'  => PointsService::pointsPerVote(),
-            'can_redeem'       => $memberId > 0 && $pointsEnabled && $nom->cycle_status === 'voting' && $memberPoints >= PointsService::pointsPerVote(),
+            'can_redeem'       => $memberId > 0 && $pointsEnabled && (bool) ($phase['is_voting_open'] ?? false) && $memberPoints >= PointsService::pointsPerVote(),
             'member_logged_in' => $memberId > 0,
             'points_enabled'   => $pointsEnabled,
             'member'           => \AfricaGates\Services\UserAccountService::memberForForms(),

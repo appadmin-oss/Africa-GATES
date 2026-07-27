@@ -58,8 +58,10 @@
       <h1>{{ programme.title }}</h1>
       {% if programme.subtitle or programme.description %}<p>{{ programme.subtitle|default(programme.description) }}</p>{% endif %}
       <div class="vp-hero__meta">
-        {% if voting_open %}<span class="vp-pill vp-pill--open">● Voting open{% if cy.year %} · {{ cy.year }}{% endif %}</span>
-        {% else %}<span class="vp-pill">{{ (cy.status|default('Coming soon'))|capitalize }}{% if cy.year %} · {{ cy.year }}{% endif %}</span>{% endif %}
+        {# Label from the phase view-model, never the raw status column. #}
+        {% if voting_open %}<span class="vp-pill vp-pill--open">● {{ phase.label|default('Voting open') }}{% if cy.year %} · {{ cy.year }}{% endif %}</span>
+        {% else %}<span class="vp-pill">{{ phase.label|default((cy.status|default('Coming soon'))|capitalize) }}{% if cy.year %} · {{ cy.year }}{% endif %}</span>{% endif %}
+        {% if phase and phase.detail %}<span class="vp-pill" style="background:rgba(255,255,255,.06)">{{ phase.detail }}</span>{% endif %}
         <span class="vp-pill"><b>{{ total_nominees }}</b> nominee{{ total_nominees == 1 ? '' : 's' }}</span>
         <span class="vp-pill"><b>{{ categories|length }}</b> categor{{ categories|length == 1 ? 'y' : 'ies' }}</span>
       </div>

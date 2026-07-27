@@ -241,4 +241,136 @@ class PhaseSurfaceRenderTest extends TestCase
             'the published close date must bind the UI, not just the write path');
         $this->assertStringNotContainsString('Who are you nominating?', $body);
     }
+
+    // ── /vote hub and the nominee ballot ─────────────────────────────────────
+
+    private function seedNominee(string $slug, array $cycle): int
+    {
+        $this->seedProgramme($slug, $cycle);
+        $cat = (int) DB::table('gates_award_categories')->orderByDesc('id')->value('id');
+        return (int) DB::table('gates_nominees')->insertGetId([
+            'category_id' => $cat, 'name' => 'Ada Obi', 'status' => 'approved',
+            'vote_count' => 5, 'organic_vote_count' => 5, 'country_code' => 'NG',
+        ]);
+    }
+
+    public function test_the_hub_never_shows_an_open_badge_beside_an_expired_deadline(): void
+    {
+        // The reported contradiction: the column says voting, the close date has
+        // passed. The hub used to render "Voting open", "0 Days left" and
+        // "Voting closes <past date>" all at once, because open/closed came from
+        // the status column and the countdown came from voting_close.
+        $this->seedProgramme('stale', [
+            'status'       => 'voting',
+            'voting_open'  => date('Y-m-d H:i:s', strtotime('-30 days')),
+            'voting_close' => date('Y-m-d H:i:s', strtotime('-3 days')),
+        ]);
+
+        [$status, $body] = $this->render(\AfricaGates\Controllers\VoteController::class, 'index', '/vote');
+
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Between cycles', $body, 'no ballot is open');
+        $this->assertStringContainsString('No open ballot', $body, 'and the deadline stat says so');
+        $this->assertStringNotContainsString('Days left', $body, 'the misleading clamped counter is gone');
+        $this->assertStringNotContainsString('Closing soon', $body,
+            'nothing may claim to be closing when nothing is open');
+    }
+
+    public function test_the_hub_states_one_consistent_deadline_when_voting_is_open(): void
+    {
+        $this->seedProgramme('creative', $this->openVoting());
+
+        [, $body] = $this->render(\AfricaGates\Controllers\VoteController::class, 'index', '/vote');
+
+        $this->assertStringContainsString('Voting open', $body);
+        $this->assertStringContainsString('Closes first', $body);
+        $this->assertStringContainsString(date('j M Y', strtotime('+10 days')), $body,
+            'the rail must name the real close date');
+    }
+
+    public function test_the_hub_labels_the_shortlisting_phase(): void
+    {
+        // 'shortlisting' was absent from the hub's label map entirely, so it
+        // would have fallen through to a capitalised raw value.
+        $this->seedProgramme('gap', [
+            'status'            => 'shortlisting',
+            'nominations_open'  => date('Y-m-d H:i:s', strtotime('-30 days')),
+            'nominations_close' => date('Y-m-d H:i:s', strtotime('-2 days')),
+            'voting_open'       => date('Y-m-d H:i:s', strtotime('+10 days')),
+            'voting_close'      => date('Y-m-d H:i:s', strtotime('+30 days')),
+        ]);
+
+        [, $body] = $this->render(\AfricaGates\Controllers\VoteController::class, 'index', '/vote');
+
+        $this->assertStringContainsString('Shortlisting', $body);
+        $this->assertStringContainsString('View nominees', $body, 'and offer the one useful action');
+    }
+
+    public function test_the_ballot_explains_a_refused_paid_checkout(): void
+    {
+        // Eight ?paid= reasons were emitted and none were ever rendered.
+        $id = $this->seedNominee('creative', $this->openVoting());
+
+        $builder = new \DI\ContainerBuilder();
+        $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        $ctrl = $builder->build()->get(\AfricaGates\Controllers\VoteController::class);
+        $req  = (new ServerRequestFactory())
+            ->createServerRequest('GET', '/vote/creative/' . $id . '-ada-obi')
+            ->withQueryParams(['paid' => 'closed']);
+        $body = (string) $ctrl->nominee($req, new Response(), ['program' => 'creative', 'slug' => $id . '-ada-obi'])->getBody();
+
+        $this->assertStringContainsString('Voting has closed for this category', $body);
+        $this->assertStringContainsString('role="alert"', $body, 'the outcome of a just-taken action');
+    }
+
+    public function test_the_ballot_shows_a_phase_specific_closed_state(): void
+    {
+        $id = $this->seedNominee('stale', [
+            'status'       => 'voting',
+            'voting_open'  => date('Y-m-d H:i:s', strtotime('-30 days')),
+            'voting_close' => date('Y-m-d H:i:s', strtotime('-3 days')),
+            'results_date' => date('Y-m-d H:i:s', strtotime('+10 days')),
+        ]);
+
+        [, $body] = $this->render(
+            \AfricaGates\Controllers\VoteController::class, 'nominee',
+            '/vote/stale/' . $id . '-ada-obi',
+            ['program' => 'stale', 'slug' => $id . '-ada-obi']
+        );
+
+        $this->assertStringContainsString('With the jury', $body, 'name the actual phase, not just "closed"');
+        $this->assertStringContainsString('All Stale Awards nominees', $body, 'and offer a way back');
+        $this->assertStringNotContainsString('Confirm vote', $body, 'the ballot form must be absent');
+    }
+
+    public function test_the_open_ballot_names_its_close_date(): void
+    {
+        $id = $this->seedNominee('creative', $this->openVoting());
+
+        [, $body] = $this->render(
+            \AfricaGates\Controllers\VoteController::class, 'nominee',
+            '/vote/creative/' . $id . '-ada-obi',
+            ['program' => 'creative', 'slug' => $id . '-ada-obi']
+        );
+
+        $this->assertStringContainsString('Voting open', $body);
+        $this->assertStringContainsString('Closes <time', $body, 'machine-readable, absolute date');
+        $this->assertStringContainsString(date('j M Y', strtotime('+10 days')), $body);
+    }
+
+    public function test_the_ballot_records_the_vote_for_the_hub_tracker(): void
+    {
+        // The hub reads localStorage['afg_voted_prog_<id>']; nothing in the repo
+        // ever wrote it, so "your ballot" was permanently 0 of N.
+        $id = $this->seedNominee('creative', $this->openVoting());
+
+        [, $body] = $this->render(
+            \AfricaGates\Controllers\VoteController::class, 'nominee',
+            '/vote/creative/' . $id . '-ada-obi',
+            ['program' => 'creative', 'slug' => $id . '-ada-obi']
+        );
+
+        $this->assertStringContainsString("afg_voted_prog_", $body, 'the key the hub reads must be written');
+        $this->assertStringContainsString('markVoted()', $body, 'and called on a successful vote');
+    }
 }

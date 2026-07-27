@@ -137,7 +137,7 @@
 <div class="vn" x-data="voteNominee()">
 
   <nav class="vn-crumb" aria-label="Breadcrumb">
-    <a href="/vote">Vote</a> · <a href="/vote">{{ n.category }}</a> · <b>{{ n.name }}</b>
+    <a href="/vote">Vote</a> · <a href="/vote/{{ n.programme_slug }}">{{ n.programme_title }}</a> · <span>{{ n.category }}</span> · <b>{{ n.name }}</b>
   </nav>
 
   {# ── Hero ── #}
@@ -232,20 +232,42 @@
     <div class="vn-ballot" id="vn-ballot">
         <div class="vn-ballot__top">
           <div class="vn-ballot__orb" aria-hidden="true"></div>
-          <p class="vn-ballot__k">{{ voting_open ? 'Voting open' : 'Voting' }}</p>
+          <p class="vn-ballot__k">{{ phase.label|default(voting_open ? 'Voting open' : 'Voting') }}</p>
           <p class="vn-ballot__h">Back {{ firstName }}</p>
+          {% if voting_open and phase and phase.closes_at %}
+          {# Absolute date as the accessible primary — no ticking element, so
+             there is nothing to re-announce to assistive tech. `time` carries the
+             machine-readable value. #}
+          <p style="position:relative;margin:7px 0 0;font-size:12.5px;color:{{ phase.closing_soon ? '#fbc329' : 'rgba(255,255,255,.72)' }}">
+            {% if phase.closing_soon %}<strong>Closing soon</strong> · {% endif %}Closes <time datetime="{{ phase.closes_at|date('c') }}">{{ phase.closes_at|date('j M Y') }}</time>
+          </p>
+          {% endif %}
         </div>
         <div class="vn-ballot__in">
+          {% if paid_notice %}
+          {# PaidVoteController bounces back here with a ?paid= reason on every
+             refusal. Nothing rendered them, so a supporter turned away — often
+             because voting had CLOSED — landed on an unchanged page with no
+             explanation and their form values gone. role=alert because this is
+             the outcome of an action the user just took. #}
+          <div class="vn-err" role="alert" style="margin:0 0 14px">{{ paid_notice }}</div>
+          {% endif %}
           {% if not voting_open %}
-            <div class="vn-closed">Voting isn’t open for this cycle right now. Follow the leaderboard — we’ll announce when it opens.</div>
+            {# A real state per phase, from the view-model — not one message for
+               "closed", "not open yet" and "archived" alike. #}
+            <div class="vn-closed">
+              <strong style="display:block;margin-bottom:3px">{{ phase.label|default('Voting is closed') }}</strong>
+              {{ phase.detail|default('Follow the leaderboard — we’ll announce when it opens.') }}
+            </div>
             <a class="vn-go" href="/leaderboard" style="display:block;text-align:center;text-decoration:none;margin-top:14px">See the leaderboard</a>
+            <a href="/vote/{{ nominee.programme_slug }}" style="display:block;text-align:center;margin-top:11px;font-size:13px;font-weight:600;color:#5a6d6f;text-decoration:none">← All {{ nominee.programme_title }} nominees</a>
           {% else %}
             {% if can_redeem %}
             <div class="vn-redeem" x-data="{ busy:false, done:false, msg:'', bal:{{ member_points }} }">
               <div x-show="!done">
                 <div class="vn-redeem__hd"><strong x-text="'You have ' + bal.toLocaleString() + ' points'"></strong><span>Redeem {{ points_per_vote|number_format }} to instantly add a vote for {{ firstName }}.</span></div>
                 <button type="button" class="vn-redeem__btn" :disabled="busy || bal < {{ points_per_vote }}"
-                  @click="busy=true;msg='';fetch('/account/redeem',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':(document.querySelector('meta[name=csrf-token]')||{}).content||''},body:new URLSearchParams({nominee_id:{{ nominee.id }}})}).then(r=>r.json()).then(d=>{busy=false;if(d.ok){done=true;msg=d.message;bal=d.new_balance;}else{msg=d.message||'Could not redeem right now.';}}).catch(()=>{busy=false;msg='Network error. Please try again.';})"
+                  @click="busy=true;msg='';fetch('/account/redeem',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':(document.querySelector('meta[name=csrf-token]')||{}).content||''},body:new URLSearchParams({nominee_id:{{ nominee.id }}})}).then(r=>r.json()).then(d=>{busy=false;if(d.ok){done=true;msg=d.message;bal=d.new_balance;try{localStorage.setItem('afg_voted_prog_{{ nominee.programme_id }}',String(Date.now()));}catch(e){}}else{msg=d.message||'Could not redeem right now.';}}).catch(()=>{busy=false;msg='Network error. Please try again.';})"
                   x-text="busy ? 'Redeeming…' : 'Redeem points to vote'"></button>
                 <p class="vn-redeem__err" x-show="msg" x-cloak x-text="msg"></p>
               </div>
@@ -437,6 +459,9 @@ function voteNominee() {
           this.votes = d.new_count || (this.votes + 1);
           this.newRank = d.new_rank || this.newRank;
           this.step = 'done';
+          // The /vote hub's "your ballot" tracker READS this key but nothing in
+          // the codebase ever wrote it, so it was permanently "0 of N voted".
+          this.markVoted();
           if (window.AGCommunity) AGCommunity.open('vote');
           if (window.AFG) AFG.trackFunnel('vote_cast', { nominee_id: this.nomineeId, award_id: this.awardId });
         } else {
@@ -444,6 +469,11 @@ function voteNominee() {
         }
       } catch (e) { this.voteError = 'Network error. Please try again.'; }
       finally { this.busy = false; }
+    },
+
+    /** Record on THIS DEVICE that a vote was cast in this programme. */
+    markVoted() {
+      try { localStorage.setItem('afg_voted_prog_' + this.awardId, String(Date.now())); } catch (e) {}
     },
 
     share() {

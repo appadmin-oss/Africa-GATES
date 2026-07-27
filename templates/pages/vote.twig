@@ -88,13 +88,12 @@
 
 {% block content %}
 {% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮','CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','AO':'🇦🇴','CD':'🇨🇩','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪','BW':'🇧🇼'} %}
-{% set STATUS = {
-  'voting':      {'label':'Voting open','cls':'live'},
-  'nominations': {'label':'Nominating', 'cls':'soft'},
-  'judging':     {'label':'Judging',    'cls':'mute'},
-  'results':     {'label':'Results in', 'cls':'gold'},
-  'upcoming':    {'label':'Opens soon', 'cls':'mute'},
-  'archived':    {'label':'Archived',   'cls':'mute'}
+{# Chip colour per phase. The LABEL comes from the phase view-model
+   (CyclePolicy), never from a second copy here — that is how the badge and the
+   countdown used to drift apart. 'shortlisting' was missing entirely. #}
+{% set PHASE_CLS = {
+  'voting': 'live', 'nominations': 'soft', 'shortlisting': 'soft',
+  'judging': 'mute', 'results': 'gold', 'upcoming': 'mute', 'archived': 'mute'
 } %}
 {% set hub = hub|default([]) %}
 {% set votingIds = hub|filter(p => p.cycle_status == 'voting')|map(p => p.id)|join(',') %}
@@ -116,7 +115,19 @@
         {% endif %}
       </div>
       <div class="vh-stats">
-        <div class="vh-stat"><div class="vh-stat__n vh-stat__n--g">{{ meta.days_left is null ? '—' : meta.days_left }}</div><div class="vh-stat__l">Days left</div></div>
+        {# The deadline stat. `meta.soonest` is the phase view-model of the next
+           ballot to close, so this figure can never disagree with the badge
+           above or the rail below. When nothing is closing it says so, rather
+           than clamping a negative remainder to a misleading "0 Days left". #}
+        <div class="vh-stat">
+          {% if meta.soonest %}
+            <div class="vh-stat__n vh-stat__n--g" style="font-size:19px;line-height:1.2">{{ meta.soonest.closes_at|date('j M') }}</div>
+            <div class="vh-stat__l">Closes first</div>
+          {% else %}
+            <div class="vh-stat__n vh-stat__n--g">—</div>
+            <div class="vh-stat__l">No open ballot</div>
+          {% endif %}
+        </div>
         <div class="vh-stat"><div class="vh-stat__n">{{ meta.votes_total|number_format }}</div><div class="vh-stat__l">Votes cast</div></div>
       </div>
     </div>
@@ -141,10 +152,10 @@
           <button type="button" class="vh-chip" :class="filter==='all' && 'is-active'" @click="filter='all'" :aria-pressed="filter==='all'">All</button>
           {% set seen = [] %}
           {% for p in hub %}
-            {% set st = p.cycle_status|default('upcoming') %}
+            {% set st = p.phase.phase|default(p.cycle_status|default('upcoming')) %}
             {% if st not in seen %}
               {% set seen = seen|merge([st]) %}
-              <button type="button" class="vh-chip" :class="filter==='{{ st }}' && 'is-active'" @click="filter='{{ st }}'" :aria-pressed="filter==='{{ st }}'">{{ STATUS[st].label|default(st|capitalize) }}</button>
+              <button type="button" class="vh-chip" :class="filter==='{{ st }}' && 'is-active'" @click="filter='{{ st }}'" :aria-pressed="filter==='{{ st }}'">{{ p.phase.label|default(st|capitalize) }}</button>
             {% endif %}
           {% endfor %}
         </div>
@@ -154,8 +165,8 @@
       <h2 class="sr-only">Live programmes</h2>
       <div class="vh-cards">
         {% for p in hub %}
-          {% set st = p.cycle_status|default('upcoming') %}
-          {% set tag = STATUS[st]|default({'label':st|capitalize,'cls':'mute'}) %}
+          {% set st = p.phase.phase|default(p.cycle_status|default('upcoming')) %}
+          {% set tag = {'label': p.phase.label|default(st|capitalize), 'cls': PHASE_CLS[st]|default('mute')} %}
           {% set leader = p.leader %}
           {% set flag = leader ? (FLAGS[leader.country_code|default('')]|default('🌍')) : '' %}
           <article class="vh-card" data-status="{{ st }}" x-show="filter==='all' || filter==='{{ st }}'" x-cloak>
@@ -181,6 +192,7 @@
               <div class="vh-lead"><span class="vh-lead--empty">
                 {%- if st == 'nominations' -%}Open for nominations
                 {%- elseif st == 'voting' -%}Be the first to vote
+                {%- elseif st == 'shortlisting' -%}Shortlist being finalised
                 {%- elseif st == 'results' or st == 'judging' -%}Awaiting results
                 {%- else -%}Nominees coming soon
                 {%- endif -%}
@@ -197,10 +209,14 @@
                 <a class="vh-act vh-act--g" href="/nominate">Nominate</a>
               {% elseif st == 'results' %}
                 <a class="vh-act vh-act--g" href="/leaderboard">See results</a>
-              {% elseif st == 'judging' %}
-                <a class="vh-act vh-act--g" href="/vote/{{ p.slug }}">View</a>
+              {% elseif st == 'judging' or st == 'shortlisting' %}
+                <a class="vh-act vh-act--g" href="/vote/{{ p.slug }}">View nominees</a>
               {% else %}
                 <span class="vh-act vh-act--off">Opens soon</span>
+              {% endif %}
+              {% if p.phase and p.phase.detail %}
+              {# The deadline in words, from the same object as the chip. #}
+              <span class="sr-only">{{ p.phase.label }} — {{ p.phase.detail }}</span>
               {% endif %}
             </div>
           </article>
@@ -225,11 +241,14 @@
       {% endif %}
 
       <div class="vh-closing">
-        <p class="vh-closing__k">{{ meta.voting_close ? 'Closing soon' : 'How it works' }}</p>
-        {% if meta.voting_close %}
-          <h3>Voting closes {{ meta.voting_close|date('j M') }}</h3>
-          <p>After it closes, judges review the top nominees per category before the Awards Gala — community votes are 45% of the final score.</p>
+        {# Both the kicker and the body come from ONE phase object, so "Closing
+           soon" can no longer sit above a date that has already passed. #}
+        {% if meta.soonest %}
+          <p class="vh-closing__k">{{ meta.soonest.closing_soon ? 'Closing soon' : 'Next deadline' }}</p>
+          <h3>Voting closes {{ meta.soonest.closes_at|date('j M Y') }}</h3>
+          <p>{{ meta.soonest.detail }}. After it closes, judges review the top nominees per category before the Awards Gala — community votes are 45% of the final score.</p>
         {% else %}
+          <p class="vh-closing__k">How it works</p>
           <h3>Community votes count for 45%</h3>
           <p>Public votes blend with an expert judging panel (55%) to set each Cultural Power Index score. Popularity alone never decides a winner.</p>
         {% endif %}
