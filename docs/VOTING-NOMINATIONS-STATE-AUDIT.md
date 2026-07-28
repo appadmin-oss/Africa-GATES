@@ -437,3 +437,45 @@ For anyone verifying the remaining findings against a live install:
 6. **F8 (no CTA).** With a cycle in `voting`, load `/awards/{slug}`: no "Cast a vote" button, no per-category "Vote" buttons.
 7. **F9 (dead tracker).** Cast a real vote, return to /vote: still "0 of N live programmes voted".
 8. **F10 (silent failure).** Enable paid voting, set the cycle to `judging`, submit the buy-votes form: redirected back to an unchanged ballot with `?paid=closed` in the URL and no message on the page.
+
+## 11. Sizing the historic damage — `bin/console cycles:audit`
+
+Everything in §7 fixes the **future**: the phase is computed, so voting closes on
+time, and `BallotGuard` refuses writes outside the window. None of it touches the
+rows written across the years when nothing closed. Those rows are the reason
+strict enforcement cannot simply be switched on and declared done, and three of
+them carry money or a published result.
+
+`PhaseAuditService` answers exactly those questions and writes nothing:
+
+```
+bin/console cycles:audit            # human report
+bin/console cycles:audit --json     # for a ticket or a spreadsheet
+bin/console cycles:audit --strict   # non-zero exit if anything was found
+```
+
+| Section | The question it answers | Why it needs a human |
+| --- | --- | --- |
+| **Clock** | Does the DB's `CURRENT_TIMESTAMP` agree with PHP's `now`? | A whole-hour skew means the findings below are timezone artefacts, not offences. This is the unresolved `DATETIME`-vs-`TIMESTAMP` question, made visible. **Read it first.** |
+| **Cycles** | Stored `status` vs computed phase, for *every* cycle | `BEHIND` is the bug (the engine never caught up). `AHEAD` is legitimate (an operator advanced it by hand). Conflating them would have someone "fix" their own deliberate action. |
+| **Undeclared boundaries** | Which cycles could not be audited at all | With no `voting_close` there is no instant at which a vote became late. Reported separately so *"we checked and found nothing"* stays distinct from *"we could not check"*. |
+| **Votes after close / before open** | How many ballots landed outside the window, per cycle and vote type, with weight | Count = how many offences. Weight = how far the standings actually moved; one paid row can carry hundreds. |
+| **Late nominations** | How many were taken after nominations closed, **broken down by status** | 40 pending rows and 40 approved finalists are entirely different decisions. |
+| **Paid orders never minted** | Who paid and got nothing, in naira | `mint()`'s new phase gate refuses rather than minting into a closed cycle, leaving `votes_used = 0` — this turns that signal into a refund bill. Each row is tagged `re-mint` (window open again, delivery still possible), `refund` (`payments:clawback <id> --commit`), or `investigate` (no live target). |
+| **Paid votes minted late** | Money kept *and* a closed public tally moved | The worse case, and the one with no clean remedy: voiding changes a published standing; keeping it means a closed result was bought after the fact. Sized so the choice is deliberate. |
+| **Finished categories with no winner** | The historic `results` backlog | Winner promotion only happens when the materialiser *claims* the results transition; for these it never did. Note `CycleMaterialiser::ANNOUNCE_GRACE_DAYS` — past the grace window these are promoted **silently**, so a years-old cycle is corrected without emailing anyone about a competition that ended long ago. |
+
+Two deliberate design choices worth knowing before reading the output:
+
+- **Windows are judged half-open, `[open, close)`** — a vote *at* the closing
+  instant is late, matching how `CyclePolicy` decides the phase. If the audit
+  used `<=` it would report a different population than the guard refuses, and
+  the two would disagree forever.
+- **Only *declared* boundaries are used.** A cycle with no `voting_close` is
+  reported as unjudgeable rather than assigned an inferred window. Inventing a
+  deadline inside an audit would manufacture offences no operator ever announced.
+
+The three decisions that remain genuinely the operator's — whether to void or
+accept the out-of-window ballots, whether to refund, and whether to crown the
+backlog — are unchanged by this. What changes is that they can now be made
+against numbers instead of guesses.

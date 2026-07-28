@@ -23,6 +23,7 @@ use AfricaGates\Console\Commands\{
     CollusionScanCommand,
     CpiRecomputeCommand,
     CycleAdvanceCommand,
+    CycleAuditCommand,
     MigrateCommand,
     PaymentReconcileCommand,
     PaymentClawbackCommand,
@@ -41,6 +42,7 @@ $app->add(new CacheClearCommand());
 $app->add(new CollusionScanCommand());
 $app->add(new CpiRecomputeCommand());
 $app->add(new CycleAdvanceCommand());
+$app->add(new CycleAuditCommand());
 $app->add(new MigrateCommand());
 $app->add(new PaymentReconcileCommand(
     new PaymentService(),
