@@ -22,6 +22,7 @@ class PaymentReconcileTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->skipOnMysql('builds its own tables with SQLite DDL; exercises PHP logic, not SQL semantics');
         $_ENV['APP_URL'] = 'https://afg.local';
         $_ENV['PAYSTACK_SECRET_KEY'] = 'sk_test_x';
         unset($_ENV['FLUTTERWAVE_SECRET_KEY']);

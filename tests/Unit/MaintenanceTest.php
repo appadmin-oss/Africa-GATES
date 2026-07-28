@@ -18,7 +18,11 @@ class MaintenanceTest extends TestCase
     {
         DB::table('gates_cache')->insert([
             ['cache_key' => 'stale', 'payload' => '{}', 'expires_at' => '2000-01-01 00:00:00'],
-            ['cache_key' => 'fresh', 'payload' => '{}', 'expires_at' => '2999-01-01 00:00:00'],
+            // 2037, not 2999: MySQL's TIMESTAMP ceiling is 2038-01-19 03:14:07 and it
+            // REJECTS anything beyond it, while SQLite stores the text happily. The
+            // fixture only needs to mean "comfortably unexpired", so it costs nothing
+            // to stay inside the range both drivers can represent.
+            ['cache_key' => 'fresh', 'payload' => '{}', 'expires_at' => '2037-01-01 00:00:00'],
         ]);
 
         $r = (new Maintenance(null, false))->run('cache');

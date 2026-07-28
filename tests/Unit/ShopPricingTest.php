@@ -19,6 +19,7 @@ class ShopPricingTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->skipOnMysql('builds its own tables with SQLite DDL; exercises PHP logic, not SQL semantics');
         // gates_products is migration-created in prod (absent from the base test
         // schema) — create a minimal one for pricing.
         DB::statement('CREATE TABLE IF NOT EXISTS gates_products (

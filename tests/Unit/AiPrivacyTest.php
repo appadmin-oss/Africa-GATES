@@ -308,7 +308,13 @@ class AiPrivacyTest extends TestCase
 
     public function test_the_notice_reports_whether_the_features_are_currently_on(): void
     {
-        DB::table('gates_settings')->insert(['key_name' => 'ai_enabled', 'value' => '0']);
+        // updateOrInsert, not insert: the MySQL harness applies the dated
+        // migrations, one of which SEEDS ai_enabled = 1, while the SQLite harness
+        // loads schema files only. A plain insert collides on the primary key on
+        // one driver and not the other — a difference in the harness, but the fix
+        // is the right habit anyway: assert the value you need, don't assume the
+        // row is absent.
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'ai_enabled'], ['value' => '0']);
 
         $this->assertFalse(AiPrivacy::currentlyActive(),
             'with the master switch off, the page must not claim text is being sent');

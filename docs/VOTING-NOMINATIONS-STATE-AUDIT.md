@@ -667,3 +667,80 @@ halves are confirmed present:
 `cycles:audit` and `phase-audit.sql` both run under `ONLY_FULL_GROUP_BY` without
 complaint and return **identical numbers** to the SQLite run — three
 implementations (PHP/SQLite, PHP/MySQL, SQL/MySQL) agreeing on the same fixture.
+
+## 14. Running the suite against the canonical schema
+
+Until now the 721-test suite had **only ever run against in-memory SQLite**. That
+is what makes it runnable anywhere with no server and no `.env`, and it should stay
+the default — but SQLite is not the production database, and §13 is the proof that
+testing only against it hides real defects. SQLite has no session timezone and
+stores datetimes as text, so it could not possibly have caught the hour-shifted
+deadline comparisons.
+
+```sh
+TEST_DB_DRIVER=mysql DB_HOST=127.0.0.1 DB_NAME=africa_gates_test \
+DB_USER=… DB_PASS=… vendor/bin/phpunit
+```
+
+The MySQL harness loads `schema.sql` + `admin-schema.sql` + `community-schema.sql`
+**and then runs the dated migrations**, so the schema under test matches a migrated
+production database rather than the base files alone. Current state, against MySQL
+8.0.46 with strict mode and `ONLY_FULL_GROUP_BY`:
+
+```
+MySQL:   721 tests, 4899 assertions, 11 skipped, 0 failures   (~21s)
+SQLite:  721 tests, 4921 assertions,  0 skipped, 0 failures   (~9s)
+```
+
+The 11 skips are `ShopPricingTest` and `PaymentReconcileTest`, which build their own
+tables inline with SQLite DDL because `gates_products` is not in the base schema
+files. They test pricing arithmetic and reconciliation branching — PHP logic, not
+SQL semantics — so `skipOnMysql()` states the reason rather than leaving eleven red
+tests that train everyone to ignore the result.
+
+### Harness notes worth knowing before you run it
+
+Three things were wrong on the first attempt, each of which produced a large,
+misleading failure count:
+
+1. **`tests/bootstrap.php` pinned `DB_DRIVER=sqlite` unconditionally.** Anything
+   building its own connection from `config/database.php` — `MigrationRunner` and
+   every standalone migration do — opened a SQLite file and replaced the global
+   Capsule the harness had just configured. The run "passed against MySQL" while
+   testing SQLite. `DB_DRIVER` now follows `TEST_DB_DRIVER`.
+2. **Per-test isolation is a transaction rollback, not `TRUNCATE`.** Truncating ~70
+   tables per test is ~50,000 `TRUNCATE`s, and InnoDB rebuilds a tablespace for each
+   one — unusably slow. But a test issuing DDL causes an *implicit commit* in MySQL,
+   which Laravel's `transactionLevel()` cannot see, so its rows survive the
+   rollback and the next test dies on a duplicate primary key. The rollback is
+   therefore followed by a canary `COUNT` on a table that should be empty; only if
+   that finds rows does the expensive full cleanup run.
+3. **Connections must be closed per test.** `setUp` builds a fresh Capsule, so
+   without an explicit `disconnect()` the run hits MySQL's `max_connections` (151)
+   partway through and every remaining test errors for a reason unrelated to what
+   it was asserting.
+
+### What the parity run found
+
+- **`TIMESTAMP` caps at `2038-01-19 03:14:07`** and MySQL *rejects* anything beyond
+  it, while SQLite stores the text happily. A cache fixture used `2999-01-01` to
+  mean "comfortably unexpired". No production code writes a far-future date to any
+  `TIMESTAMP` column — checked — so this was a fixture artefact, but the ceiling is
+  real and worth knowing before someone reaches for a sentinel date.
+- **Seeded settings differ between harnesses.** The MySQL harness runs migrations,
+  one of which seeds `ai_enabled = 1`; the SQLite harness loads schema files only.
+  A test that plain-`insert`ed that key collided on one driver and not the other.
+  Fixed with `updateOrInsert` — the better habit regardless: assert the value you
+  need, don't assume the row is absent.
+- **27 migrations use `CREATE INDEX IF NOT EXISTS` / `DROP INDEX IF EXISTS`, which
+  MySQL does not support.** They log `! index skipped` and continue. On a *fresh*
+  database this is harmless — the base `schema.sql` declares the same indexes, and
+  the per-voter idempotency constraint is present as `uq_votes_idem` UNIQUE on
+  `(voter_email_hash, idempotency_key)`, verified. But these are catch-up scripts
+  written for databases that predate a given index, and on such a database the
+  catch-up silently failed and the index is **still missing today**. `idx_votes_donation`
+  is one that does not exist on a fresh MySQL build. This is pre-existing, affects
+  performance rather than correctness on the indexes checked, and is left as a
+  flagged finding rather than fixed blind: the right fix is per-migration
+  (`information_schema` existence check, then a bare `CREATE INDEX`), and it should
+  be verified against the production index inventory rather than a fresh build.

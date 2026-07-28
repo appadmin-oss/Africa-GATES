@@ -353,10 +353,17 @@ class PhaseAuditTest extends TestCase
         // produced the rest of the report is not interpretable.
         $r = PhaseAuditService::run();
 
-        $this->assertSame('sqlite', $r['clock']['driver']);
+        // Driver-aware: this suite runs against in-memory SQLite by default and
+        // against the canonical MySQL schema under TEST_DB_DRIVER=mysql. The
+        // property being asserted is the same either way — the section must be
+        // produceable, and the two clocks must agree — but hard-coding 'sqlite'
+        // would make the MySQL parity run fail on a difference that is not a bug.
+        $this->assertSame(self::usingMysql() ? 'mysql' : 'sqlite', $r['clock']['driver']);
         $this->assertNotNull($r['clock']['db_now']);
         $this->assertIsInt($r['clock']['skew_seconds']);
-        $this->assertFalse($r['clock']['suspicious'], 'SQLite CURRENT_TIMESTAMP is UTC and the test clock is UTC');
+        $this->assertFalse($r['clock']['suspicious'],
+            'both drivers must report "now" in the same frame as PHP — on MySQL because the '
+            . 'session timezone is pinned, on SQLite because CURRENT_TIMESTAMP is UTC');
     }
 
     public function test_an_empty_platform_reports_clean(): void
@@ -439,7 +446,16 @@ class PhaseAuditTest extends TestCase
 
         $this->assertArrayHasKey('session_aligned', $r['clock']);
         $this->assertArrayHasKey('session_offset', $r['clock']);
-        $this->assertTrue($r['clock']['session_aligned'], 'nothing to align on sqlite, so trivially true');
-        $this->assertNull($r['clock']['session_offset'], 'and no offset was set, which the command renders as n/a');
+        $this->assertTrue($r['clock']['session_aligned'],
+            'on MySQL the session was pinned; on SQLite there is nothing to pin');
+
+        if (self::usingMysql()) {
+            // The offset actually applied, so an operator can see WHICH frame the
+            // numbers were computed in rather than having to infer it.
+            $this->assertMatchesRegularExpression('/^[+-]\d{2}:\d{2}$/', $r['clock']['session_offset']);
+        } else {
+            $this->assertNull($r['clock']['session_offset'],
+                'no session timezone exists on sqlite, which the command renders as n/a');
+        }
     }
 }
