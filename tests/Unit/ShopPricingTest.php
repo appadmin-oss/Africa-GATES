@@ -19,13 +19,16 @@ class ShopPricingTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->skipOnMysql('builds its own tables with SQLite DDL; exercises PHP logic, not SQL semantics');
         // gates_products is migration-created in prod (absent from the base test
-        // schema) — create a minimal one for pricing.
+        // schema) — create a minimal one for pricing, but only when it is genuinely
+        // missing. The MySQL parity harness runs the migrations, so it already has
+        // the real table, and this SQLite DDL would be a 1064 there.
+        if (!DB::schema()->hasTable('gates_products')) {
         DB::statement('CREATE TABLE IF NOT EXISTS gates_products (
             id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT, name TEXT, price_naira INTEGER,
             is_active INTEGER DEFAULT 1, delivery_regions TEXT, stock INTEGER, category TEXT, sort_order INTEGER
         )');
+        }
         DB::table('gates_products')->insert(['slug' => 'tee', 'name' => 'Heritage Tee', 'price_naira' => 1000, 'is_active' => 1]);
         DB::table('gates_settings')->where('key_name', 'shop_region_mult')->delete();
     }

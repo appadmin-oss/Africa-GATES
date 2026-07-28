@@ -22,7 +22,6 @@ class PaymentReconcileTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->skipOnMysql('builds its own tables with SQLite DDL; exercises PHP logic, not SQL semantics');
         $_ENV['APP_URL'] = 'https://afg.local';
         $_ENV['PAYSTACK_SECRET_KEY'] = 'sk_test_x';
         unset($_ENV['FLUTTERWAVE_SECRET_KEY']);
@@ -33,9 +32,18 @@ class PaymentReconcileTest extends TestCase
      * gates_products + gates_orders live only in the shop migration, not the base
      * sqlite schema the harness loads — create them here (verbatim from the
      * migration's SQLite DDL) so the order paths are exercisable.
+     *
+     * Guarded on absence rather than run unconditionally. The MySQL parity harness
+     * applies the dated migrations, so both tables already exist there with their
+     * REAL production shape — and this SQLite DDL would be a 1064 on MySQL, which is
+     * what previously forced the whole file to be skipped in that mode. Skipping when
+     * the tables are already correct is strictly better than skipping the tests.
      */
     private function createShopTables(): void
     {
+        if (DB::schema()->hasTable('gates_products') && DB::schema()->hasTable('gates_orders')) {
+            return;
+        }
         $pdo = DB::connection()->getPdo();
         $pdo->exec("CREATE TABLE IF NOT EXISTS gates_products (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

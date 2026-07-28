@@ -54,25 +54,6 @@ abstract class TestCase extends BaseTestCase
         return strtolower((string) ($_ENV['TEST_DB_DRIVER'] ?? getenv('TEST_DB_DRIVER') ?: 'sqlite')) === 'mysql';
     }
 
-    /**
-     * Skip this test when running the MySQL parity suite, with a stated reason.
-     *
-     * For tests that build their own tables inline using SQLite DDL (`INTEGER
-     * PRIMARY KEY AUTOINCREMENT`, bare `TEXT`). Those exist because the table in
-     * question is not in the base schema files, and they are testing PHP logic —
-     * pricing arithmetic, reconciliation branching — not SQL semantics, so
-     * translating their DDL would add maintenance for no correctness gain.
-     *
-     * An explicit skip is the honest option. The alternative was leaving eleven
-     * red tests in the parity run, which trains everyone to ignore the result.
-     */
-    protected function skipOnMysql(string $why): void
-    {
-        if (self::usingMysql()) {
-            $this->markTestSkipped($why);
-        }
-    }
-
     protected function setUp(): void
     {
         parent::setUp();

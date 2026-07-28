@@ -688,15 +688,17 @@ production database rather than the base files alone. Current state, against MyS
 8.0.46 with strict mode and `ONLY_FULL_GROUP_BY`:
 
 ```
-MySQL:   721 tests, 4899 assertions, 11 skipped, 0 failures   (~21s)
-SQLite:  721 tests, 4921 assertions,  0 skipped, 0 failures   (~9s)
+MySQL:   747 tests, 4985 assertions, 0 skipped, 0 failures   (~25s)
+SQLite:  747 tests, 4984 assertions, 0 skipped, 0 failures   (~9s)
 ```
 
-The 11 skips are `ShopPricingTest` and `PaymentReconcileTest`, which build their own
-tables inline with SQLite DDL because `gates_products` is not in the base schema
-files. They test pricing arithmetic and reconciliation branching — PHP logic, not
-SQL semantics — so `skipOnMysql()` states the reason rather than leaving eleven red
-tests that train everyone to ignore the result.
+**Zero skips.** The 11 that were initially skipped were `ShopPricingTest` and
+`PaymentReconcileTest`, which build `gates_products`/`gates_orders` inline with SQLite
+DDL because those tables live only in the shop migration, not in the base schema
+files the SQLite harness loads. The MySQL harness *does* run the migrations, so both
+tables already exist there with their real production shape — guarding the inline
+`CREATE` on `hasTable()` makes those tests run against the real tables instead of
+being skipped. Strictly better coverage than either the skip or the red tests.
 
 ### Harness notes worth knowing before you run it
 
@@ -885,3 +887,33 @@ needs data work before a command.
 
 A test asserts the check never writes: reporting a missing index must not quietly
 create one, since it now runs on an admin page load.
+
+
+## 16. Schema parity between the drivers — measured, and clean
+
+The dual-schema convention (`schema.sql` for MySQL, `sqlite-schema.sql` for parity,
+both maintained by hand, plus driver-aware migrations) is the kind of arrangement
+that drifts silently — and drift here means the suite passes against a schema
+production does not have. Given a real MySQL server it can be measured rather than
+hoped about. Both databases built from base files **plus all migrations**, then
+compared:
+
+```
+tables   72 MySQL / 72 SQLite   — no difference in either direction
+columns 705 MySQL / 705 SQLite  — no difference in either direction
+```
+
+**No drift.** The convention has actually been maintained. Worth recording as a
+positive result: the three-way discipline this branch has been following for every
+new column and index is not ceremonial, and the reason the MySQL parity run found so
+little is that the schemas genuinely agree.
+
+Reproduce it with the same approach — build each from its schema files, run
+`MigrationRunner`, then diff `information_schema.columns` against `PRAGMA table_info`.
+It needs both servers at once, which is why it is a documented procedure rather than
+a test.
+
+One real gap it did surface, now closed: the **default SQLite harness loads schema
+files only, no migrations**, so it never saw `gates_orders` or `gates_products` — 69
+tables against a migrated 71. That is why two test files built their own copies. The
+MySQL parity harness runs migrations, so it has them for real.
