@@ -2,7 +2,7 @@
    approve/reject forms. Used by the single-review page (spa=false) and the SPA
    review desk (spa=true, rendered standalone as a fetched fragment).
 
-   It carries NO <script>: on the single page review.twig supplies the classic
+   It carries NO <script nonce="{{ csp_nonce }}">: on the single page review.twig supplies the classic
    inline handlers; in the desk the SPA shell owns all behaviour via delegation,
    so this fragment stays inert and re-injectable. Every decision form still
    posts to the SAME audited endpoints — the flag only changes the JS hooks. #}

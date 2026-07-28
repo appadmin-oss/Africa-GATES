@@ -675,7 +675,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   /* Hero word rotator — recognised → remembered → celebrated → immortalised.
      Respects prefers-reduced-motion (stays on the first word). */
   (function(){

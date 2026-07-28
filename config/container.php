@@ -142,6 +142,9 @@ return [
             'request_path'      => parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/',
             'site_url'          => rtrim($_ENV['APP_URL'] ?? '', '/') ?: 'https://afg.afrovanguard.org.ng',
             'flash_ok'          => $_SESSION['flash_ok']    ?? null,
+            // The per-request CSP nonce. Every inline <script> must carry it or the
+            // browser refuses to run it — see AfricaGates\Support\Csp.
+            'csp_nonce'         => \AfricaGates\Support\Csp::nonce(),
             'flash_error'       => $_SESSION['flash_error'] ?? null,
             'flash_notice'      => $_SESSION['flash_notice'] ?? null,
         ];

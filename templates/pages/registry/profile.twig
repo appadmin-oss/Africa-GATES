@@ -380,7 +380,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 function profileApp(){
   return {
     cheers: {{ cheer_count|default(0)|e('js') }},

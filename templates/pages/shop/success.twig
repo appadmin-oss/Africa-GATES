@@ -39,5 +39,5 @@
 {% endblock %}
 
 {% block foot_scripts %}
-{% if confirmed %}<script>try{ localStorage.removeItem('afg_cart'); }catch(e){}</script>{% endif %}
+{% if confirmed %}<script nonce="{{ csp_nonce }}">try{ localStorage.removeItem('afg_cart'); }catch(e){}</script>{% endif %}
 {% endblock %}

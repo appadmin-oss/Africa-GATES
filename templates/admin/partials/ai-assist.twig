@@ -23,7 +23,7 @@
   <p role="alert" x-show="error" x-cloak x-text="error" style="color:#b42318;font-size:12.5px;font-weight:600;margin:8px 0 0"></p>
   <p role="status" x-show="okMsg" x-cloak x-text="okMsg" style="color:#166534;font-size:12.5px;font-weight:600;margin:8px 0 0"></p>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
 if (!window.agAiAssist) {
   window.agAiAssist = function (targetId, kind) {
     return {

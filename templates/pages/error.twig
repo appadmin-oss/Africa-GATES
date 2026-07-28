@@ -102,7 +102,7 @@
 
     <div class="err__cta">
       {% if _pU == 'reload' %}
-        <button type="button" class="err__btn {{ dark ? 'err__btn--light' : 'err__btn--p' }}" onclick="location.reload()">{{ _pL }}</button>
+        <button type="button" class="err__btn {{ dark ? 'err__btn--light' : 'err__btn--p' }}" data-ag-do="reload">{{ _pL }}</button>
       {% else %}
         <a class="err__btn {{ dark ? 'err__btn--light' : 'err__btn--p' }}" href="{{ _pU }}">{{ _pL }}</a>
       {% endif %}

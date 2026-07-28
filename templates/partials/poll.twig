@@ -24,7 +24,7 @@
     <template x-if="poll.is_closed"><span> · closed</span></template>
   </div>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
 function pollApp(seed){
   return {
     poll: seed, busy:false,

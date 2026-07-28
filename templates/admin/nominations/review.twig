@@ -12,7 +12,7 @@
   duplicates: duplicates, insight: insight, spa: false
 } %}
 
-<script>
+<script nonce="{{ csp_nonce }}">
 /* AI "Suggest with AI" for decision notes — fills the textarea; hides the
    button if no AI provider is configured (503). Single-page only; the SPA desk
    has its own delegated handler. */

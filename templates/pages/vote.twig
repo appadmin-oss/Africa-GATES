@@ -261,7 +261,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 function voteHub(){
   return {
     filter: 'all',

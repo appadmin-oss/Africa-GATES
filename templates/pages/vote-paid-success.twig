@@ -70,7 +70,7 @@
    left the tracker reading zero. Gated on `minted` — recording a vote that was
    refused would be the same lie in a different place. #}
 {% if minted and programme_id %}
-<script>
+<script nonce="{{ csp_nonce }}">
   try { localStorage.setItem('afg_voted_prog_{{ programme_id }}', String(Date.now())); } catch (e) {}
 </script>
 {% endif %}

@@ -271,7 +271,7 @@
         Point a free webcron service (cron-job.org, EasyCron) or a cPanel “fetch a URL” job at this URL every ~15 minutes:
       </p>
       {% if values.cron_token|default('') %}
-      <input type="text" readonly onclick="this.select()" value="{{ app_url }}/__cron/run?token={{ values.cron_token }}"
+      <input type="text" readonly data-ag-do="select-all" value="{{ app_url }}/__cron/run?token={{ values.cron_token }}"
              style="width:100%;font-family:'Space Mono',monospace;font-size:12px;padding:8px;background:#f6f8f5">
       {% else %}
       <p style="font-size:12px;color:#b4452f">No cron token yet — save this section once to generate one.</p>

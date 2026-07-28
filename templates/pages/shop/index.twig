@@ -62,7 +62,7 @@
 
 <div class="shop" x-data="{ filter:'All' }">
   <div class="sh-notice" id="shopNotice" role="alert" style="display:none;margin-top:16px;padding:12px 16px;border-radius:12px;background:#fdeaea;border:1px solid rgba(180,35,24,.2);color:#8a1c12;font-size:13.5px;font-weight:500"></div>
-  <script>(function(){var m={region:'Please choose a valid delivery region at checkout.',noship:'Sorry — an item in your cart can’t be delivered to your selected region. Remove it or choose another region.',unavailable:'That payment method is unavailable right now.',email:'Please enter a valid email address.',details:'Please add your name and delivery address.',empty:'Your cart is empty.',busy:'Too many attempts — please wait a moment.',start:'We couldn’t start checkout. Please try again.',error:'Something went wrong. Please try again.',failed:'Payment was not completed.'};var p=new URLSearchParams(location.search).get('checkout');if(p&&m[p]){var el=document.getElementById('shopNotice');el.textContent=m[p];el.style.display='block';}})();</script>
+  <script nonce="{{ csp_nonce }}">(function(){var m={region:'Please choose a valid delivery region at checkout.',noship:'Sorry — an item in your cart can’t be delivered to your selected region. Remove it or choose another region.',unavailable:'That payment method is unavailable right now.',email:'Please enter a valid email address.',details:'Please add your name and delivery address.',empty:'Your cart is empty.',busy:'Too many attempts — please wait a moment.',start:'We couldn’t start checkout. Please try again.',error:'Something went wrong. Please try again.',failed:'Payment was not completed.'};var p=new URLSearchParams(location.search).get('checkout');if(p&&m[p]){var el=document.getElementById('shopNotice');el.textContent=m[p];el.style.display='block';}})();</script>
   <div class="sh-hero">
     <div class="sh-hero__orb" aria-hidden="true"></div>
     <div class="sh-hero__in">
@@ -82,7 +82,7 @@
     {% if region_priced %}
     <label class="sh-region" title="Prices vary by delivery region">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-      <select aria-label="Pricing region" onchange="(function(v){document.cookie='ag_region='+encodeURIComponent(v)+';path=/;max-age=31536000';location.reload();})(this.value)">
+      <select aria-label="Pricing region" data-ag-do="set-cookie-reload" data-cookie="ag_region">
         {% for r in regions %}<option value="{{ r }}" {% if r == region %}selected{% endif %}>{{ r }}</option>{% endfor %}
       </select>
     </label>
@@ -90,7 +90,7 @@
     {% if currency_enabled %}
     <label class="sh-region" title="Show prices in your currency">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.6.5M14.5 14.5A2.5 2.5 0 0 1 10 14M12 7v10"/></svg>
-      <select aria-label="Display currency" onchange="(function(v){document.cookie='ag_currency='+encodeURIComponent(v)+';path=/;max-age=31536000';location.reload();})(this.value)">
+      <select aria-label="Display currency" data-ag-do="set-cookie-reload" data-cookie="ag_currency">
         {% for code, sym in currencies %}<option value="{{ code }}" {% if code == currency %}selected{% endif %}>{{ code }}</option>{% endfor %}
       </select>
     </label>
@@ -145,7 +145,7 @@
 {# Enterprise ad controller: lazy-load each unit as it nears the viewport, and
    collapse any slot the network leaves unfilled so no blank "Advertisement"
    box is ever shown. Reserved height (CSS) prevents layout shift before load. #}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function(){
   function init(){
     var slots = document.querySelectorAll('aside.ad-slot[data-ad-lazy]');

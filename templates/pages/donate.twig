@@ -242,7 +242,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   function donate(){
     return {
       presets:[5000,15000,50000,100000,250000,500000],

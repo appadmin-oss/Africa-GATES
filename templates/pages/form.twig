@@ -59,7 +59,7 @@
     </form>
   {% endif %}
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
 function formApp(seed){
   return {
     vals: seed && typeof seed === 'object' ? seed : {},

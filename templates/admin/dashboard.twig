@@ -32,7 +32,7 @@
   </div>
 </div>
 {% if ai_enabled %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   var btn = document.getElementById('aiBriefBtn'), out = document.getElementById('integrityBrief');
   if (!btn || !out) return;
@@ -124,7 +124,7 @@
 
 {% block foot_scripts %}
 <script src="/assets/vendor/chart.min.js"></script>
-<script>
+<script nonce="{{ csp_nonce }}">
 (function(){
   if (typeof Chart === 'undefined') return;
   Chart.defaults.font.family = 'Montserrat, sans-serif';

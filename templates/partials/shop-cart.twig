@@ -128,7 +128,7 @@
 
 <div class="sc-toast" x-show="$store.cart.toast" x-cloak role="status" x-text="$store.cart.toast"></div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 window.AG_FX = {{ {cur: currency|default('NGN'), rate: fx_rate|default(1), sym: fx_symbol|default('₦')}|json_encode|raw }};
 document.addEventListener('alpine:init', () => {
   Alpine.store('cart', {

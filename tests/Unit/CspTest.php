@@ -1,0 +1,206 @@
+<?php
+declare(strict_types=1);
+
+namespace Tests\Unit;
+
+use Tests\TestCase;
+use Illuminate\Database\Capsule\Manager as DB;
+use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Response;
+use AfricaGates\Support\Csp;
+
+/**
+ * The Content-Security-Policy, and the nonce it depends on.
+ *
+ * WHAT WAS WRONG. `script-src 'self' 'unsafe-inline' 'unsafe-eval' https:`.
+ * `'unsafe-inline'` lets an injected `<script>` run; `https:` lets a script come
+ * from any https host on the internet. Together they meant the policy offered no
+ * protection against script injection at all, on a platform that takes card
+ * payments and runs a public ballot. The other directives were doing real work;
+ * script-src was decoration.
+ *
+ * WHY THESE TESTS EXIST RATHER THAN A MANUAL CHECK. Once a nonce is present the
+ * browser IGNORES `'unsafe-inline'` for scripts — so a single inline `<script>`
+ * missing its nonce is silently dead, with no error on the server and nothing in the
+ * test suite to notice. 47 inline scripts across 37 templates had to be updated. A
+ * render-level assertion is the only honest way to know they all were.
+ */
+class CspTest extends TestCase
+{
+    /** Render a real page through the real Twig, as a request would. */
+    private function render(string $class, string $method, string $path): string
+    {
+        $builder = new \DI\ContainerBuilder();
+        $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        $ctrl = $builder->build()->get($class);
+        $req  = (new ServerRequestFactory())->createServerRequest('GET', $path);
+        return (string) $ctrl->$method($req, new Response())->getBody();
+    }
+
+    /** @return list<string> every inline <script> open tag in $html */
+    private function inlineScriptTags(string $html): array
+    {
+        preg_match_all('/<script\b[^>]*>/i', $html, $m);
+        return array_values(array_filter($m[0], static fn (string $t) => !preg_match('/\ssrc=/i', $t)));
+    }
+
+    // ── The policy itself ────────────────────────────────────────────────────
+
+    public function test_script_src_no_longer_permits_inline_or_any_https_host(): void
+    {
+        $policy = Csp::policy();
+        preg_match("/script-src ([^;]+);/", $policy, $m);
+        $scriptSrc = $m[1] ?? '';
+
+        $this->assertStringNotContainsString("'unsafe-inline'", $scriptSrc,
+            "'unsafe-inline' in script-src means an injected <script> runs");
+        $this->assertDoesNotMatchRegularExpression('/(^|\s)https:(\s|$)/', $scriptSrc,
+            'a bare https: scheme permits a script from any host on the internet');
+        $this->assertStringContainsString("'nonce-", $scriptSrc);
+    }
+
+    public function test_the_hosts_that_serve_script_are_named_explicitly(): void
+    {
+        // Each is a supply-chain dependency. Listing them makes the exposure
+        // countable, which `https:` did not.
+        foreach (['cdn.jsdelivr.net', 'unpkg.com', 'code.jquery.com', 'challenges.cloudflare.com'] as $host) {
+            $this->assertStringContainsString($host, Csp::policy(), "{$host} is loaded by a template");
+        }
+    }
+
+    public function test_connect_src_is_tight_because_it_is_the_exfiltration_path(): void
+    {
+        preg_match("/connect-src ([^;]+);/", Csp::policy(), $m);
+
+        $this->assertDoesNotMatchRegularExpression('/(^|\s)https:(\s|$)/', $m[1] ?? '',
+            'connect-src https: lets injected script POST anywhere it likes');
+        $this->assertStringContainsString("'self'", $m[1] ?? '');
+    }
+
+    public function test_the_directives_that_were_already_right_are_kept(): void
+    {
+        // These were doing the real work before and must not be lost in the rewrite.
+        $policy = Csp::policy();
+        $this->assertStringContainsString("object-src 'none'", $policy);
+        $this->assertStringContainsString("base-uri 'self'", $policy);
+        $this->assertStringContainsString("frame-ancestors 'self'", $policy);
+        $this->assertStringContainsString('paystack.com', $policy,
+            'form-action must allow the gateways or every checkout redirect is blocked');
+        $this->assertStringContainsString('flutterwave.com', $policy);
+    }
+
+    public function test_unsafe_eval_is_still_present_and_that_is_deliberate(): void
+    {
+        // Alpine 3 compiles x-data/@click with new Function. Removing this needs
+        // Alpine's CSP build and a rewrite of every directive in the templates —
+        // a project, not a tightening. Asserted so the compromise is explicit
+        // rather than an oversight someone "fixes" and breaks the nav with.
+        $this->assertStringContainsString("'unsafe-eval'", Csp::policy());
+    }
+
+    public function test_the_nonce_is_stable_within_a_request_and_random_looking(): void
+    {
+        // Stable, because the header and every script tag must agree. If it were
+        // regenerated per call, every page would ship dead scripts.
+        $this->assertSame(Csp::nonce(), Csp::nonce());
+        $this->assertMatchesRegularExpression('~^[A-Za-z0-9+/]{20,}={0,2}$~', Csp::nonce());
+        $this->assertStringContainsString("'nonce-" . Csp::nonce() . "'", Csp::policy());
+    }
+
+    // ── The rendered pages ──────────────────────────────────────────────────
+
+    public function test_every_inline_script_on_a_rendered_page_carries_the_nonce(): void
+    {
+        // THE TEST THAT MATTERS. A missed nonce is a silently dead script.
+        DB::table('gates_profiles')->insert(['slug' => 'ada', 'display_name' => 'Ada Obi', 'email' => 'ada@example.com']);
+
+        foreach ([
+            [\AfricaGates\Controllers\HomeController::class, 'index', '/'],
+            [\AfricaGates\Controllers\RegistryController::class, 'index', '/registry'],
+            [\AfricaGates\Controllers\LeaderboardController::class, 'index', '/leaderboard'],
+            [\AfricaGates\Controllers\AwardsController::class, 'index', '/awards'],
+        ] as [$class, $method, $path]) {
+            $html = $this->render($class, $method, $path);
+            $tags = $this->inlineScriptTags($html);
+
+            $this->assertNotSame([], $tags, "{$path} rendered no inline scripts — check the fixture, not the CSP");
+            foreach ($tags as $tag) {
+                $this->assertStringContainsString('nonce=', $tag,
+                    "{$path} has an inline <script> with no nonce, which the browser will refuse to run: {$tag}");
+            }
+        }
+    }
+
+    public function test_the_rendered_nonce_matches_the_one_the_header_advertises(): void
+    {
+        // Two generators would be the obvious way to break this, so one holder
+        // serves both and this asserts they agree.
+        $html = $this->render(\AfricaGates\Controllers\HomeController::class, 'index', '/');
+
+        $this->assertStringContainsString('nonce="' . Csp::nonce() . '"', $html);
+    }
+
+    public function test_no_rendered_page_uses_an_inline_event_handler(): void
+    {
+        // Inline handlers require 'unsafe-inline' in script-src, which is exactly
+        // what was removed. Ten of them were converted to delegated data-ag-do
+        // attributes; this stops the eleventh being added.
+        DB::table('gates_profiles')->insert(['slug' => 'ada', 'display_name' => 'Ada Obi', 'email' => 'ada@example.com']);
+
+        foreach ([
+            [\AfricaGates\Controllers\HomeController::class, 'index', '/'],
+            [\AfricaGates\Controllers\RegistryController::class, 'index', '/registry'],
+            [\AfricaGates\Controllers\LeaderboardController::class, 'index', '/leaderboard'],
+        ] as [$class, $method, $path]) {
+            $html = $this->render($class, $method, $path);
+
+            $this->assertDoesNotMatchRegularExpression(
+                '/\son(?:click|change|load|error|submit|input|focus|blur|mouseover)\s*=\s*["\']/i',
+                $html,
+                "{$path} contains an inline event handler; convert it to data-ag-do"
+            );
+        }
+    }
+
+    public function test_no_template_source_contains_an_un_nonced_inline_script(): void
+    {
+        // Source-level backstop for the pages the render tests do not reach —
+        // admin, judge, shop, account. 47 inline scripts across 37 files had to be
+        // updated and a missed one fails silently in a browser, not here.
+        $offenders = [];
+        $rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/templates'));
+        foreach ($rii as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'twig') continue;
+            // Comments stripped, like the handler scan below: the layout explains
+            // this trap in prose and would otherwise flag itself.
+            $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($file->getPathname()));
+            preg_match_all('/<script\b[^>]*>/i', $body, $m);
+            foreach ($m[0] as $tag) {
+                if (preg_match('/\ssrc=/i', $tag)) continue;
+                if (!str_contains($tag, 'nonce=')) {
+                    $offenders[] = basename($file->getPathname()) . ': ' . $tag;
+                }
+            }
+        }
+
+        $this->assertSame([], $offenders);
+    }
+
+    public function test_no_template_source_contains_an_inline_event_handler(): void
+    {
+        $offenders = [];
+        $rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/templates'));
+        foreach ($rii as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'twig') continue;
+            // Comments stripped: the layout explains the trap in prose, and the
+            // scan must judge markup rather than documentation.
+            $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($file->getPathname()));
+            if (preg_match('/\son(?:click|change|load|error|submit|input|focus|blur|mouseover)\s*=\s*["\']/i', $body, $m)) {
+                $offenders[] = basename($file->getPathname()) . ': ' . trim($m[0]);
+            }
+        }
+
+        $this->assertSame([], $offenders,
+            "inline handlers need 'unsafe-inline' in script-src — use data-ag-do instead");
+    }
+}

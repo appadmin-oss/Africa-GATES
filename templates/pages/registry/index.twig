@@ -127,7 +127,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function(){
   var grid = document.getElementById('rgGrid'); if (!grid) return;
   var empty = document.getElementById('rgEmpty');

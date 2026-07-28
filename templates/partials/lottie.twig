@@ -16,7 +16,7 @@
 <div class="ag-lottie" data-ag-lottie="{{ src }}"
      {% if label|default('') %}role="img" aria-label="{{ label }}"{% else %}aria-hidden="true"{% endif %}
      style="width:{{ _w }}px;height:{{ _h }}px;max-width:100%;margin:0 auto"></div>
-<script>
+<script nonce="{{ csp_nonce }}">
 if (!window.agLottieBoot) {
   window.agLottieBoot = true;
   (function () {

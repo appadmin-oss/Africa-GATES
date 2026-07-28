@@ -167,3 +167,81 @@ Confirmed against source this review — these are strengths:
 ---
 
 *Findings grounded in source as of 2026-06-24; every High-candidate was verified against code and a live dependency audit before rating. Analysis + the safe fixes noted in §1; the Medium/Low items are recommendations requiring product/infra decisions, not unilateral changes to verified-secure code.*
+
+## Addendum — CSP rebuilt (2026-07-28)
+
+### What was wrong
+
+```
+script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;
+connect-src 'self' https:;
+```
+
+Read together: `'unsafe-inline'` permits any injected `<script>` to execute, and
+`https:` permits a script from **any https host on the internet**. The policy
+therefore offered no meaningful protection against script injection at all — on a
+platform that takes card payments and runs a public ballot. `connect-src https:`
+compounded it: injected script could POST anywhere it liked.
+
+The other directives — `object-src 'none'`, `base-uri 'self'`, `form-action`,
+`frame-ancestors 'self'` — were doing real work and are unchanged. It was
+`script-src` that was decoration.
+
+### What it is now
+
+Nonce-based, with explicit host allowlists derived from what the templates actually
+load. `AfricaGates\Support\Csp` owns both the policy and the per-request nonce, so
+the header and the templates cannot disagree — two generators would be the obvious
+way to break every script on the page.
+
+- **`'unsafe-inline'` removed from `script-src`.** 47 inline `<script>` blocks across
+  37 templates now carry `nonce="{{ csp_nonce }}"`.
+- **10 inline `on*=` handlers removed.** Inline handlers require `'unsafe-inline'`
+  regardless of nonces, so ten small `onclick=` attributes were the reason the whole
+  policy was toothless. They are now declarative `data-ag-do` values handled by one
+  delegated listener in the layout.
+- **The blanket `https:` is gone** from `script-src`, `style-src`, `connect-src`,
+  `font-src` and `media-src`, replaced by the hosts in use. `connect-src` is
+  deliberately tightest — it is the exfiltration path.
+- **`img-src` keeps `https:` on purpose.** Nominee photos and partner logos
+  legitimately come from arbitrary hosts, and a blocked image is cosmetic where a
+  blocked script is a broken page.
+
+### What is still permitted, and why — stated rather than hidden
+
+- **`'unsafe-eval'`.** Alpine 3 compiles `x-data` / `@click` / `x-show` expressions
+  with `new Function`. Removing it needs Alpine's CSP build, whose restricted
+  expression syntax these templates do not use, or a hand rewrite of every directive.
+  That is a project, not a tightening, and doing it badly breaks the nav, the cart and
+  the ballot. A test asserts `'unsafe-eval'` is present so the compromise is explicit
+  and nobody "fixes" it in passing.
+- **`style-src 'unsafe-inline'`.** Page CSS is deliberately inline in
+  `{% block head_styles %}` (there is no build step) and hundreds of elements carry
+  `style=`. Style injection is a far weaker primitive than script injection.
+- **Six CDN script hosts** (`jsdelivr`, `unpkg`, `code.jquery.com`, `plyr`,
+  Turnstile, Google ads). Each is a supply-chain dependency — `unpkg` and `jsdelivr`
+  serve whatever the named package currently resolves to. Naming them does not remove
+  the exposure, but it makes it **visible and countable**, which `https:` did not.
+  Vendoring them is the obvious next step.
+
+### Why this needed tests rather than a manual check
+
+Once a nonce is present, browsers **ignore `'unsafe-inline'` for scripts entirely**.
+So an inline `<script>` missing its nonce is silently dead: no server error, no failing
+test, just a broken widget someone notices weeks later. With 47 of them across 37
+files, a render-level assertion was the only honest way to know they were all updated.
+
+`CspTest` covers both levels: it renders real pages through the real Twig and asserts
+every inline `<script>` carries the nonce and that the rendered nonce matches the one
+the header advertises, and it scans all template sources as a backstop for the pages
+the render tests do not reach (admin, judge, shop, account). Two further tests assert
+no inline event handler comes back, in the rendered output and in the source.
+
+Both source scans strip Twig comments first — the layout documents this trap in prose
+and would otherwise flag itself, which is exactly how the first run failed.
+
+### Not done
+
+No `report-uri` / `report-to`. A report-only companion header would be the right way
+to find anything this breaks in the wild before it bites, but there is no collection
+endpoint to point it at, and inventing one is a separate piece of work.

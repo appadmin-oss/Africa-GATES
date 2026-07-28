@@ -11,7 +11,7 @@
   <span class="ag-announce__dot" aria-hidden="true"></span>
   <span>{{ announcement_text }}</span>
   {% if announcement_url %}<a href="{{ announcement_url }}">{{ announcement_cta|default('Learn more →') }}</a>{% endif %}
-  <button class="ag-announce__x" type="button" aria-label="Dismiss" onclick="this.parentElement.style.display='none'">×</button>
+  <button class="ag-announce__x" type="button" aria-label="Dismiss" data-ag-do="dismiss-parent">×</button>
 </div>
 {% endif %}
 
@@ -134,7 +134,7 @@
   </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce }}">
 (function(){
   function init(){
     var wraps = Array.prototype.slice.call(document.querySelectorAll('.ag-mega-wrap'));

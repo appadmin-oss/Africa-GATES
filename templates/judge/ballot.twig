@@ -4,7 +4,7 @@
 {# The whole ballot shares one Alpine component so the progress strip stays in
    sync with scores saved live (it used to freeze at the page-load count until
    a full reload). The payload is parsed from the JSON island below. #}
-<script id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }}, "judgingOpen": {{ ballot.judging_open ? 'true' : 'false' }}, "lockReason": {{ ballot.lock_reason|default('')|json_encode(JSON_SAFE)|raw }} }</script>
+<script nonce="{{ csp_nonce }}" id="ballotData" type="application/json">{ "criteria": {{ ballot.criteria|json_encode(JSON_SAFE)|raw }}, "nominees": {{ ballot.categories|json_encode(JSON_SAFE)|raw }}, "judgingOpen": {{ ballot.judging_open ? 'true' : 'false' }}, "lockReason": {{ ballot.lock_reason|default('')|json_encode(JSON_SAFE)|raw }} }</script>
 
 <div x-data="ballotApp(JSON.parse(document.getElementById('ballotData').textContent))">
 
@@ -267,7 +267,7 @@
 
   @media (max-width:860px){ .jc-grid{ grid-template-columns:1fr; } .jc-queue{ position:static; } .jc-scroll{ max-height:280px; } }
 </style>
-<script>
+<script nonce="{{ csp_nonce }}">
 function ballotApp(initial){
   var crit = initial.criteria || [];
   var queue = [];

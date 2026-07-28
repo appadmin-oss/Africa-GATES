@@ -73,7 +73,7 @@
     <button class="ad-btn ad-btn--primary" type="submit">Save form</button>
   </div>
 </form>
-<script>
+<script nonce="{{ csp_nonce }}">
 function formBuilder(seed){
   var nextId = 1;
   var slug = function(s){ return (s || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, ''); };

@@ -18,7 +18,7 @@
         </div>
       </div>
       {% if not is_new and row.secret %}
-      <div><label for="f-webhook-secret">Signing secret</label><input type="text" id="f-webhook-secret" value="{{ row.secret }}" readonly onclick="this.select()" style="font-family:monospace;font-size:12px"><div style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin-top:4px">Verify deliveries: <code>hash_hmac('sha256', rawBody, secret)</code> must equal the <code>X-AG-Signature</code> header value (after the <code>sha256=</code> prefix).</div></div>
+      <div><label for="f-webhook-secret">Signing secret</label><input type="text" id="f-webhook-secret" value="{{ row.secret }}" readonly data-ag-do="select-all" style="font-family:monospace;font-size:12px"><div style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin-top:4px">Verify deliveries: <code>hash_hmac('sha256', rawBody, secret)</code> must equal the <code>X-AG-Signature</code> header value (after the <code>sha256=</code> prefix).</div></div>
       {% endif %}
       <div><label class="checkbox"><input type="checkbox" name="is_active" {% if is_new or row.is_active %}checked{% endif %}> Active — deliver events to this endpoint</label></div>
     </div>

@@ -396,7 +396,7 @@
 {% if turnstile_site_key %}
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 {% endif %}
-<script>
+<script nonce="{{ csp_nonce }}">
 function voteNominee() {
   return {
     nomineeId: {{ nominee.id|e('js') }},

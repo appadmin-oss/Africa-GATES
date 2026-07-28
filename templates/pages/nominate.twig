@@ -404,7 +404,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 // Lightweight device fingerprint — a stable hash of non-identifying device
 // traits (UA, language, screen, timezone, a tiny canvas render). Used only to
 // stop the same device nominating the same person twice in a cycle.

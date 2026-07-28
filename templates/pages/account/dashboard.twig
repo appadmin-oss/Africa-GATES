@@ -150,7 +150,7 @@
           <div style="font-size:12px;color:#5a6d6f;margin-top:2px">{{ l.hits }} open{{ l.hits == 1 ? '' : 's' }} · {{ l.expired ? 'expired' : ('expires ' ~ l.expires_at|date('j M Y')) }}</div>
         </div>
         {% if not l.expired %}
-        <button type="button" onclick="navigator.clipboard && navigator.clipboard.writeText(this.dataset.url); this.textContent='Copied ✓'; setTimeout(() => this.textContent='Copy link', 1600)"
+        <button type="button" data-ag-do="copy-url"
                 data-url="{{ l.url }}" aria-label="Copy share link for {{ l.nominee }}"
                 style="background:#10292c;color:#fff;border:0;font-weight:600;font-size:12px;padding:8px 14px;border-radius:999px;cursor:pointer">Copy link</button>
         {% endif %}

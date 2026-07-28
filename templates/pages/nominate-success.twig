@@ -52,7 +52,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   /* Invite the nominator to the WhatsApp community once their nomination lands. */
   document.addEventListener('DOMContentLoaded', function () {
     if (window.AGCommunity) window.AGCommunity.open('nomination');

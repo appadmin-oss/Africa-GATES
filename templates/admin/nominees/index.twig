@@ -179,7 +179,7 @@
 {% endif %}
 
 {% if admin_role in ['superadmin','admin'] %}
-<script>
+<script nonce="{{ csp_nonce }}">
 /* AI-assisted duplicate scan: fetch likely-same-person nominee groups for the
    selected cycle and render each as a one-click merge form. Deterministic
    groups always appear; AI-refined ones too when a provider is configured. */

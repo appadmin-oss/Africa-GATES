@@ -82,7 +82,7 @@
     </div>
   </form>
 </div>
-<script>
+<script nonce="{{ csp_nonce }}">
 function evRepeater(seed, blank){
   let nextId = 1000;
   const rows = (seed && seed.length) ? seed.map(r => Object.assign({}, r)) : [Object.assign({id:1}, blank)];

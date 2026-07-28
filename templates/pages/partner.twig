@@ -236,7 +236,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
   // Pre-select the tier in the enquiry form when a tier card's CTA is used.
   document.querySelectorAll('.pt-tier__btn[data-tier]').forEach(function(a){
     a.addEventListener('click', function(){
