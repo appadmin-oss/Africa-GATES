@@ -621,12 +621,34 @@ The audit is now correct on either convention, so nothing is blocked. But the
 underlying inconsistency is still real and still worth settling, because it affects
 anything else that compares these columns in SQL:
 
-- **Recommended: leave the types alone, pin the session.** `TIMESTAMP` for events
-  is *right* — an event happened at an absolute instant. `DATETIME` for declared
-  boundaries is also right: "voting closes 1 June at noon" is a wall-clock
+- **Decided and implemented: leave the types alone, pin the session.** `TIMESTAMP`
+  for events is *right* — an event happened at an absolute instant. `DATETIME` for
+  declared boundaries is also right: "voting closes 1 June at noon" is a wall-clock
   statement an operator made, not an instant in UTC. The bug was never the types;
-  it was comparing them in an unpinned session. Pin `time_zone` in the connection
-  config and the mixture is harmless.
+  it was comparing them in an unpinned session.
+
+  `config/database.php` now carries `'timezone' => Clock::databaseTimezone()`, which
+  the MySQL connector applies as `SET time_zone=…` on **every connect** — so web,
+  console, cron and all 62 consumers of that config (including every standalone
+  migration) land in the same frame without any of them having to remember. It
+  derives from PHP's current offset rather than hard-coding UTC, so an operator who
+  sets `APP_TIMEZONE=Africa/Lagos` gets `+01:00` on both sides instead of a silent
+  one-hour shift. `DB_TIMEZONE` overrides it for a zone name (only if MySQL's
+  timezone tables are loaded) or to match a database written in another frame.
+
+  Verified against MySQL 8.0.46 with the **server global default set to `+01:00`**:
+  the session came up `+00:00`, and the late-vote count stayed at the correct `3`
+  rather than the WAT-inflated `4`. A numeric offset is used rather than a zone name
+  because `SET time_zone = 'Africa/Lagos'` requires `mysql_tzinfo_to_sql` to have
+  been run — usually absent on shared hosting, and the failure mode is every request
+  erroring. The DST caveat is documented on `Clock::databaseTimezone()`: the offset
+  is resolved once per process, which is moot for UTC and WAT (neither observes DST)
+  and is a further reason to prefer UTC storage.
+
+  `PhaseAuditService::alignSession()` remains as the audit's backstop — it covers a
+  hand-assembled connection or a replica whose config was never updated, and it
+  still *reports* `session_was`, which is how an operator discovers their server
+  default is not UTC rather than having it corrected silently underneath them.
 - The alternative — migrating six boundary columns to `TIMESTAMP` — would convert
   every existing value using whatever session the migration happened to run in,
   which is the same trap with permanent consequences.

@@ -141,12 +141,25 @@ final class PhaseAuditService
      * ballots either way, on a report used to decide refunds and whether to void
      * published results.
      *
-     * The fix is to align the session with PHP rather than to force UTC. The
-     * DATETIME boundaries were written by PHP in whatever frame {@see Clock::boot}
-     * pinned (`APP_TIMEZONE`, UTC by default), so matching that frame makes both
-     * sides comparable whatever the operator chose. Forcing UTC would be correct
-     * only for the default and would silently break a deployment that set
-     * APP_TIMEZONE to Africa/Lagos.
+     * THE PRIMARY FIX IS NOT HERE. `config/database.php` now sets `timezone` from
+     * {@see \AfricaGates\Support\Clock::databaseTimezone()}, which the MySQL
+     * connector applies as `SET time_zone=…` on every connect — so web, console,
+     * cron and every standalone migration land in the right frame without any of
+     * them having to remember. That is the mechanism a reader should look for.
+     *
+     * This method stays as the audit's own BACKSTOP, and is worth its keep for two
+     * reasons a config default cannot cover: the audit may be pointed at a
+     * connection someone assembled by hand or at a replica whose config was never
+     * updated, and — more usefully — it REPORTS what it found. `session_was` is how
+     * an operator discovers their server default is not UTC at all, rather than
+     * having it silently corrected underneath them.
+     *
+     * Aligning to PHP rather than forcing UTC is deliberate, here and in the
+     * config: the DATETIME boundaries were written by PHP in whatever frame
+     * {@see Clock::boot} pinned (`APP_TIMEZONE`, UTC by default), so matching that
+     * frame makes both sides comparable whatever the operator chose. Forcing UTC
+     * would be correct only for the default and would silently break a deployment
+     * that set APP_TIMEZONE to Africa/Lagos.
      *
      * SQLite has no session timezone and stores text, so there is nothing to align
      * and nothing to break.
