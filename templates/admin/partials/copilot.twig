@@ -2,7 +2,7 @@
    (hidden on the full-page /admin/assistant to avoid doubling up). Reuses the
    same /admin/assistant/chat endpoint; Alpine-driven, so it relies on the
    Alpine.js loaded by admin/layout.twig. #}
-<style>[x-cloak]{display:none!important}</style>
+<style nonce="{{ csp_nonce }}">[x-cloak]{display:none!important}</style>
 <div x-data="agChat({storageKey:'ag-copilot',logId:'copilotLog',focusId:'copilotInput',csrf:'{{ csrf_token }}'})" x-cloak style="position:fixed;right:20px;bottom:20px;z-index:1200;font-family:inherit">
   <button type="button" @click="toggle()" :aria-expanded="open ? 'true' : 'false'" aria-label="Open console copilot"
     title="Console copilot"

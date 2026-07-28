@@ -1,7 +1,7 @@
 {% extends "layout/gates.twig" %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="awards"]{ background:#eef0ec; color:var(--ag-ink); }
   [x-cloak]{ display:none !important; }
   .vn{ max-width:1080px; margin:0 auto; padding:0 var(--ag-gutter,32px); }

@@ -31,10 +31,12 @@ namespace AfricaGates\Support;
  *    rewriting every directive. That is a real project, not a tightening, and doing
  *    it badly would break the nav, the cart and the ballot. Noted as the next step
  *    rather than pretended away.
- *  • `style-src 'unsafe-inline'` — page CSS is deliberately inline in
- *    `{% block head_styles %}` (no build step) and hundreds of elements carry `style=`.
- *    Style injection is a far weaker primitive than script injection, and nonce-ing
- *    every style block would be a large change for a small gain.
+ *  • `style-src-attr 'unsafe-inline'` — 1,120 `style=` attributes across 95 templates,
+ *    and **55 of them interpolate Twig values** (`style="background:{{ tone.code }}"`).
+ *    Those are data-driven: a computed colour, bar width or animation delay cannot
+ *    become a static class, and CSP has no per-attribute nonce. So this one is
+ *    structurally required, not merely inconvenient — see the note on the directive
+ *    split below.
  *
  * WHAT CHANGED BESIDES THE NONCE: the blanket `https:` is gone from script-src,
  * style-src, connect-src, font-src and media-src, replaced by the hosts the templates
@@ -96,7 +98,28 @@ final class Csp
             // misleading rather than a safety net: once nonces are in play, an
             // un-nonced inline script is blocked either way.
             . "script-src 'self' 'nonce-{$nonce}' 'unsafe-eval' " . self::SCRIPT_HOSTS . '; '
+            // ── The style directives, split on purpose ──────────────────────
+            //
+            // THE TRAP: a nonce anywhere in `style-src` makes browsers ignore
+            // `'unsafe-inline'` for that directive — and `style-src` governs BOTH
+            // <style> elements and `style=` attributes. Adding a nonce to it would
+            // therefore have killed all 1,120 inline style attributes site-wide. The
+            // obvious change is the wrong one.
+            //
+            // CSP3 splits the directive, which is what makes this safe. The 42
+            // <style> blocks are nonce-protected via style-src-elem with NO
+            // 'unsafe-inline'; the attributes keep working via style-src-attr. That
+            // protects the vector that actually matters — a full <style> block can
+            // overlay the page, fake UI, and exfiltrate values through attribute
+            // selectors with background-image URLs, none of which a single
+            // `style=` on one element can do.
+            //
+            // `style-src` is kept WITHOUT a nonce purely as the fallback for browsers
+            // that do not implement the split. It must stay nonce-free or those
+            // browsers hit exactly the trap described above.
             . "style-src 'self' 'unsafe-inline' " . self::STYLE_HOSTS . '; '
+            . "style-src-elem 'self' 'nonce-{$nonce}' " . self::STYLE_HOSTS . '; '
+            . "style-src-attr 'unsafe-inline'; "
             // Images stay open: nominee photos and partner logos come from arbitrary
             // hosts, and a blocked image is cosmetic where a blocked script is fatal.
             . "img-src 'self' data: blob: https:; "

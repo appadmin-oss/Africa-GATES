@@ -7,7 +7,7 @@
 {% set cur = legal_doc %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="legal"]{ background:#eef0ec; color:var(--ag-ink); }
   .lg-head{ max-width:1000px; margin:0 auto; padding:clamp(2rem,5vw,2.6rem) var(--ag-gutter,32px) 0; }
   .lg-eyebrow{ margin:0 0 8px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }

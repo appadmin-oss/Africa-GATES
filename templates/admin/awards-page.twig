@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .awp-intro{ color:var(--ad-text-soft); font-size:13.5px; line-height:1.6; margin:0 0 18px; max-width:680px; }
   .awp-intro a{ color:var(--ad-accent,#2563eb); font-weight:600; }
   .awp-sec__h{ font-size:13px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--ad-text-soft); margin:0 0 2px; }

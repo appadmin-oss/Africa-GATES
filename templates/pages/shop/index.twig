@@ -1,7 +1,7 @@
 {% extends "layout/gates.twig" %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="shop"]{ background:#eef0ec; color:var(--ag-ink); }
   body[data-page="shop"] [x-cloak]{ display:none !important; }
   .shop{ max-width:1180px; margin:0 auto; padding:0 var(--ag-gutter,32px) 60px; }

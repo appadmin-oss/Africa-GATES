@@ -1,7 +1,7 @@
 {% extends "layout/gates.twig" %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="donate"]{ background:#eef0ec; color:var(--ag-ink); }
   body[data-page="donate"] [x-cloak]{ display:none !important; }
   .dn{ max-width:1100px; margin:0 auto; padding:24px var(--ag-gutter,32px) 60px; }

@@ -2,7 +2,7 @@
 {% block topbar_title %}Media{% endblock %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .md-tabs{ display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap; }
   .md-tab{ text-decoration:none; font-size:13px; font-weight:600; padding:8px 15px; border-radius:999px; border:1px solid var(--ad-line,rgba(16,41,44,.12)); color:var(--ad-text-soft,#5a646a); background:var(--ad-surface,#fff); }
   .md-tab.is-on{ background:var(--ad-ink,#10292C); color:#fff; border-color:var(--ad-ink,#10292C); }

@@ -174,7 +174,7 @@
 {% endblock %}
 
 {% block foot_scripts %}
-<style>
+<style nonce="{{ csp_nonce }}">
   .jc-strip{ background:#10292C; }
   .jc-strip__in{ display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; padding-top:16px; padding-bottom:16px; }
   .jc-strip__title{ font-family:var(--font-display,'Playfair Display',serif); font-weight:700; font-size:19px; color:#fff; }

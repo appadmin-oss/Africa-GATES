@@ -3,7 +3,7 @@
    textarea so the normal form submit still works. No external deps / no CDN. Link
    insertion uses an inline input (no browser prompt); paste is coerced to plain text;
    stored HTML is sanitized at render time by the |sanitize_html filter. #}
-<style>
+<style nonce="{{ csp_nonce }}">
   .rt{ border:1px solid var(--ad-line,#dfe4e3); border-radius:10px; overflow:hidden; background:#fff; }
   .rt__bar{ display:flex; flex-wrap:wrap; gap:2px; padding:6px; background:var(--ad-bg,#f4f6f5); border-bottom:1px solid var(--ad-line,#dfe4e3); }
   .rt__btn{ border:none; background:transparent; cursor:pointer; font-size:13px; font-weight:700; color:var(--ad-text,#10292C); padding:5px 9px; border-radius:6px; min-width:30px; line-height:1.1; }

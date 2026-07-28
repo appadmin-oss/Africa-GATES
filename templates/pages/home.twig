@@ -1,7 +1,7 @@
 {% extends "layout/gates.twig" %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   /* ── Home (v3, matching the desktop design: light centered hero, alternating
         feature sections, leaderboard + how rail, dark legacy + final CTA) ── */
   body[data-page="home"]{ background:#fbfbfa; color:var(--ag-ink); }

@@ -7,7 +7,7 @@
    member's account, so there are no name/email fields. #}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="community"]{ background:#eef0ec; color:var(--ag-ink,#10292C); }
   body[data-page="community"] [x-cloak]{ display:none !important; }
   .cm-wrap{ max-width:680px; margin:0 auto; padding:0 var(--ag-gutter,28px) 60px; }

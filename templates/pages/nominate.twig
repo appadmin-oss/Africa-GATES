@@ -16,7 +16,7 @@
 {% set TINT = [['#eef7ee','#1a6118'],['#fff8df','#7a5600'],['#e9efef','#2b373d'],['#f3eef7','#5b3a8a'],['#fdeaf0','#9c2b48'],['#e0eef1','#225a67']] %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="nominate"]{ background:#eef0ec; color:#10292C; }
   body[data-page="nominate"] [x-cloak]{ display:none !important; }
   .nm{ --green:#237b22; --green-d:#1a6118; --ink:#10292C; --soft:#4a5256; --faint:#5a6d6f; --line:rgba(16,41,44,.08); }

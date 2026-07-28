@@ -7,7 +7,7 @@
 {% set country = COUNTRY_NAMES[judge.country_code]|default(judge.country_code)|default('') %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="judges"]{ background:#f2f1ec; color:var(--ag-ink); }
   .jd{ max-width:980px; margin:0 auto; padding:0 var(--ag-gutter,28px) 64px; }
   .jd-caps{ font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.22em; text-transform:uppercase; color:#8a6d1a; }

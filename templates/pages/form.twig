@@ -1,6 +1,6 @@
 {% extends "layout/gates.twig" %}
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   [x-cloak]{ display:none !important; }
   .ff{ max-width:640px; margin:0 auto; padding:clamp(28px,5vw,48px) var(--ag-gutter,28px) 64px; }
   .ff h1{ font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.8rem,4.5vw,2.5rem); line-height:1.06; letter-spacing:-.02em; color:var(--ag-ink,#10292C); margin:0; }

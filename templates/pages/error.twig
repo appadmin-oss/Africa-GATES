@@ -32,7 +32,7 @@
 {% set hasIllo = (_illo is defined) and not dark %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   /* warm panel matched to the illustration's own background so the art reads as one surface with the page */
   body[data-page=""]{ }
   .err{ min-height:74vh; display:flex; align-items:center; justify-content:center; text-align:center;

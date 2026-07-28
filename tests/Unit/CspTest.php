@@ -203,4 +203,83 @@ class CspTest extends TestCase
         $this->assertSame([], $offenders,
             "inline handlers need 'unsafe-inline' in script-src — use data-ag-do instead");
     }
+
+    // ── Styles ──────────────────────────────────────────────────────────────
+
+    public function test_style_blocks_are_nonce_protected_via_the_element_directive(): void
+    {
+        preg_match("/style-src-elem ([^;]+);/", Csp::policy(), $m);
+        $elem = $m[1] ?? '';
+
+        $this->assertStringContainsString("'nonce-", $elem);
+        $this->assertStringNotContainsString("'unsafe-inline'", $elem,
+            'a <style> block can overlay the page, fake UI and exfiltrate values through '
+            . 'attribute selectors — it is the style vector worth protecting');
+    }
+
+    public function test_plain_style_src_carries_no_nonce_and_that_is_the_whole_trick(): void
+    {
+        // THE TRAP THIS GUARDS. A nonce anywhere in `style-src` makes browsers ignore
+        // 'unsafe-inline' for that directive — and `style-src` governs BOTH <style>
+        // elements and style= attributes. Putting the nonce there, which is the
+        // obvious move, would have killed all 1,120 inline style attributes site-wide.
+        // It is kept nonce-free purely as the fallback for browsers without the
+        // CSP3 split.
+        preg_match("/style-src ([^;]+);/", Csp::policy(), $m);
+
+        $this->assertStringNotContainsString("'nonce-", $m[1] ?? '',
+            'a nonce here nullifies unsafe-inline for style= attributes too, breaking every page');
+        $this->assertStringContainsString("'unsafe-inline'", $m[1] ?? '');
+    }
+
+    public function test_style_attributes_are_still_permitted_because_they_have_to_be(): void
+    {
+        // 55 of the 1,120 interpolate Twig values — a computed colour or bar width
+        // cannot become a static class, and CSP has no per-attribute nonce. This is
+        // structural, not laziness, so it is asserted rather than left to rot into a
+        // TODO nobody revisits.
+        preg_match("/style-src-attr ([^;]+);/", Csp::policy(), $m);
+
+        $this->assertStringContainsString("'unsafe-inline'", $m[1] ?? '');
+    }
+
+    public function test_every_style_block_on_a_rendered_page_carries_the_nonce(): void
+    {
+        // Same silent-failure shape as the scripts: with style-src-elem carrying a
+        // nonce, an un-nonced <style> block is dropped and the page renders unstyled.
+        DB::table('gates_profiles')->insert(['slug' => 'ada', 'display_name' => 'Ada Obi', 'email' => 'ada@example.com']);
+
+        foreach ([
+            [\AfricaGates\Controllers\HomeController::class, 'index', '/'],
+            [\AfricaGates\Controllers\RegistryController::class, 'index', '/registry'],
+            [\AfricaGates\Controllers\AwardsController::class, 'index', '/awards'],
+        ] as [$class, $method, $path]) {
+            $html = $this->render($class, $method, $path);
+            preg_match_all('/<style\b[^>]*>/i', $html, $m);
+
+            $this->assertNotSame([], $m[0], "{$path} rendered no <style> block — check the fixture");
+            foreach ($m[0] as $tag) {
+                $this->assertStringContainsString('nonce=', $tag,
+                    "{$path} has a <style> with no nonce; the page will render unstyled: {$tag}");
+            }
+        }
+    }
+
+    public function test_no_template_source_contains_an_un_nonced_style_block(): void
+    {
+        // Backstop for admin, judge, shop and account, which the render tests above
+        // do not reach. 42 blocks across 42 files had to be updated.
+        $offenders = [];
+        $rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/templates'));
+        foreach ($rii as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'twig') continue;
+            $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($file->getPathname()));
+            preg_match_all('/<style\b[^>]*>/i', $body, $m);
+            foreach ($m[0] as $tag) {
+                if (!str_contains($tag, 'nonce=')) $offenders[] = basename($file->getPathname()) . ': ' . $tag;
+            }
+        }
+
+        $this->assertSame([], $offenders);
+    }
 }

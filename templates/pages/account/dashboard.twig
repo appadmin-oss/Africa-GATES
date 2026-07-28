@@ -1,7 +1,7 @@
 {% extends "layout/gates.twig" %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="account"]{ background:#eef0ec; color:var(--ag-ink); }
   .ac{ max-width:920px; margin:0 auto; padding:0 var(--ag-gutter,28px) 60px; }
   .ac-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:26px 0 6px; }

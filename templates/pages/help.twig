@@ -18,7 +18,7 @@
 ] %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="help"]{ background:#eef0ec; color:var(--ag-ink); }
   .hc{ max-width:920px; margin:0 auto; padding:clamp(2rem,5vw,2.9rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
 

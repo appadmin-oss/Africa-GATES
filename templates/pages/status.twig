@@ -12,7 +12,7 @@
 {% set incidents = incidents|default([]) %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="status"]{ background:#eef0ec; }
   .st{ max-width:880px; margin:0 auto; padding:clamp(1.8rem,4vw,2.4rem) var(--ag-gutter,32px) clamp(3rem,6vw,3.75rem); }
 

@@ -1,7 +1,7 @@
 {% extends "layout/gates.twig" %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="judges"]{ background:#eef0ec; color:var(--ag-ink); }
   .jg{ max-width:1180px; margin:0 auto; padding:0 var(--ag-gutter,32px) 64px; }
 

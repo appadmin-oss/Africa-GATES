@@ -1,7 +1,7 @@
 {% extends "layout/gates.twig" %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   body[data-page="pulse"]{ background:#fbfbfa; color:var(--ag-ink); }
   body[data-page="pulse"] [x-cloak]{ display:none !important; }
   .pl{ max-width:1180px; margin:0 auto; padding:clamp(1.6rem,4vw,2.5rem) var(--ag-gutter,40px) 90px; }

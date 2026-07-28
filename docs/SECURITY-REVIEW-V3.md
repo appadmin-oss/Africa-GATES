@@ -215,9 +215,8 @@ way to break every script on the page.
   That is a project, not a tightening, and doing it badly breaks the nav, the cart and
   the ballot. A test asserts `'unsafe-eval'` is present so the compromise is explicit
   and nobody "fixes" it in passing.
-- **`style-src 'unsafe-inline'`.** Page CSS is deliberately inline in
-  `{% block head_styles %}` (there is no build step) and hundreds of elements carry
-  `style=`. Style injection is a far weaker primitive than script injection.
+- **`style-src-attr 'unsafe-inline'`** — see the styles section below. Structurally
+  required, not laziness.
 - **Six CDN script hosts** (`jsdelivr`, `unpkg`, `code.jquery.com`, `plyr`,
   Turnstile, Google ads). Each is a supply-chain dependency — `unpkg` and `jsdelivr`
   serve whatever the named package currently resolves to. Naming them does not remove
@@ -245,3 +244,48 @@ and would otherwise flag itself, which is exactly how the first run failed.
 No `report-uri` / `report-to`. A report-only companion header would be the right way
 to find anything this breaks in the wild before it bites, but there is no collection
 endpoint to point it at, and inventing one is a separate piece of work.
+
+
+### Styles — the obvious change was the wrong one
+
+Measured first: **42 `<style>` blocks** and **1,120 `style=` attributes across 95
+templates**, of which **55 interpolate Twig values**:
+
+```twig
+style="background:{{ _ac.badgeBg }};border-color:{{ _ac.badgeBorder }}"
+style="left:{{ 6 + i*11 }}%;animation-delay:{{ (i*32)/100 }}s"
+```
+
+Those are data-driven — a computed colour, bar width or animation delay cannot become
+a static class, and **CSP has no per-attribute nonce**. So `'unsafe-inline'` for style
+*attributes* is structurally required. Extracting 1,065 static ones would gain nothing
+while 55 remain, because the keyword has to stay either way. That is why "move the
+inline styles" is not the fix it appears to be.
+
+**The trap.** A nonce anywhere in `style-src` makes browsers ignore `'unsafe-inline'`
+for that directive — and `style-src` governs **both** `<style>` elements and `style=`
+attributes. Adding the nonce there, which is the obvious move, would have killed all
+1,120 inline style attributes site-wide. Every page would have rendered unstyled.
+
+**What was done instead.** CSP3 splits the directive, and that split is what makes
+this safe:
+
+```
+style-src      'self' 'unsafe-inline' <hosts>          ← fallback only, deliberately NO nonce
+style-src-elem 'self' 'nonce-…'      <hosts>          ← the 42 blocks, no 'unsafe-inline'
+style-src-attr 'unsafe-inline'                         ← the 1,120 attributes
+```
+
+This protects the vector that actually matters. A full `<style>` block can overlay the
+page, fake UI, and exfiltrate field values through attribute selectors with
+`background-image` URLs. A single `style=` on one element can do none of that.
+
+`style-src` is kept **nonce-free on purpose** as the fallback for browsers without the
+split — putting a nonce there would walk them straight into the trap above. A test
+asserts it stays nonce-free, because that looks like an omission and is not.
+
+All 42 blocks now carry `nonce="{{ csp_nonce }}"`, verified the same two ways as the
+scripts: rendered pages asserted to have no un-nonced `<style>`, plus a source scan
+covering admin, judge, shop and account. The failure mode is identical — an un-nonced
+block is silently dropped and the page renders unstyled, with nothing failing on the
+server.

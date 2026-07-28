@@ -26,7 +26,7 @@
   {%- endif -%}
 {% endmacro %}
 
-<style>
+<style nonce="{{ csp_nonce }}">
   .ad-trunc{ color:var(--ad-text,#10292c); }
   .ad-dim{ color:var(--ad-text-mute,#8a9a9c); }
   .ad-view-btn{ display:inline-flex; align-items:center; gap:3px; margin-left:6px; padding:2px 9px;

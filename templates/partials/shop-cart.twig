@@ -1,7 +1,7 @@
 {# Shared shop cart — FAB + drawer + checkout modal. Uses the global Alpine
    $store.cart (registered below). Caller must render this INSIDE an x-data scope
    and provide `providers` (array of {id,label}) + csrf_token. #}
-<style>
+<style nonce="{{ csp_nonce }}">
   /* Anchored bottom-LEFT so it never collides with the sitewide right-edge
      FAB stack (Gee · Community · Back-to-top). */
   .sc-fab{ position:fixed; left:22px; bottom:22px; z-index:80; width:56px; height:56px; border-radius:50%; border:none; cursor:pointer; background:#10292C; color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 14px 30px -12px rgba(16,41,44,.6); }

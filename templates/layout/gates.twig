@@ -132,7 +132,7 @@
   <link rel="stylesheet" href="/assets/css/a11y.css?v={{ asset_version }}">
 
   {# Hide animated elements until JS prepares them (anti-FOUC) #}
-  <style>
+  <style nonce="{{ csp_nonce }}">
     html.wf-loading [data-anim],
     html.wf-loading [text-anime],
     html.wf-loading .scroll-highlight,

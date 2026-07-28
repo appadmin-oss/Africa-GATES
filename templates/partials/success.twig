@@ -41,7 +41,7 @@
 } %}
 {% set _gly = _glyphs[sc_glyph|default('check')]|default(_glyphs.check) %}
 
-<style>
+<style nonce="{{ csp_nonce }}">
   .sc{ background:#eef0ec; padding:clamp(2.2rem,6vw,4.25rem) var(--ag-gutter,24px); display:flex; align-items:center; justify-content:center; }
   .sc-grid{ max-width:900px; width:100%; display:grid; grid-template-columns:1fr 1fr;
     grid-template-areas:"copy art" "copy next"; gap:clamp(26px,4.5vw,48px); align-items:start; animation:scUp .5s ease both; }

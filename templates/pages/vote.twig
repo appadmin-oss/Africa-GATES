@@ -1,7 +1,7 @@
 {% extends "layout/gates.twig" %}
 
 {% block head_styles %}
-<style>
+<style nonce="{{ csp_nonce }}">
   /* Page-scoped: this block only loads on /vote. */
   body{ background:#eef0ec; }
   [x-cloak]{ display:none !important; }
