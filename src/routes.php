@@ -316,6 +316,13 @@ return function(App $app) {
                 'meta_description'=>'The '.$doc['title'].' for Africa GATES — the continental Cultural Power Index recognising African excellence.',
                 'gates_page'=>'legal','has_hero'=>false,
                 'legal_doc'=>$doc,'legal_tabs'=>\AfricaGates\Services\LegalService::published(),
+                // Automated-processing disclosure, DERIVED from the capability
+                // registry rather than written into the admin-editable body — so
+                // adding an AI feature updates the published notice by itself and
+                // the page cannot fall out of step with what the code sends.
+                // Privacy doc only; the other legal docs are unrelated.
+                'ai_disclosure'=>$slug==='privacy' ? \AfricaGates\Services\AiPrivacy::disclosure() : [],
+                'ai_disclosure_active'=>$slug==='privacy' && \AfricaGates\Services\AiPrivacy::currentlyActive(),
             ]);
         };
         $g->get('/privacy', fn($req,$res)=>$legalRender($req,$res,'privacy'));

@@ -79,6 +79,56 @@
 
   <div class="lg-doc lg-rich">
     {{ cur.body_html|sanitize_html }}
+
+    {# ── Automated processing ─────────────────────────────────────────────────
+       Generated from AiCapability, not authored here. The previous privacy copy
+       described hashed emails and cookies and said nothing about sending
+       nomination text to a third-party model; hand-writing that into the
+       editable body would have gone stale the first time a capability changed.
+       Only capabilities that process PUBLIC-submitted content are listed. #}
+    {% if ai_disclosure is not empty %}
+      <h2 id="automated-processing">Automated processing (AI)</h2>
+      <p>Some parts of this platform send text to a third-party language model to help
+        with moderation, triage and optional writing suggestions. This section is generated
+        from the platform's own configuration, so it always describes what the code
+        actually does.</p>
+      <p><strong>Three things are true of every item below.</strong> A model's output is
+        advisory: it never approves, rejects, ranks or decides anything on its own — a
+        person makes every decision that affects a nomination. Contact details are
+        replaced with placeholders such as <code>[email]</code> and <code>[phone]</code>
+        before text is sent, where noted. And nominee email addresses and phone numbers
+        collected on the nomination form are never sent to a model at all.</p>
+      <p>Names <em>are</em> sent, because a feature that cannot see who was nominated
+        could not do its job. We would rather say so plainly than imply otherwise.</p>
+
+      {% for group in ai_disclosure %}
+        <h3>Sent to {{ group.provider|capitalize }}</h3>
+        <ul>
+          {% for cap in group.capabilities %}
+            <li>
+              <strong>{{ cap.purpose }}</strong><br>
+              {{ cap.sends }}
+              {% if not cap.minimised %}<em>Contact details in this request are not
+                altered, because the request is made by an administrator about data
+                they already hold.</em>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% endfor %}
+
+      <p>{% if ai_disclosure_active %}These features are currently switched
+        on.{% else %}These features are currently switched off, so no text is being sent
+        to any model right now.{% endif %} An administrator can disable any of them
+        individually or all of them at once.</p>
+      <p>What we cannot yet tell you: how long each provider retains what it receives, and
+        whether they use it to train their models. That is governed by the provider's own
+        terms rather than ours, and we would rather leave this paragraph honest than fill
+        it with an assurance we have not verified. If that matters to your decision to
+        nominate, email
+        <a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a> and we
+        will tell you what we know.</p>
+    {% endif %}
+
     <div class="lg-fine">An initiative of <a href="https://afrovanguard.org.ng">Afrovanguard</a>, Lagos, Nigeria, and governed by the laws of the Federal Republic of Nigeria. Provided for transparency — this document does not constitute legal advice.</div>
   </div>
 </div>

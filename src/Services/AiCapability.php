@@ -44,6 +44,33 @@ final class AiCapability
         public readonly int $timeout,
         /** True when the prompt carries untrusted user text that must be fenced. */
         public readonly bool $untrustedInput,
+        /**
+         * Strip contact identifiers from the payload before it leaves.
+         *
+         * Declared rather than inferred from `untrustedInput`, because the right
+         * answer differs: public-submitted prose should never carry a phone
+         * number to a classifier that cannot use one, while an admin searching
+         * for a phone number is acting deliberately on data they control and
+         * redacting their query would simply break the feature.
+         * {@see AiPrivacy::minimise()}
+         */
+        public readonly bool $minimise,
+        /**
+         * True when this capability processes content submitted by the PUBLIC,
+         * and so belongs in the published privacy disclosure. Admin drafting
+         * help does not: listing it would bury the part that concerns visitors.
+         */
+        public readonly bool $publicContent,
+        /**
+         * Plain-language description of what is sent, for the privacy notice.
+         *
+         * Written to be read by a nominator, not a developer, and kept beside the
+         * code that does the sending so the published notice cannot drift from
+         * the payload. {@see AiPrivacy::disclosure()}
+         */
+        public readonly string $dataSent,
+        /** Plain-language description of what it is used for, same audience. */
+        public readonly string $dataPurpose,
     ) {}
 
     /**
@@ -72,6 +99,12 @@ final class AiCapability
             tokensPerDay:   $o['tokens_per_day'] ?? 500_000,
             timeout:        $o['timeout'] ?? 6,
             untrustedInput: $o['untrusted_input'] ?? false,
+            // Default to minimising whatever is fenced as untrusted: the safe
+            // default is to send less, and the exceptions are stated explicitly.
+            minimise:       $o['minimise'] ?? ($o['untrusted_input'] ?? false),
+            publicContent:  $o['public_content'] ?? false,
+            dataSent:       $o['data_sent'] ?? 'Nothing submitted by the public.',
+            dataPurpose:    $o['data_purpose'] ?? $o['purpose'],
         );
 
         return $all = [
@@ -87,6 +120,13 @@ final class AiCapability
                 'calls_per_day'   => 2000,
                 'tokens_per_day'  => 400_000,
                 'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => "The nominee's name, organisation and country, the number of reference "
+                    . 'links you provided, and your reason text. Contact details inside the text are '
+                    . 'replaced with placeholders first. The nominee\'s email address and phone number '
+                    . 'are never sent.',
+                'data_purpose'    => 'To score how complete and specific the nomination reads, and summarise it '
+                    . 'for the reviewer. A person always makes the decision.',
             ]),
             // Spam/abuse classifier. Must never be the thing that decides.
             'moderation.classify' => $c('moderation.classify', [
@@ -101,6 +141,13 @@ final class AiCapability
                 // path could chain four providers × two attempts × 6s.
                 'timeout'         => 4,
                 'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'The text you submitted — a nomination reason, a comment or a post — with '
+                    . 'contact details replaced by placeholders. Only borderline text is sent at all: '
+                    . 'clearly clean and clearly abusive content is decided on this platform without '
+                    . 'any model being called.',
+                'data_purpose'    => 'To help judge whether the text is spam or abuse. The score is one signal '
+                    . 'among several and never decides alone.',
             ]),
             // Optional writing help. The one feature whose silent-degradation
             // design was already right.
@@ -113,6 +160,10 @@ final class AiCapability
                 'calls_per_day'   => 3000,
                 'tokens_per_day'  => 600_000,
                 'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'Only the draft text you asked us to improve, with contact details '
+                    . 'replaced by placeholders. Nothing is sent unless you press the button.',
+                'data_purpose'    => 'To suggest clearer wording. You choose whether to keep it.',
             ]),
             'nomination.suggest_category' => $c('nomination.suggest_category', [
                 'purpose'         => 'assist',
@@ -123,6 +174,10 @@ final class AiCapability
                 'calls_per_day'   => 3000,
                 'tokens_per_day'  => 300_000,
                 'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'The nominee name and description you have typed so far, plus the list of '
+                    . 'available categories. Contact details are replaced by placeholders.',
+                'data_purpose'    => 'To suggest which award category fits. You can pick any category regardless.',
             ]),
             // Admin plain-English filter parsing. Already whitelist-validates
             // its output — the reference pattern for every other capability.
@@ -134,6 +189,9 @@ final class AiCapability
                 'max_tokens'     => 200,
                 'calls_per_day'  => 1000,
                 'tokens_per_day' => 100_000,
+                // An admin searching for a phone number is acting deliberately on
+                // data they already control; redacting the query breaks the search.
+                'minimise'       => false,
             ]),
             // Operator copilot. Failures here are LOUD by design: the console
             // must never pretend AI is working.
@@ -147,6 +205,9 @@ final class AiCapability
                 'tokens_per_day'  => 1_000_000,
                 'timeout'         => 20,
                 'untrusted_input' => true,
+                // Same reasoning as the filter parser: the operator's own query,
+                // about data they administer.
+                'minimise'        => false,
             ]),
             // Public guide. Degrades to scripted answers, which is correct — a
             // visitor should never see an error from a help widget.
@@ -160,6 +221,12 @@ final class AiCapability
                 'tokens_per_day'  => 2_000_000,
                 'timeout'         => 20,
                 'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'The question you type into the help widget, with contact details replaced '
+                    . 'by placeholders, plus a summary of the current award cycles. Your identity is '
+                    . 'not sent.',
+                'data_purpose'    => 'To answer questions about how the awards work. Falls back to scripted '
+                    . 'answers when unavailable.',
             ]),
             // Reviewer-to-nominator decision note. Interpolates the nominator's
             // own text, and the output is sent to a real person, so a bad reply
@@ -173,6 +240,11 @@ final class AiCapability
                 'calls_per_day'   => 1000,
                 'tokens_per_day'  => 200_000,
                 'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => "The nominee's name and your reason text, with contact details replaced by "
+                    . "placeholders, plus the reviewer's decision and their note.",
+                'data_purpose'    => 'To draft the explanation sent to you when a nomination is decided. A '
+                    . 'reviewer reads and can rewrite it before it is sent.',
             ]),
             // Community thread summary shown to readers.
             'community.thread_summary' => $c('community.thread_summary', [
@@ -184,6 +256,10 @@ final class AiCapability
                 'calls_per_day'   => 2000,
                 'tokens_per_day'  => 800_000,
                 'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'The public posts in the thread being summarised, with contact details '
+                    . 'replaced by placeholders. Author names are not sent.',
+                'data_purpose'    => 'To produce the short summary shown at the top of a discussion.',
             ]),
             'community.polish' => $c('community.polish', [
                 'purpose'         => 'assist',
@@ -194,6 +270,10 @@ final class AiCapability
                 'calls_per_day'   => 3000,
                 'tokens_per_day'  => 600_000,
                 'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'Only the draft post or comment you asked us to improve, with contact '
+                    . 'details replaced by placeholders.',
+                'data_purpose'    => 'To suggest clearer wording. You choose whether to keep it.',
             ]),
             // Admin drafting help for legal/programme copy. Operator-authored
             // prompt, so untrusted only in the sense that it is free text.
@@ -228,6 +308,11 @@ final class AiCapability
                 'calls_per_day'   => 500,
                 'tokens_per_day'  => 200_000,
                 'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'A list of nominee names and their internal ids — nothing else. No contact '
+                    . 'details, no nomination text.',
+                'data_purpose'    => 'To spot the same person entered twice under different spellings. An '
+                    . 'administrator confirms every merge, and merges can be undone.',
             ]),
             'integrity.brief' => $c('integrity.brief', [
                 'purpose'        => 'assist',
