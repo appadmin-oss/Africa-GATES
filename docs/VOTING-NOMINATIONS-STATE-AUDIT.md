@@ -732,15 +732,81 @@ misleading failure count:
   A test that plain-`insert`ed that key collided on one driver and not the other.
   Fixed with `updateOrInsert` — the better habit regardless: assert the value you
   need, don't assume the row is absent.
-- **27 migrations use `CREATE INDEX IF NOT EXISTS` / `DROP INDEX IF EXISTS`, which
-  MySQL does not support.** They log `! index skipped` and continue. On a *fresh*
-  database this is harmless — the base `schema.sql` declares the same indexes, and
-  the per-voter idempotency constraint is present as `uq_votes_idem` UNIQUE on
-  `(voter_email_hash, idempotency_key)`, verified. But these are catch-up scripts
-  written for databases that predate a given index, and on such a database the
-  catch-up silently failed and the index is **still missing today**. `idx_votes_donation`
-  is one that does not exist on a fresh MySQL build. This is pre-existing, affects
-  performance rather than correctness on the indexes checked, and is left as a
-  flagged finding rather than fixed blind: the right fix is per-migration
-  (`information_schema` existence check, then a bare `CREATE INDEX`), and it should
-  be verified against the production index inventory rather than a fresh build.
+- **Migrations using `CREATE INDEX IF NOT EXISTS` / `DROP INDEX IF EXISTS`, which
+  MySQL does not support.** ✅ **Fixed — see §15.**
+
+
+## 15. The index catch-up migrations — fixed
+
+51 index statements across 27 migration files used `CREATE INDEX IF NOT EXISTS` or
+`DROP INDEX IF EXISTS`. That is SQLite and PostgreSQL syntax; **MySQL answers 1064**.
+Every one was wrapped in `try/catch`, so it printed `! index skipped` and the
+migration reported success.
+
+**The real scope was 4 statements in 4 files, not 51 in 27** — measured by running
+the migrations against MySQL 8.0.46 and collecting the warnings, rather than by
+grepping. The other 47 sit inside `if ($sqlite)` branches or files that already have
+a correct MySQL path, where the syntax is legitimate: they only execute on SQLite,
+and MySQL gets the same index from `schema.sql`'s inline `KEY`.
+
+| File | Statement | Consequence on MySQL |
+| --- | --- | --- |
+| `2026_06_14_add_vote_device_hash.php` | `idx_votes_device` | never created; comment claimed the syntax "works on both SQLite and MySQL 8" |
+| `2026_06_14_vote_idempotency.php` | `idx_votes_idem` | never created |
+| `2026_06_15_vote_weighting.php` | `idx_votes_donation` | never created — **and not declared in `schema.sql`, so missing on every MySQL install including fresh ones** |
+| `2026_06_15_idempotency_unique.php` | `DROP INDEX IF EXISTS` + `CREATE UNIQUE INDEX IF NOT EXISTS` | **both halves broken, in different ways** |
+
+That last row is the worst. `DROP INDEX name` is SQLite-only — MySQL requires
+`DROP INDEX name ON table` — and both statements sat in one `try/catch`, so the
+first failure skipped the second. The index was neither dropped nor recreated as
+UNIQUE: it stayed non-unique, silently, behind a printed warning.
+
+On a **fresh** database most of this was masked, because `schema.sql` declares the
+same indexes inline. The damage is on an **old** database — the only reason a
+catch-up migration exists. A deployment predating a given index ran the catch-up,
+watched it fail into a warning, and is still missing that index.
+
+### The fix
+
+`src/Support/SchemaIndex.php` — `ensure()`, `drop()`, `makeUnique()`. Existence is
+**checked against the catalogue** (`information_schema.statistics` on MySQL,
+`sqlite_master` on SQLite) rather than inferred from a caught exception, so "already
+present" and "failed for a real reason" stay distinguishable. That distinction is
+the whole lesson: a `try/catch` around DDL is exactly what let this hide.
+
+- `drop()` takes the table as a **required** parameter, so the MySQL-invalid form
+  cannot be written by accident.
+- A pre-existing index with the same name but different columns is left alone and
+  reported, not silently rebuilt — that would be a destructive guess about someone
+  else's intent, and on a large table an unannounced rebuild.
+- A UNIQUE index over data that already violates it still reports `!`, because that
+  is the one case needing a human: duplicates must be resolved first.
+- Identifiers are validated against `^[A-Za-z_][A-Za-z0-9_]*$` and rejected rather
+  than escaped.
+
+### Verified
+
+The scenario that was actually broken — a database predating the indexes:
+
+```
+simulated old MySQL DB (idx_votes_device and uq_votes_idem dropped)
+  before:  fk_vote_cat idx_nominee idx_voted_at PRIMARY uq_one_vote
+  after:   … idx_votes_device idx_votes_donation … uq_votes_idem
+  warnings: 0
+```
+
+Both restored, plus `idx_votes_donation` created for the first time on MySQL.
+Re-running the four migrations reports `= already present` with zero warnings, and a
+fresh SQLite migrate is unchanged at zero warnings. `SchemaIndexTest` covers the
+helper and adds a regression test asserting **no unguarded migration uses the
+MySQL-invalid syntax again** — scanning comment-stripped code, since the fixed files
+now describe the trap in prose.
+
+### One thing this cost, worth recording
+
+`SchemaIndexTest` creates indexes, and **DDL is not transactional in MySQL**, so the
+harness's rollback could not undo them. A leaked `idx_test_uniq` (UNIQUE on
+`idempotency_key` alone) then broke nine `VoteServiceTest` assertions in an unrelated
+file. Two fixes: the test drops what it creates, and the harness's leak canary now
+counts rows across five tables rather than one — the original single-table check
+missed vote rows committed by that same implicit commit.

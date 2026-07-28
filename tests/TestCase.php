@@ -191,11 +191,21 @@ abstract class TestCase extends BaseTestCase
         } catch (\Throwable) { /* a DDL test already implicitly committed */ }
 
         try {
-            $leaked = (int) Capsule::connection()
-                ->selectOne('SELECT COUNT(*) AS n FROM gates_award_programmes')->n;
+            // Several tables, not one. The first version watched only
+            // gates_award_programmes, so SchemaIndexTest — which inserts VOTE rows
+            // and then issues DDL, implicitly committing them — slipped straight
+            // past it and broke nine VoteServiceTest assertions in a different file
+            // via a uq_one_vote collision. One round trip either way.
+            $leaked = (int) Capsule::connection()->selectOne(
+                'SELECT (SELECT COUNT(*) FROM gates_award_programmes)
+                      + (SELECT COUNT(*) FROM gates_votes)
+                      + (SELECT COUNT(*) FROM gates_nominations)
+                      + (SELECT COUNT(*) FROM gates_donations)
+                      + (SELECT COUNT(*) FROM gates_nominees) AS n'
+            )->n;
             if ($leaked > 0) $this->purgeAll();
         } catch (\Throwable) {
-            // The canary table itself is gone — a dropping test. setUp's
+            // A canary table itself is gone — a dropping test. setUp's
             // schemaIntact() check will rebuild before the next test runs.
         }
     }

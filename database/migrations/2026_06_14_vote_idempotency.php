@@ -3,6 +3,7 @@
 require __DIR__ . '/../../vendor/autoload.php';
 Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Support\SchemaIndex;
 
 $c = new DB();
 $c->addConnection(require __DIR__ . '/../../config/database.php');
@@ -16,5 +17,5 @@ if (!$schema->hasColumn('gates_votes', 'idempotency_key')) {
 } else {
     echo "  = gates_votes.idempotency_key already present\n";
 }
-try { DB::statement('CREATE INDEX IF NOT EXISTS idx_votes_idem ON gates_votes(idempotency_key)'); echo "  = idx_votes_idem ensured\n"; }
-catch (\Throwable $e) { echo "  ! index skipped: " . $e->getMessage() . "\n"; }
+// Was CREATE INDEX IF NOT EXISTS — MySQL-invalid, so this never ran there.
+echo SchemaIndex::ensure('gates_votes', 'idx_votes_idem', ['idempotency_key']) . "\n";
