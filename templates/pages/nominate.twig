@@ -372,6 +372,15 @@
               <div><label class="nm-lab" for="byLGA">LGA / County *</label><input id="byLGA" name="nominator_lga" class="nm-in" type="text" required placeholder="e.g. Ikeja" value="{{ old.nominator_lga ?? '' }}"></div>
             </div>
             <label class="nm-check"><input type="checkbox" required><span>I confirm this nomination is genuine and I accept the <a :href="termsUrl()" target="_blank" rel="noopener">programme terms</a> &amp; <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.</span></label>
+            {# Point-of-collection notice. Burying "we send this to a third party"
+               in a policy page nobody opens is disclosure in name only, so it is
+               stated here, beside the button that sends it. Deliberately "may be":
+               the borderline-only classifier does not fire on every submission,
+               and the features can be switched off between page load and submit —
+               so a definite claim either way would sometimes be false. The detail
+               lives in the generated /privacy section rather than being restated
+               here, where it would drift. #}
+            <p class="nm-hint" style="margin-top:10px">Your reason text may be sent to a third-party AI service to help our reviewers check it for spam and completeness. Contact details are replaced with placeholders first, and a person makes every decision — <a href="/privacy#automated-processing" target="_blank" rel="noopener" style="color:var(--green);font-weight:600">see exactly what we send</a>.</p>
           </div>
         </section>
 

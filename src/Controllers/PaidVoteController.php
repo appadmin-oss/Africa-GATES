@@ -124,7 +124,22 @@ final class PaidVoteController
         return $this->redirect($res, $this->base() . '/vote?paid=failed');
     }
 
-    /** GET /vote/paid/success — read-only confirmation. */
+    /**
+     * GET /vote/paid/success — read-only confirmation.
+     *
+     * THREE states, not two. `confirmed` used to mean only "the donation row is
+     * confirmed", and the page then told the buyer their votes were "already in
+     * the public tally" and a receipt was on its way. Since mint() gained its
+     * phase gate that can be false: a payment initiated while voting was open but
+     * CONFIRMED after it closed is deliberately refused, leaving votes_used = 0.
+     * The old copy would have thanked that buyer for votes that do not exist.
+     *
+     * So the truthful question is whether the votes MINTED, not whether the money
+     * arrived — and the "paid but not minted" case gets its own honest state
+     * telling the buyer they are owed a refund, with the reference they need to
+     * claim it. `cycles:audit` reports the same population to the operator, so
+     * both sides of that conversation see the same fact.
+     */
     public function success(Request $req, Response $res): Response
     {
         $reference = trim((string)($req->getQueryParams()['ref'] ?? ''));
@@ -134,18 +149,41 @@ final class PaidVoteController
         $nominee = ($don && !empty($don->intent_nominee_id))
             ? DB::table('gates_nominees')->where('id', (int)$don->intent_nominee_id)->first()
             : null;
+
+        // votes_used is the mint claim flag: 0 on a confirmed order means the
+        // votes were never added. Same signal ops queries for a refund.
+        $minted = $don !== null && (int)$don->votes_used > 0;
+
         return $this->view->render($res, 'pages/vote-paid-success.twig', [
-            'page_title'       => 'Votes confirmed — Africa GATES',
+            'page_title'       => $minted ? 'Votes confirmed — Africa GATES' : 'Payment received — Africa GATES',
             'meta_description' => 'Your paid votes have been recorded — thank you for backing African excellence.',
             'gates_page'       => 'awards',
             'has_hero'         => false,
             'confirmed'        => $don !== null,
+            'minted'           => $minted,
             'votes'            => $don ? (int)$don->bonus_votes : 0,
             'amount_naira'     => $don ? (int)$don->amount_naira : 0,
             'nominee_name'     => $nominee ? (string)$nominee->name : '',
             'ballot_url'       => $this->ballotUrl($nominee),
             'reference'        => $reference,
+            // For the /vote hub's per-device ballot tracker. Only meaningful when
+            // votes actually landed, so the template gates the write on `minted`.
+            'programme_id'     => $this->programmeIdFor($nominee),
         ]);
+    }
+
+    /** The programme a nominee's category belongs to, or 0 when unresolvable. */
+    private function programmeIdFor(?object $nominee): int
+    {
+        if (!$nominee) return 0;
+        try {
+            return (int) DB::table('gates_award_categories as cat')
+                ->join('gates_award_cycles as c', 'c.id', '=', 'cat.cycle_id')
+                ->where('cat.id', (int)$nominee->category_id)
+                ->value('c.programme_id');
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     /** Idempotent confirm — mirrors DonationController/PaymentController. */

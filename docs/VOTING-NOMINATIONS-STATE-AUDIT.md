@@ -479,3 +479,36 @@ The three decisions that remain genuinely the operator's — whether to void or
 accept the out-of-window ballots, whether to refund, and whether to crown the
 backlog — are unchanged by this. What changes is that they can now be made
 against numbers instead of guesses.
+
+## 12. The paid-vote receipt — a state the fix for F13 created
+
+Closing **F13** (`PaidVoteService::mint()` had no phase check) created a state that
+did not exist before and which nothing rendered: an order that is **paid but not
+minted**. `mint()` now refuses to push weighted votes into a closed cycle and
+leaves `votes_used = 0` deliberately, as the queryable "refund owed" signal.
+
+`/vote/paid/success` branched on whether the *donation* was confirmed, so that
+buyer was shown the celebration copy — "your votes are already in the public
+tally", confetti, "a receipt is on its way". Taking money, adding nothing, and
+saying thank you is a worse failure than either F10 or F13 on its own, and it was
+introduced by fixing F13 rather than found during the original audit.
+
+The receipt now has three states, keyed on whether the **votes minted**, not
+whether the money arrived:
+
+| State | Condition | What the buyer is told |
+| --- | --- | --- |
+| Minted | confirmed, `votes_used > 0` | Counted, in the tally, receipt coming. Marks the per-device ballot tracker. |
+| **Paid, not minted** | confirmed, `votes_used = 0` | Voting had closed; **nothing was added**; the order is refundable; here is your reference and a route to claim it. No confetti, no tracker write. |
+| Unconfirmed | no confirmed row | The gateway has not landed yet — try again shortly. Explicitly *not* a refund case. |
+
+The operator sees the same population in `bin/console cycles:audit` under "paid-vote
+orders confirmed but never minted", tagged `refund` or `re-mint`, so both sides of
+that conversation are looking at the same fact rather than the buyer discovering it
+first.
+
+This also completes **F9** (the dead ballot tracker). The OTP and points paths were
+given the `localStorage` write; the paid path was not, so buying votes still left
+`/vote` reading "0 of N programmes voted". The write now happens on the paid
+receipt too — **gated on `minted`**, because recording a vote that was refused
+would be the same untruth in a different place.

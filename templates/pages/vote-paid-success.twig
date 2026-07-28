@@ -1,29 +1,78 @@
 {% extends "layout/gates.twig" %}
 {% block content %}
-{% include 'partials/success.twig' with {
-  sc_accent: 'green',
-  sc_art: 'green',
-  sc_glyph: 'check',
-  sc_kicker: confirmed ? 'Votes confirmed' : 'Almost there',
-  sc_heading: confirmed
-    ? (votes ~ ' vote' ~ (votes == 1 ? '' : 's') ~ ' counted' ~ (nominee_name ? ' for ' ~ nominee_name : ''))
-    : 'We could not confirm that payment yet',
-  sc_body: confirmed
-    ? 'Your payment of ₦' ~ amount_naira|number_format ~ ' was verified and your votes are already in the public tally. Paid votes raise the tally — the jury/CPI score stays independent.'
-    : 'If you completed the payment, the confirmation can take a moment to land — refresh this page shortly, or contact support with your reference.',
-  sc_receipt: reference ? { label: 'Reference', code: reference } : null,
-  sc_primary: { label: confirmed ? 'Back to the ballot' : 'Try again', href: ballot_url },
-  sc_secondary: { label: 'See the leaderboard', href: '/leaderboard' },
-  sc_email_note: confirmed ? 'A receipt is on its way to your email.' : null,
-  sc_confetti: confirmed,
-  sc_next_label: 'What happens next',
-  sc_steps: confirmed ? [
-    'The public tally updates immediately; leaderboards refresh every few minutes.',
-    'Rally more support — share the nominee\'s page with your community.',
-    'The independent jury score (55% of the CPI) is never affected by paid votes.'
-  ] : [
-    'Payments are verified server-side with the gateway before any vote counts.',
-    'If you were charged but see no votes within a few minutes, contact /support with your reference.'
-  ]
-} only %}
+
+{# THREE states, because two was a lie.
+
+   `confirmed` says the money arrived; `minted` says the votes landed. Those come
+   apart whenever a payment initiated inside the voting window confirms after it
+   closes — PaidVoteService::mint() refuses that on purpose rather than pushing
+   weighted votes into a closed tally, leaving votes_used = 0. This page used to
+   branch on `confirmed` alone and told that buyer their votes were "already in
+   the public tally" with a receipt on the way.
+
+   paid + minted   → celebrate, and mark the /vote hub's per-device tracker.
+   paid + NOT minted → say plainly that nothing was counted and a refund is owed.
+   not confirmed   → the gateway has not landed yet. #}
+
+{% if confirmed and not minted %}
+  {% include 'partials/success.twig' with {
+    sc_accent: 'slate',
+    sc_art: 'slate',
+    sc_glyph: 'clock',
+    sc_kicker: 'Payment received · no votes added',
+    sc_heading: 'Voting closed before this payment confirmed',
+    sc_body: 'Your payment of ₦' ~ amount_naira|number_format ~ ' went through, but voting for '
+      ~ (nominee_name ? nominee_name : 'this nominee') ~ ' had already closed by the time it reached us — so '
+      ~ 'no votes were added to the tally. We will not count votes in a closed category, which means this '
+      ~ 'order is refundable. Keep the reference below and contact us to arrange it.',
+    sc_receipt: reference ? { label: 'Reference', code: reference } : null,
+    sc_primary: { label: 'Contact support', href: '/support' },
+    sc_secondary: { label: 'Back to the ballot', href: ballot_url },
+    sc_confetti: false,
+    sc_next_label: 'What happens next',
+    sc_steps: [
+      'Nothing was added to the public tally — the standings are unchanged.',
+      'Quote the reference above to us and we will refund the full amount.',
+      'If the category reopens before then, we can deliver the votes instead — your choice.'
+    ]
+  } only %}
+{% else %}
+  {% include 'partials/success.twig' with {
+    sc_accent: 'green',
+    sc_art: 'green',
+    sc_glyph: 'check',
+    sc_kicker: minted ? 'Votes confirmed' : 'Almost there',
+    sc_heading: minted
+      ? (votes ~ ' vote' ~ (votes == 1 ? '' : 's') ~ ' counted' ~ (nominee_name ? ' for ' ~ nominee_name : ''))
+      : 'We could not confirm that payment yet',
+    sc_body: minted
+      ? 'Your payment of ₦' ~ amount_naira|number_format ~ ' was verified and your votes are already in the public tally. Paid votes raise the tally — the jury/CPI score stays independent.'
+      : 'If you completed the payment, the confirmation can take a moment to land — refresh this page shortly, or contact support with your reference.',
+    sc_receipt: reference ? { label: 'Reference', code: reference } : null,
+    sc_primary: { label: minted ? 'Back to the ballot' : 'Try again', href: ballot_url },
+    sc_secondary: { label: 'See the leaderboard', href: '/leaderboard' },
+    sc_email_note: minted ? 'A receipt is on its way to your email.' : null,
+    sc_confetti: minted,
+    sc_next_label: 'What happens next',
+    sc_steps: minted ? [
+      'The public tally updates immediately; leaderboards refresh every few minutes.',
+      'Rally more support — share the nominee\'s page with your community.',
+      'The independent jury score (55% of the CPI) is never affected by paid votes.'
+    ] : [
+      'Payments are verified server-side with the gateway before any vote counts.',
+      'If you were charged but see no votes within a few minutes, contact /support with your reference.'
+    ]
+  } only %}
+{% endif %}
+
+{# The /vote hub counts "programmes voted on this device" from localStorage. The
+   OTP and points paths already write it; the paid path did not, so buying votes
+   left the tracker reading zero. Gated on `minted` — recording a vote that was
+   refused would be the same lie in a different place. #}
+{% if minted and programme_id %}
+<script>
+  try { localStorage.setItem('afg_voted_prog_{{ programme_id }}', String(Date.now())); } catch (e) {}
+</script>
+{% endif %}
+
 {% endblock %}

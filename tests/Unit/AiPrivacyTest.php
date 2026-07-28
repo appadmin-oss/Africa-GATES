@@ -393,4 +393,37 @@ class AiPrivacyTest extends TestCase
         $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
         $this->assertStringContainsString('&lt;script&gt;', $html);
     }
+
+    public function test_the_nominate_form_discloses_at_the_point_of_collection(): void
+    {
+        // Burying "we send this to a third party" in a policy page nobody opens is
+        // disclosure in name only. The notice belongs beside the button that
+        // sends the text, and it must link to the generated detail rather than
+        // restate it — a second copy of the facts is a second thing to drift.
+        DB::table('gates_award_programmes')->insert([
+            'id' => 1, 'slug' => 'gates', 'title' => 'GATES Awards', 'is_active' => 1, 'sort_order' => 1,
+            'description' => 'A programme.',
+        ]);
+        DB::table('gates_award_cycles')->insert([
+            'id' => 1, 'programme_id' => 1, 'year' => (int) date('Y'), 'status' => 'nominations',
+            'nominations_open'  => date('Y-m-d H:i:s', strtotime('-1 day')),
+            'nominations_close' => date('Y-m-d H:i:s', strtotime('+10 days')),
+        ]);
+        DB::table('gates_award_categories')->insert([
+            'id' => 1, 'cycle_id' => 1, 'slug' => 'music', 'title' => 'Music', 'sort_order' => 1,
+        ]);
+
+        $builder = new \DI\ContainerBuilder();
+        $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        $ctrl = $builder->build()->get(\AfricaGates\Controllers\NominationController::class);
+        $req  = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/nominate');
+        $html = (string) $ctrl->form($req, new \Slim\Psr7\Response())->getBody();
+
+        $this->assertStringContainsString('third-party AI service', $html);
+        $this->assertStringContainsString('replaced with placeholders', $html);
+        $this->assertStringContainsString('/privacy#automated-processing', $html,
+            'and it must point at the generated section, whose anchor therefore has to exist');
+        $this->assertStringContainsString('id="automated-processing"', $this->renderPrivacy(),
+            'the anchor the nominate form links to');
+    }
 }
