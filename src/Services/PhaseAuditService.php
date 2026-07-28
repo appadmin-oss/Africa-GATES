@@ -72,9 +72,16 @@ final class PhaseAuditService
     {
         $now = $now ?? Carbon::now();
 
+        // MUST come before any query. See alignSession(): every finding in this
+        // report compares a TIMESTAMP event column against a DATETIME boundary
+        // column, and MySQL converts the former into the session timezone while
+        // returning the latter verbatim. Left unaligned, the whole report is
+        // wrong by the session's UTC offset.
+        $aligned = self::alignSession($now);
+
         $report = [
             'generated_at'               => $now->toDateTimeString(),
-            'clock'                      => self::clock($now),
+            'clock'                      => self::clock($now) + $aligned,
             'cycles'                     => self::cycles($now),
             'undated'                    => self::undated(),
             'votes_after_close'          => self::votesOutside('after'),
@@ -111,6 +118,68 @@ final class PhaseAuditService
     // ─────────────────────────────────────────────────────────────────────────
     // Clock
     // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Put the database session into the same timezone frame PHP is writing in,
+     * before a single comparison is made.
+     *
+     * WHY THIS IS NOT OPTIONAL. On MySQL this schema stores the two sides of every
+     * comparison in different types, verified against 8.0:
+     *
+     *   gates_award_cycles.voting_open/voting_close/nominations_*  → DATETIME
+     *   gates_votes.voted_at, gates_nominations.created_at, …      → TIMESTAMP
+     *
+     * A DATETIME has no timezone semantics: it is returned exactly as written. A
+     * TIMESTAMP is stored as UTC and converted into the SESSION timezone on read.
+     * So `voted_at >= voting_close` — which is every finding in this report —
+     * silently shifts by the session's UTC offset.
+     *
+     * Measured, not theorised: a vote cast 30 minutes BEFORE a deadline is
+     * reported as late under `time_zone = '+01:00'` (WAT — the natural setting for
+     * a Nigerian deployment) and correctly on-time under UTC. Under a negative
+     * offset the error inverts and genuinely late votes are hidden. An hour of
+     * ballots either way, on a report used to decide refunds and whether to void
+     * published results.
+     *
+     * The fix is to align the session with PHP rather than to force UTC. The
+     * DATETIME boundaries were written by PHP in whatever frame {@see Clock::boot}
+     * pinned (`APP_TIMEZONE`, UTC by default), so matching that frame makes both
+     * sides comparable whatever the operator chose. Forcing UTC would be correct
+     * only for the default and would silently break a deployment that set
+     * APP_TIMEZONE to Africa/Lagos.
+     *
+     * SQLite has no session timezone and stores text, so there is nothing to align
+     * and nothing to break.
+     *
+     * @return array{session_aligned:bool, session_offset:?string, session_was:?string}
+     */
+    private static function alignSession(Carbon $now): array
+    {
+        try {
+            if (DB::connection()->getDriverName() !== 'mysql') {
+                return ['session_aligned' => true, 'session_offset' => null, 'session_was' => null];
+            }
+        } catch (\Throwable) {
+            return ['session_aligned' => false, 'session_offset' => null, 'session_was' => null];
+        }
+
+        $was = null;
+        try {
+            $row = DB::selectOne('SELECT @@session.time_zone AS tz');
+            $was = $row === null ? null : (string) (is_array($row) ? $row['tz'] : $row->tz);
+        } catch (\Throwable) { /* reported as unknown */ }
+
+        // PHP's current UTC offset as MySQL wants it: +HH:MM.
+        $offset = $now->format('P');
+        try {
+            DB::statement("SET time_zone = '{$offset}'");
+            return ['session_aligned' => true, 'session_offset' => $offset, 'session_was' => $was];
+        } catch (\Throwable) {
+            // A locked-down replica may forbid SET. Say so rather than report
+            // numbers that are quietly off by an hour.
+            return ['session_aligned' => false, 'session_offset' => $offset, 'session_was' => $was];
+        }
+    }
 
     /**
      * Whether the database's idea of "now" agrees with PHP's.

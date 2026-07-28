@@ -30,6 +30,35 @@
 -- ============================================================================
 
 
+-- ── §0a. ALIGN THE SESSION TIMEZONE — do not skip this ──────────────────────
+-- This schema stores the two sides of every comparison below in DIFFERENT TYPES:
+--
+--   gates_award_cycles.voting_open / voting_close / nominations_*  → DATETIME
+--   gates_votes.voted_at, gates_nominations.created_at, …          → TIMESTAMP
+--
+-- A DATETIME is returned exactly as written. A TIMESTAMP is stored as UTC and
+-- converted into the SESSION timezone on read. So `voted_at >= voting_close`
+-- silently shifts by the session's UTC offset.
+--
+-- Measured on MySQL 8.0: a vote cast 30 MINUTES BEFORE a deadline is reported as
+-- LATE under time_zone = '+01:00' (WAT — the natural setting for a Nigerian
+-- deployment), and correctly on time under UTC. Under a negative offset the error
+-- inverts and genuinely late votes are HIDDEN. That is an hour of ballots either
+-- way, on a report used to decide refunds and whether to void published results.
+--
+-- Set this to the offset your APPLICATION writes in — i.e. PHP's APP_TIMEZONE
+-- offset, which is +00:00 unless you changed it. Matching PHP is what makes the
+-- DATETIME boundaries and the TIMESTAMP events comparable; forcing UTC is correct
+-- only for the default. `bin/console cycles:audit` does this automatically and
+-- refuses to be trusted if it cannot.
+--
+-- MYSQL ONLY. SQLite has no SET statement and reports a syntax error on this
+-- line — verified, not assumed — so skip it when running against SQLite, where
+-- there is no session timezone to align and nothing to get wrong. It is the one
+-- non-portable statement in this file, and it is first so it is easy to drop.
+SET time_zone = '+00:00';
+
+
 -- ── §0. Clock ───────────────────────────────────────────────────────────────
 -- READ THIS FIRST. Every finding below compares a stored timestamp against a
 -- stored boundary. Rows written by a DB-side CURRENT_TIMESTAMP default are only

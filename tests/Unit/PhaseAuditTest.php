@@ -421,4 +421,25 @@ class PhaseAuditTest extends TestCase
         $this->assertSame(0, $r['paid_minted_late']['orders']);
         $this->assertArrayHasKey('driver', $r['clock']);
     }
+
+    public function test_the_report_declares_whether_it_aligned_the_database_session(): void
+    {
+        // On MySQL this schema compares TIMESTAMP event columns against DATETIME
+        // boundary columns, and only the former is converted into the session
+        // timezone on read — so an unaligned session shifts EVERY finding by the
+        // session's UTC offset. Measured on MySQL 8.0: a vote 30 minutes before a
+        // deadline reports as late under +01:00, which is the natural setting for
+        // a Nigerian deployment, and genuinely late votes are hidden under a
+        // negative offset.
+        //
+        // SQLite has no session timezone, so there is nothing to align. What must
+        // hold on BOTH drivers is that the report SAYS which case it is in, rather
+        // than leaving the reader to assume.
+        $r = PhaseAuditService::run();
+
+        $this->assertArrayHasKey('session_aligned', $r['clock']);
+        $this->assertArrayHasKey('session_offset', $r['clock']);
+        $this->assertTrue($r['clock']['session_aligned'], 'nothing to align on sqlite, so trivially true');
+        $this->assertNull($r['clock']['session_offset'], 'and no offset was set, which the command renders as n/a');
+    }
 }

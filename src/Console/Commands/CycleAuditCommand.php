@@ -63,7 +63,20 @@ class CycleAuditCommand extends Command
             ['skew' => $clock['skew_seconds'] === null
                 ? 'unknown'
                 : sprintf('%+ds (%+.2fh)', $clock['skew_seconds'], $clock['skew_hours'])],
+            ['session timezone' => $clock['session_offset'] === null
+                ? 'n/a (no session timezone on this driver)'
+                : ($clock['session_aligned'] ? 'aligned to ' . $clock['session_offset'] : 'NOT ALIGNED')
+                  . ($clock['session_was'] !== null ? ' (was ' . $clock['session_was'] . ')' : '')],
         );
+        if ($clock['session_offset'] !== null && !$clock['session_aligned']) {
+            $io->error(
+                'Could not align the database session timezone. This schema stores cycle boundaries as '
+                . 'DATETIME and ballot timestamps as TIMESTAMP, and MySQL converts only the latter into the '
+                . 'session timezone — so every finding below is shifted by the session offset. A vote 30 '
+                . 'minutes before a deadline reads as late under +01:00. Do not act on these numbers until '
+                . 'the connection can SET time_zone, or run with a session already in ' . $clock['session_offset'] . '.'
+            );
+        }
         if ($clock['suspicious']) {
             $io->warning(
                 'The database and PHP disagree about the current time by more than a minute. '

@@ -44,14 +44,27 @@ class PhaseAuditSqlParityTest extends TestCase
         // Comments stripped before splitting so a ';' inside prose cannot break a
         // statement — the file is heavily commented on purpose.
         $sql   = preg_replace('/^\s*--.*$/m', '', $sql);
-        $pdo   = DB::connection()->getPdo();
-        $out   = [];
+        $pdo     = DB::connection()->getPdo();
+        $out     = [];
+        $skipped = [];
         foreach (array_filter(array_map('trim', explode(';', (string) $sql))) as $stmt) {
+            // `SET time_zone` is the file's one MySQL-only statement, and it is
+            // there for a reason worth more than portability: without it MySQL
+            // compares TIMESTAMP events against DATETIME boundaries across a
+            // timezone shift. SQLite rejects SET outright and has no session
+            // timezone to align, so it is skipped here — and COLLECTED, so the
+            // assertion below can prove nothing ELSE is being silently dropped.
+            if (stripos($stmt, 'SET ') === 0) { $skipped[] = $stmt; continue; }
             $rows = $pdo->query($stmt)->fetchAll(\PDO::FETCH_ASSOC);
             foreach ($rows as $row) {
                 $out[(string) $row['section']][] = $row;
             }
         }
+        foreach ($skipped as $stmt) {
+            $this->assertStringStartsWith('SET time_zone', $stmt,
+                'only the session-timezone statement may be skipped on SQLite');
+        }
+        $this->assertCount(1, $skipped, 'exactly one MySQL-only statement is expected');
         return $out;
     }
 

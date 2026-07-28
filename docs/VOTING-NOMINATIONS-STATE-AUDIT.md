@@ -552,3 +552,96 @@ silently on production rather than loudly:
   is missing" output is therefore two plain columns, not one joined string.
 - **Backticks** are MySQL-only quoting and would break the SQLite parity run that
   is the only pre-flight this file gets.
+
+## 13. `DATETIME` vs `TIMESTAMP` — answered, measured on MySQL 8.0
+
+This was flagged as an open decision four times without evidence. With a real MySQL
+8.0.46 instance (strict mode, `ONLY_FULL_GROUP_BY`) it is now measured, and it was
+**a live bug in the audit itself**, not a stylistic question.
+
+### The finding
+
+The two sides of every comparison are stored in different types:
+
+| Side | Columns | Type |
+| --- | --- | --- |
+| **Boundaries** | `gates_award_cycles.voting_open`, `voting_close`, `nominations_open`, `nominations_close`, `results_date`, `next_boundary_at`, `gates_cycle_transitions.boundary_at`/`observed_at` | **`DATETIME`** |
+| **Events** | `gates_votes.voted_at`, `gates_nominations.created_at`, `gates_donations.created_at`/`refunded_at`, `gates_jobs.*`, `gates_ai_calls.created_at`, `gates_ai_decisions.created_at`, `gates_phase_drift.created_at` | **`TIMESTAMP`** |
+
+A `DATETIME` has no timezone semantics — MySQL returns it exactly as written. A
+`TIMESTAMP` is stored as UTC and **converted into the session timezone on read**.
+So `voted_at >= voting_close` — which is *every finding in the audit* — silently
+shifts by the session's UTC offset.
+
+### The measurement
+
+A cycle closing at `2023-06-01 12:00:00`, and one vote at `11:30:00` — thirty
+minutes **before** the deadline:
+
+| session `time_zone` | `voted_at` reads | `voting_close` reads | reported late? |
+| --- | --- | --- | --- |
+| `+00:00` | `11:30` | `12:00` | no — correct |
+| **`+01:00` (WAT)** | `12:30` | `12:00` | **yes — wrong** |
+| `-05:00` | `06:30` | `12:00` | no |
+
+And on the full fixture, with the server default set to `+01:00`:
+
+```
+without session alignment:  late_votes = 4,  weight = 93
+with    session alignment:  late_votes = 3,  weight = 92
+```
+
+**One legitimate ballot falsely condemned**, from configuration alone. WAT (UTC+1)
+is the natural setting for a Nigerian deployment, so this is the likely default
+rather than an exotic edge case — and it means every vote in the final hour of
+every cycle would have been reported as late. Under a negative offset the error
+inverts and genuinely late votes are **hidden**.
+
+### What was changed
+
+`PhaseAuditService::alignSession()` now runs **before any query** and sets the
+session to PHP's current UTC offset. Aligning to *PHP* rather than forcing UTC is
+deliberate: the `DATETIME` boundaries were written by PHP in whatever frame
+`Clock::boot()` pinned (`APP_TIMEZONE`, UTC by default), so matching that frame
+makes both sides comparable whichever the operator chose. Forcing UTC would be
+correct only for the default and would silently break a deployment that set
+`APP_TIMEZONE=Africa/Lagos`.
+
+If the connection cannot `SET time_zone` — a locked-down replica — the report says
+so and the command prints an **error**, because numbers quietly off by an hour are
+worse than a refusal. The Clock section now reports `session_aligned`,
+`session_offset` and the session it found (`session_was`), so a non-UTC server
+config is surfaced rather than merely worked around. `phase-audit.sql` carries the
+same `SET time_zone` as its first statement, flagged as its one MySQL-only line
+(SQLite rejects `SET` outright — verified, not assumed).
+
+### The decision this leaves you
+
+The audit is now correct on either convention, so nothing is blocked. But the
+underlying inconsistency is still real and still worth settling, because it affects
+anything else that compares these columns in SQL:
+
+- **Recommended: leave the types alone, pin the session.** `TIMESTAMP` for events
+  is *right* — an event happened at an absolute instant. `DATETIME` for declared
+  boundaries is also right: "voting closes 1 June at noon" is a wall-clock
+  statement an operator made, not an instant in UTC. The bug was never the types;
+  it was comparing them in an unpinned session. Pin `time_zone` in the connection
+  config and the mixture is harmless.
+- The alternative — migrating six boundary columns to `TIMESTAMP` — would convert
+  every existing value using whatever session the migration happened to run in,
+  which is the same trap with permanent consequences.
+
+### Also verified on real MySQL while there
+
+Every migration on this branch had only ever run against SQLite. All 58 steps
+applied cleanly to MySQL 8.0 and are idempotent on re-run, and the MySQL-only
+halves are confirmed present:
+
+- `gates_award_cycles.status` → `enum('upcoming','nominations','shortlisting','voting','judging','results','archived')` — the `MODIFY ENUM` worked, so `shortlisting` round-trips
+- `uq_cyctrans_phase` **UNIQUE** on `(cycle_id, to_status)` — the exactly-once phase claim holds on MySQL, not just SQLite
+- `uq_jobs_dedupe` UNIQUE on `gates_jobs.dedupe_key`; `idx_cycles_next_boundary` on `next_boundary_at`
+- `gates_ai_calls`, `gates_ai_decisions`, `gates_phase_drift` all created
+
+`cycles:audit` and `phase-audit.sql` both run under `ONLY_FULL_GROUP_BY` without
+complaint and return **identical numbers** to the SQLite run — three
+implementations (PHP/SQLite, PHP/MySQL, SQL/MySQL) agreeing on the same fixture.
