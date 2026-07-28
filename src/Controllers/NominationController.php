@@ -16,9 +16,32 @@ class NominationController {
         private readonly ?CommunityService $community = null,
         private readonly ?OtpService $mailer = null
     ){}
+
+    /**
+     * The programmes the wizard may offer, from the POLICY's predicate.
+     *
+     * Two things were wrong with the previous form. It matched the phase LABEL —
+     * `in_array($p['cycle_status'], ['nominations'])` — which is a second
+     * implementation of CyclePhase::isNominationsOpen() and would diverge the moment
+     * another phase accepts nominations or a label changes; the symptom would be F7
+     * again, the wizard offering programmes it should not or hiding ones it should.
+     * And it appeared TWICE, in `form()` and in the POST re-render, so the list a
+     * user saw after a validation error was derived independently of the one they
+     * first saw. One helper, one predicate.
+     *
+     * @param list<array<string,mixed>> $progs
+     * @return list<array<string,mixed>>
+     */
+    private static function openForNominations(array $progs): array
+    {
+        return array_values(array_filter(
+            $progs,
+            static fn (array $p): bool => !empty($p['phase']['is_nominations_open'])
+        ));
+    }
     public function form(Request $req,Response $res):Response {
         $progs=$this->cache->remember('awards:active',1800,fn()=>$this->awards->getActiveProgrammesWithStatus());
-        $open=array_values(array_filter($progs,fn($p)=>in_array($p['cycle_status'],['nominations'])));
+        $open=self::openForNominations($progs);
         // Shared prefill link (?share=<token>) — nominee-side fields land in the
         // wizard, fully editable; the opener still submits their own nomination.
         $prefill=null;
@@ -36,7 +59,7 @@ class NominationController {
         // never wipes the form. Defined up-front so the rate-limit path re-renders
         // the form too (never a false "success" page).
         $progs=$this->cache->remember('awards:active',1800,fn()=>$this->awards->getActiveProgrammesWithStatus());
-        $open=array_values(array_filter($progs,fn($p)=>in_array($p['cycle_status'],['nominations'])));
+        $open=self::openForNominations($progs);
         $rerender=fn(string $msg,int $status=422)=>$this->view->render($res,'pages/nominate.twig',['error'=>$msg,'old'=>$b,'gates_page'=>'nominate','has_hero'=>false,'current_section'=>'projects','programmes'=>$open,'all_programmes'=>$progs,'regions'=>\AfricaGates\Support\Regions::MAP,'member'=>\AfricaGates\Services\UserAccountService::memberForForms()])->withStatus($status);
         if(!$this->rateLimit->check($fp,'nominate',5,86400)) return $rerender("You've reached today's nomination limit (5 per day). Please try again tomorrow.",429);
         $required = [

@@ -96,7 +96,11 @@
   'judging': 'mute', 'results': 'gold', 'upcoming': 'mute', 'archived': 'mute'
 } %}
 {% set hub = hub|default([]) %}
-{% set votingIds = hub|filter(p => p.cycle_status == 'voting')|map(p => p.id)|join(',') %}
+{# p.phase.is_voting_open, not the phase label: the label is the computed phase NAME,
+   so comparing it to 'voting' is a second implementation of CyclePhase::isVotingOpen().
+   This value is the DENOMINATOR of the per-device ballot tracker, so a divergence
+   would make the tracker read "2 of 3" against a different 3 than the guard uses. #}
+{% set votingIds = hub|filter(p => p.phase and p.phase.is_voting_open)|map(p => p.id)|join(',') %}
 
 <div class="vh" x-data="voteHub()" x-init="init()" data-prog-ids="{{ votingIds }}">
 
@@ -235,7 +239,7 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           <span>Verified by email OTP — one vote per category, never duplicated.</span>
         </div>
-        {% set firstVoting = (hub|filter(p => p.cycle_status == 'voting' and p.leader)|first) %}
+        {% set firstVoting = (hub|filter(p => p.phase and p.phase.is_voting_open and p.leader)|first) %}
         {% if firstVoting %}<a class="vh-ballot__cta" href="/vote/{{ firstVoting.slug }}" x-text="votedCount > 0 ? 'Keep voting' : 'Start voting'">Start voting</a>{% endif %}
       </div>
       {% endif %}

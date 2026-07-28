@@ -194,8 +194,11 @@ final class GuideService
         $lines = [];
         foreach (($s['programmes'] ?? []) as $p) {
             $bits = $p['title'] . ': cycle status "' . $p['cycle_status'] . '"';
-            if (!empty($p['nominations_close']) && $p['cycle_status'] === 'nominations') $bits .= ', nominations close ' . substr($p['nominations_close'], 0, 10);
-            if (!empty($p['voting_close']) && $p['cycle_status'] === 'voting')           $bits .= ', voting closes ' . substr($p['voting_close'], 0, 10);
+            // Predicate, not label — same reason as NominationController: one
+            // source of truth for "is this open", so Gee cannot tell a visitor a
+            // window is open when the guard would refuse the write.
+            if (!empty($p['nominations_close']) && !empty($p['phase']['is_nominations_open'])) $bits .= ', nominations close ' . substr($p['nominations_close'], 0, 10);
+            if (!empty($p['voting_close']) && !empty($p['phase']['is_voting_open']))          $bits .= ', voting closes ' . substr($p['voting_close'], 0, 10);
             $lines[] = '- ' . $bits;
         }
         $c = $s['counts'] ?? [];

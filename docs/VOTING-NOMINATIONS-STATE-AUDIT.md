@@ -917,3 +917,47 @@ One real gap it did surface, now closed: the **default SQLite harness loads sche
 files only, no migrations**, so it never saw `gates_orders` or `gates_products` — 69
 tables against a migrated 71. That is why two test files built their own copies. The
 MySQL parity harness runs migrations, so it has them for real.
+
+
+## 17. Phase label vs phase predicate — five sites, one of them twice
+
+Chasing an unexplained observation from the browser verification (`CyclePolicy` said a
+cycle was nominable, yet `/nominate` rendered no wizard) turned up two separate things.
+
+**The observation itself was a fixture artefact.** `awards:active` is cached for 30
+minutes, and the cycle had been seeded with raw SQL, bypassing the app's
+`forgetAwardViews()` invalidation. With the cache cleared the wizard renders. Not a bug
+— but chasing it found one.
+
+**Five sites gated behaviour on the phase LABEL rather than the policy's predicate:**
+
+| Site | What it drove |
+| --- | --- |
+| `NominationController::form()` | which programmes the wizard offers |
+| `NominationController` POST re-render | **the same list, derived independently** |
+| `vote.twig:99` | `votingIds` — the **denominator of the per-device ballot tracker** |
+| `vote.twig:238` | the featured programme on the hub |
+| `GuideService:197-198` | which deadline Gee quotes to a visitor |
+
+`cycle_status` is the computed phase *name*, so `=== 'nominations'` works today. That is
+precisely why it survived: it is a second implementation of
+`CyclePhase::isNominationsOpen()` that happens to agree. **This restructure exists
+because the phase was decided in several places that quietly disagreed** — a label
+comparison is that same defect in a cheaper disguise. It diverges the moment another
+phase accepts nominations, or a label changes, and the symptom is **F7 again**: the
+wizard offering programmes it should not, or hiding ones it should.
+
+The duplicated copy in `NominationController` is the sharpest illustration. `form()` and
+the POST re-render each derived the list independently, so the programmes a user saw
+after a validation error came from a different expression than the ones they first saw.
+Fixing one and missing the other would have produced exactly that split. Both now call
+one private helper.
+
+All five read `$p['phase']['is_nominations_open']` / `is_voting_open` — the view-model
+keys `CyclePolicy::stateFor()` already exposed.
+
+`PhasePredicateTest` guards it: a scan asserting no source gates on a phase label
+(comments stripped, since the fixed files explain the trap in prose), the view-model
+contract, positive and negative controls for the wizard, and a test pinning that the
+predicate and the label agree on **every** phase — because they agree today, and that
+agreement is what a future phase could silently break.
