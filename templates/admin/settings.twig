@@ -130,6 +130,62 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">"Different locations" = distinct nominator country + state. The eligibility count shows on every nomination; when enforced, approval is blocked below the threshold.</p>
     </div>
   </div></div>
+  {# ── AI governance ─────────────────────────────────────────────────────────
+     Spend and agreement were both unmeasurable before: nothing recorded token
+     usage, and nothing recorded whether a reviewer agreed with a suggestion. #}
+  <div class="ad-card">
+    <div class="ad-card__head">
+      <div class="ad-card__title">AI activity<small>Today's spend per feature, and how often reviewers agreed (30 days)</small></div>
+      <span class="ad-chip ad-chip--{{ ai_enabled_flag ? 'green' : 'red' }}">{{ ai_enabled_flag ? 'AI on' : 'AI off' }}</span>
+    </div>
+    <div class="ad-table-wrap">
+      <table class="ad-table">
+        <thead><tr>
+          <th scope="col">Feature</th><th scope="col">Model</th><th scope="col">On failure</th>
+          <th scope="col">Calls today</th><th scope="col">Tokens today</th>
+          <th scope="col">Failures</th><th scope="col">Reviewer agreement</th><th scope="col">State</th>
+        </tr></thead>
+        <tbody>
+          {% for c in ai_capabilities %}
+            {% set spend = ai_spend|filter(s => s.capability == c.name)|first %}
+            {% set agree = ai_agreement|filter(a => a.capability == c.name)|first %}
+            <tr>
+              <td><strong>{{ c.name }}</strong><div style="font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">{{ c.purpose }}</div></td>
+              <td><code style="font-size:11px">{{ c.model }}</code></td>
+              <td>
+                {# Declared per feature, not assumed: silent degradation is right
+                   for optional writing help and wrong for moderation. #}
+                <span class="ad-chip ad-chip--{{ c.on_failure == 'announce' ? 'blue' : 'grey' }}">{{ c.on_failure }}</span>
+              </td>
+              <td>{{ spend ? spend.calls : 0 }} <span style="color:var(--ad-text-mute,#8a9a9c)">/ {{ c.calls|number_format }}</span></td>
+              <td>{{ spend ? spend.tokens|number_format : 0 }} <span style="color:var(--ad-text-mute,#8a9a9c)">/ {{ c.tokens|number_format }}</span></td>
+              <td>{% if spend and spend.failures > 0 %}<span class="ad-chip ad-chip--gold">{{ spend.failures }}</span>{% else %}—{% endif %}</td>
+              <td>
+                {% if agree and agree.rate is not null %}
+                  {{ agree.rate }}% <span style="color:var(--ad-text-mute,#8a9a9c)">({{ agree.decisions }} decisions)</span>
+                {% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">no decisions yet</span>{% endif %}
+              </td>
+              <td>{% if c.enabled %}<span class="ad-chip ad-chip--green">on</span>{% else %}<span class="ad-chip ad-chip--red">off</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="ad-card__body">
+      <p style="margin:0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        Every AI call is recorded in <code>gates_ai_calls</code>; the prompt itself is not stored, only a hash.
+        Switch everything off with <code>ai_enabled = 0</code>, or one feature with
+        <code>ai_cap_disabled_&lt;feature&gt;</code> (dots become underscores).
+      </p>
+      <p style="margin:8px 0 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        <strong>Reading agreement:</strong> a LOW rate is the clear signal — the suggestion is not earning its
+        cost and the feature should be switched off rather than tuned indefinitely. A rate near 100% is
+        ambiguous: it may mean the suggestion is good, or that reviewers are deferring to it. Treat it as a
+        prompt to look, not as a success metric.
+      </p>
+    </div>
+  </div>
+
   <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">AI providers<small>Free-tier moderation &amp; AI features. The platform runs on built-in heuristics until you add a key.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="ai_settings" value="1">
     <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Keys are stored server-side and never shown again. The first configured provider is used, in order: <strong>Groq</strong> → <strong>Gemini</strong> → <strong>Anthropic</strong> → <strong>OpenAI</strong>. {% if ai_status.active %}Active now: <strong>{{ ai_status.active|capitalize }}</strong>.{% else %}No provider configured — using built-in heuristics.{% endif %}</p>

@@ -751,3 +751,24 @@ CREATE TABLE IF NOT EXISTS gates_ai_calls (
 );
 CREATE INDEX IF NOT EXISTS idx_ai_cap_day ON gates_ai_calls(capability, created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_subject ON gates_ai_calls(subject_type, subject_id);
+
+-- What the AI suggested vs what the human decided. gates_ai_calls records that a
+-- call happened; this records whether it was any use — the only thing that
+-- justifies keeping an advisory AI, and the accountability trail for a decision
+-- made with a machine score in front of the reviewer.
+CREATE TABLE IF NOT EXISTS gates_ai_decisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  capability TEXT NOT NULL,
+  subject_type TEXT NOT NULL,
+  subject_id INTEGER NOT NULL,
+  suggested TEXT,
+  decided TEXT NOT NULL,
+  -- NULL when there was no suggestion, so those rows are excluded from the
+  -- agreement rate rather than counted as disagreement.
+  agreed INTEGER,
+  actor_id INTEGER,
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_aidec_cap_day ON gates_ai_decisions(capability, created_at);
+CREATE INDEX IF NOT EXISTS idx_aidec_subject ON gates_ai_decisions(subject_type, subject_id);

@@ -42,6 +42,13 @@ final class PrivacyPurgeCommand extends Command
         ['gates_partner_enquiries',   'created_at',      'RETAIN_CLOSED_ENQUIRY_DAYS',          0, ['status', 'closed']],
         ['gates_event_registrations', 'created_at',      'RETAIN_EVENT_REGISTRATION_DAYS',      0, null],
         ['gates_newsletter',          'unsubscribed_at', 'RETAIN_UNSUBSCRIBED_NEWSLETTER_DAYS', 0, ['__notnull', 'unsubscribed_at']],
+        // The AI log grows one row per model call. It holds no prompt text —
+        // only a hash — but it does hold subject ids, so it is in scope for
+        // retention alongside everything else that points at a person.
+        ['gates_ai_calls',            'created_at',      'RETAIN_AI_CALL_DAYS',                 0, null],
+        // Decisions are the accountability + evaluation record, so the default
+        // window is deliberately longer than the call log's.
+        ['gates_ai_decisions',        'created_at',      'RETAIN_AI_DECISION_DAYS',             0, null],
     ];
 
     protected function configure(): void

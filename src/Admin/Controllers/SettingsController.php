@@ -38,7 +38,28 @@ class SettingsController
             'shop_regions'   => \AfricaGates\Services\ShopPricing::regions(),
             'shop_mults'     => \AfricaGates\Services\ShopPricing::multipliers(),
             // Which AI providers have a key (booleans only — keys are never echoed).
+            // Raw provider state — deliberately direct, not through the gateway:
+            // this is the diagnostics surface and must see the true key state
+            // even when a kill switch is off.
             'ai_status'      => \AfricaGates\Services\AiService::boot()->status(),
+            // Governance view. Both figures were previously impossible to
+            // produce: nothing recorded token usage, and nothing recorded whether
+            // a reviewer agreed with a suggestion.
+            'ai_enabled_flag' => \AfricaGates\Services\AiGateway::globallyEnabled(),
+            'ai_spend'        => \AfricaGates\Services\AiGateway::spendReport(),
+            'ai_agreement'    => \AfricaGates\Services\AiDecisionLog::agreement(30),
+            'ai_capabilities' => array_map(
+                static fn (\AfricaGates\Services\AiCapability $c) => [
+                    'name'       => $c->name,
+                    'purpose'    => $c->purpose,
+                    'model'      => $c->model,
+                    'on_failure' => $c->onFailure,
+                    'calls'      => $c->callsPerDay,
+                    'tokens'     => $c->tokensPerDay,
+                    'enabled'    => \AfricaGates\Services\AiGateway::capabilityEnabled($c->name),
+                ],
+                \AfricaGates\Services\AiCapability::all()
+            ),
             // Whether a DEDICATED moderation Groq key is set (vs falling back to
             // the general key). Read straight from settings — never echoed.
             'ai_mod_dedicated' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'ai_groq_key_mod')->value('value') ?? ($_ENV['GROQ_MODERATION_KEY'] ?? ''))) !== '',

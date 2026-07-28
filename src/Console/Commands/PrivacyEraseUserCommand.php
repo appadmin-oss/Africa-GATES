@@ -65,6 +65,12 @@ final class PrivacyEraseUserCommand extends Command
             'gates_threads (authored)' => fn() => DB::table('gates_threads')->where('author_user_id', $id)->update([
                 'author_name' => 'Deleted member', 'author_email_hash' => 'erased',
             ]),
+            // AI decision rows carry the acting ADMIN's id, not the subject's, so
+            // erasing a member does not touch them. What must go is the actor
+            // linkage when the erased account was itself an operator.
+            'gates_ai_decisions (as actor)' => fn() => DB::table('gates_ai_decisions')->where('actor_id', $id)->update([
+                'actor_id' => null,
+            ]),
             'gates_event_registrations (by user)' => fn() => DB::table('gates_event_registrations')->where('user_id', $id)->update([
                 'name' => 'Deleted member', 'email' => $tombstoneEmail, 'phone' => null,
             ]),
@@ -74,6 +80,7 @@ final class PrivacyEraseUserCommand extends Command
         $counts = [
             'gates_comments (authored)'           => fn() => DB::table('gates_comments')->where('author_user_id', $id)->count(),
             'gates_threads (authored)'            => fn() => DB::table('gates_threads')->where('author_user_id', $id)->count(),
+            'gates_ai_decisions (as actor)'       => fn() => DB::table('gates_ai_decisions')->where('actor_id', $id)->count(),
             'gates_event_registrations (by user)' => fn() => DB::table('gates_event_registrations')->where('user_id', $id)->count(),
         ];
         foreach ($counts as $label => $counter) {

@@ -653,3 +653,23 @@ CREATE TABLE IF NOT EXISTS gates_ai_calls (
   KEY idx_ai_cap_day (capability, created_at),
   KEY idx_ai_subject (subject_type, subject_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- What the AI suggested vs what the human decided. gates_ai_calls records that a
+-- call happened; this records whether it was any use — the only thing that
+-- justifies keeping an advisory AI, and the accountability trail for a decision
+-- made with a machine score in front of the reviewer.
+CREATE TABLE IF NOT EXISTS gates_ai_decisions (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  capability VARCHAR(60) NOT NULL,
+  subject_type VARCHAR(40) NOT NULL,
+  subject_id BIGINT UNSIGNED NOT NULL,
+  suggested VARCHAR(120) DEFAULT NULL,
+  decided VARCHAR(120) NOT NULL,
+  agreed TINYINT(1) DEFAULT NULL,
+  actor_id BIGINT UNSIGNED DEFAULT NULL,
+  note VARCHAR(300) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_aidec_cap_day (capability, created_at),
+  KEY idx_aidec_subject (subject_type, subject_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

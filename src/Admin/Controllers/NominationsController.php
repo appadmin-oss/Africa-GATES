@@ -114,12 +114,32 @@ class NominationsController
         return $res->withHeader('Location', '/admin/nominations' . ($qs !== '' ? '?' . $qs : ''))->withStatus(302);
     }
 
+    /**
+     * The AI's triage score expressed in the same vocabulary as the human's
+     * verdict, so the two are comparable.
+     *
+     * The score is 0-100 for "how complete, specific and credible this reads".
+     * Anything at or above the midpoint is read as a lean toward approval. This
+     * is a coarse mapping on purpose — the point is to detect whether the score
+     * tracks reviewer judgement at all, not to grade it finely.
+     */
+    private static function triageLean(int $nominationId): ?string
+    {
+        $insight = \AfricaGates\Services\NominationTriageService::insight($nominationId);
+        $score   = $insight['quality_score'] ?? null;
+        if ($score === null) return null;
+        return (int) $score >= 50 ? 'approved' : 'rejected';
+    }
+
     public function action(Request $req, Response $res, array $args): Response
     {
         $id = (int)$args['id'];
         $action = $args['action'] ?? '';
         $nom = DB::table('gates_nominations')->where('id', $id)->first();
         if (!$nom) throw new \Slim\Exception\HttpNotFoundException($req);
+        // Captured BEFORE the decision, so the comparison is against what the
+        // reviewer actually had in front of them.
+        $aiLean = self::triageLean($id);
         // Desk mode: after a decision, auto-advance to the next pending
         // nomination instead of bouncing back to the list. Same audited
         // process — only the redirect changes.
@@ -160,6 +180,15 @@ class NominationsController
             }
             try {
                 DB::table('gates_nominations')->where('id', $id)->update(['status' => $status, 'decision_reason' => $reason !== '' ? $reason : null]);
+                // Whether the AI's lean matched the human's call. Without this
+                // there is no way to tell if the triage score is helping the
+                // reviewer or merely decorating the page.
+                if ($action === 'reject') {
+                    \AfricaGates\Services\AiDecisionLog::record(
+                        'nomination.triage', 'nomination', $id, $aiLean, 'rejected',
+                        (int) ($_SESSION['admin_id'] ?? 0) ?: null
+                    );
+                }
             } catch (\Throwable $e) {
                 return $fail($this->dbErrorFlash($e), 500);
             }
@@ -287,6 +316,14 @@ HTML;
         } catch (\Throwable $e) {
             return $fail($this->dbErrorFlash($e), 500);
         }
+
+        // The counterpart of the rejection record. Agreement is only meaningful if
+        // BOTH verdicts are captured — logging only one outcome silently biases
+        // the rate toward it.
+        \AfricaGates\Services\AiDecisionLog::record(
+            'nomination.triage', 'nomination', $id, $aiLean, 'approved',
+            (int) ($_SESSION['admin_id'] ?? 0) ?: null
+        );
 
         $this->audit->record((int)$_SESSION['admin_id'], 'nomination.approve', 'nomination', $id, ['category_id' => $catId]);
 
