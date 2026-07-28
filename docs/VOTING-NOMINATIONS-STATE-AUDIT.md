@@ -851,3 +851,37 @@ One thing it deliberately does **not** do: drop a redundant leftover `idx_votes_
 `uq_votes_idem` exists and costs write throughput, but dropping an index this code did
 not create would be a destructive guess about someone else's intent — so it prints the
 `DROP` for a human to run.
+
+
+### 15.2 Making it impossible to miss
+
+Every defect in this repair shared one shape: **something failed, printed a warning,
+and nobody ever read it.** `CREATE INDEX IF NOT EXISTS` returned a 1064, the
+try/catch turned it into a line of deploy output, and the index was missing for
+months. A fix that only reports at deploy time repeats exactly that mistake — the
+operator who most needs to know is the one who was not watching the deploy log.
+
+So `VoteIndexRepair::warnings()` is a **read-only** check (no DDL, safe on a request
+path) surfaced in two places operators actually look:
+
+- **Admin operational state** — alongside `phase_divergences`, with a note in the
+  assistant's briefing that a `critical` schema warning means *a guarantee the
+  platform advertises is currently absent* and outranks any queue length.
+- **The maintenance run**, every 15 minutes, logged to `gates_cron_log` in the same
+  `!` form as the phase divergences:
+
+```
+! SCHEMA CRITICAL: gates_votes has no per-voter idempotency constraint,
+  so a retried vote can be counted twice.  fix: bin/console db:repair-indexes
+```
+
+Severity is split deliberately. A missing `idx_votes_donation` makes clawbacks slow;
+a missing uniqueness constraint means votes can double-count. Reporting both as
+"warning" would lose the one that matters. And the message states the **consequence
+in the operator's terms** rather than the index name — "a retried vote can be counted
+twice" is actionable to someone who has never heard of `uq_votes_idem`. When
+duplicates are what is blocking the fix it says so, so the operator knows the job
+needs data work before a command.
+
+A test asserts the check never writes: reporting a missing index must not quietly
+create one, since it now runs on an admin page load.

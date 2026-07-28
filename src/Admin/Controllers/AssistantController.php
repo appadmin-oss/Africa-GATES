@@ -124,6 +124,7 @@ HOW TO RESPOND
 - Be direct and operational: lead with what matters, quantify from the live state, then say where to act.
 - If asked "what needs attention", triage: pending nominations, quarantined content, stale pending payments, cycles approaching their deadline, and any phase_divergences (which mean the scheduled task is behind).
 - The `phase` field is COMPUTED from each cycle's date windows and is authoritative for whether votes and nominations are being accepted. `cached_status_stale` true means the stored status column is behind — the site is still behaving correctly, but reports reading that column are wrong until the scheduled task catches up.
+- `schema_warnings` are DATABASE INTEGRITY problems, not content problems. A `critical` one means a guarantee the platform advertises is currently absent — say so plainly, quote its `fix` command, and treat it as more urgent than any queue length.
 - NEVER invent numbers beyond the live state above. If you don't have a figure, say which /admin page shows it.
 - You advise and point; you cannot change data yourself. Actions requiring superadmin (settings, webhooks, judges, admins) should be flagged as such.
 - Keep answers under ~180 words unless the operator asks for depth.
@@ -178,6 +179,11 @@ SYS;
             // status has not caught up. Traffic-independent, so it surfaces
             // cycles nobody happens to be voting in.
             'phase_divergences'       => $get(fn() => count(\AfricaGates\Services\CycleMaterialiser::divergences()), 0),
+            // Schema integrity. Read-only. Present because every defect in the index
+            // repair shared one shape: it failed, printed a warning, and nobody read
+            // it. A missing uniqueness constraint must keep announcing itself rather
+            // than wait to be discovered by a double-counted vote.
+            'schema_warnings'         => $get(fn() => \AfricaGates\Services\VoteIndexRepair::warnings(), []),
             // AI spend today, per capability — previously unknowable.
             'ai_spend_today'          => $get(fn() => \AfricaGates\Services\AiGateway::spendReport(), []),
             'webhook_failures_24h'    => $get(fn() => (int) DB::table('gates_webhook_deliveries')->where('ok', 0)->where('created_at', '>=', date('Y-m-d H:i:s', time() - 86400))->count(), 0),

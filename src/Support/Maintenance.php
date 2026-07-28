@@ -257,6 +257,16 @@ final class Maintenance
             ));
         }
 
+        // Schema integrity, beside the phase divergences and for the same reason:
+        // both are conditions the platform keeps running through, and both are
+        // invisible unless something says so on a schedule. A missing per-voter
+        // idempotency constraint means a retried vote can be counted twice — it
+        // must not wait to be discovered by a double-counted result.
+        foreach (\AfricaGates\Services\VoteIndexRepair::warnings() as $w) {
+            $this->log(sprintf('  ! SCHEMA %s: %s  fix: %s',
+                strtoupper((string) $w['severity']), $w['message'], $w['fix']));
+        }
+
         return (int) $r['changed'];
     }
 

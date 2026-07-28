@@ -89,6 +89,56 @@ final class VoteIndexRepair
         ];
     }
 
+    /**
+     * READ-ONLY health check. Never issues DDL, so it is safe on a request path.
+     *
+     * This exists because of the pattern behind every defect in this repair: the
+     * original migrations failed, printed a warning, and nobody ever read it. A fix
+     * that only reports at deploy time repeats that mistake — the operator who most
+     * needs to know is the one who was not watching the deploy log.
+     *
+     * Surfaced in the admin operational state and logged by the maintenance run, so
+     * a missing uniqueness constraint keeps announcing itself until it is fixed
+     * rather than waiting to be discovered by a double-counted vote.
+     *
+     * @return list<array{severity:string, message:string, fix:string}>
+     */
+    public static function warnings(): array
+    {
+        if (!SchemaIndex::tableExists('gates_votes')) return [];
+
+        $out = [];
+
+        $hasConstraint = SchemaIndex::exists('gates_votes', 'uq_votes_idem')
+            || SchemaIndex::exists('gates_votes', 'idx_votes_idem');
+        if (!$hasConstraint) {
+            $dupes = self::duplicateGroups();
+            $out[] = [
+                'severity' => 'critical',
+                'message'  => 'gates_votes has no per-voter idempotency constraint, so a retried vote can be '
+                    . 'counted twice' . ($dupes > 0
+                        ? " — and {$dupes} duplicate (voter, key) group(s) already exist, which is what is blocking it."
+                        : '.'),
+                'fix'      => 'bin/console db:repair-indexes',
+            ];
+        }
+
+        foreach ([
+            'idx_votes_donation' => 'paid-vote clawbacks scan gates_votes by donation_id',
+            'idx_votes_device'   => 'fraud and collusion checks scan gates_votes by device_hash',
+        ] as $index => $why) {
+            if (!SchemaIndex::exists('gates_votes', $index)) {
+                $out[] = [
+                    'severity' => 'warning',
+                    'message'  => "Index {$index} is missing — {$why}.",
+                    'fix'      => 'bin/console db:repair-indexes',
+                ];
+            }
+        }
+
+        return $out;
+    }
+
     /** How many (voter, key) pairs appear more than once. NULL keys excluded — multiple NULLs are legal and normal. */
     public static function duplicateGroups(): int
     {

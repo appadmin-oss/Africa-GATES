@@ -163,4 +163,72 @@ class VoteIndexRepairTest extends TestCase
         $this->assertSame(0, VoteIndexRepair::duplicateGroups());
         $this->assertTrue(VoteIndexRepair::run()['complete']);
     }
+
+    // ── The read-only health check ──────────────────────────────────────────
+
+    public function test_a_healthy_schema_produces_no_warnings(): void
+    {
+        VoteIndexRepair::run();
+
+        $this->assertSame([], VoteIndexRepair::warnings());
+    }
+
+    public function test_a_missing_idempotency_constraint_is_reported_as_critical(): void
+    {
+        // The whole reason this check exists: every defect in this repair failed,
+        // printed a warning, and was never read. This one keeps announcing itself.
+        $this->clearIndexes();
+
+        $w = VoteIndexRepair::warnings();
+
+        $critical = array_values(array_filter($w, fn ($x) => $x['severity'] === 'critical'));
+        $this->assertCount(1, $critical);
+        $this->assertStringContainsString('counted twice', $critical[0]['message'],
+            'the consequence in the operator\'s terms, not the index name');
+        $this->assertSame('bin/console db:repair-indexes', $critical[0]['fix']);
+    }
+
+    public function test_the_warning_names_the_duplicate_count_when_that_is_the_blocker(): void
+    {
+        $this->clearIndexes();
+        $this->vote('same-voter', 'k1', 1);
+        $this->vote('same-voter', 'k1', 2);
+
+        $w = VoteIndexRepair::warnings();
+
+        $this->assertStringContainsString('1 duplicate', $w[0]['message']);
+        $this->assertStringContainsString('blocking it', $w[0]['message'],
+            'so the operator knows the fix needs data work first, not just a command');
+    }
+
+    public function test_missing_performance_indexes_are_warnings_not_critical(): void
+    {
+        // A slow clawback and a broken uniqueness guarantee must not read as equally
+        // urgent, or the urgent one gets lost.
+        $this->clearIndexes();
+        SchemaIndex::ensure('gates_votes', 'idx_votes_idem', ['voter_email_hash', 'idempotency_key'], true);
+
+        $w = VoteIndexRepair::warnings();
+
+        $this->assertNotSame([], $w);
+        foreach ($w as $x) {
+            $this->assertSame('warning', $x['severity']);
+        }
+    }
+
+    public function test_the_check_never_writes(): void
+    {
+        // It runs on an admin request path and in the maintenance cron. A health
+        // check that mutates the thing it checks is not a health check.
+        $this->clearIndexes();
+        $before = DB::table('gates_votes')->count();
+
+        VoteIndexRepair::warnings();
+        VoteIndexRepair::warnings();
+
+        $this->assertSame($before, DB::table('gates_votes')->count());
+        $this->assertFalse(SchemaIndex::exists('gates_votes', 'uq_votes_idem'),
+            'reporting a missing index must not quietly create it');
+        $this->assertFalse(SchemaIndex::exists('gates_votes', 'idx_votes_idem'));
+    }
 }
