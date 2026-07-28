@@ -38,9 +38,15 @@ use Illuminate\Support\Carbon;
  */
 final class AiGateway
 {
-    /** Untrusted text is fenced with these so a model can see where it ends. */
-    private const FENCE_OPEN  = '<<<UNTRUSTED_USER_CONTENT';
-    private const FENCE_CLOSE = 'END_UNTRUSTED_USER_CONTENT>>>';
+    /**
+     * Untrusted text is fenced with these so a model can see where it ends.
+     *
+     * Public because the injection corpus asserts a property ABOUT the boundary —
+     * that no payload can close it early — and a test that hard-coded its own
+     * copy of these strings would keep passing after the real ones changed.
+     */
+    public const FENCE_OPEN  = '<<<UNTRUSTED_USER_CONTENT';
+    public const FENCE_CLOSE = 'END_UNTRUSTED_USER_CONTENT>>>';
 
     public function __construct(private readonly ?AiService $ai = null) {}
 
