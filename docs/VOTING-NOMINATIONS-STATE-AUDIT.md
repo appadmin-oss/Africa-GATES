@@ -512,3 +512,43 @@ given the `localStorage` write; the paid path was not, so buying votes still lef
 `/vote` reading "0 of N programmes voted". The write now happens on the paid
 receipt too — **gated on `minted`**, because recording a vote that was refused
 would be the same untruth in a different place.
+
+### 11.1 Running it without deploying — `database/audits/phase-audit.sql`
+
+`bin/console cycles:audit` is the real tool. `database/audits/phase-audit.sql` is
+the same questions as plain, portable SQL, for the case where you want the numbers
+**before** deploying the branch that carries the command: it needs nothing but a
+SQL client and a read-only connection, so it can be pointed at a replica today.
+
+```sh
+mysql -h <host> -u <read-only-user> -p <database> < database/audits/phase-audit.sql
+```
+
+Strictly read-only — every statement is a `SELECT`, and a test asserts that
+(`PhaseAuditSqlParityTest::test_the_sql_file_writes_nothing`, which scans the
+comment-stripped body for write verbs *and* re-counts every table afterwards).
+
+**It deliberately does not decide a cycle's phase.** That logic lives in
+`CyclePolicy::phaseFor()` and must have exactly one implementation — the point of
+this whole restructure was that the phase stopped being computed in several places
+that quietly disagreed, and re-deriving it in `CASE` expressions inside a file
+nobody would remember to update would recreate that defect. So the SQL covers the
+sections that are pure data questions; the stored-vs-computed drift table and the
+`re-mint`/`refund`/`investigate` tagging are console-only, and the file says so.
+
+Because a second implementation is a second thing to drift, **the two are pinned to
+each other**: `PhaseAuditSqlParityTest` seeds one fixture and asserts they agree on
+late/early ballot counts *and weight*, late nominations status-by-status, the exact
+refund total in naira, the same paid-vote row ids, the same uncrowned category ids,
+and the same undated cycles — plus that both report **nothing** on a clean database,
+since a pair of tools that only match when there is damage would be worthless as an
+all-clear.
+
+Two portability traps the parity test also guards, both of which would have failed
+silently on production rather than loudly:
+
+- **`||`** is string concatenation in SQLite and boolean `OR` in MySQL, so a
+  concatenated column returns `0` on MySQL instead of erroring. The "which boundary
+  is missing" output is therefore two plain columns, not one joined string.
+- **Backticks** are MySQL-only quoting and would break the SQLite parity run that
+  is the only pre-flight this file gets.
