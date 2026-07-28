@@ -164,6 +164,8 @@ CREATE TABLE IF NOT EXISTS gates_votes (
 CREATE INDEX IF NOT EXISTS idx_votes_nominee ON gates_votes(nominee_id);
 CREATE INDEX IF NOT EXISTS idx_votes_voted ON gates_votes(voted_at);
 CREATE INDEX IF NOT EXISTS idx_votes_device ON gates_votes(device_hash);
+-- Read on every paid-vote clawback, which scans by donation_id.
+CREATE INDEX IF NOT EXISTS idx_votes_donation ON gates_votes(donation_id);
 -- Idempotency is scoped per-voter: a shared/buggy client key must not let one
 -- voter block another. (Multiple NULL keys remain allowed for key-less votes.)
 CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_idem ON gates_votes(voter_email_hash, idempotency_key);

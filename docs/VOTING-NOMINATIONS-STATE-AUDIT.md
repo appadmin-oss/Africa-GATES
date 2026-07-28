@@ -810,3 +810,44 @@ harness's rollback could not undo them. A leaked `idx_test_uniq` (UNIQUE on
 file. Two fixes: the test drops what it creates, and the harness's leak canary now
 counts rows across five tables rather than one — the original single-table check
 missed vote rows committed by that same implicit commit.
+
+
+### 15.1 The fix that would not have reached production
+
+Correcting those four migration files fixes **fresh installs only.** `MigrationRunner`
+records applied files in `gates_migrations` and never re-runs one, and on every
+existing deployment all four are already recorded — they *completed*, having printed
+a warning instead of throwing. So the corrected files would never execute there.
+
+The convention is forward-only, so the repair arrives as a new ledger entry:
+`2026_07_28_vote_index_repair.php`. Verified against a production-like database with
+the four already ledgered and the indexes stripped — all three restored, zero
+warnings.
+
+`idx_votes_donation` was also added to **both** base schema files, since it was
+declared in neither and is read by every paid-vote clawback.
+
+**But a migration runs exactly once, and that is wrong for the UNIQUE one.** The
+per-voter idempotency constraint legitimately cannot be created while duplicate rows
+exist. Left as a migration alone the sequence would be: deploy → "1 duplicate group,
+resolve it" → operator resolves it → **the constraint is never created, because the
+migration is marked done.** That is the same silent gap this whole repair exists to
+close.
+
+So the logic is a service with two doors, one implementation:
+
+```sh
+bin/console db:repair-indexes      # idempotent, re-runnable, exits non-zero if still missing
+```
+
+Verified end to end: blocked run reports the count, the consequence ("a retried vote
+can be counted twice"), the query to find the duplicates and the command to retry,
+and exits `1` — while still creating the two plain indexes, because a half-repaired
+schema beats aborting over an unrelated data problem. After the duplicates are
+resolved, re-running creates the constraint and exits `0`.
+
+One thing it deliberately does **not** do: drop a redundant leftover `idx_votes_idem`
+(over `idempotency_key` alone, from the pre-per-voter design). It is redundant once
+`uq_votes_idem` exists and costs write throughput, but dropping an index this code did
+not create would be a destructive guess about someone else's intent — so it prints the
+`DROP` for a human to run.

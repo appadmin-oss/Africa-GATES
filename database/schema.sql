@@ -134,6 +134,10 @@ CREATE TABLE IF NOT EXISTS gates_votes (
   PRIMARY KEY(id), UNIQUE KEY uq_one_vote(voter_email_hash,category_id),
   UNIQUE KEY uq_votes_idem(voter_email_hash,idempotency_key),
   KEY idx_nominee(nominee_id), KEY idx_voted_at(voted_at), KEY idx_votes_device(device_hash),
+  -- Read on every paid-vote clawback, which scans by donation_id. It was only
+  -- ever created by a catch-up migration whose CREATE INDEX IF NOT EXISTS is
+  -- MySQL-invalid, so it existed on no MySQL install at all until now.
+  KEY idx_votes_donation(donation_id),
   CONSTRAINT fk_vote_nominee FOREIGN KEY(nominee_id) REFERENCES gates_nominees(id) ON DELETE CASCADE,
   CONSTRAINT fk_vote_cat FOREIGN KEY(category_id) REFERENCES gates_award_categories(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
