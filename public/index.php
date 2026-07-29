@@ -111,6 +111,10 @@ if ($basePath !== '') {
 // Middleware (order matters — outermost added last)
 $app->addRoutingMiddleware();
 $app->add(TwigMiddleware::createFromContainer($app, \Slim\Views\Twig::class));
+// Trailing-slash canonicalisation. Runs OUTSIDE the routing layer because Slim
+// matches paths exactly: without it every route answered 404 for a trailing slash,
+// so `/awards/` was a dead end and any hand-shared link that picked one up broke.
+$app->add(new \AfricaGates\Middleware\TrailingSlashMiddleware());
 $app->add(new SecurityHeadersMiddleware());
 $app->add(new CsrfMiddleware());
 $app->addBodyParsingMiddleware();
