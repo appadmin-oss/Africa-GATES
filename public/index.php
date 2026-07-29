@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 use AfricaGates\Support\Env;
+use AfricaGates\Support\Http;
 require __DIR__ . '/../vendor/autoload.php';
 
 // Load environment — tolerate a malformed .env so the site doesn't go full
@@ -56,6 +57,9 @@ if (!$showErrors) {
 
 // Session
 if (session_status() === PHP_SESSION_NONE) {
+    // Before session_start(), or PHP sends its own Expires/Pragma/Cache-Control and
+    // the middleware's policy ends up contradicting them. See Support\Http.
+    Http::disableSessionCacheLimiter();
     // Secure cookie on HTTPS / in production. Override with SESSION_SECURE=false
     // only for local plain-HTTP development.
     $isHttps  = (($_SERVER['HTTPS'] ?? '') !== '' && $_SERVER['HTTPS'] !== 'off')

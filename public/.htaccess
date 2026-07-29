@@ -25,13 +25,32 @@ Options -MultiViews
 </IfModule>
 
 # Security headers
+#
+# These MUST match SecurityHeadersMiddleware::SHARED exactly, and both are needed.
+# Apache serves every real file under public/ WITHOUT touching PHP (the
+# RewriteCond !-f above), so a stylesheet, an SVG or an upload never reaches the
+# middleware — only this block protects those. PHP responses need the middleware
+# because this file is not read at all on nginx or the built-in server.
+#
+# `Header always set` REPLACES, so where both apply Apache's value is what a
+# visitor gets and the middleware's is silently discarded. They were two
+# independent copies with nothing checking they agreed. SecurityHeadersTest now
+# parses this file and asserts it against the PHP constant, so a change to one
+# without the other fails the suite instead of drifting in production.
 <IfModule mod_headers.c>
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set X-Content-Type-Options "nosniff"
-  # Legacy header can be unsafe in some browsers; CSP supersedes it.
-  # Kept at "0" to match SecurityHeadersMiddleware (E3).
+  # Deliberately 0, not "1; mode=block": the legacy XSS auditor introduced its own
+  # vulnerabilities and CSP supersedes it. 0 disables it explicitly.
   Header always set X-XSS-Protection "0"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Permitted-Cross-Domain-Policies "none"
+  # interest-cohort is gone — FLoC was withdrawn in 2022, so it denied nothing.
+  Header always set Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), usb=(), xr-spatial-tracking=()"
+  # allow-popups, not plain same-origin: the payment flows redirect in the same tab
+  # today, but a future popup checkout would lose window.opener and be unable to
+  # report back. Reverse tabnabbing is severed either way.
+  Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
   Header unset Server
   Header unset X-Powered-By
 </IfModule>
