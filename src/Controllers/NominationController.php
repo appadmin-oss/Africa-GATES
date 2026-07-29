@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace AfricaGates\Controllers;
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -118,7 +119,7 @@ class NominationController {
         $byEmail   = strtolower(trim((string)$b['nominator_email']));
         $progName  = trim((string)($b['programme_title'] ?? ('Programme #' . (int)$b['programme_id'])));
         $reference = \AfricaGates\Support\Reference::nomination((int)$nominationId);
-        $base      = rtrim((string)($_ENV['APP_URL'] ?? ''), '/');
+        $base      = rtrim((string) Env::get('APP_URL', ''), '/');
         $watchUrl  = $base . '/leaderboard';
 
         // Resolve the award CATEGORY name so every message names it (not just the programme).

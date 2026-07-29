@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Log\LoggerInterface;
@@ -31,7 +32,7 @@ final class ShopCheckoutController
         private readonly ?RateLimitService $rateLimit = null,
     ) {}
 
-    private function base(): string { return rtrim((string)($_ENV['APP_URL'] ?? ''), '/'); }
+    private function base(): string { return rtrim((string) Env::get('APP_URL', ''), '/'); }
     private function redirect(Response $res, string $url): Response { return $res->withHeader('Location', $url)->withStatus(302); }
 
     /**

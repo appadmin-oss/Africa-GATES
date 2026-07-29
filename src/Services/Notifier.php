@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
 /**
  * Thin, dependency-free helper that routes submission notifications through
  * the existing OtpService SMTP transport. Every call is best-effort: a null
@@ -17,8 +18,8 @@ final class Notifier {
                 ->where('key_name', 'admin_alert_email')->value('value') ?? '');
         } catch (\Throwable $ex) {}
         $e = trim($e);
-        if ($e === '') $e = (string)($_ENV['ADMIN_ALERT_EMAIL'] ?? '');
-        if ($e === '') $e = (string)($_ENV['MAIL_FROM_ADDRESS'] ?? '');
+        if ($e === '') $e = (string) Env::get('ADMIN_ALERT_EMAIL', '');
+        if ($e === '') $e = (string) Env::get('MAIL_FROM_ADDRESS', '');
         if ($e === '') $e = 'app.admin@afrovanguard.org.ng';
         return $e;
     }

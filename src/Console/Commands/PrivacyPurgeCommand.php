@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Console\Commands;
 
+use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -65,7 +66,7 @@ final class PrivacyPurgeCommand extends Command
 
         $total = 0;
         foreach (self::RULES as [$table, $col, $env, $default, $filter]) {
-            $days = (int) (($_ENV[$env] ?? getenv($env) ?: '') ?: $default);
+            $days = Env::int($env, $default);
             if ($days <= 0) {
                 $io->writeln("  skip <comment>$table</comment> — $env not set");
                 continue;

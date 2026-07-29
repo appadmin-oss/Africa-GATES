@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -91,7 +92,7 @@ class MemberActivityService
         } catch (\Throwable) {
             return [];
         }
-        $base = rtrim((string) ($_ENV['APP_URL'] ?? ''), '/');
+        $base = rtrim((string) Env::get('APP_URL', ''), '/');
         return array_map(static function ($r) use ($base) {
             $p = json_decode((string) $r->payload, true);
             return [

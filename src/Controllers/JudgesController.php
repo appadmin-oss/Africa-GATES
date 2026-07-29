@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -52,7 +53,7 @@ class JudgesController
         }
         // Social card: the judge's own photo (absolute URL) when they have one;
         // the branded default from the layout otherwise.
-        $base = rtrim((string)($_ENV['APP_URL'] ?? ''), '/');
+        $base = rtrim((string) Env::get('APP_URL', ''), '/');
         $avatar = trim((string)($judge['avatar_path'] ?? ''));
         $ogImage = $avatar !== ''
             ? (str_starts_with($avatar, 'http') ? $avatar : $base . $avatar)

@@ -1,10 +1,11 @@
 <?php
 declare(strict_types=1);
 
-$driver = $_ENV['DB_DRIVER'] ?? 'mysql';
+use AfricaGates\Support\Env;
+$driver = Env::get('DB_DRIVER', 'mysql');
 
 if ($driver === 'sqlite') {
-    $dbPath = $_ENV['DB_PATH'] ?? __DIR__ . '/../var/data/africa_gates.sqlite';
+    $dbPath = Env::get('DB_PATH', __DIR__ . '/../var/data/africa_gates.sqlite');
     if (!is_dir(dirname($dbPath))) {
         @mkdir(dirname($dbPath), 0775, true);
     }
@@ -29,11 +30,11 @@ if ($driver === 'sqlite') {
 
 return [
     'driver'    => 'mysql',
-    'host'      => $_ENV['DB_HOST'] ?? '127.0.0.1',
-    'port'      => (int)($_ENV['DB_PORT'] ?? 3306),
-    'database'  => $_ENV['DB_NAME'] ?? 'africa_gates',
-    'username'  => $_ENV['DB_USER'] ?? 'root',
-    'password'  => $_ENV['DB_PASS'] ?? '',
+    'host'      => Env::get('DB_HOST', '127.0.0.1'),
+    'port'      => Env::int('DB_PORT', 3306),
+    'database'  => Env::get('DB_NAME', 'africa_gates'),
+    'username'  => Env::get('DB_USER', 'root'),
+    'password'  => Env::get('DB_PASS', ''),
     'charset'   => 'utf8mb4',
     'collation' => 'utf8mb4_unicode_ci',
     // Pin the SESSION time_zone so the database agrees with THIS process about

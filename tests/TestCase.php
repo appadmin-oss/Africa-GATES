@@ -5,6 +5,7 @@ namespace Tests;
 
 use Illuminate\Database\Capsule\Manager as Capsule;
 use PHPUnit\Framework\TestCase as BaseTestCase;
+use AfricaGates\Support\Env;
 
 /**
  * Base test case: boots a fresh in-memory SQLite database for every test and
@@ -51,7 +52,7 @@ abstract class TestCase extends BaseTestCase
      */
     protected static function usingMysql(): bool
     {
-        return strtolower((string) ($_ENV['TEST_DB_DRIVER'] ?? getenv('TEST_DB_DRIVER') ?: 'sqlite')) === 'mysql';
+        return strtolower((string) Env::get('TEST_DB_DRIVER', 'sqlite')) === 'mysql';
     }
 
     protected function setUp(): void
@@ -113,11 +114,15 @@ abstract class TestCase extends BaseTestCase
         $capsule = new Capsule();
         $capsule->addConnection([
             'driver'    => 'mysql',
-            'host'      => $_ENV['DB_HOST'] ?? '127.0.0.1',
-            'port'      => (int) ($_ENV['DB_PORT'] ?? 3306),
-            'database'  => $_ENV['DB_NAME'] ?? 'africa_gates_test',
-            'username'  => $_ENV['DB_USER'] ?? 'root',
-            'password'  => $_ENV['DB_PASS'] ?? '',
+            // Read through Env, not $_ENV. variables_order is GPCS, so the
+            // documented `DB_USER=… DB_PASS=… vendor/bin/phpunit` invocation
+            // landed in getenv() and $_SERVER only — $_ENV never saw it, and the
+            // harness silently connected as root with no password instead.
+            'host'      => Env::get('DB_HOST', '127.0.0.1'),
+            'port'      => Env::int('DB_PORT', 3306),
+            'database'  => Env::get('DB_NAME', 'africa_gates_test'),
+            'username'  => Env::get('DB_USER', 'root'),
+            'password'  => Env::get('DB_PASS', ''),
             'charset'   => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
             'prefix'    => '',

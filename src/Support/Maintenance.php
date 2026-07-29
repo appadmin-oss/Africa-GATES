@@ -342,7 +342,7 @@ final class Maintenance
                 $u = DB::table('gates_users')->where('id', (int)($p['author_user_id'] ?? 0))->where('status', 'active')->first();
                 if (!$u || empty($u->email)) return;
                 $esc  = static fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-                $base = rtrim((string)($_ENV['APP_URL'] ?? ''), '/');
+                $base = rtrim((string) Env::get('APP_URL', ''), '/');
                 $url  = $base . '/community/' . rawurlencode((string)($p['slug'] ?? ''));
                 $html = '<p>Hi ' . $esc($u->name) . ',</p>'
                     . '<p><strong>' . $esc($p['replier'] ?? 'A member') . '</strong> replied to your community thread '

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
 use AfricaGates\Support\Phone;
 use Illuminate\Database\Capsule\Manager as DB;
 
@@ -56,10 +57,12 @@ class SmsService
             catch (\Throwable) {}
             $v = is_string($v) ? trim($v) : '';
             if ($v !== '') return $v;
-            $env = $_ENV[$envKey] ?? null;
+            $env = Env::get($envKey);
             return ($env !== null && $env !== '') ? (string) $env : null;
         };
-        $flag = static fn(?string $v): bool => in_array(strtolower((string) $v), ['1', 'true', 'on', 'yes'], true);
+        // One flag parser for env and Settings alike, so `on` cannot mean true here
+        // and false in the two call sites that spelled the list out by hand.
+        $flag = static fn(?string $v): bool => Env::truthy($v);
         return new self(
             $resolve('sms_twilio_sid', 'TWILIO_ACCOUNT_SID'),
             $resolve('sms_twilio_token', 'TWILIO_AUTH_TOKEN'),

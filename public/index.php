@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use AfricaGates\Support\Env;
 require __DIR__ . '/../vendor/autoload.php';
 
 // Load environment — tolerate a malformed .env so the site doesn't go full
@@ -39,8 +40,8 @@ try {
 // shipped .env that still says APP_ENV=development — can open the door on a
 // real public host: details require debug ON, a non-prod/demo env, AND a local
 // hostname.
-$appEnv     = $_ENV['APP_ENV'] ?? 'production';
-$appDebug   = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$appEnv     = Env::get('APP_ENV', 'production');
+$appDebug   = Env::bool('APP_DEBUG');
 $showErrors = \AfricaGates\Support\Environment::showErrorDetails(
     $appEnv, $appDebug, $_SERVER['HTTP_HOST'] ?? null
 );
@@ -59,10 +60,11 @@ if (session_status() === PHP_SESSION_NONE) {
     // only for local plain-HTTP development.
     $isHttps  = (($_SERVER['HTTPS'] ?? '') !== '' && $_SERVER['HTTPS'] !== 'off')
              || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
-    $envSecure = strtolower((string)($_ENV['SESSION_SECURE'] ?? ''));
-    $secure = $envSecure !== ''
-        ? in_array($envSecure, ['1','true','yes'], true)
-        : ($isHttps || (($_ENV['APP_ENV'] ?? 'production') === 'production'));
+    // Tri-state: an explicit SESSION_SECURE wins, otherwise derive it. An
+    // unrecognised spelling falls back to TRUE — the safe direction for a cookie.
+    $secure = Env::has('SESSION_SECURE')
+        ? Env::bool('SESSION_SECURE', true)
+        : ($isHttps || $appEnv === 'production');
     session_set_cookie_params([
         'lifetime' => 86400 * 7,
         'path'     => '/',
@@ -103,7 +105,7 @@ $app = AppFactory::create();
 // ── IMPORTANT: Set base path if app lives in a subdirectory ──────
 // e.g. if accessed via http://localhost/mysite/africa-gates/
 // Leave empty string '' if public/ IS the document root
-$basePath = $_ENV['APP_BASE_PATH'] ?? '';
+$basePath = Env::get('APP_BASE_PATH', '');
 if ($basePath !== '') {
     $app->setBasePath($basePath);
 }

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+use AfricaGates\Support\Env;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
 use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController};
@@ -59,7 +60,7 @@ return function(App $app) {
     // endpoint is invisible to anyone without the secret. /__setup/status shows
     // which migrations are still pending (read-only).
     $setupGuard = static function ($req): bool {
-        $token = trim((string)($_ENV['SETUP_TOKEN'] ?? ''));
+        $token = trim((string) Env::get('SETUP_TOKEN', ''));
         $given = (string)($req->getQueryParams()['token'] ?? '');
         return $token !== '' && strlen($given) >= 12 && hash_equals($token, $given);
     };
@@ -113,7 +114,7 @@ return function(App $app) {
     $cronGuard = static function ($req): bool {
         // Token from .env (SSH hosts) OR admin Settings (no-SSH hosts set it in
         // the browser). Either matching a >=12-char given token unlocks the run.
-        $token = trim((string)($_ENV['CRON_TOKEN'] ?? ''));
+        $token = trim((string) Env::get('CRON_TOKEN', ''));
         if ($token === '') {
             try { $token = trim((string)(\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'cron_token')->value('value') ?? '')); }
             catch (\Throwable) { $token = ''; }
@@ -348,7 +349,7 @@ return function(App $app) {
         // features are operational because this DB-backed page is being served at
         // all; payments/email report their actual configuration state.
         $g->get('/status', function($req,$res) use ($tv) {
-            $set  = fn(string ...$k) => (bool) array_filter($k, fn($x)=>trim((string)($_ENV[$x] ?? ''))!=='');
+            $set  = fn(string ...$k) => (bool) array_filter($k, fn($x)=>Env::has($x));
             $pay  = $set('PAYSTACK_SECRET_KEY','FLUTTERWAVE_SECRET_KEY') ? 'Operational' : 'Degraded';
             $mail = $set('SMTP_HOST','MAIL_HOST','MAIL_MAILER','SMTP_USER') ? 'Operational' : 'Degraded';
             $components = [

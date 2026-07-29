@@ -37,7 +37,7 @@ final class Clock
      */
     public static function boot(): string
     {
-        $tz = trim((string) ($_ENV['APP_TIMEZONE'] ?? getenv('APP_TIMEZONE') ?: ''));
+        $tz = (string) Env::get('APP_TIMEZONE', '');
         if ($tz === '' || !self::isValid($tz)) {
             $tz = self::DEFAULT_TIMEZONE;
         }
@@ -81,7 +81,7 @@ final class Clock
      */
     public static function databaseTimezone(): string
     {
-        $explicit = trim((string) ($_ENV['DB_TIMEZONE'] ?? getenv('DB_TIMEZONE') ?: ''));
+        $explicit = (string) Env::get('DB_TIMEZONE', '');
         if ($explicit !== '') return $explicit;
 
         // Whatever THIS process thinks the time is — which is what boot() pinned,

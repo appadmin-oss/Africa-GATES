@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
@@ -48,7 +49,7 @@ class GatedFormService
     /** Full link for a raw token (uses APP_URL). */
     public static function link(string $raw): string
     {
-        $base = rtrim((string)($_ENV['APP_URL'] ?? 'https://afg.afrovanguard.org.ng'), '/');
+        $base = rtrim((string) Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/');
         return $base . '/form/' . $raw;
     }
 

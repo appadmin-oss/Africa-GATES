@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace AfricaGates\Controllers;
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -30,7 +31,7 @@ class ApiController {
      */
     private function ip(Request $r):string{
         $s=$r->getServerParams();
-        $trust=in_array(strtolower((string)($_ENV['TRUST_PROXY']??'')),['1','true','yes'],true);
+        $trust=Env::bool('TRUST_PROXY', false);
         if($trust && !empty($s['HTTP_X_FORWARDED_FOR'])){
             return trim(explode(',',(string)$s['HTTP_X_FORWARDED_FOR'])[0]);
         }
@@ -143,7 +144,7 @@ class ApiController {
         if ($this->otp && $nom && filter_var($b['email']??'', FILTER_VALIDATE_EMAIL)) {
             $nomName  = $nom->name ?? 'the nominee';
             $catTitle = DB::table('gates_award_categories')->where('id', $nom->category_id ?? 0)->value('title') ?? 'this category';
-            $voteUrl  = ($_ENV['APP_URL'] ?? 'https://afg.afrovanguard.org.ng') . '/vote';
+            $voteUrl  = Env::get('APP_URL', 'https://afg.afrovanguard.org.ng') . '/vote';
             // Escape admin/nomination-supplied names before they enter the email HTML.
             $nomNameHtml  = htmlspecialchars($nomName, ENT_QUOTES, 'UTF-8');
             $catTitleHtml = htmlspecialchars($catTitle, ENT_QUOTES, 'UTF-8');
@@ -174,7 +175,7 @@ HTML;
 
         // Off the hot path: the (slow, external) Google Sheets sync is enqueued and
         // run by the cron worker, so a sluggish Sheets endpoint never delays a vote.
-        if (!empty($_ENV['GAS_URL'])) {
+        if (Env::has('GAS_URL')) {
             (new \AfricaGates\Services\QueueService())->push('vote.sheets_push', ['award_id'=>$aId,'category_id'=>$nom->category_id??null,'nominee_id'=>$nId,'nominee_name'=>$nom->name??'','voter_email_hash'=>$emailHash,'country'=>$nom->country_code??'']);
         }
         $this->community?->recordActivity('vote','a community voter','nominee',$nId,$nom->name??'',['country'=>$nom->country_code??'']);
@@ -257,7 +258,7 @@ HTML;
         try {
             $token=(new \AfricaGates\Services\NominationLinkService())->create($b,$this->ip($req));
         } catch(\RuntimeException $e){ return $this->err($res,$e->getMessage()); }
-        $base=rtrim((string)($_ENV['APP_URL']??''),'/');
+        $base=rtrim((string) Env::get('APP_URL', ''),'/');
         return $this->ok($res,['token'=>$token,'url'=>$base.'/nominate?share='.$token,'expires_days'=>\AfricaGates\Services\NominationLinkService::DEFAULT_TTL_DAYS]);
     }
 
@@ -379,7 +380,7 @@ HTML;
         // Welcome only a genuinely-new subscriber (re-subscribe sends nothing → no mail-bomb).
         if ($isNew && $this->otp) {
             try {
-                $base = rtrim((string)($_ENV['APP_URL'] ?? 'https://afg.afrovanguard.org.ng'), '/');
+                $base = rtrim((string) Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/');
                 $whtml = "<h1 style=\"margin:0;font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:24px;color:#10292C\">You're on the list</h1>"
                     . "<p style=\"margin:13px 0 0;font-size:15px;line-height:1.6;color:#4a5256\">Thanks for subscribing to Africa GATES. We'll let you know when nominations open, voting goes live, and each cycle's winners are crowned.</p>"
                     . "<p style=\"text-align:center;margin:22px 0\"><a href=\"{$base}/leaderboard\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">Explore the leaderboard &rarr;</a></p>"

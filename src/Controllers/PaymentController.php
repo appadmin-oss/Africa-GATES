@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Log\LoggerInterface;
@@ -94,7 +95,7 @@ final class PaymentController
 
     private function base(): string
     {
-        return rtrim((string)($_ENV['APP_URL'] ?? ''), '/');
+        return rtrim((string) Env::get('APP_URL', ''), '/');
     }
 
     private function isAjax(Request $req): bool
@@ -435,7 +436,7 @@ final class PaymentController
     private function verifyWebhookSignature(string $provider, Request $req, string $raw): bool
     {
         if ($provider === 'paystack') {
-            $secret = trim((string)($_ENV['PAYSTACK_SECRET_KEY'] ?? ''));
+            $secret = trim((string) Env::get('PAYSTACK_SECRET_KEY', ''));
             if ($secret === '') return false;
             $expected = hash_hmac('sha512', $raw, $secret);
             $got      = $req->getHeaderLine('x-paystack-signature');
@@ -443,7 +444,7 @@ final class PaymentController
         }
 
         if ($provider === 'flutterwave') {
-            $configured = trim((string)($_ENV['FLUTTERWAVE_WEBHOOK_HASH'] ?? ''));
+            $configured = trim((string) Env::get('FLUTTERWAVE_WEBHOOK_HASH', ''));
             if ($configured === '') return false; // no shared secret set → reject
             $got = $req->getHeaderLine('verif-hash');
             return $got !== '' && hash_equals($configured, $got);

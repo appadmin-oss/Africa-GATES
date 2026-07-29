@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -62,7 +63,7 @@ class PaymentService
     {
         $keys = self::PROVIDERS[$provider] ?? null;
         if ($keys === null) return false;
-        return trim((string)($_ENV[$keys['secret']] ?? '')) !== '';
+        return Env::has($keys['secret']);
     }
 
     /**
@@ -80,7 +81,7 @@ class PaymentService
                 'label'      => self::LABELS[$id] ?? ucfirst($id),
                 // Public (publishable) key is safe to expose; included for clients
                 // that later want inline/popup checkout. Not required for redirect.
-                'public_key' => trim((string)($_ENV[$keys['public']] ?? '')),
+                'public_key' => (string) Env::get($keys['public'], ''),
             ];
         }
         return $out;
@@ -95,7 +96,7 @@ class PaymentService
     private function secret(string $provider): string
     {
         $keys = self::PROVIDERS[$provider] ?? null;
-        return $keys ? trim((string)($_ENV[$keys['secret']] ?? '')) : '';
+        return $keys ? (string) Env::get($keys['secret'], '') : '';
     }
 
     /**

@@ -27,7 +27,7 @@ final class Assets
         $path = trim((string) $path);
         if ($path === '') return null;
         if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) return $path;
-        $base = rtrim((string) ($_ENV['APP_URL'] ?? ''), '/');
+        $base = rtrim((string) Env::get('APP_URL', ''), '/');
         return $base !== '' ? $base . '/' . ltrim($path, '/') : null;
     }
 

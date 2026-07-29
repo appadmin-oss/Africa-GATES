@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Controllers;
 
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -62,7 +63,7 @@ class SettingsController
             ),
             // Whether a DEDICATED moderation Groq key is set (vs falling back to
             // the general key). Read straight from settings — never echoed.
-            'ai_mod_dedicated' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'ai_groq_key_mod')->value('value') ?? ($_ENV['GROQ_MODERATION_KEY'] ?? ''))) !== '',
+            'ai_mod_dedicated' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'ai_groq_key_mod')->value('value') ?? Env::get('GROQ_MODERATION_KEY', ''))) !== '',
             'ai_mod_model'   => \AfricaGates\Services\AiService::MODERATION_MODEL,
             // Messaging channels configured state (booleans only — secrets never echoed).
             'sms_status'     => \AfricaGates\Services\SmsService::boot()->status(),
@@ -70,7 +71,7 @@ class SettingsController
             // aren't arriving" is diagnosable at a glance.
             'mail_health'    => $this->mailHealth(),
             // Automation / webcron status for the no-SSH setup card.
-            'app_url'        => rtrim((string)($_ENV['APP_URL'] ?? ''), '/'),
+            'app_url'        => rtrim((string) Env::get('APP_URL', ''), '/'),
             'cron_last'      => (function () {
                 try { return \Illuminate\Database\Capsule\Manager::table('gates_cron_log')->where('job_name', 'maintenance')->orderByDesc('id')->first(); }
                 catch (\Throwable) { return null; }

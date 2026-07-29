@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
@@ -72,14 +73,14 @@ final class CycleAnnouncer
 
         try {
             $mailer = new OtpService([
-                'host'         => $_ENV['SMTP_HOST'] ?? 'smtp-relay.brevo.com',
-                'port'         => (int) ($_ENV['SMTP_PORT'] ?? 587),
-                'username'     => $_ENV['SMTP_USER'] ?? '',
-                'password'     => $_ENV['SMTP_PASS'] ?? '',
-                'from_address' => $_ENV['MAIL_FROM_ADDRESS'] ?? 'noreply@afrovanguard.org.ng',
-                'from_name'    => $_ENV['MAIL_FROM_NAME'] ?? 'Africa GATES',
+                'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
+                'port'         => Env::int('SMTP_PORT', 587),
+                'username'     => Env::get('SMTP_USER', ''),
+                'password'     => Env::get('SMTP_PASS', ''),
+                'from_address' => Env::get('MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
+                'from_name'    => Env::get('MAIL_FROM_NAME', 'Africa GATES'),
             ]);
-            $base     = rtrim((string) ($_ENV['APP_URL'] ?? 'https://afg.afrovanguard.org.ng'), '/');
+            $base     = rtrim((string) Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/');
             $headline = $kind === 'winner' ? 'Congratulations — you won.' : 'Congratulations — you are a runner-up.';
             $nm       = htmlspecialchars((string) $n->profile_name, ENT_QUOTES, 'UTF-8');
             $catN     = htmlspecialchars((string) $n->category, ENT_QUOTES, 'UTF-8');

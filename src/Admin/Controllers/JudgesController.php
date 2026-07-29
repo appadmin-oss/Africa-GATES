@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Controllers;
 
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -132,7 +133,7 @@ class JudgesController
             if ($this->mailer && filter_var($judgeEmail, FILTER_VALIDATE_EMAIL) && !empty($progIds)) {
                 $progTitles = DB::table('gates_award_programmes')
                     ->whereIn('id', $progIds)->pluck('title')->implode(', ');
-                $loginUrl = rtrim($_ENV['APP_URL'] ?? 'https://afg.afrovanguard.org.ng', '/') . '/judge/login';
+                $loginUrl = rtrim(Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/') . '/judge/login';
                 $this->mailer->sendJudgeAssignment(
                     $judgeEmail,
                     trim((string)($b['name'] ?? 'Judge')),

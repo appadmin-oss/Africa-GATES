@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Controllers;
 
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -84,7 +85,7 @@ class AuthController
         $admin = $this->auth->findByEmail($email);
         if ($admin) {
             [$token, $expires] = $this->auth->createMagicLink($email, 'admin_login', $ip);
-            $appUrl = rtrim((string)($_ENV['APP_URL'] ?? ''), '/');
+            $appUrl = rtrim((string) Env::get('APP_URL', ''), '/');
             $link = ($appUrl ?: '') . '/admin/magic/consume?token=' . $token;
             $this->log->info('admin.magic.dispatch', ['email' => $email, 'expires' => $expires]);
             $this->sendMagicEmail($email, $link);

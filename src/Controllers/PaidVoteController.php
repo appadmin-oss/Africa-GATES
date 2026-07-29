@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
+use AfricaGates\Support\Env;
 use AfricaGates\Services\PaidVoteService;
 use AfricaGates\Services\PaymentService;
 use AfricaGates\Services\RateLimitService;
@@ -35,7 +36,7 @@ final class PaidVoteController
         private readonly ?LoggerInterface  $log = null,
     ) {}
 
-    private function base(): string { return rtrim((string)($_ENV['APP_URL'] ?? ''), '/'); }
+    private function base(): string { return rtrim((string) Env::get('APP_URL', ''), '/'); }
     private function redirect(Response $res, string $url): Response { return $res->withHeader('Location', $url)->withStatus(302); }
 
     /** POST /vote/paid/start */

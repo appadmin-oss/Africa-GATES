@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace AfricaGates\Controllers;
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -218,7 +219,7 @@ class VoteController {
             'phase'            => $phase,
             'voting_open'      => (bool) ($phase['is_voting_open'] ?? false),
             'paid_notice'      => self::PAID_REASONS[trim((string) ($req->getQueryParams()['paid'] ?? ''))] ?? null,
-            'turnstile_site_key' => $_ENV['TURNSTILE_SITE_KEY'] ?? '',
+            'turnstile_site_key' => Env::get('TURNSTILE_SITE_KEY', ''),
             'member_points'    => $memberPoints,
             'points_per_vote'  => PointsService::pointsPerVote(),
             'can_redeem'       => $memberId > 0 && $pointsEnabled && (bool) ($phase['is_voting_open'] ?? false) && $memberPoints >= PointsService::pointsPerVote(),

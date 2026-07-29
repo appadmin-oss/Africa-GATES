@@ -682,6 +682,11 @@ TEST_DB_DRIVER=mysql DB_HOST=127.0.0.1 DB_NAME=africa_gates_test \
 DB_USER=… DB_PASS=… vendor/bin/phpunit
 ```
 
+> This invocation did not actually work until §18. `$_ENV` is not populated from
+> the process environment, so the credentials above were ignored and the harness
+> connected as `root`. It works now.
+
+
 The MySQL harness loads `schema.sql` + `admin-schema.sql` + `community-schema.sql`
 **and then runs the dated migrations**, so the schema under test matches a migrated
 production database rather than the base files alone. Current state, against MySQL
@@ -961,3 +966,125 @@ keys `CyclePolicy::stateFor()` already exposed.
 contract, positive and negative controls for the wizard, and a test pinning that the
 predicate and the label agree on **every** phase — because they agree today, and that
 agreement is what a future phase could silently break.
+
+---
+
+## 18. Configuration by environment variable never worked
+
+Found while restoring the MySQL parity harness after the container's MySQL was
+reinstalled. §14 documents the invocation:
+
+```sh
+TEST_DB_DRIVER=mysql DB_HOST=127.0.0.1 DB_NAME=africa_gates_test \
+DB_USER=… DB_PASS=… vendor/bin/phpunit
+```
+
+It cannot work, and had never worked. 670 of 793 tests errored with
+`SQLSTATE[HY000] [1698] Access denied for user 'root'@'localhost'` — note the
+user: **`root`**, the hardcoded fallback, not the `DB_USER` on the command line.
+
+### Why
+
+PHP's default `variables_order` is `GPCS`. No `E`. **`$_ENV` is not populated from
+the process environment.** Measured on this runtime:
+
+```
+DB_PASS=secret php -r '…'
+  $_ENV['DB_PASS']    → NULL
+  $_SERVER['DB_PASS'] → 'secret'
+  getenv('DB_PASS')   → 'secret'
+```
+
+`$_ENV` was populated by exactly one thing: phpdotenv, parsing a `.env` **file**.
+The application read `$_ENV` and nothing else — 97 reads across 39 keys, including
+`DB_PASS`, `PAYSTACK_SECRET_KEY`, `FLUTTERWAVE_WEBHOOK_HASH`, `ANTHROPIC_API_KEY`,
+`SMTP_PASS`, `TURNSTILE_SECRET`, `CRON_TOKEN` and `SETUP_TOKEN`.
+
+So the only supported way to configure this platform was a plaintext file inside
+the deployment tree — the thing every hosting platform's environment-variable
+injection exists to avoid. Docker `-e`, compose `environment:`, Kubernetes
+secrets, systemd `Environment=`, PHP-FPM `env[]`, Apache `SetEnv`, and every
+managed PaaS config panel were all silently ignored.
+
+### Worse than a miss: it *suppressed* the file value too
+
+phpdotenv's **immutable** writer refuses to define a name that is already visible
+to it, and it can see `$_SERVER`. So a real environment variable did not merely
+fail to be read — it also stopped the `.env` value from being written, leaving
+`$_ENV` holding neither:
+
+```
+.env: SESSION_SECURE=0      real env: SESSION_SECURE=1
+  $_ENV['SESSION_SECURE']    → NULL     ← both lost; hardcoded default applies
+  $_SERVER['SESSION_SECURE'] → '1'
+```
+
+An operator who set a variable to override the file got the default instead of
+either value.
+
+### Blast radius, by failure mode
+
+Nothing here is an auth bypass — every token gate (`SETUP_TOKEN`, `CRON_TOKEN`)
+and every signature check (`PAYSTACK_SECRET_KEY`, `FLUTTERWAVE_WEBHOOK_HASH`)
+treats "unset" as reject. They fail **closed**. The damage is silent
+misconfiguration:
+
+| Key | Consequence when supplied as a real env var |
+| --- | --- |
+| `TRUST_PROXY` | **Worst at scale.** Client IP falls back to `REMOTE_ADDR`, which behind a CDN is the CDN. Every visitor on the continent shares one rate-limit and fraud-scoring bucket, so the limiter throttles legitimate traffic en masse. |
+| `DB_*` | App connects as `root` with an empty password. Loud, at least — verified above as 670 errors. |
+| `CRON_TOKEN` | Every scheduled run 404s. Cycles never transition, digests never send, and nothing logs a reason. |
+| `PAYSTACK_SECRET_KEY`, `FLUTTERWAVE_WEBHOOK_HASH` | Webhooks rejected. Paid votes are never minted from the callback. |
+| `ANTHROPIC_API_KEY`, `GROQ_MODERATION_KEY` | AI moderation and Gee silently downgrade to heuristics. |
+| `APP_URL` (26 reads) | Every absolute URL — receipts, magic links, OTP emails, canonical and OG tags — falls back to a hardcoded domain. |
+| `SMTP_*` | Mail silently misdirected to the default Brevo relay with no credentials. |
+
+Three call sites had already noticed and worked around it locally —
+`Clock::timezone()`, `Clock::databaseTimezone()` and `PrivacyPurgeCommand` each
+read `$_ENV[$k] ?? getenv($k)`. The workaround was never generalised, which is why
+the other 94 reads stayed broken.
+
+### The fix
+
+`AfricaGates\Support\Env` — `get()`, `has()`, `bool()`, `int()`, `truthy()` —
+reading `$_ENV`, then `$_SERVER`, then `getenv()`, so an explicit environment
+variable beats the file and the file beats the hardcoded default. All 97 reads now
+go through it, including the test harness. Nothing is cached, because Admin
+Settings fall back to env at request time and the harness rewrites `$_ENV` per
+test.
+
+Two details worth stating:
+
+- **Blank counts as unset.** `SMTP_PASS=` is how operators comment a value out; it
+  must not beat the default it was commenting out, nor shadow a value in a
+  lower-priority source.
+- **`HTTP_`-prefixed names are never read from `$_SERVER`.** Request headers land
+  there as `HTTP_<NAME>`. No current key is affected; the guard is what stops
+  adding one from handing the client control of it.
+
+`Env::bool()` also unified three hand-rolled flag parsers that disagreed:
+`SmsService` accepted `on`, while `TRUST_PROXY` and `SESSION_SECURE` did not. So
+`TRUST_PROXY=on` — a perfectly reasonable spelling that works for the SMS flags —
+read as **false**, which is the row at the top of the table above.
+
+### Proof
+
+Two checkouts, same real environment variable, same request:
+
+```
+APP_URL=https://env-var-proof.example  (real env var, no .env file)
+
+before   <link rel="canonical" href="https://afg.afrovanguard.org.ng/">   ← ignored
+after    <link rel="canonical" href="https://env-var-proof.example/">     ← honoured
+```
+
+And the whole site served from environment-only configuration — no `.env` file
+anywhere — against the 20k-nominee / 200k-vote dataset: 16 of 16 routes 200.
+`EnvTest` pins the precedence rules, the suppression case, the flag spellings, the
+`HTTP_` guard, and a repository scan asserting no application code reads `$_ENV`
+directly again (assignments excluded, since `index.php`'s fallback parser for a
+malformed `.env` must write it).
+
+Suite after the change: **810 tests, 5177 assertions, green on both drivers** —
+and the MySQL run now takes its credentials from the command line, as §14 always
+claimed it did.

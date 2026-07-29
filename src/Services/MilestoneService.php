@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use Psr\Log\LoggerInterface;
@@ -76,7 +77,7 @@ class MilestoneService
 
     private function notifyAdmin(object $nominee, int $milestone): void
     {
-        $adminEmail = $_ENV['ADMIN_ALERT_EMAIL'] ?? ($_ENV['MAIL_FROM_ADDRESS'] ?? null);
+        $adminEmail = Env::get('ADMIN_ALERT_EMAIL') ?? Env::get('MAIL_FROM_ADDRESS');
         if (!$adminEmail || !$this->mailer) return;
 
         $formatted = number_format($milestone);
@@ -114,7 +115,7 @@ HTML;
             $pid   = DB::table('gates_nominees')->where('id', $nominee->id)->value('profile_id');
             $email = $pid ? DB::table('gates_profiles')->where('id', $pid)->value('email') : null;
             if ($email && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $base = rtrim((string)($_ENV['APP_URL'] ?? 'https://afg.afrovanguard.org.ng'), '/');
+                $base = rtrim((string) Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/');
                 $nm   = htmlspecialchars((string)$nominee->name, ENT_QUOTES, 'UTF-8');
                 $nhtml = "<p>Hi <strong>{$nm}</strong>,</p>"
                     . "<p>Your supporters just pushed you past <strong>{$formatted} votes</strong> in the Africa GATES cycle. 🎉</p>"

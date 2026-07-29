@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+use AfricaGates\Support\Env;
 use Psr\Container\ContainerInterface;
 use Slim\Views\Twig;
 use AfricaGates\Services\{CacheService,ProfileService,AwardService,LegacyService,OpportunityService,OtpService,VoteService,BonusVoteService,RateLimitService,SpamService,AiService,CommunityService,GoogleSheetsService,TurnstileService,StatsService,FraudService,EventService,MilestoneService,PaymentService,GuideService,CurrencyService,UserAccountService};
@@ -37,9 +38,9 @@ use AfricaGates\Admin\Controllers\{
 
 return [
     Twig::class => function(ContainerInterface $c) {
-        $isDev = ($_ENV['APP_ENV'] ?? 'production') !== 'production';
+        $isDev = Env::get('APP_ENV', 'production') !== 'production';
         $twig = Twig::create(__DIR__.'/../templates', [
-            'cache' => ($_ENV['TWIG_CACHE'] ?? 'false') === 'true' ? __DIR__.'/../var/cache/twig' : false,
+            'cache' => Env::bool('TWIG_CACHE') ? __DIR__.'/../var/cache/twig' : false,
             'auto_reload' => true,
             'debug' => $isDev,
         ]);
@@ -53,20 +54,20 @@ return [
             'JSON_SAFE'         => JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP,
             // Demo mode: gates clearly-labeled sample/illustrative content so it
             // is never shown as real data in production (APP_ENV=demo only).
-            'is_demo'           => (($_ENV['APP_ENV'] ?? 'production') === 'demo'),
-            'app_url'           => rtrim($_ENV['APP_URL'] ?? '', '/'),
+            'is_demo'           => (Env::get('APP_ENV', 'production') === 'demo'),
+            'app_url'           => rtrim(Env::get('APP_URL', ''), '/'),
             // In debug/dev, bust the browser cache from the NEWEST mtime across
             // every css/js file (so editing ANY asset forces a fresh fetch); in
             // prod use the pinned ASSET_VERSION (set at deploy) for far-future caching.
             'asset_version'     => \AfricaGates\Support\Assets::version(
-                ($_ENV['APP_DEBUG'] ?? 'false') === 'true',
-                $_ENV['ASSET_VERSION'] ?? null,
+                Env::bool('APP_DEBUG'),
+                Env::get('ASSET_VERSION'),
                 __DIR__ . '/../public/assets'
             ),
             'csrf_token'        => $_SESSION['csrf_token'] ?? '',
             'current_section'   => 'projects',
             'has_hero'          => false,
-            'announcement_text' => $settings['announce_text'] ?? ($_ENV['ANNOUNCE_TEXT'] ?? 'Nominations open — live in Nigeria, building toward 54'),
+            'announcement_text' => $settings['announce_text'] ?? Env::get('ANNOUNCE_TEXT', 'Nominations open — live in Nigeria, building toward 54'),
             'announcement_url'  => $settings['announce_url']  ?? '/africa-gates/nominate',
             'announcement_cta'  => $settings['announce_cta']  ?? 'Nominate now →',
             // Real, admin-configurable bonus-vote ratio (so methodology copy never hardcodes it).
@@ -84,7 +85,7 @@ return [
             'og_image' => (function() use ($settings) {
                 $v = trim((string)($settings['og_image'] ?? ''));
                 if ($v !== '') return $v;
-                return (rtrim($_ENV['APP_URL'] ?? '', '/') ?: 'https://afg.afrovanguard.org.ng') . '/gates-logo.png';
+                return (rtrim(Env::get('APP_URL', ''), '/') ?: 'https://afg.afrovanguard.org.ng') . '/gates-logo.png';
             })(),
             // Admin-configurable social presence (footer links + rel=me). Empty = hidden.
             'social_links' => array_filter([
@@ -97,12 +98,12 @@ return [
             ]),
             // Ad monetization (Google AdSense). Off until a publisher client + slot are
             // configured — admin setting overrides env; empty means no ads render at all.
-            'adsense_client' => trim((string)($settings['adsense_client'] ?? ($_ENV['ADSENSE_CLIENT'] ?? ''))),
-            'adsense_slot'   => trim((string)($settings['adsense_slot']   ?? ($_ENV['ADSENSE_SLOT']   ?? ''))),
-            'adsense_slot_2' => trim((string)($settings['adsense_slot_2'] ?? ($_ENV['ADSENSE_SLOT_2'] ?? ''))),
+            'adsense_client' => trim((string)($settings['adsense_client'] ?? Env::get('ADSENSE_CLIENT', ''))),
+            'adsense_slot'   => trim((string)($settings['adsense_slot']   ?? Env::get('ADSENSE_SLOT', ''))),
+            'adsense_slot_2' => trim((string)($settings['adsense_slot_2'] ?? Env::get('ADSENSE_SLOT_2', ''))),
             // Canonical shop delivery regions — drives the checkout region selector.
             'shop_regions'   => \AfricaGates\Admin\Controllers\ProductsController::REGIONS,
-            'gas_url'           => $_ENV['GAS_URL'] ?? '',
+            'gas_url'           => Env::get('GAS_URL', ''),
             // Email transport health for the admin banner — config check only
             // (no network). Null-safe when the mailer can't build.
             'smtp_ok'           => (function () use ($c) {
@@ -140,7 +141,7 @@ return [
             // self-reported as the homepage). site_url tracks APP_URL so canonical
             // + Open Graph use the real deployed host.
             'request_path'      => parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/',
-            'site_url'          => rtrim($_ENV['APP_URL'] ?? '', '/') ?: 'https://afg.afrovanguard.org.ng',
+            'site_url'          => rtrim(Env::get('APP_URL', ''), '/') ?: 'https://afg.afrovanguard.org.ng',
             'flash_ok'          => $_SESSION['flash_ok']    ?? null,
             // The per-request CSP nonce. Every inline <script> must carry it or the
             // browser refuses to run it — see AfricaGates\Support\Csp.
@@ -186,7 +187,7 @@ return [
     EventService::class         => fn()=>new EventService(),
     MilestoneService::class     => fn(ContainerInterface $c)=>new MilestoneService($c->get(OtpService::class), $c->get(EventService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     TurnstileService::class     => fn(ContainerInterface $c)=>new TurnstileService(
-        (string)($_ENV['TURNSTILE_SECRET'] ?? ''),
+        (string) Env::get('TURNSTILE_SECRET', ''),
         $c->get(\Psr\Log\LoggerInterface::class)
     ),
     // Pluggable AI gateway — resolves provider keys from admin settings (with
@@ -200,7 +201,7 @@ return [
     CommunityService::class     => fn(ContainerInterface $c)=>new CommunityService($c->get(SpamService::class)),
     JudgeService::class         => fn()=>new JudgeService(),
     GoogleSheetsService::class  => fn(ContainerInterface $c)=>new GoogleSheetsService(
-        (string)($_ENV['GAS_URL'] ?? ''),
+        (string) Env::get('GAS_URL', ''),
         $c->has(\AfricaGates\Admin\Services\LogService::class) ? $c->get(\AfricaGates\Admin\Services\LogService::class) : null
     ),
     OtpService::class           => function(ContainerInterface $c) {
@@ -208,12 +209,12 @@ return [
         // Settings with .env as the fallback. Credentials stay env-only.
         $s = [];
         try { $s = $c->get(SettingsService::class)->all(); } catch (\Throwable $e) {}
-        $pick = fn(string $key, string $env, string $dft) => trim((string)($s[$key] ?? '')) ?: (string)($_ENV[$env] ?? $dft);
+        $pick = fn(string $key, string $env, string $dft) => trim((string)($s[$key] ?? '')) ?: (string) Env::get($env, $dft);
         return new OtpService([
-            'host' => $_ENV['SMTP_HOST'] ?? 'smtp-relay.brevo.com',
-            'port' => (int)($_ENV['SMTP_PORT'] ?? 587),
-            'username' => $_ENV['SMTP_USER'] ?? '',
-            'password' => $_ENV['SMTP_PASS'] ?? '',
+            'host' => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
+            'port' => Env::int('SMTP_PORT', 587),
+            'username' => Env::get('SMTP_USER', ''),
+            'password' => Env::get('SMTP_PASS', ''),
             'from_address' => $pick('mail_from_address', 'MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
             'from_name'    => $pick('mail_from_name', 'MAIL_FROM_NAME', 'Africa GATES'),
             'reply_to'     => $pick('mail_reply_to', 'MAIL_REPLY_TO', ''),

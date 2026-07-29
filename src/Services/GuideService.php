@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Log\LoggerInterface;
 
@@ -44,7 +45,7 @@ final class GuideService
 
     public function isAiEnabled(): bool
     {
-        if (trim((string)($_ENV['ANTHROPIC_API_KEY'] ?? '')) !== '') return true;
+        if (trim((string) Env::get('ANTHROPIC_API_KEY', '')) !== '') return true;
         try { return AiGateway::available('guide.chat') || $this->makeConfigured(); }
         catch (\Throwable) { return false; }
     }
@@ -62,7 +63,7 @@ final class GuideService
 
     private function model(): string
     {
-        $m = trim((string)($_ENV['GEE_MODEL'] ?? ''));
+        $m = trim((string) Env::get('GEE_MODEL', ''));
         return $m !== '' ? $m : self::DEFAULT_MODEL;
     }
 
@@ -96,7 +97,7 @@ final class GuideService
         }
 
         // 2) Legacy direct Anthropic path (env key + GEE_MODEL).
-        if (trim((string)($_ENV['ANTHROPIC_API_KEY'] ?? '')) !== '') {
+        if (trim((string) Env::get('ANTHROPIC_API_KEY', '')) !== '') {
             try {
                 $reply = $this->askClaude($message, $history, $page);
                 if ($reply !== null && trim($reply) !== '') {
@@ -224,7 +225,7 @@ final class GuideService
             try { $v = DB::table('gates_settings')->where('key_name', $settingKey)->value('value'); }
             catch (\Throwable) {}
             $v = is_string($v) ? trim($v) : '';
-            return $v !== '' ? $v : trim((string)($_ENV[$envKey] ?? ''));
+            return $v !== '' ? $v : (string) Env::get($envKey, '');
         };
         return [
             'url' => $resolve('gee_make_agent_url', 'GEE_MAKE_AGENT_URL'),
@@ -375,7 +376,7 @@ SYS;
             CURLOPT_TIMEOUT        => 30,
             CURLOPT_HTTPHEADER     => [
                 'Content-Type: application/json',
-                'x-api-key: ' . trim((string)($_ENV['ANTHROPIC_API_KEY'] ?? '')),
+                'x-api-key: ' . trim((string) Env::get('ANTHROPIC_API_KEY', '')),
                 'anthropic-version: ' . self::ANTHROPIC_VERSION,
             ],
             CURLOPT_POSTFIELDS     => $payload,

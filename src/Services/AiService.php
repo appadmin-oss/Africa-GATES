@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -63,7 +64,7 @@ class AiService
             catch (\Throwable) {}
             $v = is_string($v) ? trim($v) : '';
             if ($v !== '') return $v;
-            $env = $_ENV[$envKey] ?? null;
+            $env = Env::get($envKey);
             return ($env !== null && $env !== '') ? (string) $env : null;
         };
 
@@ -120,7 +121,7 @@ class AiService
             'groq'      => $this->groqModel ?: 'llama-3.1-8b-instant',
             'gemini'    => $this->geminiModel ?: 'gemini-2.0-flash',
             'anthropic' => $this->anthropicModel ?: 'claude-haiku-4-5-20251001',
-            'openai'    => $this->openaiModel ?: ($_ENV['OPENAI_MODEL'] ?? 'gpt-4o-mini'),
+            'openai'    => $this->openaiModel ?: Env::get('OPENAI_MODEL', 'gpt-4o-mini'),
             default     => null,
         };
     }
@@ -336,7 +337,7 @@ class AiService
     private function openaiChat(string $system, string $user, int $maxTokens, bool $json, float $temp): ?string
     {
         $payload = [
-            'model'       => $this->openaiModel ?: ($_ENV['OPENAI_MODEL'] ?? 'gpt-4o-mini'),
+            'model'       => $this->openaiModel ?: Env::get('OPENAI_MODEL', 'gpt-4o-mini'),
             'max_tokens'  => $maxTokens,
             'temperature' => $temp,
             'messages'    => [

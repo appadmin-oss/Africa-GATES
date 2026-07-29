@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -62,7 +63,7 @@ class AccountController
     private function sendWelcome(object $user): void
     {
         if (!$this->otp) return;
-        $base = rtrim((string) ($_ENV['APP_URL'] ?? ''), '/');
+        $base = rtrim((string) Env::get('APP_URL', ''), '/');
         $esc  = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
         $btn  = static fn(string $href, string $label) => '<a href="' . $href . '" style="display:inline-block;background:#237b22;color:#fff;text-decoration:none;font-weight:600;padding:10px 18px;border-radius:999px;margin:0 6px 8px 0">' . $label . '</a>';
         $html = '<p>Hi ' . $esc($user->name) . ',</p>'
@@ -171,7 +172,7 @@ class AccountController
         if (!$this->otp || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
         $raw = $this->accounts->issueEmailVerification($userId, $email);
         if ($raw === null) return false;
-        $base = rtrim((string) ($_ENV['APP_URL'] ?? ''), '/');
+        $base = rtrim((string) Env::get('APP_URL', ''), '/');
         $link = $base . '/account/verify?token=' . urlencode($raw);
         $nm   = htmlspecialchars($name !== '' ? $name : 'there', ENT_QUOTES, 'UTF-8');
         $html = "<p>Hello <strong>{$nm}</strong>,</p>"

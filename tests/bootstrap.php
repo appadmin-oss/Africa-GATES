@@ -14,7 +14,7 @@ $_SERVER['APP_ENV'] = 'testing';
 // migration do — would otherwise open a SQLite file and quietly replace the
 // global Capsule the harness just configured, so the whole run would test SQLite
 // while reporting that it tested MySQL.
-$_ENV['DB_DRIVER'] = strtolower((string) (getenv('TEST_DB_DRIVER') ?: 'sqlite')) === 'mysql'
+$_ENV['DB_DRIVER'] = strtolower((string) (\AfricaGates\Support\Env::get('TEST_DB_DRIVER', 'sqlite'))) === 'mysql'
     ? 'mysql'
     : 'sqlite';
 

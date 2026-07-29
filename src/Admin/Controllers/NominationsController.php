@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Controllers;
 
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -341,7 +342,7 @@ HTML;
                 ->join('gates_award_cycles', 'gates_award_cycles.programme_id', '=', 'gates_award_programmes.id')
                 ->where('gates_award_cycles.id', $nom->cycle_id)
                 ->value('gates_award_programmes.title') ?? 'Africa GATES Awards';
-            $base = rtrim((string)($_ENV['APP_URL'] ?? 'https://afg.afrovanguard.org.ng'), '/');
+            $base = rtrim((string) Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/');
             // Escape attacker/admin-supplied fields before interpolating into HTML.
             $nn = htmlspecialchars((string)$nom->nominee_name, ENT_QUOTES, 'UTF-8');
             $by = htmlspecialchars((string)$nom->nominator_name, ENT_QUOTES, 'UTF-8');

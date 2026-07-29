@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Console\Commands;
 
+use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -38,7 +39,7 @@ class MigrateCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $driver = $_ENV['DB_DRIVER'] ?? 'mysql';
+        $driver = Env::get('DB_DRIVER', 'mysql');
         $root = dirname(__DIR__, 3);
 
         // Delegate to MigrationRunner — the SINGLE source of truth also used by the

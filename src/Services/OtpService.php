@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\Env;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
 use PHPMailer\PHPMailer\PHPMailer;
@@ -45,7 +46,7 @@ class OtpService
     /** Absolute site base URL for every link/image in email — from APP_URL, no trailing slash. */
     private function base(): string
     {
-        return rtrim((string)($_ENV['APP_URL'] ?? 'https://afg.afrovanguard.org.ng'), '/');
+        return rtrim((string) Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/');
     }
 
     /**
@@ -56,7 +57,7 @@ class OtpService
      */
     private function isProduction(): bool
     {
-        return strtolower((string)($_ENV['APP_ENV'] ?? 'production')) === 'production';
+        return strtolower((string) Env::get('APP_ENV', 'production')) === 'production';
     }
 
     /** Build a configured PHPMailer instance ready to send to $to. */
