@@ -80,15 +80,98 @@ class AiModelDelegationTest extends TestCase
 
     // ── The registry ─────────────────────────────────────────────────────────
 
-    public function test_no_capability_is_pinned_to_a_groq_llama_model_any_more(): void
+    public function test_nothing_is_pinned_to_a_provider_this_deployment_cannot_pay_for(): void
     {
+        // The pins were briefly openai:gpt-4o / openai:gpt-4o-mini. That is wrong here:
+        // the OpenAI key is not on a paid plan, so every pinned call 401s and falls
+        // through the ladder — a wasted round trip on the hot path of every AI feature.
+        // Most damagingly on moderation.classify, which sits on the nomination submit
+        // and is capped at ONE attempt: pinning a provider that cannot answer there
+        // does not degrade the feature, it disables it.
         $offenders = [];
         foreach (AiCapability::all() as $cap) {
-            if (str_starts_with($cap->model, 'groq:')) {
+            if (str_starts_with($cap->model, 'openai:')) {
                 $offenders[] = $cap->name . ' => ' . $cap->model;
             }
         }
-        $this->assertSame([], $offenders, 'the pins are GPT now; Groq remains as a fallback only');
+        $this->assertSame([], $offenders,
+            'the pins are free-tier Groq; OpenAI is a last-resort fallback only');
+
+        // And every pin must be a provider with a free tier.
+        foreach (AiCapability::all() as $cap) {
+            $this->assertContains($cap->provider(), ['groq', 'gemini'],
+                "{$cap->name} pins {$cap->provider()}, which has no free tier");
+        }
+    }
+
+    public function test_no_declared_hop_needs_a_key_this_deployment_cannot_fund(): void
+    {
+        // resolveRoute() can skip a provider with NO key; it cannot know a key is
+        // unfunded, because an unpaid key fails with a 401 rather than being absent. So
+        // an OpenAI hop costs a real timeout, and a capability capped at three attempts
+        // must not spend one of them there.
+        //
+        // OpenAI was briefly listed LAST in each ladder, which was worse than useless:
+        // route() truncates to maxAttempts (3), so the fourth hop was unreachable and
+        // the slot read as coverage that did not exist. It is now reached only through
+        // resolveRoute()'s trailing "every remaining configured provider" append.
+        foreach (AiCapability::all() as $cap) {
+            foreach ($cap->route() as $hop) {
+                $this->assertNotSame('openai', explode(':', $hop, 2)[0],
+                    "{$cap->name} declares an OpenAI hop; free-tier providers must fill the ladder");
+                $this->assertContains(explode(':', $hop, 2)[0], ['groq', 'gemini', 'anthropic'], $cap->name);
+            }
+        }
+    }
+
+    public function test_openai_is_still_reachable_when_its_key_is_funded(): void
+    {
+        // Not listed is not the same as not available. A deployment whose ONLY key is
+        // OpenAI must still get every feature — the trailing append in resolveRoute()
+        // is what guarantees a pin decides preference, not eligibility.
+        $ai  = $this->recorder(['openai' => 'k']);
+        $cap = AiCapability::find('guide.chat');
+
+        $this->assertSame('ok', $ai->complete('sys', 'u', 80, false, 0.2, $cap->route(), $cap->maxAttempts));
+        $this->assertCount(1, $ai->attempted);
+        $this->assertStringStartsWith('openai:', $ai->attempted[0]);
+    }
+
+    public function test_the_default_ladder_fits_the_default_attempt_cap(): void
+    {
+        // A ladder longer than the ceiling has rungs nobody can stand on, and in review
+        // it reads as coverage that exists. Got wrong twice consecutively here: OpenAI
+        // was listed fourth and unreachable, and moving it out left Anthropic fourth and
+        // unreachable.
+        //
+        // Measured against a capability that takes the DEFAULT cap. A capability that
+        // deliberately lowers its own — moderation.classify caps at 1, because it sits
+        // on the nomination submit — is making a choice, not declaring dead rungs, and
+        // route() truncates it correctly. That is the next test.
+        $cap = AiCapability::find('nomination.triage');
+        $this->assertSame(3, $cap->maxAttempts, 'the default');
+        $this->assertSame(1 + count($cap->fallbacks), $cap->maxAttempts,
+            'the default ladder must be exactly as long as the default ceiling');
+        $this->assertCount($cap->maxAttempts, $cap->route());
+    }
+
+    public function test_a_capability_that_lowers_its_cap_gets_a_truncated_route(): void
+    {
+        // The other side. The cap wins over the inherited ladder, and route() reflects
+        // that rather than handing AiService hops it will never reach.
+        $cap = AiCapability::find('moderation.classify');
+        $this->assertSame(1, $cap->maxAttempts);
+        $this->assertGreaterThan(1, 1 + count($cap->fallbacks), 'it does inherit a ladder');
+        $this->assertCount(1, $cap->route(), 'and route() truncates to the ceiling');
+
+        // Every capability: the route is exactly the ladder capped, never longer.
+        foreach (AiCapability::all() as $c) {
+            $this->assertCount(
+                min(1 + count($c->fallbacks), $c->maxAttempts),
+                $c->route(),
+                $c->name
+            );
+        }
     }
 
     public function test_every_capability_pins_a_concrete_provider_and_model(): void
@@ -114,17 +197,44 @@ class AiModelDelegationTest extends TestCase
             'reasoning work and latency-sensitive suggestions must not share one model');
         $this->assertArrayHasKey(AiCapability::PRIMARY[AiCapability::TIER_REASON], $models);
         $this->assertArrayHasKey(AiCapability::PRIMARY[AiCapability::TIER_FAST], $models);
+
+        // WRITE shares the 70b model with REASON and differs in its PARAMETERS. That is
+        // still delegation — a classifier wanting a terse deterministic label and a
+        // flier wanting warm publishable copy are not the same job on one model.
+        $temps = [];
+        foreach ([AiCapability::TIER_REASON, AiCapability::TIER_WRITE, AiCapability::TIER_FAST] as $t) {
+            $temps[$t] = AiCapability::PARAMS[$t]['temperature'];
+        }
+        $this->assertGreaterThan($temps[AiCapability::TIER_REASON], $temps[AiCapability::TIER_WRITE],
+            'published prose needs a warmer temperature than a moderation score');
+        $this->assertLessThanOrEqual(0.2, $temps[AiCapability::TIER_REASON],
+            'a score that moves between identical submissions is not a score');
     }
 
-    public function test_moderation_and_published_prose_get_the_reasoning_tier(): void
+    public function test_decisions_get_the_reasoning_tier(): void
     {
-        // These outputs drive a decision a person acts on, or are shown to the
-        // public as prose. Latency is not the constraint; being wrong is.
-        foreach (['moderation.classify', 'nomination.triage', 'nomination.decision_note',
-                  'nominee.merge_suggest', 'guide.chat', 'admin.assistant'] as $name) {
+        // These drive a decision a person acts on. Latency is not the constraint;
+        // being wrong is.
+        foreach (['moderation.classify', 'nomination.triage', 'nominee.merge_suggest',
+                  'admin.assistant', 'integrity.brief'] as $name) {
             $cap = AiCapability::find($name);
             $this->assertNotNull($cap, $name);
-            $this->assertSame(AiCapability::PRIMARY[AiCapability::TIER_REASON], $cap->model, $name);
+            $this->assertSame(AiCapability::TIER_REASON, $cap->tier, $name);
+            $this->assertSame(0.15, $cap->temperature(), $name);
+        }
+    }
+
+    public function test_published_prose_gets_the_writing_tier(): void
+    {
+        // The failure mode here is not a wrong label but flat, generic,
+        // obviously-machine text — which for rally copy means a nominee will not post
+        // it, and for the public guide means a visitor stops trusting the answers.
+        foreach (['guide.chat', 'community.thread_summary', 'nomination.decision_note',
+                  'admin.content_assist', 'admin.form_design'] as $name) {
+            $cap = AiCapability::find($name);
+            $this->assertNotNull($cap, $name);
+            $this->assertSame(AiCapability::TIER_WRITE, $cap->tier, $name);
+            $this->assertGreaterThan(0.5, $cap->temperature(), $name);
         }
     }
 
@@ -137,6 +247,7 @@ class AiModelDelegationTest extends TestCase
                   'admin.filter_parse'] as $name) {
             $this->assertSame(AiCapability::PRIMARY[AiCapability::TIER_FAST],
                 AiCapability::find($name)->model, $name);
+            $this->assertSame(AiCapability::TIER_FAST, AiCapability::find($name)->tier, $name);
         }
     }
 
@@ -151,17 +262,39 @@ class AiModelDelegationTest extends TestCase
         }
     }
 
-    public function test_a_fallback_never_retries_the_provider_that_just_failed(): void
+    public function test_a_fallback_never_repeats_the_pin_exactly(): void
     {
-        // Retrying the same provider is not a fallback: if the pin is Gemini then
-        // Gemini being down kills the Gemini hop too, and keeping it only spends
-        // the timeout twice on a synchronous form POST.
+        // Provider-and-model, not provider alone. An earlier version of this rule
+        // dropped every hop sharing the pin's provider, reasoning that a provider
+        // which just failed will fail again. That is right for an outage and wrong for
+        // the failure this deployment will actually see: Groq's free tier rate-limits
+        // PER MODEL, so a 429 on llama-3.1-8b-instant says nothing about whether
+        // llama-3.3-70b-versatile can answer. Dropping the second Groq hop would throw
+        // away the most likely successful retry on the platform's own primary provider.
+        //
+        // An exact repeat is still forbidden — that is only a doubled timeout.
         foreach (AiCapability::all() as $cap) {
             foreach ($cap->fallbacks as $hop) {
-                $this->assertNotSame($cap->provider(), explode(':', $hop, 2)[0],
-                    "{$cap->name} falls back to the provider it already pinned");
+                $this->assertNotSame($cap->model, $hop,
+                    "{$cap->name} repeats its own pin as a fallback");
             }
+            $this->assertSame(count($cap->route()), count(array_unique($cap->route())),
+                "{$cap->name} has a duplicate hop in its route");
         }
+    }
+
+    public function test_the_fast_tier_can_fall_back_to_a_bigger_model_on_the_same_provider(): void
+    {
+        // The case the old rule forbade, and the most likely one to matter: the small
+        // free model is rate-limited and the large free model is not.
+        $cap = AiCapability::find('nomination.polish');
+        $this->assertSame('groq:llama-3.1-8b-instant', $cap->model);
+        $this->assertContains('groq:llama-3.3-70b-versatile', $cap->route(),
+            'a per-model 429 must be recoverable without leaving the provider');
+
+        $ai = $this->recorder(['groq' => 'k'], failing: []);
+        $this->assertSame('ok', $ai->complete('sys', 'user', 80, false, 0.2, $cap->route(), $cap->maxAttempts));
+        $this->assertSame('groq:llama-3.1-8b-instant', $ai->attempted[0], 'the small model first');
     }
 
     // ── The route, end to end ────────────────────────────────────────────────
@@ -171,7 +304,7 @@ class AiModelDelegationTest extends TestCase
         // The defect that made the pin decorative. With only a Groq key configured
         // the old code called Groq regardless of the pin; with an OpenAI key it
         // still called Groq first if a Groq key existed.
-        $ai  = $this->recorder(['openai' => 'k-openai', 'groq' => 'k-groq']);
+        $ai  = $this->recorder(['groq' => 'k-groq', 'openai' => 'k-openai']);
         $cap = AiCapability::find('nomination.triage');
 
         $out = $ai->complete('sys', 'user', 80, false, 0.2, $cap->route(), $cap->maxAttempts);
@@ -187,8 +320,8 @@ class AiModelDelegationTest extends TestCase
         // asynchronously by a person, so it is allowed to fall back. The one that
         // sits on a form POST is capped to a single attempt — see below.
         $ai  = $this->recorder(
-            ['openai' => 'k', 'gemini' => 'k', 'groq' => 'k'],
-            failing: ['openai'],
+            ['groq' => 'k', 'gemini' => 'k', 'openai' => 'k'],
+            failing: ['groq'],
         );
         $cap = AiCapability::find('nomination.triage');
 
@@ -196,7 +329,8 @@ class AiModelDelegationTest extends TestCase
 
         $this->assertSame('ok', $out);
         $this->assertSame($cap->model, $ai->attempted[0], 'the pin is tried first');
-        $this->assertSame('gemini:gemini-3.6-flash', $ai->attempted[1], 'then the declared fallback');
+        $this->assertSame('gemini:gemini-3.6-flash', $ai->attempted[1],
+            'then the declared fallback, on the provider default model');
     }
 
     public function test_a_synchronous_capability_makes_exactly_one_attempt(): void
@@ -302,13 +436,13 @@ class AiModelDelegationTest extends TestCase
         // The lie that mattered. activeProvider() reports the first configured key,
         // so after a failover the log named a provider that had just failed and a
         // model that was never called — wrong precisely when something went wrong.
-        $ai = $this->recorder(['groq' => 'k', 'openai' => 'k'], failing: ['groq']);
+        $ai = $this->recorder(['groq' => 'k', 'gemini' => 'k'], failing: ['groq']);
 
-        $ai->complete('sys', 'user', 80, false, 0.2, ['groq:llama-3.3-70b-versatile', 'openai:gpt-4o']);
+        $ai->complete('sys', 'user', 80, false, 0.2, ['groq:llama-3.3-70b-versatile', 'gemini:gemini-3.6-flash']);
 
         $this->assertSame('groq', $ai->activeProvider(), 'key priority still prefers groq');
-        $this->assertSame('openai', $ai->lastProvider(), 'but openai is what answered');
-        $this->assertSame('gpt-4o', $ai->lastModel());
+        $this->assertSame('gemini', $ai->lastProvider(), 'but gemini is what answered');
+        $this->assertSame('gemini-3.6-flash', $ai->lastModel());
     }
 
     public function test_nothing_is_recorded_as_having_answered_when_nothing_did(): void

@@ -33,6 +33,8 @@ final class AiCapability
     private function __construct(
         public readonly string $name,
         public readonly string $purpose,
+        /** Which tier's model and parameters this capability inherits. */
+        public readonly string $tier,
         /** Provider:model, pinned. Never "whatever key happens to be first". */
         public readonly string $model,
         /**
@@ -109,64 +111,152 @@ final class AiCapability
      * whichever key happened to be configured first, so the recorded model and the
      * called model were unrelated.
      *
-     * Two tiers, chosen by what the output is USED for rather than by how long the
+     * THREE tiers, chosen by what the output is USED for rather than by how long the
      * prompt is:
      *
-     *  • REASON — the answer feeds a decision a person will act on, or is shown to
-     *    the public as prose. Moderation scores, the reviewer's triage summary, the
-     *    note sent to a nominator, duplicate-merge suggestions, the operator
-     *    copilot, the public guide, integrity briefs.
+     *  • REASON — the answer feeds a decision a person will act on. Moderation scores,
+     *    the reviewer's triage summary, the note sent to a nominator, duplicate-merge
+     *    suggestions, the operator copilot, integrity briefs, search interpretation.
+     *    Being wrong is the cost; latency is not.
+     *
+     *  • WRITE — the answer is PROSE a human reads and may publish: the public guide,
+     *    thread summaries, rally copy on a share flier, admin drafting help. Needs a
+     *    larger model than a classifier does, a longer output budget, and a warmer
+     *    temperature, because the failure mode is not a wrong label but flat,
+     *    generic, obviously-machine text that a nominee will not post.
      *
      *  • FAST — the answer is a suggestion the user immediately accepts or discards,
      *    on a synchronous request where latency IS the feature. Wording polish,
      *    category hints, admin filter parsing.
      */
     public const TIER_REASON = 'reason';
+    public const TIER_WRITE  = 'write';
     public const TIER_FAST   = 'fast';
 
     /**
-     * Primary model per tier. OpenAI, because a single vendor for the pins keeps
-     * behaviour comparable across features and every other provider stays available
-     * as a fallback.
+     * Primary model per tier. GROQ, whose relevant models are free-tier.
      *
-     * Every id here is overridable per provider through admin Settings
-     * (`ai_openai_model`, `ai_gemini_model`, …) or the environment, so moving to a
-     * newer model is a configuration change, not a deploy.
+     * This was briefly `openai:gpt-4o` / `openai:gpt-4o-mini`. That is wrong for this
+     * deployment: the OpenAI key is not on a paid plan, so every pinned call would
+     * 401 and fall through the ladder — turning the primary provider into a wasted
+     * round trip on the hot path of every AI feature, most damagingly on
+     * `moderation.classify`, which sits on the nomination submit and is capped at ONE
+     * attempt. Pinning a provider that cannot answer there does not degrade the
+     * feature gracefully; it disables it.
+     *
+     * `llama-3.3-70b-versatile` and `llama-3.1-8b-instant` are the two ids this
+     * codebase has been running against, so they are known-good here rather than
+     * guessed at. WRITE shares the 70b model with REASON and differs in its
+     * parameters — see {@see PARAMS}. That is still delegation: the axis is
+     * model-and-settings, and a classifier wanting a terse deterministic label and a
+     * flier wanting warm publishable copy are not the same job even on one model.
+     *
+     * Every id is overridable per provider through admin Settings (`ai_groq_model`,
+     * `ai_gemini_model`, …) or the environment, so moving to a newer Groq model — a
+     * bigger free one, or one released after this was written — is a configuration
+     * change, not a deploy.
      */
     public const PRIMARY = [
-        self::TIER_REASON => 'openai:gpt-4o',
-        self::TIER_FAST   => 'openai:gpt-4o-mini',
+        self::TIER_REASON => 'groq:llama-3.3-70b-versatile',
+        self::TIER_WRITE  => 'groq:llama-3.3-70b-versatile',
+        self::TIER_FAST   => 'groq:llama-3.1-8b-instant',
+    ];
+
+    /**
+     * Generation parameters per tier, so the delegation is real and not nominal.
+     *
+     * Temperature was previously a per-call literal at each of the twenty-one sites,
+     * which is how a spam classifier and a piece of published copy ended up asking
+     * for the same thing.
+     *
+     *  • REASON  — near-deterministic. A moderation score that moves between
+     *              identical submissions is not a score.
+     *  • WRITE   — warm enough to sound like a person, capped short of rambling.
+     *  • FAST    — deterministic and tight; the user is waiting.
+     *
+     * A capability may still override `temperature` explicitly; this is the default
+     * it inherits from its tier.
+     */
+    public const PARAMS = [
+        self::TIER_REASON => ['temperature' => 0.15],
+        self::TIER_WRITE  => ['temperature' => 0.7],
+        self::TIER_FAST   => ['temperature' => 0.2],
     ];
 
     /**
      * Fallback ladder per tier, in order, used when a capability does not declare
      * its own.
      *
-     * REASON keeps reasoning quality: Gemini Flash, then Claude, then the strongest
-     * Groq model. FAST keeps latency: the flash/instant models first, and it does
-     * NOT climb to a heavier model — a 700ms suggestion that arrives after the user
-     * has finished typing is worse than no suggestion.
+     * ORDERED BY WHAT THIS DEPLOYMENT CAN ACTUALLY REACH. Gemini has a free tier and
+     * comes first. OpenAI is LAST, deliberately: an unpaid key fails with a 401 rather
+     * than being absent, and `resolveRoute()` can only skip a provider with NO key —
+     * it cannot know a key is unfunded. So a hop for an unpaid provider costs a real
+     * timeout, and it belongs behind every provider that might answer.
+     *
+     * FAST does not climb to a heavier model: a 700ms suggestion that arrives after
+     * the user has finished typing is worse than no suggestion.
      */
     private const FALLBACKS = [
-        self::TIER_REASON => ['gemini:gemini-3.6-flash', 'anthropic:', 'groq:llama-3.3-70b-versatile'],
-        self::TIER_FAST   => ['gemini:gemini-3.6-flash', 'groq:llama-3.1-8b-instant'],
+        self::TIER_REASON => ['gemini:', 'groq:llama-3.1-8b-instant'],
+        self::TIER_WRITE  => ['gemini:', 'groq:llama-3.1-8b-instant'],
+        self::TIER_FAST   => ['gemini:', 'groq:llama-3.3-70b-versatile'],
     ];
 
     /**
-     * The tier ladder, minus any hop that repeats the pin's provider.
+     * TWO fallbacks, not three, because the default attempt cap is three hops total.
      *
-     * Retrying the same provider that just failed is not a fallback — if the pin was
-     * `gemini:…` then Gemini being down means the Gemini hop is dead too, and
-     * keeping it only spends the timeout twice.
+     * A ladder longer than the ceiling has rungs nobody can stand on, and in review it
+     * reads as coverage that exists. This was got wrong twice in a row: OpenAI was
+     * listed fourth and unreachable, and moving it out left Anthropic fourth and
+     * unreachable. `AiModelDelegationTest` now asserts declared-hops ≤ maxAttempts for
+     * every capability, so the third instance of this fails the suite instead of
+     * shipping.
+     *
+     * Anthropic and OpenAI are NOT absent, and that is the point rather than an omission.
+     *
+     * It was listed last, and last was unreachable: `route()` truncates to
+     * `maxAttempts` (3 by default), so a four-entry ladder never got to its fourth
+     * hop. A declared slot nothing can reach reads as coverage that does not exist.
+     *
+     * `AiService::resolveRoute()` appends every remaining CONFIGURED provider after the
+     * declared hops, so a deployment holding an Anthropic or a funded OpenAI key still
+     * reaches it whenever the cap allows — and a deployment whose ONLY key is one of
+     * those gets every feature, because a pin decides preference, not eligibility.
+     *
+     * They simply do not occupy a declared slot ahead of a provider with a free tier.
+     * An unpaid key fails with a 401 rather than being absent, and `resolveRoute()`
+     * cannot tell those apart: it can skip a provider with NO key, not one whose key is
+     * unfunded. So the hop costs a real timeout, and a capped capability must not spend
+     * one of three attempts on it.
+     *
+     * The second Groq hop matters more than a third vendor here. Groq's free tier
+     * rate-limits PER MODEL, so a 429 on the 70b model says nothing about the 8b one —
+     * that is the most likely recoverable failure on this deployment's own primary
+     * provider, and it now sits ahead of anything that needs a different key.
+     */
+    private const LADDER_NOTE = 'see FALLBACKS';
+
+    /**
+     * The tier ladder, minus any hop that repeats the pin EXACTLY.
+     *
+     * Provider-and-model, not provider alone. The earlier rule dropped every hop
+     * sharing the pin's provider, on the reasoning that a provider which just failed
+     * will fail again. That is right for an outage and wrong for the failure this
+     * deployment will actually see: Groq's free tier rate-limits PER MODEL, so a 429
+     * on `llama-3.1-8b-instant` says nothing about whether `llama-3.3-70b-versatile`
+     * can answer. Dropping the second Groq hop would throw away the most likely
+     * successful retry on the platform's own primary provider.
+     *
+     * An exact repeat is still removed, because retrying the identical
+     * provider-and-model immediately is only a doubled timeout.
      *
      * @return list<string>
      */
     private static function defaultFallbacks(string $pinned, string $tier): array
     {
-        $pinnedProvider = explode(':', $pinned, 2)[0];
         return array_values(array_filter(
             self::FALLBACKS[$tier] ?? self::FALLBACKS[self::TIER_FAST],
-            static fn (string $hop): bool => explode(':', $hop, 2)[0] !== $pinnedProvider
+            static fn (string $hop): bool => $hop !== $pinned
         ));
     }
 
@@ -188,6 +278,7 @@ final class AiCapability
         $c = static fn (string $name, array $o): self => new self(
             name:           $name,
             purpose:        $o['purpose'],
+            tier:           $o['tier'] ?? self::TIER_FAST,
             model:          $o['model'],
             maxAttempts:    $o['max_attempts'] ?? 3,
             fallbacks:      $o['fallbacks'] ?? self::defaultFallbacks($o['model'], $o['tier'] ?? self::TIER_FAST),
@@ -321,8 +412,8 @@ final class AiCapability
             // visitor should never see an error from a help widget.
             'guide.chat' => $c('guide.chat', [
                 'purpose'         => 'assist',
-                'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'tier'            => self::TIER_WRITE,
+                'model'           => self::PRIMARY[self::TIER_WRITE],
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 1024,
@@ -342,8 +433,8 @@ final class AiCapability
             // must be discardable rather than merely clamped.
             'nomination.decision_note' => $c('nomination.decision_note', [
                 'purpose'         => 'moderation',
-                'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'tier'            => self::TIER_WRITE,
+                'model'           => self::PRIMARY[self::TIER_WRITE],
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 200,
@@ -359,8 +450,8 @@ final class AiCapability
             // Community thread summary shown to readers.
             'community.thread_summary' => $c('community.thread_summary', [
                 'purpose'         => 'assist',
-                'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'tier'            => self::TIER_WRITE,
+                'model'           => self::PRIMARY[self::TIER_WRITE],
                 'on_failure'      => self::FAIL_DEGRADE,
                 'advisory'        => true,
                 'max_tokens'      => 320,
@@ -391,8 +482,8 @@ final class AiCapability
             // prompt, so untrusted only in the sense that it is free text.
             'admin.content_assist' => $c('admin.content_assist', [
                 'purpose'         => 'assist',
-                'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'tier'            => self::TIER_WRITE,
+                'model'           => self::PRIMARY[self::TIER_WRITE],
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 1400,
@@ -403,8 +494,8 @@ final class AiCapability
             ]),
             'admin.form_design' => $c('admin.form_design', [
                 'purpose'         => 'assist',
-                'tier'            => self::TIER_REASON,
-                'model'           => self::PRIMARY[self::TIER_REASON],
+                'tier'            => self::TIER_WRITE,
+                'model'           => self::PRIMARY[self::TIER_WRITE],
                 'on_failure'      => self::FAIL_ANNOUNCE,
                 'advisory'        => true,
                 'max_tokens'      => 900,
@@ -459,6 +550,19 @@ final class AiCapability
     {
         $parts = explode(':', $this->model, 2);
         return $parts[1] ?? $parts[0];
+    }
+
+    /**
+     * Default generation temperature for this capability's tier.
+     *
+     * A capability may override it per call; this is what it inherits. Read by
+     * {@see AiGateway} so a classifier cannot accidentally be asked for creative
+     * output, or a piece of published copy for a deterministic label.
+     */
+    public function temperature(): float
+    {
+        return (float) (self::PARAMS[$this->tier]['temperature']
+            ?? self::PARAMS[self::TIER_FAST]['temperature']);
     }
 
     /**

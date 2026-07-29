@@ -101,7 +101,11 @@ final class AiGateway
                 $user,
                 $cap->maxTokens,
                 (bool) ($input['json'] ?? false),
-                (float) ($input['temperature'] ?? 0.2),
+                // The capability's TIER temperature unless the call overrides it. It
+                // used to be a literal at each of twenty-one sites, which is how a
+                // spam classifier and a piece of published copy ended up asking for
+                // the same thing.
+                (float) ($input['temperature'] ?? $cap->temperature()),
                 // The capability's declared route: its pinned model first, then its
                 // fallbacks. Passing this is what turns AiCapability::$model from a
                 // comment into a request parameter — the gateway used to read it

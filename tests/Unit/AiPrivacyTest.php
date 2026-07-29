@@ -306,8 +306,8 @@ class AiPrivacyTest extends TestCase
         $byProvider = [];
         foreach ($groups as $g) $byProvider[$g['provider']] = $g;
 
-        $this->assertArrayHasKey('openai', $byProvider, 'the pinned provider');
-        $this->assertTrue($byProvider['openai']['primary']);
+        $this->assertArrayHasKey('groq', $byProvider, 'the pinned provider');
+        $this->assertTrue($byProvider['groq']['primary']);
 
         $fallbackProviders = array_filter($byProvider, static fn (array $g): bool => !$g['primary']);
         $this->assertNotSame([], $fallbackProviders,
@@ -418,6 +418,7 @@ class AiPrivacyTest extends TestCase
         }
         // And the spelling is the company's, not ucfirst()'s.
         $this->assertStringNotContainsString('Sent to Openai', $html);
+        $this->assertStringNotContainsString('Sent to Groq (', $html);
         $this->assertStringContainsString('[email]', $html, 'the placeholder is named so a reader knows what to expect');
         $this->assertStringContainsString('never sent', $html, 'nominee contact fields are stated as never sent');
     }
