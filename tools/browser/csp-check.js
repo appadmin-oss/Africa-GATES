@@ -8,7 +8,7 @@ const { chromium } = require('playwright');
 // server that is not running. See the mark logic below: that is exactly how this
 // script once printed `ok 0` for seventeen pages it had never loaded.
 const BASE = process.env.BASE_URL || process.env.BASE || 'http://127.0.0.1:8125';
-const PAGES = ['/', '/awards', '/registry', '/leaderboard', '/nominate', '/vote',
+const PAGES = ['/', '/awards', '/registry', '/leaderboard', '/nominate', '/vote', '/activity',
                '/support', '/help', '/privacy', '/terms', '/pulse', '/shop',
                '/opportunities', '/events', '/blog', '/integrity', '/judges'];
 

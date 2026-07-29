@@ -1201,3 +1201,233 @@ violations` for pages it had never loaded, since a page that 404s or refuses the
 connection trivially has no CSP violations. A connection-refused run passed the whole
 sweep. It now honours `BASE` as well as `BASE_URL` and counts unreachable pages as
 failures.
+
+---
+
+## 20. Model delegation, the merge matcher, the headers, and a live activity search
+
+### 20.1 The models were not delegated, and the pin was never honoured
+
+Two defects, and the second is why the first mattered so little.
+
+All **fourteen** capabilities pinned a Groq llama model — ten on
+`llama-3.3-70b-versatile`, four on `llama-3.1-8b-instant`. One vendor in two sizes,
+chosen once and copied thirteen times.
+
+And `AiCapability::$model`, documented *"pinned. Never whatever key happens to be
+first"*, was never used to make a request. `AiGateway` read it into the audit log;
+`AiService::complete()` iterated `providerChain()`, an order determined **solely by
+which API key existed**. So the recorded model and the called model were independent
+values — and on any failover, which is the entire purpose of a chain, the log named a
+provider that had just failed and a model that was never called. An audit trail that is
+wrong precisely when something went wrong.
+
+Capabilities now declare a **tier**, chosen by what the output is *used for*:
+
+| Tier | Pinned | Capabilities |
+| --- | --- | --- |
+| REASON — feeds a decision a person acts on, or is published as prose | `openai:gpt-4o` | moderation, triage, decision note, merge suggestions, copilot, public guide, integrity brief, content/form assist, thread summary |
+| FAST — a suggestion accepted or discarded on a synchronous request | `openai:gpt-4o-mini` | wording polish ×2, category hint, admin filter parse |
+
+Fallback ladder: **Gemini `gemini-3.6-flash` → Anthropic → Groq**. Every id is
+overridable per provider through admin Settings or the environment, so moving to a
+newer model is a config change rather than a deploy.
+
+`complete()` takes the route and honours it. Hops with no key are **skipped rather
+than waited on**; no pair is attempted twice; every remaining configured provider is
+appended, so **a pin decides preference, not eligibility** and can never make a
+feature unavailable on a deployment that has keys. An empty route reproduces the old
+key-priority order exactly — what every legacy caller gets.
+
+**A per-capability attempt ceiling**, because declaring a ladder would otherwise have
+quietly reintroduced the problem the code already warned about. `moderation.classify`
+has a 4s timeout and sits on the nomination submit; its own comment said *"one attempt
+only"* with nothing enforcing it. Four keys would have become a sixteen-second wait for
+a signal that is advisory anyway. The ceiling applies **after** ineligible hops are
+dropped, so a cap of 1 still yields a usable hop on a deployment whose only key is a
+provider the capability never mentions.
+
+`lastProvider()`/`lastModel()` record what answered. `selfTest()` too — a health check
+naming the provider it *prefers* rather than the one that *worked* is the same lie.
+
+**The privacy notice under-reported as a consequence.** It listed only the pinned
+provider, and the ladder runs precisely when the primary is down, so it would have
+named the wrong recipient on the days it matters. It now discloses every destination a
+capability can route to, marked primary or not — "usually OpenAI, occasionally Google"
+is materially different information from "OpenAI". Also: the page rendered
+**"Sent to Openai"** via `|capitalize`; provider names now come from a label map.
+
+### 20.2 Duplicate detection missed a third of realistic name variants
+
+Measured against twelve patterns drawn from how African names are actually written.
+Four missed, and not scattered:
+
+```
+Chinwe Okafor / Okafor Chinwe    reversed order   MISSED
+Thabo Mbeki   / Mbeki, Thabo     comma-inverted   MISSED
+Kwame Nkrumah / K. Nkrumah       initial          MISSED
+Sipho Ndlovu  / S Ndlovu         bare initial     MISSED
+```
+
+One root cause: the normaliser concatenated tokens **in the order typed**, so word
+order and abbreviation both destroyed the match. Not an edge case here —
+family-name-first is the norm across much of the continent, forms are filled both ways,
+and "surname, given name" is how official records are written. Two entries for one
+person under swapped order **split their votes**, which is the exact failure this
+feature exists to prevent. **12 of 12 now.**
+
+A name is a set of sorted tokens: order-insensitive, initial-aware, fuzzy **per token**
+rather than across a concatenation. Under concatenation `janedoe`/`johndoe` is 2 edits
+in 7 characters — inside the old threshold — while `musa`/`musah` is 1 in 4; per token
+the first is 2 of 4 and rejected. The old code needed a `similarity >= 80` guard to
+paper over exactly that and still could not separate the two cases.
+
+**The scan cap was doing real damage.** `SCAN_CAP = 400` sliced *after* `ORDER BY id`,
+so a category with 417 nominees never scanned its **17 newest** — and a duplicate exists
+because someone nominated a person who is *already* listed, which makes the newest rows
+the ones that most need looking at. On the 20k-nominee dataset **every category in the
+cycle hit the cap**. Candidate pairs now come from blocking keys instead of a full cross
+product: cap 4,000 for less work, newest-first when it does bite, and it reports **how
+many** rows were skipped rather than a bare `capped: true`.
+
+**The AI pass ran once per category.** A 48-category cycle spent 48 calls of a
+500-per-day budget on one click — ten scans and the feature was done for the day — and
+each call saw a slice too small to find anything the rules had not. One call per scan
+now, with cross-category groups dropped because a merge cannot span categories and
+offering one would fail on submit.
+
+**Which record survives** was `nominee_ids[0]`: after sorting, the *lowest id*, i.e. the
+oldest row, chosen for no reason connected to its quality. A merge keeps the survivor's
+name, photo and profile link, so that silently discarded the better record whenever the
+good entry was the newer one. The server now recommends on evidence — a decided winner
+first, since folding a crowned nominee into another moves the award off the row that
+holds it, then approved, profile-linked, has a photo, more votes, lowest id as a stable
+tiebreak — and the UI shows each candidate's votes, country, photo and link so the admin
+can choose differently. A cluster is scored by its **weakest link**, since union-find
+chains A–B (certain) to B–C (a guess).
+
+Three defects found while testing this, two of them mine:
+
+- On the volume dataset ("Nominee &lt;n&gt; Surname"), **`1` read as an abbreviation of
+  `11`** and the scan produced **306 confident duplicate groups out of nothing**. Any
+  name carrying a cohort year or edition number does the same.
+- The short-token rescue grouped **"Jane Doe" with "Jane Roe"** — one edit beside an
+  exact "Jane". Those are two surnames. The first letter must agree: a trailing-letter
+  difference is a slip, a leading one is a different name.
+- A country demotion landed in the same numeric band as a spelling variant, so the
+  reason told the admin to check the *spelling* when the question was whether these are
+  two people.
+
+### 20.3 Three caching headers that contradicted each other
+
+Reproduced from the production `curl`, on this branch:
+
+```
+Expires: Thu, 19 Nov 1981 08:52:00 GMT     PHP session cache limiter
+Pragma: no-cache                           PHP session cache limiter
+Cache-Control: private                     SecurityHeadersMiddleware
+```
+
+`Pragma` and a 1981 `Expires` say *never store this*. `private` says *a browser may*.
+Which wins depends on how old the intermediary is, which is not a policy.
+
+**The earlier fix here caused it.** `session.cache_limiter` defaults to `nocache`, so
+`session_start()` had already sent `no-store, no-cache, must-revalidate` — correct for
+a nonce-bearing page. That goes out through `header()` and is invisible to a PSR-7
+response, so `!hasHeader('Cache-Control')` was true on **every** page rather than only
+the session-less one it was written for. Slim's emitter replaced the strong policy with
+the weaker `private` and orphaned the two HTTP/1.0 relics.
+
+PHP now emits none of it and the policy is set once: `private, no-cache,
+must-revalidate`. `no-store` was considered and rejected — it adds nothing `private`
+does not already forbid against a shared cache, and it **disables the back/forward
+cache**, turning an instant back-navigation into a full round trip, which is the
+expensive part on a slow mobile connection.
+
+**`.htaccess` and the middleware were independent copies** of the same four headers
+with nothing checking they agreed — and Apache's `Header always set` *replaces*, so
+where both apply the middleware's value never reaches a visitor and the code stops
+describing the deployment. Both are still needed: Apache serves every real file under
+`public/` without touching PHP, so only `.htaccess` covers a stylesheet or an upload,
+and `.htaccess` is not read at all on nginx. Declared once as
+`SecurityHeadersMiddleware::SHARED` and asserted against the parsed `.htaccess`.
+
+Also in that set: **`interest-cohort=()` removed** (FLoC was withdrawn in 2022, so it
+denied nothing while the features worth denying went unlisted — seventeen are now
+named); `X-Permitted-Cross-Domain-Policies: none`; and
+`Cross-Origin-Opener-Policy: same-origin-allow-popups` — plain `same-origin` works
+today because the gateways redirect in the same tab, and would break the moment a popup
+checkout is added, which gets diagnosed as a gateway fault rather than as a header.
+
+**What this does not solve.** Every HTML page carries a per-request nonce, so no HTML
+page can be cached at a CDN edge. At continental traffic that is the largest single
+performance lever still unpulled, and it is a genuine trade-off rather than an
+oversight: edge-cacheable HTML requires nonce-free pages — moving the remaining inline
+scripts into files and switching `style-src-elem` to hashes.
+
+### 20.4 A live activity search
+
+`/activity` — one searchable timeline across seven sources: nominees entered, results
+published, cycle phase changes, stories, events, discussions, profiles joined.
+"Has voting opened for the music award?" and "was the person I nominated approved?" are
+the two questions people actually ask, and neither had an answer short of visiting
+several pages and comparing dates. Phase changes in particular lived **only** in a
+ledger table read by the scheduler.
+
+**Freshness, precisely.** A *search* is never cached — it reads the tables on every
+request, so a nominee approved a second ago is findable a second later. The *unfiltered*
+feed is cached for 15s because it is byte-identical for every visitor, and at
+continental traffic an uncached version is the same seven queries per arrival for the
+same answer. Both facts are reported in the response (`live: true|false`) so the page
+can say which one a visitor is looking at.
+
+**It works with JavaScript disabled.** The search is a real `<form method="get">`
+rendered server-side. Not a courtesy: a large share of this platform's traffic is
+low-end Android on an intermittent connection, where a script that failed to arrive is
+routine rather than exotic, and a search box that is only a script is a search box that
+is sometimes simply absent. Verified in a browser context with
+`javaScriptEnabled: false`.
+
+**The combobox attributes are added by script, deliberately.** Announcing
+`role="combobox"` on an input with no listbox behaviour — because the script never ran —
+tells a screen reader there is a popup to arrow into when there is not. Worse than the
+plain input it replaced. So the markup describes a plain input and the script upgrades
+it.
+
+Verified in Chromium, sixteen behavioural checks (`tools/qa/activity-a11y.js`):
+`role=combobox` / `aria-controls` / `aria-autocomplete` / `role=listbox` applied;
+live search returns options; the status region announces the **count** (not the list,
+which would re-read every item on every keystroke); `aria-expanded` tracks;
+**ArrowDown sets `aria-activedescendant` while focus STAYS in the input**, so the query
+remains editable — the classic way this pattern breaks; exactly one option
+`aria-selected` and visually marked via `[data-active]`, because a keyboard user never
+hovers; first `Escape` closes and only a second clears, since clearing on the first
+press destroys a query someone is still working on; and results render with JS off.
+
+**What is excluded, deliberately.** Individual votes. A public *"someone voted for X at
+14:03"* trail is a de-anonymisation surface — cross-referenced with a share link it
+identifies who voted for whom — and it is exactly the trace the integrity model depends
+on not publishing. Vote activity appears only as an aggregate on the leaderboard.
+Nothing pending, rejected, unpublished or merged away. A test scans the service source
+for `gates_votes`, `email`, `phone`, `author_email_hash` and `REMOTE_ADDR`, because the
+aggregation is what makes an accidental column pull-in easy.
+
+**A driver-parity bug in my own escaping**, found by testing both. `%` and `_` are LIKE
+metacharacters, so an unescaped query of `%` matches every row in seven tables — a
+one-character way past the minimum-length guard. Escaping with a backslash is the
+obvious fix and is half-broken:
+
+```
+query "100%"   MySQL 1 row (correct)   SQLite 0 rows
+query "A_B"    MySQL 1 row (correct)   SQLite 0 rows
+```
+
+MySQL treats `\` as the default escape character; SQLite does not. So on SQLite any name
+containing a percent sign or an underscore became **unsearchable**, and the wildcard was
+neutralised by accident rather than escaped. `LIKE ? ESCAPE '!'` is identical on both,
+and `!` sidesteps the backslash question entirely.
+
+### 20.5 Verified
+
+**938 tests, green on both drivers.** 18 pages swept in Chromium: 0 CSP violations,
+0 JS errors, 0 unreachable. 60 pages crawled for dead internal links: none.

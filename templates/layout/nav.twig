@@ -45,6 +45,7 @@
           <svg class="ag-link__chev" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M13.8 7.2 10 11 6.2 7.2 5 8.3l5 5 5-5z"/></svg></button>
         <div class="ag-mega" data-ag-mega-panel>
           <a href="/pulse" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef7ee;color:#237b22">📅</span><span class="ag-mega__txt"><strong>Pulse</strong><small>Reels, posts and live moments</small></span></a>
+          <a href="/activity" class="ag-mega__item"><span class="ag-mega__ico" style="background:#eef4fb;color:#1c4e80">🔎</span><span class="ag-mega__txt"><strong>Activity</strong><small>Search everything happening, live</small></span></a>
           <a href="/registry" class="ag-mega__item"><span class="ag-mega__ico" style="background:#e9efef;color:#2b373d">👥</span><span class="ag-mega__txt"><strong>Registry</strong><small>Browse verified African profiles</small></span></a>
           <a href="/legacy" class="ag-mega__item"><span class="ag-mega__ico" style="background:#fff8df;color:#7a5600">🏛️</span><span class="ag-mega__txt"><strong>Legacy Vault</strong><small>Every edition, permanently archived</small></span></a>
           <a href="/community" class="ag-mega__item"><span class="ag-mega__ico" style="background:#f0f2f2;color:#5d7374">💬</span><span class="ag-mega__txt"><strong>Community</strong><small>Programme channels, OTP-verified</small></span></a>
@@ -99,6 +100,7 @@
   <div class="ag-menu__body">
     <div class="ag-menu__group">
       <p class="ag-menu__label">Participate</p>
+      <a href="/activity" class="ag-menu__link {% if _p=='activity' %}is-active{% endif %}"{% if _p=='activity' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef4fb;color:#1c4e80">🔎</span><span class="ag-menu__txt"><strong>Activity</strong><small>Search everything happening across the platform, live</small></span></a>
       <a href="/nominate" class="ag-menu__link {% if _p=='nominate' %}is-active{% endif %}"{% if _p=='nominate' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#eef7ee;color:#1a6118">🎓</span><span class="ag-menu__txt"><strong>Nominate</strong><small>Put someone forward for continental recognition</small></span></a>
       <a href="/vote" class="ag-menu__link {% if _p=='vote' %}is-active{% endif %}"{% if _p=='vote' %} aria-current="page"{% endif %}><span class="ag-menu__ico" style="background:#effaf0;color:#237b22">✓</span><span class="ag-menu__txt"><strong>Vote</strong><small>One verified voter, one vote per category</small></span></a>
       <a href="/account/register" class="ag-menu__link"><span class="ag-menu__ico" style="background:#fff8df;color:#7a5600">✦</span><span class="ag-menu__txt"><strong>Create an account</strong><small>Free — earn voting points and redeem them for votes</small></span></a>
