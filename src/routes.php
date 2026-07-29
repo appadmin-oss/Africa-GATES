@@ -289,6 +289,9 @@ return function(App $app) {
         // `{id}-{name}` shape the controller casts from.
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/flier',      FlierController::class.':page');
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/flier.svg',  FlierController::class.':svg');
+        // The raster, and the og:image target — a crawler cannot run JavaScript and no
+        // major chat app renders SVG in a link preview.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/flier.png',  FlierController::class.':png');
         $g->get('/vote/{program}/{slug}', VoteController::class.':nominee');
         $g->get('/partner',       PartnerController::class.':form');
         $g->post('/partner',      PartnerController::class.':submit');

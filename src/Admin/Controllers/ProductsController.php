@@ -118,7 +118,9 @@ class ProductsController
     /** Slugify + guarantee uniqueness (excluding the row being edited). */
     private function uniqueSlug(string $base, int $excludeId): string
     {
-        $base = trim((string)preg_replace('/[^a-z0-9]+/', '-', strtolower($base)), '-') ?: 'product';
+        // Slug::make, which FOLDS accents rather than deleting them. A product called
+        // "Àdìrẹ Tote" slugged to "d-r-tote" here, same defect as the nominee URLs.
+        $base = \AfricaGates\Support\Slug::make($base) ?: 'product';
         $slug = $base; $i = 1;
         while (DB::table('gates_products')->where('slug', $slug)->where('id', '!=', $excludeId)->exists()) {
             $slug = $base . '-' . $i++;

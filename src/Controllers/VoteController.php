@@ -123,8 +123,13 @@ class VoteController {
 
     /** Canonical nominee URL: /vote/{programme-slug}/{id}-{name}. */
     private function nomineeUrl(int $id, string $name, string $programmeSlug): string {
-        $s = trim(strtolower((string) preg_replace('/[^a-z0-9]+/i', '-', $name)), '-');
-        return '/vote/' . $programmeSlug . '/' . $id . ($s !== '' ? '-' . $s : '');
+        // Slug::idSegment, not a local expression. The five copies of
+        // `preg_replace('/[^a-z0-9]+/i', ...)` in this codebase DELETED accented letters
+        // instead of folding them, so "Ọlásùnkànmí Adébáyọ̀" became "l-s-nk-nm-ad-b-y" —
+        // fourteen of twenty letters gone. It still resolved, because the id leads the
+        // segment, which is exactly why it survived: the failure is a link that looks
+        // like corruption everywhere a nominee shares it.
+        return '/vote/' . $programmeSlug . '/' . \AfricaGates\Support\Slug::idSegment($id, $name);
     }
 
     /** Bounce a legacy /vote/{id} link to its canonical nested URL. */
@@ -203,6 +208,13 @@ class VoteController {
         // the standing is the one that is defensible if a nominee disputes it.
         $standing = (new \AfricaGates\Services\StandingsService())
             ->forNominee($id, (int) $nom->category_id);
+
+        // Absolute, because an og:image must be — a relative path is silently ignored by
+        // every crawler and the preview falls back to nothing.
+        $flierBase = rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/')
+            ?: 'https://afg.afrovanguard.org.ng';
+        $flierPath = $this->nomineeUrl((int) $nom->id, (string) $nom->name, (string) $nom->programme_slug) . '/flier';
+        $flierPng  = $flierBase . $flierPath . '.png';
         $others = array_values(array_filter($catList, fn($o) => (int) $o['id'] !== $id));
 
         // The one phase view-model for this ballot, from the nominee's own cycle.
@@ -256,8 +268,25 @@ class VoteController {
             'pay_providers'      => (PaidVoteService::enabled() && $this->payments) ? $this->payments->enabledProviders() : [],
         ] + array_filter([
             // Social card: the nominee's own photo when they have one.
-            'og_image'     => \AfricaGates\Support\Assets::absoluteOg($nom->photo_path ?? null),
-            'og_image_alt' => 'Vote for ' . $nom->name . ' — Africa GATES',
+            /**
+             * THE FLIER IS THE LINK PREVIEW.
+             *
+             * This was the nominee's photo, which previews as a portrait with no context:
+             * no name, no category, no standing, no reason to tap. A nominee sharing their
+             * ballot to a WhatsApp group is the single highest-intent share on the
+             * platform, and the preview was doing none of the persuading.
+             *
+             * It has to be a RASTER at a URL — WhatsApp, Facebook and X do not render SVG
+             * in a preview and a crawler cannot run JavaScript — which is why
+             * FlierService renders PNG server-side.
+             */
+            'og_image'      => $flierPng,
+            'og_image_w'    => \AfricaGates\Services\FlierService::W,
+            'og_image_h'    => \AfricaGates\Services\FlierService::H,
+            'og_image_type' => 'image/png',
+            'og_image_alt'  => 'Vote for ' . $nom->name . ' in ' . $nom->category
+                . ' — ' . \AfricaGates\Services\StandingsService::headline($standing),
+
         ], fn($v) => $v !== null));
     }
 }

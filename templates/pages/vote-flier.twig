@@ -12,7 +12,7 @@
    FlierService for the full reasoning; the short version is that GD on a shared
    host frequently has no TrueType font at all, so a server-rendered PNG would
    silently degrade to a bitmap face on exactly the deployment nobody can
-   inspect. The browser has something the server does not: Montserrat and
+   inspect. The browser has something the server does not: DM Sans and
    Playfair Display, already loaded and ready. `document.fonts.ready` makes that
    deterministic.
 
@@ -39,7 +39,9 @@
       <figure class="fl__preview">
         {# Width and height are declared so the space is reserved before the image
            arrives — no layout shift on a slow connection, which is most of them. #}
-        <img class="fl__img" src="{{ svg_url }}" width="{{ 1080 }}" height="{{ 1350 }}"
+        {# The PNG, not the SVG — so the preview is byte-identical to the file that gets
+           shared and to the link preview, rather than a second rendering of it. #}
+        <img class="fl__img" src="{{ png_url }}" width="{{ 1080 }}" height="{{ 1350 }}"
              alt="Flier for {{ f.name }} in {{ f.category }}. {{ f.headline }}. {{ f.rally }} Vote at {{ f.short_url }}.">
         <figcaption class="fl__cap">1080 × 1350 — the largest crop Instagram and WhatsApp both keep.</figcaption>
       </figure>
@@ -69,8 +71,11 @@
 
         {# Real links first. Both work with no JavaScript. #}
         <div class="fl__acts">
-          <a class="fl__btn fl__btn--primary" href="{{ svg_url }}" download>Download the flier (SVG)</a>
-          <button class="fl__btn" type="button" id="flPng" hidden>Download as image (PNG)</button>
+          {# PNG first: it is what WhatsApp, Instagram and Facebook accept, and what the
+             link preview uses. The SVG is the vector/print option. Both are plain links
+             that work with JavaScript off. #}
+          <a class="fl__btn fl__btn--primary" href="{{ png_url }}" download>Download image (PNG)</a>
+          <a class="fl__btn" href="{{ svg_url }}" download>Vector / print (SVG)</a>
           <button class="fl__btn" type="button" id="flShare" hidden>Share…</button>
           <a class="fl__btn fl__btn--ghost" href="{{ f.url }}">Back to the ballot</a>
         </div>
@@ -133,225 +138,50 @@
 </style>
 
 <script nonce="{{ csp_nonce }}">
-/* PNG rendering, drawn from the data with the page's own fonts.
-   Everything here is additive — the SVG download above is a plain link. */
+/* Native share, and nothing else.
+   The PNG used to be drawn here on a canvas, to avoid GD needing a font file. That
+   stopped being defensible when the flier had to be an og:image — a crawler cannot run
+   JavaScript — so it is rendered by PHP now and both downloads above are plain links
+   that work with JavaScript off. Deleting the canvas removed ~150 lines and, with it, a
+   whole class of bug: two renderers of one design, where a monogram rule fixed on the
+   server kept rendering the old way in the browser.
+   What is left is the one thing only the browser can do: hand a real file to the OS
+   share sheet, which on WhatsApp is the difference between attaching the image and
+   pasting a URL. */
 (function () {
-  var pngBtn   = document.getElementById('flPng');
-  var shareBtn = document.getElementById('flShare');
-  var status   = document.getElementById('flStatus');
-  if (!pngBtn || !status) return;
+  var btn    = document.getElementById('flShare');
+  var status = document.getElementById('flStatus');
+  if (!btn || !status) return;
 
-  var W = 1080, H = 1350;
-  var F = {{ {
-    name: f.name, category: f.category, programme: f.programme, country: f.country,
-    photo: f.photo, rally: f.rally, headline: f.headline, url: f.url, short_url: f.short_url,
-    rank: f.standing.rank, field: f.standing.field, pct: f.standing.progress_pct,
-    momentum: (f.standing.momentum_available and f.standing.momentum_24h > 0) ? f.standing.momentum_24h : 0,
-    filename: 'vote-' ~ f.name|lower|replace({' ': '-'})|slice(0, 48)
-  }|json_encode(JSON_SAFE)|raw }};
+  /* Both checks are needed. iOS Safari has navigator.share without canShare, and
+     Android Chrome has canShare but refuses some types. A button that fails is worse
+     than one never offered — the downloads above always work. */
+  if (!(navigator.share && navigator.canShare && window.File)) return;
+  btn.hidden = false;
 
-  /* Canvas has no text wrapping, same as SVG. Measured wrapping, not character
-     counting, because Playfair at 96px is nothing like Montserrat at 30px. */
-  function wrap(ctx, text, maxW, maxLines) {
-    var words = String(text || '').split(/\s+/), lines = [], cur = '';
-    for (var i = 0; i < words.length; i++) {
-      var t = cur ? cur + ' ' + words[i] : words[i];
-      if (ctx.measureText(t).width <= maxW || !cur) { cur = t; continue; }
-      if (lines.length + 1 >= maxLines) {
-        while (cur && ctx.measureText(cur + '…').width > maxW) cur = cur.slice(0, -1);
-        cur += '…'; break;
-      }
-      lines.push(cur); cur = words[i];
-    }
-    if (cur) lines.push(cur);
-    return lines;
-  }
+  var PNG  = {{ png_url|json_encode(JSON_SAFE)|raw }};
+  var NAME = {{ f.name|json_encode(JSON_SAFE)|raw }};
+  var TEXT = {{ (f.rally ~ ' ' ~ f.url)|json_encode(JSON_SAFE)|raw }};
+  var FILE = {{ file_name|json_encode(JSON_SAFE)|raw }};
 
-  function rounded(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y,     x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x,     y + h, r);
-    ctx.arcTo(x,     y + h, x,     y,     r);
-    ctx.arcTo(x,     y,     x + w, y,     r);
-    ctx.closePath(); ctx.fill();
-  }
-
-  function loadPhoto() {
-    return new Promise(function (resolve) {
-      if (!F.photo) return resolve(null);
-      var img = new Image();
-      /* Same-origin uploads, but crossOrigin is set so a CDN-hosted photo with
-         permissive CORS does not TAINT the canvas — a tainted canvas makes
-         toBlob() throw and the whole download fails rather than degrading. */
-      img.crossOrigin = 'anonymous';
-      img.onload  = function () { resolve(img); };
-      img.onerror = function () { resolve(null); };   // fall back to the monogram
-      img.src = F.photo;
-    });
-  }
-
-  function draw(ctx, photo) {
-    var PH = 820;
-
-    var g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, '#123b2f'); g.addColorStop(0.55, '#0d2a24'); g.addColorStop(1, '#08201c');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-
-    if (photo) {
-      /* Cover, not stretch. A squashed face is the single most obvious tell that a
-         graphic was generated. */
-      var s = Math.max(W / photo.width, PH / photo.height);
-      var dw = photo.width * s, dh = photo.height * s;
-      ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, PH); ctx.clip();
-      ctx.drawImage(photo, (W - dw) / 2, (PH - dh) / 2, dw, dh);
-      ctx.restore();
-    } else {
-      ctx.fillStyle = '#0f3329'; ctx.fillRect(0, 0, W, PH);
-      /* LETTERS only, and matched to FlierService::initials() — the SVG and the PNG
-         are two renderings of one design, so a rule fixed in one and not the other
-         means the graphic a nominee downloads differs from the one they previewed.
-         "Nominee 48 Surname" produced "N4" here after the SVG side was corrected. */
-      var ini = String(F.name || '').trim().split(/\s+/)
-        .map(function (w) { return w.charAt(0); })
-        .filter(function (c) { return /\p{L}/u.test(c); })
-        .join('').slice(0, 2).toUpperCase() || '?';
-      ctx.font = '700 260px "Playfair Display", Georgia, serif';
-      ctx.fillStyle = 'rgba(127,200,124,0.28)'; ctx.textAlign = 'center';
-      ctx.fillText(ini, W / 2, 500); ctx.textAlign = 'left';
-    }
-
-    var scrim = ctx.createLinearGradient(0, 0, 0, PH);
-    scrim.addColorStop(0, 'rgba(8,32,28,0)');
-    scrim.addColorStop(0.62, 'rgba(8,32,28,0.55)');
-    scrim.addColorStop(1, 'rgba(8,32,28,0.97)');
-    ctx.fillStyle = scrim; ctx.fillRect(0, 0, W, PH);
-
-    ctx.fillStyle = '#c9a227'; ctx.fillRect(64, 64, 6, 52);
-    ctx.font = '700 26px Montserrat, system-ui, sans-serif'; ctx.fillStyle = '#f3f7f4';
-    ctx.fillText('VOTE NOW', 88, 92);
-    ctx.font = '22px Montserrat, system-ui, sans-serif'; ctx.fillStyle = '#a9c7bd';
-    ctx.fillText(F.programme, 88, 126);
-
-    if (F.field >= 2) {
-      var chip = '#' + F.rank + ' of ' + F.field;
-      ctx.font = '700 28px Montserrat, system-ui, sans-serif';
-      var cw = ctx.measureText(chip).width + 44;
-      ctx.fillStyle = '#c9a227'; rounded(ctx, W - 64 - cw, 62, cw, 58, 29);
-      ctx.fillStyle = '#1a1204'; ctx.textAlign = 'center';
-      ctx.fillText(chip, W - 64 - cw / 2, 100); ctx.textAlign = 'left';
-    }
-
-    var len = String(F.name).length;
-    var size = len <= 14 ? 96 : (len <= 22 ? 78 : (len <= 32 ? 62 : 50));
-    ctx.font = '700 ' + size + 'px "Playfair Display", Georgia, serif';
-    var nameLines = wrap(ctx, F.name, W - 128, 2);
-    var y = 700 - (nameLines.length - 1) * (size + 8);
-    ctx.fillStyle = '#ffffff';
-    nameLines.forEach(function (l) { ctx.fillText(l, 64, y); y += size + 8; });
-
-    ctx.font = '30px Montserrat, system-ui, sans-serif'; ctx.fillStyle = '#7fc87c';
-    ctx.fillText(F.category + (F.country ? '  ·  ' + F.country : ''), 64, y + 14);
-
-    var py = 880;
-    if (F.field >= 2) {
-      ctx.font = '600 30px Montserrat, system-ui, sans-serif'; ctx.fillStyle = '#e8f2ec';
-      ctx.fillText(F.headline, 64, py);
-      ctx.fillStyle = 'rgba(255,255,255,0.14)'; rounded(ctx, 64, py + 24, W - 128, 14, 7);
-      ctx.fillStyle = '#7fc87c'; rounded(ctx, 64, py + 24, Math.max(14, (W - 128) * F.pct / 100), 14, 7);
-      py += 74;
-    }
-    if (F.momentum > 0) {
-      ctx.font = '26px Montserrat, system-ui, sans-serif'; ctx.fillStyle = '#c9a227';
-      ctx.fillText(F.momentum + ' vote' + (F.momentum === 1 ? '' : 's') + ' in the last 24 hours', 64, py);
-      py += 48;
-    }
-
-    py = Math.max(py, 1010);
-    ctx.font = '34px Montserrat, system-ui, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.94)';
-    wrap(ctx, F.rally, W - 128, 3).forEach(function (l) { ctx.fillText(l, 64, py); py += 46; });
-
-    ctx.fillStyle = '#ffffff'; rounded(ctx, 64, H - 150, W - 128, 86, 43);
-    ctx.font = '700 30px Montserrat, system-ui, sans-serif'; ctx.fillStyle = '#0d2a24';
-    ctx.textAlign = 'center'; ctx.fillText(F.short_url, W / 2, H - 96);
-
-    ctx.font = '20px Montserrat, system-ui, sans-serif'; ctx.fillStyle = '#7fa295';
-    ctx.fillText('Public votes are one part of the score. An independent jury decides the award.', W / 2, H - 28);
-    ctx.textAlign = 'left';
-  }
-
-  var cached = null;
-  function render() {
-    if (cached) return Promise.resolve(cached);
-    var c = document.createElement('canvas');
-    c.width = W; c.height = H;
-    var ctx = c.getContext('2d');
-    /* Fonts BEFORE drawing. Without this the first render lands in a fallback face
-       on a cold cache — the exact case a nominee hits, since they arrive on this
-       page once. */
-    var ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
-    return ready.then(loadPhoto).then(function (photo) {
-      draw(ctx, photo);
-      return new Promise(function (resolve, reject) {
-        c.toBlob(function (blob) { blob ? resolve(cached = blob) : reject(new Error('no blob')); }, 'image/png');
-      });
-    });
-  }
-
-  /* Only revealed once we know the browser can do it. A button that fails is worse
-     than a button that was never offered — the SVG link above always works. */
-  var canvasOk = (function () {
-    try { var c = document.createElement('canvas'); return !!(c.getContext && c.getContext('2d') && c.toBlob); }
-    catch (e) { return false; }
-  })();
-  if (canvasOk) pngBtn.hidden = false;
-
-  function busy(btn, on, msg) {
-    btn.setAttribute('aria-busy', on ? 'true' : 'false');
-    btn.disabled = !!on;
-    status.textContent = msg || '';
-  }
-
-  pngBtn.addEventListener('click', function () {
-    busy(pngBtn, true, 'Rendering the image…');
-    render().then(function (blob) {
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url; a.download = F.filename + '.png';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-      busy(pngBtn, false, 'Saved. Post it with the link — ' + F.short_url);
-    }).catch(function () {
-      busy(pngBtn, false, 'Could not build the image here. Use “Download the flier (SVG)” — it works everywhere.');
-    });
-  });
-
-  /* Native share, where it exists AND accepts files. Both checks are needed: iOS
-     Safari has navigator.share without canShare, and Android Chrome has canShare
-     but refuses some types. On WhatsApp this is the difference between attaching
-     the image and pasting a URL. */
-  var canShareFiles = !!(navigator.canShare && navigator.share && window.File);
-  if (canShareFiles && shareBtn) {
-    shareBtn.hidden = false;
-    shareBtn.addEventListener('click', function () {
-      busy(shareBtn, true, 'Preparing…');
-      render().then(function (blob) {
-        var file = new File([blob], F.filename + '.png', { type: 'image/png' });
+  btn.addEventListener('click', function () {
+    btn.setAttribute('aria-busy', 'true'); btn.disabled = true;
+    status.textContent = 'Preparing…';
+    fetch(PNG, { credentials: 'same-origin' })
+      .then(function (r) { if (!r.ok) throw new Error('fetch'); return r.blob(); })
+      .then(function (blob) {
+        var file = new File([blob], FILE, { type: 'image/png' });
         if (!navigator.canShare({ files: [file] })) throw new Error('files unsupported');
-        return navigator.share({
-          files: [file],
-          title: 'Vote for ' + F.name,
-          text: F.rally + ' ' + F.url
-        });
-      }).then(function () {
-        busy(shareBtn, false, 'Shared.');
-      }).catch(function (e) {
-        /* A user dismissing the share sheet is an AbortError, not a failure — saying
-           "could not share" when they simply changed their mind is a lie. */
-        busy(shareBtn, false, (e && e.name === 'AbortError') ? '' : 'Sharing is unavailable — download instead.');
-      });
-    });
-  }
+        return navigator.share({ files: [file], title: 'Vote for ' + NAME, text: TEXT });
+      })
+      .then(function () { status.textContent = 'Shared.'; })
+      .catch(function (e) {
+        /* Dismissing the share sheet is an AbortError, not a failure — telling someone
+           it "could not share" when they simply changed their mind is a lie. */
+        status.textContent = (e && e.name === 'AbortError') ? '' : 'Sharing is unavailable — use a download instead.';
+      })
+      .then(function () { btn.setAttribute('aria-busy', 'false'); btn.disabled = false; });
+  });
 })();
 </script>
 {% endblock %}

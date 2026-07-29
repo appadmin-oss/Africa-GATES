@@ -77,7 +77,7 @@ class JudgeService
     /** Canonical judge slug: {id}-{name}. */
     public function judgeSlug(int $id, string $name): string
     {
-        $s = trim(strtolower((string) preg_replace('/[^a-z0-9]+/i', '-', $name)), '-');
+        $s = \AfricaGates\Support\Slug::make($name, 60);
         return $id . ($s !== '' ? '-' . $s : '');
     }
 

@@ -464,6 +464,133 @@ class StandingsAndFlierTest extends TestCase
         $this->assertNotNull($this->flierFor($keep));
     }
 
+    // ── The raster, which is what a link preview needs ───────────────────────
+
+    public function test_the_bundled_fonts_are_present(): void
+    {
+        // GD's imagettftext() needs a TrueType file on disk, and a shared cPanel host
+        // frequently has none — so relying on the system is how the flier silently
+        // becomes DejaVu on the deployment nobody can inspect. If these are lost in a
+        // deploy the PNG route falls back to SVG, which no chat app previews, and every
+        // nominee's link preview breaks with nothing reporting it.
+        $f = FlierService::fontsPresent();
+
+        $this->assertTrue($f['ok'], 'missing: ' . implode(', ', $f['missing']));
+    }
+
+    public function test_the_bundled_fonts_are_the_faces_the_site_actually_loads(): void
+    {
+        // Not the ones the CSS mentions. Montserrat appears in some stylesheets but the
+        // layout never loads it, so it was already rendering as a fallback everywhere —
+        // and the first version of this flier bundled it, which would have made the
+        // graphic use a typeface that appears nowhere else on the site.
+        $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/gates.twig');
+
+        $this->assertStringContainsString('family=DM+Sans', $layout);
+        $this->assertStringContainsString('family=Playfair+Display', $layout);
+        $this->assertFileExists(dirname(__DIR__, 2) . '/resources/fonts/DMSans-Bold.ttf');
+        $this->assertFileExists(dirname(__DIR__, 2) . '/resources/fonts/PlayfairDisplay-Bold.ttf');
+        $this->assertFileDoesNotExist(dirname(__DIR__, 2) . '/resources/fonts/Montserrat-Bold.ttf',
+            'Montserrat is not a face this site loads');
+    }
+
+    public function test_the_fonts_cover_the_orthographies_this_platform_serves(): void
+    {
+        // Subsetting is where a font quietly stops working for a whole language. Every
+        // one of these is a real African Latin orthography, and a missing glyph would
+        // render a nominee's name with a box in it on the graphic they share.
+        $cases = [
+            'Yoruba'  => 'Ọlásùnkànmí Ṣẹ́gun',
+            'Akan'    => 'Ɔdɔ Nyankopɔn Ŋwae',
+            'Hausa'   => 'Ɓalarabe Ɗanjuma Ƙano',
+            'Kikuyu'  => 'Wangarĩ Mũthoni',
+            'French'  => 'Aïssatou Diané Coté',
+            'Marks'   => '· — “x” … ₦ ₵',
+        ];
+        $dir = dirname(__DIR__, 2) . '/resources/fonts/';
+        foreach (['DMSans-Bold.ttf', 'DMSans-Regular.ttf', 'DMSans-SemiBold.ttf', 'PlayfairDisplay-Bold.ttf'] as $face) {
+            foreach ($cases as $label => $text) {
+                foreach (preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $ch) {
+                    if (trim($ch) === '') continue;
+                    $box = imagettfbbox(48, 0, $dir . $face, $ch);
+                    $this->assertNotFalse($box, "{$face} could not measure {$ch}");
+                    $this->assertNotSame(0, $box[2] - $box[0],
+                        "{$face} has no glyph for “{$ch}” ({$label}) — a name in that language would render with a box");
+                }
+            }
+        }
+    }
+
+    public function test_the_png_is_a_real_image_of_the_declared_size(): void
+    {
+        // The og:image contract: WhatsApp, Facebook and X are told 1080x1350 in the meta
+        // tags, and a mismatch means a cropped or letterboxed preview.
+        $id  = $this->nominee('Ngozi Okonjo-Iweala', 42);
+        $png = (new FlierService())->png($this->flierFor($id));
+
+        $this->assertNotNull($png, 'GD and the fonts are present, so a PNG must be produced');
+        $this->assertSame("\x89PNG\r\n\x1a\n", substr($png, 0, 8), 'PNG magic');
+
+        $info = getimagesizefromstring($png);
+        $this->assertNotFalse($info);
+        $this->assertSame(FlierService::W, $info[0]);
+        $this->assertSame(FlierService::H, $info[1]);
+        $this->assertSame('image/png', $info['mime']);
+    }
+
+    public function test_the_png_has_no_seam_where_the_scrim_meets_the_background(): void
+    {
+        // A one-pixel bright line at y=820 across the whole card, because
+        // imagefilledrectangle() is INCLUSIVE of both corners while the scrim loop runs
+        // 0..h-1 — so that row was painted with the panel colour and never darkened.
+        // Measured rgb(15,51,41) between two rows of rgb(12,43,35). It reads as a
+        // rendering fault, which on a graphic a nominee posts is the whole impression.
+        $id  = $this->nominee('Seam Check', 12);
+        $png = (new FlierService())->png($this->flierFor($id));
+        $im  = imagecreatefromstring((string) $png);
+        $this->assertNotFalse($im);
+
+        $worst = 0; $at = 0;
+        $prev = null;
+        // x=1000 is clear of every text block, so any step is the background itself.
+        for ($y = 780; $y <= 870; $y++) {
+            $c = imagecolorat($im, 1000, $y);
+            $rgb = [($c >> 16) & 255, ($c >> 8) & 255, $c & 255];
+            if ($prev !== null) {
+                $d = abs($rgb[0] - $prev[0]) + abs($rgb[1] - $prev[1]) + abs($rgb[2] - $prev[2]);
+                if ($d > $worst) { $worst = $d; $at = $y; }
+            }
+            $prev = $rgb;
+        }
+        imagedestroy($im);
+
+        $this->assertLessThanOrEqual(3, $worst,
+            "a visible tonal step of {$worst} at y={$at} — the scrim and the background must meet seamlessly");
+    }
+
+    public function test_the_png_and_the_svg_render_the_same_design(): void
+    {
+        // Two encodings of one design. A full pixel comparison is not what this can
+        // assert; what it can is that both carry the same content and the same
+        // suppression rules, which is where they drifted before.
+        $this->nominee('Leader', 900);
+        $id = $this->nominee('Chidinma Eze', 42);
+        $f  = $this->flierFor($id);
+        $svc = new FlierService();
+
+        $svg = $svc->svg($f);
+        $png = $svc->png($f);
+        $this->assertNotNull($png);
+
+        // The SVG's text is inspectable; the PNG's is not, so the shared source is $f.
+        foreach ([$f['name'], $f['category'], $f['headline'], $f['short_url']] as $needed) {
+            $this->assertStringContainsString(htmlspecialchars($needed, ENT_QUOTES | ENT_XML1), $svg);
+        }
+        // Both name the same font families / files.
+        $this->assertStringContainsString('DM Sans', $svg);
+        $this->assertStringContainsString('Playfair Display', $svg);
+    }
+
     public function test_the_svg_and_the_canvas_do_not_drift_apart(): void
     {
         // The SVG and the PNG are two renderings of ONE design — server-side XML and
@@ -475,29 +602,28 @@ class StandingsAndFlierTest extends TestCase
         // A full pixel comparison is not what this can assert. What it can is that both
         // sides carry the same GEOMETRY constants and the same guarded rules, so a change
         // to one without the other is visible here.
+        // THE CANVAS IS GONE, and its removal is the point. The PNG was drawn in the
+        // browser to avoid GD needing a font file — defensible while it was only a
+        // download, indefensible once the graphic had to be an og:image, because a
+        // crawler cannot run JavaScript. It also produced a real bug: a monogram rule
+        // fixed in the SVG kept rendering the old way on the canvas.
+        //
+        // So the drift risk is now between two methods in ONE class, and this asserts
+        // the template no longer contains a second renderer at all.
         $twig = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/vote-flier.twig');
 
-        // Canvas dimensions must match the SVG's.
-        $this->assertMatchesRegularExpression(
-            '~var W = ' . FlierService::W . ', H = ' . FlierService::H . ';~',
-            $twig,
-            'the canvas must be the same size as the SVG'
-        );
+        $this->assertStringNotContainsString('getContext(\'2d\')', $twig,
+            'the flier must have exactly one renderer, and it is server-side');
+        $this->assertStringNotContainsString('toBlob', $twig);
+        // Both downloads are plain links, so they work with JavaScript off.
+        $this->assertMatchesRegularExpression('~href="\{\{ png_url \}\}"[^>]*download~', $twig);
+        $this->assertMatchesRegularExpression('~href="\{\{ svg_url \}\}"[^>]*download~', $twig);
 
-        // Every layout constant the two share, so a nudge in one is caught.
-        foreach (['820', '700', '880', '1010', '260'] as $y) {
-            $this->assertStringContainsString($y, $twig, "shared layout constant {$y} missing from the canvas");
-        }
-
-        // The letters-only monogram rule, present on both sides. Asserted as a plain
-        // substring: `\p{L}` is itself regex syntax, so matching it AS a pattern needs
-        // escaping that is easier to get wrong than the thing being checked.
-        $this->assertStringContainsString('\p{L}', $twig,
-            'the canvas must filter the monogram to letters, as FlierService::initials() does');
-
-        // And the jury footnote, which is the one line that must never be dropped from
-        // either renderer.
-        $this->assertStringContainsString('An independent jury decides the award', $twig);
+        // And the jury footnote, which must never be dropped from either encoding.
+        $svg = (new FlierService())->svg($this->flierFor($this->nominee('Footnote Check', 3)));
+        $this->assertStringContainsString('An independent jury decides the award', $svg);
+        $this->assertStringContainsString('An independent jury decides the award',
+            (string) file_get_contents(dirname(__DIR__, 2) . '/src/Services/FlierService.php'));
     }
 
     public function test_the_flier_carries_no_contact_detail(): void

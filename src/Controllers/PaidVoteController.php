@@ -227,7 +227,7 @@ final class PaidVoteController
                 ->where('cat.id', (int)$nominee->category_id)
                 ->value('p.slug');
             if ($slug) {
-                $nameSlug = strtolower(trim((string)preg_replace('/[^a-z0-9]+/i', '-', (string)$nominee->name), '-'));
+                $nameSlug = \AfricaGates\Support\Slug::make((string) $nominee->name, 60);
                 return $this->base() . '/vote/' . $slug . '/' . (int)$nominee->id . '-' . $nameSlug;
             }
         } catch (\Throwable) {}

@@ -21,13 +21,19 @@ final class AiHelper
      */
     public static function slugify(string $s): string
     {
-        $s = trim($s);
-        if ($s !== '' && function_exists('iconv')) {
-            $t = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s);
-            if (is_string($t) && $t !== '') $s = $t;
-        }
-        $s = (string) preg_replace('/[^a-zA-Z0-9]+/', '-', $s);
-        return trim(strtolower($s), '-');
+        // Delegates to Support\Slug, which is the one folder now. This used
+        // `iconv('ASCII//TRANSLIT')`, which DOES transliterate — unlike the five copies
+        // that simply deleted accented letters — but is locale-dependent and relies on
+        // the C library's table. Measured against it:
+        //
+        //   Ọlásùnkànmí Adébáyọ̀   iconv: olasunkanmi-adebayo   Slug: olasunkanmi-adebayo
+        //   Ɓalarabe Ƙano          iconv: balarabe-kano         Slug: balarabe-kano
+        //   Ɔdɔ Nyankopɔn          iconv: d-nyankop-n           Slug: odo-nyankopon
+        //
+        // glibc knows the Hausa hooked letters and not the Akan/Ewe open vowels, so
+        // whether an Akan name survives depended on the host's locale data. Slug's
+        // explicit map is deterministic everywhere.
+        return \AfricaGates\Support\Slug::make($s, 0);
     }
 
     /**

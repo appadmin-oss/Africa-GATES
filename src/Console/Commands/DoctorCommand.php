@@ -151,7 +151,20 @@ final class DoctorCommand extends Command
             // that is not there cannot be edited into working.
             'Csp_class'        => class_exists(Csp::class) ? 'loaded' : 'MISSING',
             'Env_class'        => class_exists(Env::class) ? 'loaded' : 'MISSING',
+            // The flier's og:image is rendered by GD from bundled TrueType files. Without
+            // them the PNG route redirects to the SVG — which no chat app previews — so
+            // link previews silently stop working and nothing else reports it.
+            'gd'               => function_exists('imagettftext') ? 'with FreeType' : 'MISSING',
+            'flier_fonts'      => $this->flierFonts(),
         ];
+    }
+
+    /** Bundled-font state for the flier renderer. */
+    private function flierFonts(): string
+    {
+        if (!class_exists(\AfricaGates\Services\FlierService::class)) return '(FlierService absent)';
+        $f = \AfricaGates\Services\FlierService::fontsPresent();
+        return $f['ok'] ? 'all present' : 'MISSING: ' . implode(', ', $f['missing']);
     }
 
     /**
@@ -282,6 +295,15 @@ final class DoctorCommand extends Command
             $p[] = 'form-action does not list the payment gateways. Chrome applies form-action to the '
                  . 'redirect a submission lands on, and POST /vote/paid/start 302s to the gateway, so '
                  . 'every paid vote is blocked in the browser after the pending order is written.';
+        }
+        if (str_starts_with((string) ($r['code']['flier_fonts'] ?? ''), 'MISSING')) {
+            $p[] = 'The flier\'s bundled fonts are missing, so the PNG cannot be rendered and the '
+                 . 'route falls back to SVG — which no chat app previews. Every nominee\'s link '
+                 . 'preview is silently broken. Check resources/fonts/ survived the deploy.';
+        }
+        if (($r['code']['gd'] ?? '') === 'MISSING') {
+            $p[] = 'GD with FreeType is unavailable, so no flier PNG can be rendered and link '
+                 . 'previews will show nothing.';
         }
         if (($r['csp']['script_src_has_cdns'] ?? '') === 'NO') {
             $p[] = 'script-src lists no CDN hosts, so every third-party script on the page is refused.';

@@ -1593,3 +1593,133 @@ parse.
 **988 tests, green on both drivers.** 19 pages in Chromium: 0 CSP violations, 0 JS
 errors, 0 unreachable. 60 pages crawled: no dead links. The activity search's 16
 behavioural a11y checks pass, including with JavaScript disabled.
+
+---
+
+## 22. The flier as the link preview, and a slug that deleted African names
+
+### 22.1 An `og:image` forces the raster server-side
+
+The flier was SVG on the server and PNG drawn on a canvas in the browser. That was
+defensible while the PNG was only a download. It stopped being defensible the moment the
+graphic had to be the **link preview**: WhatsApp, Facebook and X do not render SVG in a
+preview, and **no crawler runs JavaScript**. A browser-side canvas can never be an
+`og:image`, however good it looks.
+
+So the PNG is rendered by PHP now, and the canvas is **deleted** — which removed ~150
+lines and, with them, a whole class of bug. The two renderers had already drifted once: a
+letters-only monogram rule was fixed server-side and the canvas kept producing `N4`.
+
+**Why the fonts are committed.** `imagettftext()` needs a TrueType file on disk and a
+shared cPanel host frequently has none, so relying on the system is how the flier
+silently becomes DejaVu on the deployment nobody can inspect. `resources/fonts/` holds
+the site's own two faces, 284 KB, SIL OFL.
+
+**Why static instances.** Google Fonts now ships these only as variable fonts and GD has
+no way to select a weight axis. Measured: FreeType renders a variable font's **lightest**
+instance, so `Montserrat[wght].ttf` came out as **Thin** — a 26px kicker in Thin is close
+to invisible. Produced with `fontTools.varLib.instancer` at `wght` 400/600/700.
+
+**And they are the faces the site actually loads.** The first version bundled Montserrat,
+because the CSS mentions it. The layout never loads Montserrat — it loads **DM Sans** and
+Playfair Display — so Montserrat was already rendering as a fallback everywhere, and
+bundling it would have given the flier a typeface that appears nowhere else on the site.
+
+Subsetting was verified against real orthographies rather than assumed, since that is
+where a font quietly stops working for a whole language: Yoruba `Ọlásùnkànmí Ṣẹ́gun`,
+Akan `Ɔdɔ Nyankopɔn Ŋwae`, Hausa `Ɓalarabe Ɗanjuma Ƙano`, Kikuyu `Wangarĩ Mũthoni`,
+French/Portuguese, and the marks and currency the card uses.
+
+### 22.2 Two rendering defects found by looking at the pixels
+
+**A one-pixel bright line across the whole card at y=820.** `imagefilledrectangle()` is
+**inclusive of both corners** while the scrim loop runs `0..h-1`, so that row was painted
+with the panel colour and never darkened. Measured `rgb(15,51,41)` between two rows of
+`rgb(12,43,35)`. A test now walks the boundary and fails on any step over 3.
+
+**The footnote ran off both edges.** At 20px DM Sans the sentence is wider than the card.
+The SVG "fitted" it because SVG cannot measure — which is exactly why the raster does, and
+both the URL and the footnote now shrink to fit rather than clip. Neither is truncatable:
+a clipped vote URL is worse than a small one.
+
+### 22.3 The preview contract
+
+`og:image` on **both** the nominee ballot and the flier page, absolute, with
+`og:image:width`/`height`/`type` so a crawler can lay out the preview on its first fetch
+rather than after downloading the image. The ballot previously previewed as the nominee's
+bare photo: a portrait with no name, no category, no standing, no reason to tap — on what
+is the highest-intent share the platform has.
+
+**A publicly-cacheable response must not carry a session cookie.** `session_start()` runs
+unconditionally in the bootstrap, before routing, so every response left with
+`Set-Cookie: PHPSESSID` — including the flier PNG, which declares
+`Cache-Control: public, max-age=600` because a crawler re-fetches it for every recipient
+of a shared link. A shared cache holding a `public` response *with* a `Set-Cookie` either
+refuses to cache it, losing the entire point, or **caches the header and hands one
+visitor's session cookie to everyone who fetches the image afterwards**. That is session
+fixation by CDN and it needs no attacker. The cookie is stripped from public responses
+only; every HTML page is `private` and keeps it.
+
+Also fixed: a **duplicate `og_image_alt`** array key. The later one silently won, so a
+standings-aware alt was dead on arrival while reading in the diff as applied.
+
+`app:doctor` now reports GD/FreeType and the bundled fonts, because if those are lost in a
+deploy the PNG route falls back to SVG and **every nominee's link preview breaks with
+nothing else reporting it**.
+
+### 22.4 The slug was deleting most African names
+
+Found by reading the URL printed on the flier: `48-l-s-nk-nm-ad-b-y`.
+
+**Seven** places built slugs, five of them with the same expression:
+
+```
+preg_replace('/[^a-z0-9]+/i', '-', $name)
+```
+
+which deletes every accented letter rather than transliterating it.
+
+```
+Ọlásùnkànmí Adébáyọ̀   ->   l-s-nk-nm-ad-b-y      (14 of 20 letters gone)
+```
+
+It never broke loudly, because the numeric id leads the path segment and the routes only
+require that — which is precisely why it survived. The failure is a link that looks like
+corruption in every place a nominee shares it, and on a flier it is the thing people are
+asked to type.
+
+`Support\Slug` folds instead. `Normalizer` handles letters that decompose to base +
+mark — French, Portuguese, Yoruba tone marks and subdots, Kikuyu — and an explicit map
+handles the ones that are their **own base character** and therefore do not decompose:
+Akan/Ewe `ɔ ɛ ŋ ƒ`, Hausa `ɓ ɗ ƙ`.
+
+The consolidation took three passes, each caught by testing rather than reading:
+
+1. Five copies replaced. The scan asserting "one builder left" matched only
+   `[^a-z0-9]+/i`, so it **missed `FlierController`'s `[^A-Za-z0-9]+`** — which was still
+   naming the download `vote-l-s-nk-nm-ad-b-y.png`. Found by watching a real download.
+2. Broadening the scan then flagged `AiHelper::slugify()`, which was **not** the same
+   bug: it transliterates with `iconv('ASCII//TRANSLIT')` first. But measured against it:
+
+   | | iconv | Slug |
+   | --- | --- | --- |
+   | `Ọlásùnkànmí Adébáyọ̀` | `olasunkanmi-adebayo` | `olasunkanmi-adebayo` |
+   | `Ɓalarabe Ƙano` | `balarabe-kano` | `balarabe-kano` |
+   | `Ɔdɔ Nyankopɔn` | **`d-nyankop-n`** | `odo-nyankopon` |
+
+   glibc knows the Hausa hooked letters and not the Akan/Ewe open vowels, so whether an
+   Akan name survived depended on the host's locale data. Delegated to `Slug`.
+3. The Twig template built an **eighth** variant for the share-sheet filename, producing a
+   non-ASCII name that differed from the download's. It now uses the server's.
+
+`Slug` and `MergeSuggestionService` are asserted to keep the **same letters** — but
+deliberately not the same order, since the matcher sorts tokens so a reversed name matches
+(§20.2) and a URL obviously must not be alphabetised. Asserting equality would have been
+asserting that one of the two is wrong.
+
+### 22.5 Verified
+
+**1,012 tests, green on both drivers.** 19 pages in Chromium: 0 CSP violations, 0 JS
+errors. Both downloads exercised as real clicks — `vote-olasunkanmi-adebayo.png` /
+`.svg` — the preview confirmed to be the same 1080×1350 PNG the crawler fetches, and the
+whole page confirmed working with JavaScript disabled.

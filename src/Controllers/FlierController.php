@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Controllers;
 
 use AfricaGates\Services\FlierService;
+use AfricaGates\Support\Env;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -31,6 +32,12 @@ final class FlierController
         $f = $this->flier->forNominee($this->idFrom($args));
         if ($f === null) throw new \Slim\Exception\HttpNotFoundException($req);
 
+        $path = rtrim((string) $req->getUri()->getPath(), '/');
+        // Absolute for og:image — a relative path is silently ignored by every crawler
+        // and the preview falls back to nothing.
+        $abs = (rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/')
+            ?: 'https://afg.afrovanguard.org.ng') . $path;
+
         return $this->view->render($res, 'pages/vote-flier.twig', [
             'page_title'       => 'Share a flier for ' . $f['name'] . ' — Africa GATES',
             'meta_description' => 'Download a ready-to-post flier asking your community to vote for '
@@ -38,7 +45,19 @@ final class FlierController
             'gates_page'       => 'vote',
             'has_hero'         => false,
             'f'                => $f,
-            'svg_url'          => rtrim((string) $req->getUri()->getPath(), '/') . '.svg',
+            'svg_url'          => $path . '.svg',
+            'png_url'          => $path . '.png',
+            // Shared with the download so the file the OS share sheet receives is named
+            // the same as the one the button saves — the template previously built a
+            // THIRD variant in Twig, which produced a non-ASCII filename.
+            'file_name'        => $this->filename($f['name']) . '.png',
+            // The flier IS this page's link preview too, so a nominee sharing the flier
+            // page itself gets the graphic rather than the site's default logo.
+            'og_image'         => $abs . '.png',
+            'og_image_w'       => \AfricaGates\Services\FlierService::W,
+            'og_image_h'       => \AfricaGates\Services\FlierService::H,
+            'og_image_type'    => 'image/png',
+            'og_image_alt'     => 'Vote for ' . $f['name'] . ' in ' . $f['category'] . ' — ' . $f['headline'],
         ]);
     }
 
@@ -71,6 +90,46 @@ final class FlierController
     }
 
     /**
+     * GET /vote/{program}/{slug}/flier.png
+     *
+     * The raster, and the reason it is server-side: this URL is the `og:image`. WhatsApp,
+     * Facebook and X do not render SVG in a link preview, and a crawler cannot run the
+     * browser-side canvas that used to produce the download.
+     */
+    public function png(Request $req, Response $res, array $args): Response
+    {
+        $f = $this->flier->forNominee($this->idFrom($args));
+        if ($f === null) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $png = $this->flier->png($f);
+        if ($png === null) {
+            // GD or a bundled font is unavailable. Redirect to the SVG rather than serve a
+            // broken image: a browser following the link still sees the flier, and the
+            // failure is visible in `app:doctor` instead of as a grey box in a chat.
+            return $res
+                ->withHeader('Location', rtrim($req->getUri()->getPath(), '.png') . '.svg')
+                ->withStatus(302);
+        }
+
+        $res->getBody()->write($png);
+
+        return $res
+            ->withHeader('Content-Type', 'image/png')
+            ->withHeader('Content-Length', (string) strlen($png))
+            // Public and short-lived. A crawler caches whatever it fetches, sometimes for
+            // days, so the window is a compromise: long enough for a shared link to be
+            // previewed cheaply, short enough that the standing printed on it is not
+            // yesterday's. stale-while-revalidate lets an edge serve the old one while
+            // fetching the new, which matters because this render is not free.
+            ->withHeader('Cache-Control', 'public, max-age=600, stale-while-revalidate=1800')
+            ->withHeader('X-Content-Type-Options', 'nosniff')
+            // Named so a downloads folder is usable. `inline` because it is also fetched
+            // as an og:image, and Content-Disposition: attachment confuses some crawlers.
+            ->withHeader('Content-Disposition',
+                'inline; filename="' . $this->filename($f['name']) . '.png"');
+    }
+
+    /**
      * The numeric id from the canonical `{id}-{name}` slug.
      *
      * The route pattern already constrains the leading digits, so this is a cast rather
@@ -82,11 +141,17 @@ final class FlierController
         return (int) (string) ($args['slug'] ?? '0');
     }
 
-    /** ASCII, lowercase, hyphenated. A filename crosses filesystems this app never sees. */
+    /**
+     * ASCII, lowercase, hyphenated. A filename crosses filesystems this app never sees.
+     *
+     * Slug::make, because this was a SIXTH copy of the accent-deleting expression and it
+     * produced `vote-l-s-nk-nm-ad-b-y.png` for Ọlásùnkànmí Adébáyọ̀ — found by watching
+     * the real download rather than by reading the code. It used the `[^A-Za-z0-9]`
+     * spelling rather than `[^a-z0-9]+/i`, which is why the scan that swept the other
+     * five did not see it; that scan now covers both spellings.
+     */
     private function filename(string $name): string
     {
-        $s = strtolower((string) preg_replace('/[^A-Za-z0-9]+/', '-', $name));
-        $s = trim($s, '-');
-        return 'vote-' . (substr($s, 0, 48) ?: 'nominee');
+        return 'vote-' . (\AfricaGates\Support\Slug::make($name, 48) ?: 'nominee');
     }
 }

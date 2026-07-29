@@ -85,6 +85,7 @@ class SecurityHeadersMiddleware {
             $res = $res->withHeader($name, $value);
         }
 
+        $res = $this->stripCookieFromPublicResponse($res);
         $res = $res->withHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
 
         // A route that set its OWN CSP meant it, exactly as with Cache-Control above.
@@ -102,6 +103,39 @@ class SecurityHeadersMiddleware {
         }
 
         return $res->withHeader('Content-Security-Policy', \AfricaGates\Support\Csp::policy());
+    }
+
+    /**
+     * A publicly-cacheable response must not carry a session cookie.
+     *
+     * `session_start()` runs unconditionally in the bootstrap, before routing, so every
+     * response leaves with a `Set-Cookie: PHPSESSID=…` — including the flier's PNG, which
+     * declares `Cache-Control: public, max-age=600` because it is fetched by WhatsApp,
+     * Facebook and X as an `og:image` and re-fetched by every recipient.
+     *
+     * That combination is the bug. A shared cache holding a `public` response WITH a
+     * `Set-Cookie` either refuses to cache it — losing the whole point of making an OG
+     * image cacheable — or caches the header and hands ONE visitor's session cookie to
+     * everyone who fetches the image afterwards. The second is session fixation by CDN,
+     * and it needs no attacker.
+     *
+     * The cookie is simply not needed: these routes read no session. It is removed from
+     * both places it can live — the PSR-7 response, and PHP's own header list, where
+     * `session_start()` queued it. `header_remove()` is safe here because Slim has not
+     * emitted anything yet.
+     *
+     * Scoped to `public` responses only. Every HTML page is `private` and keeps its
+     * cookie; nothing about login or CSRF changes.
+     */
+    private function stripCookieFromPublicResponse(Response $res): Response
+    {
+        if (!str_contains(strtolower($res->getHeaderLine('Cache-Control')), 'public')) {
+            return $res;
+        }
+        if (PHP_SAPI !== 'cli' && !headers_sent()) {
+            header_remove('Set-Cookie');
+        }
+        return $res->withoutHeader('Set-Cookie');
     }
 
     /**
