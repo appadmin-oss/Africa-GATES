@@ -1088,3 +1088,116 @@ malformed `.env` must write it).
 Suite after the change: **810 tests, 5177 assertions, green on both drivers** —
 and the MySQL run now takes its credentials from the command line, as §14 always
 claimed it did.
+
+---
+
+## 19. The production CSP incident — the fix was right, the deploy was not
+
+A console report from the live site, on `/vote/aipa/86-uwadibie-florence`: eighteen
+resources refused, plus the paid-vote form submission blocked.
+
+```
+script-src refused:  jquery-3.7.1.slim · gsap@3.12.5 · ScrollTrigger · split-type
+                     @popperjs/core@2 · tippy.js@6 · leaflet@1.9.4 · swiper@8
+                     splide@4.1.4 · plyr.polyfilled · turnstile/v0/api.js
+style-src refused:   swiper-bundle.min.css · splide.min.css · plyr.css · leaflet.css
+form-action refused: POST https://afg.afrovanguard.org.ng/vote/paid/start
+```
+
+### The header that was live
+
+```
+default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval';
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+… connect-src 'self' https://api.cloudinary.com; … form-action 'self'; object-src 'none'
+```
+
+**This policy exists in no commit in this repository.** The oldest version here
+(`1b2b98b`) reads `script-src 'self' 'unsafe-inline' 'unsafe-eval' https:` — the
+blanket `https:` §CSP-addendum was written to remove — and `form-action 'self'`
+*with* the gateway hosts. The live header has neither: no `https:`, no gateways, no
+`media-src`, no `frame-src`. It also carries `permissions-policy: … camera=(self),
+payment=()`, which no version in this tree emits.
+
+So the running code predates this repository's history. The `Csp` rewrite, the nonce,
+the host allowlists — none of it was deployed.
+
+### The proof, and it is not subtle
+
+`Csp::policy()` was edited **on the server** with a deliberate syntax error
+(`return "…"` immediately followed by `$nonce = self::nonce();`). The site continued
+to return **HTTP 200 with the old header**. A syntax error in a file PHP loads is a
+fatal, not a no-op. The file was not being loaded.
+
+### Every refusal in that report is already fixed on this branch
+
+| Refused | Now permitted by |
+| --- | --- |
+| jsdelivr, unpkg, code.jquery.com, cdn.plyr.io, challenges.cloudflare.com | `Csp::SCRIPT_HOSTS` |
+| swiper / splide / plyr / leaflet CSS | `Csp::STYLE_HOSTS`, fed to **both** `style-src-elem` and its `style-src` fallback |
+| the paid-vote form | `form-action 'self' ` + `Csp::PAY_HOSTS` |
+
+The `form-action` one deserves its own note, because the message reads like a browser
+bug. The blocked URL is **same-origin**, which plainly satisfies `'self'`. It was
+refused because Chrome applies `form-action` to the **redirect** a submission lands
+on, and `POST /vote/paid/start` writes a pending order and then 302s to the gateway's
+checkout page. A policy without the gateway hosts therefore blocks **every paid
+vote** — after the money row already exists — and attributes the violation to the
+same-origin URL the user submitted. That is revenue, silently, with nothing in the
+server logs.
+
+`CspHostCoverageTest` keeps all fifteen refused URLs as a verbatim fixture and
+asserts each is permitted by the directive that actually governs it, following CSP's
+`-src-elem` → `-src` fallback chain the report itself quoted ("Note that
+`'style-src-elem'` was not explicitly set"). Two further tests derive the host list
+from the templates and shipped JS, so a new CDN dependency cannot be added without
+either updating the allowlist or failing the suite. Both have negative controls: an
+unlisted host must be refused, and `img-src` must still accept an arbitrary one.
+
+### `app:doctor`
+
+The diagnosis above took several rounds because none of it is visible from a browser.
+So it became a command, run on the server, reading the same runtime that serves
+requests:
+
+```sh
+php bin/console app:doctor          # or --json, exit 1 on any problem
+```
+
+It reports: a **content fingerprint over `src/`** (a hash of the bytes on disk right
+now — if it does not change after a deploy, the deploy did not land); whether
+`Support\Csp` and `Support\Env` are even present; **`opcache.validate_timestamps`**,
+because with it off PHP never re-reads a changed file and an edit — including a
+syntax error — has no observable effect until the pool reloads, which looks identical
+to a failed deploy and is fixed completely differently; **which source** each setting
+came from (`.env file` / `environment` / `NOT SET`), which is §18 made visible at
+runtime; the connected database, its table count, its session timezone against the
+app's; and the **live policy string**, directly comparable with `curl -I` against the
+site. If those two differ, the CLI and the web SAPI are running different code, and
+that is the answer.
+
+No secret value is ever printed — presence and source only — and a test pins that,
+because a diagnostic meant to be pasted into an issue must not leak the Paystack key.
+
+### Also in that report: a broken SVG animation on every page
+
+```
+Error: <animate> attribute keySplines: Invalid value, "0.34 1.1 0.64 1;0.33 0 0.67 1"
+```
+
+`keySplines` control-point Y values must lie in `[0,1]`. `1.1` is CSS `easeOutBack`
+borrowed wholesale, and SVG cannot express it — so the browser rejected the **whole
+attribute**, both segments degraded to linear, and the entrance loader in
+`layout/gates.twig` logged an error on every page load. The overshoot it was reaching
+for is already in `values` (`0 → 794 → 756.2`, past the target and back), so the
+spline only had to be a valid ease-out: `0.33 1 0.68 1`. Verified in Chromium: 0
+SVG/keySplines console errors, where the live site logs one per load.
+
+### Verified
+
+17 pages swept in Chromium against the 20k-nominee dataset: **0 CSP violations, 0 JS
+errors, 0 unreachable**. That last column is new — the sweep previously printed `ok 0
+violations` for pages it had never loaded, since a page that 404s or refuses the
+connection trivially has no CSP violations. A connection-refused run passed the whole
+sweep. It now honours `BASE` as well as `BASE_URL` and counts unreachable pages as
+failures.

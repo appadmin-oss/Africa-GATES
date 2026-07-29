@@ -68,7 +68,15 @@ return [
             'current_section'   => 'projects',
             'has_hero'          => false,
             'announcement_text' => $settings['announce_text'] ?? Env::get('ANNOUNCE_TEXT', 'Nominations open — live in Nigeria, building toward 54'),
-            'announcement_url'  => $settings['announce_url']  ?? '/africa-gates/nominate',
+            // Was `/africa-gates/nominate`, which no route serves. It survives in
+            // production only because public/.htaccess still carries the pre-subdomain
+            // legacy rule `^africa-gates/(.+)$ → /$1`, so Apache 301s it. That makes
+            // the announcement bar — above the nav on every page, and this default
+            // applies until an admin sets announce_url — depend on a redirect kept for
+            // old bookmarks: a wasted round trip on every click today, and a hard 404
+            // the day that rule is retired or the app is served by anything but that
+            // Apache config. Point it at the route directly. Found by tools/qa/links.js.
+            'announcement_url'  => $settings['announce_url']  ?? '/nominate',
             'announcement_cta'  => $settings['announce_cta']  ?? 'Nominate now →',
             // Real, admin-configurable bonus-vote ratio (so methodology copy never hardcodes it).
             'donation_votes_per_1000' => (int)($settings['donation_votes_per_1000'] ?? 5),

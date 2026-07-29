@@ -217,10 +217,21 @@ class EnvTest extends TestCase
         foreach ($files as $file) {
             $rel = str_replace($root . '/', '', $file);
 
-            // Env itself is the one place that may read the superglobals, and
-            // index.php's manual .env parser WRITES to $_ENV as phpdotenv's
-            // fallback — a write is not a read.
-            if ($rel === 'src/Support/Env.php') {
+            // Two exemptions, both for reading the superglobals ON PURPOSE:
+            //
+            //  • Env itself — it is the abstraction.
+            //  • DoctorCommand — it reports WHICH SOURCE each setting was found in
+            //    ('.env file' / 'environment' / 'NOT SET'). Answering that question
+            //    requires distinguishing $_ENV from $_SERVER from getenv(), which is
+            //    exactly what Env::get() exists to hide. Routing it through Env would
+            //    collapse the three answers into one and destroy the diagnostic —
+            //    "I set DB_PASS and it was ignored" is only visible if the sources
+            //    stay distinguishable.
+            //
+            // index.php's fallback parser for a malformed .env also touches $_ENV, but
+            // it WRITES, and the assignment strip below handles that.
+            if ($rel === 'src/Support/Env.php'
+                || $rel === 'src/Console/Commands/DoctorCommand.php') {
                 continue;
             }
 

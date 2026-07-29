@@ -18,3 +18,10 @@ composer.phar
 
 # PHPUnit cache
 .phpunit.cache/
+
+# Node modules — only the browser QA tools in tools/browser and tools/qa need
+# these, and they are installed on demand (npm i --no-save playwright). Nothing
+# the application serves comes from here, and Chromium already ships with the
+# environment at /opt/pw-browsers.
+/node_modules/
+package-lock.json

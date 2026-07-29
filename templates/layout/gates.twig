@@ -163,7 +163,15 @@
     <defs><clipPath id="agDiscClip"><circle cx="781.1" cy="781.4" r="756.2"/></clipPath></defs>
     {# Disc — SMIL (Safari-safe; animate r to avoid SVG transform-origin issues) #}
     <circle cx="781.1" cy="781.4" r="0" fill="#10292c">
-      <animate attributeName="r" values="0;794;756.2" keyTimes="0;0.72;1" dur="1.0s" begin="0s" fill="freeze" calcMode="spline" keySplines="0.34 1.1 0.64 1;0.33 0 0.67 1"/>
+      {# keySplines control-point Y values must lie in [0,1]. The first segment said
+         `0.34 1.1 0.64 1` — CSS easeOutBack, borrowed wholesale — and 1.1 made the
+         browser reject the WHOLE attribute, so both segments silently degraded to
+         linear and every page load logged
+         `Error: <animate> attribute keySplines: Invalid value`.
+         The overshoot this was reaching for is already expressed in `values`
+         (0 → 794 → 756.2, i.e. past the target and back), so the spline only has to
+         be a valid ease-out: 0.33 1 0.68 1 is easeOutCubic, in range. #}
+      <animate attributeName="r" values="0;794;756.2" keyTimes="0;0.72;1" dur="1.0s" begin="0s" fill="freeze" calcMode="spline" keySplines="0.33 1 0.68 1;0.33 0 0.67 1"/>
       <animate attributeName="r" values="756.2;784;756.2" keyTimes="0;0.45;1" dur="0.8s" begin="2.5s" fill="freeze" calcMode="spline" keySplines="0.4 0 0.2 1;0.4 0 0.2 1"/>
     </circle>
     <g clip-path="url(#agDiscClip)">
