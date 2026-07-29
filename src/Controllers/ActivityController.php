@@ -41,8 +41,12 @@ final class ActivityController
     /** GET /activity — works with no JavaScript at all. */
     public function index(Request $req, Response $res): Response
     {
-        $q      = trim((string) ($req->getQueryParams()['q'] ?? ''));
-        $result = $this->feed->search($q, 40);
+        $q = trim((string) ($req->getQueryParams()['q'] ?? ''));
+        // `?literal=1` opts OUT of interpretation. Offered as a link on the page beside
+        // whatever the model understood, so a wrong reading is one click from a plain
+        // text search rather than something a visitor has to work around.
+        $literal = ($req->getQueryParams()['literal'] ?? '') !== '';
+        $result  = $this->feed->search($q, 40, interpret: !$literal);
 
         return $this->view->render($res, 'pages/activity.twig', [
             'page_title'       => ($q !== '' ? 'Search: ' . $q . ' — ' : '') . 'Activity — Africa GATES',
@@ -55,6 +59,8 @@ final class ActivityController
             'items'            => $result['items'],
             'live'             => $result['live'],
             'sources'          => $result['sources'],
+            'understood'       => $result['understood'],
+            'literal'          => $literal,
             'min_query'        => ActivityFeedService::MIN_QUERY,
         ]);
     }
@@ -84,9 +90,10 @@ final class ActivityController
             // A rate-limiter outage must not take a read-only public search down.
         }
 
-        $q      = trim((string) ($req->getQueryParams()['q'] ?? ''));
-        $limit  = (int) ($req->getQueryParams()['limit'] ?? 20);
-        $result = $this->feed->search($q, $limit);
+        $q       = trim((string) ($req->getQueryParams()['q'] ?? ''));
+        $limit   = (int) ($req->getQueryParams()['limit'] ?? 20);
+        $literal = ($req->getQueryParams()['literal'] ?? '') !== '';
+        $result  = $this->feed->search($q, $limit, interpret: !$literal);
 
         return $json([
             'ok'      => true,
@@ -95,6 +102,10 @@ final class ActivityController
             'count'   => count($result['items']),
             'items'   => $result['items'],
             'sources' => $result['sources'],
+            // What the model understood, so the live layer can show it and offer the
+            // literal search. Null whenever nothing was interpreted, which is also what
+            // a deployment with no AI key gets.
+            'understood' => $result['understood'],
         ]);
     }
 

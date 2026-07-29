@@ -85,9 +85,23 @@ class SecurityHeadersMiddleware {
             $res = $res->withHeader($name, $value);
         }
 
-        return $res
-            ->withHeader('Content-Security-Policy', \AfricaGates\Support\Csp::policy())
-            ->withHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+        $res = $res->withHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+
+        // A route that set its OWN CSP meant it, exactly as with Cache-Control above.
+        // `withHeader` REPLACES, so the unconditional site policy was silently
+        // discarding a deliberately tighter one — found on the flier's SVG endpoint,
+        // which sends `default-src 'none'; … sandbox` because an SVG is a document the
+        // browser executes and its text contains a public-submitted nominee name. The
+        // site policy that replaced it permits `script-src 'self' 'nonce-…'`, so the
+        // hardening was inert while reading as present.
+        //
+        // The site policy is still the default for everything that does not opt out,
+        // and the nonce is only meaningful on HTML, which never sets its own.
+        if ($res->hasHeader('Content-Security-Policy')) {
+            return $res;
+        }
+
+        return $res->withHeader('Content-Security-Policy', \AfricaGates\Support\Csp::policy());
     }
 
     /**

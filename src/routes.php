@@ -3,7 +3,7 @@ declare(strict_types=1);
 use AfricaGates\Support\Env;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController};
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
     BallotController as JudgeBallotController
@@ -281,6 +281,14 @@ return function(App $app) {
         $g->get('/vote/paid/success',  PaidVoteController::class.':success');
         $g->get('/vote',                  VoteController::class.':index');
         $g->get('/vote/{program}',        VoteController::class.':program');
+        // The flier routes go BEFORE /vote/{program}/{slug}: FastRoute matches in
+        // declaration order for same-length paths, and `{slug}` would otherwise
+        // swallow nothing here — but `{slug}/flier` is longer, so order is not
+        // strictly required. Declared first anyway, so a future change to the slug
+        // pattern cannot silently capture them. `[0-9]+[^/]*` pins the canonical
+        // `{id}-{name}` shape the controller casts from.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/flier',      FlierController::class.':page');
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/flier.svg',  FlierController::class.':svg');
         $g->get('/vote/{program}/{slug}', VoteController::class.':nominee');
         $g->get('/partner',       PartnerController::class.':form');
         $g->post('/partner',      PartnerController::class.':submit');

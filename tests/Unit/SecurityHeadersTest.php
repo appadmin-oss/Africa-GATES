@@ -122,6 +122,46 @@ class SecurityHeadersTest extends TestCase
             $this->respond('image/webp', 'public, max-age=31536000, immutable')->getHeaderLine('Cache-Control'));
     }
 
+    public function test_a_route_that_sets_its_own_csp_is_not_overridden(): void
+    {
+        // `withHeader` REPLACES, so the unconditional site policy was discarding a
+        // deliberately tighter one. Found on the flier's SVG endpoint, which sends
+        // `default-src 'none'; … sandbox` because an SVG is a document the browser
+        // EXECUTES and its text contains a public-submitted nominee name. The site
+        // policy that replaced it permits `script-src 'self' 'nonce-…'`, so the
+        // hardening was inert while reading in the code as present.
+        $own = "default-src 'none'; img-src 'self'; sandbox";
+        $handler = new class ($own) implements RequestHandlerInterface {
+            public function __construct(private readonly string $csp) {}
+            public function handle(ServerRequestInterface $r): ResponseInterface
+            {
+                return (new Response())
+                    ->withHeader('Content-Type', 'image/svg+xml')
+                    ->withHeader('Content-Security-Policy', $this->csp);
+            }
+        };
+        $res = (new SecurityHeadersMiddleware())(
+            (new ServerRequestFactory())->createServerRequest('GET', '/x.svg'),
+            $handler
+        );
+
+        $this->assertSame($own, $res->getHeaderLine('Content-Security-Policy'));
+        $this->assertStringNotContainsString('nonce-', $res->getHeaderLine('Content-Security-Policy'));
+        // The rest of the hardening still applies.
+        $this->assertSame('nosniff', $res->getHeaderLine('X-Content-Type-Options'));
+        $this->assertStringContainsString('max-age=', $res->getHeaderLine('Strict-Transport-Security'));
+    }
+
+    public function test_html_still_gets_the_site_policy_with_its_nonce(): void
+    {
+        // The other half: opting out must be opt-IN. A page that sets no CSP of its own
+        // gets the nonce-bearing site policy, and every inline script depends on it.
+        $csp = $this->respond()->getHeaderLine('Content-Security-Policy');
+
+        $this->assertStringContainsString("script-src 'self' 'nonce-", $csp);
+        $this->assertStringContainsString('style-src-elem', $csp);
+    }
+
     public function test_a_non_html_response_gets_no_caching_policy_imposed(): void
     {
         $this->assertFalse($this->respond('application/json')->hasHeader('Cache-Control'));

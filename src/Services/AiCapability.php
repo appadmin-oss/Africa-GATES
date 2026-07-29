@@ -520,6 +520,67 @@ final class AiCapability
                 'data_purpose'    => 'To spot the same person entered twice under different spellings. An '
                     . 'administrator confirms every merge, and merges can be undone.',
             ]),
+            /**
+             * Rally copy for a nominee's shareable flier.
+             *
+             * WRITE tier, and it is the clearest case for that tier existing: the
+             * output is a line a real person posts under their own name to their own
+             * community. A classifier's temperature produces "Vote for X in the
+             * Africa GATES awards" every time, which nobody shares — the failure mode
+             * is not inaccuracy but text that is obviously machine-written, and a
+             * flier nobody posts is a feature that does nothing.
+             *
+             * Degrades silently to a written fallback line. A nominee pressing
+             * "download" must never see an error where a graphic should be.
+             */
+            'nominee.rally_copy' => $c('nominee.rally_copy', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => self::PRIMARY[self::TIER_WRITE],
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 160,
+                'calls_per_day'   => 2000,
+                'tokens_per_day'  => 300_000,
+                'timeout'         => 12,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => "The nominee's name, their award category, and their current "
+                    . 'position in the public standings — all of which are already shown on the '
+                    . 'nominee page. No contact details, and nothing from the nomination text.',
+                'data_purpose'    => 'To draft one line of rally copy for a shareable flier. You see it '
+                    . 'before you share it, and a written fallback is used if no model answers.',
+            ]),
+            /**
+             * Interpreting a plain-English activity search.
+             *
+             * REASON, not WRITE: the output is a set of FILTERS the platform then acts
+             * on, so it is a decision and needs a deterministic temperature. Every
+             * field it returns is validated against a whitelist before use — the model
+             * cannot introduce a filter, a table or a value the code did not already
+             * allow, which is the same discipline admin.filter_parse already applies.
+             */
+            'search.interpret' => $c('search.interpret', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::PRIMARY[self::TIER_REASON],
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 220,
+                'calls_per_day'   => 4000,
+                'tokens_per_day'  => 400_000,
+                // On a live search request, so it must not chain. A plain text search
+                // is always available underneath and is the better answer than a wait.
+                'timeout'         => 5,
+                'max_attempts'    => 1,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'Only the words you typed into the search box, with contact details '
+                    . 'replaced by placeholders. Nothing about you and nothing about anyone else.',
+                'data_purpose'    => 'To work out what you meant — which kind of activity, which country, '
+                    . 'what timeframe — so the search can filter as well as match text. Your words '
+                    . 'are also searched literally either way.',
+            ]),
             'integrity.brief' => $c('integrity.brief', [
                 'purpose'        => 'assist',
                 'tier'           => self::TIER_REASON,

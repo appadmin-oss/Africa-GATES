@@ -72,6 +72,25 @@
       {%- endif -%}
     </p>
 
+    {# What the search understood, when a model read the query. Shown BEFORE the
+       results and with an escape hatch: a wrong reading is one click from a plain text
+       search, rather than something a visitor has to guess their way around. The
+       interpretation only ever ADDS filters — the literal text match runs regardless —
+       so this can never be the reason a search found less than it would have. #}
+    {% if understood %}
+      <p class="act__read">
+        <span class="act__read-tag">Understood as</span>
+        {{ understood.note ?: 'a filtered search' }}
+        {% if understood.kinds %}<span class="act__chip">{{ understood.kinds|join(', ') }}</span>{% endif %}
+        {% if understood.country %}<span class="act__chip">{{ understood.country }}</span>{% endif %}
+        {% if understood.days %}<span class="act__chip">last {{ understood.days }} day{{ understood.days == 1 ? '' : 's' }}</span>{% endif %}
+        <a class="act__literal" href="/activity?q={{ q|url_encode }}&amp;literal=1">Search these words literally instead</a>
+      </p>
+    {% elseif literal and q %}
+      <p class="act__read"><span class="act__read-tag">Literal</span> Matching your words exactly.
+        <a class="act__literal" href="/activity?q={{ q|url_encode }}">Let the search interpret it</a></p>
+    {% endif %}
+
     {% if sources is defined and sources < 7 %}
       {# Honesty about a partial read. "No results" and "four of seven sources are
          unavailable on this install" must not look the same to an operator. #}
@@ -143,6 +162,20 @@
     font-size: .82rem; color: #8a6d00; background: #fff8e1;
     border-left: 3px solid #c9a227; padding: 8px 12px; border-radius: 6px; margin: 0 0 12px;
   }
+
+  .act__read {
+    font-size: .84rem; margin: 0 0 12px; padding: 8px 12px; border-radius: 8px;
+    background: var(--ag-bg-soft, #f2f8f5); border-left: 3px solid var(--ag-accent, #1a6118);
+    display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline;
+  }
+  .act__read-tag { font-size: .7rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--ag-accent, #1a6118); }
+  .act__chip { font-size: .72rem; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    background: #fff; border: 1px solid var(--ag-line, #dfe7e4); }
+  /* The escape hatch is a plain link, always visible — not a hover affordance and not
+     hidden behind an icon. A visitor who thinks the search misread them needs to see
+     the way out without looking for it. */
+  .act__literal { margin-left: auto; font-weight: 600; }
 
   .act__list { list-style: none; margin: 0; padding: 0; }
   .act__item + .act__item { border-top: 1px solid var(--ag-line, #eef2f1); }

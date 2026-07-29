@@ -56,10 +56,17 @@ final class ActivityFeedService
     /** Shortest query worth running seven table scans for. */
     public const MIN_QUERY = 2;
 
+    /** Kinds a caller may filter to. The whitelist the AI's answer is checked against. */
+    public const KINDS = ['nominee', 'result', 'post', 'event', 'thread', 'profile', 'phase'];
+
     /**
-     * @return array{items: list<array{kind:string,label:string,title:string,detail:string,url:string,at:string,at_label:string}>, query:string, live:bool, sources:int}
+     * @param bool $interpret Whether to let a model read the query for intent. Off by
+     *                        default so every existing caller is unchanged and the
+     *                        no-AI behaviour stays the baseline rather than the
+     *                        degraded path.
+     * @return array{items: list<array>, query:string, live:bool, sources:int, understood:?array}
      */
-    public function search(?string $query = null, int $limit = 20): array
+    public function search(?string $query = null, int $limit = 20, bool $interpret = false): array
     {
         $q     = trim((string) $query);
         $limit = max(1, min(self::MAX_LIMIT, $limit));
@@ -67,10 +74,93 @@ final class ActivityFeedService
         // A one-character query matches most of the register, so it is treated as no
         // query at all rather than as a very expensive way to get the latest feed.
         if (mb_strlen($q) < self::MIN_QUERY) {
-            return $this->latest($limit) + ['query' => '', 'live' => false];
+            return $this->latest($limit) + ['query' => '', 'live' => false, 'understood' => null];
         }
 
-        return $this->collect($q, $limit) + ['query' => $q, 'live' => true];
+        // INTENT FIRST, TEXT ALWAYS. The interpretation only ever ADDS filters; the
+        // literal text match runs regardless. So a model that misreads "winners in Ghana"
+        // cannot make the search return less than the plain-text version would have —
+        // the worst case is that a filter is ignored, not that results vanish.
+        $understood = $interpret ? $this->interpret($q) : null;
+
+        $result = $this->collect($understood['terms'] ?? $q, $limit, $understood);
+
+        return $result + ['query' => $q, 'live' => true, 'understood' => $understood];
+    }
+
+    /**
+     * Read a plain-English query for intent: which kinds, which country, how recent.
+     *
+     * WHY THIS IS SAFE TO ADD. Every field the model returns is validated against a
+     * whitelist in this file before it reaches a query — the same discipline
+     * `AiFilterService` already applies to the admin filter parser. `kind` must be one
+     * of {@see KINDS}; `country` must be two letters; `days` is clamped. The model
+     * cannot introduce a table, a column, a value or an operator the code did not
+     * already allow, so the worst a bad answer can do is filter to something the user
+     * did not ask for — visibly, because the page states what it understood and offers
+     * a link to search the literal text instead.
+     *
+     * WHAT IT IS FOR. "winners in Ghana" and "who joined this week" are how people
+     * actually ask, and a LIKE across seven tables answers neither: "winners" is a
+     * status, "this week" is a range, "Ghana" is a column. Without interpretation the
+     * first returns nothing and the second returns every row containing the word "week".
+     *
+     * Returns null when unavailable, out of budget, or unparseable — and the caller
+     * then behaves exactly as it did before this method existed.
+     *
+     * @return array{kinds:list<string>, country:?string, days:?int, terms:string, note:string}|null
+     */
+    private function interpret(string $q): ?array
+    {
+        $r = (new AiGateway())->run('search.interpret', [
+            'system' => 'You turn a search query about an African awards platform into filters. '
+                . 'Reply ONLY with JSON: {"kinds":[...],"country":"XX"|null,"days":<int>|null,"terms":"...","note":"..."}. '
+                . 'kinds may ONLY contain: ' . implode(', ', self::KINDS) . '. '
+                . 'Use "result" for winners or runners-up, "phase" for voting or nominations opening or closing, '
+                . '"profile" for people who joined, "nominee" for people entered into a category. '
+                . 'country is an ISO 3166-1 alpha-2 code or null. days is a lookback window or null. '
+                . 'terms is the remaining words to match literally, and may be an empty string. '
+                . 'note is a short plain-English restatement of what you understood, for the user to read. '
+                . 'Omit any field you are unsure of. Never guess a country from a name.',
+            'trusted' => 'Return filters for the query that follows.',
+            'user'    => $q,
+            'json'    => true,
+            'schema'  => static function (string $raw): ?array {
+                $j = json_decode($raw, true);
+                if (!is_array($j)) return null;
+
+                // Whitelist, not sanitise. An unrecognised kind is DROPPED rather than
+                // mapped to a guess, because a wrong filter silently narrows a search.
+                $kinds = [];
+                foreach ((array) ($j['kinds'] ?? []) as $k) {
+                    $k = strtolower(trim((string) $k));
+                    if (in_array($k, self::KINDS, true)) $kinds[] = $k;
+                }
+                $kinds = array_values(array_unique($kinds));
+
+                $country = null;
+                if (is_string($j['country'] ?? null) && preg_match('/^[A-Za-z]{2}$/', trim($j['country']))) {
+                    $country = strtoupper(trim($j['country']));
+                }
+
+                $days = null;
+                if (isset($j['days']) && is_numeric($j['days'])) {
+                    // Clamped. An unbounded lookback is just "everything" with extra steps.
+                    $days = max(1, min(730, (int) $j['days']));
+                }
+
+                $terms = trim((string) ($j['terms'] ?? ''));
+                $note  = mb_substr(trim(strip_tags((string) ($j['note'] ?? ''))), 0, 160);
+
+                // Nothing usable understood is not a schema failure — it is a plain-text
+                // search, which is the correct answer for a plain-text query.
+                if ($kinds === [] && $country === null && $days === null) return null;
+
+                return ['kinds' => $kinds, 'country' => $country, 'days' => $days, 'terms' => $terms, 'note' => $note];
+            },
+        ]);
+
+        return ($r->ok && is_array($r->value)) ? $r->value : null;
     }
 
     /** The unfiltered feed. Identical for everyone, so briefly cached. */
@@ -99,17 +189,28 @@ final class ActivityFeedService
      * answered, so "no activity" and "six of seven sources are unavailable" are
      * distinguishable.
      */
-    private function collect(?string $q, int $limit): array
+    private function collect(?string $q, int $limit, ?array $understood = null): array
     {
+        $q = ($q === null || trim($q) === '') ? null : trim($q);
+
         $sources = [
-            fn (): array => $this->nominees($q, $limit),
-            fn (): array => $this->results($q, $limit),
-            fn (): array => $this->posts($q, $limit),
-            fn (): array => $this->events($q, $limit),
-            fn (): array => $this->threads($q, $limit),
-            fn (): array => $this->profiles($q, $limit),
-            fn (): array => $this->transitions($q, $limit),
+            'nominee' => fn (): array => $this->nominees($q, $limit),
+            'result'  => fn (): array => $this->results($q, $limit),
+            'post'    => fn (): array => $this->posts($q, $limit),
+            'event'   => fn (): array => $this->events($q, $limit),
+            'thread'  => fn (): array => $this->threads($q, $limit),
+            'profile' => fn (): array => $this->profiles($q, $limit),
+            'phase'   => fn (): array => $this->transitions($q, $limit),
         ];
+
+        // An interpreted `kinds` narrows WHICH SOURCES RUN, which is where the speed-up
+        // is: "winners in Ghana" reads two tables instead of seven. `sources` still
+        // counts only what was asked for, so a narrowed search does not look like six
+        // unavailable sources.
+        $wanted = $understood['kinds'] ?? [];
+        if ($wanted !== []) {
+            $sources = array_intersect_key($sources, array_flip($wanted));
+        }
 
         $items = [];
         $ok    = 0;
@@ -122,9 +223,50 @@ final class ActivityFeedService
             }
         }
 
+        // Post-filters. Applied in PHP rather than pushed into seven queries because the
+        // sources do not share a country column or a timestamp column name, and a filter
+        // that silently did not apply to three of them would be worse than a slower one
+        // that applies to all.
+        $items = $this->applyFilters($items, $understood);
+
         usort($items, static fn (array $a, array $b): int => strcmp($b['at'], $a['at']));
 
         return ['items' => array_slice($items, 0, $limit), 'sources' => $ok];
+    }
+
+    /**
+     * Country and recency, applied uniformly.
+     *
+     * The country test is against the item's own text, which is where the code is: a
+     * nominee's country is rendered into `detail`, and a profile's too. That is a weaker
+     * match than a column comparison and it is stated as such rather than dressed up —
+     * the alternative is threading a country column through seven differently-shaped
+     * queries, three of which do not have one.
+     *
+     * @param list<array> $items
+     * @return list<array>
+     */
+    private function applyFilters(array $items, ?array $understood): array
+    {
+        if ($understood === null) return $items;
+
+        $country = $understood['country'] ?? null;
+        $days    = $understood['days'] ?? null;
+        if ($country === null && $days === null) return $items;
+
+        $cutoff = $days !== null ? Carbon::now()->subDays($days)->toDateTimeString() : null;
+
+        return array_values(array_filter($items, static function (array $i) use ($country, $cutoff): bool {
+            if ($cutoff !== null && ($i['at'] ?? '') !== '' && $i['at'] < $cutoff) return false;
+            if ($country !== null) {
+                // Word-boundary match on the two-letter code, so "NG" does not match
+                // "NGO" or the "ng" inside a name.
+                if (!preg_match('/\b' . preg_quote($country, '/') . '\b/i', (string) ($i['detail'] ?? ''))) {
+                    return false;
+                }
+            }
+            return true;
+        }));
     }
 
     /**

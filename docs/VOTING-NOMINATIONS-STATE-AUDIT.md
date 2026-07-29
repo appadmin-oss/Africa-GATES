@@ -1431,3 +1431,165 @@ and `!` sidesteps the backslash question entirely.
 
 **938 tests, green on both drivers.** 18 pages swept in Chromium: 0 CSP violations,
 0 JS errors, 0 unreachable. 60 pages crawled for dead internal links: none.
+
+---
+
+## 21. The competitive ballot, the shareable flier, and search that understands
+
+### 21.1 Models re-pinned to free Groq, and a writing tier
+
+The pins were `openai:gpt-4o` / `openai:gpt-4o-mini`. Wrong for this deployment: the
+OpenAI key is **not on a paid plan**, so every pinned call 401s and falls through the
+ladder — a wasted round trip on the hot path of every AI feature. Worst on
+`moderation.classify`, which sits on the nomination submit and is capped at **one**
+attempt: pinning a provider that cannot answer there does not degrade the feature, it
+disables it.
+
+All three tiers now pin Groq. A third tier, because two were not a delegation of the
+work that exists:
+
+| Tier | Temp | Model | For |
+| --- | --- | --- | --- |
+| REASON | 0.15 | `llama-3.3-70b-versatile` | moderation, triage, merge suggestions, copilot, integrity briefs, **search interpretation** |
+| WRITE | 0.70 | `llama-3.3-70b-versatile` | the public guide, thread summaries, the note sent to a nominator, **flier rally copy**, admin drafting |
+| FAST | 0.20 | `llama-3.1-8b-instant` | polish ×2, category hint, filter parse |
+
+WRITE shares the model and differs in its **parameters**. Still delegation: a classifier
+wanting a terse deterministic label and publishable copy are not the same job, and the
+failure modes differ — a wrong label versus flat generic text nobody will post.
+Temperature was a literal at each of twenty-one call sites, which is how those two ended
+up asking for the same thing.
+
+**Two ladder fixes, the second caught by the test written for the first.**
+
+A fallback may now repeat the pin's **provider** on a different model. The old rule
+dropped any hop sharing the provider — right for an outage, wrong for the failure this
+deployment will see. Groq's free tier rate-limits **per model**, so a 429 on the 8b model
+says nothing about the 70b one, and dropping that hop discarded the most likely
+successful retry.
+
+Anthropic and OpenAI are out of the declared ladders. OpenAI was listed last and last was
+**unreachable**: `route()` truncates to `maxAttempts` (3), so a four-entry ladder never
+reached its fourth hop and the slot read as coverage that did not exist. Moving OpenAI
+out left **Anthropic** fourth and equally unreachable — the same defect one rung up. Both
+are still reached through `resolveRoute()`'s trailing "every remaining configured
+provider" append, so a deployment whose only key is one of those gets every feature. The
+suite now asserts the default ladder is exactly as long as the default ceiling.
+
+### 21.2 The ballot is a scoreboard now
+
+`StandingsService`. The ballot showed a vote total and nothing else, which answers no
+question a supporter has — whether their vote would matter, how close it is, whether the
+last push worked. So the page had no reason to be visited twice and none to be shared, on
+a platform whose whole mechanic is rallying support.
+
+Rank (**competition** rank — ties share a position), the gap to the next higher total,
+the gap behind, votes in the last 24 hours, and a bar showing share of the leader's total
+with a tick marking the position above.
+
+**Every figure is real, and the interesting work is in what is NOT shown:**
+
+- **Momentum returns `null`, not `0`,** when nothing is timestamped. A quiet day and a
+  broken counter must not look the same, and "0 votes in 24 hours" printed as a
+  measurement is an argument against voting.
+- **"Top N%" only when N ≤ 25.** The first real render showed a nominee at #192 of 379
+  as **"Top 51%"** — arithmetic wearing a badge, saying "slightly worse than average" in
+  the visual language of praise. The old expression also subtracted a percentile from 100
+  and added one, an off-by-one that happened to agree at that value.
+- **The gap skips equal totals.** Two nominees tied on 40 behind a leader on 100: the row
+  above has the same total, so a naive "gap to the previous row" is zero — telling a
+  jointly-second nominee they are level with the position they already hold. The useful
+  facts are "joint 2nd" and "60 from 1st". A tie at the *top* is the one case where
+  "level" is right, and it has its own flag.
+- **A dead branch removed.** `headline()` carried a `$gap === 0 → "Level for #N"` case
+  that could never fire — a zero gap only arose when nothing higher existed, which is
+  rank 1, which returns earlier.
+- **The gap never names the nominee ahead.** "You are 12 behind" is the actionable fact;
+  "12 behind Ada" invites a campaign against a person.
+
+Every surface showing a rank also states that public votes are one part of the score and
+an independent jury decides the award — a nominee who reads a leaderboard position as the
+result is being misled by omission.
+
+### 21.3 The flier
+
+`/vote/{programme}/{id}-{name}/flier`. A nominee's whole job is to get their community to
+vote and the only tool they had was a URL. On WhatsApp status, an Instagram story or a
+group chat, a bare link is the weakest possible artefact.
+
+**Why SVG server-side and PNG in the browser.** Server-rendering the PNG is the obvious
+approach and the fragile one: GD needs a TrueType file, and a shared cPanel host
+frequently has none — so "pro design" would silently degrade to a bitmap face on exactly
+the deployment nobody can inspect. Bundling a font costs 1.5 MB of binary and still is not
+the site's typeface.
+
+So the server renders **SVG** — resolution-independent, no font file needed anywhere, and
+a complete downloadable artefact with JavaScript off. The **PNG** is drawn on a canvas in
+the browser using the page's already-loaded Montserrat and Playfair Display, with
+`document.fonts.ready` making it deterministic. Converting the SVG through a canvas was
+rejected: an `<img>`-loaded SVG cannot see the document's fonts and renders in a fallback
+face, coming out worse than the SVG it started from.
+
+Verified end to end in Chromium: the real button, the real download, **1080×1350, valid
+PNG magic, correct typefaces**, 0 JS errors.
+
+Three defects found by looking at the first real render rather than by reasoning:
+
+- The URL **nearly overflowed its pill** — a fixed-width rounded rect with centred,
+  non-wrapping text. A production domain plus a three-word name would have cleared it.
+  The name segment is decoration (`/vote/{programme}/{id}` resolves alone), so the long
+  form is used when it fits and the id-only form when it does not.
+- The monogram rendered **"N4"** for "Nominee 48 Surname" — a digit read as an initial.
+- After fixing that in `FlierService`, the **canvas kept producing "N4"**: two renderings
+  of one design, one rule fixed. A parity test now pins the shared geometry constants and
+  guarded rules so the graphic downloaded cannot differ from the one previewed.
+
+Rally copy comes from the WRITE tier, validated rather than trusted — a reply carrying a
+hashtag, an emoji, a win claim, or falling outside 8–30 words is **rejected**, because a
+half-usable line on a graphic someone posts under their own name is worse than the
+written fallback. The fallback varies with the standing and is a line a nominee would
+actually post; the AI version is labelled on the page, since they are about to publish it
+under their own name.
+
+### 21.4 Search that understands, without letting a model near a query
+
+`?q=` on `/activity` now optionally goes through `search.interpret` first: which kinds,
+which country, what timeframe. "winners in Ghana" and "who joined this week" are how
+people ask, and a LIKE across seven tables answers neither — "winners" is a status, "this
+week" is a range, "Ghana" is a column.
+
+**Why this is safe.** Every field the model returns is whitelisted in
+`ActivityFeedService` before it reaches a query — `kind` against `KINDS`, `country`
+against two letters, `days` clamped to 730 — the same discipline `AiFilterService` already
+applies. The model cannot introduce a table, a column, a value or an operator the code did
+not already allow. And the interpretation only ever **adds** filters: the literal text
+match runs regardless, so a misreading cannot make a search return *less* than the
+plain-text version would have.
+
+It is also **visible and reversible**: the page states what it understood, with chips for
+each filter and an always-visible link to search the words literally instead. Off by
+default, so no existing caller changed and the no-AI path stays the baseline. One attempt,
+5s timeout, degrade-on-failure — a visitor must never see an error from a search box.
+
+A test documents the consequence the whitelist prevents: an unvalidated kind would empty
+the source list and return zero results for a query that should have matched.
+
+### 21.5 A CSP that was inert while reading as present
+
+The flier's SVG endpoint sends `default-src 'none'; … sandbox`, because an SVG is a
+document the browser **executes** and its text contains a public-submitted nominee name.
+`SecurityHeadersMiddleware` then set the site policy unconditionally — and `withHeader`
+**replaces** — so the hardening was discarded and the response went out permitting
+`script-src 'self' 'nonce-…'`. Exactly the same defect class as the `Cache-Control`
+override in §20.3, in the directive next to it. A route that sets its own CSP now keeps
+it; the site policy remains the default for everything that does not opt out.
+
+The escaping is still the real defence there, and it has its own test: a nominee named
+`</text><script>alert(1)</script><text>` must not close a tag, and the SVG must still
+parse.
+
+### 21.6 Verified
+
+**988 tests, green on both drivers.** 19 pages in Chromium: 0 CSP violations, 0 JS
+errors, 0 unreachable. 60 pages crawled: no dead links. The activity search's 16
+behavioural a11y checks pass, including with JavaScript disabled.

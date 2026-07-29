@@ -100,6 +100,30 @@
   .vn-done{ text-align:center; }
   .vn-done__ico{ width:60px; height:60px; margin:4px auto 12px; border-radius:50%; background:#effaf0; display:flex; align-items:center; justify-content:center; }
   .vn-tally{ background:#f4f7f4; border-radius:14px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; margin:14px 0; }
+  /* ── The race block ──────────────────────────────────────────────────────
+     Deliberately quiet in colour: it sits inside the hero, and a scoreboard that
+     shouts competes with the vote button it exists to drive traffic to. */
+  .vn-race{ margin:14px 0 16px; padding:13px 15px; border-radius:14px;
+    background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); }
+  .vn-race__h{ margin:0 0 9px; font-size:14.5px; font-weight:700; color:#fff; }
+  .vn-race__track{ position:relative; height:10px; border-radius:5px;
+    background:rgba(255,255,255,.16); overflow:visible; }
+  .vn-race__fill{ display:block; height:100%; border-radius:5px; background:#7FC87C;
+    /* Transitioned so a vote cast on this page visibly moves the bar rather than
+       teleporting it — the movement IS the feedback. */
+    transition:width .6s cubic-bezier(.22,.61,.36,1); }
+  @media (prefers-reduced-motion: reduce){ .vn-race__fill{ transition:none; } }
+  /* The position above, as a tick. Not a label: naming the nominee ahead turns a
+     scoreboard into a campaign against a person. */
+  .vn-race__mark{ position:absolute; top:-4px; width:2px; height:18px; background:#fbc329;
+    border-radius:1px; transform:translateX(-1px); }
+  .vn-race__facts{ list-style:none; display:flex; flex-wrap:wrap; gap:6px 14px;
+    margin:10px 0 0; padding:0; font-size:12.5px; color:rgba(255,255,255,.82); }
+  .vn-race__facts strong{ color:#fff; font-weight:700; }
+  .vn-race__hot strong{ color:#fbc329; }
+  .vn-race__cta{ margin:9px 0 0; font-size:13px; color:#fff; font-weight:600; }
+  .vn-race__fine{ margin:6px 0 0; font-size:11px; color:rgba(255,255,255,.6); }
+
   .vn-share{ display:flex; gap:9px; }
   .vn-share button, .vn-share a{ flex:1; cursor:pointer; border:1px solid rgba(16,41,44,.16); background:#fff; color:var(--ag-ink); font-family:inherit; font-weight:600; font-size:13.5px; padding:11px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; gap:7px; text-decoration:none; }
   .vn-share button:hover, .vn-share a:hover{ border-color:var(--ag-green); color:var(--ag-green); }
@@ -162,10 +186,66 @@
           {% if rank %}<div class="vn-stat__div" aria-hidden="true"></div><div><div class="vn-stat__n">#{{ rank }}</div><div class="vn-stat__l">In {{ n.category }}</div></div>{% endif %}
         </div>
 
+        {# ── The race ────────────────────────────────────────────────────────
+           A vote total answers no question a supporter has. This block answers
+           three: where does this nominee stand, how close is it, and did the last
+           push work. Everything is real (StandingsService) — where a figure is not
+           measurable the element is omitted, never zeroed, because "0 votes in 24
+           hours" printed as a measurement is an argument against voting.
+           Rendered server-side so it is present with no JavaScript; the Alpine
+           counter above it only animates the total after a vote. #}
+        {% if standing.field >= 2 %}
+        <div class="vn-race" role="group" aria-labelledby="vnRaceH">
+          <p class="vn-race__h" id="vnRaceH">{{ standing_headline }}</p>
+
+          {# The bar is the whole point of the block: a share of the leader's total is
+             instantly legible in a way "412 votes" is not. role=img with a full label
+             because a bar conveys nothing to a screen reader on its own. #}
+          <div class="vn-race__track" role="img"
+               aria-label="{{ standing.votes|number_format }} votes — {{ standing.progress_pct }}% of the leader's total, position {{ standing.rank }} of {{ standing.field }}">
+            <span class="vn-race__fill" style="width:{{ standing.progress_pct }}%"></span>
+            {% if standing.gap_ahead is not null and standing.gap_ahead > 0 and not standing.is_leader %}
+              {# A marker for the position above, so the gap is spatial and not only a
+                 number. Placed by the leader-relative share, same scale as the fill. #}
+              <span class="vn-race__mark" aria-hidden="true"
+                    style="left:{{ ((standing.votes + standing.gap_ahead) / (standing.leader_votes ?: 1) * 100)|round }}%"></span>
+            {% endif %}
+          </div>
+
+          {# The headline above already states the gap and the position, so this row
+             carries only what it does NOT say. Repeating "1 from #191" underneath
+             "#192 of 379 — 1 vote from #191" wastes the one line of space that could
+             have shown momentum. #}
+          <ul class="vn-race__facts">
+            <li><strong>{{ standing.votes|number_format }}</strong> vote{{ standing.votes == 1 ? '' : 's' }}</li>
+            {% if standing.is_leader and standing.gap_behind %}
+              <li><strong>{{ standing.gap_behind }}</strong> clear of #2</li>
+            {% endif %}
+            {% if standing.momentum_available and standing.momentum_24h > 0 %}
+              <li class="vn-race__hot"><strong>{{ standing.momentum_24h }}</strong> in the last 24h</li>
+            {% endif %}
+            {# Only when it is actually notable. "Top 51%" reads as praise for a median
+               position and devalues every other figure beside it. #}
+            {% if standing.top_notable %}<li>Top <strong>{{ standing.top_pct }}%</strong> of the field</li>{% endif %}
+          </ul>
+
+          <p class="vn-race__cta">{{ standing_cta }}</p>
+          {# The rank is not the result, and a nominee screenshotting this needs to
+             know that. 55% of the CPI is an independent jury. #}
+          <p class="vn-race__fine">Public votes are one part of the score — an independent jury decides the award.</p>
+        </div>
+        {% endif %}
+
         <div class="vn-cta">
           <a class="vn-btn vn-btn--light" href="#vn-ballot">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
             Vote for {{ firstName }}
+          </a>
+          {# A real link, not a script action: the flier page works with no JavaScript
+             and is the single most useful thing a nominee can take away from here. #}
+          <a class="vn-btn vn-btn--ghost" href="{{ flier_url }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+            Get a flier
           </a>
           <button type="button" class="vn-btn vn-btn--ghost vn-btn--icon" @click="share()" aria-label="Share">
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>

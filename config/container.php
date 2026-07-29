@@ -4,7 +4,7 @@ use AfricaGates\Support\Env;
 use Psr\Container\ContainerInterface;
 use Slim\Views\Twig;
 use AfricaGates\Services\{CacheService,ProfileService,AwardService,LegacyService,OpportunityService,OtpService,VoteService,BonusVoteService,RateLimitService,SpamService,AiService,CommunityService,GoogleSheetsService,TurnstileService,StatsService,FraudService,EventService,MilestoneService,PaymentService,GuideService,CurrencyService,UserAccountService};
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController};
 use AfricaGates\Judge\Services\JudgeService;
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
@@ -262,6 +262,7 @@ return [
     DonationController::class     => fn(ContainerInterface $c)=>new DonationController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(OtpService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     PaidVoteController::class     => fn(ContainerInterface $c)=>new PaidVoteController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     \AfricaGates\Admin\Controllers\AssistantController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AssistantController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
+    FlierController::class        => fn(ContainerInterface $c)=>new FlierController($c->get(Twig::class), new \AfricaGates\Services\FlierService()),
     ActivityController::class     => fn(ContainerInterface $c)=>new ActivityController($c->get(Twig::class), new \AfricaGates\Services\ActivityFeedService()),
     PulseController::class        => fn(ContainerInterface $c)=>new PulseController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class)),
     VoteController::class        => fn(ContainerInterface $c)=>new VoteController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class), $c->get(PaymentService::class)),

@@ -194,6 +194,15 @@ class VoteController {
         $catList = $this->awards->getNominees((int) $nom->programme_id, (int) $nom->category_id, (int) $nom->year);
         $rank = 0;
         foreach ($catList as $i => $o) { if ((int) $o['id'] === $id) { $rank = $i + 1; break; } }
+
+        // Standing, gaps and 24-hour momentum. Computed in one place so the ballot, the
+        // flier and anything added later cannot describe the same position three
+        // different ways — which is how a nominee ends up with a share card that
+        // contradicts the page it came from. Note this uses COMPETITION rank (ties share
+        // a position) where $rank above is a list index; the two differ on a tie, and
+        // the standing is the one that is defensible if a nominee disputes it.
+        $standing = (new \AfricaGates\Services\StandingsService())
+            ->forNominee($id, (int) $nom->category_id);
         $others = array_values(array_filter($catList, fn($o) => (int) $o['id'] !== $id));
 
         // The one phase view-model for this ballot, from the nominee's own cycle.
@@ -213,6 +222,18 @@ class VoteController {
             'profile'          => $profile,
             'rank'             => $rank,
             'cat_count'        => count($catList),
+            // The competitive layer. A vote total on its own answers no question a
+            // supporter has — whether their vote would matter, how close the race is,
+            // whether the last push worked — so the page had no reason to be visited
+            // twice and no reason to be shared, on a platform whose whole mechanic is
+            // rallying support. Every figure is computed from real rows; where one
+            // cannot be (momentum on a category with no timestamped votes, a gap when
+            // the nominee leads) it comes back null and the template omits the element
+            // rather than printing a zero that reads as a measurement.
+            'standing'         => $standing,
+            'standing_headline'=> \AfricaGates\Services\StandingsService::headline($standing),
+            'standing_cta'     => \AfricaGates\Services\StandingsService::callToAction($standing),
+            'flier_url'        => $this->nomineeUrl((int) $nom->id, (string) $nom->name, (string) $nom->programme_slug) . '/flier',
             'others'           => array_slice($others, 0, 5),
             // COMPUTED phase, so a stale status column cannot present an open
             // ballot for a closed cycle.
