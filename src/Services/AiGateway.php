@@ -102,6 +102,15 @@ final class AiGateway
                 $cap->maxTokens,
                 (bool) ($input['json'] ?? false),
                 (float) ($input['temperature'] ?? 0.2),
+                // The capability's declared route: its pinned model first, then its
+                // fallbacks. Passing this is what turns AiCapability::$model from a
+                // comment into a request parameter — the gateway used to read it
+                // into the log and let AiService pick by key-priority instead.
+                $cap->route(),
+                // The ceiling, applied AFTER unconfigured providers are dropped, so
+                // moderation on the nomination submit stays one attempt instead of
+                // four timeouts deep.
+                $cap->maxAttempts,
             );
         } catch (\Throwable $e) {
             $this->log($capabilityName, $cap, 'PROVIDER_ERROR', $input, null, 0, 0, $t0, $e->getMessage());
@@ -127,10 +136,17 @@ final class AiGateway
             }
         }
 
-        $this->log($capabilityName, $cap, 'OK', $input, $value, $usage['in'], $usage['out'], $t0,
-            null, $ai->activeProvider(), $ai->activeModel());
+        // What ANSWERED, not what was preferred. activeProvider()/activeModel()
+        // report the first configured key, so after a failover — the entire purpose
+        // of having a chain — the log named a provider that had just failed and a
+        // model that was never called.
+        $provider = $ai->lastProvider() ?? $ai->activeProvider();
+        $model    = $ai->lastModel()    ?? $ai->activeModel();
 
-        return AiResult::ok($value, $cap, $ai->activeProvider(), $ai->activeModel(),
+        $this->log($capabilityName, $cap, 'OK', $input, $value, $usage['in'], $usage['out'], $t0,
+            null, $provider, $model);
+
+        return AiResult::ok($value, $cap, $provider, $model,
             $usage['in'], $usage['out'], (int) round((microtime(true) - $t0) * 1000));
     }
 

@@ -102,7 +102,10 @@
         could not do its job. We would rather say so plainly than imply otherwise.</p>
 
       {% for group in ai_disclosure %}
-        <h3>Sent to {{ group.provider|capitalize }}</h3>
+        {# `|capitalize` rendered "openai" as "Openai" in a published legal notice.
+           The label comes from AiPrivacy::providerLabel() so the company names are
+           spelled the way the companies spell them. #}
+        <h3>Sent to {{ group.label }}{% if not group.primary %} <small>(only when the primary provider is unavailable)</small>{% endif %}</h3>
         <ul>
           {% for cap in group.capabilities %}
             <li>

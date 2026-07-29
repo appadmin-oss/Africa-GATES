@@ -29,13 +29,21 @@ class AiGatewayTest extends TestCase
             {
                 parent::__construct(groqKey: 'test-key');
             }
-            public function complete(string $system, string $user, int $maxTokens = 512, bool $json = false, float $temperature = 0.2): ?string
+            public function complete(string $system, string $user, int $maxTokens = 512, bool $json = false, float $temperature = 0.2, array $route = [], int $maxAttempts = 0): ?string
             {
-                $this->seen = $user;
+                $this->seen  = $user;
+                // Captured so a test can assert the capability's PIN reaches the
+                // wire. It previously did not: the gateway read AiCapability::$model
+                // into the audit log and AiService chose by key-priority instead.
+                $this->route = $route;
                 return $this->reply;
             }
             public function lastUsage(): array { return ['in' => $this->in, 'out' => $this->out]; }
+            public function lastProvider(): ?string { return $this->route[0] ?? null ? explode(':', (string) $this->route[0], 2)[0] : null; }
+            public function lastModel(): ?string { $p = explode(':', (string) ($this->route[0] ?? ''), 2); return $p[1] ?? null; }
             public string $seen = '';
+            /** @var list<string> */
+            public array $route = [];
         };
     }
 

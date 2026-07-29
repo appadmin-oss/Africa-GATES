@@ -65,6 +65,10 @@ class SettingsController
             // the general key). Read straight from settings — never echoed.
             'ai_mod_dedicated' => trim((string) (\Illuminate\Database\Capsule\Manager::table('gates_settings')->where('key_name', 'ai_groq_key_mod')->value('value') ?? Env::get('GROQ_MODERATION_KEY', ''))) !== '',
             'ai_mod_model'   => \AfricaGates\Services\AiService::MODERATION_MODEL,
+            // Placeholders for the four model fields. Read from the service so the
+            // default an operator is shown is the default the request will use —
+            // they were four literals in the template, and the Gemini one was stale.
+            'ai_default_models' => \AfricaGates\Services\AiService::DEFAULT_MODELS,
             // Messaging channels configured state (booleans only — secrets never echoed).
             'sms_status'     => \AfricaGates\Services\SmsService::boot()->status(),
             // Email delivery health — recent sends with status/error so "links

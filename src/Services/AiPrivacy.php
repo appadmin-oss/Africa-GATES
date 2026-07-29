@@ -149,28 +149,64 @@ final class AiPrivacy
      * an admin using a drafting assistant on their own copy is not a disclosure
      * about the visitor's data, and listing it would bury the part that is.
      *
-     * @return list<array{provider:string, capabilities:list<array{name:string, purpose:string, sends:string, minimised:bool, advisory:bool}>}>
+     * EVERY POSSIBLE DESTINATION, not just the preferred one. A capability declares
+     * a pinned model AND an ordered fallback ladder, and a provider outage is
+     * exactly when the fallback runs — so a notice listing only the pin would name
+     * the wrong recipient on the days it matters most. Each destination is marked
+     * `primary` or not, because "usually OpenAI, occasionally Google" is materially
+     * different information from "OpenAI" and a reader is entitled to both.
+     *
+     * @return list<array{provider:string, label:string, primary:bool, capabilities:list<array{name:string, purpose:string, sends:string, minimised:bool, advisory:bool}>}>
      */
     public static function disclosure(): array
     {
         $byProvider = [];
+        $isPrimary  = [];
         foreach (AiCapability::all() as $cap) {
             if (!$cap->publicContent) continue;
-            $byProvider[$cap->provider()][] = [
+            $entry = [
                 'name'      => $cap->name,
                 'purpose'   => $cap->dataPurpose,
                 'sends'     => $cap->dataSent,
                 'minimised' => $cap->minimise,
                 'advisory'  => $cap->advisory,
             ];
+            foreach ($cap->route() as $i => $hop) {
+                $provider = explode(':', $hop, 2)[0];
+                if ($provider === '') continue;
+                $byProvider[$provider][$cap->name] = $entry;
+                // Primary for this provider if ANY capability pins it first.
+                $isPrimary[$provider] = ($isPrimary[$provider] ?? false) || $i === 0;
+            }
         }
         ksort($byProvider);
 
         $out = [];
         foreach ($byProvider as $provider => $caps) {
-            $out[] = ['provider' => $provider, 'capabilities' => $caps];
+            $out[] = [
+                'provider'     => $provider,
+                'label'        => self::providerLabel($provider),
+                'primary'      => $isPrimary[$provider] ?? false,
+                'capabilities' => array_values($caps),
+            ];
         }
         return $out;
+    }
+
+    /**
+     * Human spelling of a provider id.
+     *
+     * `ucfirst()` renders "openai" as "Openai", which in a published legal notice
+     * reads as though nobody checked. The company names are proper nouns.
+     */
+    public static function providerLabel(string $provider): string
+    {
+        return [
+            'openai'    => 'OpenAI',
+            'gemini'    => 'Google (Gemini)',
+            'anthropic' => 'Anthropic',
+            'groq'      => 'Groq',
+        ][$provider] ?? ucfirst($provider);
     }
 
     /**

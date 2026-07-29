@@ -42,6 +42,22 @@ class AiService
     public const MODERATION_MODEL = 'llama-3.3-70b-versatile';
 
     /**
+     * Per-provider default model, used when neither a capability pin nor an admin
+     * Setting nor an env var names one.
+     *
+     * These were four literals buried in the four chat methods, each duplicated in
+     * `activeModel()` — so the model the status panel reported and the model the
+     * request actually sent were two independent copies that could disagree.
+     * {@see modelFor()} is now the only place a default is chosen.
+     */
+    public const DEFAULT_MODELS = [
+        'openai'    => 'gpt-4o-mini',
+        'gemini'    => 'gemini-3.6-flash',
+        'anthropic' => 'claude-haiku-4-5-20251001',
+        'groq'      => 'llama-3.1-8b-instant',
+    ];
+
+    /**
      * Build from admin settings (gates_settings) with .env fallback. Usable
      * from any code path (controllers, services, cron) without DI.
      *
@@ -117,13 +133,8 @@ class AiService
     /** The model string the active provider would use (null when inert). */
     public function activeModel(): ?string
     {
-        return match ($this->activeProvider()) {
-            'groq'      => $this->groqModel ?: 'llama-3.1-8b-instant',
-            'gemini'    => $this->geminiModel ?: 'gemini-2.0-flash',
-            'anthropic' => $this->anthropicModel ?: 'claude-haiku-4-5-20251001',
-            'openai'    => $this->openaiModel ?: Env::get('OPENAI_MODEL', 'gpt-4o-mini'),
-            default     => null,
-        };
+        $p = $this->activeProvider();
+        return $p === null ? null : $this->modelFor($p);
     }
 
     /** Per-provider configured flags + active provider/model, for the admin status panel. */
@@ -180,10 +191,73 @@ class AiService
      */
     private array $lastUsage = ['in' => 0, 'out' => 0];
 
+    /**
+     * Which provider and model ACTUALLY answered the most recent call.
+     *
+     * Not the same question as `activeProvider()`, which reports whichever key
+     * happens to be first in the priority order. The audit log recorded
+     * `activeProvider()`/`activeModel()`, so after any failover — the whole point
+     * of the chain — it named a provider that had just failed and a model that was
+     * never called. An audit trail that is wrong precisely when something went
+     * wrong is worse than no audit trail.
+     */
+    private ?string $lastProvider = null;
+    private ?string $lastModel = null;
+
     /** @return array{in:int, out:int} */
     public function lastUsage(): array
     {
         return $this->lastUsage;
+    }
+
+    /** The provider that answered the last successful call, or null. */
+    public function lastProvider(): ?string
+    {
+        return $this->lastProvider;
+    }
+
+    /** The model id that answered the last successful call, or null. */
+    public function lastModel(): ?string
+    {
+        return $this->lastModel;
+    }
+
+    /**
+     * Model id for $provider: an explicit override, else the configured one, else
+     * the shipped default.
+     *
+     * The override is how a capability's pin reaches the wire. Without it,
+     * `AiCapability::$model` — documented as "pinned, never whatever key happens
+     * to be first" — was metadata only: the gateway read it into the log and the
+     * request was still built from whichever key was configured.
+     */
+    public function modelFor(string $provider, ?string $override = null): string
+    {
+        if ($override !== null && trim($override) !== '') {
+            return trim($override);
+        }
+        $configured = match ($provider) {
+            'openai'    => $this->openaiModel,
+            'gemini'    => $this->geminiModel,
+            'anthropic' => $this->anthropicModel,
+            'groq'      => $this->groqModel,
+            default     => null,
+        };
+        return ($configured !== null && trim($configured) !== '')
+            ? trim($configured)
+            : (self::DEFAULT_MODELS[$provider] ?? self::DEFAULT_MODELS['openai']);
+    }
+
+    /** Is a key configured for $provider? */
+    public function hasProvider(string $provider): bool
+    {
+        return match ($provider) {
+            'openai'    => (bool) $this->openaiKey,
+            'gemini'    => (bool) $this->geminiKey,
+            'anthropic' => (bool) $this->anthropicKey,
+            'groq'      => (bool) $this->groqKey,
+            default     => false,
+        };
     }
 
     /** Read whichever usage shape the provider returned. */
@@ -222,29 +296,89 @@ class AiService
      * feature even with Gemini/Anthropic/OpenAI keys also set. When $json=true
      * the reply is unwrapped from any ```json fence before being returned.
      */
-    public function complete(string $system, string $user, int $maxTokens = 512, bool $json = false, float $temperature = 0.2): ?string
-    {
-        $this->lastUsage = ['in' => 0, 'out' => 0];
-        foreach ($this->providerChain() as $provider) {
+    public function complete(
+        string $system,
+        string $user,
+        int $maxTokens = 512,
+        bool $json = false,
+        float $temperature = 0.2,
+        array $route = [],
+        int $maxAttempts = 0,
+    ): ?string {
+        $this->lastUsage    = ['in' => 0, 'out' => 0];
+        $this->lastProvider = null;
+        $this->lastModel    = null;
+
+        foreach ($this->resolveRoute($route, $maxAttempts) as [$provider, $model]) {
             try {
                 $out = match ($provider) {
-                    'groq'      => $this->groqChat($system, $user, $maxTokens, $json, $temperature),
-                    'gemini'    => $this->geminiChat($system, $user, $maxTokens, $json, $temperature),
-                    'anthropic' => $this->anthropicChat($system, $user, $maxTokens, $json, $temperature),
-                    'openai'    => $this->openaiChat($system, $user, $maxTokens, $json, $temperature),
+                    'groq'      => $this->groqChat($system, $user, $maxTokens, $json, $temperature, $model),
+                    'gemini'    => $this->geminiChat($system, $user, $maxTokens, $json, $temperature, $model),
+                    'anthropic' => $this->anthropicChat($system, $user, $maxTokens, $json, $temperature, $model),
+                    'openai'    => $this->openaiChat($system, $user, $maxTokens, $json, $temperature, $model),
                     default     => null,
                 };
                 if (is_string($out) && $out !== '') {
+                    // Recorded on SUCCESS only, so the audit log names what answered
+                    // rather than what was tried first.
+                    $this->lastProvider = $provider;
+                    $this->lastModel    = $model;
                     return $json ? self::stripJsonFence($out) : $out;
                 }
-                $this->lastError = $provider . ': empty/failed response';
+                $this->lastError = $provider . '/' . $model . ': empty/failed response';
             } catch (\Throwable $e) {
-                $this->lastError = $provider . ': ' . $e->getMessage();
+                $this->lastError = $provider . '/' . $model . ': ' . $e->getMessage();
             }
-            // fall through to the next configured provider
+            // fall through to the next hop
         }
         if ($this->lastError !== null) error_log('[AiService] all providers failed — ' . $this->lastError);
         return null;
+    }
+
+    /**
+     * Turn a declared route into the ordered list of (provider, model) hops to try.
+     *
+     * A route is a list of `provider:model` strings — a capability's pin followed by
+     * its declared fallbacks. Hops whose provider has no key are dropped rather than
+     * attempted, and every remaining CONFIGURED provider is appended at the end so a
+     * pin can never make a feature unavailable on a deployment that has keys: the
+     * pin decides preference, not eligibility.
+     *
+     * An empty route means "no preference", which reproduces the previous
+     * key-priority behaviour exactly — that is what every legacy caller gets.
+     *
+     * $maxAttempts caps the FINAL list, after ineligible hops are dropped — so a
+     * cap of 1 still yields one usable hop on a deployment whose only key is a
+     * provider the capability never mentions. Capping the declared route before
+     * filtering would have turned the ceiling into an availability switch.
+     *
+     * @param  list<string> $route
+     * @return list<array{0:string,1:string}>
+     */
+    private function resolveRoute(array $route, int $maxAttempts = 0): array
+    {
+        $hops = [];
+        $seen = [];
+        foreach ($route as $spec) {
+            if (!is_string($spec) || trim($spec) === '') continue;
+            $parts    = explode(':', trim($spec), 2);
+            $provider = $parts[0];
+            $model    = $this->modelFor($provider, $parts[1] ?? null);
+            if (!$this->hasProvider($provider)) continue;
+            $key = $provider . '/' . $model;
+            if (isset($seen[$key])) continue;
+            $seen[$key] = true;
+            $hops[] = [$provider, $model];
+        }
+        // Then anything else configured, on its own default/settings model.
+        foreach ($this->providerChain() as $provider) {
+            $model = $this->modelFor($provider);
+            $key   = $provider . '/' . $model;
+            if (isset($seen[$key])) continue;
+            $seen[$key] = true;
+            $hops[] = [$provider, $model];
+        }
+        return $maxAttempts > 0 ? array_slice($hops, 0, $maxAttempts) : $hops;
     }
 
     /**
@@ -261,11 +395,15 @@ class AiService
         }
         $this->lastError = null;
         $out = $this->complete('You are a health check. Reply with the single word OK.', 'ping', 8, false, 0.0);
+        $ok = is_string($out) && $out !== '';
         return [
-            'ok'       => is_string($out) && $out !== '',
-            'provider' => $this->activeProvider(),
-            'model'    => $this->activeModel(),
-            'error'    => (is_string($out) && $out !== '') ? null : ($this->lastError ?? 'No response from any provider.'),
+            'ok' => $ok,
+            // What ANSWERED, falling back to what would be tried first only when
+            // nothing answered. A health check that names the provider it prefers
+            // rather than the one that worked is the same lie as the audit log's.
+            'provider' => $ok ? $this->lastProvider() : $this->activeProvider(),
+            'model'    => $ok ? $this->lastModel()    : $this->activeModel(),
+            'error'    => $ok ? null : ($this->lastError ?? 'No response from any provider.'),
         ];
     }
 
@@ -281,10 +419,10 @@ class AiService
     }
 
     // ── Provider: Groq (free, fast, OpenAI-compatible) ─────────────────────
-    private function groqChat(string $system, string $user, int $maxTokens, bool $json, float $temp): ?string
+    private function groqChat(string $system, string $user, int $maxTokens, bool $json, float $temp, ?string $model = null): ?string
     {
         $payload = [
-            'model'       => $this->groqModel ?: 'llama-3.1-8b-instant',
+            'model'       => $this->modelFor('groq', $model),
             'temperature' => $temp,
             'max_tokens'  => $maxTokens,
             'messages'    => [
@@ -300,9 +438,9 @@ class AiService
     }
 
     // ── Provider: Google Gemini (free tier) ────────────────────────────────
-    private function geminiChat(string $system, string $user, int $maxTokens, bool $json, float $temp): ?string
+    private function geminiChat(string $system, string $user, int $maxTokens, bool $json, float $temp, ?string $model = null): ?string
     {
-        $model = $this->geminiModel ?: 'gemini-2.0-flash';
+        $model = $this->modelFor('gemini', $model);
         $url = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=" . urlencode((string) $this->geminiKey);
         $cfg = ['temperature' => $temp, 'maxOutputTokens' => $maxTokens];
         if ($json) $cfg['responseMimeType'] = 'application/json';
@@ -318,10 +456,10 @@ class AiService
     }
 
     // ── Provider: Anthropic (Claude Haiku) ─────────────────────────────────
-    private function anthropicChat(string $system, string $user, int $maxTokens, bool $json, float $temp): ?string
+    private function anthropicChat(string $system, string $user, int $maxTokens, bool $json, float $temp, ?string $model = null): ?string
     {
         $payload = [
-            'model'      => $this->anthropicModel ?: 'claude-haiku-4-5-20251001',
+            'model'      => $this->modelFor('anthropic', $model),
             'max_tokens' => $maxTokens,
             'temperature'=> $temp,
             'system'     => $system . ($json ? ' Reply with ONLY a valid JSON object.' : ''),
@@ -334,10 +472,10 @@ class AiService
     }
 
     // ── Provider: OpenAI (chat completions) ────────────────────────────────
-    private function openaiChat(string $system, string $user, int $maxTokens, bool $json, float $temp): ?string
+    private function openaiChat(string $system, string $user, int $maxTokens, bool $json, float $temp, ?string $model = null): ?string
     {
         $payload = [
-            'model'       => $this->openaiModel ?: Env::get('OPENAI_MODEL', 'gpt-4o-mini'),
+            'model'       => $this->modelFor('openai', $model),
             'max_tokens'  => $maxTokens,
             'temperature' => $temp,
             'messages'    => [
@@ -369,7 +507,13 @@ class AiService
     }
 
     // ── Shared HTTP + parsing helpers ──────────────────────────────────────
-    private function httpPost(string $url, array $headers, array $payload): ?array
+    /**
+     * Protected, not private, so a test can intercept the ONE network call without
+     * bypassing anything else. Overriding the four per-provider methods instead
+     * would skip `modelFor()` and the payload assembly — i.e. skip the code that
+     * decides which model is requested, which is the part worth testing.
+     */
+    protected function httpPost(string $url, array $headers, array $payload): ?array
     {
         $body = json_encode($payload);
         // Up to 2 attempts: retry once on a TRANSIENT failure (network/timeout,

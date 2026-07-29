@@ -157,7 +157,7 @@ class AiPrivacyTest extends TestCase
         return new class extends AiService {
             public string $seen = '';
             public function __construct() { parent::__construct(groqKey: 'test-key'); }
-            public function complete(string $system, string $user, int $maxTokens = 512, bool $json = false, float $temperature = 0.2): ?string
+            public function complete(string $system, string $user, int $maxTokens = 512, bool $json = false, float $temperature = 0.2, array $route = [], int $maxAttempts = 0): ?string
             {
                 $this->seen = $user;
                 return 'ok';
@@ -235,10 +235,15 @@ class AiPrivacyTest extends TestCase
     {
         // A notice that omits a capability is worse than none, because it reads
         // as complete. Derived from the registry so it cannot fall behind.
+        // A capability now appears under EVERY provider its route can reach, so the
+        // comparison is over the distinct set of names, not the raw list. That
+        // repetition is the feature: a reader has to be told the recipient for each
+        // destination, and a fallback provider receives exactly the same payload.
         $listed = [];
         foreach (AiPrivacy::disclosure() as $group) {
             foreach ($group['capabilities'] as $cap) $listed[] = $cap['name'];
         }
+        $listed = array_values(array_unique($listed));
 
         $expected = [];
         foreach (AiCapability::all() as $cap) {
@@ -275,10 +280,62 @@ class AiPrivacyTest extends TestCase
         foreach ($groups as $group) {
             $this->assertArrayHasKey('provider', $group);
             $this->assertNotSame('', $group['provider']);
+            $this->assertArrayHasKey('primary', $group);
             foreach ($group['capabilities'] as $cap) {
-                $this->assertSame($group['provider'], AiCapability::find($cap['name'])->provider());
+                // The group's provider must be somewhere in this capability's ROUTE,
+                // not merely its pin: a capability listed under Google because Gemini
+                // is its fallback is correct, and asserting equality with the pin
+                // would forbid disclosing the fallback at all.
+                $route = array_map(
+                    static fn (string $hop): string => explode(':', $hop, 2)[0],
+                    AiCapability::find($cap['name'])->route()
+                );
+                $this->assertContains($group['provider'], $route);
             }
         }
+    }
+
+    public function test_a_fallback_destination_is_disclosed_not_hidden(): void
+    {
+        // The reason the shape changed. A capability declares a pinned model and an
+        // ordered fallback ladder, and the ladder runs precisely when the primary
+        // provider is down — so a notice naming only the pin names the wrong
+        // recipient on the days it matters. Marked non-primary so "usually OpenAI,
+        // occasionally Google" stays distinguishable from "OpenAI".
+        $groups = AiPrivacy::disclosure();
+        $byProvider = [];
+        foreach ($groups as $g) $byProvider[$g['provider']] = $g;
+
+        $this->assertArrayHasKey('openai', $byProvider, 'the pinned provider');
+        $this->assertTrue($byProvider['openai']['primary']);
+
+        $fallbackProviders = array_filter($byProvider, static fn (array $g): bool => !$g['primary']);
+        $this->assertNotSame([], $fallbackProviders,
+            'every capability declares fallbacks, so at least one non-primary '
+            . 'destination must be disclosed');
+
+        // And each disclosed destination is genuinely reachable — no phantom entries.
+        foreach ($groups as $g) {
+            $reachable = false;
+            foreach (AiCapability::all() as $cap) {
+                if (!$cap->publicContent) continue;
+                foreach ($cap->route() as $hop) {
+                    if (explode(':', $hop, 2)[0] === $g['provider']) { $reachable = true; break 2; }
+                }
+            }
+            $this->assertTrue($reachable, "{$g['provider']} is disclosed but no capability routes to it");
+        }
+    }
+
+    public function test_provider_names_are_spelled_the_way_the_companies_spell_them(): void
+    {
+        // A published legal notice that says "Openai" reads as though nobody checked.
+        $this->assertSame('OpenAI', AiPrivacy::providerLabel('openai'));
+        $this->assertSame('Google (Gemini)', AiPrivacy::providerLabel('gemini'));
+        $this->assertSame('Anthropic', AiPrivacy::providerLabel('anthropic'));
+        $this->assertSame('Groq', AiPrivacy::providerLabel('groq'));
+        // An unknown id still renders something rather than an empty heading.
+        $this->assertSame('Somebodynew', AiPrivacy::providerLabel('somebodynew'));
     }
 
     public function test_every_public_capability_describes_its_data_in_plain_words(): void
@@ -350,7 +407,17 @@ class AiPrivacyTest extends TestCase
         $html = $this->renderPrivacy();
 
         $this->assertStringContainsString('Automated processing', $html);
-        $this->assertStringContainsString('Sent to Groq', $html);
+
+        // Asserted against the REGISTRY, not against a vendor name. Hardcoding
+        // 'Sent to Groq' meant retargeting the capabilities to GPT broke a privacy
+        // test for no privacy reason, which teaches the next person to edit the
+        // expectation rather than read it.
+        foreach (\AfricaGates\Services\AiPrivacy::disclosure() as $group) {
+            $this->assertStringContainsString('Sent to ' . $group['label'], $html,
+                'every destination the registry names must appear on the page');
+        }
+        // And the spelling is the company's, not ucfirst()'s.
+        $this->assertStringNotContainsString('Sent to Openai', $html);
         $this->assertStringContainsString('[email]', $html, 'the placeholder is named so a reader knows what to expect');
         $this->assertStringContainsString('never sent', $html, 'nominee contact fields are stated as never sent');
     }

@@ -38,7 +38,7 @@ class InjectionCorpusTest extends TestCase
         return new class ($reply) extends AiService {
             public string $seen = '';
             public function __construct(private readonly string $reply) { parent::__construct(groqKey: 'test-key'); }
-            public function complete(string $system, string $user, int $maxTokens = 512, bool $json = false, float $temperature = 0.2): ?string
+            public function complete(string $system, string $user, int $maxTokens = 512, bool $json = false, float $temperature = 0.2, array $route = [], int $maxAttempts = 0): ?string
             {
                 $this->seen = $user;
                 return $this->reply;

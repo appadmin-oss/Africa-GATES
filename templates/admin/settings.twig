@@ -188,13 +188,19 @@
 
   <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">AI providers<small>Free-tier moderation &amp; AI features. The platform runs on built-in heuristics until you add a key.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="ai_settings" value="1">
-    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Keys are stored server-side and never shown again. The first configured provider is used, in order: <strong>Groq</strong> → <strong>Gemini</strong> → <strong>Anthropic</strong> → <strong>OpenAI</strong>. {% if ai_status.active %}Active now: <strong>{{ ai_status.active|capitalize }}</strong>.{% else %}No provider configured — using built-in heuristics.{% endif %}</p>
+    {# This paragraph used to read "the first configured provider is used, in order:
+       Groq → Gemini → Anthropic → OpenAI", which was accurate and is no longer how
+       it works. Each feature now PINS a model by what its output is used for, and
+       the pin is honoured; the key order only decides what happens once every
+       declared hop is exhausted. Leaving the old sentence would have an operator
+       adding a Groq key expecting it to take over everything. #}
+    <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Keys are stored server-side and never shown again. Each AI feature is pinned to a model chosen for the job — <strong>OpenAI</strong> for anything a person acts on or a visitor reads, and a fast model for throwaway suggestions — then falls back through <strong>Gemini</strong> → <strong>Anthropic</strong> → <strong>Groq</strong> if that provider cannot answer. Add whichever keys you have; a feature only goes dark when none of them work. {% if ai_status.active %}Configured now: <strong>{{ ai_status.active|capitalize }}</strong>{% if ai_status.model %} ({{ ai_status.model }}){% endif %}.{% else %}No provider configured — using built-in heuristics.{% endif %}</p>
     <div class="ad-form">
       {% set ai_providers = [
-        {'name':'groq','label':'Groq API key','hint':'console.groq.com — free &amp; fast (Llama)'},
-        {'name':'gemini','label':'Google Gemini API key','hint':'aistudio.google.com — generous free tier'},
-        {'name':'anthropic','label':'Anthropic API key','hint':'console.anthropic.com (Claude Haiku)'},
-        {'name':'openai','label':'OpenAI API key','hint':'platform.openai.com'}
+        {'name':'openai','label':'OpenAI API key','hint':'platform.openai.com — <strong>primary</strong>: every feature is pinned here first'},
+        {'name':'gemini','label':'Google Gemini API key','hint':'aistudio.google.com — 1st fallback, generous free tier'},
+        {'name':'anthropic','label':'Anthropic API key','hint':'console.anthropic.com — 2nd fallback (Claude)'},
+        {'name':'groq','label':'Groq API key','hint':'console.groq.com — last fallback, free &amp; fast (Llama)'}
       ] %}
       {% for p in ai_providers %}
       <div>
@@ -207,14 +213,17 @@
       </div>
       {% endfor %}
       <div class="row">
-        <div><label for="f-ai_groq_model">Groq model <small>general / public — fast &amp; cheap</small></label><input type="text" name="ai_groq_model" id="f-ai_groq_model" value="{{ values.ai_groq_model|default('') }}" placeholder="llama-3.1-8b-instant"></div>
-        <div><label for="f-ai_gemini_model">Gemini model <small>optional</small></label><input type="text" name="ai_gemini_model" id="f-ai_gemini_model" value="{{ values.ai_gemini_model|default('') }}" placeholder="gemini-2.0-flash"></div>
+        {# Placeholders read from AiService::DEFAULT_MODELS so the hint an operator
+           sees and the id the request sends cannot drift apart. They were four
+           hardcoded strings, and gemini-2.0-flash was already stale. #}
+        <div><label for="f-ai_openai_model">OpenAI model <small>overrides the pin for every feature</small></label><input type="text" name="ai_openai_model" id="f-ai_openai_model" value="{{ values.ai_openai_model|default('') }}" placeholder="{{ ai_default_models.openai }}"></div>
+        <div><label for="f-ai_gemini_model">Gemini model <small>optional</small></label><input type="text" name="ai_gemini_model" id="f-ai_gemini_model" value="{{ values.ai_gemini_model|default('') }}" placeholder="{{ ai_default_models.gemini }}"></div>
       </div>
       <div class="row">
-        <div><label for="f-ai_anthropic_model">Anthropic model <small>optional — point at your best Claude</small></label><input type="text" name="ai_anthropic_model" id="f-ai_anthropic_model" value="{{ values.ai_anthropic_model|default('') }}" placeholder="claude-haiku-4-5-20251001"></div>
-        <div><label for="f-ai_openai_model">OpenAI model <small>optional</small></label><input type="text" name="ai_openai_model" id="f-ai_openai_model" value="{{ values.ai_openai_model|default('') }}" placeholder="gpt-4o-mini"></div>
+        <div><label for="f-ai_anthropic_model">Anthropic model <small>optional — point at your best Claude</small></label><input type="text" name="ai_anthropic_model" id="f-ai_anthropic_model" value="{{ values.ai_anthropic_model|default('') }}" placeholder="{{ ai_default_models.anthropic }}"></div>
+        <div><label for="f-ai_groq_model">Groq model <small>general / public — fast &amp; cheap</small></label><input type="text" name="ai_groq_model" id="f-ai_groq_model" value="{{ values.ai_groq_model|default('') }}" placeholder="{{ ai_default_models.groq }}"></div>
       </div>
-      <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">Every provider's model is yours to set — leave blank for a sensible default. Point each at the strongest model your plan allows to get the best output; the platform fails over across whichever providers are configured.</p>
+      <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">Every provider's model is yours to set — leave blank for the default shown. Setting one here overrides the per-feature pin for that provider, so moving to a newer model is a settings change rather than a deploy. Point each at the strongest model your plan allows.</p>
 
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
         <label style="font-weight:600">Dedicated moderation Groq key
