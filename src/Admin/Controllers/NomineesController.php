@@ -179,7 +179,12 @@ class NomineesController
         if (!\AfricaGates\Admin\Support\Permissions::canManageIntegrity((string)($_SESSION['admin_role'] ?? ''))) {
             return $json(['ok' => false, 'error' => 'Only an admin can scan for duplicates.'], 403);
         }
-        // Modest per-admin budget — the AI layer makes one call per category.
+        // Modest per-admin budget. The AI layer now makes ONE call per SCAN, not one
+        // per category — a 48-category cycle used to spend 48 of a 500-per-day
+        // capability budget on a single click.
+        // `names_by_id` is stripped from the response below: it is the raw
+        // name-for-every-nominee map that forCycle() needs internally, and shipping
+        // it would turn a duplicate report into a bulk export of the whole cycle.
         try {
             if (!(new \AfricaGates\Services\RateLimitService())->check('admin:' . ($_SESSION['admin_id'] ?? '0'), 'dup_scan', 20, 3600)) {
                 return $json(['ok' => false, 'error' => 'Too many scans — wait a minute and try again.'], 429);
@@ -194,6 +199,7 @@ class NomineesController
         if ($cycleId <= 0) return $json(['ok' => true, 'groups' => [], 'scanned' => 0, 'ai' => false]);
 
         $r = \AfricaGates\Services\MergeSuggestionService::forCycle($cycleId);
+        unset($r['names_by_id']);
         return $json(['ok' => true] + $r + ['cycle' => $cycleId]);
     }
 
