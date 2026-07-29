@@ -100,7 +100,11 @@
   <div class="sh-grid">
     {% for p in products %}
     <article class="sh-card" x-show="filter==='All' || filter==='{{ p.category }}'" x-transition.opacity>
-      <a class="sh-card__cover" href="/shop/{{ p.slug }}" style="{% if p.cover_path %}background-image:url('{{ p.cover_path }}'){% else %}background:{{ COV[loop.index0 % COV|length] }}{% endif %}">
+      {# aria-hidden + tabindex=-1: this cover is a SECOND link to the same product as
+         sh-card__name below, and it has no text, so a screen reader announced a
+         nameless "link" and keyboard users hit an extra dead stop on every card.
+         Hiding the decorative duplicate leaves exactly one named link per product. #}
+      <a class="sh-card__cover" aria-hidden="true" tabindex="-1" href="/shop/{{ p.slug }}" style="{% if p.cover_path %}background-image:url('{{ p.cover_path }}'){% else %}background:{{ COV[loop.index0 % COV|length] }}{% endif %}">
         {% if p.tag %}<span class="sh-card__tag sh-tag--{{ p.tag }}">{{ p.tag }}</span>{% endif %}
       </a>
       <div class="sh-card__body">

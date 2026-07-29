@@ -291,9 +291,13 @@
 
         {# STEP 3 · STORY #}
         <section class="nm-panel" data-step="3" x-show="step===3" x-cloak>
-          <h2>Why do they deserve this?</h2>
+          <h2 id="nWhyHeading">Why do they deserve this?</h2>
           <p class="lead">Tell their story. Specific impact carries the most weight with our panel.</p>
-          <textarea id="nWhy" name="reason" class="nm-in" required minlength="60" aria-describedby="storyHint" placeholder="What have they built or changed? Who has it helped?" x-model="story"></textarea>
+          {# aria-labelledby the visible heading rather than an invented aria-label: the
+             accessible name should be the text a sighted user reads. Without it a screen
+             reader announced this textarea — the most important field on the site — with
+             no name at all, only the placeholder, which is not a label. #}
+          <textarea id="nWhy" name="reason" class="nm-in" required minlength="60" aria-labelledby="nWhyHeading" aria-describedby="storyHint" placeholder="What have they built or changed? Who has it helped?" x-model="story"></textarea>
           <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:7px;flex-wrap:wrap">
             <span class="nm-hint" id="storyHint">Minimum 60 characters</span>
             <span style="display:inline-flex;align-items:center;gap:10px">
@@ -316,14 +320,22 @@
             <button type="button" x-show="_storyBackup" @click="story=_storyBackup; _storyBackup=''; polishMsg='Restored your original wording.'"
                     style="border:none;background:none;color:#1a6118;font-weight:700;font-size:12px;cursor:pointer;text-decoration:underline;padding:0 2px">Undo</button>
           </p>
-          <label class="nm-lab" style="margin:18px 0 7px">Reference links (optional)</label>
-          <div class="nm-stack">
-            <input name="reference_url" class="nm-in" type="url" placeholder="Reference 1 — article, video, or programme website" value="{{ old.reference_url ?? '' }}">
-            <input name="reference_url_2" class="nm-in" type="url" placeholder="Reference 2 (optional)" value="{{ old.reference_url_2 ?? '' }}">
-            <input name="reference_url_3" class="nm-in" type="url" placeholder="Reference 3 (optional)" value="{{ old.reference_url_3 ?? '' }}">
-          </div>
-          <label class="nm-lab" style="margin:18px 0 7px">Supporting document (optional)</label>
-          <div class="nm-file"><input type="file" name="evidence" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"></div>
+          {# A group label cannot name three separate inputs, and none of them had an
+             id for `for` to point at — so a screen reader announced "edit text" three
+             times with no way to tell them apart. Each now carries its own name, and
+             the group is a real fieldset/legend. #}
+          <fieldset style="border:0;padding:0;margin:0">
+            <legend class="nm-lab" style="margin:18px 0 7px;padding:0">Reference links (optional)</legend>
+            <div class="nm-stack">
+              <input name="reference_url" class="nm-in" type="url" aria-label="Reference link 1 — article, video, or programme website" placeholder="Reference 1 — article, video, or programme website" value="{{ old.reference_url ?? '' }}">
+              <input name="reference_url_2" class="nm-in" type="url" aria-label="Reference link 2 (optional)" placeholder="Reference 2 (optional)" value="{{ old.reference_url_2 ?? '' }}">
+              <input name="reference_url_3" class="nm-in" type="url" aria-label="Reference link 3 (optional)" placeholder="Reference 3 (optional)" value="{{ old.reference_url_3 ?? '' }}">
+            </div>
+          </fieldset>
+          {# The label had no `for` and the input had no id, so they were associated
+             visually and not programmatically. #}
+          <label class="nm-lab" for="nEvidence" style="margin:18px 0 7px">Supporting document (optional)</label>
+          <div class="nm-file"><input id="nEvidence" type="file" name="evidence" accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"></div>
           <p class="nm-hint" style="margin-top:7px">PDF or image, up to 15MB — an impact report, letter of support, or photo. Reviewed by our team.</p>
         </section>
 
