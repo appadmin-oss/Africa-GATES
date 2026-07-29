@@ -282,4 +282,70 @@ class CspTest extends TestCase
 
         $this->assertSame([], $offenders);
     }
+
+    // ── Nonce reuse ─────────────────────────────────────────────────────────
+
+    /** Run the middleware over a response with the given headers. */
+    private function through(array $headers): \Psr\Http\Message\ResponseInterface
+    {
+        return (new \AfricaGates\Middleware\SecurityHeadersMiddleware())(
+            (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/'),
+            new class ($headers) implements \Psr\Http\Server\RequestHandlerInterface {
+                public function __construct(private readonly array $headers) {}
+                public function handle(\Psr\Http\Message\ServerRequestInterface $r): \Psr\Http\Message\ResponseInterface
+                {
+                    $res = new \Slim\Psr7\Response();
+                    foreach ($this->headers as $k => $v) $res = $res->withHeader($k, $v);
+                    return $res;
+                }
+            }
+        );
+    }
+
+    public function test_a_nonce_bearing_page_is_not_storable_by_a_shared_cache(): void
+    {
+        // A nonce is a per-request secret and is worthless if reused. Scope, measured
+        // rather than assumed: PHP's session.cache_limiter defaults to `nocache`, so
+        // any page that started a session already sends no-store — most pages here do.
+        // This covers the remainder: an HTML response rendered WITHOUT a session, which
+        // would otherwise carry a nonce and no cache policy at all, leaving a CDN or
+        // reverse proxy free to store it and hand it to another user.
+        $res = $this->through(['Content-Type' => 'text/html; charset=utf-8']);
+
+        $this->assertStringContainsString('private', $res->getHeaderLine('Cache-Control'));
+        $this->assertStringContainsString("'nonce-", $res->getHeaderLine('Content-Security-Policy'),
+            'header and body carry the same nonce, which is exactly why reuse matters');
+    }
+
+    public function test_a_response_with_no_content_type_is_treated_as_html(): void
+    {
+        // Slim has not always set Content-Type by the time this middleware runs, and
+        // defaulting to "not HTML" would leave the most common case uncovered.
+        $this->assertStringContainsString('private', $this->through([])->getHeaderLine('Cache-Control'));
+    }
+
+    public function test_a_route_that_sets_its_own_cache_policy_is_not_overridden(): void
+    {
+        // The JSON and setup routes deliberately send no-store; MediaController sends
+        // its own. Replacing those would be a regression dressed as a fix.
+        $this->assertSame('no-store',
+            $this->through(['Content-Type' => 'text/html', 'Cache-Control' => 'no-store'])->getHeaderLine('Cache-Control'));
+        $this->assertSame('private, max-age=300, must-revalidate',
+            $this->through(['Content-Type' => 'text/html', 'Cache-Control' => 'private, max-age=300, must-revalidate'])->getHeaderLine('Cache-Control'));
+    }
+
+    public function test_a_non_html_response_is_left_alone(): void
+    {
+        // Images and downloads carry no nonce and may be shared-cacheable; forcing
+        // `private` on them would quietly cost every shared cache hit the site gets.
+        $this->assertSame('', $this->through(['Content-Type' => 'image/png'])->getHeaderLine('Cache-Control'));
+        $this->assertSame('', $this->through(['Content-Type' => 'application/json'])->getHeaderLine('Cache-Control'));
+    }
+
+    public function test_the_nonce_carries_128_bits_of_randomness(): void
+    {
+        // Per the CSP guidance. A short nonce is guessable, which would make the whole
+        // exercise decorative — the same failure as the policy it replaced.
+        $this->assertSame(16, strlen((string) base64_decode(Csp::nonce(), true)));
+    }
 }
