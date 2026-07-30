@@ -51,7 +51,7 @@
       <div class="row">
         {% if row.avatar_path %}
         <div><label>Current portrait</label>
-          <img src="{{ row.avatar_path }}" alt="Portrait of {{ row.name }}" style="width:96px;height:120px;border-radius:48px 48px 10px 10px;object-fit:cover;border:2px solid #d9c489">
+          <img src="{{ row.avatar_path|media_url('thumb') }}" alt="Portrait of {{ row.name }}" style="width:96px;height:120px;border-radius:48px 48px 10px 10px;object-fit:cover;border:2px solid #d9c489">
         </div>
         {% endif %}
         <div><label>{{ row.avatar_path is defined and row.avatar_path ? 'Replace portrait' : 'Portrait' }}</label>

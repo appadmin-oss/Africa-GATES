@@ -592,6 +592,9 @@ return function(App $app) {
         $a->get('/media',                     AdminMediaController::class.':index');
         $a->get('/media/{id:[0-9]+}/view',    AdminMediaController::class.':view');
         $a->post('/media/{id:[0-9]+}/delete', AdminMediaController::class.':delete');
+        // One batch of the local → Cloudinary sweep. POST because it writes; the page it
+        // returns to continues itself while work remains. See MediaController::migrate().
+        $a->post('/media/cloudinary',         AdminMediaController::class.':migrate');
         // Legal & policy documents (editable — no longer hardcoded)
         $a->get('/legal',                          \AfricaGates\Admin\Controllers\LegalController::class.':index');
         $a->get('/legal/{slug:[a-z0-9-]+}',        \AfricaGates\Admin\Controllers\LegalController::class.':edit');

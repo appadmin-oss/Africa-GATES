@@ -58,7 +58,7 @@
         <td>
           <div style="display:flex;gap:10px;align-items:center">
             {% if r.photo_path %}
-              <img src="{{ r.photo_path }}" alt="Photo of {{ r.name }}" width="40" height="40" loading="lazy" style="width:40px;height:40px;border-radius:8px;object-fit:cover;border:1px solid var(--ad-line,#dfe4e3);flex:none">
+              <img src="{{ r.photo_path|media_url('avatar') }}" alt="Photo of {{ r.name }}" width="40" height="40" loading="lazy" style="width:40px;height:40px;border-radius:8px;object-fit:cover;border:1px solid var(--ad-line,#dfe4e3);flex:none">
             {% else %}
               <span aria-hidden="true" style="width:40px;height:40px;border-radius:8px;background:var(--ad-bg,#eef2f1);border:1px solid var(--ad-line,#dfe4e3);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--ad-text-mute,#8a9a9c);flex:none">{{ r.name|first|upper }}</span>
             {% endif %}

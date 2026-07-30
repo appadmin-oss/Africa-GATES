@@ -165,6 +165,15 @@ return [
             [\AfricaGates\Support\Html::class, 'sanitize'],
             ['is_safe' => ['html']]
         ));
+        // Stored image path → the URL to actually request. A filter rather than
+        // forty hand-written transformation strings, so the crop rule that frames a
+        // nominee's face lives in ONE place — see AfricaGates\Support\Media. Safe on a
+        // local `/uploads/...` path, which it returns untouched, so templates can call
+        // it unconditionally while a Cloudinary migration is only partly through.
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
+            'media_url',
+            [\AfricaGates\Support\Media::class, 'url']
+        ));
         // Consume one-shot flash
         unset($_SESSION['flash_ok'], $_SESSION['flash_error'], $_SESSION['flash_notice']);
         return $twig;

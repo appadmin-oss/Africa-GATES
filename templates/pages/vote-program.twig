@@ -79,7 +79,7 @@
       <div class="vp-grid">
         {% for n in c.nominees %}
         <a class="vp-card" href="{{ n.url }}">
-          <span class="vp-card__av" {% if n.photo_path %}style="background-image:url('{{ n.photo_path }}')"{% endif %}>
+          <span class="vp-card__av" {% if n.photo_path %}style="background-image:url('{{ n.photo_path|media_url('thumb') }}')"{% endif %}>
             {% if not n.photo_path %}<span class="vp-card__mono" aria-hidden="true">{{ n.name|first|upper }}</span>{% endif %}
           </span>
           <span class="vp-card__b">

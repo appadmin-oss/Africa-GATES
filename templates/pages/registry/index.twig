@@ -89,7 +89,7 @@
         {% set tc = TIERCOL[p.cpi_tier]|default(['#eef7ee','#1a6118']) %}
         <article class="rg-card" data-cat="{{ p.category }}" data-name="{{ (p.display_name ~ ' ' ~ p.category ~ ' ' ~ p.country_code)|lower }}">
           <a class="rg-card__cover" href="/registry/{{ p.slug }}"
-             style="{% if p.avatar_path %}background-image:url('{{ p.avatar_path }}'){% else %}background:{{ COV[loop.index0 % COV|length] }}{% endif %}">
+             style="{% if p.avatar_path %}background-image:url('{{ p.avatar_path|media_url('thumb') }}'){% else %}background:{{ COV[loop.index0 % COV|length] }}{% endif %}">
             <span class="rg-card__scrim"></span>
             <span class="rg-card__tier" style="background:{{ tc[0] }};color:{{ tc[1] }}">{{ p.cpi_tier }}</span>
             <span class="rg-card__flag">{{ FLAGS[p.country_code]|default('🌍') }}</span>

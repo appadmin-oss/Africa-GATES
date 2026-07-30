@@ -24,10 +24,109 @@
   .md-view{ font-size:12.5px; font-weight:600; color:var(--ad-accent,#237b22); text-decoration:none; }
   .md-empty{ background:var(--ad-surface,#fff); border:1px solid var(--ad-line,rgba(16,41,44,.1)); border-radius:16px; padding:48px 24px; text-align:center; color:var(--ad-text-soft,#5a646a); }
   .md-empty__i{ font-size:30px; }
+
+  /* Cloudinary panel */
+  .md-cdn{ background:var(--ad-surface,#fff); border:1px solid var(--ad-line,rgba(16,41,44,.1)); border-radius:14px; padding:16px 18px; margin-bottom:20px; }
+  .md-cdn__hd{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+  .md-cdn__hd h3{ margin:0; font-size:15px; color:var(--ad-text,#10292C); }
+  .md-cdn__pill{ font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:3px 9px; border-radius:999px; }
+  .md-cdn__pill--on{ background:#e2f4e1; color:#1a6118; }
+  .md-cdn__pill--off{ background:#f4e6e6; color:#8b2b2b; }
+  .md-cdn__p{ margin:0 0 12px; font-size:12.5px; line-height:1.55; color:var(--ad-text-soft,#5a646a); }
+  .md-cdn__p code{ font:600 11.5px/1 'Space Mono',monospace; background:rgba(16,41,44,.06); padding:2px 5px; border-radius:4px; }
+  .md-cdn__nums{ display:flex; gap:18px; flex-wrap:wrap; margin:0 0 12px; }
+  .md-cdn__num b{ display:block; font:700 19px/1.2 'Space Mono',monospace; color:var(--ad-text,#10292C); }
+  .md-cdn__num span{ font-size:11px; color:var(--ad-text-soft,#5a646a); }
+  .md-cdn__list{ margin:0 0 12px; padding:0; list-style:none; font:12px/1.7 'Space Mono',monospace; color:var(--ad-text-soft,#5a646a); }
+  .md-cdn__btns{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; }
+  .md-cdn__log{ margin-top:12px; max-height:220px; overflow:auto; background:#0e1f22; color:#cfe9ce; border-radius:10px; padding:11px 13px; font:11.5px/1.7 'Space Mono',monospace; white-space:pre-wrap; }
 </style>
 {% endblock %}
 
 {% block content %}
+
+{# ── Cloudinary: status + the bulk sweep ──────────────────────────────────────
+   The button exists because this platform is deployed to shared cPanel with no
+   SSH, so `bin/console media:cloudinary` — the better interface — is not
+   available to the operator. One batch per POST; the page continues itself while
+   work remains, which is the same pattern /__setup/migrate uses and for the same
+   reason: a request that loops for minutes gets killed with no report. #}
+<div class="md-cdn">
+  <div class="md-cdn__hd">
+    <h3>Cloudinary image hosting</h3>
+    {% if cloudinary.configured %}
+      <span class="md-cdn__pill md-cdn__pill--on">Connected</span>
+    {% else %}
+      <span class="md-cdn__pill md-cdn__pill--off">Not configured</span>
+    {% endif %}
+  </div>
+
+  {% if cloudinary.configured %}
+    <p class="md-cdn__p">
+      New uploads go to cloud <code>{{ cloudinary.cloud }}</code>, folder <code>{{ cloudinary.folder }}</code>.
+      Portraits are delivered face-cropped, so the flier frames a nominee’s face instead of centre-cropping to their chest.
+    </p>
+  {% else %}
+    <p class="md-cdn__p">
+      Uploads are being stored on this server. To move them to Cloudinary, add
+      <code>CLOUDINARY_URL=cloudinary://key:secret@cloud</code> to <code>.env</code>
+      (or the three <code>CLOUDINARY_*</code> names), then reload this page. Nothing breaks until you do —
+      local storage keeps working exactly as it does now.
+    </p>
+  {% endif %}
+
+  <div class="md-cdn__nums">
+    <div class="md-cdn__num"><b>{{ cloudinary.total|default(0) }}</b><span>local images referenced</span></div>
+    <div class="md-cdn__num"><b>{{ cloudinary.migrated|default(0) }}</b><span>migrated</span></div>
+    {% if cloudinary.missing|default(0) > 0 %}<div class="md-cdn__num"><b>{{ cloudinary.missing }}</b><span>missing on disk</span></div>{% endif %}
+    {% if cloudinary.failed|default(0) > 0 %}<div class="md-cdn__num"><b>{{ cloudinary.failed }}</b><span>failed</span></div>{% endif %}
+  </div>
+
+  {% if cloudinary.by_target is not empty %}
+  <ul class="md-cdn__list">
+    {% for target, n in cloudinary.by_target %}<li>{{ target }} — {{ n }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if cloudinary.total|default(0) > 0 and not cloudinary.may_run %}
+    <p class="md-cdn__p" style="margin:0">An administrator can move these to Cloudinary — the migration spends against the CDN account, so it is not available to this role.</p>
+  {% elseif cloudinary.total|default(0) > 0 %}
+  <div class="md-cdn__btns">
+    <form method="post" action="/admin/media/cloudinary" style="display:inline">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="preview" value="1">
+      <button type="submit" class="ad-btn">Preview (changes nothing)</button>
+    </form>
+    {% if cloudinary.configured %}
+    <form method="post" action="/admin/media/cloudinary" id="cdnRun" style="display:inline">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button type="submit" class="ad-btn ad-btn--primary">{{ cloudinary.running ? "Migrating…" : "Migrate to Cloudinary" }}</button>
+    </form>
+    {% endif %}
+    <span style="font-size:11.5px;color:var(--ad-text-soft,#5a646a)">Local files are never deleted. Safe to re-run.</span>
+  </div>
+  {% elseif cloudinary.configured %}
+    <p class="md-cdn__p" style="margin:0"><strong>Nothing left to migrate</strong> — every referenced image is already on Cloudinary.</p>
+  {% endif %}
+
+  {% if cloudinary.report is not empty %}
+  <div class="md-cdn__log" role="status" aria-label="Last migration batch">{% for line in cloudinary.report %}{{ line }}
+{% endfor %}</div>
+  {% endif %}
+</div>
+
+{% if cloudinary.running %}
+{# Self-continue. Submits the next batch on its own so an operator does not click
+   through a few thousand photos twenty-five at a time. Each POST carries the CSRF
+   token above, and the loop ends when the controller stops returning ?migrate=running. #}
+<script nonce="{{ csp_nonce }}">
+  setTimeout(function () {
+    var f = document.getElementById('cdnRun');
+    if (f) f.submit();
+  }, 900);
+</script>
+{% endif %}
+
 <div class="md-tabs">
   <a class="md-tab {% if filter == '' %}is-on{% endif %}" href="/admin/media">All <span>{{ counts.all|default(0) }}</span></a>
   <a class="md-tab {% if filter == 'image' %}is-on{% endif %}" href="/admin/media?type=image">Images <span>{{ counts.image|default(0) }}</span></a>

@@ -51,6 +51,7 @@ final class DoctorCommand extends Command
             'opcache'  => $this->opcache(),
             'config'   => $this->config(),
             'database' => $this->database(),
+            'media'    => $this->media(),
             'csp'      => $this->csp(),
         ];
         $problems = $this->problems($report);
@@ -220,6 +221,37 @@ final class DoctorCommand extends Command
         return $out;
     }
 
+    /**
+     * Where images are stored, and how much of the old estate has moved.
+     *
+     * Worth a section of its own because both halves fail QUIETLY. Cloudinary
+     * credentials that are absent (or misspelled — `CLOUDINARY_API_SECRET` vs
+     * `..._SECRET_KEY` is the obvious slip) do not break anything: uploads keep landing
+     * on local disk, exactly as they did before, so an operator who believes they
+     * switched the CDN on has no signal that they did not. And a bulk migration that
+     * stopped halfway leaves a database serving some photos from a CDN and some from
+     * disk with no visible difference until the disk is the one that goes away.
+     */
+    private function media(): array
+    {
+        $out = ['cloudinary' => \AfricaGates\Services\CloudinaryService::enabled() ? 'configured' : 'not configured (storing locally)'];
+        if (\AfricaGates\Services\CloudinaryService::enabled()) {
+            $out['cloudinary_cloud']  = \AfricaGates\Services\CloudinaryService::cloudName();
+            $out['cloudinary_folder'] = \AfricaGates\Services\CloudinaryService::rootFolder();
+        }
+        try {
+            $s = (new \AfricaGates\Services\MediaMigrationService())->status();
+            $out['local_images_referenced'] = (string) $s['total']
+                . ($s['total'] > 0 ? ' (run: bin/console media:cloudinary)' : '');
+            $out['migrated']   = (string) $s['migrated'];
+            if ($s['missing'] > 0) $out['missing_on_disk'] = (string) $s['missing'] . ' — referenced but not present';
+            if ($s['failed'] > 0)  $out['failed_uploads']  = (string) $s['failed'];
+        } catch (\Throwable $e) {
+            $out['local_images_referenced'] = 'unknown (' . $e->getMessage() . ')';
+        }
+        return $out;
+    }
+
     private function database(): array
     {
         try {
@@ -290,6 +322,16 @@ final class DoctorCommand extends Command
             $p[] = 'opcache.validate_timestamps is off: edits to PHP files have no effect until the '
                  . 'PHP-FPM pool is reloaded or the opcode cache is flushed. An edit that appears to '
                  . 'do nothing — including a syntax error — is explained by this alone.';
+        }
+        if ((int) ($r['media']['failed_uploads'] ?? 0) > 0) {
+            $p[] = 'Cloudinary uploads have failed for ' . $r['media']['failed_uploads'] . ' image(s). '
+                 . 'Query gates_media_migrations WHERE status = \'failed\' for the reason — the rows still '
+                 . 'point at local files, so nothing is broken, but the sweep will not finish until it is fixed.';
+        }
+        if (str_contains((string) ($r['media']['missing_on_disk'] ?? ''), 'not present')) {
+            $p[] = 'Some rows reference image files that are not on disk (' . $r['media']['missing_on_disk'] . '). '
+                 . 'Those images were already broken before any migration; the sweep left them alone rather '
+                 . 'than rewriting them to a CDN URL that would also 404. See gates_media_migrations.';
         }
         if (($r['csp']['form_action_has_gateways'] ?? '') === 'NO') {
             $p[] = 'form-action does not list the payment gateways. Chrome applies form-action to the '

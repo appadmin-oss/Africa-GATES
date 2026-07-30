@@ -199,7 +199,7 @@
       <div class="pf-hero__side">
         <div class="pf-hero__glow" aria-hidden="true"></div>
         {% if p.avatar_path %}
-          <img class="pf-portrait" src="{{ p.avatar_path }}" alt="{{ p.display_name }}">
+          <img class="pf-portrait" src="{{ p.avatar_path|media_url('portrait') }}" alt="{{ p.display_name }}">
         {% else %}
           <div class="pf-mono" aria-hidden="true">{{ p.display_name|slice(0,1)|upper }}</div>
         {% endif %}
@@ -360,7 +360,7 @@
           {% for s in similar %}
           {% set sav = AV[loop.index0 % AV|length] %}
           <a class="pf-sim__row" href="/registry/{{ s.slug }}">
-            <span class="pf-sim__av" style="{% if s.avatar_path %}background-image:url('{{ s.avatar_path }}'){% else %}background:{{ sav[0] }};color:{{ sav[1] }}{% endif %}">{% if not s.avatar_path %}{{ s.display_name|slice(0,1)|upper }}{% endif %}</span>
+            <span class="pf-sim__av" style="{% if s.avatar_path %}background-image:url('{{ s.avatar_path|media_url('avatar') }}'){% else %}background:{{ sav[0] }};color:{{ sav[1] }}{% endif %}">{% if not s.avatar_path %}{{ s.display_name|slice(0,1)|upper }}{% endif %}</span>
             <span class="pf-sim__b">
               <span class="pf-sim__n">{{ FLAGS[s.country_code]|default('🌍') }} {{ s.display_name }}</span>
               <span class="pf-sim__c">CPI {{ s.cpi_score }}</span>

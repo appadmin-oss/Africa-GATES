@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Controllers;
 
 use AfricaGates\Support\Env;
+use AfricaGates\Services\CheckoutThrottle;
 use AfricaGates\Services\PaidVoteService;
 use AfricaGates\Services\PaymentService;
 use AfricaGates\Services\RateLimitService;
@@ -39,7 +40,23 @@ final class PaidVoteController
     private function base(): string { return rtrim((string) Env::get('APP_URL', ''), '/'); }
     private function redirect(Response $res, string $url): Response { return $res->withHeader('Location', $url)->withStatus(302); }
 
-    /** POST /vote/paid/start */
+    /**
+     * POST /vote/paid/start
+     *
+     * ── ORDER OF CHECKS IS PART OF THE BEHAVIOUR ─────────────────────────────
+     *
+     * The throttle is consulted LAST, immediately before the pending row is written.
+     * It used to run second, before the nominee, the phase, the provider or the email
+     * had been validated, so every rejected attempt spent a slot: a supporter who
+     * mistyped their address three times had burned three of ten hourly attempts on
+     * requests that never reached a gateway. Only a request that is about to create a
+     * pending order and a gateway session costs anything, so only that request is
+     * counted. See {@see CheckoutThrottle} for why the caps themselves changed.
+     *
+     * And a refusal is never a dead end: the buyer's quantity, email and name are
+     * flashed back so the re-rendered ballot arrives filled in, with the reason and —
+     * when it is a throttle — when to try again.
+     */
     public function start(Request $req, Response $res): Response
     {
         $b         = (array)$req->getParsedBody();
@@ -48,17 +65,16 @@ final class PaidVoteController
         $name      = trim((string)($b['name'] ?? ''));
         $nomineeId = (int)($b['nominee_id'] ?? 0);
         $qty       = max(1, min(PaidVoteService::MAX_QTY, (int)($b['qty'] ?? 1)));
-        $ip        = (string)($req->getServerParams()['REMOTE_ADDR'] ?? '');
 
         // Back to the nominee's ballot with a reason chip on any failure.
         $nominee = $nomineeId > 0 ? DB::table('gates_nominees')->where('id', $nomineeId)->first() : null;
         $backUrl = $this->ballotUrl($nominee);
-        $bail    = fn(string $why) => $this->redirect($res, $backUrl . (str_contains($backUrl, '?') ? '&' : '?') . 'paid=' . urlencode($why));
+        $bail    = function (string $why, string $detail = '') use ($res, $backUrl, $qty, $email, $name): Response {
+            $this->rememberOrder($qty, $email, $name, $detail);
+            return $this->redirect($res, $backUrl . (str_contains($backUrl, '?') ? '&' : '?') . 'paid=' . urlencode($why));
+        };
 
         if (!PaidVoteService::enabled())                                     return $bail('off');
-        if ($this->rateLimit && !$this->rateLimit->check(hash('sha256', $ip . '|paidvote'), 'paid_vote', 10, 3600)) {
-            return $bail('rate');
-        }
         // Allowlist + merge check, matching every other vote path. The old
         // denylist-of-one accepted rejected/withdrawn nominees and merged-away
         // duplicates, i.e. took money for votes on a nominee the public pages
@@ -69,6 +85,11 @@ final class PaidVoteController
         if (!$this->votingOpenFor($nominee))                                 return $bail('closed');
         if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL))     return $bail('email');
+
+        $gate = (new CheckoutThrottle($this->rateLimit))->allow($req, 'paid_vote');
+        if (!$gate['ok']) {
+            return $bail('rate', CheckoutThrottle::retryPhrase((int) $gate['retry_after']));
+        }
 
         // Price is ALWAYS computed server-side from the admin's settings.
         $amount    = PaidVoteService::price($qty);
@@ -102,6 +123,33 @@ final class PaidVoteController
             return $bail('start');
         }
         return $this->redirect($res, $init['checkout_url']);
+    }
+
+    /**
+     * Flash the buyer's order back so the re-rendered ballot arrives filled in.
+     *
+     * In the SESSION, not the query string. The obvious implementation appends
+     * `&email=…&name=…` to the redirect, which writes the supporter's address and
+     * their real name into the server access log, into any proxy log in front of it,
+     * and into the `Referer` of every asset the ballot then loads — including the
+     * third-party ad and font hosts the page embeds. A retry convenience is not worth
+     * leaking PII to a CDN.
+     *
+     * Read once by {@see \AfricaGates\Controllers\VoteController::nomineeBallot()},
+     * which clears it, so a later visit to the same ballot is not pre-filled from a
+     * checkout the supporter has since abandoned.
+     */
+    private function rememberOrder(int $qty, string $email, string $name, string $detail): void
+    {
+        // `$_SESSION` as an array, not session_status() — the convention everywhere
+        // else in this codebase, and the only version that is testable.
+        if (!isset($_SESSION) || !is_array($_SESSION)) return;
+        $_SESSION['paid_vote_retry'] = [
+            'qty'    => $qty,
+            'email'  => $email,
+            'name'   => $name,
+            'detail' => $detail,
+        ];
     }
 
     /** GET /vote/paid/callback — browser return; re-verified server-to-server. */

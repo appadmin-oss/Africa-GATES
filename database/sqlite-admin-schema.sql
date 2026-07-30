@@ -91,9 +91,31 @@ CREATE TABLE IF NOT EXISTS gates_uploads (
   alt TEXT,
   attached_to_type TEXT,
   attached_to_id INTEGER,
+  -- Mirrors admin-schema.sql — see the note there for what each answers.
+  provider TEXT NOT NULL DEFAULT 'local' CHECK(provider IN ('local','cloudinary')),
+  public_id TEXT,
+  local_path TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_uploads_attached ON gates_uploads(attached_to_type, attached_to_id);
+CREATE INDEX IF NOT EXISTS idx_uploads_provider ON gates_uploads(provider);
+CREATE INDEX IF NOT EXISTS idx_uploads_public_id ON gates_uploads(public_id);
+
+-- Ledger for the local → Cloudinary sweep. See admin-schema.sql for why it exists.
+CREATE TABLE IF NOT EXISTS gates_media_migrations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_path TEXT NOT NULL UNIQUE,
+  public_id TEXT,
+  remote_url TEXT,
+  target_table TEXT,
+  target_column TEXT,
+  target_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'migrated' CHECK(status IN ('migrated','missing','failed','skipped')),
+  error TEXT,
+  bytes INTEGER,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_media_status ON gates_media_migrations(status);
 
 -- Outbound webhooks (admin-managed integration endpoints) + delivery log.
 CREATE TABLE IF NOT EXISTS gates_webhooks (

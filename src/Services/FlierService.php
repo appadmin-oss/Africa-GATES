@@ -61,6 +61,15 @@ final class FlierService
     public const W = 1080;
     public const H = 1350;
 
+    /**
+     * Height of the photo panel. Was a bare `820` written out five times across the two
+     * renderers; it is a constant now because {@see \AfricaGates\Support\Media}'s `flier`
+     * preset has to request exactly these dimensions from Cloudinary. A preset that
+     * disagreed with the panel would hand GD a differently-shaped image and reintroduce
+     * a crop — the specific thing the face-aware derivative exists to remove.
+     */
+    public const PHOTO_H = 820;
+
     /** Rally copy is cached per nominee — it changes with the standing, not the view. */
     public const COPY_TTL = 1800;
 
@@ -240,13 +249,37 @@ final class FlierService
         return $host;
     }
 
-    /** Absolute URL for the nominee photo, or null when there is none. */
+    /**
+     * Absolute URL for the nominee photo, or null when there is none.
+     *
+     * ── WHY THIS ASKS FOR A DERIVATIVE AND NOT THE ORIGINAL ──────────────────
+     *
+     * The photo panel is 1080×820 — a 4:3 landscape box — and a submitted portrait is
+     * almost always taller than it is wide, with the face in the upper third. Both
+     * renderers fill that box by cropping, and both used to crop from the CENTRE, which
+     * on a waist-up photo lands squarely on the subject's chest. The result is a flier
+     * with no face on it, which for a share graphic is not a cosmetic defect: the face
+     * is the entire reason anyone stops scrolling, and the failure looks like a working
+     * render, so nobody reports it.
+     *
+     * When the photo is on Cloudinary, `Media`'s `flier` preset asks for
+     * `c_fill,g_faces:auto` at exactly the panel's dimensions — face-detected crop,
+     * falling back to saliency detection when no face is found. The image that arrives
+     * is already the right shape, so {@see cover()} has nothing left to crop and cannot
+     * reintroduce the problem.
+     *
+     * A local photo gets no face detection — GD has none, and this runs on shared
+     * hosting where adding OpenCV is not on the table — so {@see cover()} applies a
+     * documented upper bias instead. That is a real improvement on centre and honestly
+     * not a substitute for detection, which is the strongest argument for migrating the
+     * existing photos.
+     */
     private function photoUrl(string $path, string $base): ?string
     {
         $p = trim($path);
         if ($p === '') return null;
-        if (preg_match('~^https?://~i', $p)) return $p;
-        return $base . '/' . ltrim($p, '/');
+
+        return \AfricaGates\Support\Media::absolute($p, 'flier', $base);
     }
 
     /**
@@ -264,7 +297,7 @@ final class FlierService
      */
     public function svg(array $f): string
     {
-        $W = self::W; $H = self::H;
+        $W = self::W; $H = self::H; $PH = self::PHOTO_H;
         $s = $f['standing'];
 
         // Name sizing by length. A three-word Nigerian or Ethiopian name is common and
@@ -297,26 +330,32 @@ final class FlierService
               . '<stop offset="0" stop-color="#08201c" stop-opacity="0"/>'
               . '<stop offset="0.62" stop-color="#08201c" stop-opacity="0.55"/>'
               . '<stop offset="1" stop-color="#08201c" stop-opacity="0.97"/></linearGradient>';
-        $out .= '<clipPath id="photoClip"><rect x="0" y="0" width="' . $W . '" height="820"/></clipPath>';
+        $out .= '<clipPath id="photoClip"><rect x="0" y="0" width="' . $W . '" height="' . $PH . '"/></clipPath>';
         $out .= '</defs>';
 
         $out .= '<rect width="' . $W . '" height="' . $H . '" fill="url(#bg)"/>';
 
         // Photo, or a monogram when there is none. A blank rectangle where a face
         // should be is the difference between a flier someone posts and one they do not.
+        // `xMidYMin`, not `xMidYMid`. Same reasoning as the raster's PHOTO_ANCHOR_Y: a
+        // centre crop of a portrait lands on the chest. SVG's preserveAspectRatio only
+        // offers Min/Mid/Max, so this is top-anchored where the raster is 22% down —
+        // the two differ slightly on a very tall local photo, and the raster is the one
+        // that matters, being both the download and the og:image. A Cloudinary photo
+        // arrives already cropped to this exact box, so neither rule applies to it.
         if ($f['photo'] !== null) {
             $out .= '<g clip-path="url(#photoClip)">'
                   . '<image href="' . $this->x($f['photo']) . '" xlink:href="' . $this->x($f['photo']) . '" '
-                  . 'x="0" y="0" width="' . $W . '" height="820" preserveAspectRatio="xMidYMid slice"/>'
+                  . 'x="0" y="0" width="' . $W . '" height="' . $PH . '" preserveAspectRatio="xMidYMin slice"/>'
                   . '</g>';
         } else {
             $initials = $this->initials($name);
-            $out .= '<rect x="0" y="0" width="' . $W . '" height="820" fill="#0f3329"/>';
+            $out .= '<rect x="0" y="0" width="' . $W . '" height="' . $PH . '" fill="#0f3329"/>';
             $out .= '<text x="' . ($W / 2) . '" y="500" text-anchor="middle" '
                   . 'font-family="Playfair Display, Georgia, serif" font-size="260" font-weight="700" '
                   . 'fill="#7fc87c" fill-opacity="0.28">' . $this->x($initials) . '</text>';
         }
-        $out .= '<rect x="0" y="0" width="' . $W . '" height="820" fill="url(#scrim)"/>';
+        $out .= '<rect x="0" y="0" width="' . $W . '" height="' . $PH . '" fill="url(#scrim)"/>';
 
         // Kicker rail
         $out .= '<rect x="64" y="64" width="6" height="52" fill="#c9a227"/>';
@@ -447,7 +486,7 @@ final class FlierService
             return null;
         }
 
-        $W = self::W; $H = self::H; $PH = 820;
+        $W = self::W; $H = self::H; $PH = self::PHOTO_H;
         $im = imagecreatetruecolor($W, $H);
         // No alpha: an OG image is composited on an unknown background by every client,
         // and a transparent flier renders differently in each one.
@@ -679,6 +718,23 @@ final class FlierService
         }
     }
 
+    /**
+     * The vertical anchor when a photo is taller than the box it must fill.
+     *
+     * 0 keeps the top, 0.5 the middle, 1 the bottom. 0.22 is a deliberate upper bias:
+     * across submitted portraits — a phone photo, a headshot, a stage shot — the face
+     * sits in the upper third, and 0.5 crops to the chest. Photographic composition puts
+     * the eyes near the upper third line, so anchoring a little above centre keeps the
+     * head in frame on a portrait while still including the shoulders.
+     *
+     * It is a heuristic and it is not face detection. A photo that is already the box's
+     * aspect ratio is unaffected (there is nothing to crop), and a Cloudinary-hosted
+     * photo never reaches this code path because it arrives pre-cropped on the detected
+     * face — see {@see photoUrl()}. This is the honest best available for a local file
+     * on a host with GD and nothing else.
+     */
+    private const PHOTO_ANCHOR_Y = 0.22;
+
     /** Draw $src to cover the box, cropping the overflow — never stretching it. */
     private function cover($im, $src, int $dx, int $dy, int $dw, int $dh): void
     {
@@ -688,7 +744,11 @@ final class FlierService
         $scale = max($dw / $sw, $dh / $sh);
         $cw = (int) round($dw / $scale);
         $ch = (int) round($dh / $scale);
-        imagecopyresampled($im, $src, $dx, $dy, (int) (($sw - $cw) / 2), (int) (($sh - $ch) / 2), $dw, $dh, $cw, $ch);
+        // Horizontally centred (a subject is reliably centred left-to-right); vertically
+        // biased upward, because they are reliably NOT centred top-to-bottom.
+        $sx = (int) round(($sw - $cw) / 2);
+        $sy = (int) round(($sh - $ch) * self::PHOTO_ANCHOR_Y);
+        imagecopyresampled($im, $src, $dx, $dy, max(0, $sx), max(0, $sy), $dw, $dh, $cw, $ch);
     }
 
     /**

@@ -67,7 +67,7 @@
 
   <header class="jd-head">
     <div class="jd-arch" role="img" aria-label="Portrait of {{ judge.name }}">
-      <div class="jd-arch__in" {% if judge.avatar_path %}style="background-image:url('{{ judge.avatar_path }}')"{% endif %}>
+      <div class="jd-arch__in" {% if judge.avatar_path %}style="background-image:url('{{ judge.avatar_path|media_url('portrait') }}')"{% endif %}>
         {% if not judge.avatar_path %}<div class="jd-arch__mono" aria-hidden="true">{{ judge.name|first|upper }}</div>{% endif %}
       </div>
     </div>

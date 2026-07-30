@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Services;
 
+use AfricaGates\Services\CloudinaryService;
+use AfricaGates\Support\MediaPublicId;
 use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -12,18 +14,69 @@ use Ramsey\Uuid\Uuid;
 
 /**
  * Image upload + processing.
- * Stores files under public/uploads/<bucket>/<yyyy>/<mm>/<uuid>.<ext>
- * Records metadata in gates_uploads.
+ *
+ * Writes to `public/uploads/<bucket>/<yyyy>/<mm>/<uuid>.<ext>` first, ALWAYS, and
+ * records metadata in `gates_uploads`.
+ *
+ * ── AND THEN TO CLOUDINARY, WHEN IT IS CONFIGURED ────────────────────────────
+ *
+ * The local write is not a fallback that Cloudinary replaces; it is the first step of
+ * both paths. The image has to land on disk to be sniffed by finfo, re-encoded, size-
+ * checked and scaled — that is the hardening, and it happens before anything leaves
+ * this server. Only then is the (already sanitised) file handed to Cloudinary.
+ *
+ * Order matters for a second reason: an upload that succeeds locally and then fails to
+ * reach Cloudinary still returns a usable path, so a nomination form does not reject a
+ * supporter's photo because of a CDN outage or an expired API key. The stored path is
+ * whichever URL is actually serveable, and `gates_uploads.provider` records which one
+ * it is so {@see \AfricaGates\Services\MediaMigrationService} can sweep up the misses
+ * later.
  */
 class UploadService
 {
     private readonly ImageManager $img;
     private readonly string $publicRoot;
 
-    public function __construct(?string $publicRoot = null)
-    {
+    /** Does `gates_uploads` carry the provider columns yet? Resolved on first need. */
+    private ?bool $hasProviderColumns = null;
+
+    public function __construct(
+        ?string $publicRoot = null,
+        private readonly ?CloudinaryService $cloud = null,
+    ) {
         $this->publicRoot = $publicRoot ?? dirname(__DIR__, 3) . '/public';
         $this->img = new ImageManager(new Driver());
+    }
+
+    /**
+     * Hand a locally-stored, already-sanitised file to Cloudinary.
+     *
+     * Returns the remote descriptor, or null when Cloudinary is off or the upload
+     * failed — in which case the caller keeps the local path it already has. Never
+     * throws: this is an enhancement of a completed upload, and the completed upload
+     * must survive the enhancement failing.
+     *
+     * @return array{public_id:string, url:string, width:int, height:int, bytes:int}|null
+     */
+    private function toCloud(string $absPath, string $bucket, string $relPath): ?array
+    {
+        if (!CloudinaryService::enabled()) return null;
+
+        // Deterministic public id derived from the local relative path, so re-uploading
+        // the same file (a retry, or the migration sweep later finding this row still
+        // marked local) overwrites one asset rather than accumulating copies.
+        $publicId = MediaPublicId::forPath($relPath);
+
+        $r = ($this->cloud ?? new CloudinaryService())->upload($absPath, $bucket, $publicId);
+        if (!($r['ok'] ?? false)) return null;
+
+        return [
+            'public_id' => (string) $r['public_id'],
+            'url'       => (string) $r['url'],
+            'width'     => (int) ($r['width'] ?? 0),
+            'height'    => (int) ($r['height'] ?? 0),
+            'bytes'     => (int) ($r['bytes'] ?? 0),
+        ];
     }
 
     /**
@@ -91,11 +144,15 @@ class UploadService
         $w = $image->width(); $h = $image->height();
         $size = filesize($absPath) ?: 0;
 
+        // The image is now sanitised and on disk. Only now does it leave this server.
+        $remote  = $this->toCloud($absPath, $bucket, $relPath);
+        $stored  = $remote !== null ? $remote['url'] : '/' . $relPath;
+
         try {
             DB::table('gates_uploads')->insert([
                 'uploader_id' => $adminId,
                 'uploader_type' => 'admin',
-                'path' => '/' . $relPath,
+                'path' => $stored,
                 'mime' => $mime,
                 'size_bytes' => $size,
                 'width' => $w,
@@ -103,15 +160,46 @@ class UploadService
                 'attached_to_type' => $attachedToType,
                 'attached_to_id' => $attachedToId,
                 'created_at' => Carbon::now()->toDateTimeString(),
-            ]);
+            ] + $this->providerColumns($remote, $relPath));
         } catch (\Throwable $e) { /* non-fatal */ }
 
         return [
-            'path' => '/' . $relPath,
-            'url'  => '/' . $relPath,
+            'path' => $stored,
+            'url'  => $stored,
             'width' => $w,
             'height' => $h,
             'size' => $size,
+        ];
+    }
+
+    /**
+     * The provider bookkeeping columns for a `gates_uploads` row.
+     *
+     * Separate from the insert array because the columns arrive with a dated migration:
+     * on a database where it has not run yet, the insert must not fail with "unknown
+     * column" and silently lose an upload's metadata. So they are appended only when
+     * the schema actually has them, and a pre-migration deployment behaves exactly as
+     * it did before.
+     *
+     * `local_path` is kept even for a Cloudinary upload. It is what lets an operator
+     * re-derive the deterministic public id, verify an asset, or move to a different
+     * host later without having to reverse-engineer a URL.
+     */
+    private function providerColumns(?array $remote, string $relPath): array
+    {
+        // Memoised per instance, not per process: a process-wide static would cache
+        // "column missing" from a connection that has since been migrated (and, in the
+        // test suite, from one in-memory database into the next).
+        if ($this->hasProviderColumns === null) {
+            try { $this->hasProviderColumns = DB::schema()->hasColumn('gates_uploads', 'provider'); }
+            catch (\Throwable) { $this->hasProviderColumns = false; }
+        }
+        if (!$this->hasProviderColumns) return [];
+
+        return [
+            'provider'   => $remote !== null ? 'cloudinary' : 'local',
+            'public_id'  => $remote !== null ? $remote['public_id'] : null,
+            'local_path' => '/' . ltrim($relPath, '/'),
         ];
     }
 
@@ -179,11 +267,21 @@ class UploadService
             }
             $size = filesize($absPath) ?: 0;
 
+            // Images go to Cloudinary; PDFs stay local on purpose. A PDF here is
+            // nomination evidence or a judge dossier — private moderation material that
+            // is streamed through the admin-gated /admin/media/{id}/view route, never
+            // linked publicly. Putting it on a public CDN URL would make an unlisted
+            // guess the only thing between it and the internet, so the CDN's benefit
+            // (image transformation, cheap delivery) is nil and the cost is a
+            // confidentiality change nobody asked for.
+            $remote = $isImg ? $this->toCloud($absPath, $bucket, $relPath) : null;
+            $stored = $remote !== null ? $remote['url'] : '/' . $relPath;
+
             try {
                 DB::table('gates_uploads')->insert([
                     'uploader_id'      => $uploaderId,
                     'uploader_type'    => $uploaderType,
-                    'path'             => '/' . $relPath,
+                    'path'             => $stored,
                     'mime'             => $real,
                     'size_bytes'       => $size,
                     'width'            => $w,
@@ -191,12 +289,12 @@ class UploadService
                     'attached_to_type' => $attachedToType,
                     'attached_to_id'   => $attachedToId,
                     'created_at'       => Carbon::now()->toDateTimeString(),
-                ]);
+                ] + $this->providerColumns($remote, $relPath));
             } catch (\Throwable $e) { /* metadata is non-fatal */ }
 
             return [
-                'path' => '/' . $relPath,
-                'url'  => '/' . $relPath,
+                'path' => $stored,
+                'url'  => $stored,
                 'mime' => $real,
                 'ext'  => $ext,
                 'size' => $size,

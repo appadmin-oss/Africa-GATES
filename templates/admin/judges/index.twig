@@ -51,7 +51,7 @@
       {% for r in rows %}
       <tr>
         <td>
-          {% if r.avatar_path %}<span class="ad-avatar" style="background-image:url('{{ r.avatar_path }}')"></span>{% endif %}
+          {% if r.avatar_path %}<span class="ad-avatar" style="background-image:url('{{ r.avatar_path|media_url('avatar') }}')"></span>{% endif %}
           <strong>{{ r.name }}</strong>
           <div style="font-size:12px;color:var(--ad-text-soft)">{{ r.email }}</div>
         </td>

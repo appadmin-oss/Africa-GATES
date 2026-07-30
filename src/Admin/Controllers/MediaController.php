@@ -8,11 +8,22 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Services\CloudinaryService;
+use AfricaGates\Services\MediaMigrationService;
 
 /**
  * Media library — lets admins review and remove everything in gates_uploads
  * (nominee photos, nomination evidence, profile/judge/legacy images, …) with
  * previews, provenance and a one-click delete that also removes the file.
+ *
+ * ── AND IT IS WHERE THE CLOUDINARY SWEEP IS DRIVEN FROM ──────────────────────
+ *
+ * `bin/console media:cloudinary` is the better interface, and it is unavailable on the
+ * host this platform actually runs on: shared cPanel, no SSH. That is not a hypothetical
+ * — it is why `GET /__setup/migrate` exists for schema migrations. A bulk media
+ * migration that can only be started from a shell is a feature this operator does not
+ * have, so {@see migrate()} runs the same service in bounded batches from a button, and
+ * the page continues itself until nothing is pending.
  */
 class MediaController
 {
@@ -45,7 +56,104 @@ class MediaController
             'rows'       => $rows,
             'filter'     => in_array($filter, ['image', 'doc'], true) ? $filter : '',
             'counts'     => $counts,
+            'cloudinary' => $this->cloudinaryPanel($req),
         ]);
+    }
+
+    /**
+     * State for the Cloudinary panel: configured or not, what is pending, and whether a
+     * sweep is mid-flight (`?migrate=running`, which makes the page continue itself).
+     */
+    private function cloudinaryPanel(Request $req): array
+    {
+        $q = $req->getQueryParams();
+        try {
+            $status = (new MediaMigrationService())->status();
+        } catch (\Throwable) {
+            $status = ['configured' => CloudinaryService::enabled(), 'total' => 0, 'by_target' => [], 'migrated' => 0, 'missing' => 0, 'failed' => 0];
+        }
+        return $status + [
+            'cloud'   => CloudinaryService::cloudName(),
+            'folder'  => CloudinaryService::rootFolder(),
+            'running' => ($q['migrate'] ?? '') === 'running',
+            'dry_run' => ($q['migrate'] ?? '') === 'preview',
+            'report'  => $this->takeMigrateReport(),
+            // Drives whether the buttons render at all. The POST enforces this too —
+            // hiding a control is presentation, not authorisation.
+            'may_run' => $this->mayMigrate(),
+        ];
+    }
+
+    /** Roles that may spend money on the operator's CDN account. */
+    private function mayMigrate(): bool
+    {
+        return in_array((string) ($_SESSION['admin_role'] ?? ''), ['superadmin', 'admin'], true);
+    }
+
+    /** Read-and-clear the last batch's log lines, so they describe one batch only. */
+    private function takeMigrateReport(): array
+    {
+        $r = $_SESSION['media_migrate_report'] ?? null;
+        unset($_SESSION['media_migrate_report']);
+        return is_array($r) ? array_values(array_map('strval', $r)) : [];
+    }
+
+    /**
+     * POST /admin/media/cloudinary — run ONE batch, then bounce back to the page.
+     *
+     * One batch per request, deliberately. A loop-until-done here would be a request
+     * that runs for minutes on a host whose `max_execution_time` an operator cannot
+     * raise, and PHP's response to that is a blank page with the work half-finished and
+     * no report. Bounded batches plus a self-continuing page get the same result and
+     * survive being killed at any point, because the service commits per row and the
+     * ledger makes a re-run a no-op for what is already done.
+     */
+    public function migrate(Request $req, Response $res): Response
+    {
+        // SectionGuardMiddleware maps /admin/media to the `content` section, which an
+        // EDITOR may reach — correct for reviewing and deleting media, wrong for this.
+        // A sweep uploads the platform's entire image estate to a paid third-party
+        // account: it is an infrastructure decision with a bill attached, not an
+        // editorial one, and the section guard cannot express "this one button is
+        // narrower than its page".
+        if (!$this->mayMigrate()) {
+            $_SESSION['flash_error'] = 'Only an administrator can run the Cloudinary migration.';
+            return $res->withHeader('Location', '/admin/media')->withStatus(302);
+        }
+
+        $b      = (array) $req->getParsedBody();
+        $dryRun = !empty($b['preview']);
+        $svc    = new MediaMigrationService();
+
+        try {
+            $r = $svc->run($dryRun, MediaMigrationService::BATCH);
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = 'Media migration failed: ' . $e->getMessage();
+            return $res->withHeader('Location', '/admin/media')->withStatus(302);
+        }
+
+        // The report is a flash, so it describes the batch just run rather than
+        // accumulating across a sweep the operator has stopped reading.
+        $_SESSION['media_migrate_report'] = array_slice($r['lines'], -40);
+
+        if (!$r['ok']) {
+            $_SESSION['flash_error'] = implode(' ', $r['lines']);
+            return $res->withHeader('Location', '/admin/media')->withStatus(302);
+        }
+
+        $this->audit->record((int)($_SESSION['admin_id'] ?? 0), $dryRun ? 'media.cloudinary_preview' : 'media.cloudinary_migrate', 'upload', null);
+
+        // `running` only while there is genuinely more to do AND this batch moved
+        // something. Without the second condition a batch of nothing but
+        // missing-on-disk rows would re-arm the auto-continue forever.
+        $more = !$dryRun && $r['pending'] > 0 && (int) $r['migrated'] > 0;
+        if (!$more) {
+            $_SESSION['flash_ok'] = $dryRun
+                ? 'Preview complete — nothing was uploaded or changed.'
+                : 'Media migration batch complete. ' . $r['pending'] . ' row(s) still reference local files.';
+        }
+
+        return $res->withHeader('Location', '/admin/media?migrate=' . ($more ? 'running' : ($dryRun ? 'preview' : 'done')))->withStatus(302);
     }
 
     /**
@@ -61,9 +169,20 @@ class MediaController
         $row = $id ? DB::table('gates_uploads')->where('id', $id)->first() : null;
         if (!$row) return $res->withStatus(404);
 
+        // A CDN-hosted asset is not on this filesystem, so there is nothing to stream:
+        // the preview redirects to the delivery URL. Without this the console's preview
+        // button 404s for every image uploaded after Cloudinary was switched on — the
+        // stream path resolves the stored value against public/ and an https URL cannot
+        // resolve there.
+        $stored = (string)($row->path ?? '');
+        if (CloudinaryService::isRemote($stored)) {
+            $this->audit->record((int)($_SESSION['admin_id'] ?? 0), 'media.view', 'upload', $id);
+            return $res->withHeader('Location', $stored)->withStatus(302);
+        }
+
         // Resolve strictly inside the uploads tree (defence-in-depth against a
         // tampered/relative stored path).
-        $abs         = $this->publicRoot() . (string)($row->path ?? '');
+        $abs         = $this->publicRoot() . $stored;
         $real        = realpath($abs);
         $uploadsRoot = realpath($this->publicRoot() . '/uploads');
         if (!$real || !$uploadsRoot || !str_starts_with($real, $uploadsRoot) || !is_file($real)) {
@@ -122,13 +241,25 @@ class MediaController
         $row  = $id ? DB::table('gates_uploads')->where('id', $id)->first() : null;
 
         if ($row) {
+            // BOTH copies, not whichever one the path happens to name. After a
+            // Cloudinary migration a row's `path` is the CDN URL while the original is
+            // still on disk under `local_path`, so deleting only the one the path points
+            // at leaves the other behind — and on the CDN side that is an asset still
+            // publicly reachable and still billed after an admin was told it was removed.
+            $publicId = (string)($row->public_id ?? '') ?: (string)(CloudinaryService::publicIdFromUrl((string)($row->path ?? '')) ?? '');
+            if ($publicId !== '') {
+                (new CloudinaryService())->destroy($publicId);
+            }
+
             // Delete the physical file — but only if it genuinely resolves inside the
             // uploads tree (defence-in-depth against a tampered/relative path).
-            $abs         = $this->publicRoot() . (string)($row->path ?? '');
-            $real        = realpath($abs);
-            $uploadsRoot = realpath($this->publicRoot() . '/uploads');
-            if ($real && $uploadsRoot && str_starts_with($real, $uploadsRoot) && is_file($real)) {
-                @unlink($real);
+            foreach ([(string)($row->path ?? ''), (string)($row->local_path ?? '')] as $candidate) {
+                if ($candidate === '' || CloudinaryService::isRemote($candidate)) continue;
+                $real        = realpath($this->publicRoot() . $candidate);
+                $uploadsRoot = realpath($this->publicRoot() . '/uploads');
+                if ($real && $uploadsRoot && str_starts_with($real, $uploadsRoot) && is_file($real)) {
+                    @unlink($real);
+                }
             }
             DB::table('gates_uploads')->where('id', $id)->delete();
             $this->audit->record((int)($_SESSION['admin_id'] ?? 0), 'media.delete', 'upload', $id);

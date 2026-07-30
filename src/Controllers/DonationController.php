@@ -42,10 +42,31 @@ final class DonationController
     private function base(): string { return rtrim((string) Env::get('APP_URL', ''), '/'); }
     private function redirect(Response $res, string $url): Response { return $res->withHeader('Location', $url)->withStatus(302); }
 
+    /**
+     * Human-readable reason a donation attempt bounced back to /donate.
+     *
+     * The template has always had `{% if error %}<div class="dn-err" role="alert">`
+     * waiting for one, and `page()` never passed anything — so all seven refusals
+     * this controller emits as `?give=` landed a donor on an unchanged page with no
+     * message and their amount reset. Same silent-bounce defect as the paid-vote
+     * path, in the flow that funds the programmes.
+     */
+    private const GIVE_REASONS = [
+        'rate'        => 'Checkout is busy right now — please try that again in a moment.',
+        'unavailable' => 'That payment method is unavailable right now. Please try another.',
+        'email'       => 'Please enter a valid email address for your receipt.',
+        'low'         => 'That amount is below the minimum we can process.',
+        'high'        => 'That amount is above what this form can process — contact us and we will arrange it.',
+        'start'       => 'We could not start the checkout. No payment was taken — please try again.',
+        'error'       => 'Something went wrong starting the checkout. No payment was taken.',
+        'failed'      => 'That payment did not complete, so nothing was charged.',
+    ];
+
     /** GET /donate — the giving page. */
     public function page(Request $req, Response $res): Response
     {
         return $this->view->render($res, 'pages/donate.twig', [
+            'error'            => self::GIVE_REASONS[trim((string) ($req->getQueryParams()['give'] ?? ''))] ?? null,
             'page_title'       => 'Donate — Africa GATES',
             'meta_description' => 'Fund child leadership programmes across the continent — mentorship, scholarships and grassroots education. Every gift is receipted and independently audited.',
             'gates_page'       => 'donate',
@@ -106,17 +127,22 @@ final class DonationController
         $name     = trim((string)($b['name'] ?? ''));
         $baseAmt  = (int) preg_replace('/[^0-9]/', '', (string)($b['amount'] ?? '0'));
         $cover    = !empty($b['cover_fees']);
-        $ip       = (string)($req->getServerParams()['REMOTE_ADDR'] ?? '');
 
         $bail = fn(string $why) => $this->redirect($res, $this->base() . '/donate?give=' . urlencode($why));
 
-        if ($this->rateLimit && !$this->rateLimit->check(hash('sha256', $ip . '|donate'), 'donate', 10, 3600)) {
-            return $bail('rate');
-        }
         if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL))     return $bail('email');
         if ($baseAmt < self::MIN_NAIRA)                                      return $bail('low');
         if ($baseAmt > self::MAX_NAIRA)                                      return $bail('high');
+
+        // Throttled here, not first: the same defect as the paid-vote path. Ten per
+        // hour keyed on REMOTE_ADDR is one bucket for the whole internet behind
+        // Cloudflare, and it was charged for rejected attempts too — so a donor who
+        // mistyped an amount spent quota that a real donor then found exhausted.
+        // See CheckoutThrottle.
+        if (!(new \AfricaGates\Services\CheckoutThrottle($this->rateLimit))->allow($req, 'donate')['ok']) {
+            return $bail('rate');
+        }
 
         // Optional processing-fee cover, computed SERVER-SIDE (never trust a client total).
         $amount = $cover ? (int) ceil($baseAmt * 1.015) : $baseAmt;

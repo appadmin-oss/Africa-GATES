@@ -140,14 +140,6 @@ final class PaymentController
             return $this->redirect($res, $this->fallbackUrl());
         };
 
-        // Abuse control: cap pending-row + gateway churn per IP. Financial abuse is
-        // already impossible (amounts are server-authoritative); this throttles the
-        // noise/table-growth a scripted caller could otherwise generate.
-        $ip = (string)($req->getServerParams()['REMOTE_ADDR'] ?? '');
-        if ($this->rateLimit && $ip !== '' && !$this->rateLimit->check(hash('sha256', $ip . '|pay-init'), 'pay_init', 12, 3600)) {
-            return $bail('Too many attempts — please wait a few minutes and try again.');
-        }
-
         // 1. Provider must be one we can actually transact with right now.
         if (!$this->payments->isEnabled($provider)) {
             return $bail('Selected payment method is not available.');
@@ -160,6 +152,18 @@ final class PaymentController
         // 3. Valid email (receipt + vote crediting are keyed to it).
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return $bail('A valid email address is required.');
+        }
+
+        // 4. Abuse control: cap pending-row + gateway churn. Financial abuse is
+        // already impossible (amounts are server-authoritative); this throttles the
+        // noise/table-growth a scripted caller could otherwise generate — which is
+        // why it comes AFTER validation and why the cap is generous. Twelve per hour
+        // keyed on REMOTE_ADDR was, behind Cloudflare, twelve purchases per hour for
+        // every buyer on the platform combined. See CheckoutThrottle.
+        $gate = (new \AfricaGates\Services\CheckoutThrottle($this->rateLimit))->allow($req, 'pay_init');
+        if (!$gate['ok']) {
+            return $bail('Checkout is busy right now — please try again '
+                . \AfricaGates\Services\CheckoutThrottle::retryPhrase((int) $gate['retry_after']) . '.');
         }
 
         $amount = (int) $price['amount'];

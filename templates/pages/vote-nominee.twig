@@ -152,7 +152,9 @@
 {% set CCN = {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':"Côte d'Ivoire",'CM':'Cameroon','SN':'Senegal','ML':'Mali','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','BF':'Burkina Faso','NE':'Niger','BW':'Botswana','AO':'Angola','CD':'DR Congo'} %}
 {% set AV = [['#e3f1e3','#155a13'],['#fff8df','#8a6005'],['#e2e8e9','#243034'],['#f3eef7','#5b3a8a'],['#fdeaf0','#b03a5b']] %}
 {% set n = nominee %}
-{% set portrait = (profile and profile.avatar_path) ? profile.avatar_path : n.photo_path %}
+{# media_url: Cloudinary-hosted portraits come back face-cropped at the size this
+   element actually renders. A local path passes through untouched. #}
+{% set portrait = ((profile and profile.avatar_path) ? profile.avatar_path : n.photo_path)|media_url('portrait') %}
 {% set flag = FLAGS[n.country_code]|default('🌍') %}
 {% set ctry = CCN[n.country_code]|default(n.country_code) %}
 {% set firstName = n.name|split(' ')|first %}
@@ -282,7 +284,7 @@
           {% for o in others %}
           {% set oav = AV[loop.index0 % AV|length] %}
           <a class="vn-sim__row" href="/vote/{{ nominee.programme_slug }}/{{ o.id }}-{{ o.name|lower|replace({' ':'-'}) }}">
-            <span class="vn-sim__av" style="{% if o.photo_path %}background-image:url('{{ o.photo_path }}'){% else %}background:{{ oav[0] }};color:{{ oav[1] }}{% endif %}">{% if not o.photo_path %}{{ o.name|slice(0,1)|upper }}{% endif %}</span>
+            <span class="vn-sim__av" style="{% if o.photo_path %}background-image:url('{{ o.photo_path|media_url('avatar') }}'){% else %}background:{{ oav[0] }};color:{{ oav[1] }}{% endif %}">{% if not o.photo_path %}{{ o.name|slice(0,1)|upper }}{% endif %}</span>
             <span class="vn-sim__b">
               <span class="vn-sim__n">{{ FLAGS[o.country_code]|default('🌍') }} {{ o.name }}</span>
               <span class="vn-sim__c">{{ o.vote_count|number_format }} votes</span>
@@ -359,7 +361,10 @@
             {% endif %}
             {% if paid_voting and pay_providers is not empty %}
             {# ── Paid voting (admin-enabled): leads the ballot ── #}
-            <section aria-labelledby="pv-h" x-data="{ qty: 1, prices: {pv: {{ vote_price }}, per1000: {{ votes_per_1000 }}},
+            {# `paid_retry` carries a bounced checkout's own values back (session flash,
+               never the query string — the email must not reach an access log). On a
+               normal visit it is empty and the form opens at its defaults. #}
+            <section aria-labelledby="pv-h" x-data="{ qty: {{ paid_retry.qty|default(0) > 0 ? paid_retry.qty : 1 }}, prices: {pv: {{ vote_price }}, per1000: {{ votes_per_1000 }}},
               cost(){ const q=Math.max(1,this.qty|0); if(q < this.prices.per1000) return q*this.prices.pv;
                       const b=Math.floor(q/this.prices.per1000); return Math.min(q*this.prices.pv, b*1000 + (q-b*this.prices.per1000)*this.prices.pv); } }"
               style="background:#f4f9f4;border:1.5px solid #cfe6cf;border-radius:16px;padding:16px 18px;margin:0 0 16px">
@@ -382,12 +387,12 @@
                   </div>
                   <div style="flex:1;min-width:150px">
                     <label class="vn-label" for="pvEmail">Your email <span style="font-weight:400;color:#5a6d6f">(for the receipt)</span></label>
-                    <input id="pvEmail" name="email" class="vn-input" type="email" required placeholder="you@email.com" {% if member %}value="{{ member.email }}"{% endif %}>
+                    <input id="pvEmail" name="email" class="vn-input" type="email" required placeholder="you@email.com" value="{{ paid_retry.email|default('') ?: (member ? member.email : '') }}">
                   </div>
                 </div>
                 <div style="margin-top:10px">
                   <label class="vn-label" for="pvName">Your name <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
-                  <input id="pvName" name="name" class="vn-input" type="text" placeholder="Shown as the supporter name" {% if member %}value="{{ member.name }}"{% endif %}>
+                  <input id="pvName" name="name" class="vn-input" type="text" placeholder="Shown as the supporter name" value="{{ paid_retry.name|default('') ?: (member ? member.name : '') }}">
                 </div>
                 {% if pay_providers|length > 1 %}
                 <fieldset style="border:0;padding:0;margin:12px 0 0">

@@ -155,7 +155,11 @@ class VoteController {
      */
     private const PAID_REASONS = [
         'off'         => 'Paid voting is not enabled right now.',
-        'rate'        => 'That is a lot of vote purchases from this network — please try again shortly.',
+        // "from this network" is gone, and so is the policy that produced it. That
+        // wording was accusing a supporter of behaviour that belonged to a Cloudflare
+        // edge address shared by the whole internet — see CheckoutThrottle. What is
+        // left is a queue notice, and the caller appends when to come back.
+        'rate'        => 'We are processing a burst of payments right now. Your details are saved — press pay again',
         'nominee'     => 'That nominee is not open for votes.',
         'closed'      => 'Voting has closed for this category, so no votes could be purchased.',
         'unavailable' => 'That payment method is unavailable right now. Please try another.',
@@ -164,6 +168,31 @@ class VoteController {
         'error'       => 'Something went wrong starting the checkout. No payment was taken.',
         'failed'      => 'That payment did not complete, so no votes were added.',
     ];
+
+    /**
+     * Read-and-clear the bounced paid-vote order.
+     *
+     * Cleared on read so it prefills exactly the one page load it was written for. A
+     * flash that lingers would re-open a supporter's email address on a ballot they
+     * later return to from a shared phone, and would silently re-arm a quantity they
+     * had already decided against.
+     *
+     * @return array{qty:int, email:string, name:string, detail:string}
+     */
+    private function takePaidRetry(): array
+    {
+        $blank = ['qty' => 0, 'email' => '', 'name' => '', 'detail' => ''];
+        if (!isset($_SESSION) || !is_array($_SESSION)) return $blank;
+        $r = $_SESSION['paid_vote_retry'] ?? null;
+        unset($_SESSION['paid_vote_retry']);
+        if (!is_array($r)) return $blank;
+        return [
+            'qty'    => max(0, (int) ($r['qty'] ?? 0)),
+            'email'  => mb_substr(trim((string) ($r['email'] ?? '')), 0, 191),
+            'name'   => mb_substr(trim((string) ($r['name'] ?? '')), 0, 120),
+            'detail' => mb_substr(trim((string) ($r['detail'] ?? '')), 0, 60),
+        ];
+    }
 
     /** The individual nominee vote page (profile-style with the OTP ballot inline). */
     private function nomineeBallot(Request $req, Response $res, int $id, string $programSeg = ''): Response {
@@ -220,6 +249,16 @@ class VoteController {
         // The one phase view-model for this ballot, from the nominee's own cycle.
         $phase = \AfricaGates\Services\BallotGuard::stateForCategory((int) $nom->category_id);
 
+        // A bounced paid-vote checkout, read-and-cleared. PaidVoteController stashes
+        // the buyer's quantity/email/name here rather than in the query string (see
+        // its rememberOrder()), so the form they are sent back to arrives filled in
+        // instead of blank — the difference between one retry and an abandoned sale.
+        $retry = $this->takePaidRetry();
+        $paidNotice = self::PAID_REASONS[trim((string) ($req->getQueryParams()['paid'] ?? ''))] ?? null;
+        if ($paidNotice !== null && ($retry['detail'] ?? '') !== '') {
+            $paidNotice .= ' ' . $retry['detail'] . '.';
+        }
+
         // Member voting-points context (for the redeem-a-vote control).
         $memberId      = (int) ($_SESSION['user_id'] ?? 0);
         $pointsEnabled = PointsService::enabled();
@@ -251,7 +290,9 @@ class VoteController {
             // ballot for a closed cycle.
             'phase'            => $phase,
             'voting_open'      => (bool) ($phase['is_voting_open'] ?? false),
-            'paid_notice'      => self::PAID_REASONS[trim((string) ($req->getQueryParams()['paid'] ?? ''))] ?? null,
+            'paid_notice'      => $paidNotice,
+            // Repopulates the buy-votes form after a bounce. Empty on a normal visit.
+            'paid_retry'       => $retry,
             'turnstile_site_key' => Env::get('TURNSTILE_SITE_KEY', ''),
             'member_points'    => $memberPoints,
             'points_per_vote'  => PointsService::pointsPerVote(),
