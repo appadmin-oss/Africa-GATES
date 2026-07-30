@@ -418,10 +418,14 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   payment_ref TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','confirmed','failed')),
   refunded_at TEXT DEFAULT NULL,
+  -- Send-exactly-once claim stamps; see CheckoutMailer.
+  receipt_sent_at TEXT DEFAULT NULL,
+  abandoned_mail_at TEXT DEFAULT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_donation_email ON gates_donations(donor_email);
 CREATE INDEX IF NOT EXISTS idx_donation_status ON gates_donations(status);
+CREATE INDEX IF NOT EXISTS idx_donations_abandon ON gates_donations(status, abandoned_mail_at, created_at);
 
 -- ─── Site events (public calendar; distinct from gates_events analytics log) ───
 CREATE TABLE IF NOT EXISTS gates_site_events (

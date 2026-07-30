@@ -221,6 +221,12 @@ final class PaidVoteController
         if ($result === 'confirmed' || $result === 'already') {
             try { PaidVoteService::mint((int)$don->id); }
             catch (\Throwable $e) { $this->log?->error('[paid-vote] mint on callback failed', ['ref' => $reference, 'err' => $e->getMessage()]); }
+            // The buyer's receipt. AFTER mint, because which of the two receipts they
+            // get is decided by whether the votes actually landed — and this path used
+            // to send nothing at all, so someone who paid for votes had no record that
+            // the purchase existed. Claimed once per order, so the gateway webhook
+            // arriving a second later does not send a duplicate. Never throws.
+            \AfricaGates\Services\CheckoutMailer::receipt((int) $don->id);
             return $this->redirect($res, $this->base($req) . '/vote/paid/success?ref=' . urlencode($reference));
         }
         return $this->redirect($res, $this->base($req) . '/vote?paid=failed');
@@ -317,21 +323,17 @@ final class PaidVoteController
         return PaidVoteService::votingOpenFor((int) $nominee->category_id);
     }
 
-    /** The nominee's ballot URL (or the vote index as a safe fallback). */
+    /**
+     * The nominee's ballot URL (or the vote index as a safe fallback).
+     *
+     * Delegates to the shared {@see \AfricaGates\Support\NomineeUrl}. This method built
+     * the URL itself, VoteController built it a second way, and transactional email now
+     * needs it a third time — three copies of one URL shape is how the link in a
+     * buyer's receipt ends up differing from the link on the page they came from.
+     */
     private function ballotUrl(?object $nominee, ?Request $req = null): string
     {
         if (!$nominee) return $this->base($req) . '/vote';
-        try {
-            $slug = DB::table('gates_award_categories as cat')
-                ->join('gates_award_cycles as c', 'c.id', '=', 'cat.cycle_id')
-                ->join('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
-                ->where('cat.id', (int)$nominee->category_id)
-                ->value('p.slug');
-            if ($slug) {
-                $nameSlug = \AfricaGates\Support\Slug::make((string) $nominee->name, 60);
-                return $this->base($req) . '/vote/' . $slug . '/' . (int)$nominee->id . '-' . $nameSlug;
-            }
-        } catch (\Throwable) {}
-        return $this->base($req) . '/vote';
+        return \AfricaGates\Support\NomineeUrl::ballot((int) $nominee->id, $this->base($req));
     }
 }

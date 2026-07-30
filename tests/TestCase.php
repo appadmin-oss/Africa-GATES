@@ -63,6 +63,10 @@ abstract class TestCase extends BaseTestCase
 
         // Static per-process caches must never leak between tests.
         \AfricaGates\Services\SpamService::resetThresholdCache();
+        // A transport injected by one test must not send another test's mail — and
+        // passing null also clears the "already booted" flag, so the next test either
+        // injects its own fake or gets a freshly-built one.
+        \AfricaGates\Services\CheckoutMailer::using(null);
     }
 
     protected function tearDown(): void

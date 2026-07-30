@@ -150,6 +150,30 @@ final class PaymentReconcileCommand extends Command
                     ->update(['status' => 'confirmed']);
                 if ($changed > 0) {
                     $io->writeln('  ✓ confirmed donation ' . $d->payment_ref);
+                    // PAID-VOTE ORDERS MUST STILL MINT AND STILL RECEIPT.
+                    //
+                    // This branch used to flip the status and stop. A paid-vote order
+                    // whose browser callback was dropped therefore ended up 'confirmed'
+                    // with votes_used = 0 — money taken, no votes on the nominee, and
+                    // indistinguishable from the deliberate "voting closed before the
+                    // payment confirmed" refusal that the same column encodes. The two
+                    // live confirm paths both mint here; the backstop that exists FOR
+                    // dropped callbacks was the one that did not.
+                    //
+                    // Both calls are idempotent and neither throws: mint() is guarded by
+                    // the votes_used flip, the receipt by its own claim column.
+                    if ((string) ($d->tier ?? '') === 'paid-vote' && !empty($d->intent_nominee_id)) {
+                        try {
+                            $m = \AfricaGates\Services\PaidVoteService::mint((int) $d->id);
+                            if (empty($m['ok'])) {
+                                $io->writeln('    ! votes NOT minted: ' . (string) ($m['message'] ?? 'unknown')
+                                    . ' — this order is refundable');
+                            }
+                        } catch (\Throwable $e) {
+                            $io->writeln('    ! mint failed: ' . $e->getMessage());
+                        }
+                    }
+                    \AfricaGates\Services\CheckoutMailer::receipt((int) $d->id);
                     $confirmed++;
                 }
                 break; // a provider recognised this reference — done with this row

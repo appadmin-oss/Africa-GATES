@@ -440,6 +440,11 @@ final class PaymentController
                 $row = DB::table('gates_donations')->where('payment_ref', $reference)->first(['id', 'tier', 'intent_nominee_id']);
                 if ($row && ($row->tier ?? '') === 'paid-vote' && !empty($row->intent_nominee_id)) {
                     \AfricaGates\Services\PaidVoteService::mint((int) $row->id);
+                    // The buyer's receipt — and the one path that NEEDS it, because a
+                    // webhook confirm means the browser never came back, so the
+                    // confirmation page was never seen. Claimed once per order, so
+                    // whichever of {webhook, callback} lands second sends nothing.
+                    \AfricaGates\Services\CheckoutMailer::receipt((int) $row->id);
                 }
             } catch (\Throwable $e) {
                 $this->log?->error('[payment] paid-vote mint failed', ['ref' => $reference, 'err' => $e->getMessage()]);

@@ -52,6 +52,7 @@ final class DoctorCommand extends Command
             'config'   => $this->config(),
             'database' => $this->database(),
             'media'    => $this->media(),
+            'mail'     => $this->mail(),
             'assets'   => $this->assets(),
             'csp'      => $this->csp(),
         ];
@@ -258,6 +259,33 @@ final class DoctorCommand extends Command
             $out['local_images_referenced'] = 'unknown (' . $e->getMessage() . ')';
         }
         return $out;
+    }
+
+    /**
+     * IS ANY EMAIL ACTUALLY BEING DELIVERED?
+     *
+     * Reported from production as "emails are not being sent to voters", and there was
+     * no way to check. Every send path is best-effort by design — a mail failure must
+     * never break a vote or a payment — so a total delivery outage is INDISTINGUISHABLE
+     * from normal operation from the outside. Two configuration mistakes produce it:
+     *
+     *   • SMTP_USER / SMTP_PASS unset. Every send writes to var/logs/outgoing-mail.log
+     *     and returns failure. The site works perfectly and nothing ever arrives.
+     *   • Credentials present but wrong. PHPMailer's reason reaches gates_mail_log and
+     *     nowhere else, so it is only ever seen by someone who thinks to query it.
+     *
+     * `last_successful_send` is the check that settles it: a NEVER there means no email
+     * has left this installation, and no amount of reading application code will explain
+     * it. Beside it, `receipts_owed` counts buyers who have paid for votes and been told
+     * nothing — the population this whole area exists to serve.
+     */
+    private function mail(): array
+    {
+        try {
+            return \AfricaGates\Services\CheckoutMailer::status();
+        } catch (\Throwable $e) {
+            return ['smtp_configured' => 'unknown (' . $e->getMessage() . ')'];
+        }
     }
 
     /**
@@ -482,6 +510,32 @@ final class DoctorCommand extends Command
                  . 'stylesheets instead of one — roughly 2.4s of blocking requests on a mid-range '
                  . 'Android. The site is CORRECT, just slow: run `bin/console assets:build` (or open '
                  . '/__setup/assets?token=… on a host with no shell) and add it to the deploy steps.';
+        }
+        if (($r['mail']['smtp_configured'] ?? '') === 'NO') {
+            $p[] = 'SMTP IS NOT CONFIGURED, so NO email is being delivered — not the voting OTP, not a '
+                 . 'paid-vote receipt, not a nomination acknowledgement. Every send returns failure and '
+                 . 'writes to var/logs/outgoing-mail.log instead, which is why the site looks healthy and '
+                 . 'nothing arrives. Set SMTP_USER and SMTP_PASS in .env (Brevo relay credentials by '
+                 . 'default), then prove it end to end with the "Send test email" button in admin '
+                 . 'Settings. With free voting disabled, this also means a supporter can never receive a '
+                 . 'voting code at all.';
+        }
+        if (str_starts_with((string) ($r['mail']['last_successful_send'] ?? ''), 'NEVER')) {
+            $p[] = 'No email has EVER been delivered from this installation (gates_mail_log holds no '
+                 . 'successful send). Whatever else is reported here, treat every email-dependent flow — '
+                 . 'the voting OTP, magic-link sign-in, receipts, judge invitations — as non-functional '
+                 . 'until one test email lands.';
+        }
+        if ((int) ($r['mail']['mail_failed_24h'] ?? 0) > 0 && (int) ($r['mail']['mail_sent_24h'] ?? 0) === 0) {
+            $p[] = 'Every email attempted in the last 24 hours FAILED (' . $r['mail']['mail_failed_24h']
+                 . ' attempts, 0 delivered). Last reason: ' . (string) ($r['mail']['last_failure_reason'] ?? '(none recorded)')
+                 . '. This is a live outage, not a backlog.';
+        }
+        if ((int) ($r['mail']['receipts_owed'] ?? 0) > 0) {
+            $p[] = $r['mail']['receipts_owed'] . ' confirmed paid-vote order(s) have had no receipt sent. '
+                 . 'Those buyers paid for votes and have been told nothing at all, which is a chargeback '
+                 . 'waiting to happen. Backfill with `bin/console mail:checkout --receipts` once SMTP is '
+                 . 'proven working.';
         }
         if ((int) ($r['media']['failed_uploads'] ?? 0) > 0) {
             $p[] = 'Cloudinary uploads have failed for ' . $r['media']['failed_uploads'] . ' image(s). '

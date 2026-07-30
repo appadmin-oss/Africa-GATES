@@ -465,10 +465,16 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   payment_ref VARCHAR(200) DEFAULT NULL,
   status ENUM('pending','confirmed','failed') NOT NULL DEFAULT 'pending',
   refunded_at TIMESTAMP NULL DEFAULT NULL,
+  -- Send-exactly-once claim stamps. Both emails have more than one caller racing
+  -- to send them (callback vs webhook; every maintenance tick), so the claim is a
+  -- guarded UPDATE on a NULL column. See CheckoutMailer.
+  receipt_sent_at TIMESTAMP NULL DEFAULT NULL,
+  abandoned_mail_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id),
   KEY idx_donation_email(donor_email),
-  KEY idx_donation_status(status)
+  KEY idx_donation_status(status),
+  KEY idx_donations_abandon(status, abandoned_mail_at, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- NOTE: the gates_nominations location + reference columns (nominee_state,

@@ -61,6 +61,13 @@ final class Maintenance
             $ran[] = ['queue',  $this->drainJobs()];
             $ran[] = ['cycles', $this->advanceCycles()];
             $ran[] = ['cache',  $this->pruneCache()];
+            // ORDER IS LOAD-BEARING. Reconciliation re-verifies stale pending payments
+            // against the gateway and confirms the genuinely-paid ones; the recovery
+            // mail then tells whoever is STILL pending that they did not finish. Run
+            // the other way round and the first thing a paying supporter whose callback
+            // was dropped receives is an email saying they did not pay.
+            $ran[] = ['payments',      $this->reconcilePayments()];
+            $ran[] = ['checkout-mail', $this->mailAbandonedCheckouts()];
             // Every hour
             if ((int)$now->minute < 15) {
                 $ran[] = ['otp',        $this->purgeExpiredOtp()];
@@ -92,11 +99,15 @@ final class Maintenance
                 'otp'       => $ran[] = ['otp',   $this->purgeExpiredOtp()],
                 'magic'     => $ran[] = ['magic', $this->purgeExpiredMagic()],
                 'collusion' => $ran[] = ['collusion', $this->scanCollusion()],
+                'payments'  => $ran[] = ['payments', $this->reconcilePayments()],
+                'checkout-mail' => $ran[] = ['checkout-mail', $this->mailAbandonedCheckouts()],
                 'digest'    => $this->recordDigest(),
                 'all'       => (function () use (&$ran) {
                     $ran[] = ['queue', $this->drainJobs()];
                     $ran[] = ['cycles', $this->advanceCycles()];
                     $ran[] = ['cache', $this->pruneCache()];
+                    $ran[] = ['payments',      $this->reconcilePayments()];
+                    $ran[] = ['checkout-mail', $this->mailAbandonedCheckouts()];
                     $ran[] = ['otp',   $this->purgeExpiredOtp()];
                     $ran[] = ['magic', $this->purgeExpiredMagic()];
                     $ran[] = ['ratelimit', $this->pruneRateLimits()];
@@ -279,6 +290,80 @@ final class Maintenance
             }
         } catch (\Throwable) {}
         return new \AfricaGates\Services\CacheService();
+    }
+
+    /**
+     * Re-verify stale pending payments and confirm the genuinely-paid ones.
+     *
+     * `payments:reconcile` existed, was documented as "schedule every few minutes",
+     * and was scheduled NOWHERE — not here, not in cron/maintenance.php. So the
+     * documented backstop for a dropped gateway callback never ran, and a supporter
+     * whose browser closed on the return trip stayed 'pending' with their money taken
+     * until someone read `cycles:audit` by hand.
+     *
+     * SMALL LIMIT ON PURPOSE. Every candidate row costs one blocking server-to-server
+     * verify PER ENABLED GATEWAY (gates_donations stores no provider, so each reference
+     * is offered to each gateway until one recognises it). This same orchestrator also
+     * runs from `Maintenance::tick()` — off ordinary web traffic, in a request-scoped
+     * process with a max_execution_time — so the batch has to be small enough that a
+     * backlog cannot turn one page view into a minute of outbound HTTP. In steady state
+     * there are only ever a handful of rows older than fifteen minutes; clearing a real
+     * backlog is `bin/console payments:reconcile --limit 200` from a shell.
+     */
+    private function reconcilePayments(): int
+    {
+        try {
+            $cmd = new \AfricaGates\Console\Commands\PaymentReconcileCommand(
+                new \AfricaGates\Services\PaymentService(),
+                $this->mailer()
+            );
+            $out  = new \Symfony\Component\Console\Output\BufferedOutput();
+            $code = $cmd->run(new ArrayInput(['--minutes' => '15', '--limit' => '25']), $out);
+            foreach (array_filter(array_map('trim', explode("\n", $out->fetch()))) as $line) {
+                $this->log('payments: ' . $line);
+            }
+            return $code === 0 ? 1 : 0;
+        } catch (\Throwable $e) {
+            $this->log('payments error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * One recovery email per abandoned checkout, once ever.
+     *
+     * Runs on every tick rather than daily because the value of the nudge decays fast:
+     * the supporter still has the tab open, still remembers why they were buying votes,
+     * and a close race can move overnight. {@see CheckoutMailer::GRACE_MINUTES} keeps it
+     * off the shoulder of anyone still at the gateway.
+     */
+    private function mailAbandonedCheckouts(): int
+    {
+        try {
+            // Prefer the container's configured mailer (shared settings + logger) over
+            // the service booting its own.
+            \AfricaGates\Services\CheckoutMailer::using($this->mailer());
+            $r = \AfricaGates\Services\CheckoutMailer::sweepAbandoned();
+            if ($r['considered'] > 0) {
+                $this->log("Checkout recovery: {$r['sent']} sent, {$r['skipped']} skipped"
+                    . ($r['reasons'] ? ' (' . json_encode($r['reasons']) . ')' : ''));
+            }
+            return (int) $r['sent'];
+        } catch (\Throwable $e) {
+            $this->log('Checkout recovery error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /** The container's configured mailer, when there is a container. */
+    private function mailer(): ?OtpService
+    {
+        try {
+            if ($this->container && $this->container->has(OtpService::class)) {
+                return $this->container->get(OtpService::class);
+            }
+        } catch (\Throwable) {}
+        return null;
     }
 
     private function recomputeCpi(): int

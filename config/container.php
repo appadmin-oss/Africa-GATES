@@ -232,7 +232,7 @@ return [
         $s = [];
         try { $s = $c->get(SettingsService::class)->all(); } catch (\Throwable $e) {}
         $pick = fn(string $key, string $env, string $dft) => trim((string)($s[$key] ?? '')) ?: (string) Env::get($env, $dft);
-        return new OtpService([
+        $mailer = new OtpService([
             'host' => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
             'port' => Env::int('SMTP_PORT', 587),
             'username' => Env::get('SMTP_USER', ''),
@@ -241,6 +241,12 @@ return [
             'from_name'    => $pick('mail_from_name', 'MAIL_FROM_NAME', 'Africa GATES'),
             'reply_to'     => $pick('mail_reply_to', 'MAIL_REPLY_TO', ''),
         ], $c->get(\Psr\Log\LoggerInterface::class));
+        // Hand the same transport to CheckoutMailer, which sends receipts from
+        // PaidVoteController and PaymentController — neither of which has a mailer to
+        // inject. It can boot its own, but then it would not share this logger, so a
+        // send failure on a payment path would be missing from app.log.
+        \AfricaGates\Services\CheckoutMailer::using($mailer);
+        return $mailer;
     },
 
     // Admin services

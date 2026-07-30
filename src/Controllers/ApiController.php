@@ -165,11 +165,16 @@ class ApiController {
 </p>
 <p style="font-size:13px;color:#9ca3af">Didn't cast this vote? Your email was hashed before storage — contact integrity@afrovanguard.org.ng if something seems wrong.</p>
 HTML;
+            // 'Votes' is not decoration — it is the category gates_mail_log records, and
+            // without it "are voters receiving anything?" could not be answered from the
+            // delivery audit even on a deployment where mail was working. app:doctor and
+            // the admin email-health card both read that table.
             $this->otp->sendBranded(
                 strtolower(trim($b['email'])),
                 "✅ Your vote for {$nomName} is confirmed",
                 $html,
-                "Your vote for {$nomName} in {$catTitle} has been recorded.\n\nShare the vote page: {$voteUrl}\n\n— Africa GATES"
+                "Your vote for {$nomName} in {$catTitle} has been recorded.\n\nShare the vote page: {$voteUrl}\n\n— Africa GATES",
+                'Votes'
             );
         }
 
