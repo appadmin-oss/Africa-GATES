@@ -136,9 +136,22 @@ final class PaidVoteController
         ]);
         if (!$init['ok'] || empty($init['checkout_url'])) {
             DB::table('gates_donations')->where('payment_ref', $reference)->where('status', 'pending')->update(['status' => 'failed']);
+            // The provider's OWN message, at error level. It was discarded, so an
+            // operator debugging "checkout does not start" had the reason
+            // ("Invalid key", "Currency not supported", a TLS failure) thrown away and
+            // only a generic chip on the page to work from.
+            $this->log?->error('[paid-vote] gateway would not start a transaction', [
+                'ref' => $reference, 'provider' => $provider, 'reason' => (string) ($init['message'] ?? ''),
+            ]);
             return $bail('start');
         }
-        return $this->redirect($res, $init['checkout_url']);
+
+        // NOT a 302 straight to the gateway. That redirect is part of a form submission,
+        // so `form-action` governs it — and a policy without the gateway hosts blocks the
+        // POST in the browser before any PHP runs at all. See GatewayHandoff.
+        return $this->redirect($res, \AfricaGates\Services\GatewayHandoff::remember(
+            $reference, (string) $init['checkout_url'], $this->base($req) . '/vote/paid/redirect', $provider
+        ));
     }
 
     /**
@@ -166,6 +179,30 @@ final class PaidVoteController
             'name'   => $name,
             'detail' => $detail,
         ];
+    }
+
+    /**
+     * GET /vote/paid/redirect — the same-origin hop to the gateway.
+     *
+     * Exists so the browser never sees a form submission that ends on a third-party host.
+     * See {@see \AfricaGates\Services\GatewayHandoff} for the console message that made
+     * this necessary and why `form-action 'self'` blocked every paid vote.
+     *
+     * A missing or expired handoff is not an error state worth a stack trace: the buyer is
+     * simply returned to the ballot with a reason, because the most likely cause is a
+     * back-button or a bookmarked handoff URL.
+     */
+    public function handoff(Request $req, Response $res): Response
+    {
+        $reference = \AfricaGates\Services\GatewayHandoff::reference($req);
+        $url = \AfricaGates\Services\GatewayHandoff::take($reference);
+        if ($url === null) {
+            return $this->redirect($res, $this->base($req) . '/vote?paid=start');
+        }
+
+        return \AfricaGates\Services\GatewayHandoff::page(
+            $res, $url, \AfricaGates\Services\GatewayHandoff::providerLabel(), $reference
+        );
     }
 
     /** GET /vote/paid/callback — browser return; re-verified server-to-server. */

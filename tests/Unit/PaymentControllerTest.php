@@ -44,7 +44,7 @@ class PaymentControllerTest extends TestCase
                 return in_array($provider, ['paystack','flutterwave'], true);
             }
             public function initialize(string $provider, int $amountNaira, string $email, string $reference, string $callbackUrl, array $meta = []): array {
-                return $this->opts['init'] ?? ['ok' => true, 'checkout_url' => 'https://gw/checkout/' . $reference, 'message' => 'ok'];
+                return $this->opts['init'] ?? ['ok' => true, 'checkout_url' => 'https://checkout.paystack.com/' . $reference, 'message' => 'ok'];
             }
             public function verify(string $provider, string $reference): array {
                 return $this->opts['verify'] ?? ['ok' => true, 'status' => 'success', 'amount' => 0, 'currency' => 'NGN', 'meta' => []];
@@ -75,8 +75,16 @@ class PaymentControllerTest extends TestCase
             new Response()
         );
 
+        // SAME-ORIGIN, not the gateway. A 302 from a form POST to a gateway host is
+        // governed by `form-action`, and a policy without the gateways blocks the POST in
+        // the browser before any PHP runs — which is what "it does not redirect to
+        // Paystack" was. The buyer reaches the gateway on the next hop instead; see
+        // GatewayHandoff and GatewayHandoffTest.
         $this->assertSame(302, $res->getStatusCode());
-        $this->assertStringContainsString('https://gw/checkout/AFG-', $res->getHeaderLine('Location'));
+        $location = $res->getHeaderLine('Location');
+        $this->assertStringContainsString('/pay/redirect?ref=AFG-', $location);
+        $this->assertStringNotContainsString('paystack.com', $location,
+            'the gateway URL must not travel in a redirect the browser attributes to a form');
 
         $row = DB::table('gates_donations')->first();
         $this->assertNotNull($row);
@@ -85,6 +93,32 @@ class PaymentControllerTest extends TestCase
         $this->assertSame(5000, (int) $row->amount_naira);
         $this->assertSame(35, (int) $row->bonus_votes);
         $this->assertStringStartsWith('AFG-', (string) $row->payment_ref);
+    }
+
+    /**
+     * …and the next hop delivers the gateway. Without this the test above would pass on a
+     * change that redirected same-origin and then went nowhere.
+     */
+    public function test_the_same_origin_hop_then_delivers_the_gateway(): void
+    {
+        $_SESSION = [];
+        $ctl = $this->controller($this->stubPayments());
+        $res = $ctl->init(
+            $this->postInit(['provider' => 'paystack', 'purpose' => 'vote', 'tier' => 'champion', 'email' => 'a@b.io']),
+            new Response()
+        );
+        $location = $res->getHeaderLine('Location');
+        parse_str((string) parse_url($location, PHP_URL_QUERY), $q);
+
+        $hop = $ctl->handoff(
+            (new ServerRequestFactory())->createServerRequest('GET', $location)->withQueryParams($q),
+            new Response()
+        );
+
+        $this->assertSame(200, $hop->getStatusCode());
+        $this->assertStringContainsString('checkout.paystack.com', $hop->getHeaderLine('Refresh'));
+        // No JavaScript anywhere on the path between intent and money.
+        $this->assertStringNotContainsString('<script', (string) $hop->getBody());
     }
 
     public function test_init_ignores_any_client_supplied_amount(): void

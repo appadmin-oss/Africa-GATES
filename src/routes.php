@@ -342,6 +342,12 @@ return function(App $app) {
         // /vote/{program}/{slug} variable route, or FastRoute treats them as
         // shadowed and aborts routing for the whole app.
         $g->post('/vote/paid/start',   PaidVoteController::class.':start');
+        // The same-origin hop to the gateway. A 302 from the POST straight to Paystack is
+        // part of a FORM SUBMISSION, so `form-action` governs it — and a policy without the
+        // gateway hosts blocks the POST in the browser, before any PHP runs, with nothing in
+        // any server log. This route is what makes paid checkout independent of the CSP.
+        // See AfricaGates\Services\GatewayHandoff.
+        $g->get('/vote/paid/redirect', PaidVoteController::class.':handoff');
         $g->get('/vote/paid/callback', PaidVoteController::class.':callback');
         $g->get('/vote/paid/success',  PaidVoteController::class.':success');
         $g->get('/vote',                  VoteController::class.':index');
@@ -369,6 +375,7 @@ return function(App $app) {
         // ── Shop (storefront + gateway checkout; static routes before {slug}) ──
         $g->get('/shop',           ShopController::class.':index');
         $g->post('/shop/checkout', ShopCheckoutController::class.':checkout');
+        $g->get('/shop/redirect',  ShopCheckoutController::class.':handoff');  // see GatewayHandoff
         $g->get('/shop/callback',  ShopCheckoutController::class.':callback');
         $g->get('/shop/success',   ShopCheckoutController::class.':success');
         $g->get('/shop/{slug}',    ShopController::class.':item');
@@ -379,6 +386,7 @@ return function(App $app) {
         //   /pay/success  read-only confirmation page
         //   /pay/webhook  server-to-server, signature-verified, CSRF-EXEMPT
         $g->post('/pay/init',     PaymentController::class.':init');
+        $g->get('/pay/redirect',  PaymentController::class.':handoff');  // see GatewayHandoff
         $g->get('/pay/callback',  PaymentController::class.':callback');
         $g->get('/pay/success',   PaymentController::class.':success');
         $g->post('/pay/webhook',  PaymentController::class.':webhook');
@@ -390,6 +398,7 @@ return function(App $app) {
         //   GET  /donate/success   read-only thank-you
         $g->get('/donate',          DonationController::class.':page');
         $g->post('/donate',         DonationController::class.':start');
+        $g->get('/donate/redirect', DonationController::class.':handoff');  // see GatewayHandoff
         $g->get('/donate/callback', DonationController::class.':callback');
         $g->get('/donate/success',  DonationController::class.':success');
         // (Paid-voting routes are registered above, before /vote/{program}.)

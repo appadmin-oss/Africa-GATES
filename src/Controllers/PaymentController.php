@@ -221,10 +221,35 @@ final class PaymentController
 
         $this->log?->info('[payment] checkout started', ['provider' => $provider, 'ref' => $reference, 'amount' => $amount]);
 
+        // The AJAX branch is exempt on purpose: a JavaScript-initiated navigation is not a
+        // form submission, so `form-action` never governed it. Only the non-AJAX branch —
+        // an ordinary form POST — needs the same-origin hop.
         if ($this->isAjax($req)) {
             return $this->json($res, ['ok' => true, 'checkout_url' => $init['checkout_url'], 'reference' => $reference]);
         }
-        return $this->redirect($res, $init['checkout_url']);
+        // NOT a 302 straight to the gateway: `form-action` governs the redirect chain of a
+        // form submission, and a policy without the gateway hosts blocks the POST in the
+        // browser before any PHP runs. See GatewayHandoff.
+        return $this->redirect($res, \AfricaGates\Services\GatewayHandoff::remember(
+            $reference, (string) $init['checkout_url'], $this->base($req) . '/pay/redirect', $provider
+        ));
+    }
+
+    /**
+     * GET /pay/redirect — the same-origin hop to the gateway.
+     *
+     * See {@see \AfricaGates\Services\GatewayHandoff}.
+     */
+    public function handoff(Request $req, Response $res): Response
+    {
+        $reference = \AfricaGates\Services\GatewayHandoff::reference($req);
+        $url = \AfricaGates\Services\GatewayHandoff::take($reference);
+        if ($url === null) {
+            return $this->redirect($res, $this->fallbackUrl($req));
+        }
+        return \AfricaGates\Services\GatewayHandoff::page(
+            $res, $url, \AfricaGates\Services\GatewayHandoff::providerLabel(), $reference
+        );
     }
 
     // ───────────────────────────── /pay/callback ────────────────────────────

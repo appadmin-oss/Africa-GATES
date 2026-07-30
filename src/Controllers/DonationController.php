@@ -181,10 +181,20 @@ final class DonationController
             'reference' => $reference, 'purpose' => 'donation',
         ]);
         if (!$init['ok'] || empty($init['checkout_url'])) {
+            // The provider's OWN message. It was discarded, leaving an operator with a
+            // generic chip and no way to know the gateway said "Invalid key".
+            $this->log?->error('[donate] gateway would not start a transaction', [
+                'ref' => $reference, 'provider' => $provider, 'reason' => (string) ($init['message'] ?? ''),
+            ]);
             DB::table('gates_donations')->where('payment_ref', $reference)->where('status', 'pending')->update(['status' => 'failed']);
             return $bail('start');
         }
-        return $this->redirect($res, $init['checkout_url']);
+        // NOT a 302 straight to the gateway: that redirect is part of a form
+        // submission, so `form-action` governs it and a policy without the gateway
+        // hosts blocks the POST in the browser before any PHP runs. See GatewayHandoff.
+        return $this->redirect($res, \AfricaGates\Services\GatewayHandoff::remember(
+            $reference, (string) $init['checkout_url'], $this->base($req) . '/donate/redirect', $provider
+        ));
     }
 
     /** GET /donate/callback — browser return; re-verified server-to-server. */
@@ -262,5 +272,24 @@ final class DonationController
         }
         Notifier::adminAlert($this->mailer, 'New donation (confirmed)',
             'Donor:  ' . (string)$don->donor_name . ' <' . (string)$don->donor_email . ">\nAmount: " . $total . "\nRef:    " . (string)$don->payment_ref);
+    }
+
+    /**
+     * GET /donate/redirect — the same-origin hop to the gateway.
+     *
+     * See {@see \AfricaGates\Services\GatewayHandoff}: a 302 from a form POST straight to
+     * a gateway host is governed by `form-action`, and a policy without the gateways blocks
+     * the submission in the browser before any PHP runs.
+     */
+    public function handoff(Request $req, Response $res): Response
+    {
+        $reference = \AfricaGates\Services\GatewayHandoff::reference($req);
+        $url = \AfricaGates\Services\GatewayHandoff::take($reference);
+        if ($url === null) {
+            return $this->redirect($res, $this->base($req) . '/donate?give=start');
+        }
+        return \AfricaGates\Services\GatewayHandoff::page(
+            $res, $url, \AfricaGates\Services\GatewayHandoff::providerLabel(), $reference
+        );
     }
 }
