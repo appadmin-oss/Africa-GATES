@@ -4,42 +4,62 @@
 #  This is the "Layer 2" that public/.htaccess has always referred to and which,
 #  until now, DID NOT EXIST. `public/uploads/` is gitignored (it is runtime data),
 #  and a rule inside an ignored directory can never be committed — so the layer was
-#  a comment describing a file no deployment had. The .gitignore now negates this
-#  one path so the protection actually ships.
+#  a comment describing a file no deployment had. `.gitignore` now negates this one
+#  path so the protection actually ships.
 #
 #  Everything here is defence-in-depth. UploadService already sniffs the MIME from
 #  the bytes with finfo, rejects anything that is not a JPEG/PNG/WebP/GIF or a PDF,
 #  and re-encodes every raster — so a script should never reach this directory. This
 #  file is what holds if that ever stops being true.
+#
+#  ── ONLY DIRECTIVES EVERY SERVER UNDERSTANDS ──────────────────────────────
+#
+#  The first version of this file used four directives that are NOT universally
+#  available in .htaccess, and it 500'd a real deployment. Recorded here so they do
+#  not come back:
+#
+#    Options -Indexes -ExecCGI    `Options` requires `AllowOverride Options`, and many
+#                                 shared hosts grant only a restricted subset (e.g.
+#                                 Options=Indexes,MultiViews). `-ExecCGI` outside that
+#                                 subset is "Options not allowed here" → 500. Not
+#                                 needed anyway: public/.htaccess already sets
+#                                 `Options -Indexes -MultiViews` and per-directory
+#                                 config INHERITS.
+#    php_flag engine off          Requires `AllowOverride Options`/`All` even when
+#                                 mod_php is present, so an `<IfModule mod_php.c>`
+#                                 guard does not make it safe. The handler denial
+#                                 below covers the same ground.
+#    RemoveHandler (unguarded)    A mod_mime directive. Unknown command → 500 if
+#                                 mod_mime is not loaded. Now inside the guard.
+#    Header setifempty            Apache 2.4.7+, and unsupported by LiteSpeed's
+#                                 mod_headers emulation. Not needed here: PHP serves
+#                                 nothing from this directory, so plain `set` is
+#                                 correct and there is no nonce policy to overwrite.
 # ═══════════════════════════════════════════════════════════════════════════
 
 # ── Never execute anything here ────────────────────────────────────────────
-# Belt to public/.htaccess's RewriteRule (Layer 1). That one can be bypassed if
-# mod_rewrite is unavailable; this cannot.
-<IfModule mod_php.c>
-  php_flag engine off
-</IfModule>
-<IfModule mod_php7.c>
-  php_flag engine off
-</IfModule>
-<IfModule mod_php8.c>
-  php_flag engine off
-</IfModule>
-# PHP-FPM / CGI ignores php_flag entirely, so deny the handler outright too.
+# Belt to public/.htaccess's RewriteRule (Layer 1), which can be bypassed if
+# mod_rewrite is unavailable. This cannot.
 <IfModule mod_authz_core.c>
-  <FilesMatch "\.(?:php|phtml|phps|php[0-9]|phar|cgi|pl|py|asp|aspx|jsp|sh|bash|htaccess)$">
+  <FilesMatch "\.(?:php|phtml|phps|php[0-9]|phar|cgi|pl|py|asp|aspx|jsp|sh|bash)$">
     Require all denied
   </FilesMatch>
 </IfModule>
 <IfModule !mod_authz_core.c>
-  <FilesMatch "\.(?:php|phtml|phps|php[0-9]|phar|cgi|pl|py|asp|aspx|jsp|sh|bash|htaccess)$">
+  <FilesMatch "\.(?:php|phtml|phps|php[0-9]|phar|cgi|pl|py|asp|aspx|jsp|sh|bash)$">
     Order allow,deny
     Deny from all
   </FilesMatch>
 </IfModule>
-RemoveHandler .php .phtml .phar .cgi .pl .py
+
+# Strip any handler/type mapping that could make these extensions executable.
+# GUARDED — both are mod_mime directives and an unknown command is a 500.
 <IfModule mod_mime.c>
+  RemoveHandler .php .phtml .phar .cgi .pl .py
   RemoveType .php .phtml .phar .cgi .pl .py
+  # SVG is not in UploadService's allowlist, so one should never be here. If a future
+  # path adds it, serve it as text rather than as an executable document.
+  AddType text/plain .svg .svgz
 </IfModule>
 
 <IfModule mod_headers.c>
@@ -47,36 +67,27 @@ RemoveHandler .php .phtml .phar .cgi .pl .py
   #
   # `set`, not `setifempty`: nothing under /uploads/ is ever served by PHP, so there
   # is no per-request nonce policy here to overwrite. That is what makes the strict
-  # version safe in this directory and not in public/ — see the long note there.
+  # version safe in this directory.
   #
-  # `sandbox` gives the asset an opaque origin, so an SVG opened directly cannot
-  # reach the site's DOM, cookies or localStorage even if a browser ever executed it;
+  # `sandbox` gives the asset an opaque origin, so an SVG opened directly cannot reach
+  # the site's DOM, cookies or localStorage even if a browser ever executed it;
   # `default-src 'none'` stops the script running in the first place (script-src
-  # inherits). Both, because the whole premise of this file is that the layer above
-  # it has failed.
-  Header always set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+  # inherits). Both, because the whole premise of this file is that the layer above it
+  # has failed.
+  Header set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
 
   # An uploaded file's declared type must be believed exactly as declared — a
   # sniffed "image/png" that is really HTML is the classic stored-XSS route.
-  Header always set X-Content-Type-Options "nosniff"
+  Header set X-Content-Type-Options "nosniff"
 
-  # Never rendered in a frame, and no referrer leaks a nomination's photo path to a
-  # third party.
-  Header always set X-Frame-Options "DENY"
-  Header always set Referrer-Policy "no-referrer"
+  # Never rendered in a frame, and no referrer leaks a nomination's photo path.
+  Header set X-Frame-Options "DENY"
+  Header set Referrer-Policy "no-referrer"
 
-  # Belt for anything a browser might otherwise offer to display inline. Images and
-  # PDFs still preview through the admin-gated /admin/media/{id}/view route, which
-  # sets its own Content-Disposition; this only affects a direct hit on the file.
+  # Belt for anything a browser might otherwise render inline. Images and PDFs still
+  # preview through the admin-gated /admin/media/{id}/view route, which sets its own
+  # Content-Disposition; this only affects a direct hit on the file.
   <FilesMatch "\.(?:svg|svgz|xml|html?|xht|xhtml|js|mjs|json)$">
-    Header always set Content-Disposition "attachment"
+    Header set Content-Disposition "attachment"
   </FilesMatch>
 </IfModule>
-
-# SVG is not in UploadService's allowlist, so one should never be here. If a future
-# path adds it, serve it as a download rather than as an executable document.
-<IfModule mod_mime.c>
-  AddType text/plain .svg .svgz
-</IfModule>
-
-Options -Indexes -ExecCGI -MultiViews

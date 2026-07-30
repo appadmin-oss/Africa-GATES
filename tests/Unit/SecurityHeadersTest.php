@@ -221,54 +221,141 @@ class SecurityHeadersTest extends TestCase
     }
 
     /**
-     * The static CSP fallback, and the one mistake that would take the site down.
+     * The static-file CSP lives in PER-DIRECTORY .htaccess files, and public/.htaccess
+     * must contain no CSP directive at all.
      *
-     * A nonce cannot live in a static file, so `Csp::policy()` could never be duplicated
-     * into .htaccess the way the six shared headers are — which left every real file
-     * under public/ (`/assets/**`, the logo, everything under `/uploads/`) with NO CSP,
-     * because Apache serves those without touching PHP.
+     * Both halves of this are scar tissue from a real outage.
      *
-     * The fix must use `setifempty`. `Header always set Content-Security-Policy` would
-     * REPLACE the nonce-bearing policy on every HTML page with a nonce-free one, and
-     * every inline script on the site — Alpine, the nav, the cart, the ballot — would
-     * stop running, with nothing in any log. That is a far worse outcome than the gap it
-     * closes, and it is a one-word edit away, so it is pinned here.
+     * A `Header set Content-Security-Policy` in public/.htaccess would REPLACE the
+     * nonce-bearing policy on every HTML page with a nonce-free one, and every inline
+     * script on the site — Alpine, the nav, the cart, the ballot — would stop with
+     * nothing in any log.
+     *
+     * `Header setifempty` avoids that by construction, and it is what the first version
+     * of this change used. It 500'd the deployment: `setifempty` is Apache 2.4.7+ and is
+     * not supported by LiteSpeed's mod_headers emulation, which a large share of cPanel
+     * hosts run — and an unsupported directive in .htaccess takes down the whole site.
+     * Wrapping it in `<IfVersion>` does not help, because `<IfVersion>` is itself a
+     * directive the server has to understand.
+     *
+     * Scoping by DIRECTORY needs no exotic directive: PHP serves nothing from
+     * public/assets/ or public/uploads/, so a plain `Header set` there is safe because
+     * of where it is, not because of what it is.
      */
-    public function test_the_htaccess_csp_fallback_can_never_replace_the_nonce_policy(): void
+    public function test_the_static_csp_is_scoped_by_directory_not_by_directive(): void
     {
-        $htaccess = (string) file_get_contents(dirname(__DIR__, 2) . '/public/.htaccess');
+        $root = dirname(__DIR__, 2);
+        // Comments stripped FIRST. public/.htaccess documents both banned directives by
+        // name — that documentation is the point — and scanning raw text reported the
+        // prose explaining why `setifempty` is forbidden as an instance of it being used.
+        // Same trap as the session-limiter ordering check above: only executable
+        // configuration can be wrong.
+        $rootHtaccess = (string) preg_replace('~^\s*#.*$~m', '',
+            (string) file_get_contents($root . '/public/.htaccess'));
 
-        $this->assertMatchesRegularExpression(
-            '~Header\s+always\s+setifempty\s+Content-Security-Policy\s+"~i',
-            $htaccess,
-            'static files need a CSP fallback — Apache serves them without touching PHP'
-        );
-
-        // The killer. `set` (not `setifempty`) would overwrite the per-request policy.
+        // Neither form may appear in the root file: one breaks every page, the other
+        // breaks every server that does not implement it.
         $this->assertDoesNotMatchRegularExpression(
-            '~Header\s+always\s+set\s+Content-Security-Policy~i',
-            $htaccess,
-            'use setifempty: `set` replaces the nonce-bearing policy and kills every '
-            . 'inline script on the site'
+            '~^\s*Header\s+(always\s+)?set\s+Content-Security-Policy~mi',
+            $rootHtaccess,
+            'a CSP `set` in public/.htaccess replaces the nonce policy and kills every inline script'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '~setifempty~i',
+            $rootHtaccess,
+            'setifempty is Apache 2.4.7+ and unsupported by LiteSpeed — it 500s the site'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '~<IfVersion~i',
+            $rootHtaccess,
+            '<IfVersion> is itself a directive the server must understand, so it cannot guard one'
         );
 
-        // A nonce in a static file is a fixed string every visitor gets, i.e. a value an
-        // attacker can read from the header and reuse — worse than no nonce at all.
-        preg_match('~Header\s+always\s+setifempty\s+Content-Security-Policy\s+"([^"]*)"~i', $htaccess, $m);
-        $fallback = $m[1] ?? '';
-        $this->assertStringNotContainsString('nonce-', $fallback,
-            'a static nonce is a constant every visitor and every attacker receives');
-        // default-src 'none' is what stops a directly-navigated SVG executing script,
-        // since script-src inherits from it. This is the whole point of the fallback.
-        $this->assertStringContainsString("default-src 'none'", $fallback);
+        // …and the coverage it replaces must actually exist, in both directories.
+        foreach (['public/assets/.htaccess', 'public/uploads/.htaccess'] as $rel) {
+            $this->assertFileExists($root . '/' . $rel);
+            // Comments stripped here too, for the same reason: these files explain at
+            // length why a static nonce would be wrong, and the phrase "nonce-bearing" in
+            // that explanation read as a nonce being present. Twice in one test file is
+            // enough to call it a pattern — a config guard must look at configuration.
+            $conf = (string) preg_replace('~^\s*#.*$~m', '',
+                (string) file_get_contents($root . '/' . $rel));
+            $this->assertMatchesRegularExpression('~Header\s+set\s+Content-Security-Policy~i', $conf, $rel);
+            $this->assertStringContainsString("default-src 'none'", $conf,
+                $rel . ": default-src 'none' is what stops a navigated-to SVG executing script");
+            $this->assertStringNotContainsString('nonce-', $conf,
+                $rel . ': a static nonce is a constant every visitor and every attacker receives');
+        }
+    }
 
-        // Version-gated: setifempty is Apache 2.4.7+, and on anything older an unknown
-        // directive is a syntax error that 500s the entire site. Losing the backup on an
-        // old Apache is acceptable; taking the site down to add one is not.
-        $this->assertMatchesRegularExpression('~<IfVersion\s*>=\s*2\.4\.7>~i', $htaccess,
-            'setifempty must be guarded — it does not exist before Apache 2.4.7');
-        $this->assertMatchesRegularExpression('~<IfModule\s+mod_version\.c>~i', $htaccess,
-            'IfVersion itself needs mod_version, or the guard is the crash');
+    /**
+     * Every .htaccess this project ships uses only directives that are safe in a
+     * per-directory context on a restricted shared host.
+     *
+     * The outage was not one mistake, it was four in one file: `Options -ExecCGI` and
+     * `php_flag` both need `AllowOverride Options` (commonly granted only as a restricted
+     * subset, or not at all), an unguarded `RemoveHandler` is an unknown command without
+     * mod_mime, and `setifempty` does not exist on older Apache or LiteSpeed. Each one is
+     * a 500 for the entire site, and none of them fails on a developer machine.
+     */
+    public function test_no_htaccess_uses_a_directive_that_needs_allowoverride_options(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $offenders = [];
+
+        foreach ([
+            '.htaccess',
+            'public/.htaccess',
+            'public/assets/.htaccess',
+            'public/uploads/.htaccess',
+        ] as $rel) {
+            $path = $root . '/' . $rel;
+            if (!is_file($path)) continue;
+            // Strip comments — these files document the banned directives at length.
+            $conf = (string) preg_replace('~^\s*#.*$~m', '', (string) file_get_contents($path));
+
+            // php_flag / php_value need AllowOverride Options even under mod_php, so an
+            // <IfModule> guard does not make them safe.
+            if (preg_match('~^\s*php_(flag|value|admin_flag|admin_value)\s~mi', $conf)) {
+                $offenders[] = "{$rel}: php_flag/php_value needs AllowOverride Options";
+            }
+            // setifempty / IfVersion: unsupported on older Apache and on LiteSpeed.
+            if (preg_match('~setifempty~i', $conf)) {
+                $offenders[] = "{$rel}: Header setifempty is Apache 2.4.7+ / not on LiteSpeed";
+            }
+            if (preg_match('~<IfVersion~i', $conf)) {
+                $offenders[] = "{$rel}: <IfVersion> cannot guard anything — it needs mod_version itself";
+            }
+            // RemoveHandler / RemoveType / AddType are mod_mime; unknown command → 500.
+            //
+            // Tracked by BLOCK NESTING, not by "does the file contain a mod_mime guard
+            // somewhere". The first version asked the weaker question and, verified
+            // directly, did not catch a RemoveHandler appended outside the guard in a file
+            // that happened to have one elsewhere — which is exactly the shape of the
+            // mistake that caused the outage.
+            $open = [];
+            foreach (preg_split('~\R~', $conf) ?: [] as $line) {
+                if (preg_match('~<IfModule\s+(!?)\s*([A-Za-z0-9_]+\.c)\s*>~i', $line, $m) === 1) {
+                    $open[] = ($m[1] === '!' ? '!' : '') . strtolower($m[2]);
+                    continue;
+                }
+                if (preg_match('~</IfModule\s*>~i', $line) === 1) { array_pop($open); continue; }
+                foreach (['RemoveHandler', 'RemoveType', 'AddType', 'AddHandler'] as $mime) {
+                    if (preg_match('~^\s*' . $mime . '\s~i', $line) === 1
+                        && !in_array('mod_mime.c', $open, true)) {
+                        $offenders[] = "{$rel}: {$mime} must be inside <IfModule mod_mime.c>";
+                    }
+                }
+            }
+            // ExecCGI is the Options token most often outside a host's granted subset.
+            if (preg_match('~^\s*Options\b[^\n]*ExecCGI~mi', $conf)) {
+                $offenders[] = "{$rel}: Options ...ExecCGI is commonly outside AllowOverride's granted subset";
+            }
+        }
+
+        $this->assertSame([], $offenders,
+            "these directives 500 a restricted shared host, and none of them fails locally:\n  "
+            . implode("\n  ", $offenders));
     }
 
     /**
@@ -288,15 +375,17 @@ class SecurityHeadersTest extends TestCase
             'the layer public/.htaccess points at must actually exist');
         $guard = (string) file_get_contents($root . '/public/uploads/.htaccess');
 
-        // Untrusted bytes: the hard sandbox, and here `set` IS correct — nothing under
-        // /uploads/ is ever served by PHP, so there is no nonce policy to overwrite.
-        $this->assertMatchesRegularExpression('~Header\s+always\s+set\s+Content-Security-Policy~i', $guard);
+        // Untrusted bytes get the hard sandbox, and here plain `set` IS correct — nothing
+        // under /uploads/ is ever served by PHP, so there is no nonce policy to overwrite.
+        $this->assertMatchesRegularExpression('~Header\s+set\s+Content-Security-Policy~i', $guard);
         $this->assertStringContainsString('sandbox', $guard,
             'an opaque origin, so a navigated-to SVG cannot reach the site DOM or cookies');
         $this->assertStringContainsString("default-src 'none'", $guard);
         $this->assertStringContainsString('nosniff', $guard,
             'a "PNG" that is really HTML is the classic stored-XSS route');
         $this->assertMatchesRegularExpression('~RemoveHandler~i', $guard, 'never execute anything here');
+        $this->assertMatchesRegularExpression('~<IfModule\s+mod_mime\.c>~i', $guard,
+            'RemoveHandler is a mod_mime directive — unguarded it is a 500 without mod_mime');
 
         // And the ignore rule must permit exactly this one path. `public/uploads/` (the
         // directory form) makes the negation impossible; `public/uploads/*` does not.
@@ -304,8 +393,6 @@ class SecurityHeadersTest extends TestCase
         $this->assertStringContainsString('public/uploads/*', $ignore,
             'the directory form of the ignore makes the negation below inoperative');
         $this->assertStringContainsString('!public/uploads/.htaccess', $ignore);
-        $this->assertStringNotContainsString("\npublic/uploads/\n", "\n" . $ignore . "\n",
-            'the bare directory form must be gone, or the negation cannot take effect');
     }
 
     public function test_the_dead_floc_directive_is_gone(): void

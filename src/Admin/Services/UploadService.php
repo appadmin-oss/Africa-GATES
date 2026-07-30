@@ -73,6 +73,14 @@ class UploadService
 
         // Kept deliberately short: the committed file is the documented, fuller version
         // and this is the emergency floor — no script execution, no CSP-less SVG.
+        //
+        // EVERY directive here must be one that cannot 500 a shared host, because this
+        // is written unattended onto a server nobody is watching. So: no `Options`
+        // (needs AllowOverride Options, commonly restricted), no `php_flag` (same), no
+        // `setifempty` (Apache 2.4.7+ and unsupported by LiteSpeed), and `RemoveHandler`
+        // only inside its mod_mime guard. The first version of the committed file used
+        // three of those four and took a deployment down; writing them from PHP would
+        // have been the same outage with no file to point at.
         $rules = <<<'HTACCESS'
         # Re-created by AfricaGates\Admin\Services\UploadService because it was missing.
         # The committed public/uploads/.htaccess is the fuller, documented version —
@@ -86,14 +94,16 @@ class UploadService
             Deny from all
           </IfModule>
         </FilesMatch>
-        RemoveHandler .php .phtml .phar .cgi .pl .py
-        <IfModule mod_headers.c>
-          Header always set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
-          Header always set X-Content-Type-Options "nosniff"
-          Header always set X-Frame-Options "DENY"
-          Header always set Referrer-Policy "no-referrer"
+        <IfModule mod_mime.c>
+          RemoveHandler .php .phtml .phar .cgi .pl .py
+          RemoveType .php .phtml .phar .cgi .pl .py
         </IfModule>
-        Options -Indexes -ExecCGI -MultiViews
+        <IfModule mod_headers.c>
+          Header set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+          Header set X-Content-Type-Options "nosniff"
+          Header set X-Frame-Options "DENY"
+          Header set Referrer-Policy "no-referrer"
+        </IfModule>
         HTACCESS;
 
         @file_put_contents($guard, preg_replace('/^        /m', '', $rules) . "\n");
