@@ -52,6 +52,7 @@ final class DoctorCommand extends Command
             'config'   => $this->config(),
             'database' => $this->database(),
             'media'    => $this->media(),
+            'assets'   => $this->assets(),
             'csp'      => $this->csp(),
         ];
         $problems = $this->problems($report);
@@ -252,6 +253,26 @@ final class DoctorCommand extends Command
         return $out;
     }
 
+    /**
+     * Is the CSS bundle current?
+     *
+     * Here because it is the one performance setting that is invisible from the outside
+     * and reverts silently. `public/assets/dist/` is gitignored build output, so a fresh
+     * deploy has no bundle at all and the site serves fifteen render-blocking
+     * stylesheets — measured at ~2.4s of blocking requests on a mid-range Android. It
+     * still WORKS, which is exactly why nobody notices.
+     */
+    private function assets(): array
+    {
+        $url = \AfricaGates\Support\AssetBundle::url();
+        $count = count(\AfricaGates\Support\AssetBundle::STYLESHEETS);
+
+        return [
+            'css_bundle' => $url ?? 'NOT BUILT — serving ' . $count . ' separate stylesheets (run: bin/console assets:build)',
+            'css_files_bundled' => $url !== null ? (string) $count : '0',
+        ];
+    }
+
     private function database(): array
     {
         try {
@@ -322,6 +343,13 @@ final class DoctorCommand extends Command
             $p[] = 'opcache.validate_timestamps is off: edits to PHP files have no effect until the '
                  . 'PHP-FPM pool is reloaded or the opcode cache is flushed. An edit that appears to '
                  . 'do nothing — including a syntax error — is explained by this alone.';
+        }
+        if (str_contains((string) ($r['assets']['css_bundle'] ?? ''), 'NOT BUILT')) {
+            $p[] = 'The CSS bundle is missing or stale, so every page is loading '
+                 . count(\AfricaGates\Support\AssetBundle::STYLESHEETS) . ' separate render-blocking '
+                 . 'stylesheets instead of one — roughly 2.4s of blocking requests on a mid-range '
+                 . 'Android. The site is CORRECT, just slow: run `bin/console assets:build` (or open '
+                 . '/__setup/assets?token=… on a host with no shell) and add it to the deploy steps.';
         }
         if ((int) ($r['media']['failed_uploads'] ?? 0) > 0) {
             $p[] = 'Cloudinary uploads have failed for ' . $r['media']['failed_uploads'] . ' image(s). '

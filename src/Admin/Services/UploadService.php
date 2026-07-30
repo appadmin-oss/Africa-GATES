@@ -49,6 +49,57 @@ class UploadService
     }
 
     /**
+     * The hardening rules Apache must apply to `public/uploads/`.
+     *
+     * ── WHY THIS IS WRITTEN AT RUNTIME AND NOT JUST COMMITTED ────────────────
+     *
+     * It IS committed — `public/uploads/.htaccess`, and `.gitignore` now negates that
+     * one path so it ships. But a dotfile at the root of a directory is exactly what
+     * goes missing on the way to a shared host: cPanel's File Manager hides dotfiles by
+     * default, an FTP client can be configured not to transfer them, and unzipping an
+     * archive built with `zip -r` from a GUI frequently drops them. The failure is
+     * silent and the thing it protects is the one directory on the server holding
+     * attacker-influenced bytes.
+     *
+     * So the file is re-created whenever a bucket directory is created and found to be
+     * missing. Never overwritten — an operator who has deliberately tightened it keeps
+     * their version.
+     */
+    private function ensureUploadsGuard(): void
+    {
+        $guard = $this->publicRoot . '/uploads/.htaccess';
+        if (is_file($guard)) return;
+        if (!is_dir(dirname($guard))) return;
+
+        // Kept deliberately short: the committed file is the documented, fuller version
+        // and this is the emergency floor — no script execution, no CSP-less SVG.
+        $rules = <<<'HTACCESS'
+        # Re-created by AfricaGates\Admin\Services\UploadService because it was missing.
+        # The committed public/uploads/.htaccess is the fuller, documented version —
+        # if you are reading this, that file did not survive the deploy.
+        <FilesMatch "\.(?:php|phtml|phps|php[0-9]|phar|cgi|pl|py|asp|sh)$">
+          <IfModule mod_authz_core.c>
+            Require all denied
+          </IfModule>
+          <IfModule !mod_authz_core.c>
+            Order allow,deny
+            Deny from all
+          </IfModule>
+        </FilesMatch>
+        RemoveHandler .php .phtml .phar .cgi .pl .py
+        <IfModule mod_headers.c>
+          Header always set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+          Header always set X-Content-Type-Options "nosniff"
+          Header always set X-Frame-Options "DENY"
+          Header always set Referrer-Policy "no-referrer"
+        </IfModule>
+        Options -Indexes -ExecCGI -MultiViews
+        HTACCESS;
+
+        @file_put_contents($guard, preg_replace('/^        /m', '', $rules) . "\n");
+    }
+
+    /**
      * Hand a locally-stored, already-sanitised file to Cloudinary.
      *
      * Returns the remote descriptor, or null when Cloudinary is off or the upload
@@ -119,6 +170,7 @@ class UploadService
         $relDir = sprintf('uploads/%s/%s/%s', $bucket, date('Y'), date('m'));
         $absDir = $this->publicRoot . '/' . $relDir;
         if (!is_dir($absDir)) @mkdir($absDir, 0775, true);
+        $this->ensureUploadsGuard();
 
         $relPath = $relDir . '/' . $uuid . '.' . $ext;
         $absPath = $this->publicRoot . '/' . $relPath;
@@ -252,6 +304,7 @@ class UploadService
             $relDir = sprintf('uploads/%s/%s/%s', $bucket, date('Y'), date('m'));
             $absDir = $this->publicRoot . '/' . $relDir;
             if (!is_dir($absDir)) @mkdir($absDir, 0775, true);
+            $this->ensureUploadsGuard();
             $relPath = $relDir . '/' . $uuid . '.' . $ext;
             $absPath = $this->publicRoot . '/' . $relPath;
 

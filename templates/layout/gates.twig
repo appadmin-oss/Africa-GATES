@@ -91,10 +91,23 @@
 
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2310292C'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Georgia,serif' font-size='34' font-weight='700' fill='%237FC87C'%3EG%3C/text%3E%3C/svg%3E">
 
+  {# ── PRECONNECT BUDGET ──────────────────────────────────────────────────────
+     Seven preconnects were declared and Lighthouse warned about it explicitly: each
+     one opens a TCP + TLS connection immediately and eagerly, competing with the
+     requests that actually block the first paint. Beyond about four they cost more in
+     contention on a mobile connection than they save in handshake time.
+
+     Kept: the two font hosts (the stylesheet is render-blocking and gstatic serves the
+     font files it references, so both are on the critical path).
+
+     Demoted to dns-prefetch: everything whose request is `defer`red or conditional —
+     the script CDNs and the media hosts. DNS resolution is the slow part on a mobile
+     network and prefetching it is nearly free; the connection itself can wait until
+     something actually needs it. #}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
-  <link rel="preconnect" href="https://r2.vidzflow.com" crossorigin>
+  <link rel="dns-prefetch" href="https://images.unsplash.com">
+  <link rel="dns-prefetch" href="https://r2.vidzflow.com">
   {% if gates_page == 'home' or gates_page is empty %}
   <link rel="preload" as="image"
         href="https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=78"
@@ -103,24 +116,73 @@
         imagesizes="(max-width: 768px) 100vw, 1240px"
         fetchpriority="high">
   {% endif %}
-  <link rel="preconnect" href="https://cdn.jsdelivr.net">
-  <link rel="preconnect" href="https://unpkg.com">
-  <link rel="preconnect" href="https://cdn.plyr.io">
+  {# Script/CSS CDNs. Every request to these is `defer` or non-blocking (below), so a
+     resolved DNS entry is all they need before the page has painted. #}
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+  <link rel="dns-prefetch" href="https://unpkg.com">
+  <link rel="dns-prefetch" href="https://cdn.plyr.io">
 
   {# Heritage typography (Playfair Display + DM Sans + JetBrains Mono).
      One stylesheet with `display=swap` — no extra WebFont loader script. #}
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,600&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
-  {# Swiper 8 CSS — for talent slider + case-study mobile #}
-  <link rel="stylesheet" href="https://unpkg.com/swiper@8/swiper-bundle.min.css">
-  {# Splide CSS — for the partner marquee #}
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css">
-  {# Plyr — accessible HTML5/YouTube player for video testimonials #}
-  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
-  {# Leaflet — continental CPI map on /registry and dashboards #}
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  {# ── THIRD-PARTY COMPONENT CSS — deliberately NOT render-blocking ───────────
+     Four cross-origin stylesheets, on three separate hosts, each needing its own DNS +
+     TCP + TLS before the browser may paint. They style four JS-initialised widgets —
+     a carousel, a marquee, a video player, a map — none of which exists above the fold
+     on most pages, and none of which functions at all without its JavaScript.
 
+     `media="print"` is what makes them non-blocking: the browser fetches them at the
+     lowest priority and does not wait for them to paint. The nonce'd script below
+     promotes them to `media="all"` once the main thread is idle.
+
+     WHY NOT `onload="this.media='all'"`, which is the usual recipe: that is an inline
+     event handler, and this site's CSP is nonce-based with no `script-src-attr
+     'unsafe-inline'`. The browser would refuse to run it and the styles would never
+     apply — a CSP-correct site has to do this with a nonce'd script.
+
+     THE TRADE: with JavaScript disabled these four stylesheets never apply. That costs
+     nothing real, because the widgets they style are inert without JavaScript anyway —
+     the markup is already a plain list or an empty container. The no-JS paths this
+     platform genuinely supports (voting, nomination, the activity search) use none of
+     them. #}
+  {# Swiper 8 CSS — for talent slider + case-study mobile #}
+  <link rel="stylesheet" href="https://unpkg.com/swiper@8/swiper-bundle.min.css" media="print" data-lazy-css>
+  {# Splide CSS — for the partner marquee #}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css" media="print" data-lazy-css>
+  {# Plyr — accessible HTML5/YouTube player for video testimonials #}
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" media="print" data-lazy-css>
+  {# Leaflet — continental CPI map on /registry and dashboards #}
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" media="print" data-lazy-css
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script nonce="{{ csp_nonce }}">
+  (function () {
+    var promote = function () {
+      var links = document.querySelectorAll('link[data-lazy-css]');
+      for (var i = 0; i < links.length; i++) { links[i].media = 'all'; }
+    };
+    // Idle if the browser can tell us, with a timeout so a busy main thread cannot
+    // starve it; a plain timeout otherwise. Either way it is after the first paint,
+    // which is the entire point.
+    if ('requestIdleCallback' in window) { requestIdleCallback(promote, { timeout: 1500 }); }
+    else { setTimeout(promote, 0); }
+  })();
+  </script>
+
+  {# ── GLOBAL CSS ─────────────────────────────────────────────────────────────
+     One minified bundle when `bin/console assets:build` has run, the fifteen
+     individual files when it has not. Lighthouse measured the unbundled version at
+     2,360ms of render-blocking requests on a Moto G Power, which is most of a 4.4s LCP.
+
+     The fallback is not a nicety: AssetBundle::url() returns null the instant any
+     source is newer than the build, so an un-rebuilt CSS edit degrades to correct-but-
+     slow rather than serving stale styling. The order below is the SAME list, in the
+     same order, as AssetBundle::STYLESHEETS — a11y.css last so its WCAG corrections
+     win — and AssetBundleTest asserts the two agree, because a divergence would show
+     up only on deployments that ran the build. #}
+  {% if css_bundle %}
+  <link rel="stylesheet" href="{{ css_bundle }}">
+  {% else %}
   {# Motion design tokens (Phase 2 seed — see resources/motion/motion.ts) #}
   <link rel="stylesheet" href="/assets/css/tokens.motion.css?v={{ asset_version }}">
   <link rel="stylesheet" href="/assets/css/main.css?v={{ asset_version }}">
@@ -140,6 +202,7 @@
   <link rel="stylesheet" href="/assets/css/components/community-modal.css?v={{ asset_version }}">
   {# Accessibility layer — loaded LAST so its corrections win (WCAG 2.2 AA) #}
   <link rel="stylesheet" href="/assets/css/a11y.css?v={{ asset_version }}">
+  {% endif %}
 
   {# Hide animated elements until JS prepares them (anti-FOUC) #}
   <style nonce="{{ csp_nonce }}">

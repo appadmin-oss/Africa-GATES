@@ -20,6 +20,7 @@ use Symfony\Component\Console\Application;
 use AfricaGates\Services\{PaymentService, OtpService};
 use AfricaGates\Console\Commands\{
     AdminCreateCommand,
+    AssetsBuildCommand,
     CacheClearCommand,
     CollusionScanCommand,
     CpiRecomputeCommand,
@@ -42,6 +43,7 @@ $capsule->bootEloquent();
 
 $app = new Application('Africa GATES Console', '1.0.0');
 $app->add(new AdminCreateCommand());
+$app->add(new AssetsBuildCommand());
 $app->add(new CacheClearCommand());
 $app->add(new CollusionScanCommand());
 $app->add(new CpiRecomputeCommand());

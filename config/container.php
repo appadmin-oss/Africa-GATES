@@ -156,6 +156,11 @@ return [
             'csp_nonce'         => \AfricaGates\Support\Csp::nonce(),
             'flash_error'       => $_SESSION['flash_error'] ?? null,
             'flash_notice'      => $_SESSION['flash_notice'] ?? null,
+            // The built CSS bundle, or null when the layout must fall back to the
+            // fifteen individual stylesheets. Null on ANY doubt — no manifest, missing
+            // file, or a source edited since the build — because stale CSS is a far
+            // worse failure than nine extra requests. See Support\AssetBundle.
+            'css_bundle'        => \AfricaGates\Support\AssetBundle::url(),
         ];
         foreach ($globals as $k => $v) $twig->getEnvironment()->addGlobal($k, $v);
         // Allowlist-sanitise admin-authored rich text (blog/legacy bodies) at render

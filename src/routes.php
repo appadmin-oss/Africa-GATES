@@ -93,6 +93,49 @@ return function(App $app) {
                    ->withHeader('X-Robots-Tag', 'noindex, nofollow')
                    ->withStatus($r['ok'] ? 200 : 500);
     });
+    /**
+     * GET /__setup/assets — build the CSS bundle without a shell.
+     *
+     * Same reason /__setup/migrate exists: this deploys to shared cPanel where there is
+     * often no SSH, and a build step that cannot be run on the host will not be run. The
+     * cost of skipping it is fifteen render-blocking stylesheets instead of one (~2.4s of
+     * blocking requests on a mid-range Android), so it needs to be reachable from a
+     * browser. Token-gated and 404 without the token, exactly like the migrate route.
+     *
+     * Writes only into public/assets/dist/. Safe to re-run: the bundle is content-hashed,
+     * so an unchanged rebuild produces the same filename and every cached copy stays
+     * valid.
+     */
+    $app->get('/__setup/assets', function ($req, $res) use ($setupGuard) {
+        if (!$setupGuard($req)) return $res->withStatus(404);
+        $r = \AfricaGates\Support\AssetBundle::build();
+        $e = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+        $lines = $r['ok']
+            ? array_merge([
+                'Bundle: ' . $r['file'],
+                'Sources: ' . $r['sources'],
+                'Before:  ' . number_format($r['raw'] / 1024, 1) . ' KiB across ' . $r['sources'] . ' requests',
+                'After:   ' . number_format($r['min'] / 1024, 1) . ' KiB in 1 request (' . $r['saved_pct'] . '% smaller)',
+              ], array_map(fn($m) => 'WARN missing source: ' . $m, $r['missing']))
+            : ['FAILED: ' . $r['error']];
+        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            . '<title>Africa GATES — asset build</title>'
+            . '<style>body{font-family:system-ui,"Segoe UI",Roboto,sans-serif;background:#10292C;color:#bcd;margin:0;padding:30px 16px}'
+            . '.box{max-width:780px;margin:0 auto}h1{color:#fff;font-size:18px;margin:0 0 6px}'
+            . 'pre{background:#06181a;color:#9fe6a0;padding:16px;border-radius:10px;overflow:auto;font-size:12.5px;line-height:1.6}'
+            . '.ok{color:#7FC87C;font-weight:600}.err{color:#ff9a9a;font-weight:600}</style></head><body><div class="box">'
+            . '<h1>Africa GATES — asset build</h1>'
+            . '<p class="' . ($r['ok'] ? 'ok' : 'err') . '">' . ($r['ok'] ? 'DONE — the site now serves one bundled stylesheet.' : 'FAILED') . '</p>'
+            . '<pre>' . $e(implode("\n", $lines)) . '</pre>'
+            . '<p>Re-run this after any CSS change. Until you do, the site serves the individual '
+            . 'stylesheets — correct, just slower — so forgetting it can never break styling.</p>'
+            . '</div></body></html>';
+        $res->getBody()->write($html);
+        return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
+                   ->withHeader('Cache-Control', 'no-store')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow')
+                   ->withStatus($r['ok'] ? 200 : 500);
+    });
     $app->get('/__setup/status', function ($req, $res) use ($setupGuard) {
         if (!$setupGuard($req)) return $res->withStatus(404);
         $res->getBody()->write(json_encode(\AfricaGates\Services\MigrationRunner::status(), JSON_PRETTY_PRINT));

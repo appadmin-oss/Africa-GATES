@@ -53,6 +53,60 @@ Options -MultiViews
   Header always set Cross-Origin-Opener-Policy "same-origin-allow-popups"
   Header unset Server
   Header unset X-Powered-By
+
+  # ── CSP FALLBACK FOR EVERYTHING PHP NEVER SEES ────────────────────────────
+  #
+  # The site's real Content-Security-Policy is built per request by
+  # AfricaGates\Support\Csp and sent by SecurityHeadersMiddleware, because it carries
+  # a per-request NONCE. A nonce cannot exist in a static file, so the policy could
+  # never be duplicated here the way the six headers above are.
+  #
+  # The consequence was a gap nobody had closed: Apache serves every real file under
+  # public/ without touching PHP (the `RewriteCond !-f` above), so
+  # /assets/**, /africa-gates-logo.svg and every file under /uploads/ went out with
+  # NO CSP AT ALL. The one that matters is SVG — a browser executes an SVG navigated
+  # to directly, same-origin, and script inside it runs with the site's cookies. The
+  # flier route sends its own sandbox for exactly this reason; a file on disk had
+  # nothing.
+  #
+  # ── `setifempty`, NOT `set`. THIS IS THE WHOLE DESIGN. ────────────────────
+  #
+  # `Header always set` REPLACES — which is documented above as the reason the six
+  # shared headers must agree with the PHP constant. Applied to CSP it would be far
+  # worse than a mismatch: it would overwrite the nonce-bearing policy on every HTML
+  # page with this nonce-free one, and every inline script on the site — Alpine, the
+  # nav, the cart, the ballot — would stop running. The page would look broken with
+  # no error in any log.
+  #
+  # `setifempty` adds the header only when the response does not already have one, so
+  # it is by construction a BACKUP: PHP's policy always wins where PHP ran, and this
+  # applies to exactly the responses that had nothing. It also covers a PHP fatal that
+  # dies before the middleware, where previously a stack trace went out unprotected.
+  #
+  # Version-gated because `setifempty` is Apache 2.4.7+; on anything older the
+  # directive is a syntax error and would 500 the entire site. Guarded so a host
+  # without mod_version simply keeps the previous behaviour — losing a backup is
+  # acceptable, taking the site down to add one is not.
+  #
+  # ── WHY THIS POLICY ──────────────────────────────────────────────────────
+  #
+  # `default-src 'none'` is what stops a navigated-to SVG running script: script-src
+  # inherits from it. `img-src` and `font-src` allow self+data so a directly-opened
+  # image or font still renders. `style-src 'unsafe-inline'` keeps an SVG's internal
+  # styling intact, which is presentation with no script capability.
+  #
+  # Deliberately NO `sandbox` here. Every stylesheet and script the site loads is a
+  # real file under /assets/, so this header rides along on the site's own
+  # subresources. Browsers ignore CSP delivered with a subresource for the embedding
+  # document, so it is inert there — but `sandbox` is the one directive whose
+  # behaviour on a non-document response is worth not betting the site's CSS on. The
+  # hard sandbox lives in public/uploads/.htaccess instead, where the bytes are
+  # untrusted and nothing the site depends on is served.
+  <IfModule mod_version.c>
+    <IfVersion >= 2.4.7>
+      Header always setifempty Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; font-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"
+    </IfVersion>
+  </IfModule>
 </IfModule>
 
 # Compression

@@ -220,6 +220,94 @@ class SecurityHeadersTest extends TestCase
             . 'overrides PHP where both apply — so they must be identical');
     }
 
+    /**
+     * The static CSP fallback, and the one mistake that would take the site down.
+     *
+     * A nonce cannot live in a static file, so `Csp::policy()` could never be duplicated
+     * into .htaccess the way the six shared headers are — which left every real file
+     * under public/ (`/assets/**`, the logo, everything under `/uploads/`) with NO CSP,
+     * because Apache serves those without touching PHP.
+     *
+     * The fix must use `setifempty`. `Header always set Content-Security-Policy` would
+     * REPLACE the nonce-bearing policy on every HTML page with a nonce-free one, and
+     * every inline script on the site — Alpine, the nav, the cart, the ballot — would
+     * stop running, with nothing in any log. That is a far worse outcome than the gap it
+     * closes, and it is a one-word edit away, so it is pinned here.
+     */
+    public function test_the_htaccess_csp_fallback_can_never_replace_the_nonce_policy(): void
+    {
+        $htaccess = (string) file_get_contents(dirname(__DIR__, 2) . '/public/.htaccess');
+
+        $this->assertMatchesRegularExpression(
+            '~Header\s+always\s+setifempty\s+Content-Security-Policy\s+"~i',
+            $htaccess,
+            'static files need a CSP fallback — Apache serves them without touching PHP'
+        );
+
+        // The killer. `set` (not `setifempty`) would overwrite the per-request policy.
+        $this->assertDoesNotMatchRegularExpression(
+            '~Header\s+always\s+set\s+Content-Security-Policy~i',
+            $htaccess,
+            'use setifempty: `set` replaces the nonce-bearing policy and kills every '
+            . 'inline script on the site'
+        );
+
+        // A nonce in a static file is a fixed string every visitor gets, i.e. a value an
+        // attacker can read from the header and reuse — worse than no nonce at all.
+        preg_match('~Header\s+always\s+setifempty\s+Content-Security-Policy\s+"([^"]*)"~i', $htaccess, $m);
+        $fallback = $m[1] ?? '';
+        $this->assertStringNotContainsString('nonce-', $fallback,
+            'a static nonce is a constant every visitor and every attacker receives');
+        // default-src 'none' is what stops a directly-navigated SVG executing script,
+        // since script-src inherits from it. This is the whole point of the fallback.
+        $this->assertStringContainsString("default-src 'none'", $fallback);
+
+        // Version-gated: setifempty is Apache 2.4.7+, and on anything older an unknown
+        // directive is a syntax error that 500s the entire site. Losing the backup on an
+        // old Apache is acceptable; taking the site down to add one is not.
+        $this->assertMatchesRegularExpression('~<IfVersion\s*>=\s*2\.4\.7>~i', $htaccess,
+            'setifempty must be guarded — it does not exist before Apache 2.4.7');
+        $this->assertMatchesRegularExpression('~<IfModule\s+mod_version\.c>~i', $htaccess,
+            'IfVersion itself needs mod_version, or the guard is the crash');
+    }
+
+    /**
+     * The uploads directory's own hardening exists AND is committable.
+     *
+     * `public/.htaccess` referred to a "Layer 2: public/uploads/.htaccess" that did not
+     * exist in any deployment — `.gitignore` excluded the whole `public/uploads/`
+     * directory, and git cannot re-include a file whose parent directory is excluded, so
+     * the file could never be committed. A comment describing protection that is not
+     * there is worse than no comment.
+     */
+    public function test_the_uploads_directory_is_hardened_and_the_file_can_ship(): void
+    {
+        $root = dirname(__DIR__, 2);
+
+        $this->assertFileExists($root . '/public/uploads/.htaccess',
+            'the layer public/.htaccess points at must actually exist');
+        $guard = (string) file_get_contents($root . '/public/uploads/.htaccess');
+
+        // Untrusted bytes: the hard sandbox, and here `set` IS correct — nothing under
+        // /uploads/ is ever served by PHP, so there is no nonce policy to overwrite.
+        $this->assertMatchesRegularExpression('~Header\s+always\s+set\s+Content-Security-Policy~i', $guard);
+        $this->assertStringContainsString('sandbox', $guard,
+            'an opaque origin, so a navigated-to SVG cannot reach the site DOM or cookies');
+        $this->assertStringContainsString("default-src 'none'", $guard);
+        $this->assertStringContainsString('nosniff', $guard,
+            'a "PNG" that is really HTML is the classic stored-XSS route');
+        $this->assertMatchesRegularExpression('~RemoveHandler~i', $guard, 'never execute anything here');
+
+        // And the ignore rule must permit exactly this one path. `public/uploads/` (the
+        // directory form) makes the negation impossible; `public/uploads/*` does not.
+        $ignore = (string) file_get_contents($root . '/.gitignore');
+        $this->assertStringContainsString('public/uploads/*', $ignore,
+            'the directory form of the ignore makes the negation below inoperative');
+        $this->assertStringContainsString('!public/uploads/.htaccess', $ignore);
+        $this->assertStringNotContainsString("\npublic/uploads/\n", "\n" . $ignore . "\n",
+            'the bare directory form must be gone, or the negation cannot take effect');
+    }
+
     public function test_the_dead_floc_directive_is_gone(): void
     {
         // interest-cohort was withdrawn in 2022. An unrecognised token in

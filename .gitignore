@@ -7,7 +7,13 @@ var/logs/
 
 # Off-host build output + user uploads (not committed)
 public/assets/dist/
-public/uploads/
+# `public/uploads/*`, not `public/uploads/` — git cannot re-include a file whose
+# PARENT DIRECTORY is excluded, so the directory form made the negation below
+# impossible. That is why public/uploads/.htaccess — the "Layer 2" the root
+# .htaccess has always pointed at — did not exist in any deployment: it could not
+# be committed. The uploaded files themselves stay ignored.
+public/uploads/*
+!public/uploads/.htaccess
 
 # OS / editor
 .DS_Store

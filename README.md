@@ -26,11 +26,25 @@ mysql africa_gates < database/seed.sql
 mysql africa_gates < database/admin-schema.sql       # NEW — admin/auth/judges/settings tables
 mysql africa_gates < database/community-schema.sql   # NEW — comments/cheers/activity/threads/rubric
 
-# 5. Set permissions
+# 5. Build the CSS bundle  (fifteen render-blocking stylesheets become one)
+#    Skipping this is SAFE — the layout falls back to the individual files, so the
+#    site is correct, just ~2.4s slower to paint on a mid-range Android. Re-run it
+#    after ANY CSS change; `app:doctor` tells you when it is stale.
+#    No shell? GET /__setup/assets?token=<SETUP_TOKEN> does the same thing.
+php bin/console assets:build
+
+# 6. Set permissions
 chmod 755 public/ var/ var/cache/
 chmod 600 .env
 mkdir -p var/cache/twig && chmod 755 var/cache/twig
+# public/uploads/.htaccess is committed and MUST survive the upload — it is what
+# stops anything under /uploads/ executing and gives untrusted files a CSP sandbox.
+# cPanel's File Manager hides dotfiles by default, so check it is there. (The app
+# re-creates a minimal version on the next upload if it went missing.)
+ls -la public/uploads/.htaccess
 ```
+
+See `docs/FRONTEND-PERFORMANCE.md` for what step 5 does and what is still open.
 
 ## Local Dev (SQLite — zero-config)
 
