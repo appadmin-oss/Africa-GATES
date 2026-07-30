@@ -230,4 +230,55 @@ class CspHostCoverageTest extends TestCase
         ksort($out);
         return $out;
     }
+
+    /**
+     * No template may use an inline event handler.
+     *
+     * `script-src` carries a nonce and there is NO `script-src-attr 'unsafe-inline'`, so
+     * the browser refuses every `onclick=`/`onmouseenter=`/`onload=` attribute outright.
+     * It is the most deceptive CSP failure available: the attribute reads as working code,
+     * the server logs nothing, and the feature simply never fires. It cost a real hover
+     * highlight in the nomination review, and it is why the public layout's lazy
+     * stylesheets are promoted by a nonce'd script rather than the usual
+     * `onload="this.media='all'"`.
+     *
+     * Alpine's `@click` / `x-on:` are NOT affected — Alpine reads those attributes itself
+     * and compiles them with `new Function`, which is why `'unsafe-eval'` is still in the
+     * policy. Only the browser's own `on*` attributes are refused.
+     */
+    public function test_no_template_uses_an_inline_event_handler(): void
+    {
+        $root = dirname(__DIR__, 2) . '/templates';
+        $offenders = [];
+
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($it as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'twig') continue;
+            // Twig comments stripped: several templates EXPLAIN this constraint by naming
+            // the attribute, and the explanation must not read as a violation. Same trap
+            // the .htaccess guards in SecurityHeadersTest hit twice.
+            $body = (string) preg_replace('~\{#.*?#\}~s', '', (string) file_get_contents($file->getPathname()));
+
+            // `on` + a real event name, as an HTML attribute. Anchored on whitespace so
+            // Alpine's `x-on:click` and Twig's own `{{ ... }}` cannot match.
+            if (preg_match_all(
+                '~\s(on(?:click|dblclick|load|error|submit|reset|change|input|focus|blur|keyup'
+                . '|keydown|keypress|mouseover|mouseout|mouseenter|mouseleave|mousedown|mouseup'
+                . '|toggle|scroll|wheel|drag|drop|paste|copy|cut|select|invalid|animationend'
+                . '|transitionend))\s*=~i',
+                $body, $m
+            )) {
+                $rel = str_replace(dirname(__DIR__, 2) . '/', '', $file->getPathname());
+                foreach (array_unique($m[1]) as $attr) $offenders[] = "{$rel}: {$attr}=";
+            }
+        }
+
+        sort($offenders);
+        $this->assertSame([], $offenders,
+            "the CSP refuses inline event handlers, so these silently never run:\n  "
+            . implode("\n  ", $offenders)
+            . "\nUse a nonce'd <script>, an Alpine directive, or CSS :hover instead.");
+    }
 }

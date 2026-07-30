@@ -504,3 +504,22 @@ body[data-page-admin] {
     scroll-behavior: auto !important;
   }
 }
+
+/* Nomination review — category picker.
+   Was `onmouseenter`/`onmouseleave` inline handlers on each <label>, which this
+   site's nonce-based CSP refuses to run (there is no script-src-attr
+   'unsafe-inline'), so the hover highlight silently did nothing. A hover border
+   never needed JavaScript. */
+.nr-cat {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--ad-bg);
+  border: 1.5px solid var(--ad-line);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color .15s ease;
+}
+.nr-cat:hover,
+.nr-cat:focus-within { border-color: var(--ad-primary); }

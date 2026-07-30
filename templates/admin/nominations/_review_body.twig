@@ -127,8 +127,14 @@
           {% if spa %}<input type="hidden" name="desk" value="1">{% endif %}
           <fieldset style="border:none;padding:0;margin:0 0 14px;display:flex;flex-direction:column;gap:8px">
             <legend style="font-size:12px;font-weight:600;color:var(--ad-text-soft);padding:0;margin-bottom:2px">Category</legend>
+            {# `nr-cat` with a CSS :hover rule, not onmouseenter/onmouseleave.
+               Those two attributes were inline event handlers, and this site's CSP is
+               nonce-based with no `script-src-attr 'unsafe-inline'` — so the browser
+               refused to run them and the hover highlight silently did nothing. It is the
+               same constraint that ruled out `onload="this.media='all'"` for the lazy
+               stylesheets in the public layout, and a hover border never needed script. #}
             {% for c in categories %}
-              <label style="display:flex;gap:10px;align-items:flex-start;padding:12px 14px;background:var(--ad-bg);border:1.5px solid var(--ad-line);border-radius:10px;cursor:pointer;transition:all .15s ease" onmouseenter="this.style.borderColor='var(--ad-primary)'" onmouseleave="this.style.borderColor='var(--ad-line)'">
+              <label class="nr-cat">
                 <input type="radio" name="category_id" value="{{ c.id }}" {% if loop.first %}checked{% endif %} style="margin-top:3px">
                 <span><strong>{{ c.title }}</strong><br><span style="font-size:12.5px;color:var(--ad-text-soft)">{{ c.description|slice(0,140) }}{% if c.description|length > 140 %}…{% endif %}</span></span>
               </label>
