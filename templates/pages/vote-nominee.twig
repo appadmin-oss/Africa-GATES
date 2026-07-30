@@ -369,12 +369,14 @@
                       const b=Math.floor(q/this.prices.per1000); return Math.min(q*this.prices.pv, b*1000 + (q-b*this.prices.per1000)*this.prices.pv); } }"
               style="background:#f4f9f4;border:1.5px solid #cfe6cf;border-radius:16px;padding:16px 18px;margin:0 0 16px">
               <h3 id="pv-h" style="margin:0 0 4px;font-size:15.5px;color:#10292c">Buy votes for {{ firstName }}</h3>
-              <p style="margin:0 0 12px;font-size:13px;color:#5a6d6f;line-height:1.5">₦{{ vote_price|number_format }} per vote · ₦1,000 bundle = {{ votes_per_1000 }} votes. Paid votes raise the public tally; they never affect the jury/CPI score.</p>
+              <p style="margin:0 0 12px;font-size:13px;color:#5a6d6f;line-height:1.5">₦{{ vote_price|number_format }} per vote · ₦1,000 bundle = {{ votes_per_1000 }} votes. Paid votes raise the public tally; they never affect the jury/CPI score.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} votes in one order.{% endif %}</p>
               <form method="POST" action="/vote/paid/start">
                 <input type="hidden" name="_token" value="{{ csrf_token }}">
                 <input type="hidden" name="nominee_id" value="{{ nominee.id }}">
+                {# Quick amounts, filtered to what one order can actually carry — an
+                   offered button the checkout would refuse is worse than no button. #}
                 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" role="group" aria-label="Quick amounts">
-                  {% for q in [1, 5, votes_per_1000, votes_per_1000 * 5] %}
+                  {% for q in [1, 5, votes_per_1000, votes_per_1000 * 5, votes_per_1000 * 50]|filter(q => q <= max_qty)|slice(0, 4) %}
                   <button type="button" @click="qty={{ q }}" :aria-pressed="qty==={{ q }}"
                           :style="qty==={{ q }} ? 'background:#237b22;color:#fff;border-color:transparent' : ''"
                           style="border:1.5px solid rgba(16,41,44,.16);background:#fff;color:#10292c;border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">{{ q }} vote{{ q == 1 ? '' : 's' }}</button>
@@ -383,7 +385,9 @@
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
                   <div style="flex:0 0 110px">
                     <label class="vn-label" for="pvQty">Votes</label>
-                    <input id="pvQty" name="qty" class="vn-input" type="number" min="1" max="1000" x-model.number="qty" required>
+                    {# max from the server, not a literal 1000 — PaidVoteService::maxQtyForOrder()
+                       is the one authority, and the checkout rejects against the same value. #}
+                    <input id="pvQty" name="qty" class="vn-input" type="number" min="1" max="{{ max_qty }}" x-model.number="qty" required>
                   </div>
                   <div style="flex:1;min-width:150px">
                     <label class="vn-label" for="pvEmail">Your email <span style="font-weight:400;color:#5a6d6f">(for the receipt)</span></label>

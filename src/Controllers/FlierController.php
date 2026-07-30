@@ -37,6 +37,8 @@ final class FlierController
         // and the preview falls back to nothing.
         $abs = (rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/')
             ?: 'https://afg.afrovanguard.org.ng') . $path;
+        // The card lives beside the flier, one segment up: …/{slug}/flier → …/{slug}/card.png
+        $cardAbs = preg_replace('~/flier$~', '', $abs) . '/card.png';
 
         return $this->view->render($res, 'pages/vote-flier.twig', [
             'page_title'       => 'Share a flier for ' . $f['name'] . ' — Africa GATES',
@@ -51,11 +53,13 @@ final class FlierController
             // the same as the one the button saves — the template previously built a
             // THIRD variant in Twig, which produced a non-ASCII filename.
             'file_name'        => $this->filename($f['name']) . '.png',
-            // The flier IS this page's link preview too, so a nominee sharing the flier
-            // page itself gets the graphic rather than the site's default logo.
-            'og_image'         => $abs . '.png',
-            'og_image_w'       => \AfricaGates\Services\FlierService::W,
-            'og_image_h'       => \AfricaGates\Services\FlierService::H,
+            // The 1200×630 CARD, not this page's own flier PNG. A nominee sharing the
+            // flier page gets a preview built for the shape the platforms crop to —
+            // otherwise the flier's bottom third (the vote URL) is cut off in exactly the
+            // surface where the sharing happens. See FlierService::ogCard().
+            'og_image'         => $cardAbs,
+            'og_image_w'       => \AfricaGates\Services\FlierService::OG_W,
+            'og_image_h'       => \AfricaGates\Services\FlierService::OG_H,
             'og_image_type'    => 'image/png',
             'og_image_alt'     => 'Vote for ' . $f['name'] . ' in ' . $f['category'] . ' — ' . $f['headline'],
         ]);
@@ -127,6 +131,45 @@ final class FlierController
             // as an og:image, and Content-Disposition: attachment confuses some crawlers.
             ->withHeader('Content-Disposition',
                 'inline; filename="' . $this->filename($f['name']) . '.png"');
+    }
+
+    /**
+     * GET /vote/{program}/{slug}/card.png — the 1200×630 link-preview card.
+     *
+     * A separate graphic from `flier.png`, not a variant of it: the flier is 4:5 and every
+     * platform crops an `og:image` to 1.91:1 or squarer, so sharing a ballot link
+     * previewed with the vote URL and the rally copy sliced off the bottom. See
+     * {@see FlierService::OG_W}.
+     *
+     * Falls back to the flier PNG when GD or a font is missing, which in turn falls back
+     * to the SVG — so a link preview degrades through two steps before it can be nothing.
+     */
+    public function card(Request $req, Response $res, array $args): Response
+    {
+        $f = $this->flier->forNominee($this->idFrom($args));
+        if ($f === null) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $png = $this->flier->ogCard($f);
+        if ($png === null) {
+            $path = (string) $req->getUri()->getPath();
+            return $res
+                ->withHeader('Location', substr($path, 0, -strlen('card.png')) . 'flier.png')
+                ->withStatus(302);
+        }
+
+        $res->getBody()->write($png);
+
+        return $res
+            ->withHeader('Content-Type', 'image/png')
+            ->withHeader('Content-Length', (string) strlen($png))
+            // Same window as the flier PNG and for the same reason: a crawler caches what
+            // it fetches, sometimes for days, so this has to be long enough to make a
+            // shared link cheap to preview and short enough that the rank printed on it is
+            // not yesterday's.
+            ->withHeader('Cache-Control', 'public, max-age=600, stale-while-revalidate=1800')
+            ->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withHeader('Content-Disposition',
+                'inline; filename="' . $this->filename($f['name']) . '-card.png"');
     }
 
     /**

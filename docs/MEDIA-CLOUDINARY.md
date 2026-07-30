@@ -193,7 +193,40 @@ sweep.
 - `gates_uploads.local_path` — the original on-disk path, retained after migration.
 - `gates_media_migrations` — the sweep ledger. UNIQUE on `source_path`.
 
-## 9. Rolling back
+## 9. The link-preview card
+
+`FlierService::ogCard()` renders a **1200×630** graphic at
+`/vote/{programme}/{id}-{name}/card.png`, and that — not the flier — is the `og:image` on
+both the ballot and the flier page.
+
+The flier is 4:5. Facebook and LinkedIn crop an `og:image` to 1.91:1 and WhatsApp to
+roughly square, so the flier's bottom third was cut off in every preview — and the bottom
+third is the vote URL, the rally copy and the jury footnote. The card is a horizontal
+split instead: the face in a 480px column (Cloudinary's `og_photo` preset, face-anchored),
+everything else in the 720px beside it. Nothing is cropped away, because the aspect ratio
+is already the one the platforms want.
+
+It is designed for **~380px**, which is roughly how wide a preview renders in a WhatsApp
+thread. Only three elements are sized to survive that: the name, the gold rank chip and
+the standing line. Category, URL and the footnote are deliberately secondary, and momentum
+is omitted — a fourth number at 8 effective pixels costs the other three their clarity.
+
+The flier is unchanged and remains what a nominee downloads and posts.
+
+Three geometry bugs were found by rendering it and looking, not by reading the code, and
+each is now pinned by a test in `OgCardTest`:
+
+- the name collided with the kicker, because the size ladder was copied from the flier's
+  952px column into a 608px one — sizes are now measured (`fitLines`);
+- a surname wider than the column ran off the card, because `wrapMeasured` places an
+  over-wide word rather than break it, and its output was trusted without checking widths;
+- a name with stacked Yoruba diacritics grew upward toward the kicker, because the first
+  baseline came from the point size rather than the glyphs' measured ink extent
+  (`ascent()`). Measured: 84px vs 79px for `Ọlásùnkànmí` against `Olasunkanmi` at 76pt.
+
+The last two also existed latently in the flier's own renderer and are fixed there too.
+
+## 10. Rolling back
 
 There is no automated rollback, because there has not needed to be one: the local files
 are all still present, and `gates_media_migrations` records `source_path` → `remote_url`

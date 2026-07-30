@@ -111,6 +111,10 @@ class OgImageTest extends TestCase
     {
         // A mismatch means a cropped or letterboxed preview. Both sides read the same
         // constants, so this pins that they are the ones actually rendered.
+        //
+        // OG_W/OG_H now, not W/H: the preview is the 1200x630 card, and declaring the
+        // flier's 1080x1350 beside it would tell every crawler the wrong aspect ratio —
+        // which several act on before they have fetched the image at all.
         $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/gates.twig');
 
         $this->assertStringContainsString('og:image:width', $layout);
@@ -122,9 +126,9 @@ class OgImageTest extends TestCase
             dirname(__DIR__, 2) . '/src/Controllers/FlierController.php',
         ] as $file) {
             $src = (string) file_get_contents($file);
-            $this->assertStringContainsString('FlierService::W', $src,
+            $this->assertStringContainsString('FlierService::OG_W', $src,
                 basename($file) . ' must declare the width from the renderer, not a literal');
-            $this->assertStringContainsString('FlierService::H', $src);
+            $this->assertStringContainsString('FlierService::OG_H', $src);
         }
     }
 
@@ -145,16 +149,35 @@ class OgImageTest extends TestCase
         }
     }
 
-    public function test_the_ballot_previews_as_the_flier_not_the_bare_photo(): void
+    /**
+     * The preview is the CARD — not the bare photo, and no longer the flier either.
+     *
+     * Three states this has been through, and each fixed the previous one's defect. The
+     * bare photo previewed as a face with no name, category or standing. The flier fixed
+     * that but is 4:5, and Facebook and LinkedIn crop an og:image to 1.91:1 while WhatsApp
+     * crops nearer to square — so the flier's bottom third, which is the vote URL and the
+     * rally copy, was cut off in every preview. `card.png` is 1200x630, the shape they
+     * want, so nothing is cropped away.
+     */
+    public function test_the_ballot_previews_as_the_purpose_built_card(): void
     {
-        // The change that matters. A nominee's photo previews as a portrait with no
-        // context; the flier carries the name, the category and the standing.
         $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Controllers/VoteController.php');
         $code = (string) preg_replace(['~/\*.*?\*/~s', '~//[^\n]*~'], '', $src);
 
-        $this->assertMatchesRegularExpression("~'og_image'\s*=>\s*\\\$flierPng~", $code);
+        $this->assertMatchesRegularExpression("~'og_image'\s*=>\s*\\\$cardPng~", $code);
+        $this->assertStringContainsString("/card.png", $code, 'the card route must be what is linked');
         $this->assertStringNotContainsString('Assets::absoluteOg', $code,
             'the bare photo must no longer be the preview image');
+    }
+
+    /** The flier page's own preview is the card too, for exactly the same reason. */
+    public function test_the_flier_page_also_previews_as_the_card(): void
+    {
+        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Controllers/FlierController.php');
+        $code = (string) preg_replace(['~/\*.*?\*/~s', '~//[^\n]*~'], '', $src);
+
+        $this->assertMatchesRegularExpression("~'og_image'\s*=>\s*\\\$cardAbs~", $code);
+        $this->assertStringContainsString("/card.png", $code);
     }
 
     public function test_only_one_og_image_alt_is_declared(): void

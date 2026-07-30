@@ -28,7 +28,55 @@ class PaidVoteService
 {
     public const DEFAULT_PRICE_NAIRA = 100;
     public const DEFAULT_PER_1000    = 10;
-    public const MAX_QTY             = 1000;
+
+    /**
+     * Default cap on ONE order. Admin-overridable via {@see maxQty()}.
+     *
+     * Was a bare `const MAX_QTY = 1000` clamped in two places, which made "can the site
+     * take an order of more than a thousand votes?" a code change rather than a setting —
+     * and the answer was no, silently: `PaidVoteController` clamped the posted quantity
+     * down, so a buyer who asked for 5,000 was charged for 1,000 and told nothing.
+     */
+    public const DEFAULT_MAX_QTY = 1000;
+
+    /**
+     * The ceiling no setting may exceed, because the DATABASE cannot hold more.
+     *
+     * A paid order mints one `gates_votes` row with `weight = quantity`, and that column
+     * is `INT UNSIGNED` (widened from `SMALLINT UNSIGNED` — see
+     * `database/migrations/2026_07_30_vote_weight_widen.php`, which is what actually made
+     * orders above 65,535 possible at all).
+     *
+     * Set well below the column's 4,294,967,295 on purpose. This is not a storage limit,
+     * it is a blast radius: the number is also what a single mistyped quantity or a single
+     * compromised admin setting can add to a public tally in one transaction, and no real
+     * order needs eight digits. Ten million is past any plausible campaign and still small
+     * enough that the damage from one bad order is bounded and reversible by the existing
+     * clawback path.
+     */
+    public const HARD_MAX_QTY = 10_000_000;
+
+    /**
+     * The largest naira total ONE order may come to.
+     *
+     * A SECOND ceiling, and it binds before the quantity one does. `gates_donations`
+     * .amount_naira is `INT UNSIGNED` (4,294,967,295), and the price is quantity × rate —
+     * so at an admin rate of ₦1,000 a vote, {@see HARD_MAX_QTY} alone would let `price()`
+     * compute ₦10,000,000,000 and overflow the column. Two ceilings that each look
+     * sufficient in isolation, multiplied together, is exactly how an "impossible" value
+     * reaches a column.
+     *
+     * ₦100,000,000 also happens to be far above what any gateway will authorise on one
+     * transaction, so the practical limit on a genuinely large order is a bank's, not
+     * ours — {@see maxQtyForOrder()} is what the form and the checkout agree on.
+     */
+    public const MAX_ORDER_NAIRA = 100_000_000;
+
+    /**
+     * @deprecated Read {@see maxQty()} instead — this is only the default.
+     *             Kept as an alias so nothing that referenced the old constant breaks.
+     */
+    public const MAX_QTY = self::DEFAULT_MAX_QTY;
 
     private static function setting(string $key): ?string
     {
@@ -69,6 +117,41 @@ class PaidVoteService
         return $v > 0 ? $v : self::DEFAULT_PRICE_NAIRA;
     }
 
+    /**
+     * The largest quantity ONE order may carry, from the admin's settings.
+     *
+     * Clamped to {@see HARD_MAX_QTY} rather than trusted, because this reads a value an
+     * admin typed into a form and the number goes straight into a public vote tally. A
+     * setting of 0 or a blank means "use the default", so clearing the field cannot
+     * accidentally disable paid voting by capping every order at zero votes.
+     */
+    public static function maxQty(): int
+    {
+        $v = (int) (self::setting('vote_max_qty') ?? 0);
+        if ($v < 1) $v = self::DEFAULT_MAX_QTY;
+        return min(self::HARD_MAX_QTY, $v);
+    }
+
+    /**
+     * The real maximum for one order: the smaller of the admin's quantity cap and the
+     * quantity whose price still fits {@see MAX_ORDER_NAIRA}.
+     *
+     * ONE function, consulted by the ballot form (as the input's `max`), by the checkout
+     * (as the rejection threshold) and by the settings page (as the figure it shows the
+     * admin). Three surfaces computing this separately is how a form offers a quantity the
+     * checkout then refuses.
+     */
+    public static function maxQtyForOrder(): int
+    {
+        // The cheaper of the two pricing rules is what a large order actually pays, so it
+        // is the rate that decides how many votes fit under the cash ceiling.
+        $perVote  = (float) self::pricePerVote();
+        $perBundle = 1000.0 / (float) max(1, self::votesPer1000());
+        $cheapest = max(0.01, min($perVote, $perBundle));
+
+        return max(1, min(self::maxQty(), (int) floor(self::MAX_ORDER_NAIRA / $cheapest)));
+    }
+
     /** Admin-set bundle rate: votes granted per ₦1,000. */
     public static function votesPer1000(): int
     {
@@ -85,7 +168,7 @@ class PaidVoteService
      */
     public static function price(int $qty): int
     {
-        $qty     = max(1, min(self::MAX_QTY, $qty));
+        $qty     = max(1, min(self::maxQty(), $qty));
         $p       = self::pricePerVote();
         $per1000 = self::votesPer1000();
         $perVote = $qty * $p;
@@ -114,6 +197,27 @@ class PaidVoteService
 
         $nominee = DB::table('gates_nominees')->where('id', $nomineeId)->first();
         if (!$nominee)                                    return ['ok' => false, 'message' => 'Nominee not found.'];
+
+        // STORAGE GUARD, and it is not redundant with the checkout's cap.
+        //
+        // The quantity was validated when the order was created; this runs when the
+        // gateway confirms, which can be much later and can be reached from the webhook
+        // as well as the browser. In between, an admin may have LOWERED the cap, or the
+        // order may predate a cap change entirely. What must never happen is this INSERT
+        // reaching the database with a weight the column cannot hold: under strict mode
+        // that aborts the transaction (a paid order that cannot mint), and on a host that
+        // has relaxed sql_mode MySQL CLAMPS it and reports success — crediting 65,535
+        // votes for an order of 100,000 with no error anywhere.
+        //
+        // Refused the same way a closed cycle is refused: votes_used stays 0, which is the
+        // queryable "paid but never minted — refund owed" signal `cycles:audit` already
+        // reports and the clawback path can already reverse. No new state to learn.
+        if ($qty > self::HARD_MAX_QTY) {
+            return ['ok' => false, 'code' => 'QTY_TOO_LARGE',
+                    'message' => 'Order quantity (' . number_format($qty) . ') exceeds the maximum a single '
+                        . 'vote record can hold (' . number_format(self::HARD_MAX_QTY) . '). No votes were added — '
+                        . 'this order is refundable, or can be re-entered as several smaller orders.'];
+        }
 
         // PHASE GATE. `start()` checked that voting was open before taking the
         // money, but mint() — reachable from BOTH the browser callback and the

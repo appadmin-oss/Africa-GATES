@@ -91,7 +91,9 @@
       <div class="row">
         <div><label for="f-vote_price_naira">Amount per vote (₦)</label><input type="number" name="vote_price_naira" id="f-vote_price_naira" min="10" step="10" value="{{ values.vote_price_naira|default('100') }}"></div>
         <div><label for="f-vote_votes_per_1000">Votes per ₦1,000 bundle</label><input type="number" name="vote_votes_per_1000" id="f-vote_votes_per_1000" min="1" step="1" value="{{ values.vote_votes_per_1000|default('10') }}"></div>
+        <div><label for="f-vote_max_qty">Maximum votes per order</label><input type="number" name="vote_max_qty" id="f-vote_max_qty" min="1" step="1" value="{{ values.vote_max_qty|default('1000') }}"></div>
       </div>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">A bulk buyer purchasing {{ paid_max_qty|default(1000)|number_format }} votes in one order is <strong>one database row</strong>, so a large order costs the site no more work than a small one. The effective maximum is currently <strong>{{ paid_max_qty|default(1000)|number_format }}</strong> — the lower of this field and the quantity whose price stays under ₦{{ (paid_max_order_naira|default(100000000))|number_format }} per transaction. Your payment gateway and the buyer's bank impose their own, usually lower, per-transaction limits.</p>
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Buyers are always charged the cheaper of the two rules (full ₦1,000 bundles + per-vote remainder). Paid votes raise the <strong>public tally only</strong> — the organic CPI community signal is never moved by money. With free voting disabled, CPI ranking is effectively decided by the jury component.</p>
     </div>
   </div></div>

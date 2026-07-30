@@ -126,7 +126,12 @@ CREATE TABLE IF NOT EXISTS gates_votes (
   voter_name VARCHAR(120) DEFAULT NULL,
   voter_phone VARCHAR(40) DEFAULT NULL,
   vote_type ENUM('standard','bonus','paid') NOT NULL DEFAULT 'standard',
-  weight SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  -- INT, not SMALLINT. A paid-vote order mints ONE row with weight = quantity, so
+  -- SMALLINT's 65,535 was the real (and unmeasured) ceiling on a bulk purchase — and
+  -- on a host that overrides sql_mode away from strict, MySQL would have CLAMPED to it
+  -- and reported success, crediting 65,535 votes for an order of 100,000. Matches
+  -- gates_nominees.vote_count and gates_donations.bonus_votes, which were already INT.
+  weight INT UNSIGNED NOT NULL DEFAULT 1,
   donation_id BIGINT UNSIGNED DEFAULT NULL,
   risk_score TINYINT UNSIGNED NOT NULL DEFAULT 0,
   fraud_flag TINYINT(1) NOT NULL DEFAULT 0,

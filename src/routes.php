@@ -292,6 +292,10 @@ return function(App $app) {
         // The raster, and the og:image target — a crawler cannot run JavaScript and no
         // major chat app renders SVG in a link preview.
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/flier.png',  FlierController::class.':png');
+        // The LINK-PREVIEW card: 1200×630, the aspect ratio Facebook and LinkedIn crop an
+        // og:image to. The 4:5 flier lost its bottom third — the vote URL and the rally
+        // copy — in every preview. See FlierService::ogCard().
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/card.png',   FlierController::class.':card');
         $g->get('/vote/{program}/{slug}', VoteController::class.':nominee');
         $g->get('/partner',       PartnerController::class.':form');
         $g->post('/partner',      PartnerController::class.':submit');

@@ -161,6 +161,9 @@ class VoteController {
         // left is a queue notice, and the caller appends when to come back.
         'rate'        => 'We are processing a burst of payments right now. Your details are saved — press pay again',
         'nominee'     => 'That nominee is not open for votes.',
+        // The quantity is echoed back by the caller, so a bulk buyer is told the actual
+        // limit instead of having their order quietly cut down to it.
+        'toomany'     => 'That is more votes than one order can carry. The maximum is',
         'closed'      => 'Voting has closed for this category, so no votes could be purchased.',
         'unavailable' => 'That payment method is unavailable right now. Please try another.',
         'email'       => 'Please enter a valid email address for your receipt.',
@@ -242,8 +245,10 @@ class VoteController {
         // every crawler and the preview falls back to nothing.
         $flierBase = rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/')
             ?: 'https://afg.afrovanguard.org.ng';
-        $flierPath = $this->nomineeUrl((int) $nom->id, (string) $nom->name, (string) $nom->programme_slug) . '/flier';
-        $flierPng  = $flierBase . $flierPath . '.png';
+        $nomPath   = $this->nomineeUrl((int) $nom->id, (string) $nom->name, (string) $nom->programme_slug);
+        // The og:image is the CARD, not the flier. Both are server-rendered rasters; the
+        // difference is the aspect ratio, and it decides whether the preview works.
+        $cardPng   = $flierBase . $nomPath . '/card.png';
         $others = array_values(array_filter($catList, fn($o) => (int) $o['id'] !== $id));
 
         // The one phase view-model for this ballot, from the nominee's own cycle.
@@ -284,7 +289,7 @@ class VoteController {
             'standing'         => $standing,
             'standing_headline'=> \AfricaGates\Services\StandingsService::headline($standing),
             'standing_cta'     => \AfricaGates\Services\StandingsService::callToAction($standing),
-            'flier_url'        => $this->nomineeUrl((int) $nom->id, (string) $nom->name, (string) $nom->programme_slug) . '/flier',
+            'flier_url'        => $nomPath . '/flier',
             'others'           => array_slice($others, 0, 5),
             // COMPUTED phase, so a stale status column cannot present an open
             // ballot for a closed cycle.
@@ -306,24 +311,33 @@ class VoteController {
             'paid_free_disabled' => PaidVoteService::freeVotingDisabled(),
             'vote_price'         => PaidVoteService::pricePerVote(),
             'votes_per_1000'     => PaidVoteService::votesPer1000(),
+            // The form's `max` comes from the SAME function the checkout rejects on, so
+            // the page can never offer a quantity the next request refuses.
+            'max_qty'            => PaidVoteService::maxQtyForOrder(),
             'pay_providers'      => (PaidVoteService::enabled() && $this->payments) ? $this->payments->enabledProviders() : [],
         ] + array_filter([
             // Social card: the nominee's own photo when they have one.
             /**
-             * THE FLIER IS THE LINK PREVIEW.
+             * A PURPOSE-BUILT CARD IS THE LINK PREVIEW.
              *
-             * This was the nominee's photo, which previews as a portrait with no context:
-             * no name, no category, no standing, no reason to tap. A nominee sharing their
-             * ballot to a WhatsApp group is the single highest-intent share on the
-             * platform, and the preview was doing none of the persuading.
+             * Two steps got here. It was originally the nominee's bare photo, which
+             * previews as a face with no context — no name, no category, no standing, no
+             * reason to tap — on what is the single highest-intent share on the platform.
+             * That was replaced by the flier, which persuades but is 4:5, and Facebook and
+             * LinkedIn crop an og:image to 1.91:1 while WhatsApp crops to roughly square.
+             * So the bottom third went missing in every preview, and the bottom third of
+             * the flier is the vote URL, the rally copy and the jury footnote.
              *
-             * It has to be a RASTER at a URL — WhatsApp, Facebook and X do not render SVG
-             * in a preview and a crawler cannot run JavaScript — which is why
-             * FlierService renders PNG server-side.
+             * {@see \AfricaGates\Services\FlierService::ogCard()} is 1200×630 — the shape
+             * the platforms want — with the face in a column beside the text instead of
+             * behind it. The flier is unchanged and remains what a nominee downloads.
+             *
+             * It has to be a RASTER at a URL: no major chat app renders SVG in a preview
+             * and a crawler cannot run JavaScript.
              */
-            'og_image'      => $flierPng,
-            'og_image_w'    => \AfricaGates\Services\FlierService::W,
-            'og_image_h'    => \AfricaGates\Services\FlierService::H,
+            'og_image'      => $cardPng,
+            'og_image_w'    => \AfricaGates\Services\FlierService::OG_W,
+            'og_image_h'    => \AfricaGates\Services\FlierService::OG_H,
             'og_image_type' => 'image/png',
             'og_image_alt'  => 'Vote for ' . $nom->name . ' in ' . $nom->category
                 . ' — ' . \AfricaGates\Services\StandingsService::headline($standing),

@@ -70,6 +70,45 @@ final class FlierService
      */
     public const PHOTO_H = 820;
 
+    /**
+     * The LINK-PREVIEW card. A second graphic, not a crop of the first.
+     *
+     * ── WHY THE FLIER CANNOT BE THE og:image ─────────────────────────────────
+     *
+     * It was, and it was the wrong shape. Facebook and LinkedIn crop an `og:image` to
+     * 1.91:1 and WhatsApp to roughly square, so a 4:5 portrait loses its bottom third in
+     * every one of them — and the flier's bottom third is the vote URL, the rally copy
+     * and the jury footnote. The single most-shared surface on the platform was
+     * previewing with the call to action cut off.
+     *
+     * So this is a horizontal split: the face in a 480px column, everything else in the
+     * 720px beside it. Nothing is cropped away by the platforms because the aspect ratio
+     * is already theirs.
+     *
+     * ── DESIGNED FOR ~380 PIXELS ─────────────────────────────────────────────
+     *
+     * A link preview in a WhatsApp thread renders about a third of native size, so only
+     * three elements are sized to survive it: the NAME, the gold RANK CHIP, and the
+     * STANDING line. Everything else (category, URL, the jury footnote) is deliberately
+     * secondary — present for anyone who opens the image, not competing at thumbnail
+     * size. Momentum is omitted entirely; a fourth number at 8 effective pixels is noise
+     * that costs the other three their clarity.
+     */
+    public const OG_W = 1200;
+    public const OG_H = 630;
+
+    /** Width of the card's portrait column. Media's `og_photo` preset must match it. */
+    public const OG_PHOTO_W = 480;
+
+    /**
+     * The vertical band the card's middle block is centred in — below the kicker rail,
+     * above the URL pill. Named constants because the block's position is DERIVED from
+     * them at render time, and three bare numbers would have to be kept in agreement by
+     * hand every time an element moved.
+     */
+    private const OG_BAND_TOP    = 152;
+    private const OG_BAND_BOTTOM = 500;
+
     /** Rally copy is cached per nominee — it changes with the standing, not the view. */
     public const COPY_TTL = 1800;
 
@@ -125,7 +164,12 @@ final class FlierService
             'category'  => (string) $n->category,
             'programme' => (string) $n->programme,
             'country'   => strtoupper(trim((string) ($n->country_code ?? ''))),
-            'photo'     => $this->photoUrl((string) ($n->photo_path ?? ''), $base),
+            'photo'     => $this->photoUrl((string) ($n->photo_path ?? ''), $base, 'flier'),
+            // The same photo, cropped for the card's tall column. TWO derivatives rather
+            // than one reused, because the flier's panel is landscape and the card's is
+            // portrait — reusing either would mean cropping an already-cropped image and
+            // throwing away the face anchoring that is the whole point.
+            'photo_card' => $this->photoUrl((string) ($n->photo_path ?? ''), $base, 'og_photo'),
             'votes'     => (int) $n->vote_count,
             'standing'  => $standing,
             'headline'  => StandingsService::headline($standing),
@@ -274,12 +318,12 @@ final class FlierService
      * not a substitute for detection, which is the strongest argument for migrating the
      * existing photos.
      */
-    private function photoUrl(string $path, string $base): ?string
+    private function photoUrl(string $path, string $base, string $preset): ?string
     {
         $p = trim($path);
         if ($p === '') return null;
 
-        return \AfricaGates\Support\Media::absolute($p, 'flier', $base);
+        return \AfricaGates\Support\Media::absolute($p, $preset, $base);
     }
 
     /**
@@ -533,21 +577,43 @@ final class FlierService
         // a rendering fault straight across the card.
         $this->scrim($im, 0, $PH, $W, $this->gradientAt($bgTop, $bgBot, $PH, $H));
 
-        imagefilledrectangle($im, 64, 64, 69, 116, $gold);
-        $this->text($im, 'VOTE NOW', 26, self::font('bold'), $white, 88, 92, 4);
-        $this->text($im, (string) $f['programme'], 22, self::font('regular'), $muted, 88, 126, 1);
-
+        // The chip is measured and drawn BEFORE the programme line, because the programme
+        // line has to be shortened to clear it. Drawing them in the other order — which is
+        // what this did — put "Africa GATES Continental Recognition Programme" straight
+        // underneath the gold pill, two strings overlapping in the corner the eye reaches
+        // first. The card's first render made the same mistake and showed it plainly.
         $s = $f['standing'];
+        $chipW = 0.0;
         if ((int) ($s['field'] ?? 0) >= 2) {
-            $chip = '#' . $s['rank'] . ' of ' . $s['field'];
-            $cw   = $this->width($chip, 28, self::font('bold')) + 44;
-            $this->pill($im, $W - 64 - $cw, 62, $cw, 58, $gold);
-            $this->centred($im, $chip, 28, self::font('bold'), $goldInk, $W - 64 - $cw / 2, 100);
+            $chip  = '#' . $s['rank'] . ' of ' . $s['field'];
+            $chipW = $this->width($chip, 28, self::font('bold')) + 44;
+            $this->pill($im, $W - 64 - $chipW, 62, $chipW, 58, $gold);
+            $this->centred($im, $chip, 28, self::font('bold'), $goldInk, $W - 64 - $chipW / 2, 100);
         }
 
+        imagefilledrectangle($im, 64, 64, 69, 116, $gold);
+        $this->text($im, 'VOTE NOW', 26, self::font('bold'), $white, 88, 92, 4);
+        // wrapMeasured has no concept of letter-spacing, and this line is drawn with 1px
+        // of tracking — so its real width is the measured width plus one pixel per
+        // character. Subtracting that from the budget rather than hoping the right margin
+        // absorbs it is what keeps a longer programme title out from under the chip.
+        $progW  = max(160.0, $W - 88 - 64 - $chipW - 28 - mb_strlen((string) $f['programme']));
+        $progLn = $this->wrapMeasured((string) $f['programme'], $progW, 22, self::font('regular'), 1);
+        $this->text($im, $progLn[0] ?? '', 22, self::font('regular'), $muted, 88, 126, 1);
+
+        // Measured, not counted. The character-count ladder (96/78/62/50 by mb_strlen)
+        // was an estimate the SVG has to make because it cannot measure text — but the
+        // raster CAN, and the estimate has the same failure the card's first render
+        // exposed: `wrapMeasured` never breaks a word, so a single name element wider than
+        // the column at the chosen size runs off the edge of the graphic. `Wolde-Giorgis`
+        // is 13 characters and clears 952px at 96pt. {@see fitLines} shrinks until it
+        // genuinely fits and refuses to ellipsise a name it could have set smaller.
+        //
+        // This is a deliberate divergence from svg(), which keeps the ladder. The two are
+        // still one design; the raster is simply the one with metrics, and it is the one
+        // that gets downloaded and posted.
         $name = (string) $f['name'];
-        $size = mb_strlen($name) <= 14 ? 96 : (mb_strlen($name) <= 22 ? 78 : (mb_strlen($name) <= 32 ? 62 : 50));
-        $lines = $this->wrapMeasured($name, $W - 128, $size, self::font('display'), 2);
+        [$size, $lines] = $this->fitLines($name, $W - 128, 96, 40, self::font('display'), 2);
         $y = 700 - ((count($lines) - 1) * ($size + 8));
         foreach ($lines as $line) {
             $this->text($im, $line, $size, self::font('display'), $white, 64, $y);
@@ -596,6 +662,150 @@ final class FlierService
         return $out !== '' ? $out : null;
     }
 
+    /**
+     * The 1200×630 link-preview card, as a PNG.
+     *
+     * Shares every helper, colour and suppression rule with {@see png()} — same brand
+     * palette, same bundled faces, same "omit rather than print a zero" discipline — but
+     * it is a DIFFERENT LAYOUT, because 1.91:1 has no room for a full-bleed portrait with
+     * a text stack over it. See the note on {@see OG_W} for why it exists at all.
+     *
+     * Returns null when GD or a font is unavailable, so the caller can fall back rather
+     * than serve a broken image — same contract as png().
+     */
+    public function ogCard(array $f): ?string
+    {
+        if (!function_exists('imagecreatetruecolor') || !self::fontsPresent()['ok']) {
+            return null;
+        }
+
+        $W = self::OG_W; $H = self::OG_H; $PW = self::OG_PHOTO_W;
+        $im = imagecreatetruecolor($W, $H);
+        imagealphablending($im, true);
+
+        $rgb = static fn (int $r, int $g, int $b) => imagecolorallocate($im, $r, $g, $b);
+        $white   = $rgb(255, 255, 255);
+        $green   = $rgb(127, 200, 124);
+        $gold    = $rgb(201, 162, 39);
+        $goldInk = $rgb(26, 18, 4);
+        $mint    = $rgb(232, 242, 236);
+        $muted   = $rgb(169, 199, 189);
+        $faint   = $rgb(127, 162, 149);
+        $ink     = $rgb(13, 42, 36);
+
+        // The background runs the full width, INCLUDING behind the photo column, so the
+        // fade at the seam has a real colour to land on at every scanline.
+        $bgTop = [18, 59, 47]; $bgBot = [8, 32, 28];
+        $this->vGradient($im, 0, 0, $W, $H, $bgTop, $bgBot);
+
+        // ── The portrait column ──────────────────────────────────────────────
+        $photo = !empty($f['photo_card']) ? $this->loadPhoto((string) $f['photo_card']) : null;
+        if ($photo !== null) {
+            $this->cover($im, $photo, 0, 0, $PW, $H);
+            imagedestroy($photo);
+            // Soft seam. A hard vertical edge between a photograph and a flat panel reads
+            // as two images pasted together, which at preview size is the difference
+            // between a designed card and a broken one.
+            $this->edgeFade($im, $PW - 150, $PW, $H, $bgTop, $bgBot);
+        } else {
+            imagefilledrectangle($im, 0, 0, $PW - 1, $H - 1, $rgb(15, 51, 41));
+            $this->centred($im, $this->initials((string) $f['name']), 190, self::font('display'), $rgb(30, 74, 60), $PW / 2, 380);
+            $this->edgeFade($im, $PW - 110, $PW, $H, $bgTop, $bgBot);
+        }
+
+        // ── The content column ───────────────────────────────────────────────
+        $cx = $PW + 56;                 // left edge of the text column
+        $cw = $W - $cx - 56;            // its usable width
+        $s  = $f['standing'];
+        $ranked = (int) ($s['field'] ?? 0) >= 2;
+
+        // Rank chip, TOP-RIGHT — one of the three elements sized to survive a thumbnail,
+        // and top-right is where the eye lands after the face. Measured first because the
+        // programme line has to be shortened to clear it.
+        $chipW = 0;
+        if ($ranked) {
+            $chip  = '#' . $s['rank'] . ' of ' . $s['field'];
+            $chipW = (int) round($this->width($chip, 34, self::font('bold'))) + 48;
+            $this->pill($im, $W - 56 - $chipW, 58, $chipW, 62, $gold);
+            $this->centred($im, $chip, 34, self::font('bold'), $goldInk, $W - 56 - $chipW / 2, 101);
+        }
+
+        // Kicker rail + VOTE NOW + programme.
+        imagefilledrectangle($im, $cx, 60, $cx + 5, 112, $gold);
+        $this->text($im, 'VOTE NOW', 26, self::font('bold'), $white, $cx + 24, 88, 4);
+        // Shortened to the space the chip leaves, not assumed to fit. A three-word
+        // programme title otherwise runs underneath the chip and the two overlap.
+        // Minus one pixel per character for the tracking wrapMeasured cannot see.
+        $progW = max(120.0, $cw - $chipW - 28 - mb_strlen((string) $f['programme']));
+        $progLines = $this->wrapMeasured((string) $f['programme'], $progW, 22, self::font('regular'), 1);
+        $this->text($im, $progLines[0] ?? '', 22, self::font('regular'), $muted, $cx + 24, 120, 1);
+
+        // ── The name, and the middle block it anchors ────────────────────────
+        //
+        // Sized by MEASUREMENT, not by character count. The flier's `mb_strlen`
+        // heuristic was tuned against a 952px-wide column; this one is 608px, and
+        // copying the thresholds over produced the defect the first render showed:
+        // "Adaeze Nwosu" — twelve characters, so nominally the largest size — did not
+        // fit on one line, wrapped to two, and its ascenders ran straight through the
+        // programme line above it. {@see fitLines()} shrinks until the name genuinely
+        // fits, so it is also never ellipsised when a smaller size would have held it.
+        [$size, $lines] = $this->fitLines((string) $f['name'], $cw, 76, 34, self::font('display'), 2);
+
+        // The block is vertically CENTRED in the band between the kicker and the URL
+        // pill, rather than started at a fixed y. With a fixed start, a one-line name
+        // left ~120px of empty green above the pill and a two-line name crowded it —
+        // and the card is a fixed canvas, so there is no reflow to absorb either.
+        // +12, not +8 as the flier uses: two stacked lines of a name carrying BOTH a
+        // mark below (the dot of ọ) and marks above brought the two within a couple of
+        // pixels of each other at 54px. The flier's wider column rarely wraps a name at
+        // all, so it never surfaced there.
+        $lineH  = $size + 12;
+        $blockH = count($lines) * $lineH + 46 + ($ranked ? 84 : 0);
+        $top    = self::OG_BAND_TOP + max(0.0, (self::OG_BAND_BOTTOM - self::OG_BAND_TOP - $blockH) / 2);
+
+        // First baseline placed from the string's REAL ink extent, so a stacked Yoruba
+        // or Igbo diacritic has room. Measured rather than assumed: at 76px the marks on
+        // "Ọlásùnkànmí" reach ~14px above the cap line, and a baseline derived from the
+        // point size alone clipped them flat — which on a name is not a cosmetic
+        // imperfection, it is the name spelled wrong.
+        $y = $top + $this->ascent($lines[0] ?? '', $size, self::font('display'));
+        foreach ($lines as $line) {
+            $this->text($im, $line, $size, self::font('display'), $white, $cx, $y);
+            $y += $lineH;
+        }
+        $nameBottom = $y - $lineH;   // baseline of the last line
+
+        // Category + country.
+        $meta = $f['category'] . ($f['country'] !== '' ? '  ·  ' . $f['country'] : '');
+        $this->centredFitLeft($im, $meta, 30, self::font('regular'), $green, $cx, $nameBottom + 46, $cw);
+
+        // Standing line + progress track. Omitted together, so the card never shows an
+        // empty rail — the same rule png() follows.
+        if ($ranked) {
+            $this->centredFitLeft($im, (string) $f['headline'], 30, self::font('semibold'), $mint, $cx, $nameBottom + 96, $cw);
+            $this->pill($im, $cx, $nameBottom + 116, $cw, 12, $rgb(46, 78, 68));
+            $fill = max(12, (int) round(($cw * (int) $s['progress_pct']) / 100));
+            $this->pill($im, $cx, $nameBottom + 116, $fill, 12, $green);
+        }
+
+        // The URL, anchored to the bottom rather than to the cursor above it, so a
+        // two-line name cannot push it off the card.
+        $this->pill($im, $cx, $H - 122, $cw, 66, $white);
+        $this->centredFit($im, (string) $f['short_url'], 30, self::font('bold'), $ink, $cx + $cw / 2, $H - 79, $cw - 40);
+
+        // The honest footnote. Same reason as the flier: a rank reads as a result, and
+        // these awards are 55% independent jury.
+        $this->centredFit($im, 'Public votes are one part of the score. An independent jury decides the award.',
+            18, self::font('regular'), $faint, $cx + $cw / 2, $H - 26, $cw);
+
+        ob_start();
+        imagepng($im, null, 6);
+        $out = (string) ob_get_clean();
+        imagedestroy($im);
+
+        return $out !== '' ? $out : null;
+    }
+
     // ── GD helpers. Small, named, and shared by png() only. ──────────────────
 
     /** Draw text with an optional letter-spacing, which imagettftext has no concept of. */
@@ -620,6 +830,63 @@ final class FlierService
         return $b === false ? 0.0 : (float) ($b[2] - $b[0]);
     }
 
+    /**
+     * How far this string's INK actually rises above the baseline, in pixels.
+     *
+     * Not the point size, and not the font's nominal ascent — the measured extent of
+     * these exact glyphs. It exists because African orthographies stack marks: at 76px
+     * the acute-plus-dot-below of "Ọlásùnkànmí" reaches about fourteen pixels higher
+     * than an unaccented cap, and a first baseline placed at `top + size` (which is what
+     * the flier's fixed geometry effectively assumes, with the slack to absorb it) cut
+     * those marks flat on the card's tighter band. A clipped diacritic is not a cosmetic
+     * imperfection on a graphic showing someone's name; it is their name misspelled.
+     *
+     * imagettfbbox returns the corners anticlockwise from the lower left, with y NEGATIVE
+     * above the baseline — hence the min of the two upper corners, negated.
+     */
+    private function ascent(string $s, int $size, string $font): float
+    {
+        $b = imagettfbbox($size, 0, $font, $s);
+        if ($b === false) return (float) $size;
+        return max((float) $size * 0.72, (float) -min($b[5], $b[7]));
+    }
+
+    /**
+     * The largest size at which $text fits $maxLines lines of $maxW WITHOUT being
+     * ellipsised, and those lines.
+     *
+     * {@see wrapMeasured} truncates when it runs out of lines, which is the right
+     * behaviour for rally copy — a sentence can lose its tail. It is the wrong behaviour
+     * for a name: "Ọlásùnkànmí Adébáyọ̀ Ogun…" is a person rendered incorrectly on a
+     * graphic they are about to share under their own name. So this shrinks first and
+     * only accepts truncation at the floor, where there is nothing left to trade.
+     *
+     * ── AND IT CHECKS THE WIDTHS, NOT JUST THE LINE COUNT ────────────────────
+     *
+     * `wrapMeasured` places a word that is wider than the whole column anyway rather
+     * than break it mid-word (`|| $cur === ''`), which is the right call for wrapping and
+     * makes its output a poor thing to trust blind. "Tsehaynesh Wolde-Giorgis" wrapped to
+     * two lines at 76px and the second, `Wolde-Giorgis`, was 60px wider than the column —
+     * so it ran off the edge of the card and the surname was cut in half. Verifying each
+     * returned line against $maxW is what turns this into a real fit test.
+     *
+     * @return array{0:int, 1:list<string>}
+     */
+    private function fitLines(string $text, float $maxW, int $start, int $min, string $font, int $maxLines): array
+    {
+        for ($size = $start; $size > $min; $size -= 2) {
+            $lines = $this->wrapMeasured($text, $maxW, $size, $font, $maxLines);
+            if (count($lines) > $maxLines) continue;
+            if (str_ends_with((string) end($lines), '…')) continue;
+            $fits = true;
+            foreach ($lines as $line) {
+                if ($this->width($line, $size, $font) > $maxW) { $fits = false; break; }
+            }
+            if ($fits) return [$size, $lines];
+        }
+        return [$min, $this->wrapMeasured($text, $maxW, $min, $font, $maxLines)];
+    }
+
     private function centred($im, string $s, int $size, string $font, int $colour, float $cx, float $y): void
     {
         imagettftext($im, $size, 0, (int) round($cx - $this->width($s, $size, $font) / 2), (int) round($y), $colour, $font, $s);
@@ -640,6 +907,64 @@ final class FlierService
     }
 
     /**
+     * Left-aligned, shrunk until it fits — and never truncated.
+     *
+     * {@see centredFit} for the centred equivalent. Split out rather than parameterised
+     * because the two differ in the x they are given (a centre vs. a left edge), and
+     * conflating those is how a string ends up half a column to the left of where it
+     * should be with no obvious cause.
+     */
+    private function centredFitLeft($im, string $s, int $size, string $font, int $colour, float $x, float $y, float $maxW): void
+    {
+        while ($size > 10 && $this->width($s, $size, $font) > $maxW) {
+            $size--;
+        }
+        $this->text($im, $s, $size, $font, $colour, $x, $y);
+    }
+
+    /**
+     * Fade the photo column into the panel across a band of columns.
+     *
+     * ── WHY IT IS DONE PER PIXEL ─────────────────────────────────────────────
+     *
+     * The obvious implementation draws one vertical `imageline` per column in a single
+     * flat colour. That is wrong here for the same reason the flier's scrim had to be
+     * taught {@see gradientAt}: the background is a VERTICAL gradient, so the colour the
+     * fade must land on differs by about eleven levels per channel between the top and
+     * bottom of the card. A flat terminal colour therefore leaves a visible bright band
+     * at one end of the seam and a dark one at the other — which reads as a rendering
+     * fault, and on a link preview that is the entire first impression.
+     *
+     * So the alpha ramp is precomputed once per column and the row colour is taken from
+     * the gradient, giving ~150 × 630 writes. The packed-integer colour avoids an
+     * `imagecolorallocatealpha` call per pixel; `imagesetpixel` on a truecolour image
+     * accepts `(alpha << 24) | (r << 16) | (g << 8) | b` directly.
+     *
+     * The ramp is quadratic, not linear: the photograph stays clean until close to the
+     * seam and then goes quickly, rather than being veiled across the whole band.
+     */
+    private function edgeFade($im, int $x0, int $x1, int $h, array $from, array $to): void
+    {
+        $x0 = max(0, $x0);
+        $band = max(1, $x1 - $x0);
+
+        // alpha 0..127 in GD's inverted scale (0 = opaque, 127 = transparent).
+        $alpha = [];
+        for ($i = 0; $i < $band; $i++) {
+            $t = $band > 1 ? $i / ($band - 1) : 1.0;
+            $alpha[$i] = (int) round(127 * (1 - $t * $t)) << 24;
+        }
+
+        for ($y = 0; $y < $h; $y++) {
+            [$r, $g, $b] = $this->gradientAt($from, $to, $y, $h);
+            $base = ($r << 16) | ($g << 8) | $b;
+            for ($i = 0; $i < $band; $i++) {
+                imagesetpixel($im, $x0 + $i, $y, $alpha[$i] | $base);
+            }
+        }
+    }
+
+    /**
      * Word wrap by MEASURED width, not character count.
      *
      * The SVG wraps by character count because it cannot measure; here the real metrics
@@ -657,7 +982,10 @@ final class FlierService
             if ($this->width($try, $size, $font) <= $maxW || $cur === '') { $cur = $try; continue; }
             if (count($lines) + 1 >= $maxLines) {
                 while ($cur !== '' && $this->width($cur . '…', $size, $font) > $maxW) $cur = mb_substr($cur, 0, -1);
-                $cur .= '…';
+                // Trim before appending: dropping characters can land on a space, and
+                // "Adébáyọ …" reads as a rendering fault where "Adébáyọ…" reads as
+                // deliberate truncation.
+                $cur = rtrim($cur) . '…';
                 break;
             }
             $lines[] = $cur; $cur = $w;

@@ -38,6 +38,12 @@ class SettingsController
             // Flash renders from the Twig globals via the layout — do not shadow them.
             'shop_regions'   => \AfricaGates\Services\ShopPricing::regions(),
             'shop_mults'     => \AfricaGates\Services\ShopPricing::multipliers(),
+            // The EFFECTIVE per-order maximum, not the raw setting — it is the lower of
+            // that setting and what the cash ceiling allows at the current rate, and
+            // showing the raw number would tell an admin they had configured a limit the
+            // checkout does not actually honour.
+            'paid_max_qty'          => \AfricaGates\Services\PaidVoteService::maxQtyForOrder(),
+            'paid_max_order_naira'  => \AfricaGates\Services\PaidVoteService::MAX_ORDER_NAIRA,
             // Which AI providers have a key (booleans only — keys are never echoed).
             // Raw provider state — deliberately direct, not through the gateway:
             // this is the diagnostics surface and must see the true key state
@@ -182,6 +188,14 @@ class SettingsController
             $this->settings->set('paid_voting_disable_free', isset($b['paid_voting_disable_free']) ? '1' : '', $adminId);
             $this->settings->set('vote_price_naira', (string) max(10, (int) ($b['vote_price_naira'] ?? \AfricaGates\Services\PaidVoteService::DEFAULT_PRICE_NAIRA)), $adminId);
             $this->settings->set('vote_votes_per_1000', (string) max(1, (int) ($b['vote_votes_per_1000'] ?? \AfricaGates\Services\PaidVoteService::DEFAULT_PER_1000)), $adminId);
+            // Largest quantity ONE order may carry. Clamped to the hard ceiling here AND
+            // in PaidVoteService::maxQty(), because this value ends up in a public vote
+            // tally and a settings row is not a trusted input just because an admin typed
+            // it — a stray zero is one keystroke away from a nine-figure order.
+            $this->settings->set('vote_max_qty', (string) max(1, min(
+                \AfricaGates\Services\PaidVoteService::HARD_MAX_QTY,
+                (int) ($b['vote_max_qty'] ?? \AfricaGates\Services\PaidVoteService::DEFAULT_MAX_QTY)
+            )), $adminId);
         }
 
         // AI providers — keys live in gates_settings and are WRITE-ONLY: they

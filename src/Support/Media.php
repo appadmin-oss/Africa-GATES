@@ -67,6 +67,12 @@ final class Media
         'flier'    => 'c_fill,g_faces:auto,w_1080,h_820,f_jpg,q_auto:good',
         // The og:image itself, when a raw photo (not the rendered flier) is used.
         'og'       => 'c_fill,g_faces:auto,w_1200,h_630,f_jpg,q_auto:good',
+        // The portrait column of the 1200×630 link-preview card. A TALL crop, not a
+        // scaled-down 'og' — the card puts the face in a 480×630 panel beside the text
+        // rather than behind it, so asking for the landscape derivative would hand the
+        // renderer a wide image to crop again and undo the face anchoring. Geometry
+        // pinned to FlierService::OG_PHOTO_W / OG_H by test.
+        'og_photo' => 'c_fill,g_faces:auto,w_480,h_630,f_jpg,q_auto:good',
     ];
 
     /**

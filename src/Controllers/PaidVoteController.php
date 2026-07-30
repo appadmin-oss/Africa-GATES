@@ -64,7 +64,12 @@ final class PaidVoteController
         $email     = strtolower(trim((string)($b['email'] ?? '')));
         $name      = trim((string)($b['name'] ?? ''));
         $nomineeId = (int)($b['nominee_id'] ?? 0);
-        $qty       = max(1, min(PaidVoteService::MAX_QTY, (int)($b['qty'] ?? 1)));
+        // NOT clamped. `min(MAX_QTY, …)` silently reduced an over-large request, so a
+        // supporter who asked for 5,000 votes was charged for 1,000 and told nothing —
+        // they found out by looking at the tally. An over-large order is now refused with
+        // the actual maximum, which is a conversation the buyer can act on.
+        $qty       = max(1, (int)($b['qty'] ?? 1));
+        $maxQty    = PaidVoteService::maxQtyForOrder();
 
         // Back to the nominee's ballot with a reason chip on any failure.
         $nominee = $nomineeId > 0 ? DB::table('gates_nominees')->where('id', $nomineeId)->first() : null;
@@ -85,6 +90,9 @@ final class PaidVoteController
         if (!$this->votingOpenFor($nominee))                                 return $bail('closed');
         if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL))     return $bail('email');
+        if ($qty > $maxQty) {
+            return $bail('toomany', number_format($maxQty) . ' votes');
+        }
 
         $gate = (new CheckoutThrottle($this->rateLimit))->allow($req, 'paid_vote');
         if (!$gate['ok']) {
