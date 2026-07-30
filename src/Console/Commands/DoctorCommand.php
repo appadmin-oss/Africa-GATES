@@ -326,13 +326,128 @@ final class DoctorCommand extends Command
             'style_src_elem_present' => $has('style-src-elem'),
             'form_action_has_gateways' => $has('paystack'),
             'policy'                 => $policy,
+            // Deliberately LAST and deliberately over the network: everything above
+            // describes this code, and only this describes the running server.
+        ] + $this->liveCsp();
+    }
+
+    /**
+     * THE CHECK THAT ANSWERS THE QUESTION THAT KEEPS COSTING DAYS.
+     *
+     * Fetches APP_URL and compares the `Content-Security-Policy` header the site
+     * actually returns against the one {@see Csp::policy()} produces in this process.
+     *
+     * Everything above reports what the code WOULD do. This is the only check that
+     * reports what the server IS doing, and it is the one that matters: production has
+     * twice been serving code that predates this repository. The proof, from
+     * docs/VOTING-NOMINATIONS-STATE-AUDIT.md, is that a deliberate syntax error planted
+     * in `Csp::policy()` on the server changed nothing — the site kept returning 200
+     * with the old header, so PHP was not loading the file at all.
+     *
+     * Every CSP refusal reported from production since is that same problem: CDN
+     * stylesheets and scripts blocked because the running `script-src`/`style-src` carry
+     * no host allowlist, and EVERY PAID VOTE refused because the running `form-action`
+     * has no gateway hosts — after the pending order row already exists. All fixed here.
+     * None of it deployed.
+     *
+     * A mismatch has three plausible causes and the message names all three, because
+     * they are fixed completely differently:
+     *   1. DocumentRoot still pointing at an older copy of the app (the best fit for the
+     *      observed header, which carries a `permissions-policy` no version here emits);
+     *   2. opcache with validate_timestamps=0 holding the previous compile;
+     *   3. a proxy or CDN replacing the header downstream.
+     *
+     * Skipped when APP_URL is unset, and never fatal on a network error — `app:doctor`
+     * must stay useful on a host with no outbound HTTP.
+     *
+     * @return array<string,string>
+     */
+    private function liveCsp(): array
+    {
+        $url = rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/');
+        if ($url === '') {
+            return ['live_check' => 'skipped — APP_URL is not set, so there is nothing to compare against'];
+        }
+        if (!class_exists(Csp::class)) {
+            return ['live_check' => 'skipped — Support\\Csp is absent from this tree'];
+        }
+
+        $expected = Csp::policy();
+        $ctx = stream_context_create(['http' => [
+            'method' => 'HEAD', 'timeout' => 8, 'ignore_errors' => true,
+            // A redirect would compare the wrong response.
+            'follow_location' => 0,
+            'header' => "User-Agent: africa-gates-doctor\r\n",
+        ]]);
+        $headers = @get_headers($url . '/ping', true, $ctx);
+        if (!is_array($headers)) {
+            return ['live_check' => 'could not reach ' . $url . ' from this host (not necessarily a problem)'];
+        }
+
+        // Header names are case-insensitive and get_headers preserves the wire casing.
+        $live = '';
+        $count = 0;
+        foreach ($headers as $name => $value) {
+            if (strcasecmp((string) $name, 'Content-Security-Policy') !== 0) continue;
+            // An ARRAY means two CSP headers, which browsers enforce as the INTERSECTION
+            // — a case worth naming, because each looks fine alone.
+            $count = is_array($value) ? count($value) : 1;
+            $live = is_array($value) ? implode(' || ', $value) : (string) $value;
+        }
+
+        if ($live === '') {
+            return [
+                'live_check'  => 'MISMATCH — the live response carries NO Content-Security-Policy',
+                'live_policy' => '(absent)',
+            ];
+        }
+
+        // NORMALISE THE NONCE OUT BEFORE COMPARING. It is per-request by design, so the
+        // CLI process and the HTTP response can never share one — comparing the raw
+        // strings reported MISMATCH on a perfectly healthy deployment, which is worse
+        // than no check at all: a diagnostic that always fires teaches people to ignore
+        // it, and this is the one they most need to trust.
+        $same = self::normalise($live) === self::normalise($expected);
+        $out = [
+            'live_check'        => $same ? 'OK — the live header matches this code' : 'MISMATCH — see below',
+            'live_headers_seen' => (string) $count . ($count > 1 ? ' (two policies are ANDed by the browser)' : ''),
         ];
+        if (!$same) {
+            $out['live_has_nonce'] = str_contains($live, "'nonce-") ? 'yes' : 'NO — the running code predates the CSP rewrite';
+            $out['live_policy']    = $live;
+            $out['this_code_would_send'] = $expected;
+        }
+        return $out;
+    }
+
+    /**
+     * A policy with the per-request nonce and incidental whitespace removed, so two
+     * policies can be compared for MEANING rather than for bytes.
+     */
+    private static function normalise(string $policy): string
+    {
+        $p = (string) preg_replace("~'nonce-[A-Za-z0-9+/=]+'~", "'nonce-*'", $policy);
+        return trim((string) preg_replace('~\s+~', ' ', $p));
     }
 
     /** @return list<string> */
     private function problems(array $r): array
     {
         $p = [];
+        if (str_contains((string) ($r['csp']['live_check'] ?? ''), 'MISMATCH')) {
+            $p[] = "THE DEPLOYED CODE IS NOT THIS CODE. The Content-Security-Policy on the live "
+                 . "response differs from the one this tree produces"
+                 . (str_contains((string) ($r['csp']['live_has_nonce'] ?? ''), 'NO')
+                     ? ", and the live one is not nonce-based — i.e. it predates the CSP rewrite entirely" : '')
+                 . ". Editing PHP will not change the headers until this is resolved. Three causes, "
+                 . "fixed differently: (1) DocumentRoot still points at an older copy of the app — "
+                 . "check it against the `root` hash on /ping; (2) opcache with "
+                 . "validate_timestamps=0 is holding the previous compile — reload PHP-FPM or flush "
+                 . "it; (3) a proxy or CDN is replacing the header downstream — compare the origin "
+                 . "directly, bypassing the CDN. This is the same unresolved problem behind every "
+                 . "CSP refusal reported from production: blocked CDN scripts and stylesheets, and "
+                 . "every paid vote refused by `form-action 'self'`. All of it is already fixed here.";
+        }
         if (($r['code']['Csp_class'] ?? '') !== 'loaded') {
             $p[] = 'Support\\Csp is not present in this deployment — the running code predates the CSP rebuild.';
         }

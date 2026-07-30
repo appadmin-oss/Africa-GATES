@@ -147,7 +147,7 @@
      platform genuinely supports (voting, nomination, the activity search) use none of
      them. #}
   {# Swiper 8 CSS — for talent slider + case-study mobile #}
-  <link rel="stylesheet" href="https://unpkg.com/swiper@8/swiper-bundle.min.css" media="print" data-lazy-css>
+  <link rel="stylesheet" href="https://unpkg.com/swiper@8.4.7/swiper-bundle.min.css" media="print" data-lazy-css>
   {# Splide CSS — for the partner marquee #}
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css" media="print" data-lazy-css>
   {# Plyr — accessible HTML5/YouTube player for video testimonials #}
@@ -378,15 +378,26 @@
 {# GSAP + ScrollTrigger — cinematic scroll animations #}
 <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/gh/timothydesign/script/split-type.js"></script>
+<script defer src="/assets/js/vendor/split-type-0.3.4.min.js?v={{ asset_version }}"></script>
 {# Spline viewer is loaded lazily, desktop-only, from main.js (bindSpline) #}
 {# Tippy.js — micro-interactions for hover-tip UX polish #}
-<script defer src="https://unpkg.com/@popperjs/core@2"></script>
-<script defer src="https://unpkg.com/tippy.js@6"></script>
+{# Popper + Tippy are SELF-HOSTED. Both files have been committed under
+   public/assets/js/vendor/ all along and the layout loaded them from unpkg anyway —
+   so the site paid a cross-origin DNS/TCP/TLS round trip for bytes already on disk,
+   and made itself dependent on `script-src` listing unpkg for a dependency that did
+   not need to be remote at all. `'self'` is permitted by every policy this site has
+   ever served, including the stale one still live in production, so these two now
+   work regardless of which CSP is in force.
+
+   Unpinned CDN URLs too: `@popperjs/core@2` and `tippy.js@6` resolve to whatever
+   those majors currently point at, which is a third party silently changing the code
+   this site executes. The vendored copies are pinned to 2.11.8 and 6.3.7. #}
+<script defer src="/assets/js/vendor/popper-2.11.8.min.js?v={{ asset_version }}"></script>
+<script defer src="/assets/js/vendor/tippy-6.3.7.umd.min.js?v={{ asset_version }}"></script>
 {# Leaflet — continental map #}
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script defer src="https://unpkg.com/swiper@8/swiper-bundle.min.js"></script>
+<script defer src="https://unpkg.com/swiper@8.4.7/swiper-bundle.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/js/splide.min.js"></script>
 <script defer src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 

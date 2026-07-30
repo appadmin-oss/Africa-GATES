@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="/assets/css/main.css?v={{ asset_version }}">
 <link rel="stylesheet" href="/assets/css/judge.css?v={{ asset_version }}">
 <link rel="stylesheet" href="/assets/css/aurora.css?v={{ asset_version }}">
-<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css">
+<link rel="stylesheet" href="https://unpkg.com/tippy.js@6.3.7/dist/tippy.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.css">
 </head>
 <body class="jd-body">
@@ -45,9 +45,9 @@
   {% block content %}{% endblock %}
 </main>
 
-<script defer src="https://unpkg.com/lucide@latest"></script>
-<script defer src="https://unpkg.com/@popperjs/core@2"></script>
-<script defer src="https://unpkg.com/tippy.js@6"></script>
+<script defer src="https://unpkg.com/lucide@1.28.0"></script>
+<script defer src="/assets/js/vendor/popper-2.11.8.min.js"></script>
+<script defer src="/assets/js/vendor/tippy-6.3.7.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js"></script>
 {# Alpine.js — the ballot's reactive scoring app (x-data/x-show/@click) needs it;
    the public layout loads it separately, so the judge layout must too. #}

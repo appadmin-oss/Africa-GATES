@@ -42,14 +42,36 @@ use AfricaGates\Middleware\UserAuthMiddleware;
 return function(App $app) {
     $app->options('/{routes:.+}', fn($req,$res)=>$res);
 
-    // Health-check — test routing works without DB
+    /**
+     * Health-check — routing works without a DB. Also: IS THE DEPLOY LIVE?
+     *
+     * The second question is why the extra fields are here. Production has twice been
+     * running code that predates this repository — proven by planting a syntax error in
+     * `Csp::policy()` on the server and still getting HTTP 200 with the old header — and
+     * every CSP refusal reported since (blocked CDN scripts and stylesheets, every paid
+     * vote refused by `form-action 'self'`) is that one deployment problem, not an
+     * application bug. All of it is fixed in this tree; none of it was running.
+     *
+     * That was unanswerable from a browser, which is what made it expensive. Now:
+     *
+     *     curl -s https://afg.afrovanguard.org.ng/ping
+     *
+     * `"csp_nonce": false` — or the `rev`/`csp` fields missing entirely — means the
+     * server is not loading this code, and no amount of editing it will change the
+     * headers. See Support\Build. `app:doctor` does the same comparison with the actual
+     * live header when you have a shell.
+     *
+     * `no-store`, because a cached health check answers the previous deployment's
+     * question — which is the exact failure mode this endpoint exists to detect.
+     */
     $app->get('/ping', function ($req, $res) {
-        $res->getBody()->write(json_encode([
+        $res->getBody()->write((string) json_encode([
             'status' => 'ok',
             'app'    => 'Africa GATES',
             'ts'     => date('c'),
-        ]));
-        return $res->withHeader('Content-Type', 'application/json');
+        ] + \AfricaGates\Support\Build::fingerprint()));
+        return $res->withHeader('Content-Type', 'application/json')
+                   ->withHeader('Cache-Control', 'no-store');
     });
 
     // ── No-SSH database migration trigger (token-gated) ──────────────────────
