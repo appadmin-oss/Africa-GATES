@@ -243,8 +243,7 @@ class VoteController {
 
         // Absolute, because an og:image must be — a relative path is silently ignored by
         // every crawler and the preview falls back to nothing.
-        $flierBase = rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/')
-            ?: 'https://afg.afrovanguard.org.ng';
+        $flierBase = \AfricaGates\Support\SiteUrl::base($req);
         $nomPath   = $this->nomineeUrl((int) $nom->id, (string) $nom->name, (string) $nom->programme_slug);
         // The og:image is the CARD, not the flier. Both are server-rendered rasters; the
         // difference is the aspect ratio, and it decides whether the preview works.

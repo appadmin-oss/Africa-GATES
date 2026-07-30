@@ -119,7 +119,7 @@ class NominationController {
         $byEmail   = strtolower(trim((string)$b['nominator_email']));
         $progName  = trim((string)($b['programme_title'] ?? ('Programme #' . (int)$b['programme_id'])));
         $reference = \AfricaGates\Support\Reference::nomination((int)$nominationId);
-        $base      = rtrim((string) Env::get('APP_URL', ''), '/');
+        $base      = \AfricaGates\Support\SiteUrl::base($req);
         $watchUrl  = $base . '/leaderboard';
 
         // Resolve the award CATEGORY name so every message names it (not just the programme).

@@ -88,14 +88,19 @@ final class PaymentController
     ) {}
 
     /** Where to send the buyer when checkout can't start. Keeps the enquiry fallback alive. */
-    private function fallbackUrl(): string
+    private function fallbackUrl(?Request $req = null): string
     {
-        return $this->base() . '/partner#enquiry';
+        return $this->base($req) . '/partner#enquiry';
     }
 
-    private function base(): string
+    /**
+     * Absolute site base. Via SiteUrl, which falls back to the REQUEST when APP_URL is
+     * unset — this used to return '' and every gateway callback URL built from it was
+     * relative, which a payment provider cannot redirect a browser to. See SiteUrl.
+     */
+    private function base(?Request $req = null): string
     {
-        return rtrim((string) Env::get('APP_URL', ''), '/');
+        return \AfricaGates\Support\SiteUrl::base($req);
     }
 
     private function isAjax(Request $req): bool
@@ -135,9 +140,9 @@ final class PaymentController
         $bail = function (string $msg) use ($req, $res): Response {
             $this->log?->info('[payment] init rejected', ['reason' => $msg]);
             if ($this->isAjax($req)) {
-                return $this->json($res, ['ok' => false, 'message' => $msg, 'redirect' => $this->fallbackUrl()], 422);
+                return $this->json($res, ['ok' => false, 'message' => $msg, 'redirect' => $this->fallbackUrl($req)], 422);
             }
-            return $this->redirect($res, $this->fallbackUrl());
+            return $this->redirect($res, $this->fallbackUrl($req));
         };
 
         // 1. Provider must be one we can actually transact with right now.
@@ -197,7 +202,7 @@ final class PaymentController
 
         // 5. Ask the gateway for a hosted-checkout URL. callback carries the ref so
         //    /pay/callback knows which provider+reference to verify.
-        $callbackUrl = $this->base() . '/pay/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
+        $callbackUrl = $this->base($req) . '/pay/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
         $meta = [
             'reference' => $reference,
             'purpose'   => $purpose,
@@ -235,27 +240,27 @@ final class PaymentController
         $provider  = strtolower(trim((string)($q['provider'] ?? '')));
 
         if ($reference === '') {
-            return $this->redirect($res, $this->base() . '/partner?pay=error');
+            return $this->redirect($res, $this->base($req) . '/partner?pay=error');
         }
 
         // The provider comes from the callback URL we generated at /pay/init. We
         // need it to know which gateway to re-verify against; without a known one
         // we can't confirm anything, so treat it as an error.
         if (!$this->payments->isKnownProvider($provider)) {
-            return $this->redirect($res, $this->base() . '/partner?pay=error');
+            return $this->redirect($res, $this->base($req) . '/partner?pay=error');
         }
 
         $donation = DB::table('gates_donations')->where('payment_ref', $reference)->first();
         if (!$donation) {
-            return $this->redirect($res, $this->base() . '/partner?pay=error');
+            return $this->redirect($res, $this->base($req) . '/partner?pay=error');
         }
 
         $result = $this->confirmByReference($provider, $reference, $donation, 'callback');
 
         if ($result === 'confirmed' || $result === 'already') {
-            return $this->redirect($res, $this->base() . '/pay/success?ref=' . urlencode($reference));
+            return $this->redirect($res, $this->base($req) . '/pay/success?ref=' . urlencode($reference));
         }
-        return $this->redirect($res, $this->base() . '/partner?pay=failed');
+        return $this->redirect($res, $this->base($req) . '/partner?pay=failed');
     }
 
     /**

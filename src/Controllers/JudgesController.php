@@ -53,7 +53,7 @@ class JudgesController
         }
         // Social card: the judge's own photo (absolute URL) when they have one;
         // the branded default from the layout otherwise.
-        $base = rtrim((string) Env::get('APP_URL', ''), '/');
+        $base = \AfricaGates\Support\SiteUrl::base($req);
         $avatar = trim((string)($judge['avatar_path'] ?? ''));
         $ogImage = $avatar !== ''
             ? (str_starts_with($avatar, 'http') ? $avatar : $base . $avatar)

@@ -39,7 +39,15 @@ final class DonationController
         private readonly ?LoggerInterface  $log = null,
     ) {}
 
-    private function base(): string { return rtrim((string) Env::get('APP_URL', ''), '/'); }
+    /**
+     * Absolute site base. Via SiteUrl, which falls back to the REQUEST when APP_URL is
+     * unset — this used to return '' and every gateway callback URL built from it was
+     * relative, which a payment provider cannot redirect a browser to. See SiteUrl.
+     */
+    private function base(?Request $req = null): string
+    {
+        return \AfricaGates\Support\SiteUrl::base($req);
+    }
     private function redirect(Response $res, string $url): Response { return $res->withHeader('Location', $url)->withStatus(302); }
 
     /**
@@ -128,7 +136,7 @@ final class DonationController
         $baseAmt  = (int) preg_replace('/[^0-9]/', '', (string)($b['amount'] ?? '0'));
         $cover    = !empty($b['cover_fees']);
 
-        $bail = fn(string $why) => $this->redirect($res, $this->base() . '/donate?give=' . urlencode($why));
+        $bail = fn(string $why) => $this->redirect($res, $this->base($req) . '/donate?give=' . urlencode($why));
 
         if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL))     return $bail('email');
@@ -168,7 +176,7 @@ final class DonationController
             return $bail('error');
         }
 
-        $callbackUrl = $this->base() . '/donate/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
+        $callbackUrl = $this->base($req) . '/donate/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
         $init = $this->payments->initialize($provider, $amount, $email, $reference, $callbackUrl, [
             'reference' => $reference, 'purpose' => 'donation',
         ]);
@@ -186,17 +194,17 @@ final class DonationController
         $reference = trim((string)($q['ref'] ?? $q['reference'] ?? $q['tx_ref'] ?? ''));
         $provider  = strtolower(trim((string)($q['provider'] ?? '')));
         if ($reference === '' || !$this->payments->isKnownProvider($provider)) {
-            return $this->redirect($res, $this->base() . '/donate?give=error');
+            return $this->redirect($res, $this->base($req) . '/donate?give=error');
         }
         $don = DB::table('gates_donations')->where('payment_ref', $reference)->first();
-        if (!$don) return $this->redirect($res, $this->base() . '/donate?give=error');
+        if (!$don) return $this->redirect($res, $this->base($req) . '/donate?give=error');
 
         $result = $this->confirm($provider, $reference, $don);
         if ($result === 'confirmed' || $result === 'already') {
             if ($result === 'confirmed') $this->receipt($don);
-            return $this->redirect($res, $this->base() . '/donate/success?ref=' . urlencode($reference));
+            return $this->redirect($res, $this->base($req) . '/donate/success?ref=' . urlencode($reference));
         }
-        return $this->redirect($res, $this->base() . '/donate?give=failed');
+        return $this->redirect($res, $this->base($req) . '/donate?give=failed');
     }
 
     /** GET /donate/success — read-only confirmation. */

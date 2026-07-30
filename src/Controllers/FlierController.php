@@ -35,8 +35,7 @@ final class FlierController
         $path = rtrim((string) $req->getUri()->getPath(), '/');
         // Absolute for og:image — a relative path is silently ignored by every crawler
         // and the preview falls back to nothing.
-        $abs = (rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/')
-            ?: 'https://afg.afrovanguard.org.ng') . $path;
+        $abs = \AfricaGates\Support\SiteUrl::base($req) . $path;
         // The card lives beside the flier, one segment up: …/{slug}/flier → …/{slug}/card.png
         $cardAbs = preg_replace('~/flier$~', '', $abs) . '/card.png';
 

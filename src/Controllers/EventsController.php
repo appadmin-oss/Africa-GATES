@@ -158,7 +158,7 @@ class EventsController
         // Confirm to the attendee + alert the team (best-effort; never blocks RSVP).
         if ($this->mailer) {
             $ev    = (array)$event;
-            $base  = rtrim((string) Env::get('APP_URL', 'https://afg.afrovanguard.org.ng'), '/');
+            $base  = \AfricaGates\Support\SiteUrl::base($req);
             $title = htmlspecialchars((string)($ev['title'] ?? 'the event'), ENT_QUOTES, 'UTF-8');
             $when  = htmlspecialchars((string)($ev['event_date'] ?? ''), ENT_QUOTES, 'UTF-8');
             $where = htmlspecialchars((string)($ev['location'] ?? ''), ENT_QUOTES, 'UTF-8');

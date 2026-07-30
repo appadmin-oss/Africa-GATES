@@ -1,9 +1,91 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * ── BOOTSTRAP PRECONDITIONS ──────────────────────────────────────────────────
+ *
+ * Two checks, before anything else, because both have already taken the site down and
+ * both presented as a blank 403 with nothing on screen.
+ *
+ * WHAT HAPPENED. The production error log for 30 Jul 2026 is 388 lines and every single
+ * one is the same:
+ *
+ *     PHP Fatal error: require(): Failed opening required
+ *     '/home/afrovang/africa-gates/africa-gates/public/../vendor/autoload.php'
+ *
+ * Read the path: `africa-gates/africa-gates`. The deploy landed one directory deeper
+ * than it should have, so `vendor/` — which lives in the OUTER copy, where composer was
+ * run — is not where `index.php` looks for it. Every request fataled on line 6. The
+ * visible symptom was a 403 and no explanation.
+ *
+ * The same log also shows `ea-php74` serving until 15:43 and `ea-php84` from 10:25.
+ * composer.json requires >= 8.4 and this codebase uses PHP 8 syntax throughout, so on
+ * the 7.4 handler nothing here can even PARSE — which is the likeliest reason an older
+ * copy of the application kept answering while edits to this one appeared to do nothing.
+ *
+ * WHY IT IS WRITTEN LIKE THIS. Everything below must PARSE on PHP 7.4, or the version
+ * check cannot report that PHP is too old — a parse error is a blank 500 and tells the
+ * operator nothing. So: no `match`, no `?->`, no named arguments, no promoted
+ * constructors, and `str_contains()` and friends are avoided (they are PHP 8 *functions*,
+ * fine at parse time but fatal if called). Keep it that way.
+ *
+ * It writes plain HTML rather than throwing, because the audience is an operator looking
+ * at a broken site, not a stack trace reader.
+ */
+if (PHP_VERSION_ID < 80400) {
+    http_response_code(500);
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!doctype html><meta charset="utf-8"><title>Africa GATES — PHP too old</title>'
+       . '<div style="font:16px/1.6 system-ui,sans-serif;max-width:44rem;margin:8vh auto;padding:0 1.5rem">'
+       . '<h1 style="font-size:1.3rem">This PHP version cannot run Africa GATES</h1>'
+       . '<p>Running <b>PHP ' . PHP_VERSION . '</b>; this application requires <b>8.4</b> or newer '
+       . '(see <code>composer.json</code>). Most of the codebase does not parse on PHP 7.x, so the '
+       . 'site cannot start — and an older copy of the app may keep answering while your edits '
+       . 'appear to have no effect.</p>'
+       . '<p><b>Fix:</b> cPanel &rarr; <i>MultiPHP Manager</i> &rarr; select this domain &rarr; set '
+       . '<b>ea-php84</b> &rarr; Apply. Then reload.</p></div>';
+    exit;
+}
+
+$__autoload = __DIR__ . '/../vendor/autoload.php';
+if (!is_file($__autoload)) {
+    // Is this the nested-deploy case? If a vendor/ exists one level FURTHER up, the tree
+    // was extracted one directory too deep — which is exactly what the production log
+    // shows, and it is not something an operator would guess from a 403.
+    $__nested = is_file(__DIR__ . '/../../vendor/autoload.php');
+    http_response_code(503);
+    header('Content-Type: text/html; charset=utf-8');
+    header('Retry-After: 300');
+    echo '<!doctype html><meta charset="utf-8"><title>Africa GATES — dependencies missing</title>'
+       . '<div style="font:16px/1.6 system-ui,sans-serif;max-width:46rem;margin:8vh auto;padding:0 1.5rem">'
+       . '<h1 style="font-size:1.3rem">Dependencies are not installed</h1>'
+       . '<p>The application looked for its autoloader at:</p>'
+       . '<p><code style="display:block;padding:.6rem .8rem;background:#f4f4f4;border-radius:6px;'
+       . 'word-break:break-all">' . htmlspecialchars($__autoload, ENT_QUOTES, 'UTF-8') . '</code></p>';
+    if ($__nested) {
+        echo '<p><b>This deploy is nested one directory too deep.</b> A <code>vendor/</code> '
+           . 'directory exists one level further up, so the application files were extracted '
+           . 'into a subdirectory of themselves — the classic '
+           . '<code>africa-gates/africa-gates/</code> shape.</p>'
+           . '<p><b>Fix (either one):</b></p><ul>'
+           . '<li>Point the domain&rsquo;s <i>Document Root</i> at the <code>public/</code> of the '
+           . 'copy that has <code>vendor/</code> beside it; or</li>'
+           . '<li>Move the application files up one level so <code>vendor/</code> sits next to '
+           . '<code>public/</code>, <code>src/</code> and <code>composer.json</code>.</li></ul>';
+    } else {
+        echo '<p><b>Fix:</b> run <code>composer install --no-dev --optimize-autoloader</code> in the '
+           . 'directory containing <code>composer.json</code>. No shell? Upload the '
+           . '<code>vendor/</code> directory built elsewhere — it must sit beside '
+           . '<code>public/</code>, not inside it.</p>';
+    }
+    echo '<p style="color:#666;font-size:.92rem">Nothing is wrong with your data. The site returns '
+       . 'as soon as the autoloader is in place.</p></div>';
+    exit;
+}
+
 use AfricaGates\Support\Env;
 use AfricaGates\Support\Http;
-require __DIR__ . '/../vendor/autoload.php';
+require $__autoload;
 
 // Load environment — tolerate a malformed .env so the site doesn't go full
 // 500 if one line has unquoted whitespace; log the parse error and continue.

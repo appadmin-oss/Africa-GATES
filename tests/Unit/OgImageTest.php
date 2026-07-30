@@ -136,15 +136,26 @@ class OgImageTest extends TestCase
     {
         // A relative og:image is silently ignored by every crawler and the preview falls
         // back to nothing. The single easiest way to ship a broken preview.
+        //
+        // Via Support\SiteUrl now, not `Env::get('APP_URL')` directly — which is a
+        // STRICTER requirement, not a looser one: reading APP_URL by hand returns '' when
+        // it is unset, which is exactly how you get a relative og:image. SiteUrl can never
+        // return an empty base (it falls back to the request host, then to a literal), so
+        // routing through it is what actually guarantees what this test is named after.
         foreach ([
             dirname(__DIR__, 2) . '/src/Controllers/VoteController.php',
             dirname(__DIR__, 2) . '/src/Controllers/FlierController.php',
         ] as $file) {
             $src = (string) file_get_contents($file);
             $this->assertMatchesRegularExpression(
-                "~Env::get\('APP_URL'~",
+                '~SiteUrl::base\(~',
                 $src,
-                basename($file) . ' must build the og:image from APP_URL'
+                basename($file) . ' must build the og:image through SiteUrl, which is never empty'
+            );
+            $this->assertDoesNotMatchRegularExpression(
+                "~Env::get\('APP_URL'~",
+                (string) preg_replace(['~/\*.*?\*/~s', '~//[^\n]*~'], '', $src),
+                basename($file) . ' must not read APP_URL directly — it returns \'\' when unset'
             );
         }
     }

@@ -32,7 +32,15 @@ final class ShopCheckoutController
         private readonly ?RateLimitService $rateLimit = null,
     ) {}
 
-    private function base(): string { return rtrim((string) Env::get('APP_URL', ''), '/'); }
+    /**
+     * Absolute site base. Via SiteUrl, which falls back to the REQUEST when APP_URL is
+     * unset — this used to return '' and every gateway callback URL built from it was
+     * relative, which a payment provider cannot redirect a browser to. See SiteUrl.
+     */
+    private function base(?Request $req = null): string
+    {
+        return \AfricaGates\Support\SiteUrl::base($req);
+    }
     private function redirect(Response $res, string $url): Response { return $res->withHeader('Location', $url)->withStatus(302); }
 
     /**
@@ -80,7 +88,7 @@ final class ShopCheckoutController
         $region   = trim((string)($b['region'] ?? ''));
         $ip       = (string)($req->getServerParams()['REMOTE_ADDR'] ?? '');
 
-        $bail = fn(string $why) => $this->redirect($res, $this->base() . '/shop?checkout=' . urlencode($why));
+        $bail = fn(string $why) => $this->redirect($res, $this->base($req) . '/shop?checkout=' . urlencode($why));
 
         // Abuse control: cap pending-order + gateway churn per IP (prices are
         // server-authoritative, so this limits noise/table-growth, not fraud).
@@ -133,7 +141,7 @@ final class ShopCheckoutController
             return $bail('error');
         }
 
-        $callbackUrl = $this->base() . '/shop/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
+        $callbackUrl = $this->base($req) . '/shop/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
         $init = $this->payments->initialize($provider, $priced['subtotal'], $email, $reference, $callbackUrl, [
             'reference' => $reference, 'purpose' => 'shop', 'items' => $priced['count'],
         ]);
@@ -152,16 +160,16 @@ final class ShopCheckoutController
         $reference = trim((string)($q['ref'] ?? $q['reference'] ?? $q['tx_ref'] ?? ''));
         $provider  = strtolower(trim((string)($q['provider'] ?? '')));
         if ($reference === '' || !$this->payments->isKnownProvider($provider)) {
-            return $this->redirect($res, $this->base() . '/shop?checkout=error');
+            return $this->redirect($res, $this->base($req) . '/shop?checkout=error');
         }
         $order = DB::table('gates_orders')->where('reference', $reference)->first();
-        if (!$order) return $this->redirect($res, $this->base() . '/shop?checkout=error');
+        if (!$order) return $this->redirect($res, $this->base($req) . '/shop?checkout=error');
 
         $result = $this->confirmByReference($provider, $reference, $order);
         if ($result === 'confirmed' || $result === 'already') {
-            return $this->redirect($res, $this->base() . '/shop/success?ref=' . urlencode($reference));
+            return $this->redirect($res, $this->base($req) . '/shop/success?ref=' . urlencode($reference));
         }
-        return $this->redirect($res, $this->base() . '/shop?checkout=failed');
+        return $this->redirect($res, $this->base($req) . '/shop?checkout=failed');
     }
 
     /** GET /shop/success — read-only confirmation. */

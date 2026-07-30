@@ -212,6 +212,13 @@ final class DoctorCommand extends Command
         $out = [
             'variables_order' => (string) (ini_get('variables_order') ?: '?'),
             'dotenv_present'  => is_file(dirname(__DIR__, 3) . '/.env') ? 'yes' : 'no',
+            // APP_URL gets its own line because it is the one setting whose absence
+            // breaks PAYMENTS rather than cosmetics: every gateway callback URL is built
+            // from it, and a relative callback is not something a payment provider can
+            // redirect a browser to. See Support\SiteUrl.
+            'app_url_usable'  => \AfricaGates\Support\SiteUrl::isConfigured()
+                ? 'yes'
+                : 'NO — unset or missing its scheme; gateway callbacks fall back to the request host',
         ];
         foreach (['APP_URL', 'APP_ENV', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS',
                   'TRUST_PROXY', 'SESSION_SECURE', 'CRON_TOKEN', 'SETUP_TOKEN',
@@ -458,6 +465,16 @@ final class DoctorCommand extends Command
             $p[] = 'opcache.validate_timestamps is off: edits to PHP files have no effect until the '
                  . 'PHP-FPM pool is reloaded or the opcode cache is flushed. An edit that appears to '
                  . 'do nothing — including a syntax error — is explained by this alone.';
+        }
+        if (str_starts_with((string) ($r['config']['app_url_usable'] ?? ''), 'NO')) {
+            $p[] = 'APP_URL is not set to an absolute URL (with https://). Every payment '
+                 . 'gateway callback is built from it, so a blank value produced a RELATIVE '
+                 . 'return URL — which Paystack and Flutterwave cannot redirect a browser to, '
+                 . 'so the buyer never comes back and the order stays PENDING with their money '
+                 . 'taken. Support\\SiteUrl now falls back to the request host, which is correct '
+                 . 'on a single-host deployment, but set APP_URL explicitly: it is the only value '
+                 . 'that is right behind a TLS-terminating proxy, and cron and the console have '
+                 . 'no request to derive it from.';
         }
         if (str_contains((string) ($r['assets']['css_bundle'] ?? ''), 'NOT BUILT')) {
             $p[] = 'The CSS bundle is missing or stale, so every page is loading '

@@ -37,7 +37,15 @@ final class PaidVoteController
         private readonly ?LoggerInterface  $log = null,
     ) {}
 
-    private function base(): string { return rtrim((string) Env::get('APP_URL', ''), '/'); }
+    /**
+     * Absolute site base. Via SiteUrl, which falls back to the REQUEST when APP_URL is
+     * unset — this used to return '' and every gateway callback URL built from it was
+     * relative, which a payment provider cannot redirect a browser to. See SiteUrl.
+     */
+    private function base(?Request $req = null): string
+    {
+        return \AfricaGates\Support\SiteUrl::base($req);
+    }
     private function redirect(Response $res, string $url): Response { return $res->withHeader('Location', $url)->withStatus(302); }
 
     /**
@@ -73,7 +81,7 @@ final class PaidVoteController
 
         // Back to the nominee's ballot with a reason chip on any failure.
         $nominee = $nomineeId > 0 ? DB::table('gates_nominees')->where('id', $nomineeId)->first() : null;
-        $backUrl = $this->ballotUrl($nominee);
+        $backUrl = $this->ballotUrl($nominee, $req);
         $bail    = function (string $why, string $detail = '') use ($res, $backUrl, $qty, $email, $name): Response {
             $this->rememberOrder($qty, $email, $name, $detail);
             return $this->redirect($res, $backUrl . (str_contains($backUrl, '?') ? '&' : '?') . 'paid=' . urlencode($why));
@@ -122,7 +130,7 @@ final class PaidVoteController
             return $bail('error');
         }
 
-        $callbackUrl = $this->base() . '/vote/paid/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
+        $callbackUrl = $this->base($req) . '/vote/paid/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
         $init = $this->payments->initialize($provider, $amount, $email, $reference, $callbackUrl, [
             'reference' => $reference, 'purpose' => 'paid-vote',
         ]);
@@ -167,18 +175,18 @@ final class PaidVoteController
         $reference = trim((string)($q['ref'] ?? $q['reference'] ?? $q['tx_ref'] ?? ''));
         $provider  = strtolower(trim((string)($q['provider'] ?? '')));
         if ($reference === '' || !$this->payments->isKnownProvider($provider)) {
-            return $this->redirect($res, $this->base() . '/vote?paid=error');
+            return $this->redirect($res, $this->base($req) . '/vote?paid=error');
         }
         $don = DB::table('gates_donations')->where('payment_ref', $reference)->where('tier', 'paid-vote')->first();
-        if (!$don) return $this->redirect($res, $this->base() . '/vote?paid=error');
+        if (!$don) return $this->redirect($res, $this->base($req) . '/vote?paid=error');
 
         $result = $this->confirm($provider, $reference, $don);
         if ($result === 'confirmed' || $result === 'already') {
             try { PaidVoteService::mint((int)$don->id); }
             catch (\Throwable $e) { $this->log?->error('[paid-vote] mint on callback failed', ['ref' => $reference, 'err' => $e->getMessage()]); }
-            return $this->redirect($res, $this->base() . '/vote/paid/success?ref=' . urlencode($reference));
+            return $this->redirect($res, $this->base($req) . '/vote/paid/success?ref=' . urlencode($reference));
         }
-        return $this->redirect($res, $this->base() . '/vote?paid=failed');
+        return $this->redirect($res, $this->base($req) . '/vote?paid=failed');
     }
 
     /**
@@ -221,7 +229,7 @@ final class PaidVoteController
             'votes'            => $don ? (int)$don->bonus_votes : 0,
             'amount_naira'     => $don ? (int)$don->amount_naira : 0,
             'nominee_name'     => $nominee ? (string)$nominee->name : '',
-            'ballot_url'       => $this->ballotUrl($nominee),
+            'ballot_url'       => $this->ballotUrl($nominee, $req),
             'reference'        => $reference,
             // For the /vote hub's per-device ballot tracker. Only meaningful when
             // votes actually landed, so the template gates the write on `minted`.
@@ -273,9 +281,9 @@ final class PaidVoteController
     }
 
     /** The nominee's ballot URL (or the vote index as a safe fallback). */
-    private function ballotUrl(?object $nominee): string
+    private function ballotUrl(?object $nominee, ?Request $req = null): string
     {
-        if (!$nominee) return $this->base() . '/vote';
+        if (!$nominee) return $this->base($req) . '/vote';
         try {
             $slug = DB::table('gates_award_categories as cat')
                 ->join('gates_award_cycles as c', 'c.id', '=', 'cat.cycle_id')
@@ -284,9 +292,9 @@ final class PaidVoteController
                 ->value('p.slug');
             if ($slug) {
                 $nameSlug = \AfricaGates\Support\Slug::make((string) $nominee->name, 60);
-                return $this->base() . '/vote/' . $slug . '/' . (int)$nominee->id . '-' . $nameSlug;
+                return $this->base($req) . '/vote/' . $slug . '/' . (int)$nominee->id . '-' . $nameSlug;
             }
         } catch (\Throwable) {}
-        return $this->base() . '/vote';
+        return $this->base($req) . '/vote';
     }
 }
