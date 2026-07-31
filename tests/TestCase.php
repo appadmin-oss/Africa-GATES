@@ -153,7 +153,55 @@ abstract class TestCase extends BaseTestCase
         // FK enforcement off, matching the SQLite harness: seeds stay minimal.
         Capsule::connection()->statement('SET FOREIGN_KEY_CHECKS = 0');
 
+        // Must run BEFORE beginTransaction: it is DDL, which implicitly commits.
+        $this->relieveAutoIncrementPressure();
+
         Capsule::connection()->beginTransaction();
+    }
+
+    /**
+     * Tables whose AUTO_INCREMENT can be EXHAUSTED by a long suite run.
+     *
+     * `gates_award_programmes.id` is `TINYINT UNSIGNED` — 255 values — and almost every
+     * test in the suite seeds a programme. A ROLLBACK removes the rows but never rewinds
+     * the counter, so somewhere past the 255th seeded programme every remaining test
+     * dies with "Out of range value for column 'id'", for a reason that has nothing to do
+     * with what it was asserting. On the first full MySQL run that was 14 errors spread
+     * across four unrelated files.
+     *
+     * The column is NOT the bug: 255 programmes is far beyond anything this platform will
+     * hold, `gates_award_cycles.programme_id` is the same width with a foreign key between
+     * them, and widening it would be a two-table migration plus an FK rebuild to buy
+     * nothing. The SUITE is what behaves unlike production here — a real database does not
+     * create a quarter of a thousand programmes in twenty seconds.
+     *
+     * @var list<string>
+     */
+    private const NARROW_AUTO_INCREMENT = ['gates_award_programmes'];
+
+    /** Boots so far in this process, for the periodic rewind below. */
+    private static int $boots = 0;
+
+    /**
+     * Rewind the narrow counters periodically.
+     *
+     * Every 64 boots rather than every test: `ALTER TABLE … AUTO_INCREMENT` is DDL, so
+     * per-test it would implicitly commit on every single test and defeat the transaction
+     * isolation the whole harness rests on. 64 keeps the headroom at ~4x the worst case
+     * (a handful of programmes per test) while costing about eighteen statements across
+     * the full run.
+     *
+     * MySQL clamps the value to max(id)+1 when rows exist, so this is a no-op rather than
+     * a hazard if a dropping test left something behind.
+     */
+    private function relieveAutoIncrementPressure(): void
+    {
+        if (self::$boots++ % 64 !== 0) return;
+        foreach (self::NARROW_AUTO_INCREMENT as $table) {
+            try {
+                Capsule::connection()->statement('ALTER TABLE `' . $table . '` AUTO_INCREMENT = 1');
+            } catch (\Throwable) { /* a dropping test removed it; setUp rebuilds */ }
+        }
     }
 
     /**
@@ -186,11 +234,19 @@ abstract class TestCase extends BaseTestCase
             // and then issues DDL, implicitly committing them — slipped straight
             // past it and broke nine VoteServiceTest assertions in a different file
             // via a uq_one_vote collision. One round trip either way.
+            // gates_settings is in the list for a reason that took a full MySQL run to
+            // find: PaidVoteCapacityTest sweeps admin configurations with
+            // `gates_settings->truncate()` inside a loop, TRUNCATE is DDL, DDL implicitly
+            // COMMITs — so its last `vote_price_naira = 5000` outlived the rollback and
+            // PaidVoteServiceTest, in a different file, asserted the default ₦100 price
+            // and got 5000. A settings table that leaks silently reconfigures the
+            // platform for every test that runs after it.
             $leaked = (int) Capsule::connection()->selectOne(
                 'SELECT (SELECT COUNT(*) FROM gates_award_programmes)
                       + (SELECT COUNT(*) FROM gates_votes)
                       + (SELECT COUNT(*) FROM gates_nominations)
                       + (SELECT COUNT(*) FROM gates_donations)
+                      + (SELECT COUNT(*) FROM gates_settings)
                       + (SELECT COUNT(*) FROM gates_nominees) AS n'
             )->n;
             if ($leaked > 0) $this->purgeAll();

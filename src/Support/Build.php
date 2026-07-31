@@ -53,12 +53,12 @@ final class Build
      * question is what the web server loaded, so the value has to travel inside the
      * PHP file the web server loads.
      */
-    public const REV = '2026-07-30.4-csp-nonce-assets';
+    public const REV = '2026-07-31.1-docroot-forwarder-webcron';
 
     /**
      * The deployment facts, safe to expose publicly.
      *
-     * @return array{rev:string, csp:string, csp_nonce:bool, root:string, php:string}
+     * @return array{rev:string, csp:string, csp_nonce:bool, root:string, docroot:string, php:string}
      */
     public static function fingerprint(): array
     {
@@ -72,7 +72,47 @@ final class Build
             // The single most diagnostic bit on the whole endpoint.
             'csp_nonce' => str_contains($policy, "'nonce-"),
             'root' => substr(hash('sha256', dirname(__DIR__, 2)), 0, 12),
+            'docroot' => self::documentRoot(),
             'php'  => PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION,
         ];
+    }
+
+    /**
+     * Is the DocumentRoot ./public, or the project root?
+     *
+     * ── WHY THIS IS ON A PUBLIC ENDPOINT ─────────────────────────────────────────
+     *
+     * Because it is the single fact behind two production outages and it was
+     * unanswerable without shell access, so it was diagnosed by elimination twice.
+     *
+     * With the DocumentRoot at the project root, the project-root .htaccess is in
+     * scope — and while it was `Require all denied` (defence-in-depth for exactly this
+     * misconfiguration) the ENTIRE SITE returned 403. Replacing that file with a copy of
+     * public/.htaccess then returned 500, because its front-controller rule names an
+     * index.php that is not beside it. One cause, two symptoms, neither naming it.
+     *
+     * The project root is now a forwarder, so the site WORKS either way — which means
+     * the misconfiguration is no longer visible from the outside at all, and would
+     * silently persist. It is a real weakness worth fixing rather than living with: the
+     * whole tree (.env, the database, logs, vendor/) sits inside the web root, protected
+     * only by .htaccess instead of by being unreachable.
+     *
+     * Returned as a WORD, not a path. "project-root" is the actionable answer; the
+     * absolute path would be free reconnaissance for no diagnostic gain.
+     */
+    public static function documentRoot(): string
+    {
+        $declared = (string) ($_SERVER['DOCUMENT_ROOT'] ?? '');
+        if ($declared === '') return 'unknown (no DOCUMENT_ROOT — CLI or a SAPI that omits it)';
+
+        $declared = rtrim((string) (realpath($declared) ?: $declared), '/');
+        $project  = rtrim((string) (realpath(dirname(__DIR__, 2)) ?: ''), '/');
+        $public   = $project . '/public';
+
+        if ($declared === $public)  return 'public (correct)';
+        if ($declared === $project) return 'project-root (WRONG — see docs/DOCUMENT-ROOT.md)';
+        // A third copy of the app, or a symlinked docroot that resolves elsewhere. Worth
+        // distinguishing: this is the shape of "the deploy is not the tree you edited".
+        return 'elsewhere (WRONG — DOCUMENT_ROOT is not this deployment: ' . substr(hash('sha256', $declared), 0, 12) . ')';
     }
 }

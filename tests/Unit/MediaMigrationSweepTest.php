@@ -101,8 +101,8 @@ class MediaMigrationSweepTest extends TestCase
 
     private function seedNominee(int $id, string $photo): void
     {
-        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 8100, 'slug' => 'p', 'title' => 'P', 'is_active' => 1]);
-        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 8101, 'programme_id' => 8100, 'year' => 2026, 'status' => 'voting']);
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 81, 'slug' => 'p', 'title' => 'P', 'is_active' => 1]);
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 8101, 'programme_id' => 81, 'year' => 2026, 'status' => 'voting']);
         DB::table('gates_award_categories')->insertOrIgnore(['id' => 8102, 'cycle_id' => 8101, 'slug' => 'c', 'title' => 'C']);
         DB::table('gates_nominees')->insert([
             'id' => $id, 'category_id' => 8102, 'name' => 'Nominee ' . $id,
@@ -234,15 +234,40 @@ class MediaMigrationSweepTest extends TestCase
     /**
      * A malformed gallery value is left exactly as it was. Guessing at the structure to
      * save one manual fix risks destroying a gallery.
+     *
+     * ── WHY THE VALUE IS A JSON *STRING* AND NOT A BARE CSV ─────────────────────
+     *
+     * This test used to store `/uploads/…/a.png,/uploads/…/b.png` — a raw legacy CSV.
+     * That passed under the SQLite harness, where `gallery_paths` is TEXT and accepts
+     * anything, and it could NEVER have run against production: the column is `JSON` in
+     * schema.sql, and MySQL/MariaDB attach an implicit `json_valid()` CHECK, so the
+     * INSERT is rejected outright. The test was asserting the sweep survives a state the
+     * real database forbids — which is worse than not testing it, because it reads as
+     * coverage.
+     *
+     * A JSON-encoded STRING is the honest version: valid JSON, so it stores on both
+     * drivers; decodes to a string rather than an array, so it lands in exactly the
+     * `!is_array($list)` skip branch; and still contains "uploads", so the pending query
+     * SELECTS the row and the test proves it was considered and then left alone — rather
+     * than never looked at, which would pass for the wrong reason.
+     *
+     * It is also reachable in production: a hand-edited value, or a legacy importer that
+     * wrapped the old CSV in JSON instead of splitting it.
      */
     public function test_a_malformed_gallery_is_left_untouched(): void
     {
-        $bad = '/uploads/legacy/2026/07/a.png,/uploads/legacy/2026/07/b.png'; // legacy CSV, not JSON
+        $bad = (string) json_encode('/uploads/legacy/2026/07/a.png,/uploads/legacy/2026/07/b.png');
         DB::table('gates_legacy_events')->insert(['id' => 8401, 'slug' => 'e2', 'title' => 'E2', 'event_date' => '2026-07-01', 'gallery_paths' => $bad]);
 
         $r = $this->sweep()->run(false, 10);
 
-        $this->assertSame($bad, (string) DB::table('gates_legacy_events')->where('id', 8401)->value('gallery_paths'));
+        $stored = (string) DB::table('gates_legacy_events')->where('id', 8401)->value('gallery_paths');
+        $this->assertSame(
+            json_decode($bad, true),
+            json_decode($stored, true),
+            'the value must come back unchanged — compared as JSON because MySQL normalises '
+            . 'whitespace and escaping inside a JSON column while SQLite stores the bytes'
+        );
         $this->assertGreaterThan(0, $r['skipped']);
     }
 

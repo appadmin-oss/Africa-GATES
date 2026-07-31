@@ -47,6 +47,63 @@ final class Maintenance
     public function lines(): array { return $this->lines; }
 
     /**
+     * Tasks that threw, keyed by task name.
+     *
+     * @var array<string,string>
+     */
+    private array $failures = [];
+
+    /** @return array<string,string> */
+    public function failures(): array { return $this->failures; }
+
+    /**
+     * The sentinel a failed task reports in the `ran` list.
+     *
+     * Not 0. A task returning 0 means "ran fine, nothing to do" — the overwhelmingly
+     * common case — and collapsing a crash into that number is precisely how a broken
+     * cron looks healthy.
+     */
+    public const TASK_FAILED = -1;
+
+    /**
+     * Run one task in isolation.
+     *
+     * ── THE FAILURE THIS REMOVES ────────────────────────────────────────────────
+     *
+     * Reported from production: "the cron page 500s even at the time the whole site was
+     * 200." Three of the tasks below had no error handling at all — `pruneCache()`,
+     * `advanceCycles()` and `purgeExpiredOtp()` each issue a bare query — and two of them
+     * run on EVERY tick. So one missing table, one migration that had not been applied,
+     * one locked row, and `run()` threw before reaching anything else. The webcron route
+     * caught it, wrote `{"ok":false,"error":"maintenance run failed"}`, and put the actual
+     * exception in a log an operator with no SSH cannot read.
+     *
+     * Two independent problems in that sentence, and both are fixed:
+     *
+     *   1. ALL-OR-NOTHING. A cache prune failing stopped the job queue draining, the
+     *      cycles advancing, the payments reconciling and the receipts sending. The
+     *      periodic work of the whole platform hung on the least important task in the
+     *      list. Each task is now independent: the rest of the run completes.
+     *   2. NO DIAGNOSIS. The reason existed and was discarded. It is now recorded per
+     *      task, returned by run(), written to gates_cron_log, and — because the endpoint
+     *      is gated by a shared secret and whoever holds it is the operator — shown in
+     *      the webcron response body.
+     */
+    private function task(string $name, callable $fn): int
+    {
+        try {
+            return (int) $fn();
+        } catch (\Throwable $e) {
+            $this->failures[$name] = $e->getMessage();
+            // The file:line as well as the message. "Base table or view not found" names
+            // the table but not which of the fifteen callers asked for it.
+            $this->log('! ' . $name . ' FAILED: ' . $e->getMessage()
+                . ' (' . basename($e->getFile()) . ':' . $e->getLine() . ')');
+            return self::TASK_FAILED;
+        }
+    }
+
+    /**
      * Run clock-selected work ('auto') or a single named task.
      * @return array{task:string, ran:array<int,array{0:string,1:int}>, lines:string[], runtime_ms:int}
      */
@@ -58,65 +115,65 @@ final class Maintenance
 
         if ($task === 'auto') {
             // Every run: drain the job queue + advance cycle lifecycle + cache prune
-            $ran[] = ['queue',  $this->drainJobs()];
-            $ran[] = ['cycles', $this->advanceCycles()];
-            $ran[] = ['cache',  $this->pruneCache()];
+            $ran[] = ['queue',  $this->task('queue',  fn() => $this->drainJobs())];
+            $ran[] = ['cycles', $this->task('cycles', fn() => $this->advanceCycles())];
+            $ran[] = ['cache',  $this->task('cache',  fn() => $this->pruneCache())];
             // ORDER IS LOAD-BEARING. Reconciliation re-verifies stale pending payments
             // against the gateway and confirms the genuinely-paid ones; the recovery
             // mail then tells whoever is STILL pending that they did not finish. Run
             // the other way round and the first thing a paying supporter whose callback
             // was dropped receives is an email saying they did not pay.
-            $ran[] = ['payments',      $this->reconcilePayments()];
-            $ran[] = ['checkout-mail', $this->mailAbandonedCheckouts()];
+            $ran[] = ['payments',      $this->task('payments',      fn() => $this->reconcilePayments())];
+            $ran[] = ['checkout-mail', $this->task('checkout-mail', fn() => $this->mailAbandonedCheckouts())];
             // Every hour
             if ((int)$now->minute < 15) {
-                $ran[] = ['otp',        $this->purgeExpiredOtp()];
-                $ran[] = ['magic',      $this->purgeExpiredMagic()];
-                $ran[] = ['ratelimit',  $this->pruneRateLimits()];
-                $ran[] = ['sharelinks', $this->pruneShareLinks()];
-                $ran[] = ['triage-backfill', NominationTriageService::backfill(100)];
-                try { $ran[] = ['maillog', (int) DB::table('gates_mail_log')->where('created_at', '<', Carbon::now()->subDays(30))->delete()]; } catch (\Throwable $e) {}
+                $ran[] = ['otp',        $this->task('otp',        fn() => $this->purgeExpiredOtp())];
+                $ran[] = ['magic',      $this->task('magic',      fn() => $this->purgeExpiredMagic())];
+                $ran[] = ['ratelimit',  $this->task('ratelimit',  fn() => $this->pruneRateLimits())];
+                $ran[] = ['sharelinks', $this->task('sharelinks', fn() => $this->pruneShareLinks())];
+                $ran[] = ['triage-backfill', $this->task('triage-backfill', fn() => NominationTriageService::backfill(100))];
+                $ran[] = ['maillog', $this->task('maillog', fn() => (int) DB::table('gates_mail_log')->where('created_at', '<', Carbon::now()->subDays(30))->delete())];
             }
             // Every 6 hours: CPI recompute + tamper-evident standings snapshot
             if ($now->hour % 6 === 0 && (int)$now->minute < 15) {
-                $ran[] = ['cpi',      $this->recomputeCpi()];
-                $ran[] = ['snapshot', $this->captureSnapshots()];
+                $ran[] = ['cpi',      $this->task('cpi',      fn() => $this->recomputeCpi())];
+                $ran[] = ['snapshot', $this->task('snapshot', fn() => $this->captureSnapshots())];
             }
             // 06:00 daily: collusion scan + reminders + acknowledgements + digest + cron-log trim
             if ($now->hour === 6 && (int)$now->minute < 15) {
-                $ran[] = ['collusion', $this->scanCollusion()];
-                $ran[] = ['reminder',  $this->sendVotingReminders()];
-                $ran[] = ['nom-ack',   $this->sendPendingAcknowledgements()];
-                $this->recordDigest(); $ran[] = ['digest', 1];
-                $ran[] = ['cronlog',   $this->trimCronLog()];
+                $ran[] = ['collusion', $this->task('collusion', fn() => $this->scanCollusion())];
+                $ran[] = ['reminder',  $this->task('reminder',  fn() => $this->sendVotingReminders())];
+                $ran[] = ['nom-ack',   $this->task('nom-ack',   fn() => $this->sendPendingAcknowledgements())];
+                $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())];
+                $ran[] = ['cronlog',   $this->task('cronlog',   fn() => $this->trimCronLog())];
             }
         } else {
             match ($task) {
-                'cycles'    => $ran[] = ['cycles', $this->advanceCycles()],
-                'cpi'       => $ran[] = ['cpi',   $this->recomputeCpi()],
-                'cache'     => $ran[] = ['cache', $this->pruneCache()],
-                'queue'     => $ran[] = ['queue', $this->drainJobs()],
-                'otp'       => $ran[] = ['otp',   $this->purgeExpiredOtp()],
-                'magic'     => $ran[] = ['magic', $this->purgeExpiredMagic()],
-                'collusion' => $ran[] = ['collusion', $this->scanCollusion()],
-                'payments'  => $ran[] = ['payments', $this->reconcilePayments()],
-                'checkout-mail' => $ran[] = ['checkout-mail', $this->mailAbandonedCheckouts()],
-                'digest'    => $this->recordDigest(),
+                'cycles'    => $ran[] = ['cycles', $this->task('cycles', fn() => $this->advanceCycles())],
+                'cpi'       => $ran[] = ['cpi',   $this->task('cpi',   fn() => $this->recomputeCpi())],
+                'cache'     => $ran[] = ['cache', $this->task('cache', fn() => $this->pruneCache())],
+                'queue'     => $ran[] = ['queue', $this->task('queue', fn() => $this->drainJobs())],
+                'otp'       => $ran[] = ['otp',   $this->task('otp',   fn() => $this->purgeExpiredOtp())],
+                'magic'     => $ran[] = ['magic', $this->task('magic', fn() => $this->purgeExpiredMagic())],
+                'collusion' => $ran[] = ['collusion', $this->task('collusion', fn() => $this->scanCollusion())],
+                'payments'  => $ran[] = ['payments', $this->task('payments', fn() => $this->reconcilePayments())],
+                'checkout-mail' => $ran[] = ['checkout-mail', $this->task('checkout-mail', fn() => $this->mailAbandonedCheckouts())],
+                'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
                 'all'       => (function () use (&$ran) {
-                    $ran[] = ['queue', $this->drainJobs()];
-                    $ran[] = ['cycles', $this->advanceCycles()];
-                    $ran[] = ['cache', $this->pruneCache()];
-                    $ran[] = ['payments',      $this->reconcilePayments()];
-                    $ran[] = ['checkout-mail', $this->mailAbandonedCheckouts()];
-                    $ran[] = ['otp',   $this->purgeExpiredOtp()];
-                    $ran[] = ['magic', $this->purgeExpiredMagic()];
-                    $ran[] = ['ratelimit', $this->pruneRateLimits()];
-                    $ran[] = ['cpi',   $this->recomputeCpi()];
-                    $ran[] = ['snapshot', $this->captureSnapshots()];
-                    $ran[] = ['collusion', $this->scanCollusion()];
-                    $ran[] = ['reminder', $this->sendVotingReminders()];
-                    $this->recordDigest(); $ran[] = ['digest', 1];
-                    $ran[] = ['cronlog', $this->trimCronLog()];
+                    $ran[] = ['queue', $this->task('queue', fn() => $this->drainJobs())];
+                    $ran[] = ['cycles', $this->task('cycles', fn() => $this->advanceCycles())];
+                    $ran[] = ['cache', $this->task('cache', fn() => $this->pruneCache())];
+                    $ran[] = ['payments',      $this->task('payments',      fn() => $this->reconcilePayments())];
+                    $ran[] = ['checkout-mail', $this->task('checkout-mail', fn() => $this->mailAbandonedCheckouts())];
+                    $ran[] = ['otp',   $this->task('otp',   fn() => $this->purgeExpiredOtp())];
+                    $ran[] = ['magic', $this->task('magic', fn() => $this->purgeExpiredMagic())];
+                    $ran[] = ['ratelimit', $this->task('ratelimit', fn() => $this->pruneRateLimits())];
+                    $ran[] = ['cpi',   $this->task('cpi',   fn() => $this->recomputeCpi())];
+                    $ran[] = ['snapshot', $this->task('snapshot', fn() => $this->captureSnapshots())];
+                    $ran[] = ['collusion', $this->task('collusion', fn() => $this->scanCollusion())];
+                    $ran[] = ['reminder', $this->task('reminder', fn() => $this->sendVotingReminders())];
+                    $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())];
+                    $ran[] = ['cronlog', $this->task('cronlog', fn() => $this->trimCronLog())];
                 })(),
                 default     => $this->log("Unknown task: $task"),
             };
@@ -126,15 +183,34 @@ final class Maintenance
         try {
             DB::table('gates_cron_log')->insert([
                 'job_name'   => 'maintenance',
-                'status'     => 'success',
-                'message'    => json_encode($ran),
+                // 'success' unconditionally was a lie the admin console repeated back:
+                // the run "succeeded" while the exception that ended it was in a file
+                // nobody could open. The column is ENUM('success','error'), so a run with
+                // any failed task is an error — and the reasons travel in `message`,
+                // which is what the console already shows.
+                'status'     => $this->failures === [] ? 'success' : 'error',
+                'message'    => json_encode(
+                    $this->failures === [] ? $ran : ['ran' => $ran, 'failures' => $this->failures],
+                    JSON_UNESCAPED_SLASHES
+                ),
                 'runtime_ms' => $ms,
                 'ran_at'     => Carbon::now()->toDateTimeString(),
             ]);
         } catch (\Throwable $e) {}
 
-        $this->log('Done.');
-        return ['task' => $task, 'ran' => $ran, 'lines' => $this->lines, 'runtime_ms' => $ms];
+        $this->log($this->failures === []
+            ? 'Done.'
+            : 'Done, with ' . count($this->failures) . ' failed task(s): ' . implode(', ', array_keys($this->failures)));
+
+        return [
+            'task'       => $task,
+            'ran'        => $ran,
+            // Present and empty on a clean run, so a caller can test it without having to
+            // know whether the key exists.
+            'failures'   => $this->failures,
+            'lines'      => $this->lines,
+            'runtime_ms' => $ms,
+        ];
     }
 
     /**
@@ -523,7 +599,7 @@ final class Maintenance
         return $count;
     }
 
-    private function recordDigest(): void
+    private function recordDigest(): int
     {
         $today = Carbon::now()->startOfDay()->toDateTimeString();
         $stats = [
@@ -545,5 +621,6 @@ final class Maintenance
             ]);
             $this->log('Digest: ' . json_encode($stats));
         } catch (\Throwable $e) {}
+        return 1;
     }
 }

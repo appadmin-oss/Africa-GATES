@@ -100,6 +100,10 @@ final class DoctorCommand extends Command
             // A CLI/web timezone disagreement makes cron and the site disagree about
             // whether voting is open, permanently and with no error anywhere.
             'ini_date.timezone' => (string) (ini_get('date.timezone') ?: '(unset)'),
+            // Answerable only from the web SAPI (there is no DOCUMENT_ROOT on the CLI),
+            // which is why the same value is on /ping — the endpoint an operator with no
+            // shell can actually reach. See Build::documentRoot() for what it cost.
+            'document_root' => \AfricaGates\Support\Build::documentRoot(),
         ];
     }
 
@@ -510,6 +514,17 @@ final class DoctorCommand extends Command
                  . 'stylesheets instead of one — roughly 2.4s of blocking requests on a mid-range '
                  . 'Android. The site is CORRECT, just slow: run `bin/console assets:build` (or open '
                  . '/__setup/assets?token=… on a host with no shell) and add it to the deploy steps.';
+        }
+        if (str_contains((string) ($r['runtime']['document_root'] ?? ''), 'WRONG')) {
+            $p[] = 'THE DOCUMENT ROOT IS NOT ./public (' . $r['runtime']['document_root'] . '). This one '
+                 . 'fact caused two outages: the project-root .htaccess was `Require all denied` as '
+                 . 'defence-in-depth for this exact misconfiguration, so the WHOLE SITE returned 403; '
+                 . 'and replacing that file with a copy of public/.htaccess returned 500, because its '
+                 . 'front-controller rule names an index.php that is not beside it. The project root is '
+                 . 'now a forwarder, so the site works either way — but the entire tree (.env, the '
+                 . 'database, logs, vendor/) is sitting inside the web root, protected only by '
+                 . '.htaccess rules instead of by being unreachable. Fix it in cPanel: Domains → '
+                 . 'Manage → Document Root → append `/public`. See docs/DOCUMENT-ROOT.md.';
         }
         if (($r['mail']['smtp_configured'] ?? '') === 'NO') {
             $p[] = 'SMTP IS NOT CONFIGURED, so NO email is being delivered — not the voting OTP, not a '

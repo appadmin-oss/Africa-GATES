@@ -37,4 +37,28 @@ final class CronGuard
         self::$handles[$file] = $handle;
         return true;
     }
+
+    /**
+     * Release every lock this process holds.
+     *
+     * Not needed in production — under mod_php/PHP-FPM statics do not survive a request,
+     * and a CLI cron run ends when its work does, so the OS reclaims the lock either way.
+     *
+     * It exists for the ONE context where "the rest of the process" is the wrong lifetime:
+     * a test process that dispatches `/__cron/run` more than once. Without it the first
+     * dispatch keeps the lock and every later one short-circuits to `{"skipped":"another
+     * run in progress"}` — which is a 200 with `ok:true`, so a test asserting on a failed
+     * task silently measured a run that never happened. That cost a debugging session,
+     * and the misreading is quiet enough to be worth removing outright.
+     */
+    public static function releaseAll(): void
+    {
+        foreach (self::$handles as $handle) {
+            if (is_resource($handle)) {
+                @flock($handle, LOCK_UN);
+                @fclose($handle);
+            }
+        }
+        self::$handles = [];
+    }
 }

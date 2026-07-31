@@ -188,7 +188,30 @@ return function(App $app) {
         $given = (string)($req->getQueryParams()['token'] ?? ($req->getHeaderLine('X-Cron-Token') ?: ''));
         return strlen($given) >= 12 && hash_equals($token, $given);
     };
-    $cronRun = static function ($req, $res) use ($cronGuard, $app) {
+    // ── NOT `static`. THAT ONE WORD IS WHY THIS ENDPOINT ALWAYS 500'd ───────────
+    //
+    // Reported from production: "the cron page 500s even at the time the whole site
+    // was 200." It did, on every request, and nothing about the token, the database
+    // or the maintenance work had anything to do with it.
+    //
+    // Slim binds a route callable to the container before invoking it:
+    //
+    //     Slim\CallableResolver::bindToContainer(): $callable->bindTo($this->container)
+    //
+    // `Closure::bindTo()` returns NULL for a STATIC closure — a static closure has no
+    // `$this` to rebind — and Slim declares that method's return type as `callable`.
+    // So a static route handler is a guaranteed
+    //
+    //     TypeError: bindToContainer(): Return value must be of type callable, null returned
+    //
+    // before one line of the handler runs. It fails identically whether the site is
+    // healthy or not, which is exactly why it looked unrelated to everything else.
+    //
+    // `$cronGuard` and `$setupGuard` above stay static: they are plain closures this
+    // file calls itself, never handed to Slim. Only a callable Slim RESOLVES may not
+    // be static. tests/Unit/WebcronTest.php dispatches this route through the real
+    // app so the mistake cannot come back in a form a grep would miss.
+    $cronRun = function ($req, $res) use ($cronGuard, $app) {
         if (!$cronGuard($req)) return $res->withStatus(404);
         $root = dirname(__DIR__);
         // Single-instance: don't overlap the CLI cron or another webcron hit.
@@ -200,11 +223,37 @@ return function(App $app) {
         try {
             $container = $app->getContainer();   // full services; Maintenance degrades gracefully if null
             $result = (new \AfricaGates\Support\Maintenance($container, false))->run($task);
-            $res->getBody()->write(json_encode(['ok' => true] + $result, JSON_UNESCAPED_SLASHES));
+
+            // ── WHY A PARTIAL RUN IS STILL A 200 ─────────────────────────────────
+            //
+            // Reported from production: "the cron page 500s even at the time the whole
+            // site was 200." One unguarded task threw, `run()` aborted, and this handler
+            // answered 500 with the word "failed" and nothing else. Two consequences,
+            // both bad: an operator with no SSH had no way to learn the reason, and a
+            // webcron service seeing a persistent 500 backs off or disables the job —
+            // so the tasks that WERE working stopped running too.
+            //
+            // Tasks are now isolated (see Maintenance::task()), so the run always
+            // completes and the status describes what happened rather than whether
+            // anything went wrong: 200 with `ok:false` and a per-task `failures` map.
+            // The scheduler keeps firing, the healthy work keeps happening, and opening
+            // the URL in a browser says exactly which task is broken and why.
+            $ok = ($result['failures'] ?? []) === [];
+            $res->getBody()->write(json_encode(['ok' => $ok] + $result, JSON_UNESCAPED_SLASHES));
             $code = 200;
         } catch (\Throwable $e) {
+            // Only reached when the ORCHESTRATOR itself could not run — no database, no
+            // container. The message is returned because this endpoint is gated by a
+            // >=12-character shared secret compared with hash_equals: whoever is reading
+            // this response is the operator, and withholding it from them bought nothing
+            // and cost days.
             error_log('[webcron] ' . $e->getMessage());
-            $res->getBody()->write(json_encode(['ok' => false, 'error' => 'maintenance run failed']));
+            $res->getBody()->write(json_encode([
+                'ok'    => false,
+                'error' => 'maintenance could not start',
+                'why'   => $e->getMessage(),
+                'at'    => basename($e->getFile()) . ':' . $e->getLine(),
+            ], JSON_UNESCAPED_SLASHES));
             $code = 500;
         }
         return $res->withHeader('Content-Type', 'application/json')

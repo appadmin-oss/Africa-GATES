@@ -263,9 +263,9 @@ class PaidVoteCapacityTest extends TestCase
     {
         $this->setting('vote_max_qty', '100000');
 
-        DB::table('gates_award_programmes')->insert(['id' => 9200, 'slug' => 'p', 'title' => 'P', 'is_active' => 1]);
+        DB::table('gates_award_programmes')->insert(['id' => 92, 'slug' => 'p', 'title' => 'P', 'is_active' => 1]);
         DB::table('gates_award_cycles')->insert([
-            'id' => 9201, 'programme_id' => 9200, 'year' => 2026, 'status' => 'voting',
+            'id' => 9201, 'programme_id' => 92, 'year' => 2026, 'status' => 'voting',
             'voting_open' => '2026-07-01 00:00:00', 'voting_close' => '2026-12-31 00:00:00',
         ]);
         DB::table('gates_award_categories')->insert(['id' => 9202, 'cycle_id' => 9201, 'slug' => 'c', 'title' => 'C']);

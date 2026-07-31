@@ -1,9 +1,62 @@
 Options -Indexes
 Options -MultiViews
 
+# ── THIS DIRECTORY MUST ALWAYS BE REACHABLE ───────────────────────────────────
+#
+# Apache merges .htaccess down the tree, so an authorisation rule above this
+# directory is INHERITED here. The project-root .htaccess used to be
+# `Require all denied` as defence-in-depth against a misconfigured DocumentRoot —
+# and on a host whose DocumentRoot IS the project root, that inherited deny meant
+# the entire site returned 403, including this directory, which is the one place
+# that has to serve.
+#
+# The root file is now a forwarder rather than a deny-all, so nothing is inherited
+# today. This block stays anyway: it costs nothing, and it is the difference
+# between "someone restored the deny-all root file" being a non-event and being a
+# total outage. Re-granting HERE is safe in a way granting anywhere higher is not —
+# this is the only directory whose entire contents are meant to be public.
+<IfModule mod_authz_core.c>
+  Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Allow from all
+</IfModule>
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteBase /
+
+  # ── NO RewriteBase, DELIBERATELY ────────────────────────────────────────────
+  #
+  # This file said `RewriteBase /`, which is only true when the DocumentRoot IS
+  # this directory. On the deployment where the DocumentRoot is the project root
+  # instead, this directory is served at /public/, so `RewriteBase /` sent every
+  # pretty URL to `/index.php` — a path that does not exist there. It happened to
+  # work anyway, because the project-root forwarder caught the stray /index.php and
+  # prefixed it, i.e. correctness rested on a three-hop accident.
+  #
+  # With no RewriteBase, mod_rewrite derives the prefix from this directory's own
+  # URL path, which is right in BOTH configurations and takes one hop instead of
+  # three. Substitutions below that must stay absolute keep their leading slash.
+
+  # ── A /public/… URL IS NOT A SECOND HOMEPAGE ─────────────────────────────────
+  #
+  # When the DocumentRoot is the project root, /public/vote and /vote both resolve
+  # here, so every page would answer on two URLs — splitting share links and search
+  # indexing, which on a platform whose whole mechanic is sharing a ballot is a real
+  # cost rather than a tidiness point.
+  #
+  # It has to live in THIS file: mod_rewrite rules are not inherited, so a rule in
+  # the project-root .htaccess is never reached for a request that already names
+  # public/ (verified by rewrite trace, after the first attempt there did nothing).
+  #
+  # Matched against THE_REQUEST — the verbatim request line — because that is NOT
+  # rewritten by the internal redirects below; %{REQUEST_URI} would match our own
+  # output and loop. Anchored at the method so a query string that happens to
+  # contain "/public/" cannot trigger it. $1 is the path relative to this
+  # directory, so the leading slash makes the target the clean top-level URL.
+  RewriteCond %{THE_REQUEST} "^[A-Z]+ /+public(/|\s)" [NC]
+  RewriteRule ^(.*)$ /$1 [R=301,L]
 
   # Defence-in-depth: never execute uploaded files as scripts. Uploads are
   # admin-only, re-encoded images (see Admin/Services/UploadService), but a hard
@@ -104,7 +157,18 @@ Options -MultiViews
 </IfModule>
 
 # Block sensitive files
-<FilesMatch "^\.env">
-  Order allow,deny
-  Deny from all
+#
+# `Order`/`Deny` are mod_access_compat — a COMPATIBILITY shim that Apache 2.4 does
+# not load by default. Unguarded, an "Invalid command 'Order'" in .htaccess is a
+# 500 for every URL under this directory, which is the same class of outage as the
+# `setifempty` incident documented above. So: 2.4 syntax first, 2.2 only as the
+# fallback, both module-gated.
+<FilesMatch "(?i)^\.(env|git|htpasswd|user\.ini)">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
 </FilesMatch>

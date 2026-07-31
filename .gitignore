@@ -1,5 +1,12 @@
 .env
-/vendor/
+# `/vendor/*`, not `/vendor/`: git cannot re-include a file whose PARENT DIRECTORY
+# is excluded, and vendor/.htaccess must ship. On a deployment whose DocumentRoot
+# is the project root — the misconfiguration that produced a site-wide 403 here —
+# vendor/ is inside the web root, and it is the largest attack surface in the tree
+# (every dependency's tests, fixtures and dev scripts). Composer does not remove
+# unrecognised files, so the deny survives `composer install`.
+/vendor/*
+!/vendor/.htaccess
 var/cache/twig/*.php
 var/data/
 public/assets/vendor/*.map

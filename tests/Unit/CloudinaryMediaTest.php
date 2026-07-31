@@ -232,8 +232,8 @@ class CloudinaryMediaTest extends TestCase
      */
     public function test_the_sweep_refuses_paths_outside_the_uploads_tree(): void
     {
-        DB::table('gates_award_programmes')->insert(['id' => 9100, 'slug' => 'p', 'title' => 'P', 'is_active' => 1]);
-        DB::table('gates_award_cycles')->insert(['id' => 9101, 'programme_id' => 9100, 'year' => 2026, 'status' => 'voting']);
+        DB::table('gates_award_programmes')->insert(['id' => 91, 'slug' => 'p', 'title' => 'P', 'is_active' => 1]);
+        DB::table('gates_award_cycles')->insert(['id' => 9101, 'programme_id' => 91, 'year' => 2026, 'status' => 'voting']);
         DB::table('gates_award_categories')->insert(['id' => 9102, 'cycle_id' => 9101, 'slug' => 'c', 'title' => 'C']);
 
         $dangerous = [
