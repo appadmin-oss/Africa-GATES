@@ -52,9 +52,28 @@ final class PulseController
         ]);
     }
 
-    /** Run a query, returning [] if its table/columns aren't present. */
+    /**
+     * Run a feed query, and never let one broken section take the whole page down.
+     *
+     * ── BUT NOT SILENTLY ─────────────────────────────────────────────────────
+     *
+     * This swallowed everything and returned `[]`, which is indistinguishable from
+     * "there is nothing to show". So a missing table or column — the normal state of a
+     * database between a deploy and someone running `db:migrate` — rendered Pulse as a
+     * page of empty sections with no error, nothing in the log and nothing to search
+     * for. "Pulse is not operational" and "nobody has posted yet" looked identical.
+     *
+     * The degradation is still correct: one failing query must not 500 the feed. What
+     * was wrong was doing it in silence, so now the reason is written down and
+     * `var/logs` can answer the question instead of a guess having to.
+     */
     private function safe(callable $fn): array
     {
-        try { return $fn(); } catch (\Throwable $e) { return []; }
+        try {
+            return $fn();
+        } catch (\Throwable $e) {
+            error_log('[pulse] feed section failed, rendering it empty: ' . $e->getMessage());
+            return [];
+        }
     }
 }

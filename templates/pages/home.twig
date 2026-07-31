@@ -176,7 +176,11 @@
   .hm-lb__c{ font-size:13px; color:#5a6d6f; margin-top:2px; }
   .hm-lb__cpi{ flex:none; text-align:right; font-family:var(--ag-font-mono); font-weight:700; font-size:19px; color:var(--ag-green); }
   .hm-lb__empty{ background:#fff; border:1px dashed rgba(16,41,44,.16); border-radius:16px; padding:34px 22px; text-align:center; color:#5a6d6f; font-size:14px; }
-  .hm-how{ position:sticky; top:96px; background:#10292C; border-radius:24px; padding:clamp(1.8rem,3vw,2.1rem); position:relative; overflow:hidden; }
+  /* `position` was declared TWICE here — sticky, then relative — so the later one won
+     and this card never actually stuck. Sticky is the intent, and it establishes a
+     containing block exactly as relative does, so the decorative orb below stays
+     clipped by the overflow:hidden either way. */
+  .hm-how{ position:sticky; top:96px; background:#10292C; border-radius:24px; padding:clamp(1.8rem,3vw,2.1rem); overflow:hidden; }
   .hm-how__orb{ position:absolute; right:-50px; top:-50px; width:190px; height:190px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.2),transparent 70%); }
   .hm-how__k{ position:relative; margin:0 0 14px; font:700 12px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:#fbc329; }
   .hm-how__step{ position:relative; display:flex; gap:15px; padding:16px 0; border-bottom:1px solid rgba(255,255,255,.1); }
@@ -219,7 +223,13 @@
     .hm-feat{ grid-template-columns:1fr; gap:2rem; }
     .hm-feat__vis{ order:2; }
     .hm-lbsec{ grid-template-columns:1fr; }
-    .hm-how{ position:static; }
+    /* RELATIVE, not static. Cancelling the sticky behaviour is all this was meant to
+       do. `static` also removed .hm-how as a containing block, so its absolutely
+       positioned orb (right:-50px, 190px wide) re-anchored to an ancestor — and an
+       overflow:hidden only clips descendants whose containing block sits inside it, so
+       the orb escaped the card and pushed the document 50px past the viewport. That was
+       the entire horizontal scroll on the mobile homepage. */
+    .hm-how{ position:relative; }
     .hm-leg__in{ grid-template-columns:1fr; }
     .hm-leg__vis{ min-height:300px; }
   }

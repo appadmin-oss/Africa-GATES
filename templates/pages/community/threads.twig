@@ -48,8 +48,18 @@
   .cm-rail{ position:sticky; top:90px; display:flex; flex-direction:column; gap:16px; }
   .cm-feed{ display:flex; flex-direction:column; gap:15px; min-width:0; }
   @media(max-width:980px){
-    .cm-grid{ grid-template-columns:1fr; }
-    .cm-rail{ position:static; }
+    /* minmax(0,1fr), NOT 1fr.
+       A `1fr` track has an automatic minimum of MIN-CONTENT, so it refuses to shrink
+       below the widest thing inside it — and one rail card's intrinsic width held the
+       single column at 367px inside a 328px page on a 360px phone. Everything was then
+       clipped on the right, with no scrollbar to reveal it because the root clips
+       overflow. The desktop rule above already uses minmax(0,1fr) for its middle column
+       for exactly this reason; the stacked rule did not.
+       `min-width:0` on the children is the same fix one level down: a grid ITEM carries
+       the same auto minimum as the track. */
+    .cm-grid{ grid-template-columns:minmax(0,1fr); }
+    .cm-grid > *{ min-width:0; }
+    .cm-rail{ position:static; min-width:0; }
     .cm-rail--r{ order:3; }
   }
 

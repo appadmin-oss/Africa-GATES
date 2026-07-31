@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use AfricaGates\Support\OptionalColumn;
+use AfricaGates\Services\CacheService;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
@@ -359,6 +360,12 @@ class PaidVoteService
             // Public tally only — organic_vote_count (the CPI community signal)
             // is NEVER moved by money.
             DB::table('gates_nominees')->where('id', $nomineeId)->increment('vote_count', $qty);
+
+            // The free OTP path busts this tag (ApiController) and the paid path did not,
+            // so a paid vote left the front page's "Votes cast" and the leaderboard
+            // caches stale for up to an hour. That is the worst possible window: a paid
+            // pack is exactly what a nominee buys during a rally and then goes to look at.
+            try { (new CacheService())->forgetByTag('leaderboard'); } catch (\Throwable) {}
 
             WebhookService::dispatch('vote.paid', [
                 'nominee_id' => $nomineeId,

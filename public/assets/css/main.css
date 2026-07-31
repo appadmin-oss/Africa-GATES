@@ -4145,7 +4145,16 @@ html:not(.has-aurora) .aurora-canvas--soft {
 /* ═══════════════════════════════════════════════════════════════
    MOBILE-FIRST POLISH — fluid spacing, safe overflow, big targets
 ═══════════════════════════════════════════════════════════════ */
-html, body { overflow-x: hidden; }
+/* CLIP, not HIDDEN.
+   `overflow-x: hidden` on the root makes html/body a SCROLL CONTAINER, and that
+   silently disables `position: sticky` for every descendant — which this site uses in
+   at least eight places (the how-it-works card, the donate and support rails, the legal
+   sidebar, the pulse column, both vote surfaces). They had simply stopped sticking, and
+   nothing about that symptom points back at this line.
+   `overflow-x: clip` clips identically WITHOUT creating a scroll container, so sticky
+   keeps working. `hidden` stays first as the fallback for browsers predating `clip`,
+   where the old trade-off still applies — i.e. exactly today's behaviour. */
+html, body { overflow-x: hidden; overflow-x: clip; }
 img, svg, canvas, video { max-width: 100%; }
 
 /* Fluid section rhythm (mobile-first: tighter, scales up) */

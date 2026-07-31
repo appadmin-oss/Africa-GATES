@@ -35,7 +35,10 @@
   .cm-grid{ display:grid; grid-template-columns:minmax(0,1fr) 296px; gap:26px; align-items:start; margin:14px auto 0; padding-bottom:60px; }
   .cm-main{ display:flex; flex-direction:column; gap:16px; min-width:0; }
   .cm-rail{ position:sticky; top:90px; display:flex; flex-direction:column; gap:16px; }
-  @media(max-width:880px){ .cm-grid{ grid-template-columns:1fr; } .cm-rail{ position:static; } }
+  /* minmax(0,1fr) + min-width:0 — a `1fr` track cannot shrink below its content's
+     min-content width, which clipped the stacked layout on a 360px phone. Same fix,
+     and same reasoning, as the thread-list page. */
+  @media(max-width:880px){ .cm-grid{ grid-template-columns:minmax(0,1fr); } .cm-grid > *{ min-width:0; } .cm-rail{ position:static; min-width:0; } }
 
   .cm-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; }
   .cm-op{ padding:26px 28px; }
