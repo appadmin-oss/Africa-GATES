@@ -103,22 +103,73 @@ final class PaidVoteServiceTest extends TestCase
         $this->assertTrue(PaidVoteService::freeVotingDisabled());
     }
 
-    public function test_pricing_uses_cheaper_of_per_vote_and_bundle(): void
+    /**
+     * Pricing is a percentage ladder now, not a ₦1,000 bundle. The bundle rate said
+     * "votes per ₦1,000", which expressed a discount only by implication and changed
+     * meaning silently whenever the per-vote price moved. A percentage is what the
+     * admin is actually deciding, so it is what is stored.
+     */
+    public function test_pricing_applies_the_tier_discount_reached(): void
     {
-        $this->settings(['vote_price_naira' => '150', 'vote_votes_per_1000' => '10']); // bundle → ₦100/vote
-        $this->assertSame(150, PaidVoteService::price(1));      // below a bundle → per-vote price rules
-        $this->assertSame(750, PaidVoteService::price(5));      // still below the 10-vote bundle
-        $this->assertSame(1150, PaidVoteService::price(11));    // one bundle (₦1000) + 1 × ₦150 remainder
-        $this->assertSame(1000, PaidVoteService::price(10));    // 10 × 150 = 1500 vs bundle 1000
-        $this->assertSame(2000, PaidVoteService::price(20));    // bundle 2000 vs per-vote 3000
+        $this->settings([
+            'vote_price_naira' => '150',
+            'vote_tiers' => json_encode([
+                ['qty' => 1, 'off' => 0], ['qty' => 5, 'off' => 10], ['qty' => 20, 'off' => 25],
+            ]),
+        ]);
+        $this->assertSame(150,  PaidVoteService::price(1));   // no tier reached
+        $this->assertSame(600,  PaidVoteService::price(4));   // below the 5 tier: 4 × 150
+        $this->assertSame(675,  PaidVoteService::price(5));   // 750 less 10%
+        $this->assertSame(1485, PaidVoteService::price(11));  // 1650 less 10% — the 5 tier still rules
+        $this->assertSame(2250, PaidVoteService::price(20));  // 3000 less 25%
+    }
+
+    /** A percentage must never round in the buyer's favour and undercharge the gateway. */
+    public function test_a_fractional_discount_rounds_up(): void
+    {
+        $this->settings([
+            'vote_price_naira' => '333',
+            'vote_tiers' => json_encode([['qty' => 3, 'off' => 10]]),
+        ]);
+        $this->assertSame(900, PaidVoteService::price(3), '999 less 10% is 899.1 — charge 900, not 899');
+    }
+
+    /** 90% is the cap: a 100% discount is a free vote sold as a paid, unchargeable ₦0 order. */
+    public function test_the_discount_is_capped_and_the_floor_holds(): void
+    {
+        $this->settings([
+            'vote_price_naira' => '100',
+            'vote_tiers' => json_encode([['qty' => 2, 'off' => 100]]),
+        ]);
+        $this->assertSame(0,  PaidVoteService::discountPctFor(1), 'below the tier, nothing applies');
+        $this->assertSame(90, PaidVoteService::discountPctFor(5), 'clamped to 90, never 100');
+        $this->assertGreaterThanOrEqual(100, PaidVoteService::price(2), 'never below the gateway minimum');
     }
 
     public function test_pricing_floor_and_defaults(): void
     {
-        // Defaults: ₦100/vote, 10 votes per ₦1,000 — equivalent rates.
+        // Default ladder: ₦100/vote, first discount at 10 votes (5%).
         $this->assertSame(100, PaidVoteService::price(1));
-        $this->assertSame(1000, PaidVoteService::price(10));
+        $this->assertSame(950, PaidVoteService::price(10));   // 1000 less the default 5%
         $this->assertGreaterThanOrEqual(100, PaidVoteService::price(0)); // clamped
+    }
+
+    /** Malformed JSON must degrade to the default ladder — this is read on the ballot. */
+    public function test_broken_tier_json_falls_back_instead_of_failing(): void
+    {
+        $this->settings(['vote_tiers' => '{not json at all']);
+        $this->assertSame(PaidVoteService::DEFAULT_TIERS, PaidVoteService::tiers());
+        $this->settings(['vote_tiers' => json_encode([['qty' => 0, 'off' => 5], ['qty' => -3, 'off' => 9]])]);
+        $this->assertSame(PaidVoteService::DEFAULT_TIERS, PaidVoteService::tiers(), 'every row invalid → defaults');
+    }
+
+    /** The chips the ballot renders ARE the tier quantities — one source, so they cannot disagree. */
+    public function test_chips_come_from_the_same_ladder_as_the_prices(): void
+    {
+        $this->settings(['vote_tiers' => json_encode([
+            ['qty' => 30, 'off' => 20], ['qty' => 1, 'off' => 0], ['qty' => 6, 'off' => 5],
+        ])]);
+        $this->assertSame([1, 6, 30], PaidVoteService::chips(), 'sorted ascending whatever the input order');
     }
 
     public function test_mint_confirmed_order_bumps_public_tally_only(): void

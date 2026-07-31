@@ -44,6 +44,10 @@ class SettingsController
             // checkout does not actually honour.
             'paid_max_qty'          => \AfricaGates\Services\PaidVoteService::maxQtyForOrder(),
             'paid_max_order_naira'  => \AfricaGates\Services\PaidVoteService::MAX_ORDER_NAIRA,
+            // The ladder as ROWS, not as the raw JSON string. An admin editing JSON in a
+            // textarea is one missing brace away from silently reverting the site's whole
+            // pricing to defaults, and the ballot reads this on every page view.
+            'vote_tiers'            => \AfricaGates\Services\PaidVoteService::tiers(),
             // Which AI providers have a key (booleans only — keys are never echoed).
             // Raw provider state — deliberately direct, not through the gateway:
             // this is the diagnostics surface and must see the true key state
@@ -187,7 +191,13 @@ class SettingsController
             $this->settings->set('paid_voting_enabled', isset($b['paid_voting_enabled']) ? '1' : '', $adminId);
             $this->settings->set('paid_voting_disable_free', isset($b['paid_voting_disable_free']) ? '1' : '', $adminId);
             $this->settings->set('vote_price_naira', (string) max(10, (int) ($b['vote_price_naira'] ?? \AfricaGates\Services\PaidVoteService::DEFAULT_PRICE_NAIRA)), $adminId);
-            $this->settings->set('vote_votes_per_1000', (string) max(1, (int) ($b['vote_votes_per_1000'] ?? \AfricaGates\Services\PaidVoteService::DEFAULT_PER_1000)), $adminId);
+            // Only when the editor actually posted rows. The tier inputs are rendered
+            // by Alpine's x-for, so on a browser where that script did not run there
+            // are no `vote_tier_qty[]` fields in the body at all — and treating that
+            // absence as "the admin cleared the ladder" would reprice the whole site
+            // to defaults for someone who came here to change the announcement banner.
+            $tiers = $this->tiersJson($b);
+            if ($tiers !== null) $this->settings->set('vote_tiers', $tiers, $adminId);
             // Largest quantity ONE order may carry. Clamped to the hard ceiling here AND
             // in PaidVoteService::maxQty(), because this value ends up in a public vote
             // tally and a settings row is not a trusted input just because an admin typed
@@ -276,6 +286,54 @@ class SettingsController
         $this->audit->record($adminId, 'settings.update', null, null);
         $_SESSION['flash_ok'] = 'Settings saved.';
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+    }
+
+    /**
+     * Normalise the posted tier rows into the JSON `vote_tiers` string.
+     *
+     * ── WHY THE FORM POSTS ROWS AND NOT JSON ─────────────────────────────────
+     *
+     * The ladder is read on the public ballot on every page view. A textarea of raw
+     * JSON puts one missing brace between an admin and the site quietly reverting to
+     * default pricing — and because {@see \AfricaGates\Services\PaidVoteService::tiers()}
+     * degrades to defaults rather than throwing (which is right for the ballot), the
+     * admin would get no error at all. So the form posts `vote_tier_qty[]` /
+     * `vote_tier_off[]` and this method is the only thing that ever writes the JSON.
+     *
+     * Everything invalid is DROPPED rather than rejected, matching the reader: a blank
+     * row is how you delete a tier, so an empty qty cannot be an error message. What is
+     * kept is clamped — the percentage to 0–90 (a 100% discount is a ₦0 order no gateway
+     * will take) and the quantity to the same hard ceiling every other quantity obeys.
+     *
+     * Returns '' when rows were posted but none survived, which makes the reader fall
+     * back to DEFAULT_TIERS — "no ladder configured" and "the default ladder" being the
+     * same state is what lets an admin reset by clearing every row.
+     *
+     * Returns NULL when the editor did not post at all, which is a different thing and
+     * must leave the stored ladder untouched. See the caller.
+     *
+     * @param array<string,mixed> $b the parsed request body
+     */
+    private function tiersJson(array $b): ?string
+    {
+        if (!array_key_exists('vote_tier_qty', $b)) return null;
+
+        $qtys = (array) ($b['vote_tier_qty'] ?? []);
+        $offs = (array) ($b['vote_tier_off'] ?? []);
+
+        $rows = [];
+        foreach ($qtys as $i => $rawQty) {
+            $qty = (int) $rawQty;
+            if ($qty < 1) continue; // a cleared row is a deleted tier
+            $qty = min(\AfricaGates\Services\PaidVoteService::HARD_MAX_QTY, $qty);
+            // Keyed by quantity, so two rows for the same qty collapse to the last one
+            // typed instead of producing a ladder with an unreachable rung.
+            $rows[$qty] = ['qty' => $qty, 'off' => max(0, min(90, (int) ($offs[$i] ?? 0)))];
+        }
+        if (!$rows) return '';
+
+        ksort($rows);
+        return (string) json_encode(array_values($rows));
     }
 
     /** POST /admin/settings/smtp-test — sends a test email to the logged-in admin. */

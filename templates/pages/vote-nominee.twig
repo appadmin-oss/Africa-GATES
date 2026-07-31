@@ -277,6 +277,32 @@
       </section>
       {% endif %}
 
+      {# ── Supporters who asked to be named ──────────────────────────────────
+         The whole section is absent until at least one person opts in, which on
+         the day this ships is every nominee: consent is stored per-vote and
+         defaults to 0, so nothing anyone has already paid for appears here. An
+         empty-state ("no supporters yet") would be worse than nothing — it reads
+         as "nobody backed this nominee" when the truth is "nobody has been asked
+         yet". #}
+      {% if supporters|default([])|length %}
+      <section class="vn-card">
+        <h2>Supporters of {{ firstName }}</h2>
+        <p style="margin:8px 0 0;font-size:13px;color:#5a6d6f;line-height:1.6">These supporters chose to be named. Votes from everyone else count exactly the same and stay private — we publish a name only when its owner ticks the box.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px">
+          {% for s in supporters %}
+          <span style="display:inline-flex;align-items:center;gap:7px;background:#f4f9f4;border:1px solid #cfe6cf;border-radius:999px;padding:6px 13px 6px 7px;font-size:13px;color:#10292c">
+            <span aria-hidden="true" style="width:24px;height:24px;border-radius:50%;background:#237b22;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">{{ s.name|slice(0,1)|upper }}</span>
+            <strong style="font-weight:600">{{ s.name }}</strong>
+            {% if s.votes > 1 %}<span style="color:#5a6d6f;font-size:12px">{{ s.votes|number_format }} votes</span>{% endif %}
+          </span>
+          {% endfor %}
+          {% if supporter_count|default(0) > supporters|length %}
+          <span style="display:inline-flex;align-items:center;padding:6px 13px;font-size:13px;color:#5a6d6f">and {{ (supporter_count - supporters|length)|number_format }} more</span>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
       {% if others|length %}
       <section class="vn-card">
         <h2>Others in {{ n.category }}</h2>
@@ -364,22 +390,46 @@
             {# `paid_retry` carries a bounced checkout's own values back (session flash,
                never the query string — the email must not reach an access log). On a
                normal visit it is empty and the form opens at its defaults. #}
-            <section aria-labelledby="pv-h" x-data="{ qty: {{ paid_retry.qty|default(0) > 0 ? paid_retry.qty : 1 }}, prices: {pv: {{ vote_price }}, per1000: {{ votes_per_1000 }}},
-              cost(){ const q=Math.max(1,this.qty|0); if(q < this.prices.per1000) return q*this.prices.pv;
-                      const b=Math.floor(q/this.prices.per1000); return Math.min(q*this.prices.pv, b*1000 + (q-b*this.prices.per1000)*this.prices.pv); } }"
+            {# THE LADDER IS SENT WHOLE, NOT AS PRE-PRICED BUTTONS.
+
+               `tiers` is the same list PaidVoteService::price() charges from, so the
+               figure under the buyer's finger and the figure on the gateway page come
+               from one rule. Pricing in the browser from a set of look-up totals would
+               have covered the chips and left a hand-typed 17 with no price at all —
+               and the previous version's two-rule "cheaper of per-vote or bundle" maths
+               was reimplemented here in JavaScript, a second copy that could drift from
+               the PHP and quietly quote a total the checkout would not honour.
+
+               The server still prices the order. Nothing here is trusted. #}
+            <section aria-labelledby="pv-h" x-data="{
+                qty: {{ paid_retry.qty|default(0) > 0 ? paid_retry.qty : 1 }},
+                per: {{ vote_price }},
+                {# NOT |raw. json_encode emits double quotes, and this is inside a
+                   double-quoted HTML attribute — raw output ends the attribute at the
+                   first key and Alpine is handed a syntax error instead of a ladder.
+                   Twig's autoescape turns them into &quot;, which the HTML parser hands
+                   back to Alpine as the JSON that was meant. #}
+                tiers: {{ vote_tiers|json_encode }},
+                off(){ let o=0; for (const t of this.tiers) if (this.q() >= t.qty) o = t.off; return o },
+                q(){ return Math.max(1, Math.min({{ max_qty }}, this.qty|0)) },
+                gross(){ return this.q() * this.per },
+                cost(){ return Math.max(100, Math.ceil(this.gross() * (100 - this.off()) / 100)) },
+                saving(){ return Math.max(0, this.gross() - this.cost()) },
+                next(){ return this.tiers.find(t => t.qty > this.q() && t.off > this.off()) || null } }"
               style="background:#f4f9f4;border:1.5px solid #cfe6cf;border-radius:16px;padding:16px 18px;margin:0 0 16px">
               <h3 id="pv-h" style="margin:0 0 4px;font-size:15.5px;color:#10292c">Buy votes for {{ firstName }}</h3>
-              <p style="margin:0 0 12px;font-size:13px;color:#5a6d6f;line-height:1.5">₦{{ vote_price|number_format }} per vote · ₦1,000 bundle = {{ votes_per_1000 }} votes. Paid votes raise the public tally; they never affect the jury/CPI score.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} votes in one order.{% endif %}</p>
+              <p style="margin:0 0 12px;font-size:13px;color:#5a6d6f;line-height:1.5">₦{{ vote_price|number_format }} per vote{% set best = vote_tiers|filter(t => t.off > 0) %}{% if best is not empty %} · save up to {{ (best|map(t => t.off)|sort|last) }}% on bulk{% endif %}. Paid votes raise the public tally; they never affect the jury/CPI score.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} votes in one order.{% endif %}</p>
               <form method="POST" action="/vote/paid/start">
                 <input type="hidden" name="_token" value="{{ csrf_token }}">
                 <input type="hidden" name="nominee_id" value="{{ nominee.id }}">
-                {# Quick amounts, filtered to what one order can actually carry — an
-                   offered button the checkout would refuse is worse than no button. #}
+                {# Quick amounts, straight off the admin's ladder and filtered to what one
+                   order can actually carry — an offered button the checkout would refuse
+                   is worse than no button. #}
                 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" role="group" aria-label="Quick amounts">
-                  {% for q in [1, 5, votes_per_1000, votes_per_1000 * 5, votes_per_1000 * 50]|filter(q => q <= max_qty)|slice(0, 4) %}
-                  <button type="button" @click="qty={{ q }}" :aria-pressed="qty==={{ q }}"
-                          :style="qty==={{ q }} ? 'background:#237b22;color:#fff;border-color:transparent' : ''"
-                          style="border:1.5px solid rgba(16,41,44,.16);background:#fff;color:#10292c;border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">{{ q }} vote{{ q == 1 ? '' : 's' }}</button>
+                  {% for t in vote_tiers|filter(t => t.qty <= max_qty) %}
+                  <button type="button" @click="qty={{ t.qty }}" :aria-pressed="qty==={{ t.qty }}"
+                          :style="qty==={{ t.qty }} ? 'background:#237b22;color:#fff;border-color:transparent' : ''"
+                          style="border:1.5px solid rgba(16,41,44,.16);background:#fff;color:#10292c;border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">{{ t.qty }} vote{{ t.qty == 1 ? '' : 's' }}{% if t.off > 0 %} <span :style="qty==={{ t.qty }} ? 'color:#fff' : ''" style="font-weight:800;color:#237b22">−{{ t.off }}%</span>{% endif %}</button>
                   {% endfor %}
                 </div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -394,9 +444,25 @@
                     <input id="pvEmail" name="email" class="vn-input" type="email" required placeholder="you@email.com" value="{{ paid_retry.email|default('') ?: (member ? member.email : '') }}">
                   </div>
                 </div>
+                {# THE FIELD IS THE CONSENT — no checkbox.
+
+                   This name is OPTIONAL and it has exactly one purpose, so a separate
+                   "and show it publicly?" tickbox asked the same question twice: fill in
+                   the box if you want to be named, leave it empty to stay anonymous. What
+                   the old label got wrong was never the absence of a checkbox, it was that
+                   "Shown as the supporter name" named no audience — a buyer could read it
+                   as the name on their receipt, and several plainly did. So the microcopy
+                   states the audience and the alternative, and typing a name means what it
+                   says it means.
+
+                   This is why the consent still needed a COLUMN. Existing orders have a
+                   name typed under the old, ambiguous label; inferring consent from a
+                   non-empty name would publish all of them retroactively. `show_name`
+                   defaults to 0, so only orders placed from here on can carry a yes. #}
                 <div style="margin-top:10px">
                   <label class="vn-label" for="pvName">Your name <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
-                  <input id="pvName" name="name" class="vn-input" type="text" placeholder="Shown as the supporter name" value="{{ paid_retry.name|default('') ?: (member ? member.name : '') }}">
+                  <input id="pvName" name="name" class="vn-input" type="text" placeholder="e.g. Amara Okonkwo" value="{{ paid_retry.name|default('') ?: (member ? member.name : '') }}">
+                  <p style="margin:5px 0 0;font-size:11.5px;color:#5a6d6f;line-height:1.5">Shown on {{ firstName }}’s public supporters list and on your receipt. <strong>Leave it blank to give anonymously</strong> — your vote counts exactly the same. Only the name is ever published: never your email, your phone or the amount. <a href="/privacy#supporters" style="color:var(--ag-green,#237b22);font-weight:600">How we handle voter names</a></p>
                 </div>
                 {% if pay_providers|length > 1 %}
                 <fieldset style="border:0;padding:0;margin:12px 0 0">
@@ -410,8 +476,17 @@
                 {% else %}
                 <input type="hidden" name="provider" value="{{ pay_providers[0].id }}">
                 {% endif %}
-                <button type="submit" class="vn-go" style="margin-top:14px">
-                  <span x-text="'Pay ₦' + cost().toLocaleString() + ' for ' + Math.max(1, qty) + (qty === 1 ? ' vote' : ' votes') + ' →'"></span>
+                {# The discount, stated rather than implied. A total that is quietly lower
+                   than qty × price is a discount the buyer has to do arithmetic to notice —
+                   and the next tier is the one piece of information that changes what they
+                   do next, so it is the one line worth the space. #}
+                <p style="margin:10px 0 0;font-size:12.5px;line-height:1.5;min-height:19px" aria-live="polite">
+                  <template x-if="saving() > 0"><span style="color:#237b22;font-weight:700" x-text="off() + '% off — you save ₦' + saving().toLocaleString()"></span></template>
+                  <template x-if="saving() <= 0 && next()"><span style="color:#5a6d6f" x-text="'Buy ' + next().qty + ' to get ' + next().off + '% off'"></span></template>
+                  <template x-if="saving() > 0 && next()"><span style="color:#5a6d6f" x-text="' · ' + next().qty + ' votes gets ' + next().off + '%'"></span></template>
+                </p>
+                <button type="submit" class="vn-go" style="margin-top:10px">
+                  <span x-text="'Pay ₦' + cost().toLocaleString() + ' for ' + q() + (q() === 1 ? ' vote' : ' votes') + ' →'"></span>
                 </button>
                 <p style="margin:8px 0 0;font-size:11.5px;color:#5a6d6f">Secured checkout — the charge is verified server-side before any vote counts.</p>
               </form>
@@ -438,6 +513,13 @@
               <input id="vnPhone" class="vn-input" x-model="phone" type="tel" inputmode="tel" placeholder="e.g. +234 801 234 5678" autocomplete="tel" @keyup.enter="requestOtp()">
               <label class="vn-label" for="vnEmail">Email</label>
               <input id="vnEmail" class="vn-input" x-model="email" type="email" placeholder="you@email.com" autocomplete="email" @keyup.enter="requestOtp()">
+              {# NO name-consent control on this path, and the difference is not an
+                 oversight. On the paid form the name is optional, so filling it in IS the
+                 choice to be named. Here the name is REQUIRED for accountability — a voter
+                 cannot decline to give it — so providing it says nothing about wanting it
+                 published. Free votes therefore stay off the public supporters list
+                 (gates_votes.show_name keeps its 0 default), which is what the field was
+                 collected under. #}
               <label class="vn-check"><input type="checkbox" x-model="agreed"><span>I’m a real person voting once, and I accept the <a href="/terms">voting rules</a>.</span></label>
               {% if turnstile_site_key %}<div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-theme="light" style="margin-top:14px"></div>{% endif %}
               <p class="vn-err" x-show="otpError" x-cloak x-text="otpError"></p>

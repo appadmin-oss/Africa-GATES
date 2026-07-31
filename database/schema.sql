@@ -125,6 +125,9 @@ CREATE TABLE IF NOT EXISTS gates_votes (
   idempotency_key VARCHAR(80) DEFAULT NULL,
   voter_name VARCHAR(120) DEFAULT NULL,
   voter_phone VARCHAR(40) DEFAULT NULL,
+  -- Consent to appear on the PUBLIC supporters list. 0 unless the voter ticked the
+  -- box, so a name collected for a receipt is never published by default.
+  show_name TINYINT(1) NOT NULL DEFAULT 0,
   vote_type ENUM('standard','bonus','paid') NOT NULL DEFAULT 'standard',
   -- INT, not SMALLINT. A paid-vote order mints ONE row with weight = quantity, so
   -- SMALLINT's 65,535 was the real (and unmeasured) ceiling on a bulk purchase — and
@@ -464,6 +467,9 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   intent_nominee_id BIGINT UNSIGNED DEFAULT NULL, -- paid-vote orders: auto-mint target on confirm
   payment_ref VARCHAR(200) DEFAULT NULL,
   status ENUM('pending','confirmed','failed') NOT NULL DEFAULT 'pending',
+  -- The buyer's answer to "show my name publicly", carried through the gateway
+  -- round-trip and copied onto the vote at mint. Default 0 = private.
+  show_name TINYINT(1) NOT NULL DEFAULT 0,
   refunded_at TIMESTAMP NULL DEFAULT NULL,
   -- Send-exactly-once claim stamps. Both emails have more than one caller racing
   -- to send them (callback vs webhook; every maintenance tick), so the claim is a

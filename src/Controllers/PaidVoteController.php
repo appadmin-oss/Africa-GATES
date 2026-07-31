@@ -72,6 +72,18 @@ final class PaidVoteController
         $email     = strtolower(trim((string)($b['email'] ?? '')));
         $name      = trim((string)($b['name'] ?? ''));
         $nomineeId = (int)($b['nominee_id'] ?? 0);
+        // CONSENT TO BE NAMED PUBLICLY = the buyer typed a name.
+        //
+        // The field is optional and the ballot says plainly what filling it in does
+        // ("Shown on … public supporters list … leave it blank to give anonymously"),
+        // so a second tickbox would be the same question asked twice.
+        //
+        // This still cannot be inferred at READ time from `donor_name` being non-empty,
+        // which is why the flag is stored. Orders taken before the ballot said any of
+        // this have names typed under a label that named no audience; reading consent
+        // off those rows would publish every one of them retroactively. The column
+        // defaults to 0, so only orders placed from here on can carry a yes.
+        $showName  = $name !== '';
         // NOT clamped. `min(MAX_QTY, …)` silently reduced an over-large request, so a
         // supporter who asked for 5,000 votes was charged for 1,000 and told nothing —
         // they found out by looking at the tally. An over-large order is now refused with
@@ -123,6 +135,9 @@ final class PaidVoteController
                 'intent_nominee_id' => $nomineeId,
                 'payment_ref'       => $reference,
                 'status'            => 'pending',
+                // Stored on the ORDER, not applied yet: the vote does not exist until
+                // the gateway confirms, and PaidVoteService::mint() copies this onto it.
+                'show_name'         => $showName ? 1 : 0,
                 'created_at'        => Carbon::now()->toDateTimeString(),
             ]);
         } catch (\Throwable $e) {
@@ -178,6 +193,8 @@ final class PaidVoteController
             'email'  => $email,
             'name'   => $name,
             'detail' => $detail,
+            // `name` carries the consent with it: the field IS the choice, so repopulating
+            // the field repopulates the decision. Nothing extra to flash.
         ];
     }
 

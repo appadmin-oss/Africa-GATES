@@ -125,15 +125,20 @@ class PaidVoteCapacityTest extends TestCase
 
     // ── Bulk pricing stays correct at scale ─────────────────────────────────
 
-    public function test_a_large_order_gets_the_bundle_rate_not_the_per_vote_rate(): void
+    public function test_a_large_order_gets_the_deepest_tier_discount(): void
     {
         $this->setting('vote_max_qty', '100000');
         $this->setting('vote_price_naira', '200');
-        $this->setting('vote_votes_per_1000', '6');   // the live config from the ballot
+        // Replaces `vote_votes_per_1000 = 6`, which expressed the same bulk deal as an
+        // implied rate. The discount is now stated as the percentage it always was.
+        $this->setting('vote_tiers', json_encode([
+            ['qty' => 1, 'off' => 0], ['qty' => 10, 'off' => 10], ['qty' => 1000, 'off' => 20],
+        ]));
 
-        // 60,000 votes = 10,000 full bundles = 10,000,000 naira, which is far cheaper than
-        // 60,000 x 200. The buyer must get the cheaper of the two rules at every scale.
-        $this->assertSame(10_000_000, PaidVoteService::price(60000));
+        // 60,000 × ₦200 = ₦12,000,000, less the deepest tier (20%) = ₦9,600,000. The
+        // point of the test is unchanged: a bulk buyer must not be charged the full
+        // per-vote rate at scale.
+        $this->assertSame(9_600_000, PaidVoteService::price(60000));
         $this->assertLessThan(60000 * 200, PaidVoteService::price(60000));
     }
 

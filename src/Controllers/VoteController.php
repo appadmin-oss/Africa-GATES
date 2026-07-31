@@ -309,11 +309,20 @@ class VoteController {
             'paid_voting'        => PaidVoteService::enabled(),
             'paid_free_disabled' => PaidVoteService::freeVotingDisabled(),
             'vote_price'         => PaidVoteService::pricePerVote(),
-            'votes_per_1000'     => PaidVoteService::votesPer1000(),
+            // The quantity ladder, sent WHOLE rather than as a rendered list of chips.
+            // The page has to price a quantity the buyer types by hand as well as one
+            // they tap, so the browser needs the same rule the server prices with — not
+            // a set of pre-computed totals it can only look up. Any chip the template
+            // draws comes out of this same array.
+            'vote_tiers'         => PaidVoteService::tiers(),
             // The form's `max` comes from the SAME function the checkout rejects on, so
             // the page can never offer a quantity the next request refuses.
             'max_qty'            => PaidVoteService::maxQtyForOrder(),
             'pay_providers'      => (PaidVoteService::enabled() && $this->payments) ? $this->payments->enabledProviders() : [],
+            // Supporters who ASKED to be named. Empty for every nominee until someone
+            // ticks the box — the reader publishes consent, not names it happens to hold.
+            'supporters'         => \AfricaGates\Services\SupportersService::forNominee((int) $nom->id),
+            'supporter_count'    => \AfricaGates\Services\SupportersService::countForNominee((int) $nom->id),
         ] + array_filter([
             // Social card: the nominee's own photo when they have one.
             /**

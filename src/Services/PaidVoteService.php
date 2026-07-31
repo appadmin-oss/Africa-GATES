@@ -20,9 +20,11 @@ use Illuminate\Support\Carbon;
  * community signal, is never touched by money. Free OTP voting stays
  * available unless the admin also disables it.
  *
- * Pricing: the admin sets a per-vote price AND a votes-per-₦1,000 bundle
- * rate; the charge is always the CHEAPER of the two rules for the requested
- * quantity (bulk discount, computed server-side — never trust client totals).
+ * Pricing: the admin defines a LADDER of "buy this many, get this much off"
+ * ({@see tiers()}). The charge is quantity × per-vote price less the deepest
+ * discount the quantity reaches — computed server-side, never from the client.
+ * The same ladder supplies the quick-amount chips the ballot renders, so the
+ * button a buyer taps and the price they are charged cannot disagree.
  */
 class PaidVoteService
 {
@@ -143,39 +145,124 @@ class PaidVoteService
      */
     public static function maxQtyForOrder(): int
     {
-        // The cheaper of the two pricing rules is what a large order actually pays, so it
-        // is the rate that decides how many votes fit under the cash ceiling.
-        $perVote  = (float) self::pricePerVote();
-        $perBundle = 1000.0 / (float) max(1, self::votesPer1000());
-        $cheapest = max(0.01, min($perVote, $perBundle));
+        // A large order pays the DEEPEST tier discount, so that is the rate which
+        // decides how many votes fit under the cash ceiling. Computed from the same
+        // ladder price() uses — deriving it from the retired ₦1,000 bundle rate would
+        // cap orders against a price the buyer is no longer charged.
+        $deepest  = 0;
+        foreach (self::tiers() as $t) { $deepest = max($deepest, $t['off']); }
+        $cheapest = max(0.01, (float) self::pricePerVote() * (100 - $deepest) / 100);
 
         return max(1, min(self::maxQty(), (int) floor(self::MAX_ORDER_NAIRA / $cheapest)));
     }
 
-    /** Admin-set bundle rate: votes granted per ₦1,000. */
+    /**
+     * The retired bundle rate: votes granted per ₦1,000.
+     *
+     * @deprecated Superseded by {@see tiers()}. Nothing prices with this any more — it
+     *             survives only so `2026_07_31_vote_tiers_from_bundle.php` can read what
+     *             a live site had configured and translate it into an equivalent tier.
+     *             Once every deployment has run that migration this can go.
+     */
     public static function votesPer1000(): int
     {
         $v = (int) (self::setting('vote_votes_per_1000') ?? 0);
         return $v > 0 ? $v : self::DEFAULT_PER_1000;
     }
 
+    /** Fallback ladder when none is configured — the chips the ballot already showed. */
+    public const DEFAULT_TIERS = [
+        ['qty' => 1,  'off' => 0],
+        ['qty' => 5,  'off' => 0],
+        ['qty' => 10, 'off' => 5],
+        ['qty' => 30, 'off' => 10],
+    ];
+
     /**
-     * Server-side price for a quantity of votes. The per-vote price rules
-     * small quantities; the ₦1,000-bundle rate applies to FULL bundles only
-     * (it can never fractionally undercut the per-vote price), with any
-     * remainder charged per vote — the buyer always gets the cheaper of the
-     * two totals. Always ≥ ₦100 so gateway minimums are never violated.
+     * The quantity ladder: each entry is BOTH a chip on the ballot and the bulk
+     * discount that applies from that quantity upward.
+     *
+     * ── WHY ONE LIST AND NOT THREE SETTINGS ──────────────────────────────────
+     *
+     * Editable chips, percentage discounts and "make pricing flexible" arrived as
+     * three requests and are one thing: a table of "buy this many, get this much
+     * off". Modelling them separately guarantees they disagree — a chip for 6 votes
+     * with a discount defined at 5, and a buyer shown one number and charged another.
+     *
+     * ── WHY PERCENTAGES REPLACED THE ₦1,000 BUNDLE ───────────────────────────
+     *
+     * The old rate was "votes per ₦1,000", a discount only by implication: the admin
+     * had to work backwards from the per-vote price to discover what discount they
+     * had just set, and its meaning changed silently whenever that price moved. A
+     * percentage is the thing being decided, so it is the thing stored — and it stays
+     * correct when the price changes. `votesPer1000()` is left for the migration and
+     * is no longer consulted by `price()`.
+     *
+     * Stored as JSON so the ladder can be any length. Invalid rows are DROPPED rather
+     * than rejected: this is read on the public ballot, and a malformed setting must
+     * degrade to sane pricing, never to a fatal on the page that takes money.
+     *
+     * @return list<array{qty:int, off:int}> ascending by qty, deduplicated
+     */
+    public static function tiers(): array
+    {
+        $raw  = trim((string) (self::setting('vote_tiers') ?? ''));
+        $rows = $raw !== '' ? json_decode($raw, true) : null;
+        $out  = [];
+        if (is_array($rows)) {
+            foreach ($rows as $r) {
+                if (!is_array($r)) continue;
+                $qty = (int) ($r['qty'] ?? 0);
+                if ($qty < 1) continue;
+                // Capped at 90%: a 100% discount is a free vote sold as a paid one,
+                // and the resulting ₦0 order cannot be charged — it would strand the
+                // buyer at the gateway with a pending order behind them.
+                $out[$qty] = ['qty' => $qty, 'off' => max(0, min(90, (int) ($r['off'] ?? 0)))];
+            }
+        }
+        if (!$out) return self::DEFAULT_TIERS;
+        ksort($out);
+        return array_values($out);
+    }
+
+    /** The quantities the ballot offers as one-tap chips. */
+    public static function chips(): array
+    {
+        return array_map(static fn (array $t): int => $t['qty'], self::tiers());
+    }
+
+    /** The discount at this quantity — the deepest tier the quantity has reached. */
+    public static function discountPctFor(int $qty): int
+    {
+        $off = 0;
+        foreach (self::tiers() as $t) {
+            if ($qty >= $t['qty']) $off = $t['off'];
+        }
+        return $off;
+    }
+
+    /**
+     * Server-side price for a quantity of votes — the ONLY place a total is decided.
+     *
+     * qty × per-vote price, less the tier discount the quantity has reached. Rounded
+     * UP to the naira so a percentage can never shave a fraction in the buyer's
+     * favour and disagree with what the gateway is asked to charge, and floored at
+     * ₦100 because every gateway rejects less — a low enough price with a deep enough
+     * discount would otherwise produce an order that cannot be paid at all.
      */
     public static function price(int $qty): int
     {
-        $qty     = max(1, min(self::maxQty(), $qty));
-        $p       = self::pricePerVote();
-        $per1000 = self::votesPer1000();
-        $perVote = $qty * $p;
-        if ($qty < $per1000) return max(100, $perVote);
-        $bundles = intdiv($qty, $per1000);
-        $mixed   = $bundles * 1000 + ($qty - $bundles * $per1000) * $p;
-        return max(100, min($perVote, $mixed));
+        $qty   = max(1, min(self::maxQty(), $qty));
+        $gross = $qty * self::pricePerVote();
+        $net   = (int) ceil($gross * (100 - self::discountPctFor($qty)) / 100);
+        return max(100, $net);
+    }
+
+    /** What a quantity saves against the undiscounted price — for the ballot copy. */
+    public static function savingFor(int $qty): int
+    {
+        $qty = max(1, min(self::maxQty(), $qty));
+        return max(0, $qty * self::pricePerVote() - self::price($qty));
     }
 
     /**
@@ -250,6 +337,12 @@ class PaidVoteService
                 // with the one-vote-per-category unique key for real voters.
                 'voter_email_hash' => 'paidvote:' . $don->id . ':' . bin2hex(random_bytes(6)),
                 'voter_name'       => mb_substr((string) $don->donor_name, 0, 120),
+                // The buyer's consent, carried from the order onto the vote so the
+                // public supporters list never has to read a payments table. An order
+                // that predates the checkbox has show_name = 0 by column default, and
+                // a database without the migration yields null → 0. Both mean private,
+                // which is the only safe direction for a default.
+                'show_name'        => (int) ($don->show_name ?? 0) === 1 ? 1 : 0,
                 'vote_type'        => 'paid',
                 'weight'           => $qty,
                 'donation_id'      => (int) $don->id,

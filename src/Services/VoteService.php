@@ -18,6 +18,14 @@ class VoteService {
 
     public function __construct(private readonly ?LoggerInterface $log = null) {}
 
+    /**
+     * Free OTP votes are never listed publicly, and that is a deliberate asymmetry with
+     * the paid path rather than a missing feature: `$voterName` is REQUIRED here (the API
+     * boundary rejects a vote without a full name), so supplying it expresses no wish to
+     * be named. `gates_votes.show_name` is left at its 0 default and the row stays off
+     * the supporters list. Only the paid ballot, where the name field is optional, reads
+     * a filled-in name as consent. See {@see SupportersService}.
+     */
     public function castVote(string $email, string $otp, int $nomineeId, int $awardId, string $ip = '', ?string $deviceHash = null, ?string $idempotencyKey = null, ?string $voterName = null, ?string $voterPhone = null): array {
         $eh = hash('sha256', strtolower(trim($email)));
         $th = hash('sha256', trim($otp));

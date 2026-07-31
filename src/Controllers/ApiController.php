@@ -114,6 +114,10 @@ class ApiController {
             }
         }
 
+        // No show_name here on purpose: the free path REQUIRES a name (see the checks
+        // above), so giving one is not a choice to be published. Only the paid ballot,
+        // where the field is optional, treats filling it in as consent. See
+        // \AfricaGates\Services\SupportersService.
         $r=$this->votes->castVote($email,$otp,$nId,$aId,$ip,$deviceHash,$idemKey?:null,$name,$phone);
         if(!$r['success']) return $this->err($res,$r['message'],$r['code']);
 

@@ -151,6 +151,9 @@ CREATE TABLE IF NOT EXISTS gates_votes (
   idempotency_key TEXT,
   voter_name TEXT,
   voter_phone TEXT,
+  -- Consent to appear on the PUBLIC supporters list. 0 unless the voter ticked the
+  -- box, so a name collected for a receipt is never published by default.
+  show_name INTEGER NOT NULL DEFAULT 0,
   vote_type TEXT NOT NULL DEFAULT 'standard' CHECK(vote_type IN ('standard','bonus','paid')),
   weight INTEGER NOT NULL DEFAULT 1,
   donation_id INTEGER,
@@ -417,6 +420,9 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   intent_nominee_id INTEGER, -- paid-vote orders: auto-mint target on confirm
   payment_ref TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','confirmed','failed')),
+  -- The buyer's answer to "show my name publicly", carried through the gateway
+  -- round-trip and copied onto the vote at mint. Default 0 = private.
+  show_name INTEGER NOT NULL DEFAULT 0,
   refunded_at TEXT DEFAULT NULL,
   -- Send-exactly-once claim stamps; see CheckoutMailer.
   receipt_sent_at TEXT DEFAULT NULL,
