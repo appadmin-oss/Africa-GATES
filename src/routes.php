@@ -158,6 +158,159 @@ return function(App $app) {
                    ->withHeader('X-Robots-Tag', 'noindex, nofollow')
                    ->withStatus($r['ok'] ? 200 : 500);
     });
+    /**
+     * GET /__setup/checkout?token=… — why a paid vote is failing, from a browser.
+     *
+     * WHAT THIS REPLACES. Diagnosing a failed checkout has needed a shell: `app:doctor`
+     * for the live-vs-code CSP comparison, and `tail var/logs/app.log` for the gateway's
+     * own refusal message. This account has no SSH, so neither was ever available, and
+     * the only signal was a supporter saying "it does not work" — which is how a broken
+     * checkout survived several fixes.
+     *
+     * It reports the four things that decide whether a payment starts, in the order they
+     * fail:
+     *
+     *   1. THE CSP THIS RESPONSE CARRIES, compared to Csp::policy() and
+     *      Csp::staticPolicy(). A third value means something downstream is replacing it
+     *      — on this account, the host's account-wide injected policy — and that single
+     *      fact explains blocked CDN scripts and refused paid votes together.
+     *   2. THE BUILD, so "is the server even running this code" is answered on the same
+     *      page rather than inferred.
+     *   3. THE GATEWAY: keys present, and behind &ping=1 one real transaction/initialize
+     *      reporting the provider's OWN message. A bad key or unsupported currency says
+     *      so here instead of becoming a generic chip on the ballot.
+     *   4. THE LOG: whether var/logs is writable (an unwritable log dir turned this very
+     *      checkout into a 500) and the recent payment lines.
+     *
+     * SAFETY. Same SETUP_TOKEN guard as the rest of this namespace, 404 without it,
+     * no-store, noindex. No secret is ever echoed — keys are reported only as
+     * present/absent. The gateway ping is opt-in because it creates a real (unpaid,
+     * unused) transaction reference at the provider.
+     */
+    $app->get('/__setup/checkout', function ($req, $res) use ($setupGuard) {
+        if (!$setupGuard($req)) return $res->withStatus(404);
+        $e = static fn ($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+        $q = $req->getQueryParams();
+
+        // ── 1. The policy a BROWSER receives ─────────────────────────────────
+        // Not headers_list(): the middleware sets the CSP after this route returns, and
+        // Apache's `Header always set` is applied later still, so PHP's own view of its
+        // headers is both empty here and unable to see what replaced them. The only
+        // honest answer comes from fetching a real response over HTTP, which is what
+        // app:doctor does — reused here because the shell is unavailable on this host.
+        $expected = \AfricaGates\Support\Csp::policy();
+        $fallback = \AfricaGates\Support\Csp::staticPolicy();
+        $norm     = static fn (string $p): string => (string) preg_replace("~'nonce-[^']*'~", "'nonce-X'", $p);
+
+        $self = rtrim((string) $req->getUri()->withPath('')->withQuery('')->withFragment(''), '/');
+        $ctx  = stream_context_create(['http' => [
+            'method' => 'HEAD', 'timeout' => 8, 'ignore_errors' => true,
+            'follow_location' => 0, 'header' => "User-Agent: africa-gates-preflight\r\n",
+        ]]);
+        $hdrs  = @get_headers($self . '/ping', true, $ctx);
+        $sent  = '';
+        $count = 0;
+        if (is_array($hdrs)) {
+            foreach ($hdrs as $name => $value) {
+                if (strcasecmp((string) $name, 'Content-Security-Policy') !== 0) continue;
+                // An ARRAY means TWO CSP headers. Browsers enforce them as the
+                // INTERSECTION, so each can look fine alone while the pair blocks
+                // everything the narrower one omits — the injected-policy signature.
+                $count = is_array($value) ? count($value) : 1;
+                $sent  = is_array($value) ? implode("\n\n——— and a SECOND policy ———\n\n", $value) : (string) $value;
+            }
+        }
+
+        if (!is_array($hdrs)) {
+            $verdict = ['unknown', 'Could not fetch ' . $self . '/ping from the server itself — some hosts block loopback HTTP. Read the Content-Security-Policy from your browser\'s Network tab instead and compare it to the value below.'];
+            $sent = '(unreachable) — for comparison, PHP intends to send:' . "\n\n" . $expected;
+        } elseif ($count > 1) {
+            $verdict = ['bad', 'TWO Content-Security-Policy headers are on the response. Browsers enforce them as the INTERSECTION, so the narrower one wins every directive — this is the host-injected policy sitting alongside ours. The `Header always unset` line in public/.htaccess is not taking effect.'];
+        } elseif ($sent === '') {
+            $verdict = ['bad', 'The live response carries NO Content-Security-Policy at all.'];
+        } elseif ($norm($sent) === $norm($expected)) {
+            $verdict = ['ok', 'The nonce policy from Csp::policy(). Correct — and it means the host is NOT injecting, so the two Header lines in public/.htaccess can be removed.'];
+        } elseif ($sent === $fallback) {
+            $verdict = ['ok', 'Csp::staticPolicy() from public/.htaccess — the injected policy has been displaced. Correct. Paid votes and CDN scripts are permitted.'];
+        } else {
+            $verdict = ['bad', 'This matches NEITHER Csp::policy() NOR Csp::staticPolicy(), so something downstream is replacing it — on this account that is the host-injected policy. Confirm the two Header lines in public/.htaccess are live; if they are, the host is overriding .htaccess and only they can turn it off.'];
+        }
+
+        // ── 3. The gateways ──────────────────────────────────────────────────
+        $svc  = new \AfricaGates\Services\PaymentService();
+        $rows = [];
+        foreach (['paystack', 'flutterwave'] as $p) {
+            $rows[$p] = ['enabled' => $svc->isEnabled($p), 'ping' => null];
+        }
+        if (!empty($q['ping'])) {
+            $base = (string) $req->getUri()->withPath('')->withQuery('')->withFragment('');
+            foreach ($rows as $p => $d) {
+                if (!$d['enabled']) continue;
+                try {
+                    $r = $svc->initialize($p, 100, 'preflight@africagates.invalid',
+                        'AFG-PREFLIGHT-' . bin2hex(random_bytes(4)),
+                        rtrim($base, '/') . '/vote/paid/callback', ['purpose' => 'preflight']);
+                    $rows[$p]['ping'] = !empty($r['ok'])
+                        ? 'OK — the gateway returned a checkout URL.'
+                        : 'REFUSED — ' . ((string) ($r['message'] ?? 'no message returned'));
+                } catch (\Throwable $ex) {
+                    $rows[$p]['ping'] = 'ERROR — ' . $ex->getMessage();
+                }
+            }
+        }
+
+        // ── 4. The log ───────────────────────────────────────────────────────
+        $logDir   = dirname(__DIR__) . '/var/logs';
+        $logFile  = $logDir . '/app.log';
+        $writable = is_dir($logDir) && is_writable($logDir);
+        $tail     = [];
+        if (is_readable($logFile)) {
+            $all = (array) @file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach (array_slice($all, -400) as $line) {
+                foreach (['paid-vote', 'payment', 'gateway', 'donation'] as $needle) {
+                    if (stripos((string) $line, $needle) !== false) { $tail[] = (string) $line; break; }
+                }
+            }
+            $tail = array_slice($tail, -25);
+        }
+
+        $colour = static fn (string $k): string => ['ok' => '#7FC87C', 'bad' => '#E5736B', 'unknown' => '#D8B45C'][$k] ?? '#999999';
+        $pre    = 'white-space:pre-wrap;word-break:break-all;background:#152420;padding:.75rem;border-radius:.4rem;font-size:.78rem';
+
+        $h = '<!doctype html><meta charset="utf-8"><title>Checkout preflight</title>'
+           . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+           . '<meta name="robots" content="noindex,nofollow">'
+           . '<body style="margin:0;background:#0F1A17;color:#E8F2EC;font:15px/1.6 system-ui,-apple-system,sans-serif">'
+           . '<div style="max-width:56rem;margin:0 auto;padding:2rem 1.25rem">'
+           . '<h1 style="font-size:1.4rem;margin:0 0 1.5rem">Checkout preflight</h1>'
+           . '<h2 style="font-size:1rem;margin:1.5rem 0 .5rem">1 &middot; Content-Security-Policy</h2>'
+           . '<p style="margin:.2rem 0;font-weight:600;color:' . $colour($verdict[0]) . '">'
+           . $e(strtoupper($verdict[0])) . ' &mdash; ' . $e($verdict[1]) . '</p>'
+           . '<pre style="' . $pre . '">' . $e($sent !== '' ? $sent : '(none set by PHP at this point)') . '</pre>'
+           . '<h2 style="font-size:1rem;margin:1.5rem 0 .5rem">2 &middot; Deployed build</h2>'
+           . '<pre style="' . $pre . '">' . $e((string) json_encode(\AfricaGates\Support\Build::fingerprint(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) . '</pre>'
+           . '<h2 style="font-size:1rem;margin:1.5rem 0 .5rem">3 &middot; Payment gateways</h2><ul style="margin:.3rem 0;padding-left:1.1rem">';
+        foreach ($rows as $p => $d) {
+            $h .= '<li><b>' . $e($p) . '</b>: keys '
+               . ($d['enabled']
+                    ? '<span style="color:#7FC87C">configured</span>'
+                    : '<span style="color:#E5736B">MISSING &mdash; this provider cannot start a checkout</span>')
+               . ($d['ping'] !== null ? ' &middot; live: ' . $e($d['ping']) : '') . '</li>';
+        }
+        $h .= '</ul><p style="font-size:.85rem;color:#A9C7BD">Add <code>&amp;ping=1</code> to run one real '
+           . '<code>transaction/initialize</code> and see the gateway&rsquo;s own message.</p>'
+           . '<h2 style="font-size:1rem;margin:1.5rem 0 .5rem">4 &middot; Log</h2><p style="margin:.2rem 0">var/logs writable: '
+           . ($writable ? '<span style="color:#7FC87C">yes</span>'
+                        : '<span style="color:#E5736B">NO &mdash; an unwritable log directory turns this checkout into a 500</span>')
+           . '</p><pre style="' . $pre . '">'
+           . $e($tail ? implode("\n", $tail) : '(no payment lines in the last 400 log lines)')
+           . '</pre></div></body>';
+
+        $res->getBody()->write($h);
+        return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
+                   ->withHeader('Cache-Control', 'no-store')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    });
     $app->get('/__setup/status', function ($req, $res) use ($setupGuard) {
         if (!$setupGuard($req)) return $res->withStatus(404);
         $res->getBody()->write(json_encode(\AfricaGates\Services\MigrationRunner::status(), JSON_PRETTY_PRINT));
