@@ -410,15 +410,22 @@
                    Twig's autoescape turns them into &quot;, which the HTML parser hands
                    back to Alpine as the JSON that was meant. #}
                 tiers: {{ vote_tiers|json_encode }},
+                {# `off()` still PRICES the order — the ladder is live, it is simply
+                   never named on the page. `saving()` and `next()` were deleted with
+                   the discount line rather than left unused: a helper that exists only
+                   to phrase an offer is how that offer gets put back by accident. #}
                 off(){ let o=0; for (const t of this.tiers) if (this.q() >= t.qty) o = t.off; return o },
                 q(){ return Math.max(1, Math.min({{ max_qty }}, this.qty|0)) },
                 gross(){ return this.q() * this.per },
-                cost(){ return Math.max(100, Math.ceil(this.gross() * (100 - this.off()) / 100)) },
-                saving(){ return Math.max(0, this.gross() - this.cost()) },
-                next(){ return this.tiers.find(t => t.qty > this.q() && t.off > this.off()) || null } }"
+                cost(){ return Math.max(100, Math.ceil(this.gross() * (100 - this.off()) / 100)) } }"
               style="background:#f4f9f4;border:1.5px solid #cfe6cf;border-radius:16px;padding:16px 18px;margin:0 0 16px">
               <h3 id="pv-h" style="margin:0 0 4px;font-size:15.5px;color:#10292c">Buy votes for {{ firstName }}</h3>
-              <p style="margin:0 0 12px;font-size:13px;color:#5a6d6f;line-height:1.5">₦{{ vote_price|number_format }} per vote{% set best = vote_tiers|filter(t => t.off > 0) %}{% if best is not empty %} · save up to {{ (best|map(t => t.off)|sort|last) }}% on bulk{% endif %}. Paid votes raise the public tally; they never affect the jury/CPI score.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} votes in one order.{% endif %}</p>
+              {# NO DISCOUNT IS ADVERTISED ANYWHERE ON THIS PAGE.
+                 The ladder still PRICES the order — `cost()` below applies it, and the
+                 server recomputes the same figure — but the percentage is never named,
+                 no "save up to N%" is promised and no next tier is dangled. A buyer
+                 sees a quantity and the price of that quantity. #}
+              <p style="margin:0 0 12px;font-size:13px;color:#5a6d6f;line-height:1.5">₦{{ vote_price|number_format }} per vote. Paid votes raise the public tally; they never affect the jury/CPI score.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} votes in one order.{% endif %}</p>
               <form method="POST" action="/vote/paid/start">
                 <input type="hidden" name="_token" value="{{ csrf_token }}">
                 <input type="hidden" name="nominee_id" value="{{ nominee.id }}">
@@ -429,7 +436,7 @@
                   {% for t in vote_tiers|filter(t => t.qty <= max_qty) %}
                   <button type="button" @click="qty={{ t.qty }}" :aria-pressed="qty==={{ t.qty }}"
                           :style="qty==={{ t.qty }} ? 'background:#237b22;color:#fff;border-color:transparent' : ''"
-                          style="border:1.5px solid rgba(16,41,44,.16);background:#fff;color:#10292c;border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">{{ t.qty }} vote{{ t.qty == 1 ? '' : 's' }}{% if t.off > 0 %} <span :style="qty==={{ t.qty }} ? 'color:#fff' : ''" style="font-weight:800;color:#237b22">−{{ t.off }}%</span>{% endif %}</button>
+                          style="border:1.5px solid rgba(16,41,44,.16);background:#fff;color:#10292c;border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">{{ t.qty }} vote{{ t.qty == 1 ? '' : 's' }}</button>
                   {% endfor %}
                 </div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -476,15 +483,14 @@
                 {% else %}
                 <input type="hidden" name="provider" value="{{ pay_providers[0].id }}">
                 {% endif %}
-                {# The discount, stated rather than implied. A total that is quietly lower
-                   than qty × price is a discount the buyer has to do arithmetic to notice —
-                   and the next tier is the one piece of information that changes what they
-                   do next, so it is the one line worth the space. #}
-                <p style="margin:10px 0 0;font-size:12.5px;line-height:1.5;min-height:19px" aria-live="polite">
-                  <template x-if="saving() > 0"><span style="color:#237b22;font-weight:700" x-text="off() + '% off — you save ₦' + saving().toLocaleString()"></span></template>
-                  <template x-if="saving() <= 0 && next()"><span style="color:#5a6d6f" x-text="'Buy ' + next().qty + ' to get ' + next().off + '% off'"></span></template>
-                  <template x-if="saving() > 0 && next()"><span style="color:#5a6d6f" x-text="' · ' + next().qty + ' votes gets ' + next().off + '%'"></span></template>
-                </p>
+                {# The discount line lived here and has been REMOVED at the client's
+                   request — no percentage, no "you save ₦x", and no prompt to buy more
+                   to reach the next tier.
+
+                   The pay button below still states the real total, which is the one
+                   figure a buyer needs and the one the server will charge. Anyone
+                   comparing it against qty × unit price can still see it is lower; the
+                   page simply does not sell that as an offer. #}
                 <button type="submit" class="vn-go" style="margin-top:10px">
                   <span x-text="'Pay ₦' + cost().toLocaleString() + ' for ' + q() + (q() === 1 ? ' vote' : ' votes') + ' →'"></span>
                 </button>

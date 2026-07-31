@@ -93,6 +93,48 @@ final class OptionalColumn
         return $row;
     }
 
+    /**
+     * Which of $cols $table does NOT have. Empty means everything is present.
+     *
+     * ── THE OTHER HALF OF THE SWEEP, AND THE MORE IMPORTANT ONE ──────────────
+     *
+     * {@see filter()} is only correct when dropping the column leaves a record that
+     * is still TRUE. For some columns it does the opposite, and reaching for the
+     * filter everywhere would turn a loud failure into a silent corruption.
+     *
+     * The clawback is the example. It deletes a supporter's votes and then stamps
+     * `refunded_at`, which is what blocks the order from being redeemed again.
+     * Filtering that stamp out would delete the votes and leave the donation looking
+     * live — a worse outcome than the exception, because the exception at least rolls
+     * the whole transaction back.
+     *
+     * So: filter what is cosmetic, and CHECK FIRST for what is load-bearing, so the
+     * caller can refuse the operation cleanly and say why. The rule is whether the
+     * remaining row would still be an honest record, not whether the write is
+     * important.
+     *
+     * @param list<string> $cols
+     * @return list<string>
+     */
+    public static function missing(string $table, array $cols): array
+    {
+        return array_values(array_filter($cols, static fn (string $c) => !self::on($table, $c)));
+    }
+
+    /**
+     * An operator-readable reason, for the caller to surface instead of a raw
+     * SQLSTATE. "Needs a database migration" is actionable; "General error: 1 table
+     * has no column named refunded_at" reaches the user as "Clawback failed."
+     *
+     * @param list<string> $missing
+     */
+    public static function explain(string $table, array $missing): string
+    {
+        return 'This needs a database migration that has not been applied yet ('
+            . $table . ': ' . implode(', ', $missing)
+            . '). Run `php bin/console db:migrate`, then try again.';
+    }
+
     /** Test seam: forget what we learned about the schema. */
     public static function forget(): void
     {

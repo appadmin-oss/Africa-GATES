@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\OptionalColumn;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Log\LoggerInterface;
@@ -151,6 +152,24 @@ class BonusVoteService
     public static function clawbackDonation(int $donationId, ?int $adminId = null, string $reason = 'refund'): array
     {
         if ($donationId < 1) return ['ok' => false, 'error' => 'Invalid donation id.', 'cleared' => 0, 'weight' => 0, 'nominees' => []];
+
+        // REFUSED UP FRONT when the refund stamp has nowhere to go.
+        //
+        // `refunded_at` arrived in a migration, so an unmigrated database does not have
+        // it — the same gap that broke paid voting. The fix here is the OPPOSITE of the
+        // one applied there. Filtering the column out would let this method delete the
+        // supporter's votes and then quietly skip the stamp, leaving a donation that
+        // reads as live and can be redeemed a second time. Dropping a naming preference
+        // is survivable; dropping the mark that says money was returned is not.
+        //
+        // Checked BEFORE the transaction, so nothing is half-done, and reported as a
+        // migration to run rather than as "Clawback failed." — which is all an operator
+        // saw once the raw SQLSTATE had been swallowed by the catch below.
+        $missing = OptionalColumn::missing('gates_donations', ['refunded_at']);
+        if ($missing !== []) {
+            return ['ok' => false, 'error' => OptionalColumn::explain('gates_donations', $missing),
+                    'cleared' => 0, 'weight' => 0, 'nominees' => []];
+        }
 
         try {
             $out = DB::transaction(function () use ($donationId) {

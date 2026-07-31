@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Admin\Controllers;
 
 use AfricaGates\Support\Env;
+use AfricaGates\Support\OptionalColumn;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -180,7 +181,18 @@ class NominationsController
                 catch (\Throwable $e) { $reason = ''; }
             }
             try {
-                DB::table('gates_nominations')->where('id', $id)->update(['status' => $status, 'decision_reason' => $reason !== '' ? $reason : null]);
+                // The STATUS is the decision; the reason is feedback attached to it. So
+                // the reason is filtered out on a database that lacks the column rather
+                // than taking the whole update down with it — a reviewer must be able to
+                // approve or reject regardless. This is the failure the admin console's
+                // migration banner names out loud: "approving/rejecting nominations …
+                // are failing with errors while pages still load".
+                DB::table('gates_nominations')->where('id', $id)->update(
+                    OptionalColumn::filter('gates_nominations', [
+                        'status'          => $status,
+                        'decision_reason' => $reason !== '' ? $reason : null,
+                    ], ['decision_reason'])
+                );
                 // Whether the AI's lean matched the human's call. Without this
                 // there is no way to tell if the triage score is helping the
                 // reviewer or merely decorating the page.
@@ -269,11 +281,16 @@ HTML;
         $nomineeId = 0;
         try {
             DB::transaction(function () use ($id, $catId, $approveReason, $nom, &$nomineeId) {
-                DB::table('gates_nominations')->where('id', $id)->update([
-                    'status' => 'approved',
-                    'category_id' => $catId,
-                    'decision_reason' => $approveReason !== '' ? $approveReason : null,
-                ]);
+                DB::table('gates_nominations')->where('id', $id)->update(
+                    // Same rule as the reject path: the approval must land even when the
+                    // feedback column does not exist yet. `status` and `category_id` are
+                    // the approval; `decision_reason` is a note about it.
+                    OptionalColumn::filter('gates_nominations', [
+                        'status'          => 'approved',
+                        'category_id'     => $catId,
+                        'decision_reason' => $approveReason !== '' ? $approveReason : null,
+                    ], ['decision_reason'])
+                );
 
                 // Auto-attach on approval: if a nominee for this person already
                 // exists in the category, link to it instead of minting a duplicate
