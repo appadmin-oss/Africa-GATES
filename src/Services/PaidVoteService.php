@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\OptionalColumn;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
@@ -330,7 +331,7 @@ class PaidVoteService
                 ->update(['votes_used' => $qty]);
             if ($claimed === 0) return ['ok' => true, 'minted' => 0, 'message' => 'Already minted.'];
 
-            DB::table('gates_votes')->insert([
+            DB::table('gates_votes')->insert(OptionalColumn::filter('gates_votes', [
                 'nominee_id'       => $nomineeId,
                 'category_id'      => (int) $nominee->category_id,
                 // Synthetic, order-scoped hash — never an email, never collides
@@ -339,15 +340,22 @@ class PaidVoteService
                 'voter_name'       => mb_substr((string) $don->donor_name, 0, 120),
                 // The buyer's consent, carried from the order onto the vote so the
                 // public supporters list never has to read a payments table. An order
-                // that predates the checkbox has show_name = 0 by column default, and
-                // a database without the migration yields null → 0. Both mean private,
-                // which is the only safe direction for a default.
+                // that predates the field has show_name = 0 by column default, and
+                // reading it off an unmigrated database yields null → 0. Both mean
+                // private, the only safe direction for a default.
+                //
+                // FILTERED, NOT WRITTEN BLIND. Reading the column degrades on its own;
+                // writing it does not, and that asymmetry is what broke paid voting. On
+                // an unmigrated database this INSERT threw INSIDE the claim transaction
+                // — after `votes_used` had already been set — so the money was taken,
+                // the order looked minted, and no vote existed. A supporter who has paid
+                // must get their votes whether or not anyone has run the migration.
                 'show_name'        => (int) ($don->show_name ?? 0) === 1 ? 1 : 0,
                 'vote_type'        => 'paid',
                 'weight'           => $qty,
                 'donation_id'      => (int) $don->id,
                 'voted_at'         => Carbon::now()->toDateTimeString(),
-            ]);
+            ], ['show_name']));
             // Public tally only — organic_vote_count (the CPI community signal)
             // is NEVER moved by money.
             DB::table('gates_nominees')->where('id', $nomineeId)->increment('vote_count', $qty);

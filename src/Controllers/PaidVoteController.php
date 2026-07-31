@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Controllers;
 
 use AfricaGates\Support\Env;
+use AfricaGates\Support\OptionalColumn;
 use AfricaGates\Services\CheckoutThrottle;
 use AfricaGates\Services\PaidVoteService;
 use AfricaGates\Services\PaymentService;
@@ -123,7 +124,17 @@ final class PaidVoteController
         $amount    = PaidVoteService::price($qty);
         $reference = 'AFG-PVOTE-' . bin2hex(random_bytes(6));
         try {
-            DB::table('gates_donations')->insert([
+            // `show_name` is DROPPED when the database has not been migrated yet.
+            //
+            // Not belt and braces — a fix for a total outage. Writing the column
+            // unconditionally threw on every deployment whose migrations had not been
+            // applied, the catch below turned that into a generic error chip, and paid
+            // voting stopped working with nothing on the page saying why. On this
+            // platform a pulled-but-not-yet-migrated database is a normal state.
+            //
+            // Losing the buyer's naming preference costs them a line on a supporters
+            // list. Losing this INSERT costs them the ability to pay at all.
+            DB::table('gates_donations')->insert(OptionalColumn::filter('gates_donations', [
                 'donor_name'        => $name !== '' ? mb_substr($name, 0, 120) : 'Supporter',
                 'donor_email'       => $email,
                 'donor_phone'       => null,
@@ -139,7 +150,7 @@ final class PaidVoteController
                 // the gateway confirms, and PaidVoteService::mint() copies this onto it.
                 'show_name'         => $showName ? 1 : 0,
                 'created_at'        => Carbon::now()->toDateTimeString(),
-            ]);
+            ], ['show_name']));
         } catch (\Throwable $e) {
             $this->log?->error('[paid-vote] could not persist pending order', ['err' => $e->getMessage()]);
             return $bail('error');
