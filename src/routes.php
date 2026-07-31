@@ -591,6 +591,9 @@ return function(App $app) {
         $g->get('/blog',           BlogController::class.':index');
         $g->get('/blog/{slug}',    BlogController::class.':show');
         $g->get('/pulse',          PulseController::class.':index');
+        // Members post to the feed. Goes through CommunityService::postThread, so it
+        // inherits the spam filter, the moderation verdict and the moderation queue.
+        $g->post('/pulse',         PulseController::class.':post');
         // Activity — one searchable timeline. TWO routes on purpose: /activity is a
         // real GET form rendered server-side so the search works with no JavaScript,
         // and /activity/search is the JSON the live combobox layers on top. Same

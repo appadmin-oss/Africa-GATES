@@ -28,6 +28,31 @@
   .pl-grid{ display:grid; grid-template-columns:1fr 340px; gap:36px; align-items:start; }
   .pl-rail{ position:sticky; top:96px; display:flex; flex-direction:column; gap:18px; }
 
+  /* ── composer ──────────────────────────────────────────────────────────
+     The one thing that turns Pulse from a wall into a feed. Styled as the first
+     card in the column so it reads as "your turn", not as a form bolted on top. */
+  .pl-compose{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:14px 16px; }
+  .pl-compose__row{ display:flex; gap:12px; align-items:flex-start; }
+  .pl-compose__av{ flex:none; width:40px; height:40px; border-radius:50%; background:#10292C; color:#7FC87C;
+                   display:flex; align-items:center; justify-content:center; font-weight:800; font-size:16px; }
+  .pl-compose__ta{ flex:1; min-width:0; border:0; resize:vertical; font:inherit; font-size:15px; line-height:1.5;
+                   color:var(--ag-ink,#10292c); background:transparent; padding:9px 0; min-height:46px; }
+  .pl-compose__ta:focus{ outline:none; }
+  .pl-compose__ta::placeholder{ color:#8a9a9c; }
+  .pl-compose__foot{ display:flex; align-items:center; justify-content:flex-end; gap:12px; margin-top:6px;
+                     border-top:1px solid rgba(16,41,44,.07); padding-top:10px; }
+  .pl-compose__count{ font:600 12px/1 var(--ag-font-mono,monospace); color:#8a9a9c; }
+  .pl-compose__count.is-full{ color:#a32020; }
+  .pl-compose__go{ border:0; background:var(--ag-green,#237b22); color:#fff; font-weight:700; font-size:14px;
+                   padding:10px 22px; border-radius:999px; cursor:pointer; text-decoration:none; display:inline-block; }
+  .pl-compose__go:hover{ filter:brightness(1.06); }
+  .pl-compose--guest{ display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
+  .pl-compose__guest{ margin:0; font-size:14px; color:#5a6d6f; }
+
+  .pl-flash{ border-radius:14px; padding:11px 15px; font-size:14px; font-weight:600; }
+  .pl-flash--ok{ background:#e6f4e6; color:#1c6b1c; border:1px solid #bfe3bf; }
+  .pl-flash--err{ background:#fdf3f3; color:#a32020; border:1px solid #f0c9c9; }
+
   /* feed */
   .pl-feed{ display:flex; flex-direction:column; gap:22px; }
   .pl-post{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; overflow:hidden; }
@@ -116,6 +141,42 @@
   <div x-show="tab==='foryou'">
     <div class="pl-grid">
       <div class="pl-feed">
+
+        {# ── THE COMPOSER ─────────────────────────────────────────────────
+           Pulse was a read-only wall: a page of things published AT members, with
+           not one form on it. This is what makes it a feed people can use.
+           A post here becomes a community thread — same spam filter, same
+           moderation verdict, same queue — so it opens with replies and cheers
+           when anyone clicks through. #}
+        {% if flash_notice %}<div class="pl-flash pl-flash--ok" role="status">{{ flash_notice }}</div>{% endif %}
+        {% if flash_error %}<div class="pl-flash pl-flash--err" role="alert">{{ flash_error }}</div>{% endif %}
+
+        {% if is_member %}
+        <form class="pl-compose" method="POST" action="/pulse"
+              x-data="{ n: 0, max: {{ pulse_max|default(600) }} }">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div class="pl-compose__row">
+            <span class="pl-compose__av" aria-hidden="true">{{ (member_name|default('You'))|first|upper }}</span>
+            <label for="plBody" class="sr-only">Share something with the community</label>
+            <textarea id="plBody" name="body" class="pl-compose__ta" rows="2"
+                      :maxlength="max" x-on:input="n = $event.target.value.length"
+                      placeholder="Share something with the community…" required></textarea>
+          </div>
+          <div class="pl-compose__foot">
+            {# The counter appears only once it starts to matter. A number ticking up
+               from zero on an empty box is pressure, not help. #}
+            <span class="pl-compose__count" x-show="n > max - 120" x-cloak
+                  :class="n >= max ? 'is-full' : ''" x-text="(max - n) + ' left'"></span>
+            <button class="pl-compose__go" type="submit">Post</button>
+          </div>
+        </form>
+        {% else %}
+        <div class="pl-compose pl-compose--guest">
+          <p class="pl-compose__guest">Anyone can read the Pulse. Sign in to post, reply and cheer.</p>
+          <a class="pl-compose__go" href="/account/login?next=%2Fpulse">Sign in to post</a>
+        </div>
+        {% endif %}
+
         {% if posts is not empty %}
           {% for post in posts %}
           {% set cover = post.cover_image|default(post.cover_path|default(post.hero_image|default(''))) %}
