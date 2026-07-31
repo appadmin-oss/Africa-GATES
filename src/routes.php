@@ -992,6 +992,10 @@ return function(App $app) {
         // narrower than /admin/data; the controller re-checks rather than trusting the nav.
         $a->get('/finance',                      AdminFinanceController::class.':index');
         $a->get('/finance/export',               AdminFinanceController::class.':export');
+        // Re-verify stale pending payments against the gateway. POST because it makes
+        // outbound calls and, in apply mode, moves money — a GET would let a prefetch
+        // or a refresh confirm payments.
+        $a->post('/finance/reconcile',           AdminFinanceController::class.':reconcile');
 
         // Member account actions (manual points adjustment — audited, admin+ gated in-controller).
         $a->post('/users/{id:[0-9]+}/points',    \AfricaGates\Admin\Controllers\UsersController::class.':adjustPoints');

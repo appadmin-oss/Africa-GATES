@@ -3,9 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Console\Commands;
 
-use AfricaGates\Services\{PaymentService, OtpService, Notifier};
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Support\Carbon;
+use AfricaGates\Services\{PaymentService, OtpService, PaymentReconciler};
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -30,7 +28,16 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *
  * It deliberately does NOT touch the security-audited controllers. The only
  * fulfilment logic it mirrors (the bound two-query stock decrement) is duplicated
- * here on purpose so the reviewed confirm path stays byte-for-byte unchanged.
+ * on purpose so the reviewed confirm path stays byte-for-byte unchanged.
+ *
+ * ── THIS COMMAND IS NOW A THIN WRAPPER ───────────────────────────────────────
+ *
+ * The deciding is {@see PaymentReconciler}'s, because the admin console can run the
+ * same sweep from a browser — this platform ships to shared hosting where an
+ * operator frequently has no SSH, which is the whole reason /__setup/migrate and
+ * /__setup/checkout exist. Two implementations of "did this payment really happen"
+ * is the last thing in this codebase that should be allowed to drift, so there is
+ * one, and this prints it.
  *
  * Schedule every few minutes, e.g.:  bin/console payments:reconcile
  */
@@ -56,168 +63,40 @@ final class PaymentReconcileCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $io      = new SymfonyStyle($input, $output);
-        $minutes = max(0, (int) $input->getOption('minutes'));
-        $limit   = max(1, (int) $input->getOption('limit'));
-        $dry     = (bool) $input->getOption('dry-run');
-        $cutoff  = Carbon::now()->subMinutes($minutes)->toDateTimeString();
+        $io  = new SymfonyStyle($input, $output);
+        $dry = (bool) $input->getOption('dry-run');
 
-        $orders    = $this->reconcileOrders($cutoff, $limit, $dry, $io);
-        $donations = $this->reconcileDonations($cutoff, $limit, $dry, $io);
+        $r = (new PaymentReconciler($this->payments, $this->mailer))->run(
+            !$dry,
+            max(0, (int) $input->getOption('minutes')),
+            max(1, (int) $input->getOption('limit')),
+        );
 
-        $io->success(($dry ? '[dry-run] ' : '') . "reconciled {$orders} order(s) and {$donations} donation(s).");
-        return Command::SUCCESS;
-    }
-
-    /** Shop orders: gates_orders stores the provider, so verify against it directly. */
-    private function reconcileOrders(string $cutoff, int $limit, bool $dry, SymfonyStyle $io): int
-    {
-        $rows = DB::table('gates_orders')->where('status', 'pending')
-            ->where('created_at', '<', $cutoff)->orderBy('id')->limit($limit)->get();
-        $confirmed = 0;
-        foreach ($rows as $o) {
-            $provider = strtolower((string) ($o->provider ?? ''));
-            if (!$this->payments->isKnownProvider($provider) || !$this->payments->isEnabled($provider)) {
-                continue; // provider unknown/disabled — can't verify; leave for a human
-            }
-            $v = $this->payments->verify($provider, (string) $o->reference);
-            if (!$v['ok']) {
-                continue; // transient verify failure — retry next run
-            }
-            if (($v['status'] ?? '') === 'failed') {
-                if (!$dry) {
-                    DB::table('gates_orders')->where('reference', $o->reference)->where('status', 'pending')
-                        ->update(['status' => 'failed']);
-                }
-                continue;
-            }
-            if (($v['status'] ?? '') !== 'success') {
-                continue; // still pending at the gateway — leave it
-            }
-            // Amount parity is load-bearing: never confirm an order for less than its subtotal.
-            if ((int) $v['amount'] !== (int) $o->subtotal_naira) {
-                $io->writeln(sprintf('  ! order %s amount mismatch (expected %d, verified %d) — skipped',
-                    $o->reference, (int) $o->subtotal_naira, (int) $v['amount']));
-                continue;
-            }
-            if ($dry) {
-                $io->writeln('  [dry] would confirm order ' . $o->reference);
-                continue;
-            }
-            // Idempotent: only the single winning pending→paid writer fulfils.
-            $changed = DB::table('gates_orders')->where('reference', $o->reference)->where('status', 'pending')
-                ->update(['status' => 'paid', 'paid_at' => Carbon::now()->toDateTimeString(), 'provider_ref' => (string) $o->reference]);
-            if ($changed > 0) {
-                $this->fulfilOrder($o);
-                $io->writeln('  ✓ confirmed order ' . $o->reference);
-                $confirmed++;
-            }
-        }
-        return $confirmed;
-    }
-
-    /**
-     * gates_donations (vote packs, tickets, free-amount gifts) carries no stored
-     * provider, so verify against each enabled gateway — only the one that issued
-     * the reference recognises it. Status-only, matching the existing /pay/webhook
-     * (bonus votes are redeemed separately; donation receipts are sent by the
-     * callback path).
-     */
-    private function reconcileDonations(string $cutoff, int $limit, bool $dry, SymfonyStyle $io): int
-    {
-        $providers = $this->payments->enabledProviderIds();
-        if (!$providers) {
-            return 0;
-        }
-        $rows = DB::table('gates_donations')->where('status', 'pending')
-            ->where('created_at', '<', $cutoff)->orderBy('id')->limit($limit)->get();
-        $confirmed = 0;
-        foreach ($rows as $d) {
-            foreach ($providers as $provider) {
-                $v = $this->payments->verify($provider, (string) $d->payment_ref);
-                if (!$v['ok'] || ($v['status'] ?? '') !== 'success') {
-                    continue; // not this gateway, or not paid yet — try the next
-                }
-                if ((int) $v['amount'] !== (int) $d->amount_naira) {
-                    $io->writeln(sprintf('  ! donation %s amount mismatch — skipped', $d->payment_ref));
-                    break;
-                }
-                if ($dry) {
-                    $io->writeln('  [dry] would confirm donation ' . $d->payment_ref);
-                    break;
-                }
-                $changed = DB::table('gates_donations')->where('payment_ref', $d->payment_ref)->where('status', 'pending')
-                    ->update(['status' => 'confirmed']);
-                if ($changed > 0) {
-                    $io->writeln('  ✓ confirmed donation ' . $d->payment_ref);
-                    // PAID-VOTE ORDERS MUST STILL MINT AND STILL RECEIPT.
-                    //
-                    // This branch used to flip the status and stop. A paid-vote order
-                    // whose browser callback was dropped therefore ended up 'confirmed'
-                    // with votes_used = 0 — money taken, no votes on the nominee, and
-                    // indistinguishable from the deliberate "voting closed before the
-                    // payment confirmed" refusal that the same column encodes. The two
-                    // live confirm paths both mint here; the backstop that exists FOR
-                    // dropped callbacks was the one that did not.
-                    //
-                    // Both calls are idempotent and neither throws: mint() is guarded by
-                    // the votes_used flip, the receipt by its own claim column.
-                    if ((string) ($d->tier ?? '') === 'paid-vote' && !empty($d->intent_nominee_id)) {
-                        try {
-                            $m = \AfricaGates\Services\PaidVoteService::mint((int) $d->id);
-                            if (empty($m['ok'])) {
-                                $io->writeln('    ! votes NOT minted: ' . (string) ($m['message'] ?? 'unknown')
-                                    . ' — this order is refundable');
-                            }
-                        } catch (\Throwable $e) {
-                            $io->writeln('    ! mint failed: ' . $e->getMessage());
-                        }
-                    }
-                    \AfricaGates\Services\CheckoutMailer::receipt((int) $d->id);
-                    $confirmed++;
-                }
-                break; // a provider recognised this reference — done with this row
-            }
-        }
-        return $confirmed;
-    }
-
-    /**
-     * One-time side effects of a confirmed order. Mirrors ShopCheckoutController::fulfil
-     * INTENTIONALLY (kept separate so the audited confirm path is untouched): decrement
-     * tracked stock with the same two bound queries (never a string-built CASE, never
-     * below zero), then a best-effort receipt + operator alert. Only the single winning
-     * pending→paid transition reaches here, so it runs exactly once per order.
-     */
-    private function fulfilOrder(object $order): void
-    {
-        $lines = json_decode((string) $order->items_json, true) ?: [];
-        foreach ($lines as $l) {
-            $slug = (string) ($l['slug'] ?? ''); $qty = (int) ($l['qty'] ?? 0);
-            if ($slug === '' || $qty < 1) {
-                continue;
-            }
-            DB::table('gates_products')->where('slug', $slug)->whereNotNull('stock')
-                ->where('stock', '>=', $qty)->decrement('stock', $qty);
-            DB::table('gates_products')->where('slug', $slug)->whereNotNull('stock')
-                ->where('stock', '<', $qty)->update(['stock' => 0]);
+        foreach ($r['items'] as $it) {
+            $mark = match ($it['action']) {
+                'confirmed'    => $dry ? '  [dry] would confirm' : '  ✓ confirmed',
+                'failed'       => '  · marked failed',
+                'mismatch'     => '  ! AMOUNT MISMATCH',
+                'unverifiable' => '  ? could not verify',
+                default        => '  · still pending',
+            };
+            $io->writeln(sprintf('%s %s %s — %s', $mark, $it['kind'], $it['ref'], $it['note']));
         }
 
-        $total = '₦' . number_format((int) $order->subtotal_naira);
-        if ($this->mailer) {
-            try {
-                $this->mailer->sendBranded(
-                    (string) $order->email,
-                    'Your Africa GATES order is confirmed',
-                    '<p>Thank you, ' . htmlspecialchars((string) $order->name) . ' — your payment is confirmed and your order is being prepared.</p>'
-                    . '<p style="font-family:monospace">Order ' . htmlspecialchars((string) $order->reference) . '</p>'
-                    . "<p>Total paid: <strong>{$total}</strong>. Every purchase funds child leadership programmes — thank you.</p>",
-                    'Shop'
-                );
-            } catch (\Throwable $e) { /* a receipt failure must never undo a confirmation */ }
-        }
-        Notifier::adminAlert($this->mailer, 'Shop order reconciled to paid (cron)',
-            "Order {$order->reference} was confirmed by payments:reconcile after a missed callback.\n"
-            . "By:    {$order->name} <{$order->email}>\nTotal: {$total}");
+        // Logged for the CLI too, not just the admin button. A cron that quietly
+        // confirms someone's payment at 03:00 is exactly the event that has to be
+        // explainable later, and it is the one nobody is watching.
+        PaymentReconciler::log($r, 'cron');
+
+        $io->success(sprintf(
+            '%schecked %d · confirmed %d (₦%s) · failed %d · mismatch %d · unverifiable %d',
+            $dry ? '[dry-run] ' : '',
+            $r['checked'], $r['confirmed'], number_format($r['naira']),
+            $r['failed'], $r['mismatch'], $r['unverifiable']
+        ));
+
+        // A mismatch is not a crash, but it is not success either — it is money that
+        // needs a person. A non-zero exit makes cron surface it instead of swallowing it.
+        return $r['mismatch'] > 0 ? Command::FAILURE : Command::SUCCESS;
     }
 }

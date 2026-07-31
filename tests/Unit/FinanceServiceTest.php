@@ -25,40 +25,9 @@ use Tests\TestCase;
  */
 final class FinanceServiceTest extends TestCase
 {
-    /** Mirrors the SQLite branch of database/migrations/2026_06_22_shop.php. */
-    private const ORDERS_DDL = 'CREATE TABLE IF NOT EXISTS gates_orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        reference TEXT NOT NULL UNIQUE,
-        email TEXT NOT NULL,
-        name TEXT NOT NULL,
-        phone TEXT,
-        address TEXT,
-        items_json TEXT NOT NULL,
-        subtotal_naira INTEGER NOT NULL DEFAULT 0,
-        status TEXT NOT NULL DEFAULT \'pending\',
-        provider TEXT,
-        provider_ref TEXT,
-        ip_hash TEXT,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        paid_at TEXT
-    )';
-
     protected function setUp(): void
     {
         parent::setUp();
-
-        // `gates_orders` is created by a dated migration, not by the base schema files,
-        // and the SQLite harness loads only the base files — the MySQL parity run is the
-        // one that also applies migrations. So the shop table is simply absent here.
-        //
-        // Created directly rather than by calling MigrationRunner: the runner
-        // re-bootstraps its own connection and lands on the on-disk dev database instead
-        // of this suite's in-memory one, so every table the test needs then disappears.
-        // {@see test_the_orders_fixture_matches_the_real_migration} guards the drift this
-        // hand-written DDL would otherwise allow.
-        if (!DB::schema()->hasTable('gates_orders')) {
-            DB::connection()->getPdo()->exec(self::ORDERS_DDL);
-        }
 
         DB::table('gates_donations')->delete();
         try { DB::table('gates_orders')->delete(); } catch (\Throwable) {}
@@ -334,35 +303,4 @@ final class FinanceServiceTest extends TestCase
         $this->assertSame(3000, FinanceService::totals(date('Y-m-d'), date('Y-m-d'))['confirmed']);
     }
 
-    // ── The fixture itself ───────────────────────────────────────────────────
-
-    /**
-     * The gates_orders DDL above is hand-written, so it can drift from the migration
-     * that actually creates the table — and a fixture that has drifted lets every test
-     * in this file keep passing against a shape production does not have, which is
-     * worse than having no test at all.
-     *
-     * So: every column the fixture declares must appear in the migration, and every
-     * column FinanceService reads must appear in the fixture.
-     */
-    public function test_the_orders_fixture_matches_the_real_migration(): void
-    {
-        $migration = (string) file_get_contents(
-            dirname(__DIR__, 2) . '/database/migrations/2026_06_22_shop.php'
-        );
-
-        preg_match_all('/^\s{8}(\w+)\s/m', self::ORDERS_DDL, $m);
-        $this->assertNotEmpty($m[1], 'the DDL should declare columns');
-
-        foreach ($m[1] as $col) {
-            $this->assertMatchesRegularExpression('/\b' . preg_quote($col, '/') . '\b/', $migration,
-                "the fixture declares `{$col}`, which the shop migration does not");
-        }
-
-        // And the columns the service actually selects.
-        foreach (['reference', 'email', 'name', 'subtotal_naira', 'status', 'provider', 'created_at'] as $col) {
-            $this->assertTrue(DB::schema()->hasColumn('gates_orders', $col),
-                "FinanceService reads `{$col}` from gates_orders");
-        }
-    }
 }

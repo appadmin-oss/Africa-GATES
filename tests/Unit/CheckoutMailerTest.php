@@ -439,9 +439,12 @@ class CheckoutMailerTest extends TestCase
     {
         $root = dirname(__DIR__, 2);
         foreach ([
-            'src/Controllers/PaidVoteController.php'             => 'the browser callback',
-            'src/Controllers/PaymentController.php'              => 'the gateway webhook',
-            'src/Console/Commands/PaymentReconcileCommand.php'   => 'the dropped-callback backstop',
+            'src/Controllers/PaidVoteController.php' => 'the browser callback',
+            'src/Controllers/PaymentController.php'  => 'the gateway webhook',
+            // Was PaymentReconcileCommand. The deciding moved into a service so the
+            // admin console can run the same sweep from a browser; the command is now a
+            // thin printer, and this is where the confirm actually happens.
+            'src/Services/PaymentReconciler.php'     => 'the dropped-callback backstop',
         ] as $file => $what) {
             $src = (string) file_get_contents($root . '/' . $file);
             $this->assertStringContainsString('CheckoutMailer::receipt(', $src,
@@ -457,9 +460,15 @@ class CheckoutMailerTest extends TestCase
      */
     public function test_the_reconcile_backstop_mints_the_votes_it_confirms(): void
     {
-        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Console/Commands/PaymentReconcileCommand.php');
-
-        $this->assertStringContainsString('PaidVoteService::mint(', $src);
+        // The backstop is PaymentReconciler now: the console command delegates to it and
+        // so does the admin console's Check/Apply button. ONE implementation, so this
+        // property cannot hold on one path and quietly not on the other.
+        $root = dirname(__DIR__, 2);
+        $this->assertStringContainsString('PaidVoteService::mint(',
+            (string) file_get_contents($root . '/src/Services/PaymentReconciler.php'));
+        $this->assertStringNotContainsString('PaidVoteService::mint(',
+            (string) file_get_contents($root . '/src/Console/Commands/PaymentReconcileCommand.php'),
+            'the command must delegate, not keep a second copy of the confirm logic');
     }
 
     /**

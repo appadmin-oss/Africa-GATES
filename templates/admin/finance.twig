@@ -24,7 +24,18 @@
   #fi-t-sources:checked ~ .fi-tabs label[for="fi-t-sources"],
   #fi-t-tx:checked      ~ .fi-tabs label[for="fi-t-tx"],
   #fi-t-recon:checked   ~ .fi-tabs label[for="fi-t-recon"],
-  #fi-t-votes:checked   ~ .fi-tabs label[for="fi-t-votes"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
+  #fi-t-votes:checked   ~ .fi-tabs label[for="fi-t-votes"],
+  #fi-t-recon2:checked  ~ .fi-tabs label[for="fi-t-recon2"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
+
+  /* Reconciliation outcomes. Colour carries the meaning at a glance because the
+     table is scanned, not read: green moved money, amber needs a person. */
+  .fi-act{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:800;letter-spacing:.02em}
+  .fi-act--confirmed{background:#e6f4e6;color:#1c6b1c}
+  .fi-act--mismatch{background:#fdf0d5;color:#8a5a00}
+  .fi-act--unverifiable{background:#fdf0d5;color:#8a5a00}
+  .fi-act--failed{background:#f3f4f6;color:#4b5563}
+  .fi-act--pending{background:#eef2f0;color:#5a6d6f}
+  .fi-danger{border:1px solid #f0c9c9;background:#fdf3f3;border-radius:12px;padding:12px 14px}
   /* Focus must survive the visually-hidden input — the strip is keyboard-navigable
      with arrow keys, and without this the focused tab is invisible. */
   .fi-tabs__radio:focus-visible ~ .fi-tabs label{outline:1px dashed var(--ad-accent,#237b22);outline-offset:2px}
@@ -33,7 +44,8 @@
   #fi-t-sources:checked ~ .fi-body #fi-p-sources,
   #fi-t-tx:checked      ~ .fi-body #fi-p-tx,
   #fi-t-recon:checked   ~ .fi-body #fi-p-recon,
-  #fi-t-votes:checked   ~ .fi-body #fi-p-votes{display:block}
+  #fi-t-votes:checked   ~ .fi-body #fi-p-votes,
+  #fi-t-recon2:checked  ~ .fi-body #fi-p-recon2{display:block}
 
   .fi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
   .fi-kpi{background:var(--ad-surface,#fff);border:1px solid var(--ad-line,#e5eae8);border-radius:14px;padding:14px 16px}
@@ -88,6 +100,7 @@
     <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-tx">
     <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-recon">
     <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-votes">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-recon2" {% if recon %}checked{% endif %}>
 
     <div class="fi-tabs" role="tablist" aria-label="Finance sections">
       <label for="fi-t-summary">Summary</label>
@@ -95,6 +108,7 @@
       <label for="fi-t-tx">Transactions</label>
       <label for="fi-t-recon">Needs attention{% if uncredited|length or owed.count %} ({{ uncredited|length + owed.count }}){% endif %}</label>
       <label for="fi-t-votes">Paid votes</label>
+      <label for="fi-t-recon2">Reconcile</label>
     </div>
 
     <div class="fi-body">
@@ -297,6 +311,120 @@
             </tbody>
           </table>
         </div></div>
+      </section>
+
+      {# ── RECONCILE ──────────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-recon2" aria-labelledby="fi-t-recon2">
+        <div class="ad-card">
+          <strong style="font-size:14px">Re-verify pending payments against the gateway</strong>
+          <p class="fi-note" style="margin-top:4px">
+            A payment is recorded when the buyer's browser returns to the callback URL, and
+            that last hop is the least reliable part of the flow — a lost signal, a closed
+            tab, a bank transfer that settles after the buyer gave up. The money moved; the
+            row still says pending. From the row alone that is indistinguishable from an
+            abandoned cart, so this asks the gateway, which is the only party that knows.
+          </p>
+
+          <form method="POST" action="/admin/finance/reconcile" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <input type="hidden" name="mode" value="check">
+            <div>
+              <label for="rcMin" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Older than</label>
+              <select id="rcMin" name="minutes" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+                <option value="15">15 minutes</option>
+                <option value="60" selected>1 hour</option>
+                <option value="1440">24 hours</option>
+                <option value="10080">7 days</option>
+              </select>
+            </div>
+            <button class="ad-btn ad-btn--primary" type="submit">Check now</button>
+            <span class="fi-note" style="margin:0 0 9px">Read-only. Asks the gateway and changes nothing.</span>
+          </form>
+        </div>
+
+        {% if recon %}
+        <div class="ad-card" style="margin-top:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <strong style="font-size:14px">
+              {{ recon.applied ? 'Applied' : 'Check' }} — {{ recon.checked|number_format }} pending payment{{ recon.checked == 1 ? '' : 's' }} examined
+            </strong>
+            <span class="fi-note" style="margin:0">
+              {{ recon.confirmed }} {{ recon.applied ? 'confirmed' : 'would be confirmed' }} (₦{{ recon.naira|number_format }})
+              · {{ recon.mismatch }} mismatched · {{ recon.unverifiable }} unverifiable · {{ recon.failed }} failed
+            </span>
+          </div>
+
+          {% if recon.items %}
+          <div class="ad-table-wrap" style="margin-top:10px">
+            <table class="ad-table">
+              <thead><tr><th scope="col">Outcome</th><th scope="col">Kind</th><th scope="col">Who</th><th scope="col">Reference</th><th scope="col" class="fi-right">Ours</th><th scope="col" class="fi-right">Gateway</th><th scope="col">Detail</th></tr></thead>
+              <tbody>
+                {% for i in recon.items %}
+                <tr>
+                  <td><span class="fi-act fi-act--{{ i.action }}">{{ i.action }}</span></td>
+                  <td>{{ i.kind }}</td>
+                  <td><strong>{{ i.who }}</strong></td>
+                  <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ i.ref }}</td>
+                  <td class="fi-right fi-num">₦{{ i.amount_ours|number_format }}</td>
+                  <td class="fi-right fi-num">{{ i.amount_gateway > 0 ? '₦' ~ i.amount_gateway|number_format : '—' }}</td>
+                  <td style="font-size:12.5px">{{ i.note }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}<div class="fi-empty">Nothing pending in that window — everything is already reconciled.</div>{% endif %}
+
+          {# The apply step is offered only when a check has actually found something to
+             apply, and never before the operator has seen the table above. #}
+          {% if not recon.applied and (recon.confirmed > 0 or recon.failed > 0) %}
+          <div class="fi-danger" style="margin-top:14px">
+            <strong style="font-size:13.5px">Apply these changes</strong>
+            <p class="fi-note" style="margin:6px 0 10px">
+              Confirms the {{ recon.confirmed }} genuinely-paid payment{{ recon.confirmed == 1 ? '' : 's' }} (₦{{ recon.naira|number_format }}),
+              mints any votes owed and sends the receipts{% if recon.failed %}, and marks {{ recon.failed }} definitively-failed order{{ recon.failed == 1 ? '' : 's' }} as failed{% endif %}.
+              Rows shown as <strong>mismatched</strong> or <strong>unverifiable</strong> are never touched — those need a person.
+              This cannot be undone from here.
+            </p>
+            <form method="POST" action="/admin/finance/reconcile" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <input type="hidden" name="mode" value="apply">
+              <input type="hidden" name="minutes" value="{{ recon.minutes|default(60) }}">
+              <label for="rcConfirm" style="font-size:12.5px;font-weight:600">Type <code>APPLY</code> to confirm</label>
+              <input id="rcConfirm" name="confirm" autocomplete="off" placeholder="APPLY"
+                     style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px;width:120px;font-family:'Space Mono',monospace">
+              <button class="ad-btn ad-btn--primary" type="submit">Apply reconciliation</button>
+            </form>
+          </div>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="ad-card" style="margin-top:14px">
+          <strong style="font-size:14px">Reconciliation history</strong>
+          <p class="fi-note" style="margin-top:4px">
+            Every run, by cron or by hand. A finance correction with no record of who made
+            it and what the gateway said is indistinguishable from tampering.
+          </p>
+          {% if recon_log %}
+          <table class="ad-table">
+            <thead><tr><th scope="col">When</th><th scope="col">By</th><th scope="col">Mode</th><th scope="col" class="fi-right">Checked</th><th scope="col" class="fi-right">Confirmed</th><th scope="col" class="fi-right">Amount</th><th scope="col" class="fi-right">Needs attention</th></tr></thead>
+            <tbody>
+              {% for r in recon_log %}
+              <tr>
+                <td class="fi-num">{{ r.ran_at|date('Y-m-d H:i') }}</td>
+                <td class="fi-num">{{ r.actor }}</td>
+                <td>{% if r.mode == 'apply' %}<span class="ad-chip ad-chip--gold">apply</span>{% else %}<span class="ad-chip">check</span>{% endif %}</td>
+                <td class="fi-right fi-num">{{ r.checked|number_format }}</td>
+                <td class="fi-right fi-num">{{ r.confirmed|number_format }}</td>
+                <td class="fi-right fi-num">₦{{ r.naira|number_format }}</td>
+                <td class="fi-right fi-num">{{ (r.mismatch + r.unverifiable)|number_format }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<div class="fi-empty">No reconciliation has been run yet.</div>{% endif %}
+        </div>
       </section>
 
     </div>

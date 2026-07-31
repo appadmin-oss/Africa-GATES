@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Controllers;
 
+use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Services\FinanceService;
+use AfricaGates\Services\PaymentReconciler;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -31,7 +33,13 @@ class FinanceController
     /** The window presets, in days. `0` means "everything". */
     private const RANGES = ['7' => 'Last 7 days', '30' => 'Last 30 days', '90' => 'Last 90 days', '365' => 'Last 12 months', '0' => 'All time'];
 
-    public function __construct(private readonly Twig $view) {}
+    public function __construct(
+        private readonly Twig $view,
+        // Nullable so the read-only page still renders if the container has not been
+        // given one; a reconciliation that cannot be audited is refused in
+        // reconcile() rather than performed silently.
+        private readonly ?AuditService $audit = null,
+    ) {}
 
     /** Money is admin+. See the class note on why this is tighter than /admin/data. */
     private function blocked(Response $res): ?Response
@@ -95,7 +103,70 @@ class FinanceController
             'owed'        => FinanceService::owedRefunds(25),
             'nominees'    => FinanceService::paidVotesByNominee(20),
             'providers'   => FinanceService::byProvider()['orders'],
+            // The reconciliation tab. Findings only appear after an explicit run —
+            // never on page load, because each finding is a live HTTP call to the
+            // gateway and nobody should be calling Paystack for opening a dashboard.
+            //
+            // Read once and cleared: a stale result still on screen after an unrelated
+            // filter change reads as the CURRENT state of the money, which is the one
+            // thing this page must never get wrong.
+            'recon'       => $this->takeReconResult(),
+            'recon_log'   => PaymentReconciler::history(12),
         ]);
+    }
+
+    /**
+     * Ask the gateway about every stale pending payment.
+     *
+     * TWO MODES, AND THE DEFAULT IS THE SAFE ONE. `check` verifies and reports without
+     * writing; `apply` also confirms the genuinely-paid, mints their votes and marks
+     * the definitively-failed. An operator sees the discrepancies before anything
+     * moves — otherwise the button that fixes four orders is also the button that
+     * confirms a mismatched fifth nobody looked at.
+     *
+     * The result goes in the SESSION rather than being re-run on the redirect. A
+     * reconciliation is a set of outbound API calls with side effects; a refresh must
+     * not repeat it, and post-redirect-get is what stops a browser reload from
+     * re-confirming payments.
+     */
+    public function reconcile(Request $req, Response $res): Response
+    {
+        if ($stop = $this->blocked($res)) return $stop;
+
+        $b     = (array) $req->getParsedBody();
+        $apply = ($b['mode'] ?? 'check') === 'apply';
+
+        // Apply is destructive and irreversible in the direction that matters (money
+        // credited, votes minted on a live leaderboard), so it carries a typed
+        // confirmation. Check does not — its whole purpose is to be safe to press.
+        if ($apply && ($b['confirm'] ?? '') !== 'APPLY') {
+            $_SESSION['flash_error'] = 'Type APPLY to confirm before applying reconciliation changes.';
+            return $res->withHeader('Location', '/admin/finance')->withStatus(302);
+        }
+
+        $minutes = max(0, min(10080, (int) ($b['minutes'] ?? 15)));
+
+        try {
+            $result = (new PaymentReconciler())->run($apply, $minutes, 200);
+        } catch (\Throwable $e) {
+            $_SESSION['flash_error'] = 'Reconciliation could not run: ' . $e->getMessage();
+            return $res->withHeader('Location', '/admin/finance')->withStatus(302);
+        }
+
+        $actor = 'admin:' . (int) ($_SESSION['admin_id'] ?? 0);
+        PaymentReconciler::log($result, $actor);
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'finance.reconcile', 'finance', 0);
+
+        $_SESSION['recon_result'] = $result;
+        $_SESSION['flash_ok'] = $apply
+            ? sprintf('Reconciled: %d confirmed (₦%s), %d marked failed, %d need attention.',
+                $result['confirmed'], number_format($result['naira']),
+                $result['failed'], $result['mismatch'] + $result['unverifiable'])
+            : sprintf('Checked %d pending payment(s): %d would be confirmed (₦%s), %d need attention. Nothing was changed.',
+                $result['checked'], $result['confirmed'], number_format($result['naira']),
+                $result['mismatch'] + $result['unverifiable']);
+
+        return $res->withHeader('Location', '/admin/finance')->withStatus(302);
     }
 
     /**
@@ -136,6 +207,14 @@ class FinanceController
         return $res
             ->withHeader('Content-Type', 'text/csv; charset=utf-8')
             ->withHeader('Content-Disposition', 'attachment; filename="finance-' . date('Y-m-d') . '.csv"');
+    }
+
+    /** The last run's findings, consumed so a reload does not re-show them as current. */
+    private function takeReconResult(): ?array
+    {
+        $r = $_SESSION['recon_result'] ?? null;
+        unset($_SESSION['recon_result']);
+        return is_array($r) ? $r : null;
     }
 
     /** A `Y-m-d` from user input, or null. Anything else is discarded rather than guessed at. */

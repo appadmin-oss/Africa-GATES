@@ -784,3 +784,45 @@ CREATE TABLE IF NOT EXISTS gates_ai_decisions (
 );
 CREATE INDEX IF NOT EXISTS idx_aidec_cap_day ON gates_ai_decisions(capability, created_at);
 CREATE INDEX IF NOT EXISTS idx_aidec_subject ON gates_ai_decisions(subject_type, subject_id);
+
+-- The reconciliation audit trail. One row per RUN of the payment reconciler:
+-- who ran it, in which mode, and what the gateway said at the time. A finance
+-- correction with no trail is indistinguishable from tampering, and this became
+-- load-bearing the moment an admin (not just cron) could press the button.
+CREATE TABLE IF NOT EXISTS gates_reconciliation_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ran_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actor TEXT NOT NULL DEFAULT 'system',
+  mode TEXT NOT NULL DEFAULT 'check',
+  checked INTEGER NOT NULL DEFAULT 0,
+  confirmed INTEGER NOT NULL DEFAULT 0,
+  failed INTEGER NOT NULL DEFAULT 0,
+  mismatch INTEGER NOT NULL DEFAULT 0,
+  unverifiable INTEGER NOT NULL DEFAULT 0,
+  naira INTEGER NOT NULL DEFAULT 0,
+  detail_json TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_recon_ran ON gates_reconciliation_runs(ran_at);
+
+-- Shop orders. Lived only in the 2026_06_22_shop migration, so a database built
+-- from this file alone had no shop table at all — and the test harness, which loads
+-- these files WITHOUT applying migrations, could not exercise any shop or
+-- reconciliation path. Kept byte-compatible with that migration, which is idempotent
+-- and therefore still safe to run on an existing install.
+CREATE TABLE IF NOT EXISTS gates_orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  reference TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL,
+  name TEXT NOT NULL,
+  phone TEXT,
+  address TEXT,
+  items_json TEXT NOT NULL,
+  subtotal_naira INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending',
+  provider TEXT,
+  provider_ref TEXT,
+  ip_hash TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  paid_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_order_status ON gates_orders(status);

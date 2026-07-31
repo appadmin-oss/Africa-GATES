@@ -694,3 +694,46 @@ CREATE TABLE IF NOT EXISTS gates_ai_decisions (
   KEY idx_aidec_cap_day (capability, created_at),
   KEY idx_aidec_subject (subject_type, subject_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The reconciliation audit trail. One row per RUN of the payment reconciler:
+-- who ran it, in which mode, and what the gateway said at the time. A finance
+-- correction with no trail is indistinguishable from tampering, and this became
+-- load-bearing the moment an admin (not just cron) could press the button.
+CREATE TABLE IF NOT EXISTS gates_reconciliation_runs (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  ran_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actor VARCHAR(120) NOT NULL DEFAULT 'system',
+  mode VARCHAR(10) NOT NULL DEFAULT 'check',
+  checked INT UNSIGNED NOT NULL DEFAULT 0,
+  confirmed INT UNSIGNED NOT NULL DEFAULT 0,
+  failed INT UNSIGNED NOT NULL DEFAULT 0,
+  mismatch INT UNSIGNED NOT NULL DEFAULT 0,
+  unverifiable INT UNSIGNED NOT NULL DEFAULT 0,
+  naira BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  detail_json LONGTEXT,
+  PRIMARY KEY(id),
+  KEY idx_recon_ran (ran_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shop orders. Lived only in the 2026_06_22_shop migration, so a database built from
+-- this file alone had no shop table at all. Byte-compatible with that migration,
+-- which is idempotent and still safe to run on an existing install.
+CREATE TABLE IF NOT EXISTS gates_orders (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  reference VARCHAR(64) NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  name VARCHAR(160) NOT NULL,
+  phone VARCHAR(40) DEFAULT NULL,
+  address TEXT,
+  items_json TEXT NOT NULL,
+  subtotal_naira INT UNSIGNED NOT NULL DEFAULT 0,
+  status VARCHAR(20) NOT NULL DEFAULT 'pending',
+  provider VARCHAR(30) DEFAULT NULL,
+  provider_ref VARCHAR(120) DEFAULT NULL,
+  ip_hash VARCHAR(64) DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  paid_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_order_ref (reference),
+  KEY idx_order_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
