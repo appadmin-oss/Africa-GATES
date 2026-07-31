@@ -62,17 +62,23 @@ final class Media
         'cover'    => 'c_fill,g_auto,w_1200,h_675,f_auto,q_auto',
         // Full-width but unclipped, for anything whose aspect must survive.
         'wide'     => 'c_limit,w_1600,f_auto,q_auto',
-        // The flier's photo panel. Pinned format and exact geometry — see the class
-        // note, and FlierService::W / PHOTO_H which these must match.
-        'flier'    => 'c_fill,g_faces:auto,w_1080,h_820,f_jpg,q_auto:good',
+        // The flier's photo panel, requested at its TALLER height.
+        //
+        // The panel is 1020 with a rank pill and 1120 without one, and a preset can pin
+        // only one geometry. Asking for the taller of the two always yields enough pixels
+        // for either, and the renderer's own fill crops the 100px difference off the
+        // BOTTOM — the chest, not the face. Asking for the shorter one would be the
+        // mistake: an unranked card would then upscale, and an upscaled face is visible
+        // at 1080px wide. Pinned to FlierLayout::PANEL_H_UNRANKED by test.
+        'flier'    => 'c_fill,g_faces:auto,w_1080,h_1120,f_jpg,q_auto:good',
         // The og:image itself, when a raw photo (not the rendered flier) is used.
         'og'       => 'c_fill,g_faces:auto,w_1200,h_630,f_jpg,q_auto:good',
         // The portrait column of the 1200×630 link-preview card. A TALL crop, not a
-        // scaled-down 'og' — the card puts the face in a 480×630 panel beside the text
+        // scaled-down 'og' — the card puts the face in a 520×630 panel beside the text
         // rather than behind it, so asking for the landscape derivative would hand the
         // renderer a wide image to crop again and undo the face anchoring. Geometry
-        // pinned to FlierService::OG_PHOTO_W / OG_H by test.
-        'og_photo' => 'c_fill,g_faces:auto,w_480,h_630,f_jpg,q_auto:good',
+        // pinned to FlierLayout::OG_PHOTO_W / FlierService::OG_H by test.
+        'og_photo' => 'c_fill,g_faces:auto,w_520,h_630,f_jpg,q_auto:good',
     ];
 
     /**

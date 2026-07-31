@@ -376,8 +376,10 @@ class StandingsAndFlierTest extends TestCase
         $id = $this->nominee('Nominee 48 Surname', 3);
         $svg = (new FlierService())->svg($this->flierFor($id));
 
-        // The monogram is the only 260px text on the card.
-        preg_match('~font-size="260"[^>]*>([^<]*)<~', $svg, $m);
+        // The monogram is the only 400px text on the card. It was 260 and 28% opaque
+        // under the previous design; the redraw makes it a deliberate slab, because at
+        // thumbnail size a faint one read as a rendering fault.
+        preg_match('~font-size="400"[^>]*>([^<]*)<~', $svg, $m);
         $this->assertNotEmpty($m, 'a photo-less nominee must get a monogram');
         $this->assertMatchesRegularExpression('~^\p{L}{1,2}$~u', $m[1],
             'letters only, got: ' . $m[1]);
@@ -620,10 +622,21 @@ class StandingsAndFlierTest extends TestCase
         $this->assertMatchesRegularExpression('~href="\{\{ svg_url \}\}"[^>]*download~', $twig);
 
         // And the jury footnote, which must never be dropped from either encoding.
+        // It is now a single constant on FlierLayout rather than a literal repeated in
+        // each renderer — which is the stronger version of what this assertion wanted,
+        // because the two encodings can no longer disagree about the wording at all.
         $svg = (new FlierService())->svg($this->flierFor($this->nominee('Footnote Check', 3)));
         $this->assertStringContainsString('An independent jury decides the award', $svg);
         $this->assertStringContainsString('An independent jury decides the award',
-            (string) file_get_contents(dirname(__DIR__, 2) . '/src/Services/FlierService.php'));
+            \AfricaGates\Services\FlierLayout::FOOTNOTE);
+
+        // All three renderers must draw that constant and none may carry its own copy —
+        // a second literal is precisely how the two encodings drifted last time.
+        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Services/FlierService.php');
+        $this->assertStringNotContainsString('An independent jury decides the award', $src,
+            'the footnote belongs to FlierLayout; a literal here is a second copy waiting to drift');
+        $this->assertGreaterThanOrEqual(3, substr_count($src, 'FlierLayout::FOOTNOTE'),
+            'the SVG, the flier raster and the OG card must each draw the shared footnote');
     }
 
     public function test_the_flier_carries_no_contact_detail(): void

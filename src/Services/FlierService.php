@@ -62,13 +62,15 @@ final class FlierService
     public const H = 1350;
 
     /**
-     * Height of the photo panel. Was a bare `820` written out five times across the two
-     * renderers; it is a constant now because {@see \AfricaGates\Support\Media}'s `flier`
-     * preset has to request exactly these dimensions from Cloudinary. A preset that
-     * disagreed with the panel would hand GD a differently-shaped image and reintroduce
-     * a crop — the specific thing the face-aware derivative exists to remove.
+     * The panel height {@see \AfricaGates\Support\Media}'s `flier` preset requests.
+     *
+     * The panel is no longer one number: it is 1020 with a rank pill and 1120 without
+     * one ({@see FlierLayout}). A Cloudinary preset can pin only one geometry, so it
+     * asks for the TALLER — enough pixels for either, with the renderer cropping the
+     * difference off the bottom. Requesting the shorter one would make every unranked
+     * card an upscale, which is visible at 1080px wide.
      */
-    public const PHOTO_H = 820;
+    public const PHOTO_H = FlierLayout::PANEL_H_UNRANKED;
 
     /**
      * The LINK-PREVIEW card. A second graphic, not a crop of the first.
@@ -98,7 +100,7 @@ final class FlierService
     public const OG_H = 630;
 
     /** Width of the card's portrait column. Media's `og_photo` preset must match it. */
-    public const OG_PHOTO_W = 480;
+    public const OG_PHOTO_W = FlierLayout::OG_PHOTO_W;
 
     /**
      * The vertical band the card's middle block is centred in — below the kicker rail,
@@ -341,17 +343,13 @@ final class FlierService
      */
     public function svg(array $f): string
     {
-        $W = self::W; $H = self::H; $PH = self::PHOTO_H;
-        $s = $f['standing'];
+        $W = self::W; $H = self::H;
+        $L = FlierLayout::for($f);
+        $name = (string) $f['name'];
 
-        // Name sizing by length. A three-word Nigerian or Ethiopian name is common and
-        // a fixed size either clips it or wastes the poster on a short one.
-        $name  = $f['name'];
-        $len   = mb_strlen($name);
-        $nameSize = $len <= 14 ? 96 : ($len <= 22 ? 78 : ($len <= 32 ? 62 : 50));
-        $nameLines = $this->wrap($name, $len <= 22 ? 16 : 22, 2);
-
-        $rallyLines = $this->wrap($f['rally'], 34, 3);
+        $PH   = (int) $L['panelH'];
+        $sans = 'DM Sans, system-ui, sans-serif';
+        $serif= 'Playfair Display, Georgia, serif';
 
         $out  = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ';
         $out .= 'width="' . $W . '" height="' . $H . '" viewBox="0 0 ' . $W . ' ' . $H . '" ';
@@ -360,20 +358,28 @@ final class FlierService
         // instead of "image".
         $out .= 'role="img" aria-labelledby="fTitle fDesc">';
         $out .= '<title id="fTitle">' . $this->x('Vote for ' . $name . ' — ' . $f['category']) . '</title>';
-        $out .= '<desc id="fDesc">' . $this->x($f['headline'] . '. ' . $f['rally'] . ' Vote at ' . $f['short_url']) . '</desc>';
+        // The rally line lives HERE now rather than on the face of the card. The new
+        // design gives the bottom third to the vote pill and the jury note, and a
+        // paragraph of persuasion competing with them made the card worse — but the
+        // sentence is still the best available description of the graphic, and this is
+        // what a screen reader and a share-sheet caption read.
+        $out .= '<desc id="fDesc">' . $this->x($f['headline'] . '. ' . $f['rally'] . ' Vote at ' . $L['url']) . '</desc>';
 
         $out .= '<defs>';
-        // The brand green, deepening downward. Two stops, not a busy gradient — a flier
-        // is read at thumbnail size on a phone.
+        // Two stops, deepening downward. A flier is read at thumbnail size on a phone;
+        // a busier gradient only muddies the type over it.
         $out .= '<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">'
-              . '<stop offset="0" stop-color="#123b2f"/><stop offset="0.55" stop-color="#0d2a24"/>'
-              . '<stop offset="1" stop-color="#08201c"/></linearGradient>';
-        // Fades the photo into the panel so text over it stays legible whatever the
-        // photo is — the one thing that reliably ruins a generated graphic.
+              . '<stop offset="0" stop-color="' . FlierLayout::C_BG_TOP . '"/>'
+              . '<stop offset="1" stop-color="' . FlierLayout::C_BG_BOTTOM . '"/></linearGradient>';
+        // The scrim's colour is the PAGE GRADIENT'S VALUE AT THE PANEL BASE, not the
+        // panel's own colour. That is what makes the seam invisible: the photo fades
+        // into exactly the tone the background already is at that scanline, so there is
+        // no band where the panel ends.
         $out .= '<linearGradient id="scrim" x1="0" y1="0" x2="0" y2="1">'
-              . '<stop offset="0" stop-color="#08201c" stop-opacity="0"/>'
-              . '<stop offset="0.62" stop-color="#08201c" stop-opacity="0.55"/>'
-              . '<stop offset="1" stop-color="#08201c" stop-opacity="0.97"/></linearGradient>';
+              . '<stop offset="0" stop-color="' . FlierLayout::C_SCRIM . '" stop-opacity="0"/>'
+              . '<stop offset="0.40" stop-color="' . FlierLayout::C_SCRIM . '" stop-opacity="0.55"/>'
+              . '<stop offset="0.72" stop-color="' . FlierLayout::C_SCRIM . '" stop-opacity="0.92"/>'
+              . '<stop offset="1" stop-color="' . FlierLayout::C_SCRIM . '" stop-opacity="1"/></linearGradient>';
         $out .= '<clipPath id="photoClip"><rect x="0" y="0" width="' . $W . '" height="' . $PH . '"/></clipPath>';
         $out .= '</defs>';
 
@@ -381,103 +387,89 @@ final class FlierService
 
         // Photo, or a monogram when there is none. A blank rectangle where a face
         // should be is the difference between a flier someone posts and one they do not.
-        // `xMidYMin`, not `xMidYMid`. Same reasoning as the raster's PHOTO_ANCHOR_Y: a
-        // centre crop of a portrait lands on the chest. SVG's preserveAspectRatio only
-        // offers Min/Mid/Max, so this is top-anchored where the raster is 22% down —
-        // the two differ slightly on a very tall local photo, and the raster is the one
-        // that matters, being both the download and the og:image. A Cloudinary photo
-        // arrives already cropped to this exact box, so neither rule applies to it.
+        // `xMidYMin`, not `xMidYMid`: a centre crop of a portrait lands on the chest.
+        // A Cloudinary photo arrives already cropped to this box, so the rule only
+        // applies to a local original.
+        $out .= '<rect x="0" y="0" width="' . $W . '" height="' . $PH . '" fill="' . FlierLayout::C_PANEL . '"/>';
         if ($f['photo'] !== null) {
             $out .= '<g clip-path="url(#photoClip)">'
                   . '<image href="' . $this->x($f['photo']) . '" xlink:href="' . $this->x($f['photo']) . '" '
                   . 'x="0" y="0" width="' . $W . '" height="' . $PH . '" preserveAspectRatio="xMidYMin slice"/>'
                   . '</g>';
         } else {
-            $initials = $this->initials($name);
-            $out .= '<rect x="0" y="0" width="' . $W . '" height="' . $PH . '" fill="#0f3329"/>';
-            $out .= '<text x="' . ($W / 2) . '" y="500" text-anchor="middle" '
-                  . 'font-family="Playfair Display, Georgia, serif" font-size="260" font-weight="700" '
-                  . 'fill="#7fc87c" fill-opacity="0.28">' . $this->x($initials) . '</text>';
+            // 400px on a 400px line box, top 150 — a deliberate slab, not a watermark.
+            // The previous 28%-opacity version read as a rendering fault at thumbnail
+            // size; at full strength it is a graphic choice.
+            $out .= '<text x="' . ($W / 2) . '" y="' . (150 + 320) . '" text-anchor="middle" '
+                  . 'font-family="' . $serif . '" font-size="400" font-weight="700" '
+                  . 'letter-spacing="8" fill="' . FlierLayout::C_MONOGRAM . '">'
+                  . $this->x($L['monogram']) . '</text>';
         }
-        $out .= '<rect x="0" y="0" width="' . $W . '" height="' . $PH . '" fill="url(#scrim)"/>';
+        $out .= '<rect x="0" y="' . $L['scrimTop'] . '" width="' . $W . '" height="' . FlierLayout::SCRIM_H . '" fill="url(#scrim)"/>';
 
-        // Kicker rail
-        $out .= '<rect x="64" y="64" width="6" height="52" fill="#c9a227"/>';
-        $out .= '<text x="88" y="92" font-family="DM Sans, system-ui, sans-serif" font-size="26" '
-              . 'font-weight="700" letter-spacing="4" fill="#f3f7f4">' . $this->x(mb_strtoupper('Vote now')) . '</text>';
-        $out .= '<text x="88" y="126" font-family="DM Sans, system-ui, sans-serif" font-size="22" '
-              . 'fill="#a9c7bd" letter-spacing="1">' . $this->x($f['programme']) . '</text>';
+        // Kicker lockup — gold rail, VOTE NOW, the year line.
+        $out .= '<rect x="64" y="60" width="6" height="82" fill="' . FlierLayout::C_GOLD . '"/>';
+        $out .= '<text x="90" y="96" font-family="' . $sans . '" font-size="27" font-weight="700" '
+              . 'letter-spacing="6.5" fill="' . FlierLayout::C_GOLD . '">VOTE NOW</text>';
+        $out .= '<text x="90" y="134" font-family="' . $sans . '" font-size="21" font-weight="600" '
+              . 'letter-spacing="2.1" fill="' . FlierLayout::C_MIST . '">' . $this->x(mb_strtoupper((string) $f['programme'])) . '</text>';
 
-        // Standing chip — the reason the flier is persuasive, so it sits top-right where
-        // the eye lands after the face.
-        if (($s['field'] ?? 0) >= 2) {
-            $chip = '#' . $s['rank'] . ' of ' . $s['field'];
-            $cw   = 44 + (mb_strlen($chip) * 17);
-            $out .= '<rect x="' . ($W - 64 - $cw) . '" y="62" width="' . $cw . '" height="58" rx="29" '
-                  . 'fill="#c9a227"/>';
-            $out .= '<text x="' . ($W - 64 - $cw / 2) . '" y="100" text-anchor="middle" '
-                  . 'font-family="DM Sans, system-ui, sans-serif" font-size="28" font-weight="700" '
-                  . 'fill="#1a1204">' . $this->x($chip) . '</text>';
-        }
-
-        // Name
-        $y = 700 - ((count($nameLines) - 1) * ($nameSize + 8));
-        foreach ($nameLines as $line) {
-            $out .= '<text x="64" y="' . $y . '" font-family="Playfair Display, Georgia, serif" '
-                  . 'font-size="' . $nameSize . '" font-weight="700" fill="#ffffff">' . $this->x($line) . '</text>';
-            $y += $nameSize + 8;
-        }
-
-        // Category + country
-        $meta = $f['category'] . ($f['country'] !== '' ? '  ·  ' . $f['country'] : '');
-        $out .= '<text x="64" y="' . ($y + 14) . '" font-family="DM Sans, system-ui, sans-serif" '
-              . 'font-size="30" fill="#7fc87c" letter-spacing="1">' . $this->x($meta) . '</text>';
-
-        // Standing line + progress track. Omitted entirely rather than shown empty when
-        // there is no field to have a position in.
-        $panelY = 880;
-        if (($s['field'] ?? 0) >= 2) {
-            $out .= '<text x="64" y="' . $panelY . '" font-family="DM Sans, system-ui, sans-serif" '
-                  . 'font-size="30" font-weight="600" fill="#e8f2ec">' . $this->x($f['headline']) . '</text>';
-            $out .= '<rect x="64" y="' . ($panelY + 24) . '" width="' . ($W - 128) . '" height="14" rx="7" fill="#ffffff" fill-opacity="0.14"/>';
-            $out .= '<rect x="64" y="' . ($panelY + 24) . '" width="'
-                  . (int) round((($W - 128) * (int) $s['progress_pct']) / 100)
-                  . '" height="14" rx="7" fill="#7fc87c"/>';
-            $panelY += 74;
-        }
-
-        // Momentum, only when it is measurable AND non-zero. "0 votes in 24 hours" on a
-        // flier you are about to post is an argument against voting.
-        if (($s['momentum_available'] ?? false) && (int) ($s['momentum_24h'] ?? 0) > 0) {
-            $m = (int) $s['momentum_24h'];
-            $out .= '<text x="64" y="' . $panelY . '" font-family="DM Sans, system-ui, sans-serif" '
-                  . 'font-size="26" fill="#c9a227">'
-                  . $this->x($m . ' vote' . ($m === 1 ? '' : 's') . ' in the last 24 hours')
+        // Rank pill, top-right where the eye lands after the face. Dropped entirely
+        // when the category has fewer than two nominees — "#1 of 1" is not a standing.
+        if ($L['showRank']) {
+            $head = '#' . $L['rank'];
+            $tail = ' of ' . $L['fieldSize'];
+            $cw   = 60 + (mb_strlen($head) * 22) + (mb_strlen($tail) * 13);
+            $cx   = $W - 64 - $cw;
+            $out .= '<rect x="' . $cx . '" y="60" width="' . $cw . '" height="62" rx="31" fill="' . FlierLayout::C_GOLD . '"/>';
+            $out .= '<text x="' . ($cx + $cw / 2) . '" y="103" text-anchor="middle" fill="' . FlierLayout::C_ON_GOLD . '">'
+                  . '<tspan font-family="' . $serif . '" font-size="36" font-weight="700">' . $this->x($head) . '</tspan>'
+                  . '<tspan font-family="' . $sans . '" font-size="24" font-weight="700">' . $this->x($tail) . '</tspan>'
                   . '</text>';
-            $panelY += 48;
         }
 
-        // Rally copy
-        $panelY = max($panelY, 1010);
-        foreach ($rallyLines as $line) {
-            $out .= '<text x="64" y="' . $panelY . '" font-family="DM Sans, system-ui, sans-serif" '
-                  . 'font-size="34" fill="#ffffff" fill-opacity="0.94">' . $this->x($line) . '</text>';
-            $panelY += 46;
+        // NAME — bottom-anchored. The block grows upward from panelH − 108, so a long
+        // two-line name pushes into the photo rather than down into the category line.
+        $lh = FlierLayout::NAME_LINE_H * $L['nameSize'];
+        $y  = $L['nameTop'] + FlierLayout::NAME_PAD + $lh * 0.78;   // 0.78 ≈ cap-height baseline
+        foreach ($L['nameLines'] as $line) {
+            $out .= '<text x="64" y="' . round($y, 1) . '" font-family="' . $serif . '" '
+                  . 'font-size="' . $L['nameSize'] . '" font-weight="700" fill="' . FlierLayout::C_WHITE . '">'
+                  . $this->x($line) . '</text>';
+            $y += $lh;
         }
 
-        // URL bar — the actionable part, so it is the highest-contrast block on the card.
-        $out .= '<rect x="64" y="' . ($H - 150) . '" width="' . ($W - 128) . '" height="86" rx="43" fill="#ffffff"/>';
-        $out .= '<text x="' . ($W / 2) . '" y="' . ($H - 96) . '" text-anchor="middle" '
-              . 'font-family="DM Sans, system-ui, sans-serif" font-size="30" font-weight="700" '
-              . 'fill="#0d2a24">' . $this->x($f['short_url']) . '</text>';
+        // Category · country, on the panel's own baseline.
+        $out .= '<text x="64" y="' . ($L['catTop'] + 26) . '" font-family="' . $sans . '" font-size="30" font-weight="600">'
+              . '<tspan fill="' . FlierLayout::C_MIST . '">' . $this->x($L['category']) . '</tspan>';
+        if ($L['countryCode'] !== '') {
+            $out .= '<tspan fill="' . FlierLayout::C_LEAF . '"> · </tspan>'
+                  . '<tspan fill="' . FlierLayout::C_MUTED . '" letter-spacing="3">' . $this->x($L['countryCode']) . '</tspan>';
+        }
+        $out .= '</text>';
 
-        // The honest footnote. A rank on a graphic reads as a result, and this platform's
-        // awards are 55% independent jury — omitting that turns a share card into a
-        // misleading claim.
-        $out .= '<text x="' . ($W / 2) . '" y="' . ($H - 28) . '" text-anchor="middle" '
-              . 'font-family="DM Sans, system-ui, sans-serif" font-size="20" fill="#7fa295">'
-              . $this->x('Public votes are one part of the score. An independent jury decides the award.')
-              . '</text>';
+        // Standing line — three clauses, each present only when it says something.
+        if ($L['showStanding']) {
+            $out .= '<text x="64" y="' . (FlierLayout::STANDING_Y + 26) . '" font-family="' . $sans . '" font-size="31" font-weight="700">';
+            if ($L['gapText'] !== '')  $out .= '<tspan fill="' . FlierLayout::C_WHITE . '">' . $this->x($L['gapText']) . '</tspan>';
+            if ($L['leadText'] !== '') $out .= '<tspan fill="' . FlierLayout::C_LEAF . '">' . $this->x($L['leadText']) . '</tspan>';
+            if ($L['showMiddot'])      $out .= '<tspan fill="' . FlierLayout::C_DEEP . '">  ·  </tspan>';
+            if ($L['momText'] !== '')  $out .= '<tspan fill="' . FlierLayout::C_GOLD . '">' . $this->x($L['momText']) . '</tspan>';
+            $out .= '</text>';
+        }
+
+        // The vote pill and the footnote are FIXED in every state, so the card always
+        // ends the same way whatever was dropped above them.
+        $out .= '<rect x="64" y="' . FlierLayout::PILL_Y . '" width="952" height="' . FlierLayout::PILL_H . '" rx="56" fill="' . FlierLayout::C_WHITE . '"/>';
+        $out .= '<text x="' . ($W / 2) . '" y="' . (FlierLayout::PILL_Y + 70) . '" text-anchor="middle" '
+              . 'font-family="' . $sans . '" font-size="' . $L['urlSize'] . '" font-weight="700" '
+              . 'letter-spacing="-0.4" fill="' . FlierLayout::C_ON_WHITE . '">' . $this->x($L['url']) . '</text>';
+
+        // A rank on a graphic reads as a result, and this platform's award is decided
+        // largely by an independent jury. Omitting that turns a share card into a claim.
+        $out .= '<text x="' . ($W / 2) . '" y="' . (FlierLayout::FOOTNOTE_Y + 22) . '" text-anchor="middle" '
+              . 'font-family="' . $sans . '" font-size="22" fill="' . FlierLayout::C_MUTED . '">'
+              . $this->x(FlierLayout::FOOTNOTE) . '</text>';
 
         return $out . '</svg>';
     }
@@ -530,23 +522,33 @@ final class FlierService
             return null;
         }
 
-        $W = self::W; $H = self::H; $PH = self::PHOTO_H;
+        $W = self::W; $H = self::H;
+        $L  = FlierLayout::for($f);
+        $PH = (int) $L['panelH'];
+
         $im = imagecreatetruecolor($W, $H);
         // No alpha: an OG image is composited on an unknown background by every client,
         // and a transparent flier renders differently in each one.
         imagealphablending($im, true);
 
-        $rgb = static fn (int $r, int $g, int $b) => imagecolorallocate($im, $r, $g, $b);
-        $white  = $rgb(255, 255, 255);
-        $green  = $rgb(127, 200, 124);
-        $gold   = $rgb(201, 162, 39);
-        $goldInk= $rgb(26, 18, 4);
-        $mint   = $rgb(232, 242, 236);
-        $muted  = $rgb(169, 199, 189);
-        $faint  = $rgb(127, 162, 149);
-        $ink    = $rgb(13, 42, 36);
+        // Allocated FROM THE LAYOUT'S palette rather than re-typed here, so a colour
+        // cannot be right in the SVG and stale in the raster — which is the exact class
+        // of drift this pair of renderers has produced before.
+        $c = static function (string $hex) use ($im): int {
+            [$r, $g, $b] = FlierLayout::rgb($hex);
+            return (int) imagecolorallocate($im, $r, $g, $b);
+        };
+        $white   = $c(FlierLayout::C_WHITE);
+        $leaf    = $c(FlierLayout::C_LEAF);
+        $deep    = $c(FlierLayout::C_DEEP);
+        $gold    = $c(FlierLayout::C_GOLD);
+        $goldInk = $c(FlierLayout::C_ON_GOLD);
+        $mist    = $c(FlierLayout::C_MIST);
+        $muted   = $c(FlierLayout::C_MUTED);
+        $onWhite = $c(FlierLayout::C_ON_WHITE);
 
-        $bgTop = [18, 59, 47]; $bgBot = [8, 32, 28];
+        $bgTop = FlierLayout::rgb(FlierLayout::C_BG_TOP);
+        $bgBot = FlierLayout::rgb(FlierLayout::C_BG_BOTTOM);
         $this->vGradient($im, 0, 0, $W, $H, $bgTop, $bgBot);
 
         // Photo, or the monogram. Same fallback as the SVG, and the same reason: a blank
@@ -558,101 +560,119 @@ final class FlierService
             imagedestroy($photo);
         } else {
             // $PH - 1, not $PH. imagefilledrectangle() is INCLUSIVE of both corners while
-            // the scrim loop below runs rows 0..$PH-1, so filling to $PH left row 820
-            // painted with the panel colour and never darkened — a one-pixel bright line
-            // straight across the card, measured as rgb(15,51,41) between two rows of
-            // rgb(12,43,35). It reads as a rendering fault, which on a graphic a nominee
-            // posts is the whole impression.
-            imagefilledrectangle($im, 0, 0, $W, $PH - 1, $rgb(15, 51, 41));
-            $ini = $this->initials((string) $f['name']);
-            $this->centred($im, $ini, 260, self::font('display'), $rgb(30, 74, 60), $W / 2, 500);
+            // the scrim loop runs rows y..y+h-1, so filling to $PH leaves the panel's last
+            // row painted and never darkened — a one-pixel bright line straight across the
+            // card. It reads as a rendering fault, which on a graphic a nominee posts is
+            // the whole impression.
+            imagefilledrectangle($im, 0, 0, $W, $PH - 1, $c(FlierLayout::C_PANEL));
+            // The spec's band is y 150..550. Filled by MEASURED ink rather than by a
+            // baseline derived from the point size — see centredInBand(), and the
+            // collision with the VOTE NOW lockup that made the difference visible.
+            $this->centredInBand($im, (string) $L['monogram'], 400, self::font('display'),
+                $c(FlierLayout::C_MONOGRAM), $W / 2, 150, 400);
         }
         // The scrim keeps text legible over ANY photo, which is the one thing that
         // reliably ruins a generated graphic.
         //
-        // Its terminal colour is the PAGE GRADIENT'S colour at the scrim's bottom edge,
-        // not the gradient's end colour. Using the latter left a visible horizontal seam
-        // at y=820 — the scrim finished ~97% opaque on (8,32,28) while the background at
-        // that line was (12,43,36), a step of about four levels per channel that reads as
-        // a rendering fault straight across the card.
-        $this->scrim($im, 0, $PH, $W, $this->gradientAt($bgTop, $bgBot, $PH, $H));
+        // Its terminal colour is the PAGE GRADIENT'S value at the panel base, not the
+        // gradient's end colour. Using the latter left a visible horizontal seam — the
+        // scrim finished nearly opaque on the end colour while the background at that
+        // line was several levels lighter, a step straight across the card.
+        $this->scrim($im, (int) $L['scrimTop'], FlierLayout::SCRIM_H, $W,
+            $this->gradientAt($bgTop, $bgBot, $PH, $H));
 
-        // The chip is measured and drawn BEFORE the programme line, because the programme
-        // line has to be shortened to clear it. Drawing them in the other order — which is
-        // what this did — put "Africa GATES Continental Recognition Programme" straight
-        // underneath the gold pill, two strings overlapping in the corner the eye reaches
-        // first. The card's first render made the same mistake and showed it plainly.
-        $s = $f['standing'];
+        // The rank pill is measured and drawn BEFORE the kicker's second line, because
+        // that line has to be shortened to clear it. Drawing them the other way round put
+        // the programme title straight underneath the gold pill — two strings overlapping
+        // in the corner the eye reaches first, which the card's first render showed plainly.
         $chipW = 0.0;
-        if ((int) ($s['field'] ?? 0) >= 2) {
-            $chip  = '#' . $s['rank'] . ' of ' . $s['field'];
-            $chipW = $this->width($chip, 28, self::font('bold')) + 44;
-            $this->pill($im, $W - 64 - $chipW, 62, $chipW, 58, $gold);
-            $this->centred($im, $chip, 28, self::font('bold'), $goldInk, $W - 64 - $chipW / 2, 100);
+        if ($L['showRank']) {
+            $head  = '#' . $L['rank'];
+            $tail  = ' of ' . $L['fieldSize'];
+            $wHead = $this->width($head, 36, self::font('display'));
+            $wTail = $this->width($tail, 24, self::font('bold'));
+            $chipW = $wHead + $wTail + 60;
+            $cx    = $W - 64 - $chipW;
+            $this->pill($im, $cx, 60, $chipW, 62, $gold);
+            // Two sizes on ONE baseline, laid out left to right from measured widths.
+            // Centring each half separately would leave an uneven gap at one end.
+            $x0 = $cx + ($chipW - ($wHead + $wTail)) / 2;
+            $this->text($im, $head, 36, self::font('display'), $goldInk, $x0, 103);
+            $this->text($im, $tail, 24, self::font('bold'), $goldInk, $x0 + $wHead, 103);
         }
 
-        imagefilledrectangle($im, 64, 64, 69, 116, $gold);
-        $this->text($im, 'VOTE NOW', 26, self::font('bold'), $white, 88, 92, 4);
-        // wrapMeasured has no concept of letter-spacing, and this line is drawn with 1px
-        // of tracking — so its real width is the measured width plus one pixel per
-        // character. Subtracting that from the budget rather than hoping the right margin
-        // absorbs it is what keeps a longer programme title out from under the chip.
-        $progW  = max(160.0, $W - 88 - 64 - $chipW - 28 - mb_strlen((string) $f['programme']));
-        $progLn = $this->wrapMeasured((string) $f['programme'], $progW, 22, self::font('regular'), 1);
-        $this->text($im, $progLn[0] ?? '', 22, self::font('regular'), $muted, 88, 126, 1);
+        imagefilledrectangle($im, 64, 60, 69, 141, $gold);
+        $this->text($im, 'VOTE NOW', 27, self::font('bold'), $gold, 90, 96, 6.5);
+        // wrapMeasured has no concept of letter-spacing, and this line carries 2.1px of
+        // it — so its real width is the measured width plus that per character.
+        // Subtracting it from the budget rather than hoping the right margin absorbs it
+        // is what keeps a longer programme title out from under the pill.
+        $prog   = mb_strtoupper((string) $f['programme']);
+        $progW  = max(160.0, $W - 90 - 64 - $chipW - 28 - (mb_strlen($prog) * 2.1));
+        $progLn = $this->wrapMeasured($prog, $progW, 21, self::font('semibold'), 1);
+        $this->text($im, $progLn[0] ?? '', 21, self::font('semibold'), $mist, 90, 134, 2.1);
 
-        // Measured, not counted. The character-count ladder (96/78/62/50 by mb_strlen)
-        // was an estimate the SVG has to make because it cannot measure text — but the
-        // raster CAN, and the estimate has the same failure the card's first render
-        // exposed: `wrapMeasured` never breaks a word, so a single name element wider than
-        // the column at the chosen size runs off the edge of the graphic. `Wolde-Giorgis`
-        // is 13 characters and clears 952px at 96pt. {@see fitLines} shrinks until it
-        // genuinely fits and refuses to ellipsise a name it could have set smaller.
+        // NAME — bottom-anchored, and MEASURED rather than trusted.
         //
-        // This is a deliberate divergence from svg(), which keeps the ladder. The two are
-        // still one design; the raster is simply the one with metrics, and it is the one
-        // that gets downloaded and posted.
-        $name = (string) $f['name'];
-        [$size, $lines] = $this->fitLines($name, $W - 128, 96, 40, self::font('display'), 2);
-        $y = 700 - ((count($lines) - 1) * ($size + 8));
+        // The layout's ladder is what the SVG must use, because SVG cannot measure text.
+        // The raster can, and the ladder has a failure the first render exposed:
+        // `wrapMeasured` never breaks a word, so a single name element wider than the
+        // column at the chosen size runs off the edge — `Wolde-Giorgis` is 13 characters
+        // and clears 952px at 96pt. So the ladder is the STARTING size and fitLines()
+        // steps down until it genuinely fits, rather than ellipsising a name it could
+        // have set smaller. The two renderers agree except where the metrics say the
+        // ladder would overflow, and the raster is the one that gets posted.
+        $startSize = (int) $L['nameSize'];
+        [$size, $lines] = $this->fitLines((string) $f['name'], $W - 128, $startSize, 40, self::font('display'), 2);
+        $lh = FlierLayout::NAME_LINE_H * $size;
+        // Re-anchored to the MEASURED size, so a name that had to shrink still ends on
+        // the spec's fixed bottom edge instead of floating above it.
+        $y = ($L['nameBottom'] - (FlierLayout::NAME_PAD + count($lines) * $lh))
+           + FlierLayout::NAME_PAD + $lh * 0.78;
         foreach ($lines as $line) {
             $this->text($im, $line, $size, self::font('display'), $white, 64, $y);
-            $y += $size + 8;
+            $y += $lh;
         }
 
-        $meta = $f['category'] . ($f['country'] !== '' ? '  ·  ' . $f['country'] : '');
-        $this->text($im, $meta, 30, self::font('regular'), $green, 64, $y + 14, 1);
-
-        $py = 880;
-        if ((int) ($s['field'] ?? 0) >= 2) {
-            $this->text($im, (string) $f['headline'], 30, self::font('semibold'), $mint, 64, $py);
-            $this->pill($im, 64, $py + 24, $W - 128, 14, $rgb(46, 78, 68));
-            $fill = max(14, (int) round((($W - 128) * (int) $s['progress_pct']) / 100));
-            $this->pill($im, 64, $py + 24, $fill, 14, $green);
-            $py += 74;
-        }
-        // Momentum only when measurable AND non-zero — "0 votes in 24 hours" on a graphic
-        // you are about to post is an argument against voting.
-        if (($s['momentum_available'] ?? false) && (int) ($s['momentum_24h'] ?? 0) > 0) {
-            $m = (int) $s['momentum_24h'];
-            $this->text($im, $m . ' vote' . ($m === 1 ? '' : 's') . ' in the last 24 hours',
-                26, self::font('regular'), $gold, 64, $py);
-            $py += 48;
+        // Category · country, coloured per element rather than as one string.
+        $catY = $L['catTop'] + 26;
+        $this->text($im, (string) $L['category'], 30, self::font('semibold'), $mist, 64, $catY);
+        if ($L['countryCode'] !== '') {
+            $x = 64 + $this->width((string) $L['category'], 30, self::font('semibold'));
+            $this->text($im, '  ·  ', 30, self::font('semibold'), $leaf, $x, $catY);
+            $x += $this->width('  ·  ', 30, self::font('semibold'));
+            $this->text($im, (string) $L['countryCode'], 30, self::font('semibold'), $muted, $x, $catY, 3);
         }
 
-        $py = max($py, 1010);
-        foreach ($this->wrapMeasured((string) $f['rally'], $W - 128, 34, self::font('regular'), 3) as $line) {
-            $this->text($im, $line, 34, self::font('regular'), $white, 64, $py);
-            $py += 46;
+        // Standing line — three clauses, each drawn only when it says something, laid out
+        // left to right from measured widths so the middot lands between them.
+        if ($L['showStanding']) {
+            $x  = 64.0;
+            $sy = FlierLayout::STANDING_Y + 26;
+            foreach ([[(string) $L['gapText'], $white], [(string) $L['leadText'], $leaf]] as [$txt, $col]) {
+                if ($txt === '') continue;
+                $this->text($im, $txt, 31, self::font('bold'), $col, $x, $sy);
+                $x += $this->width($txt, 31, self::font('bold'));
+            }
+            if ($L['showMiddot']) {
+                $this->text($im, '  ·  ', 31, self::font('bold'), $deep, $x, $sy);
+                $x += $this->width('  ·  ', 31, self::font('bold'));
+            }
+            if ($L['momText'] !== '') {
+                $this->text($im, (string) $L['momText'], 31, self::font('bold'), $gold, $x, $sy);
+            }
         }
 
-        $this->pill($im, 64, $H - 150, $W - 128, 86, $white);
-        $this->centredFit($im, (string) $f['short_url'], 30, self::font('bold'), $ink, $W / 2, $H - 96, $W - 176);
-        // Shrunk to fit rather than trusted: at 20px Montserrat Regular this sentence is
-        // wider than the card and ran off both edges. The SVG estimated it as fitting
-        // because it cannot measure — which is exactly why the raster does.
-        $this->centredFit($im, 'Public votes are one part of the score. An independent jury decides the award.',
-            20, self::font('regular'), $faint, $W / 2, $H - 28, $W - 96);
+        // Fixed in every state, so the card always ends the same way whatever was
+        // dropped above.
+        $this->pill($im, 64, FlierLayout::PILL_Y, 952, FlierLayout::PILL_H, $white);
+        $this->centredFit($im, (string) $L['url'], (int) $L['urlSize'], self::font('bold'), $onWhite,
+            $W / 2, FlierLayout::PILL_Y + 70, 880);
+        // Shrunk to fit rather than trusted: at its nominal size this sentence is wider
+        // than the card and ran off both edges. The SVG estimates it as fitting because
+        // it cannot measure — which is exactly why the raster does.
+        $this->centredFit($im, FlierLayout::FOOTNOTE, 22, self::font('regular'), $muted,
+            $W / 2, FlierLayout::FOOTNOTE_Y + 22, $W - 96);
 
         ob_start();
         imagepng($im, null, 6);
@@ -680,22 +700,25 @@ final class FlierService
         }
 
         $W = self::OG_W; $H = self::OG_H; $PW = self::OG_PHOTO_W;
+        $L = FlierLayout::for($f);
+
         $im = imagecreatetruecolor($W, $H);
         imagealphablending($im, true);
 
-        $rgb = static fn (int $r, int $g, int $b) => imagecolorallocate($im, $r, $g, $b);
-        $white   = $rgb(255, 255, 255);
-        $green   = $rgb(127, 200, 124);
-        $gold    = $rgb(201, 162, 39);
-        $goldInk = $rgb(26, 18, 4);
-        $mint    = $rgb(232, 242, 236);
-        $muted   = $rgb(169, 199, 189);
-        $faint   = $rgb(127, 162, 149);
-        $ink     = $rgb(13, 42, 36);
+        $c = static function (string $hex) use ($im): int {
+            [$r, $g, $b] = FlierLayout::rgb($hex);
+            return (int) imagecolorallocate($im, $r, $g, $b);
+        };
+        $white   = $c(FlierLayout::C_WHITE);
+        $gold    = $c(FlierLayout::C_GOLD);
+        $goldInk = $c(FlierLayout::C_ON_GOLD);
+        $mist    = $c(FlierLayout::C_MIST);
+        $muted   = $c(FlierLayout::C_MUTED);
 
         // The background runs the full width, INCLUDING behind the photo column, so the
         // fade at the seam has a real colour to land on at every scanline.
-        $bgTop = [18, 59, 47]; $bgBot = [8, 32, 28];
+        $bgTop = FlierLayout::rgb(FlierLayout::C_BG_TOP);
+        $bgBot = FlierLayout::rgb(FlierLayout::C_BG_BOTTOM);
         $this->vGradient($im, 0, 0, $W, $H, $bgTop, $bgBot);
 
         // ── The portrait column ──────────────────────────────────────────────
@@ -708,95 +731,74 @@ final class FlierService
             // between a designed card and a broken one.
             $this->edgeFade($im, $PW - 150, $PW, $H, $bgTop, $bgBot);
         } else {
-            imagefilledrectangle($im, 0, 0, $PW - 1, $H - 1, $rgb(15, 51, 41));
-            $this->centred($im, $this->initials((string) $f['name']), 190, self::font('display'), $rgb(30, 74, 60), $PW / 2, 380);
+            imagefilledrectangle($im, 0, 0, $PW - 1, $H - 1, $c(FlierLayout::C_PANEL));
+            // Centred in the whole column here — the OG card's photo panel is full-height
+            // with nothing above it to collide with.
+            $this->centredInBand($im, (string) $L['monogram'], 230, self::font('display'),
+                $c(FlierLayout::C_MONOGRAM), $PW / 2, 0, $H);
             $this->edgeFade($im, $PW - 110, $PW, $H, $bgTop, $bgBot);
         }
 
         // ── The content column ───────────────────────────────────────────────
-        $cx = $PW + 56;                 // left edge of the text column
-        $cw = $W - $cx - 56;            // its usable width
-        $s  = $f['standing'];
-        $ranked = (int) ($s['field'] ?? 0) >= 2;
+        //
+        // FOUR THINGS ONLY: the VOTE NOW lockup, the rank pill, the name, and the jury
+        // note. Category, country, the standing line, the progress rail and the URL are
+        // all deliberately absent — this card is read at roughly a third of native size
+        // in a WhatsApp thread, where a fifth and sixth element are not small text, they
+        // are noise that costs the name and the rank their legibility. The flier is the
+        // artefact that carries the full story; this one has to survive a thumbnail.
+        $cx = $PW + 62;
+        $cw = $W - $cx - 56;
 
-        // Rank chip, TOP-RIGHT — one of the three elements sized to survive a thumbnail,
-        // and top-right is where the eye lands after the face. Measured first because the
-        // programme line has to be shortened to clear it.
-        $chipW = 0;
-        if ($ranked) {
-            $chip  = '#' . $s['rank'] . ' of ' . $s['field'];
-            $chipW = (int) round($this->width($chip, 34, self::font('bold'))) + 48;
-            $this->pill($im, $W - 56 - $chipW, 58, $chipW, 62, $gold);
-            $this->centred($im, $chip, 34, self::font('bold'), $goldInk, $W - 56 - $chipW / 2, 101);
+        // Rank pill, top-right — measured first, because the kicker's second line has to
+        // be shortened to clear it.
+        $chipW = 0.0;
+        if ($L['showRank']) {
+            $head  = '#' . $L['rank'];
+            $tail  = ' of ' . $L['fieldSize'];
+            $wHead = $this->width($head, 34, self::font('display'));
+            $wTail = $this->width($tail, 22, self::font('bold'));
+            $chipW = $wHead + $wTail + 52;
+            $px    = $W - 56 - $chipW;
+            $this->pill($im, $px, 52, $chipW, 58, $gold);
+            $x0 = $px + ($chipW - ($wHead + $wTail)) / 2;
+            $this->text($im, $head, 34, self::font('display'), $goldInk, $x0, 92);
+            $this->text($im, $tail, 22, self::font('bold'), $goldInk, $x0 + $wHead, 92);
         }
 
-        // Kicker rail + VOTE NOW + programme.
-        imagefilledrectangle($im, $cx, 60, $cx + 5, 112, $gold);
-        $this->text($im, 'VOTE NOW', 26, self::font('bold'), $white, $cx + 24, 88, 4);
-        // Shortened to the space the chip leaves, not assumed to fit. A three-word
-        // programme title otherwise runs underneath the chip and the two overlap.
-        // Minus one pixel per character for the tracking wrapMeasured cannot see.
-        $progW = max(120.0, $cw - $chipW - 28 - mb_strlen((string) $f['programme']));
-        $progLines = $this->wrapMeasured((string) $f['programme'], $progW, 22, self::font('regular'), 1);
-        $this->text($im, $progLines[0] ?? '', 22, self::font('regular'), $muted, $cx + 24, 120, 1);
+        // Kicker: no rail on this card — at preview size a 6px bar beside 24px type is
+        // a smudge, and the column edge already establishes the alignment.
+        $this->text($im, 'VOTE NOW', 24, self::font('bold'), $gold, $cx, 76, 5.8);
+        $prog  = mb_strtoupper((string) $f['programme']);
+        // Shortened to the space the pill leaves, minus the tracking wrapMeasured
+        // cannot see. A three-word programme title otherwise runs under the pill.
+        $progW = max(120.0, $cw - $chipW - 28 - (mb_strlen($prog) * 1.9));
+        $progLines = $this->wrapMeasured($prog, $progW, 19, self::font('semibold'), 1);
+        $this->text($im, $progLines[0] ?? '', 19, self::font('semibold'), $mist, $cx, 112, 1.9);
 
-        // ── The name, and the middle block it anchors ────────────────────────
+        // ── The name ─────────────────────────────────────────────────────────
         //
-        // Sized by MEASUREMENT, not by character count. The flier's `mb_strlen`
-        // heuristic was tuned against a 952px-wide column; this one is 608px, and
-        // copying the thresholds over produced the defect the first render showed:
-        // "Adaeze Nwosu" — twelve characters, so nominally the largest size — did not
-        // fit on one line, wrapped to two, and its ascenders ran straight through the
-        // programme line above it. {@see fitLines()} shrinks until the name genuinely
-        // fits, so it is also never ellipsised when a smaller size would have held it.
-        [$size, $lines] = $this->fitLines((string) $f['name'], $cw, 76, 34, self::font('display'), 2);
-
-        // The block is vertically CENTRED in the band between the kicker and the URL
-        // pill, rather than started at a fixed y. With a fixed start, a one-line name
-        // left ~120px of empty green above the pill and a two-line name crowded it —
-        // and the card is a fixed canvas, so there is no reflow to absorb either.
-        // +12, not +8 as the flier uses: two stacked lines of a name carrying BOTH a
-        // mark below (the dot of ọ) and marks above brought the two within a couple of
-        // pixels of each other at 54px. The flier's wider column rarely wraps a name at
-        // all, so it never surfaced there.
-        $lineH  = $size + 12;
-        $blockH = count($lines) * $lineH + 46 + ($ranked ? 84 : 0);
-        $top    = self::OG_BAND_TOP + max(0.0, (self::OG_BAND_BOTTOM - self::OG_BAND_TOP - $blockH) / 2);
-
-        // First baseline placed from the string's REAL ink extent, so a stacked Yoruba
-        // or Igbo diacritic has room. Measured rather than assumed: at 76px the marks on
-        // "Ọlásùnkànmí" reach ~14px above the cap line, and a baseline derived from the
-        // point size alone clipped them flat — which on a name is not a cosmetic
-        // imperfection, it is the name spelled wrong.
-        $y = $top + $this->ascent($lines[0] ?? '', $size, self::font('display'));
+        // Bottom-anchored at a FIXED edge, like the flier, and at the same ladder size —
+        // the card is 562px wide against the flier's 920, so the ladder alone would
+        // overflow, and fitLines() steps down from it until the name genuinely fits.
+        // Measuring is also what keeps a stacked Yoruba or Igbo diacritic on the card:
+        // at 76px the marks on "Ọlásùnkànmí" reach ~14px above the cap line, and a
+        // baseline derived from the point size alone clipped them flat — which on a name
+        // is not a cosmetic imperfection, it is the name spelled wrong.
+        [$size, $lines] = $this->fitLines((string) $f['name'], $cw, (int) $L['ogNameSize'], 34, self::font('display'), 2);
+        $lh = FlierLayout::NAME_LINE_H * $size;
+        $y  = (496 - (FlierLayout::NAME_PAD + count($lines) * $lh)) + FlierLayout::NAME_PAD
+            + max($lh * 0.78, $this->ascent($lines[0] ?? '', $size, self::font('display')));
         foreach ($lines as $line) {
             $this->text($im, $line, $size, self::font('display'), $white, $cx, $y);
-            $y += $lineH;
-        }
-        $nameBottom = $y - $lineH;   // baseline of the last line
-
-        // Category + country.
-        $meta = $f['category'] . ($f['country'] !== '' ? '  ·  ' . $f['country'] : '');
-        $this->centredFitLeft($im, $meta, 30, self::font('regular'), $green, $cx, $nameBottom + 46, $cw);
-
-        // Standing line + progress track. Omitted together, so the card never shows an
-        // empty rail — the same rule png() follows.
-        if ($ranked) {
-            $this->centredFitLeft($im, (string) $f['headline'], 30, self::font('semibold'), $mint, $cx, $nameBottom + 96, $cw);
-            $this->pill($im, $cx, $nameBottom + 116, $cw, 12, $rgb(46, 78, 68));
-            $fill = max(12, (int) round(($cw * (int) $s['progress_pct']) / 100));
-            $this->pill($im, $cx, $nameBottom + 116, $fill, 12, $green);
+            $y += $lh;
         }
 
-        // The URL, anchored to the bottom rather than to the cursor above it, so a
-        // two-line name cannot push it off the card.
-        $this->pill($im, $cx, $H - 122, $cw, 66, $white);
-        $this->centredFit($im, (string) $f['short_url'], 30, self::font('bold'), $ink, $cx + $cw / 2, $H - 79, $cw - 40);
-
-        // The honest footnote. Same reason as the flier: a rank reads as a result, and
-        // these awards are 55% independent jury.
-        $this->centredFit($im, 'Public votes are one part of the score. An independent jury decides the award.',
-            18, self::font('regular'), $faint, $cx + $cw / 2, $H - 26, $cw);
+        // The jury note, at a fixed y. Same reason as the flier: a rank reads as a
+        // result, and this award is decided largely by an independent jury.
+        foreach ($this->wrapMeasured(FlierLayout::FOOTNOTE, $cw, 19, self::font('regular'), 2) as $i => $line) {
+            $this->text($im, $line, 19, self::font('regular'), $muted, $cx, 548 + 22 + ($i * 25));
+        }
 
         ob_start();
         imagepng($im, null, 6);
@@ -890,6 +892,34 @@ final class FlierService
     private function centred($im, string $s, int $size, string $font, int $colour, float $cx, float $y): void
     {
         imagettftext($im, $size, 0, (int) round($cx - $this->width($s, $size, $font) / 2), (int) round($y), $colour, $font, $s);
+    }
+
+    /**
+     * Draw a string with its INK BOX centred inside a vertical band.
+     *
+     * For the monogram, and it exists because a baseline computed from the point size
+     * is wrong at display sizes. At 400px the ladder said the glyph top would land near
+     * y 190; measured, `Ọ` in Playfair Bold reached y 90 and collided with the VOTE NOW
+     * lockup — the ratio between point size and ink extent is a property of the face
+     * and the specific characters, not of the number passed to imagettftext().
+     *
+     * So the ink is measured and the band is filled, which also keeps a two-letter
+     * monogram with a descender (`Ọ`) optically level with one without.
+     */
+    private function centredInBand($im, string $s, int $size, string $font, int $colour, float $cx, float $bandTop, float $bandH): void
+    {
+        $box = imagettfbbox($size, 0, $font, $s);
+        if ($box === false) {
+            $this->centred($im, $s, $size, $font, $colour, $cx, $bandTop + $bandH * 0.8);
+            return;
+        }
+        // imagettfbbox y values are measured UP from the baseline, so they are negative
+        // above it. Top ink = min, bottom ink = max.
+        $inkTop    = min($box[5], $box[7]);
+        $inkBottom = max($box[1], $box[3]);
+        $inkH      = $inkBottom - $inkTop;
+        $baseline  = $bandTop + ($bandH - $inkH) / 2 - $inkTop;
+        $this->centred($im, $s, $size, $font, $colour, $cx, $baseline);
     }
 
     /**
