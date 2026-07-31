@@ -245,13 +245,61 @@ $app->add(new SecurityHeadersMiddleware());
 
 $app->run();
 
-// Opportunistic "web cron" for hosts with no shell cron and no external
-// scheduler: after the response is flushed to the client, run due maintenance.
-// Throttled (~15 min) + single-instance locked + admin-gated (webcron_auto), so
-// the cost on a normal request is a single filemtime() check and the visitor
-// never waits on it. Harmless no-op when disabled or not yet due.
+/**
+ * Opportunistic "web cron" for hosts with no shell cron and no external scheduler:
+ * once the response is off to the client, run due maintenance. Throttled (~15 min),
+ * single-instance locked and admin-gated, so a normal request costs one filemtime().
+ *
+ * ── THE PROMISE THIS MAKES, AND HOW IT WAS BROKEN ────────────────────────────
+ *
+ * "the visitor never waits on it" is true only if the response is genuinely detached
+ * first. That was guarded by `fastcgi_finish_request()` alone — which exists on
+ * PHP-FPM and NOT on LiteSpeed, where the function is `litespeed_finish_request()`.
+ * This site runs LiteSpeed (see public/.htaccess on mod_headers emulation), so the
+ * guard was false on every request and the maintenance run happened INLINE, with the
+ * browser still on the open connection.
+ *
+ * What that costs is not theoretical. `run('auto')` reconciles stale pending payments
+ * on EVERY tick, and each stale order is a gateway verify with a 15-second timeout;
+ * it then sends abandoned-checkout mail over SMTP. Twenty abandoned orders is five
+ * minutes of work attached to whichever visitor happened to arrive when the throttle
+ * expired. LiteSpeed kills the worker long before that, and because the response was
+ * already being written, the browser gets a truncated HTTP/2 stream —
+ * ERR_HTTP2_PROTOCOL_ERROR, which reads like a network fault rather than a timeout.
+ *
+ * It is also self-reinforcing, which is why it got worse rather than staying flat: a
+ * failing checkout creates pending orders, pending orders lengthen reconciliation,
+ * longer reconciliation kills more requests. The reported symptom — the paid-vote
+ * POST specifically — is the request most likely to be hit, because it is already the
+ * slowest on the site (it makes its own synchronous call to the gateway) and so has
+ * the least headroom left.
+ *
+ * ── THE FIX ─────────────────────────────────────────────────────────────────
+ *
+ * Detach with whichever function this SAPI actually provides. If NEITHER exists, do
+ * not run maintenance at all: making a visitor wait is never the right trade, and
+ * these hosts still have the token-gated /__cron/run endpoint and real cron. Silence
+ * would hide that, so it is logged once per tick rather than skipped quietly.
+ */
 register_shutdown_function(static function () use ($container) {
-    if (function_exists('fastcgi_finish_request')) { @fastcgi_finish_request(); }
+    // LiteSpeed first — it is what this deployment runs, and on it the FPM function
+    // is absent, which is precisely how the response failed to be detached.
+    // Presence of the function is the signal, not its return value: builds differ on
+    // what they return, and treating a falsy return as "not detached" would silently
+    // stop maintenance running at all on the very SAPI this fix is for.
+    $detached = false;
+    if (function_exists('litespeed_finish_request')) { @litespeed_finish_request(); $detached = true; }
+    elseif (function_exists('fastcgi_finish_request')) { @fastcgi_finish_request(); $detached = true; }
+
+    if (!$detached) {
+        // Cannot get off the connection, so anything slow here is time the visitor
+        // spends staring at a spinner — and, past the server's limit, a killed worker
+        // and a truncated response. Skip, and say so.
+        error_log('[webcron tick] skipped — no way to detach the response on this SAPI ('
+            . PHP_SAPI . '). Use real cron or the token-gated /__cron/run endpoint.');
+        return;
+    }
+
     try { \AfricaGates\Support\Maintenance::tick($container); }
     catch (\Throwable $e) { error_log('[webcron tick] ' . $e->getMessage()); }
 });

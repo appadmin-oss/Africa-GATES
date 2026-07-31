@@ -304,7 +304,27 @@ return function(App $app) {
                         : '<span style="color:#E5736B">NO &mdash; an unwritable log directory turns this checkout into a 500</span>')
            . '</p><pre style="' . $pre . '">'
            . $e($tail ? implode("\n", $tail) : '(no payment lines in the last 400 log lines)')
-           . '</pre></div></body>';
+           . '</pre>';
+
+        // ── 5. Can the response be detached before maintenance runs? ─────────
+        // The cause of ERR_HTTP2_PROTOCOL_ERROR on this host. The web-cron shutdown
+        // handler only detaches if this SAPI provides one of these functions; without
+        // one it used to run the full maintenance pass — including a gateway verify per
+        // stale pending order, at 15 seconds each — on the visitor's own connection,
+        // until the server killed the worker mid-response.
+        $ls = function_exists('litespeed_finish_request');
+        $fp = function_exists('fastcgi_finish_request');
+        $h .= '<h2 style="font-size:1rem;margin:1.5rem 0 .5rem">5 &middot; Background work</h2>'
+           . '<p style="margin:.2rem 0">SAPI <code>' . $e(PHP_SAPI) . '</code> &middot; '
+           . 'litespeed_finish_request: ' . ($ls ? '<span style="color:#7FC87C">available</span>' : 'absent')
+           . ' &middot; fastcgi_finish_request: ' . ($fp ? '<span style="color:#7FC87C">available</span>' : 'absent') . '</p>'
+           . '<p style="margin:.2rem 0;font-weight:600;color:' . $colour($ls || $fp ? 'ok' : 'unknown') . '">'
+           . ($ls || $fp
+                ? 'OK &mdash; maintenance is detached from the response, so it can never hold a visitor\'s connection open.'
+                : 'NOTE &mdash; this SAPI cannot detach, so the opportunistic maintenance tick is skipped entirely (by design). Schedule real cron or the token-gated /__cron/run so maintenance still happens.')
+           . '</p>';
+
+        $h .= '</div></body>';
 
         $res->getBody()->write($h);
         return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
