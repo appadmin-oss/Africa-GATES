@@ -1002,6 +1002,9 @@ return function(App $app) {
             $s->post('/smtp-test', AdminSettingsController::class.':smtpTest');
             $s->post('/test-ai',   AdminSettingsController::class.':testAi');
             $s->post('/run-cron',  AdminSettingsController::class.':runCron');
+            // One task, not the whole pass — the answer to "I paid and my votes did
+            // not appear" without waiting on a CPI recompute. Idempotent.
+            $s->post('/reconcile-payments', AdminSettingsController::class.':reconcilePayments');
         })->add(new RoleMiddleware('superadmin'));
 
         // Outbound webhooks — integration endpoints for AI agents & platforms.

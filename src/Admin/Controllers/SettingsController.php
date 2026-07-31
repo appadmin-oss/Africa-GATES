@@ -320,6 +320,44 @@ class SettingsController
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);
     }
 
+    /**
+     * Re-verify stale pending payments against the gateway, right now.
+     *
+     * WHY THIS IS ITS OWN BUTTON. "I paid and my votes did not appear" is the one
+     * support message that costs trust rather than time, and the answer to it is a
+     * single task — payments:reconcile — inside a maintenance pass that also drains
+     * queues, prunes caches and can recompute the CPI. Making an operator run all of
+     * that, and wait for it, to answer one supporter is the reason it does not get
+     * run. This does the one thing and reports the count.
+     *
+     * It is the same idempotent reconciliation the scheduler uses: it asks the gateway
+     * what actually happened and only the single winning `WHERE status='pending'`
+     * UPDATE credits an order, so pressing it twice cannot double-credit anyone.
+     *
+     * A bank transfer to Paystack's checkout account settles minutes after the buyer
+     * leaves the site, long after the callback would have fired — so those orders are
+     * ALWAYS reconciled rather than confirmed live. That makes this the normal path
+     * for transfer payments, not an exception.
+     */
+    public function reconcilePayments(Request $req, Response $res): Response
+    {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        try {
+            $r = (new \AfricaGates\Support\Maintenance(null, false))->run('payments');
+            $failed = ($r['failures'] ?? []) !== [];
+            $lines  = array_slice((array) ($r['lines'] ?? []), -6);
+            $_SESSION[$failed ? 'flash_error' : 'flash_ok'] = ($failed
+                ? 'Reconciliation reported a problem — '
+                : 'Payments reconciled in ' . (int) ($r['runtime_ms'] ?? 0) . 'ms. ')
+                . ($lines ? implode(' · ', array_map('strval', $lines)) : 'No stale pending orders were waiting.');
+        } catch (\Throwable $e) {
+            error_log('[settings reconcile] ' . $e->getMessage());
+            $_SESSION['flash_error'] = 'Could not reconcile: ' . $e->getMessage();
+        }
+        try { $this->audit->record($adminId, 'settings.reconcile_payments', null, null); } catch (\Throwable) {}
+        return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+    }
+
     /** Make one live AI call and report which provider answered — diagnoses "AI doesn't work". */
     public function testAi(Request $req, Response $res): Response
     {

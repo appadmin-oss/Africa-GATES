@@ -276,6 +276,20 @@
       <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c);margin-left:8px">Runs the full hub immediately, once.</small>
     </div>
 
+    {# The one task behind "I paid and my votes did not appear". A bank transfer to
+       Paystack's checkout account settles minutes after the buyer has left the site —
+       far too late for the callback — so those orders are ALWAYS credited by this
+       reconciliation rather than confirmed live. It asks the gateway what actually
+       happened, and only the winning pending→paid UPDATE credits an order, so pressing
+       it twice cannot double-credit anyone. #}
+    <div style="margin:12px 0">
+      <button class="ad-btn" type="submit" formaction="/admin/settings/reconcile-payments" formnovalidate>Credit paid votes now</button>
+      <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c);margin-left:8px">
+        Re-checks every pending payment with the gateway and credits the ones that really paid.
+        Safe to press repeatedly — it can never double-credit. Use it when a supporter says their transfer did not add up.
+      </small>
+    </div>
+
     <details style="margin-top:8px">
       <summary style="cursor:pointer;font-size:12.5px;font-weight:600">Prefer an external scheduler? (optional)</summary>
       <p style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin:8px 0">
