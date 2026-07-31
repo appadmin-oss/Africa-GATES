@@ -72,7 +72,10 @@ CREATE TABLE IF NOT EXISTS gates_nominees (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, category_id BIGINT UNSIGNED NOT NULL,
   profile_id BIGINT UNSIGNED DEFAULT NULL, name VARCHAR(200) NOT NULL,
   tagline VARCHAR(300) DEFAULT NULL, photo_path VARCHAR(400) DEFAULT NULL,
-  country_code CHAR(2) DEFAULT NULL, vote_count INT UNSIGNED NOT NULL DEFAULT 0,
+  country_code CHAR(2) DEFAULT NULL,
+  -- School / organisation, carried across from the nomination on approval.
+  organisation VARCHAR(200) DEFAULT NULL,
+  vote_count INT UNSIGNED NOT NULL DEFAULT 0,
   organic_vote_count INT UNSIGNED NOT NULL DEFAULT 0,
   status ENUM('pending','approved','winner','runner_up') NOT NULL DEFAULT 'pending',
   merged_into BIGINT UNSIGNED DEFAULT NULL,
@@ -736,4 +739,26 @@ CREATE TABLE IF NOT EXISTS gates_orders (
   PRIMARY KEY (id),
   UNIQUE KEY uq_order_ref (reference),
   KEY idx_order_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shop catalogue. Same gap gates_orders had: it lived only in the 2026_06_22_shop
+-- migration, so a database built from this file had orders with no products for them
+-- to reference. Found by diffing a fresh schema build against a migrated one.
+CREATE TABLE IF NOT EXISTS gates_products (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  slug VARCHAR(160) NOT NULL,
+  name VARCHAR(200) NOT NULL,
+  category VARCHAR(80) NOT NULL DEFAULT 'Apparel',
+  description TEXT,
+  price_naira INT UNSIGNED NOT NULL DEFAULT 0,
+  cover_path VARCHAR(400) DEFAULT NULL,
+  tag VARCHAR(40) DEFAULT NULL,
+  stock INT DEFAULT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  sort_order INT NOT NULL DEFAULT 0,
+  delivery_regions TEXT DEFAULT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_product_slug (slug),
+  KEY idx_product_active (is_active, sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

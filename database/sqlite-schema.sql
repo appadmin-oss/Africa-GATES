@@ -827,3 +827,23 @@ CREATE TABLE IF NOT EXISTS gates_orders (
   paid_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_order_status ON gates_orders(status);
+
+-- Shop catalogue. Same gap gates_orders had: it lived only in the 2026_06_22_shop
+-- migration, so a database built from this file had orders with no products for them
+-- to reference. Found by diffing a fresh schema build against a migrated one.
+CREATE TABLE IF NOT EXISTS gates_products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'Apparel',
+  description TEXT,
+  price_naira INTEGER NOT NULL DEFAULT 0,
+  cover_path TEXT,
+  tag TEXT,
+  stock INTEGER,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  delivery_regions TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_product_active ON gates_products(is_active, sort_order);
