@@ -203,13 +203,42 @@ $app->add(TwigMiddleware::createFromContainer($app, \Slim\Views\Twig::class));
 // matches paths exactly: without it every route answered 404 for a trailing slash,
 // so `/awards/` was a dead end and any hand-shared link that picked one up broke.
 $app->add(new \AfricaGates\Middleware\TrailingSlashMiddleware());
-$app->add(new SecurityHeadersMiddleware());
 $app->add(new CsrfMiddleware());
 $app->addBodyParsingMiddleware();
 
 // Error handler — reuse the single error-visibility decision computed above.
 $errMiddleware = $app->addErrorMiddleware($showErrors, true, true);
 $errMiddleware->setDefaultErrorHandler(new ErrorHandler($app));
+
+/**
+ * SECURITY HEADERS ARE ADDED LAST, WHICH MAKES THEM THE OUTERMOST LAYER.
+ *
+ * Slim runs middleware LIFO, so this must come AFTER addErrorMiddleware() or the
+ * error middleware wraps it instead of the reverse — and then no error response
+ * ever passes back through here. It was the other way round, and the measurement
+ * was unambiguous: a request for a URL that does not exist came back
+ *
+ *     HTTP/1.1 404 Not Found
+ *     Content-type: text/html; charset=UTF-8
+ *     Set-Cookie: PHPSESSID=…
+ *     X-Powered-By: PHP/8.4.19
+ *
+ * — the entire header list. No Content-Security-Policy, and none of the six in
+ * SecurityHeadersMiddleware::SHARED, on a body containing 11 inline <script>
+ * blocks that each carried a nonce with no policy on the other side to honour it.
+ *
+ * public/.htaccess does not cover the gap. Its six `Header always set` lines do
+ * survive an error response, but the CSP is deliberately not among them — it
+ * carries a per-request nonce, which a static file cannot hold (the reasoning is
+ * written out there). So the error path was the one case with a CSP from neither
+ * source: every 404, every 500 and every rejected-CSRF page went out unprotected.
+ * That is also the page an attacker can always reach without authenticating, and
+ * the one whose job is to say something about the request that failed.
+ *
+ * Being outermost costs nothing else: the middleware only reads the finished
+ * response and sets headers on it, so it cannot change what any inner layer did.
+ */
+$app->add(new SecurityHeadersMiddleware());
 
 // Routes
 (require __DIR__ . '/../src/routes.php')($app);
