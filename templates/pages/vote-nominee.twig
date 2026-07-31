@@ -336,6 +336,11 @@
         <h2>At a glance</h2>
         <div class="vn-facts">
           <div class="vn-fact"><span class="vn-fact__k">Country</span><span class="vn-fact__v">{{ flag }} {{ ctry }}</span></div>
+          {# The school belongs in the facts table as well as the header. This table is
+             what someone reads when they want the details rather than the headline,
+             and listing country and category while omitting the school would be an odd
+             gap now that the value exists. #}
+          {% if n.organisation|default('') %}<div class="vn-fact"><span class="vn-fact__k">School / organisation</span><span class="vn-fact__v">{{ n.organisation }}</span></div>{% endif %}
           <div class="vn-fact"><span class="vn-fact__k">Programme</span><span class="vn-fact__v">{{ n.programme_title }}</span></div>
           <div class="vn-fact"><span class="vn-fact__k">Category</span><span class="vn-fact__v">{{ n.category }}</span></div>
           {% if rank %}<div class="vn-fact"><span class="vn-fact__k">Current rank</span><span class="vn-fact__v mono">#{{ rank }}</span></div>{% endif %}
