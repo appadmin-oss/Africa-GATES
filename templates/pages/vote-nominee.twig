@@ -177,6 +177,16 @@
         </div>
         <h1>{{ n.name }}</h1>
         <p class="vn-meta">{{ flag }} {{ ctry }} · {{ n.category }}{% if n.programme_title %} · {{ n.programme_title }}{% endif %}</p>
+        {# School / organisation. Collected on the nomination form and dropped at
+           approval until now, so it existed in the database and appeared nowhere a
+           supporter could see it. `default` because the column is optional until every
+           deployment has migrated — see VoteController::nominee(). #}
+        {% if n.organisation|default('') %}
+        <p class="vn-meta" style="display:flex;align-items:center;gap:6px;margin-top:2px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
+          {{ n.organisation }}
+        </p>
+        {% endif %}
         {% if n.tagline %}<p class="vn-bioline">{{ n.tagline|length > 160 ? n.tagline|slice(0,157) ~ '…' : n.tagline }}</p>{% endif %}
 
         <div class="vn-stats">

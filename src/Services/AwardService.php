@@ -67,9 +67,14 @@ class AwardService {
             ->where('c.cycle_id',$cycle->id)->where('n.status','approved');
         MergeService::notMerged($q, 'n.merged_into');
         if($categoryId) $q->where('n.category_id',$categoryId);
-        return $q->select(['n.id','n.name','n.tagline','n.photo_path','n.vote_count','n.category_id','n.country_code','c.title as category'])
+        // Selected only when present — an unmigrated database must still render the
+        // nominee list rather than 500. See the note in VoteController::nominee().
+        $cols = ['n.id','n.name','n.tagline','n.photo_path','n.vote_count','n.category_id','n.country_code','c.title as category'];
+        if (\AfricaGates\Support\OptionalColumn::on('gates_nominees','organisation')) $cols[]='n.organisation';
+
+        return $q->select($cols)
             ->orderByDesc('n.vote_count')->get()
-            ->map(fn($n)=>['id'=>$n->id,'name'=>$n->name,'tagline'=>$n->tagline,'photo_path'=>$n->photo_path,'vote_count'=>(int)$n->vote_count,'category_id'=>$n->category_id,'category'=>$n->category,'country_code'=>$n->country_code])
+            ->map(fn($n)=>['id'=>$n->id,'name'=>$n->name,'tagline'=>$n->tagline,'photo_path'=>$n->photo_path,'vote_count'=>(int)$n->vote_count,'category_id'=>$n->category_id,'category'=>$n->category,'country_code'=>$n->country_code,'organisation'=>(string)($n->organisation ?? '')])
             ->values()->all();
     }
 

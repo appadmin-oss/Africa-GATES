@@ -137,10 +137,13 @@ final class FlierService
                 ->where('n.id', $nomineeId)
                 ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
                 ->whereNull('n.merged_into')
-                ->first([
+                // `organisation` only when the column exists — the flier is also an
+                // og:image fetched by crawlers, and a 500 here is a broken link preview
+                // on every share. See VoteController::nominee() for the same guard.
+                ->first(array_merge([
                     'n.id', 'n.name', 'n.tagline', 'n.photo_path', 'n.country_code', 'n.vote_count',
                     'c.id as category_id', 'c.title as category', 'p.title as programme', 'p.slug as programme_slug',
-                ]);
+                ], \AfricaGates\Support\OptionalColumn::on('gates_nominees', 'organisation') ? ['n.organisation'] : []));
         } catch (\Throwable) {
             return null;
         }
@@ -166,6 +169,7 @@ final class FlierService
             'category'  => (string) $n->category,
             'programme' => (string) $n->programme,
             'country'   => strtoupper(trim((string) ($n->country_code ?? ''))),
+            'organisation' => trim((string) ($n->organisation ?? '')),
             'photo'     => $this->photoUrl((string) ($n->photo_path ?? ''), $base, 'flier'),
             // The same photo, cropped for the card's tall column. TWO derivatives rather
             // than one reused, because the flier's panel is landscape and the card's is
@@ -448,6 +452,12 @@ final class FlierService
         }
         $out .= '</text>';
 
+        // The school / organisation, when there is one.
+        if ($L['organisation'] !== '') {
+            $out .= '<text x="64" y="' . ($L['orgTop'] + 22) . '" font-family="' . $sans . '" font-size="26" '
+                  . 'fill="' . FlierLayout::C_MUTED . '">' . $this->x($L['organisation']) . '</text>';
+        }
+
         // Standing line — three clauses, each present only when it says something.
         if ($L['showStanding']) {
             $out .= '<text x="64" y="' . (FlierLayout::STANDING_Y + 26) . '" font-family="' . $sans . '" font-size="31" font-weight="700">';
@@ -642,6 +652,13 @@ final class FlierService
             $this->text($im, '  ·  ', 30, self::font('semibold'), $leaf, $x, $catY);
             $x += $this->width('  ·  ', 30, self::font('semibold'));
             $this->text($im, (string) $L['countryCode'], 30, self::font('semibold'), $muted, $x, $catY, 3);
+        }
+
+        // The school / organisation, shrunk to the column rather than trusted: an
+        // institution name is frequently longer than a person's.
+        if ($L['organisation'] !== '') {
+            $this->centredFitLeft($im, (string) $L['organisation'], 26, self::font('regular'), $muted,
+                64, $L['orgTop'] + 22, $W - 128);
         }
 
         // Standing line — three clauses, each drawn only when it says something, laid out

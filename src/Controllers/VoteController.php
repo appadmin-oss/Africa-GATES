@@ -91,6 +91,15 @@ class VoteController {
         }
         $cats = array_values(array_filter($byCat, fn($c) => count($c['nominees']) > 0));
 
+        // Race framing. Rank, the gap to the position above and a share-of-leader bar,
+        // computed once per category in memory rather than by asking StandingsService
+        // per nominee — which would be one full category scan for every card on the page.
+        foreach ($cats as &$c) {
+            $c['nominees'] = \AfricaGates\Services\RaceService::annotate($c['nominees']);
+            $c['headline'] = \AfricaGates\Services\RaceService::headline($c['nominees']);
+        }
+        unset($c);
+
         return $this->view->render($res, 'pages/vote-program.twig', [
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
             'meta_description' => 'Vote in ' . $p['title'] . ' — browse the nominees by category and back the African excellence you believe deserves continental recognition.',
@@ -105,6 +114,71 @@ class VoteController {
             'voting_open'      => (bool) ($p['phase']['is_voting_open'] ?? false),
             'total_nominees'   => count($noms),
         ]);
+    }
+
+    /**
+     * /vote/{program}/tallies — the live figures, as JSON.
+     *
+     * ── WHY POLLING AND NOT A SOCKET ─────────────────────────────────────────
+     *
+     * Shared cPanel hosting with no persistent process. A websocket or SSE stream holds
+     * a PHP worker open per viewer, and this platform's audience arrives in bursts when
+     * a nominee posts a flier — the exact moment holding connections open would exhaust
+     * the pool and take the ballot down. A cached poll degrades instead: more viewers
+     * hit the same cached payload.
+     *
+     * Cached for a few seconds, so a thousand people watching one category cost roughly
+     * one query rather than a thousand. Votes are not a trading price; nobody is harmed
+     * by seeing a tally that is five seconds old, and the alternative is a page that
+     * takes the database down at precisely the moment it matters.
+     *
+     * Returns the SAME shape RaceService puts in the template, so the client patches
+     * numbers it already knows how to render rather than re-deriving standings — a
+     * second implementation of rank arithmetic in JavaScript is how the page and its
+     * updates start disagreeing.
+     */
+    public function tallies(Request $req, Response $res, array $args): Response {
+        $seg = (string) ($args['program'] ?? '');
+        $p   = $this->awards->getProgrammeBySlug($seg);
+        if (!$p) {
+            $res->getBody()->write('{"ok":false}');
+            return $res->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
+
+        $key  = 'tallies:' . $seg . ':' . (int) ($p['cycle']['year'] ?? 0);
+        $body = (new \AfricaGates\Services\CacheService())->remember($key, 5, function () use ($p) {
+            $year  = (int) ($p['cycle']['year'] ?? date('Y'));
+            $byCat = [];
+            foreach ($this->awards->getNominees((int) $p['id'], 0, $year) as $n) {
+                $byCat[(int) $n['category_id']][] = $n;
+            }
+            $out = [];
+            foreach ($byCat as $cid => $list) {
+                $ranked = \AfricaGates\Services\RaceService::annotate($list);
+                $out[] = [
+                    'category_id' => $cid,
+                    'headline'    => \AfricaGates\Services\RaceService::headline($ranked),
+                    'nominees'    => array_map(static fn (array $n) => [
+                        'id'    => (int) $n['id'],
+                        'votes' => (int) $n['vote_count'],
+                        'rank'  => (int) $n['rank'],
+                        'gap'   => $n['gap'],
+                        'pct'   => (int) $n['pct'],
+                    ], $ranked),
+                ];
+            }
+            return ['ok' => true, 'at' => date('c'), 'categories' => $out];
+        });
+
+        // CacheService stores and returns ARRAYS (it json_decodes on read), so the
+        // encoding happens here rather than inside the callback — otherwise the payload
+        // is a JSON string inside a JSON string and the client parses twice.
+        $res->getBody()->write((string) json_encode(is_array($body) ? $body : ['ok' => false]));
+        return $res
+            ->withHeader('Content-Type', 'application/json')
+            // Let a CDN or the browser absorb a rally too. Short enough that the page
+            // still feels live, long enough that a burst does not reach PHP at all.
+            ->withHeader('Cache-Control', 'public, max-age=5');
     }
 
     /**
@@ -207,12 +281,20 @@ class VoteController {
             ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
             ->where('n.id', $id)->where('n.status', 'approved')
             ->where(fn($q) => \AfricaGates\Services\MergeService::notMerged($q, 'n.merged_into'))
-            ->select([
+            // `organisation` joins the SELECT only when the column exists.
+            //
+            // A bare `n.organisation` would throw on any database whose migrations have
+            // not been applied — and this is THE BALLOT, so the failure would be the
+            // whole voting page rather than one missing line. Exactly the outage
+            // `show_name` caused on the paid path; a new column is optional until every
+            // deployment actually has it.
+            ->select(array_merge([
                 'n.id', 'n.name', 'n.tagline', 'n.photo_path', 'n.vote_count', 'n.country_code', 'n.profile_id',
                 'c.id as category_id', 'c.title as category',
                 'cy.id as cycle_id', 'cy.status as cycle_status', 'cy.year as year',
                 'p.id as programme_id', 'p.title as programme_title', 'p.slug as programme_slug',
-            ])->first();
+            ], \AfricaGates\Support\OptionalColumn::on('gates_nominees', 'organisation') ? ['n.organisation'] : []))
+            ->first();
         if (!$nom) throw new \Slim\Exception\HttpNotFoundException($req);
 
         // Canonical URL: the {program} segment must match the nominee's programme.

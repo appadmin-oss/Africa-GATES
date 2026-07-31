@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS gates_nominees (
   tagline TEXT,
   photo_path TEXT,
   country_code TEXT,
+  organisation TEXT,                              -- school / organisation, carried from the nomination
   vote_count INTEGER NOT NULL DEFAULT 0,          -- total display support (organic + paid boost)
   organic_vote_count INTEGER NOT NULL DEFAULT 0,  -- organic OTP votes only; the CPI community signal
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','winner','runner_up')),

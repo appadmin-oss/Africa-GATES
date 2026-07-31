@@ -614,6 +614,11 @@ return function(App $app) {
         $g->get('/vote/paid/success',  PaidVoteController::class.':success');
         $g->get('/vote',                  VoteController::class.':index');
         $g->get('/vote/{program}',        VoteController::class.':program');
+        // Live tallies for the race page. BEFORE /vote/{program}/{slug} — that pattern
+        // would otherwise swallow "tallies" as a nominee slug. It is safe here because
+        // the slug route requires a leading digit, but the ordering is what the rest of
+        // this block already relies on and it should not be the one exception.
+        $g->get('/vote/{program}/tallies', VoteController::class.':tallies');
         // The flier routes go BEFORE /vote/{program}/{slug}: FastRoute matches in
         // declaration order for same-length paths, and `{slug}` would otherwise
         // swallow nothing here — but `{slug}/flier` is longer, so order is not
@@ -996,6 +1001,7 @@ return function(App $app) {
         // outbound calls and, in apply mode, moves money — a GET would let a prefetch
         // or a refresh confirm payments.
         $a->post('/finance/reconcile',           AdminFinanceController::class.':reconcile');
+
 
         // Member account actions (manual points adjustment — audited, admin+ gated in-controller).
         $a->post('/users/{id:[0-9]+}/points',    \AfricaGates\Admin\Controllers\UsersController::class.':adjustPoints');

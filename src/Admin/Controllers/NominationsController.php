@@ -319,16 +319,24 @@ HTML;
                             ->limit(2)->pluck('id');
                         $profileId = $m->count() === 1 ? $m->first() : null;
                     }
-                    $nomineeId = (int)DB::table('gates_nominees')->insertGetId([
-                        'category_id'  => $catId,
-                        'profile_id'   => $profileId ?: null,
-                        'name'         => $nom->nominee_name,
-                        'tagline'      => mb_substr((string)$nom->reason, 0, 200),
-                        'country_code' => $nom->country_code,
-                        'status'       => 'approved',
-                        'vote_count'   => 0,
-                        'nominated_at' => Carbon::now()->toDateTimeString(),
-                    ]);
+                    $nomineeId = (int)DB::table('gates_nominees')->insertGetId(
+                        OptionalColumn::filter('gates_nominees', [
+                            'category_id'  => $catId,
+                            'profile_id'   => $profileId ?: null,
+                            'name'         => $nom->nominee_name,
+                            'tagline'      => mb_substr((string)$nom->reason, 0, 200),
+                            'country_code' => $nom->country_code,
+                            // CARRIED ACROSS, not re-asked. The nomination form already
+                            // collected the school/organisation and approval used to drop
+                            // it here — so every public surface downstream had nothing to
+                            // show, because by then the value no longer existed on the row
+                            // being rendered.
+                            'organisation' => mb_substr(trim((string)($nom->nominee_org ?? '')), 0, 200) ?: null,
+                            'status'       => 'approved',
+                            'vote_count'   => 0,
+                            'nominated_at' => Carbon::now()->toDateTimeString(),
+                        ], ['organisation'])
+                    );
                 }
             });
         } catch (\Throwable $e) {

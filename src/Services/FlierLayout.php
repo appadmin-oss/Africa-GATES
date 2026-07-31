@@ -171,6 +171,17 @@ final class FlierLayout
             'monogram'    => self::monogram($name),
             'category'    => (string) ($f['category'] ?? ''),
             'countryCode' => strtoupper(trim((string) ($f['country'] ?? ''))),
+
+            // The school or organisation, on its own line under the category.
+            //
+            // It goes BETWEEN two fixed rows — the category baseline and the standing
+            // line at 1068 — which leaves roughly 140px, so one 26px line fits with
+            // room to spare and nothing below it has to move. Truncated rather than
+            // wrapped: a second line would eat that margin and start colliding with
+            // the standing on exactly the longest names, which is the worst case to
+            // discover in production.
+            'organisation' => self::clip(trim((string) ($f['organisation'] ?? '')), 42),
+            'orgTop'       => $panelH - self::CAT_INSET + 40,
         ];
     }
 
@@ -250,6 +261,18 @@ final class FlierLayout
         $first = mb_substr($parts[0], 0, 1);
         if (count($parts) === 1) return mb_strtoupper($first);
         return mb_strtoupper($first . mb_substr($parts[count($parts) - 1], 0, 1));
+    }
+
+    /** Truncate on a word boundary where possible, with an ellipsis. */
+    public static function clip(string $s, int $max): string
+    {
+        if ($s === '' || mb_strlen($s) <= $max) return $s;
+        $cut = mb_substr($s, 0, $max - 1);
+        $sp  = mb_strrpos($cut, ' ');
+        // Only break at a space if it leaves most of the budget used — otherwise a
+        // long first word would collapse the line to almost nothing.
+        if ($sp !== false && $sp > $max * 0.6) $cut = mb_substr($cut, 0, $sp);
+        return rtrim($cut) . '…';
     }
 
     /** NFD then drop the combining range — the measurement basis for {@see nameSize()}. */
