@@ -521,7 +521,15 @@
                  (gates_votes.show_name keeps its 0 default), which is what the field was
                  collected under. #}
               <label class="vn-check"><input type="checkbox" x-model="agreed"><span>I’m a real person voting once, and I accept the <a href="/terms">voting rules</a>.</span></label>
-              {% if turnstile_site_key %}<div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-theme="light" style="margin-top:14px"></div>{% endif %}
+              {# RENDERED EXPLICITLY, not by the `cf-turnstile` auto-scan.
+                 The auto-scan gives the page a widget it holds no handle to, and a
+                 handle is exactly what is needed: a Turnstile token is SINGLE-USE and
+                 expires after 300s, so it has to be reset after every submission. See
+                 initTurnstile()/resetTurnstile() below. #}
+              {% if turnstile_site_key %}
+              <div x-ref="ts" style="margin-top:14px"></div>
+              <p class="vn-err" x-show="tsError" x-cloak x-text="tsError"></p>
+              {% endif %}
               <p class="vn-err" x-show="otpError" x-cloak x-text="otpError"></p>
               <button type="button" class="vn-go" :disabled="busy || !canRequest || !agreed" @click="requestOtp()" x-text="busy ? 'Sending…' : 'Vote for {{ firstName|e('js') }} →'"></button>
               <div class="vn-secure">
@@ -577,15 +585,92 @@ function voteNominee() {
     newRank: {{ rank|default(0)|e('js') }} || null,
     otpError: '', voteError: '', toast: '', _t: null,
 
+    // ── Turnstile ───────────────────────────────────────────────────────────
+    // tsOn is a template constant, not a runtime probe: when no site key is
+    // configured there is no widget, no token, and nothing to wait for.
+    tsOn: {{ turnstile_site_key ? 'true' : 'false' }},
+    tsToken: '', tsWidget: null, tsError: '',
+
     get emailValid(){ return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(this.email); },
     get nameValid(){ return /\S+\s+\S+/.test(this.fullName.trim()); },
     get phoneValid(){ return this.phone.replace(/\D/g, '').length >= 7; },
     get canRequest(){ return this.nameValid && this.phoneValid && this.emailValid; },
     ping(m){ this.toast = m; clearTimeout(this._t); this._t = setTimeout(() => this.toast = '', 2500); },
 
-    turnstileToken() {
-      const el = this.$root.querySelector('[name="cf-turnstile-response"]');
-      return el ? el.value : '';
+    // Alpine calls this automatically when the component mounts.
+    init() { this.initTurnstile(); },
+
+    /**
+     * Render the widget and keep the token in component state.
+     *
+     * api.js is `async defer`, so it may land before OR after Alpine initialises this
+     * component — there is no ordering to rely on and no load event Alpine can await.
+     * Hence the poll: try immediately, and if `window.turnstile` is not there yet,
+     * keep looking for ~15s. Cheap, and it removes an entire class of "sometimes the
+     * widget just does not appear" that depends on network timing.
+     */
+    initTurnstile() {
+      // A site key is configured but this page has no widget slot — voting is closed,
+      // or the admin disabled the free path so the OTP form was never rendered. Nothing
+      // to mount, and nothing will ask for a token.
+      if (!this.tsOn || !this.$refs.ts) { this.tsOn = false; return; }
+      const boot = () => {
+        if (!window.turnstile || this.tsWidget !== null) return this.tsWidget !== null;
+        this.tsWidget = window.turnstile.render(this.$refs.ts, {
+          {# `e('js')`, NOT the autoescaped default and NOT json_encode. This is script
+             CONTENT, not an attribute: the HTML parser does not decode entities here, so
+             the default html escaping would put a literal `&quot;` into the site key. The
+             attribute version of this decision is on the paid-vote x-data above, and it
+             goes the other way — same file, opposite answer. #}
+          sitekey: '{{ turnstile_site_key|e('js') }}',
+          theme: 'light',
+          // Each of these three is a state the old code could not see, and all three
+          // presented to the voter as the same dead end.
+          callback: (t) => { this.tsToken = t; this.tsError = ''; },
+          'expired-callback': () => { this.tsToken = ''; },
+          'error-callback': () => {
+            this.tsToken = '';
+            this.tsError = 'The security check could not load. Disable any ad-blocker for this page, or reload.';
+          },
+        });
+        return true;
+      };
+      if (boot()) return;
+      let tries = 0;
+      const poll = setInterval(() => { if (boot() || ++tries > 150) clearInterval(poll); }, 100);
+    },
+
+    /**
+     * A FRESH token for the next attempt. This is the fix for the bug users actually
+     * hit: a token is spent the moment the server verifies it, so the second request
+     * from a page — a resend, or a retry after any refusal — was replaying a used one
+     * and getting `timeout-or-duplicate` back forever. Called in the `finally` of every
+     * request, because the token is consumed whether or not the request succeeded.
+     */
+    resetTurnstile() {
+      if (!this.tsOn) return;
+      this.tsToken = '';
+      try { if (this.tsWidget !== null && window.turnstile) window.turnstile.reset(this.tsWidget); } catch (e) {}
+    },
+
+    /**
+     * The current token, waiting up to ~8s for the challenge to solve.
+     *
+     * Returns null on timeout so the caller can distinguish "not ready yet" from
+     * "protection is off". Without this a voter who filled the form quickly submitted
+     * an empty token and was told bot verification had failed.
+     */
+    async turnstileToken() {
+      if (!this.tsOn) return '';
+      for (let i = 0; i < 80; i++) {
+        if (this.tsToken) return this.tsToken;
+        // Belt and braces: read the hidden input Turnstile injects, in case a
+        // callback was missed.
+        const el = this.$refs.ts && this.$refs.ts.querySelector('[name="cf-turnstile-response"]');
+        if (el && el.value) return el.value;
+        await new Promise(r => setTimeout(r, 100));
+      }
+      return null;
     },
 
     async requestOtp() {
@@ -595,6 +680,16 @@ function voteNominee() {
       if (!this.emailValid) { this.otpError = 'Enter a valid email address.'; return; }
       if (!this.agreed) { this.otpError = 'Please confirm you’re a real person voting once.'; return; }
       this.busy = true;
+      // Waits for the challenge rather than posting an empty token and letting the
+      // server call it a bot. `null` means it never solved — usually a blocked or
+      // very slow challenges.cloudflare.com, which is a different problem and gets a
+      // different sentence.
+      const tsToken = await this.turnstileToken();
+      if (tsToken === null) {
+        this.otpError = this.tsError || 'The security check hasn’t finished loading. Give it a moment, then try again.';
+        this.busy = false;
+        return;
+      }
       if (window.AFG) AFG.trackFunnel('otp_requested', { nominee_id: this.nomineeId, award_id: this.awardId });
       try {
         const r = await fetch('/api/otp/request', {
@@ -602,14 +697,22 @@ function voteNominee() {
           body: JSON.stringify({
             email: this.email, nominee_id: this.nomineeId, award_id: this.awardId,
             session_id: window.AFG_SESSION || '', device_hash: window.AFG_DEVICE || '',
-            turnstile_token: this.turnstileToken(),
+            turnstile_token: tsToken,
           })
         });
         const d = await r.json().catch(() => ({}));
         if (r.ok && d.success) { this.step = 'otp'; }
         else { this.otpError = d.message || 'Could not send the code. Please try again.'; }
       } catch (e) { this.otpError = 'Network error. Please try again.'; }
-      finally { this.busy = false; }
+      finally {
+        // ALWAYS, and this is the whole bug. The token is spent by the verification
+        // itself, so it is dead whether the request succeeded, was rate-limited, or
+        // failed on the email — and the next attempt (a resend, a corrected address)
+        // used to replay it and get `timeout-or-duplicate` back every single time.
+        // Resetting here is what makes "please try again" a true statement.
+        this.resetTurnstile();
+        this.busy = false;
+      }
     },
 
     async submitVote() {

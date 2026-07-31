@@ -285,7 +285,21 @@ class SettingsController
 
         $this->audit->record($adminId, 'settings.update', null, null);
         $_SESSION['flash_ok'] = 'Settings saved.';
-        return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+
+        // Back to the GROUP they saved from. A browser drops the URL fragment when it
+        // posts a form, so the page cannot preserve its own tab across the redirect —
+        // only the server can put it back. Without this, grouping the settings meant
+        // every save returned the admin to the first tab, several clicks from the field
+        // they were in the middle of adjusting.
+        //
+        // Allowlisted, not echoed: this value reaches a Location header, and a posted
+        // string is not somewhere to take a URL fragment from on trust.
+        $section = (string) ($b['st_section'] ?? '');
+        $anchor  = in_array($section, ['site', 'mail', 'money', 'integrity', 'ai', 'ops'], true)
+            ? '#' . $section
+            : '';
+
+        return $res->withHeader('Location', '/admin/settings' . $anchor)->withStatus(302);
     }
 
     /**

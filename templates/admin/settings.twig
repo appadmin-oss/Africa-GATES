@@ -39,39 +39,98 @@
   .st-search{flex:1;min-width:170px;max-width:280px;padding:7px 12px;border:1px solid var(--ad-line,#e5eae8);border-radius:999px;font-size:12.5px;background:var(--ad-surface,#fff);color:inherit}
   .st-hint{margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#8a9a9c)}
   .st-tier{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
+  .st-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#D8A33C;margin-left:6px;vertical-align:middle}
+  .st-tab[aria-pressed="true"] .st-dot{background:#fff}
+  .st-dirty{font-size:12px;font-weight:600;color:#8a6a1e;background:#fdf3dc;border:1px solid #ecd9a6;border-radius:999px;padding:5px 11px}
+  .st-kbd{font:600 10.5px/1 ui-monospace,monospace;border:1px solid var(--ad-line,#e5eae8);border-bottom-width:2px;border-radius:4px;padding:2px 4px;background:var(--ad-surface,#fff)}
+  .st-none{padding:22px;text-align:center;color:var(--ad-text-mute,#8a9a9c);font-size:13px;border:1px dashed var(--ad-line,#e5eae8);border-radius:12px}
   @media (max-width:640px){ .st-bar{position:static} }
 </style>
+{# The tab list, once, so the strip and the change-tracker cannot disagree about
+   which groups exist. #}
+{% set st_sections = [
+  {id: 'site',      label: 'Site'},
+  {id: 'mail',      label: 'Email & messaging'},
+  {id: 'money',     label: 'Payments & voting'},
+  {id: 'integrity', label: 'Integrity'},
+  {id: 'ai',        label: 'AI'},
+  {id: 'ops',       label: 'Automation'},
+] %}
 <div x-data="{
       sec: 'site',
       q: '',
-      /* One predicate for every card. With a search term the groups step aside
-         entirely — a term that matches nothing anywhere should say so, not show
-         an empty group. */
-      show(section, keywords){
+      /* Groups whose fields have been touched since the page loaded. Grouping the
+         cards created a way to lose work that the old single column did not have:
+         edit the vote price, switch to Email to check something, forget, leave. The
+         edited field is off screen and there is nothing to notice. So an edit marks
+         its group, the marks show on the tabs and in the bar, and leaving the page
+         with any of them asks first. */
+      dirty: {},
+      get anyDirty(){ return Object.keys(this.dirty).length > 0 },
+      get dirtyNames(){ return Object.keys(this.dirty).map(k => this.names[k] || k) },
+      names: {{ st_sections|reduce((c, s) => c|merge({(s.id): s.label}), {})|json_encode }},
+
+      /* One predicate for every card, reading the card's own data attributes rather
+         than a duplicated pair of literals in each x-show. With a search term the
+         groups step aside entirely. */
+      show(el){
         const q = this.q.trim().toLowerCase();
-        if (!q) return this.sec === section;
-        return keywords.toLowerCase().includes(q);
-      } }">
+        if (!q) return this.sec === el.dataset.sec;
+        return (el.dataset.keys || '').toLowerCase().includes(q);
+      },
+      matches(){
+        const q = this.q.trim().toLowerCase();
+        if (!q) return 1;
+        return [...this.$root.querySelectorAll('.ad-card[data-keys]')]
+          .filter(el => (el.dataset.keys || '').toLowerCase().includes(q)).length;
+      },
+      touch(target){
+        const card = target.closest && target.closest('.ad-card[data-sec]');
+        if (card) this.dirty[card.dataset.sec] = true;
+      },
+      go(id){ this.q = ''; this.sec = id; history.replaceState(null, '', '#' + id); },
+
+      init(){
+        /* Restore the group from the URL. The save handler redirects back here with
+           the fragment, so saving no longer dumps the admin on the first tab with no
+           memory of where they were working — which is what grouping cost them. */
+        const h = (location.hash || '').replace('#', '');
+        if (this.names[h]) this.sec = h;
+        window.addEventListener('beforeunload', (e) => {
+          if (!this.anyDirty || this.saving) return;
+          e.preventDefault(); e.returnValue = '';
+        });
+      },
+      saving: false }"
+     @input="touch($event.target)" @change="touch($event.target)"
+     @submit="saving = true"
+     @keydown.window.slash.prevent="if (!/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) $refs.q.focus()"
+     @keydown.window.ctrl.s.prevent="$refs.form.requestSubmit()"
+     @keydown.window.meta.s.prevent="$refs.form.requestSubmit()">
   <div class="st-bar">
     <div class="st-tabs">
-      <button type="button" class="st-tab" :aria-pressed="!q && sec==='site'"    @click="q='';sec='site'">Site</button>
-      <button type="button" class="st-tab" :aria-pressed="!q && sec==='mail'"    @click="q='';sec='mail'">Email &amp; messaging</button>
-      <button type="button" class="st-tab" :aria-pressed="!q && sec==='money'"   @click="q='';sec='money'">Payments &amp; voting</button>
-      <button type="button" class="st-tab" :aria-pressed="!q && sec==='integrity'" @click="q='';sec='integrity'">Integrity</button>
-      <button type="button" class="st-tab" :aria-pressed="!q && sec==='ai'"      @click="q='';sec='ai'">AI</button>
-      <button type="button" class="st-tab" :aria-pressed="!q && sec==='ops'"     @click="q='';sec='ops'">Automation</button>
-      <label for="st-q" class="ad-sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search settings</label>
-      <input id="st-q" class="st-search" type="search" x-model="q" placeholder="Search all settings…" autocomplete="off">
+      {% for s in st_sections %}
+      <button type="button" class="st-tab" :aria-pressed="!q && sec==='{{ s.id }}'" @click="go('{{ s.id }}')">{{ s.label }}<span class="st-dot" x-show="dirty['{{ s.id }}']" x-cloak title="unsaved changes"></span></button>
+      {% endfor %}
+      <label for="st-q" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search settings</label>
+      <input id="st-q" x-ref="q" class="st-search" type="search" x-model="q" placeholder="Search all settings…  /" autocomplete="off">
+      <span class="st-dirty" x-show="anyDirty" x-cloak x-text="'Unsaved: ' + dirtyNames.join(', ')"></span>
       {# The save button follows the admin down the page. It was previously reachable
          only from the very bottom, which on this form is several screens away from
          most of the fields it saves. #}
-      <button class="ad-btn ad-btn--primary" type="submit" form="st-form" style="margin-left:auto">Save settings</button>
+      <button class="ad-btn ad-btn--primary" type="submit" form="st-form" style="margin-left:auto">Save settings <span class="st-kbd" aria-hidden="true">⌘S</span></button>
     </div>
-    <p class="st-hint" x-show="q.trim()" x-text="'Searching every group for “' + q.trim() + '” — clear the box to browse by group again.'"></p>
+    <p class="st-hint" x-show="q.trim()" x-cloak
+       x-text="matches() === 1 ? '1 card matches “' + q.trim() + '” — clear the box to browse by group.' : matches() + ' cards match “' + q.trim() + '” — clear the box to browse by group.'"></p>
+    <p class="st-hint" x-show="!q.trim()">Every group is saved together — switching tabs never discards a change.</p>
   </div>
-<form id="st-form" class="ad-form" method="post" action="/admin/settings">
+<form id="st-form" x-ref="form" class="ad-form" method="post" action="/admin/settings">
+  {# Comes back as the redirect fragment so a save returns to the group you saved
+     from. A form post drops the URL fragment, so the client cannot preserve this
+     on its own — the server has to put it back. #}
+  <input type="hidden" name="st_section" :value="sec">
   <input type="hidden" name="_token" value="{{ csrf_token }}">
-  <div class="ad-card" x-show="show('site','public site announcement banner text link label site title contact email')"><div class="ad-card__head"><div class="ad-card__title">Public site<small>Surfaces on every page</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="site" data-keys="public site announcement banner text link label site title contact email" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Public site<small>Surfaces on every page</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       <div><label for="f-announce_text">Announcement banner text</label><input type="text" name="announce_text" id="f-announce_text" value="{{ values.announce_text|default('') }}"></div>
       <div class="row">
@@ -84,7 +143,7 @@
       </div>
     </div>
   </div></div>
-  <div class="ad-card" x-show="show('mail','email sender smtp from name address reply-to admin alerts test email delivery health mail log outgoing')"><div class="ad-card__head"><div class="ad-card__title">Email &amp; sender<small>{% if smtp_configured %}SMTP is configured — mail sends live.{% else %}SMTP not set — mail is written to var/logs/outgoing-mail.log.{% endif %}</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="mail" data-keys="email sender smtp from name address reply-to admin alerts test email delivery health mail log outgoing" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Email &amp; sender<small>{% if smtp_configured %}SMTP is configured — mail sends live.{% else %}SMTP not set — mail is written to var/logs/outgoing-mail.log.{% endif %}</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       <div class="row">
         <div><label for="f-mail_from_name">From name</label><input type="text" name="mail_from_name" id="f-mail_from_name" value="{{ values.mail_from_name|default('Africa GATES') }}"></div>
@@ -130,7 +189,7 @@
       </div>
     </div>
   </div></div>
-  <div class="ad-card" x-show="show('money','shop location based pricing region multiplier currency conversion naira')"><div class="ad-card__head"><div class="ad-card__title">Shop · location-based pricing<small>Per-region price multiplier — 1.0 = base price. Leave all at 1.0 to disable.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="money" data-keys="shop location based pricing region multiplier currency conversion naira" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Shop · location-based pricing<small>Per-region price multiplier — 1.0 = base price. Leave all at 1.0 to disable.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="currency_conversion" value="1" {% if values.currency_conversion == '1' %}checked{% endif %}> <span><strong>Currency conversion</strong> — let shoppers view prices in their local currency (USD, GBP, EUR…). Orders are still charged in Naira (₦); rates are fetched live and cached.</span></label>
       <p style="margin:0 0 4px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">Each product's base naira price is multiplied by its delivery region's factor at checkout (computed server-side). e.g. <strong>1.25</strong> charges +25% in that region; <strong>0.9</strong> charges −10%.</p>
@@ -141,7 +200,7 @@
       </div>
     </div>
   </div></div>
-  <div class="ad-card" x-show="show('money','voting points earn redeem rate members shop orders tickets donations')"><div class="ad-card__head"><div class="ad-card__title">Voting points<small>Members earn points from purchases and redeem them for votes.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="money" data-keys="voting points earn redeem rate members shop orders tickets donations" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Voting points<small>Members earn points from purchases and redeem them for votes.</small></div></div><div class="ad-card__body">
     <div class="ad-form">
       <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="points_enabled" value="1" {% if values.points_enabled == '1' %}checked{% endif %}> <span><strong>Enable voting points</strong> — members accrue points from shop orders, paid tickets &amp; donations, redeemable for votes.</span></label>
       <div class="row">
@@ -151,7 +210,7 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Redeemed votes count toward the public tally only — they never affect judged/CPI rank.</p>
     </div>
   </div></div>
-  <div class="ad-card" x-show="show('money','paid voting buy votes price per vote discount tier percentage chips bulk maximum per order paystack flutterwave checkout free otp')"><div class="ad-card__head"><div class="ad-card__title">Paid voting<small>Make voting a paid action — supporters buy votes for a nominee. Off = classic free OTP voting.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="money" data-keys="paid voting buy votes price per vote discount tier percentage chips bulk maximum per order paystack flutterwave checkout free otp" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Paid voting<small>Make voting a paid action — supporters buy votes for a nominee. Off = classic free OTP voting.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="paid_vote_settings" value="1">
     <div class="ad-form">
       <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:6px"><input type="checkbox" name="paid_voting_enabled" value="1" {% if values.paid_voting_enabled == '1' %}checked{% endif %}> <span><strong>Enable paid voting</strong> — the nominee ballot leads with a "Buy votes" checkout (Paystack/Flutterwave, verified server-side).</span></label>
@@ -219,7 +278,7 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Buyers appear on the nominee's public <strong>supporters list</strong> when they fill in the optional name field; leaving it blank gives anonymously. Free OTP votes are never listed (that path requires a name, so giving one is not a choice). Orders placed before the field said this are treated as not consented and stay private. See <a href="/privacy#supporters" style="color:var(--ad-accent,#237b22)">the supporter-names policy</a>.</p>
     </div>
   </div></div>
-  <div class="ad-card" x-show="show('site','display values nations count cpi recompute interval review sla nomination seconds otp expiry processing fee')"><div class="ad-card__head"><div class="ad-card__title">Display values<small>Numbers shown in site copy — edit here instead of hardcoding them in templates.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="site" data-keys="display values nations count cpi recompute interval review sla nomination seconds otp expiry processing fee" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Display values<small>Numbers shown in site copy — edit here instead of hardcoding them in templates.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="display_settings" value="1">
     <div class="ad-form">
       <div class="row">
@@ -236,7 +295,7 @@
       </div>
     </div>
   </div></div>
-  <div class="ad-card" x-show="show('integrity','moderation thresholds quarantine auto reject comments threads nominations review queue')"><div class="ad-card__head"><div class="ad-card__title">Moderation thresholds<small>Where content scores (0–1) flip to review or auto-reject. Applies to comments, threads &amp; nominations.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="integrity" data-keys="moderation thresholds quarantine auto reject comments threads nominations review queue" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Moderation thresholds<small>Where content scores (0–1) flip to review or auto-reject. Applies to comments, threads &amp; nominations.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="moderation_settings" value="1">
     <div class="ad-form">
       <div class="row">
@@ -246,7 +305,7 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Lower = stricter. Below the quarantine line content publishes instantly; between the lines it waits in <a href="/admin/moderation" style="color:var(--ad-accent,#237b22)">the review queue</a>; above the reject line it is blocked outright. Values are clamped so moderation can never be switched off by accident.</p>
     </div>
   </div></div>
-  <div class="ad-card" x-show="show('integrity','nomination eligibility threshold minimum distinct locations approve nominee')"><div class="ad-card__head"><div class="ad-card__title">Nomination eligibility<small>Require nominations from multiple locations before a nominee can be approved.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="integrity" data-keys="nomination eligibility threshold minimum distinct locations approve nominee" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Nomination eligibility<small>Require nominations from multiple locations before a nominee can be approved.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="nomination_settings" value="1">
     <div class="ad-form">
       <label class="checkbox" style="display:flex;align-items:flex-start;gap:8px;margin-bottom:10px"><input type="checkbox" name="nomination_eligibility_enabled" value="1" {% if values.nomination_eligibility_enabled == '1' %}checked{% endif %}> <span><strong>Enforce eligibility threshold</strong> — block approving a nominee until they have enough nominations from different locations.</span></label>
@@ -257,7 +316,7 @@
   {# ── AI governance ─────────────────────────────────────────────────────────
      Spend and agreement were both unmeasurable before: nothing recorded token
      usage, and nothing recorded whether a reviewer agreed with a suggestion. #}
-  <div class="ad-card" x-show="show('ai','ai activity spend tokens calls today reviewer agreement capability model failure governance')">
+  <div class="ad-card" data-sec="ai" data-keys="ai activity spend tokens calls today reviewer agreement capability model failure governance" x-show="show($el)">
     <div class="ad-card__head">
       <div class="ad-card__title">AI activity<small>Today's spend per feature, and how often reviewers agreed (30 days)</small></div>
       <span class="ad-chip ad-chip--{{ ai_enabled_flag ? 'green' : 'red' }}">{{ ai_enabled_flag ? 'AI on' : 'AI off' }}</span>
@@ -310,7 +369,7 @@
     </div>
   </div>
 
-  <div class="ad-card" x-show="show('ai','ai providers api key groq gemini anthropic openai moderation heuristics test ai')"><div class="ad-card__head"><div class="ad-card__title">AI providers<small>Free-tier moderation &amp; AI features. The platform runs on built-in heuristics until you add a key.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="ai" data-keys="ai providers api key groq gemini anthropic openai moderation heuristics test ai" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">AI providers<small>Free-tier moderation &amp; AI features. The platform runs on built-in heuristics until you add a key.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="ai_settings" value="1">
     {# This paragraph used to read "the first configured provider is used, in order:
        Groq → Gemini → Anthropic → OpenAI", which was accurate and is no longer how
@@ -380,7 +439,7 @@
       </div>
     </div>
   </div></div>
-  <div class="ad-card" x-show="show('ops','automation cron webcron maintenance run now schedule token reconcile credit paid votes pending payments queue cpi snapshots reminders')"><div class="ad-card__head"><div class="ad-card__title">Automation &amp; cron<small>Keep the platform self-running — no SSH or server cron needed.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="ops" data-keys="automation cron webcron maintenance run now schedule token reconcile credit paid votes pending payments queue cpi snapshots reminders" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Automation &amp; cron<small>Keep the platform self-running — no SSH or server cron needed.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="automation_settings" value="1">
     <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
       The platform needs a periodic “maintenance” run (advance award cycles, drain the queue, recompute the CPI, purge expired tokens, snapshots, reminders).
@@ -429,7 +488,7 @@
     </details>
   </div></div>
 
-  <div class="ad-card" x-show="show('integrity','voting integrity disposable emails throwaway blocked domains mx deliverability otp')"><div class="ad-card__head"><div class="ad-card__title">Voting integrity — disposable emails<small>Block throwaway inboxes used to stuff votes. A built-in list + your additions.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="integrity" data-keys="voting integrity disposable emails throwaway blocked domains mx deliverability otp" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Voting integrity — disposable emails<small>Block throwaway inboxes used to stuff votes. A built-in list + your additions.</small></div></div><div class="ad-card__body">
     <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">The OTP + registration gates already reject known disposable-mail providers. Add any new ones here (comma- or line-separated domains) to block them immediately — no deploy needed.</p>
     <label for="f-disposable">Extra blocked domains</label>
     <textarea name="disposable_domains_extra" id="f-disposable" rows="3" placeholder="e.g. newtrashmail.com, another-temp.io" style="width:100%;font-family:'Space Mono',monospace;font-size:12.5px">{{ values.disposable_domains_extra|default('') }}</textarea>
@@ -440,7 +499,7 @@
     <p style="margin:8px 0 0;font-size:11px;color:var(--ad-text-mute,#8a9a9c)">The MX check fails open: a DNS hiccup never blocks a real voter. Leave off unless your host has reliable outbound DNS.</p>
   </div></div>
 
-  <div class="ad-card" x-show="show('mail','messaging sms whatsapp twilio meta cloud api sender phone number id access token notifications texts')"><div class="ad-card__head"><div class="ad-card__title">Messaging — SMS &amp; WhatsApp<small>Nomination &amp; notification texts. Off by default; nothing sends until a channel is enabled and configured.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="mail" data-keys="messaging sms whatsapp twilio meta cloud api sender phone number id access token notifications texts" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Messaging — SMS &amp; WhatsApp<small>Nomination &amp; notification texts. Off by default; nothing sends until a channel is enabled and configured.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="messaging_settings" value="1">
     <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
       Secrets are stored server-side and never shown again.
@@ -478,6 +537,12 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Delivery is best-effort with automatic retries; every send is audited (numbers stored hashed &amp; masked). Recipients are normalised to E.164, compatible with Twilio and the WhatsApp Business API.</p>
     </div>
   </div></div>
+  {# A search that matches nothing must say so. Without this the page just goes
+     blank below the bar, which reads as "the settings are gone". #}
+  <div class="st-none" x-show="q.trim() && matches() === 0" x-cloak>
+    Nothing matches <strong x-text="'“' + q.trim() + '”'"></strong>. Try a field name (<em>otp</em>, <em>twilio</em>, <em>discount</em>) or clear the box.
+  </div>
+
   {# Kept as well as the sticky one. Saving from where you finished typing is the
      habit; the sticky button is the escape hatch, not a replacement. #}
   <div style="display:flex;justify-content:flex-end"><button class="ad-btn ad-btn--primary" type="submit">Save settings</button></div>

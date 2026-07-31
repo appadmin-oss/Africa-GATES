@@ -324,6 +324,45 @@ return function(App $app) {
                 : 'NOTE &mdash; this SAPI cannot detach, so the opportunistic maintenance tick is skipped entirely (by design). Schedule real cron or the token-gated /__cron/run so maintenance still happens.')
            . '</p>';
 
+        // ── 6. Turnstile ─────────────────────────────────────────────────────
+        // "The OTP does not work" is unfalsifiable from outside: a rejected challenge
+        // and a missing key produce the same 403, and the half-configured pair (secret
+        // set, site key blank) makes every vote on the site fail while looking, in the
+        // log, exactly like the protection doing its job. Reported as PRESENCE only —
+        // neither key is ever echoed.
+        $tsSite   = trim((string) \AfricaGates\Support\Env::get('TURNSTILE_SITE_KEY', ''));
+        $tsSecret = trim((string) \AfricaGates\Support\Env::get('TURNSTILE_SECRET', ''));
+        if ($tsSite !== '' && $tsSecret !== '') {
+            $tsVerdict = ['ok', 'Both keys set — the widget renders and the server verifies it.'];
+        } elseif ($tsSite === '' && $tsSecret === '') {
+            $tsVerdict = ['ok', 'Neither key set — bot checks are off, and the OTP path is unaffected by them.'];
+        } elseif ($tsSecret !== '') {
+            $tsVerdict = ['bad', 'TURNSTILE_SECRET is set but TURNSTILE_SITE_KEY is EMPTY. No widget can render, so '
+                . 'no browser can produce a token and every OTP request would 403. Enforcement is being SKIPPED so '
+                . 'voting still works, and logged as an error on each request — but set both keys, or clear both.'];
+        } else {
+            $tsVerdict = ['unknown', 'TURNSTILE_SITE_KEY is set but TURNSTILE_SECRET is EMPTY. The widget is shown '
+                . 'and nothing checks it — decorative, not protection.'];
+        }
+        $tsLog = [];
+        if (is_readable($logFile)) {
+            $all = (array) @file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            foreach (array_slice($all, -400) as $line) {
+                if (stripos((string) $line, 'turnstile') !== false) $tsLog[] = (string) $line;
+            }
+            $tsLog = array_slice($tsLog, -15);
+        }
+        $h .= '<h2 style="font-size:1rem;margin:1.5rem 0 .5rem">6 &middot; Turnstile (OTP bot check)</h2>'
+           . '<p style="margin:.2rem 0">TURNSTILE_SITE_KEY: '
+           . ($tsSite !== '' ? '<span style="color:#7FC87C">set</span>' : '<span style="color:#E5736B">empty</span>')
+           . ' &middot; TURNSTILE_SECRET: '
+           . ($tsSecret !== '' ? '<span style="color:#7FC87C">set</span>' : '<span style="color:#E5736B">empty</span>')
+           . '</p><p style="margin:.2rem 0;font-weight:600;color:' . $colour($tsVerdict[0]) . '">'
+           . $e(strtoupper($tsVerdict[0])) . ' &mdash; ' . $e($tsVerdict[1]) . '</p>'
+           . '<pre style="' . $pre . '">'
+           . $e($tsLog ? implode("\n", $tsLog) : '(no turnstile lines in the last 400 log lines)')
+           . '</pre>';
+
         $h .= '</div></body>';
 
         $res->getBody()->write($h);

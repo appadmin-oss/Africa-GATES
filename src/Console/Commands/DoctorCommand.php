@@ -228,9 +228,24 @@ final class DoctorCommand extends Command
         foreach (['APP_URL', 'APP_ENV', 'DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASS',
                   'TRUST_PROXY', 'SESSION_SECURE', 'CRON_TOKEN', 'SETUP_TOKEN',
                   'PAYSTACK_SECRET_KEY', 'FLUTTERWAVE_WEBHOOK_HASH',
-                  'TURNSTILE_SECRET', 'SMTP_HOST', 'SMTP_PASS'] as $key) {
+                  'TURNSTILE_SECRET', 'TURNSTILE_SITE_KEY', 'SMTP_HOST', 'SMTP_PASS'] as $key) {
             $out[$key] = $where($key);
         }
+
+        // Turnstile needs BOTH keys, and the broken half is invisible in a per-key
+        // listing: a secret with no site key renders no widget, so no browser can
+        // produce a token and every OTP request would 403 — which reads in the log
+        // as the protection working. Hence its own line.
+        $tsSite   = trim((string) \AfricaGates\Support\Env::get('TURNSTILE_SITE_KEY', ''));
+        $tsSecret = trim((string) \AfricaGates\Support\Env::get('TURNSTILE_SECRET', ''));
+        $out['turnstile_pair'] = match (true) {
+            $tsSite !== '' && $tsSecret !== '' => 'both set — bot check active',
+            $tsSite === '' && $tsSecret === '' => 'both unset — bot check off (fine)',
+            $tsSecret !== ''                   => 'BROKEN — secret set, SITE KEY EMPTY: no widget can render, so '
+                                                . 'enforcement is skipped and logged per request. Set both, or clear both.',
+            default                            => 'site key set, secret empty — the widget is decorative, nothing verifies it',
+        };
+
         return $out;
     }
 

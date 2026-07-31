@@ -208,9 +208,14 @@ return [
     FraudService::class         => fn(ContainerInterface $c)=>new FraudService($c->get(\Psr\Log\LoggerInterface::class)),
     EventService::class         => fn()=>new EventService(),
     MilestoneService::class     => fn(ContainerInterface $c)=>new MilestoneService($c->get(OtpService::class), $c->get(EventService::class), $c->get(\Psr\Log\LoggerInterface::class)),
+    // BOTH keys, not just the secret. The service has to know whether a widget can
+    // even be rendered: a secret with no site key is unpassable by anyone and closes
+    // the ballot, which is a different situation from "protection is on".
     TurnstileService::class     => fn(ContainerInterface $c)=>new TurnstileService(
         (string) Env::get('TURNSTILE_SECRET', ''),
-        $c->get(\Psr\Log\LoggerInterface::class)
+        $c->get(\Psr\Log\LoggerInterface::class),
+        null,
+        (string) Env::get('TURNSTILE_SITE_KEY', '')
     ),
     // Pluggable AI gateway — resolves provider keys from admin settings (with
     // .env fallback); inert until a key is set, then auto-upgrades moderation

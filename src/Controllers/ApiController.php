@@ -65,9 +65,16 @@ class ApiController {
             return $this->err($res,'Voting on this platform is by paid votes — use the "Buy votes" option on the nominee page.','PAID_VOTING_ONLY',403);
         $b=(array)$req->getParsedBody(); $email=strtolower(trim($b['email']??''));
         if(!filter_var($email,FILTER_VALIDATE_EMAIL)) return $this->err($res,'Invalid email address.');
+        // The bot check reports WHY it failed, and the voter is told that instead of
+        // "Bot verification failed. Please retry." — advice that was actively wrong
+        // for the commonest cause (a spent token, where the identical retry fails the
+        // same way). The client resets the widget after every request so that
+        // "try again" is now a real instruction. See TurnstileService::check().
         $tsToken = $b['turnstile_token'] ?? $b['cf-turnstile-response'] ?? null;
-        if($this->turnstile && !$this->turnstile->verify($tsToken,$this->ip($req)))
-            return $this->err($res,'Bot verification failed. Please retry.','TURNSTILE_FAILED',403);
+        if($this->turnstile) {
+            $ts = $this->turnstile->check($tsToken,$this->ip($req));
+            if(!$ts['ok']) return $this->err($res,$ts['message'],'TURNSTILE_'.$ts['code'],403);
+        }
         $ipFp=hash('sha256',$this->ip($req));
         if(!$this->rateLimit->check($ipFp,'otp_ip',10,3600)) return $this->err($res,'Too many requests from this network. Try again later.','RATE_LIMITED',429);
         $fp=hash('sha256',$email);
