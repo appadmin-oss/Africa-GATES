@@ -128,6 +128,15 @@
       </a>
     </nav>
     {% endif %}
+    {% if 'finance' in admin_sections %}
+    <nav class="ad-side__group" aria-label="Finance">
+      <p class="ad-side__grouptitle">Finance <span class="ad-info" data-tip="Every naira the platform has taken — donations, paid votes, shop orders and event tickets, totalled in one place." tabindex="0" role="img" aria-label="Every naira the platform has taken — donations, paid votes, shop orders and event tickets, totalled in one place.">i</span></p>
+      <a class="ad-side__link {% if admin_page == 'finance' %}is-active{% endif %}" href="/admin/finance">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Revenue
+      </a>
+    </nav>
+    {% endif %}
     {% if 'configuration' in admin_sections %}
     <nav class="ad-side__group" aria-label="Configuration">
       <p class="ad-side__grouptitle">Configuration <span class="ad-info" data-tip="Admin accounts, site settings and integrations — superadmin only." tabindex="0" role="img" aria-label="Admin accounts, site settings and integrations — superadmin only.">i</span></p>
@@ -188,6 +197,7 @@
         'forms': 'Build custom forms with field types, conditional logic and validation — published at /f/{key}.',
         'data': 'Browse every dataset collected — paginated tables, full-detail pages and CSV export.',
         'registrations': 'Event RSVP / ticket registrations — filterable and exportable.',
+        'finance': 'Every naira taken — donations, paid votes, shop orders and event tickets, with what still needs chasing.',
         'admins': 'Manage admin accounts and their access levels.',
         'settings': 'Site-wide configuration — branding, email, AI, points, pricing and eligibility.',
         'webhooks': 'Outbound webhooks to integrations and AI agents.'

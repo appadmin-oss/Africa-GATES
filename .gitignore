@@ -7,7 +7,10 @@
 # unrecognised files, so the deny survives `composer install`.
 /vendor/*
 !/vendor/.htaccess
-var/cache/twig/*.php
+# Twig writes compiled templates into HASHED SUBDIRECTORIES (twig/fb/fb02….php), which
+# `twig/*.php` does not match — so the cache surfaced as untracked the first time a page
+# was rendered outside the test harness. The whole directory is derived.
+var/cache/
 var/data/
 public/assets/vendor/*.map
 var/logs/

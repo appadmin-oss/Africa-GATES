@@ -23,6 +23,7 @@ use AfricaGates\Admin\Controllers\{
     EventsController as AdminEventsController,
     RegistrationsController as AdminRegistrationsController,
     DataController as AdminDataController,
+    FinanceController as AdminFinanceController,
     FormsController as AdminFormsController,
     PostsController as AdminPostsController,
     PartnersController as AdminPartnersController,
@@ -985,6 +986,12 @@ return function(App $app) {
 
         $a->get('/registrations',                AdminRegistrationsController::class.':index');
         $a->get('/registrations/export',         AdminRegistrationsController::class.':export');
+
+        // Finance — every naira across donations, paid votes, shop orders and tickets.
+        // Its own section in Permissions::MATRIX (superadmin + admin), deliberately
+        // narrower than /admin/data; the controller re-checks rather than trusting the nav.
+        $a->get('/finance',                      AdminFinanceController::class.':index');
+        $a->get('/finance/export',               AdminFinanceController::class.':export');
 
         // Member account actions (manual points adjustment — audited, admin+ gated in-controller).
         $a->post('/users/{id:[0-9]+}/points',    \AfricaGates\Admin\Controllers\UsersController::class.':adjustPoints');

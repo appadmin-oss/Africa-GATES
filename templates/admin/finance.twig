@@ -1,0 +1,305 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}Finance{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/finance/export">⤓ Export CSV</a>{% endblock %}
+
+{#
+  Money in, grouped.
+
+  The tabs are plain radio inputs + CSS, not Alpine. This page has to render its
+  numbers correctly with JavaScript unavailable or still loading, because it is the
+  page someone opens to check whether a payment arrived — and a finance figure that
+  appears a moment after the page does is a finance figure that can be misread while
+  it is still empty. Every total below is already in the HTML.
+#}
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+  .fi-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  /* The radios are SIBLINGS of .fi-tabs, not children — the :checked ~ .fi-body rules
+     below need them at this level. So they are hidden by their own class rather than
+     by descent, which an earlier `.fi-tabs input` selector failed to do: it matched
+     nothing and left five bare radio dots sitting above the tab strip. */
+  .fi-tabs__radio{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .fi-tabs label{border:1px solid var(--ad-line,#e5eae8);background:var(--ad-surface,#fff);color:var(--ad-text,#10292c);border-radius:999px;padding:7px 15px;font-size:12.5px;font-weight:600;cursor:pointer;user-select:none}
+  #fi-t-summary:checked ~ .fi-tabs label[for="fi-t-summary"],
+  #fi-t-sources:checked ~ .fi-tabs label[for="fi-t-sources"],
+  #fi-t-tx:checked      ~ .fi-tabs label[for="fi-t-tx"],
+  #fi-t-recon:checked   ~ .fi-tabs label[for="fi-t-recon"],
+  #fi-t-votes:checked   ~ .fi-tabs label[for="fi-t-votes"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
+  /* Focus must survive the visually-hidden input — the strip is keyboard-navigable
+     with arrow keys, and without this the focused tab is invisible. */
+  .fi-tabs__radio:focus-visible ~ .fi-tabs label{outline:1px dashed var(--ad-accent,#237b22);outline-offset:2px}
+  .fi-panel{display:none}
+  #fi-t-summary:checked ~ .fi-body #fi-p-summary,
+  #fi-t-sources:checked ~ .fi-body #fi-p-sources,
+  #fi-t-tx:checked      ~ .fi-body #fi-p-tx,
+  #fi-t-recon:checked   ~ .fi-body #fi-p-recon,
+  #fi-t-votes:checked   ~ .fi-body #fi-p-votes{display:block}
+
+  .fi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
+  .fi-kpi{background:var(--ad-surface,#fff);border:1px solid var(--ad-line,#e5eae8);border-radius:14px;padding:14px 16px}
+  .fi-kpi__l{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ad-text-mute,#5a6d6f)}
+  .fi-kpi__v{font-size:26px;font-weight:800;margin-top:6px;line-height:1.1}
+  .fi-kpi__s{font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin-top:4px}
+  .fi-kpi--good .fi-kpi__v{color:var(--ad-accent,#237b22)}
+  .fi-kpi--warn .fi-kpi__v{color:#a8730a}
+  .fi-kpi--bad  .fi-kpi__v{color:#a32020}
+
+  .fi-bars{display:grid;gap:10px}
+  .fi-bar__top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+  .fi-bar__track{height:12px;border-radius:999px;background:var(--ad-line,#eef2f0);overflow:hidden}
+  .fi-bar__fill{height:100%;border-radius:999px;background:var(--ad-accent,#237b22)}
+
+  /* The daily chart. Bars, because the series is a count of naira per day and a line
+     between two zero days implies a value that was never taken. */
+  .fi-spark{display:flex;align-items:flex-end;gap:2px;height:120px;padding:8px 0}
+  .fi-spark__b{flex:1;min-width:2px;background:var(--ad-accent,#237b22);border-radius:2px 2px 0 0;opacity:.85}
+  .fi-spark__b[data-zero="1"]{background:var(--ad-line,#e5eae8)}
+
+  .fi-note{font-size:12.5px;color:var(--ad-text-mute,#5a6d6f);margin:0 0 12px}
+  .fi-empty{text-align:center;color:var(--ad-text-mute,#8a9a9c);padding:34px 10px}
+  .fi-num{font-family:'Space Mono',monospace;font-size:12.5px;white-space:nowrap}
+  .fi-right{text-align:right}
+</style>
+
+<form method="get" action="/admin/finance" class="ad-card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+  <div>
+    <label for="fiRange" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">Period</label>
+    <select id="fiRange" name="range" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+      {% for k, label in ranges %}<option value="{{ k }}" {% if range == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label for="fiFrom" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">From</label>
+    <input id="fiFrom" type="date" name="from" value="{{ from }}" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+  </div>
+  <div>
+    <label for="fiTo" style="display:block;font-size:12px;font-weight:600;color:var(--ad-text-mute,#5a6d6f);margin-bottom:4px">To</label>
+    <input id="fiTo" type="date" name="to" value="{{ to }}" style="padding:9px 12px;border:1px solid var(--ad-line,#dfe4e3);border-radius:9px">
+  </div>
+  <button class="ad-btn ad-btn--primary" type="submit">Apply</button>
+  <a class="ad-btn" href="/admin/finance">Reset</a>
+  <span class="fi-note" style="margin:0 0 9px auto">A date overrides the period.</span>
+</form>
+
+<div class="fi-tabs-wrap">
+  <div style="display:contents">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-summary" checked>
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-sources">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-tx">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-recon">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-votes">
+
+    <div class="fi-tabs" role="tablist" aria-label="Finance sections">
+      <label for="fi-t-summary">Summary</label>
+      <label for="fi-t-sources">By source</label>
+      <label for="fi-t-tx">Transactions</label>
+      <label for="fi-t-recon">Needs attention{% if uncredited|length or owed.count %} ({{ uncredited|length + owed.count }}){% endif %}</label>
+      <label for="fi-t-votes">Paid votes</label>
+    </div>
+
+    <div class="fi-body">
+
+      {# ── SUMMARY ────────────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-summary" aria-labelledby="fi-t-summary">
+        <div class="fi-kpis">
+          <div class="fi-kpi fi-kpi--good">
+            <div class="fi-kpi__l">Confirmed revenue</div>
+            <div class="fi-kpi__v">₦{{ totals.confirmed|number_format }}</div>
+            <div class="fi-kpi__s">{{ totals.transactions|number_format }} payment{{ totals.transactions == 1 ? '' : 's' }}{% if totals.average %} · ₦{{ totals.average|number_format }} average{% endif %}</div>
+          </div>
+          <div class="fi-kpi {{ totals.pending ? 'fi-kpi--warn' : '' }}">
+            <div class="fi-kpi__l">Pending</div>
+            <div class="fi-kpi__v">₦{{ totals.pending|number_format }}</div>
+            <div class="fi-kpi__s">{{ totals.pending_count|number_format }} not yet confirmed</div>
+          </div>
+          <div class="fi-kpi {{ totals.refunded ? 'fi-kpi--bad' : '' }}">
+            <div class="fi-kpi__l">Refunded</div>
+            <div class="fi-kpi__v">₦{{ totals.refunded|number_format }}</div>
+            <div class="fi-kpi__s">{{ totals.refunded_count|number_format }} reversed · already excluded above</div>
+          </div>
+          <div class="fi-kpi">
+            <div class="fi-kpi__l">Failed attempts</div>
+            <div class="fi-kpi__v">{{ totals.failed_count|number_format }}</div>
+            <div class="fi-kpi__s">Declined or abandoned at the gateway</div>
+          </div>
+        </div>
+
+        <div class="ad-card">
+          <strong style="font-size:14px">Confirmed revenue per day</strong>
+          <p class="fi-note" style="margin-top:4px">Days with no payment are shown flat, not skipped.</p>
+          <div class="fi-spark">
+            {% for d in daily %}
+              <div class="fi-spark__b" data-zero="{{ d.naira > 0 ? 0 : 1 }}"
+                   style="height:{{ d.naira > 0 ? (4 + (d.naira * 96 / peak))|round : 3 }}px"
+                   title="{{ d.date }} — ₦{{ d.naira|number_format }}"></div>
+            {% endfor %}
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">
+            <span>{{ daily|first.date }}</span><span>peak ₦{{ peak|number_format }}</span><span>{{ daily|last.date }}</span>
+          </div>
+        </div>
+      </section>
+
+      {# ── BY SOURCE ──────────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-sources" aria-labelledby="fi-t-sources">
+        <div class="ad-card">
+          <strong style="font-size:14px">Where the money came from</strong>
+          <p class="fi-note" style="margin-top:4px">Confirmed and not refunded, within the selected period.</p>
+          {% if sources %}
+          <div class="fi-bars">
+            {% for s in sources %}
+            <div>
+              <div class="fi-bar__top">
+                <span><strong>{{ s.label }}</strong> <span style="color:var(--ad-text-mute,#5a6d6f)">· {{ s.count|number_format }} payment{{ s.count == 1 ? '' : 's' }}</span></span>
+                <span><strong>₦{{ s.gross|number_format }}</strong> <span style="color:var(--ad-text-mute,#5a6d6f)">{{ s.pct }}%</span></span>
+              </div>
+              <div class="fi-bar__track"><div class="fi-bar__fill" style="width:{{ s.pct }}%"></div></div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}<div class="fi-empty">No confirmed payments in this period.</div>{% endif %}
+        </div>
+
+        {% if providers %}
+        <div class="ad-card" style="margin-top:14px">
+          <strong style="font-size:14px">Shop gateways</strong>
+          <p class="fi-note" style="margin-top:4px">Only shop orders record which gateway handled them.</p>
+          <table class="ad-table">
+            <thead><tr><th scope="col">Gateway</th><th scope="col" class="fi-right">Paid</th><th scope="col" class="fi-right">Failed</th><th scope="col" class="fi-right">Revenue</th></tr></thead>
+            <tbody>
+              {% for p in providers %}
+              <tr>
+                <td><strong>{{ p.provider }}</strong></td>
+                <td class="fi-right fi-num">{{ p.paid|number_format }}</td>
+                <td class="fi-right fi-num">{{ p.failed|number_format }}</td>
+                <td class="fi-right fi-num">₦{{ p.naira|number_format }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+      </section>
+
+      {# ── TRANSACTIONS ───────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-tx" aria-labelledby="fi-t-tx">
+        <div class="ad-card"><div class="ad-table-wrap">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 4px 12px">
+            <strong style="font-size:14px">Most recent payments</strong>
+            <span class="fi-note" style="margin:0">Newest first, every source. Export for the full ledger.</span>
+          </div>
+          <table class="ad-table">
+            <thead><tr><th scope="col">When</th><th scope="col">Source</th><th scope="col">Who</th><th scope="col">Email</th><th scope="col" class="fi-right">Amount</th><th scope="col">Status</th><th scope="col">Reference</th></tr></thead>
+            <tbody>
+              {% for t in recent %}
+              <tr>
+                <td class="fi-num">{{ t.when|date('Y-m-d H:i') }}</td>
+                <td><span class="ad-chip">{{ t.source }}</span></td>
+                <td><strong>{{ t.who }}</strong></td>
+                <td>{{ t.email }}</td>
+                <td class="fi-right fi-num">₦{{ t.naira|number_format }}</td>
+                <td>
+                  {% if t.status == 'confirmed' %}<span class="ad-chip ad-chip--ok">confirmed</span>
+                  {% elseif t.status == 'pending' %}<span class="ad-chip ad-chip--gold">pending</span>
+                  {% elseif t.status == 'refunded' %}<span class="ad-chip">refunded</span>
+                  {% else %}<span class="ad-chip ad-chip--bad">{{ t.status }}</span>{% endif %}
+                </td>
+                <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ t.ref|default('—') }}</td>
+              </tr>
+              {% else %}<tr><td colspan="7" class="fi-empty">No payments recorded yet.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div></div>
+      </section>
+
+      {# ── NEEDS ATTENTION ────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-recon" aria-labelledby="fi-t-recon">
+        <div class="ad-card">
+          <strong style="font-size:14px">Paid but never credited</strong>
+          <p class="fi-note" style="margin-top:4px">
+            Confirmed paid-vote orders whose votes were never minted — usually because voting
+            closed between checkout and confirmation. This is money taken for votes that were
+            not delivered, so each row is a refund the organisation owes.
+          </p>
+          {% if owed.count %}
+          <div class="fi-kpi fi-kpi--bad" style="margin-bottom:12px">
+            <div class="fi-kpi__l">Owed</div>
+            <div class="fi-kpi__v">₦{{ owed.naira|number_format }}</div>
+            <div class="fi-kpi__s">across {{ owed.count|number_format }} order{{ owed.count == 1 ? '' : 's' }}</div>
+          </div>
+          <table class="ad-table">
+            <thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">Email</th><th scope="col" class="fi-right">Amount</th><th scope="col" class="fi-right">Votes owed</th><th scope="col">Reference</th></tr></thead>
+            <tbody>
+              {% for r in owed.rows %}
+              <tr>
+                <td class="fi-num">{{ r.created_at|date('Y-m-d H:i') }}</td>
+                <td><strong>{{ r.donor_name|default('Supporter') }}</strong></td>
+                <td>{{ r.donor_email }}</td>
+                <td class="fi-right fi-num">₦{{ r.amount_naira|number_format }}</td>
+                <td class="fi-right fi-num">{{ r.bonus_votes|number_format }}</td>
+                <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ r.payment_ref|default('—') }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<div class="fi-empty">Nothing owed — every confirmed paid-vote order minted its votes.</div>{% endif %}
+        </div>
+
+        <div class="ad-card" style="margin-top:14px">
+          <strong style="font-size:14px">Pending for over an hour</strong>
+          <p class="fi-note" style="margin-top:4px">
+            A checkout still pending a minute later is someone mid-flow. Still pending an hour
+            later is either an abandoned cart or a bank transfer that settled after the callback —
+            and the second kind is real money sitting uncredited. The row cannot tell you which,
+            so re-ask the gateway: <a href="/admin/settings#maintenance" style="color:var(--ad-accent,#237b22)">Settings → Credit paid votes now</a>.
+          </p>
+          {% if uncredited %}
+          <table class="ad-table">
+            <thead><tr><th scope="col">Age</th><th scope="col">Source</th><th scope="col">Who</th><th scope="col">Email</th><th scope="col" class="fi-right">Amount</th><th scope="col">Reference</th></tr></thead>
+            <tbody>
+              {% for u in uncredited %}
+              <tr>
+                <td class="fi-num">{{ u.age_h }}h</td>
+                <td><span class="ad-chip">{{ u.source }}</span></td>
+                <td><strong>{{ u.who }}</strong></td>
+                <td>{{ u.email }}</td>
+                <td class="fi-right fi-num">₦{{ u.naira|number_format }}</td>
+                <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ u.ref|default('—') }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<div class="fi-empty">No stale pending payments.</div>{% endif %}
+        </div>
+      </section>
+
+      {# ── PAID VOTES ─────────────────────────────────────────────────────── #}
+      <section class="fi-panel" id="fi-p-votes" aria-labelledby="fi-t-votes">
+        <div class="ad-card"><div class="ad-table-wrap">
+          <strong style="font-size:14px">Paid votes by nominee</strong>
+          <p class="fi-note" style="margin-top:4px">
+            Confirmed, not refunded, all time. Public votes are one part of the score — an
+            independent jury decides the award, so this is a fundraising figure and not a
+            standing.
+          </p>
+          <table class="ad-table">
+            <thead><tr><th scope="col">Nominee</th><th scope="col">Category</th><th scope="col" class="fi-right">Orders</th><th scope="col" class="fi-right">Votes</th><th scope="col" class="fi-right">Raised</th></tr></thead>
+            <tbody>
+              {% for n in nominees %}
+              <tr>
+                <td><strong>{{ n.nominee }}</strong></td>
+                <td>{{ n.category }}</td>
+                <td class="fi-right fi-num">{{ n.orders|number_format }}</td>
+                <td class="fi-right fi-num">{{ n.votes|number_format }}</td>
+                <td class="fi-right fi-num">₦{{ n.naira|number_format }}</td>
+              </tr>
+              {% else %}<tr><td colspan="5" class="fi-empty">No paid votes yet.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div></div>
+      </section>
+
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -36,6 +36,12 @@ final class Permissions
         // datasets each role sees (superadmin/admin/viewer see all; editor + moderator
         // see the subset their role needs).
         'data'          => ['superadmin', 'admin', 'editor', 'moderator', 'viewer'],
+        // Finance is its OWN section rather than part of `data`, and it is narrower than
+        // `data` on purpose. The data explorer lets a viewer read gates_donations row by
+        // row, which is an operational lookup; a page that totals every naira the
+        // organisation has taken and ranks its largest donors is a different kind of
+        // disclosure. Editors and moderators have no reason to see either.
+        'finance'       => ['superadmin', 'admin'],
         'configuration' => ['superadmin'],
     ];
 
@@ -52,6 +58,8 @@ final class Permissions
         // data / reports (operational + financial datasets — surfaced in the admin overhaul)
         'data' => 'data', 'votes' => 'data', 'donations' => 'data', 'orders' => 'data', 'users' => 'data',
         'registrations' => 'data', 'points' => 'data', 'comments' => 'data', 'activity' => 'data', 'reports' => 'data',
+        // finance (superadmin + admin)
+        'finance' => 'finance',
         // configuration (superadmin)
         'admins' => 'configuration', 'settings' => 'configuration', 'webhooks' => 'configuration', 'judges' => 'configuration',
         // overview — the dashboard and the AI console copilot (every role may use
