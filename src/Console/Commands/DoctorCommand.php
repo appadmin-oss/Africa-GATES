@@ -163,7 +163,29 @@ final class DoctorCommand extends Command
             // link previews silently stop working and nothing else reports it.
             'gd'               => function_exists('imagettftext') ? 'with FreeType' : 'MISSING',
             'flier_fonts'      => $this->flierFonts(),
+            // Can this host fetch a CDN-hosted nominee photo at all?
+            //
+            // A photo that cannot be downloaded renders as the MONOGRAM, which is
+            // indistinguishable from "this nominee never uploaded one" — so a whole
+            // site's worth of faces can vanish from every share card and og:image with
+            // no error anywhere. The usual cause is `allow_url_fopen=Off`, which is
+            // common on shared cPanel and used to be the only transport the renderer had.
+            'photo_fetch'      => $this->photoFetch(),
         ];
+    }
+
+    /** How, if at all, this host can pull a remote nominee photo. */
+    private function photoFetch(): string
+    {
+        $curl = function_exists('curl_init');
+        $fopen = (bool) ini_get('allow_url_fopen');
+
+        if ($curl)  return 'curl' . ($fopen ? ' + allow_url_fopen' : ' (allow_url_fopen off — curl covers it)');
+        if ($fopen) return 'allow_url_fopen only (no ext-curl — slower, no redirect control)';
+
+        return 'NONE — remote photos cannot be fetched, so every CDN-hosted nominee '
+             . 'photo will render as a monogram on the flier and og:image. '
+             . 'Enable ext-curl or allow_url_fopen.';
     }
 
     /** Bundled-font state for the flier renderer. */

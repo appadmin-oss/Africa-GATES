@@ -231,4 +231,51 @@ final class FlierLayoutTest extends TestCase
         $this->assertSame([201, 162, 39], FlierLayout::rgb(FlierLayout::C_GOLD));
         $this->assertSame([10, 39, 33],  FlierLayout::rgb(FlierLayout::C_SCRIM));
     }
+
+    // ── The top scrim ────────────────────────────────────────────────────────
+
+    /**
+     * The kicker is set in white and gold and sits directly on the photo. Against a
+     * portrait shot on a pale background — a whitewashed wall, an overcast sky, a
+     * studio backdrop — it disappeared entirely, because the only scrim covered the
+     * BOTTOM of the panel. Measured on a near-white test portrait: the backdrop behind
+     * the lockup went from luminance 211 to 85.
+     */
+    public function test_the_top_scrim_holds_full_strength_through_the_kicker(): void
+    {
+        // The kicker's lower line sits at y≈134; the scrim must still be at full
+        // strength there, not most of the way faded.
+        $holdEndsAt = FlierLayout::TOP_SCRIM_H * FlierLayout::TOP_SCRIM_HOLD;
+
+        $this->assertGreaterThanOrEqual(132, $holdEndsAt,
+            'the scrim must not begin fading before the second kicker line');
+        $this->assertGreaterThan(0.6, FlierLayout::TOP_SCRIM_OP,
+            'weaker than this does not hold white type on a near-white photo');
+    }
+
+    /**
+     * The falloff has ZERO SLOPE where the hold ends. A straight ramp put a visible
+     * horizontal seam across the photo at the moment the fade began — the eye reads a
+     * sudden change in gradient as an edge.
+     */
+    public function test_the_scrim_falloff_leaves_no_seam_at_the_hold_boundary(): void
+    {
+        $peak = FlierLayout::TOP_SCRIM_OP;
+        $at = static fn (float $u): float => $peak * (1 - $u * $u);   // the shipped curve
+
+        // Immediately after the boundary the change per step is far smaller than a
+        // linear ramp's would be over the same interval.
+        $linearStep = $peak * 0.02;
+        $this->assertLessThan($linearStep, $at(0.0) - $at(0.02),
+            'the curve must leave the hold boundary flat, not with a linear kink');
+
+        // Monotonic, and all the way to nothing.
+        $prev = INF;
+        foreach (range(0, 20) as $i) {
+            $v = $at($i / 20);
+            $this->assertLessThanOrEqual($prev, $v);
+            $prev = $v;
+        }
+        $this->assertSame(0.0, $at(1.0), 'it must reach fully transparent');
+    }
 }

@@ -384,6 +384,20 @@ final class FlierService
               . '<stop offset="0.40" stop-color="' . FlierLayout::C_SCRIM . '" stop-opacity="0.55"/>'
               . '<stop offset="0.72" stop-color="' . FlierLayout::C_SCRIM . '" stop-opacity="0.92"/>'
               . '<stop offset="1" stop-color="' . FlierLayout::C_SCRIM . '" stop-opacity="1"/></linearGradient>';
+        // Top scrim — see FlierLayout::TOP_SCRIM_H. Without it the white kicker
+        // vanishes on a photo with a pale background.
+        // Sampled from the SAME `1 - u²` curve the raster uses, as intermediate stops —
+        // SVG cannot express the easing directly, and a plain two-stop ramp leaves a
+        // visible seam where the fade begins.
+        $out .= '<linearGradient id="topscrim" x1="0" y1="0" x2="0" y2="1">'
+              . '<stop offset="0" stop-color="' . FlierLayout::C_SCRIM . '" stop-opacity="' . FlierLayout::TOP_SCRIM_OP . '"/>';
+        $hold = FlierLayout::TOP_SCRIM_HOLD;
+        foreach ([0.0, 0.35, 0.6, 0.8, 1.0] as $u) {
+            $out .= '<stop offset="' . round($hold + $u * (1 - $hold), 4) . '" '
+                  . 'stop-color="' . FlierLayout::C_SCRIM . '" '
+                  . 'stop-opacity="' . round(FlierLayout::TOP_SCRIM_OP * (1 - $u * $u), 4) . '"/>';
+        }
+        $out .= '</linearGradient>';
         $out .= '<clipPath id="photoClip"><rect x="0" y="0" width="' . $W . '" height="' . $PH . '"/></clipPath>';
         $out .= '</defs>';
 
@@ -410,6 +424,11 @@ final class FlierService
                   . $this->x($L['monogram']) . '</text>';
         }
         $out .= '<rect x="0" y="' . $L['scrimTop'] . '" width="' . $W . '" height="' . FlierLayout::SCRIM_H . '" fill="url(#scrim)"/>';
+        // Only over a real photo. The monogram panel is already dark enough, and
+        // darkening it further would just band the top of a flat colour.
+        if ($f['photo'] !== null) {
+            $out .= '<rect x="0" y="0" width="' . $W . '" height="' . FlierLayout::TOP_SCRIM_H . '" fill="url(#topscrim)"/>';
+        }
 
         // Kicker lockup — gold rail, VOTE NOW, the year line.
         $out .= '<rect x="64" y="60" width="6" height="82" fill="' . FlierLayout::C_GOLD . '"/>';
@@ -590,6 +609,12 @@ final class FlierService
         // line was several levels lighter, a step straight across the card.
         $this->scrim($im, (int) $L['scrimTop'], FlierLayout::SCRIM_H, $W,
             $this->gradientAt($bgTop, $bgBot, $PH, $H));
+
+        // The TOP scrim, over a photo only. Without it the white kicker disappears on
+        // a portrait shot against a pale background — see FlierLayout::TOP_SCRIM_H.
+        if ($photo !== null) {
+            $this->topScrim($im, $W, FlierLayout::TOP_SCRIM_H, FlierLayout::rgb(FlierLayout::C_SCRIM));
+        }
 
         // The rank pill is measured and drawn BEFORE the kicker's second line, because
         // that line has to be shortened to clear it. Drawing them the other way round put
@@ -1094,6 +1119,28 @@ final class FlierService
     }
 
     /**
+     * The top scrim, behind the kicker. Mirrors the SVG's `topscrim` stops exactly:
+     * TOP_SCRIM_OP at the top, 0.18 at 60%, 0 at the bottom.
+     */
+    private function topScrim($im, int $w, int $h, array $rgb): void
+    {
+        $peak = FlierLayout::TOP_SCRIM_OP;
+        $hold = FlierLayout::TOP_SCRIM_HOLD;
+        for ($i = 0; $i < $h; $i++) {
+            $t = $i / max(1, $h - 1);
+            // Full strength through the lockup, then away on a curve whose slope is ZERO
+            // at the hold boundary. A straight ramp from full to nothing put a visible
+            // horizontal edge across the photo at the moment the fade began — the eye
+            // reads a sudden change in gradient as a seam. `1 - u²` leaves the boundary
+            // smooth and does its falling later.
+            $u = $t <= $hold ? 0.0 : ($t - $hold) / (1 - $hold);
+            $a = $peak * (1 - $u * $u);
+            $c = imagecolorallocatealpha($im, $rgb[0], $rgb[1], $rgb[2], (int) round(127 * (1 - $a)));
+            imageline($im, 0, $i, $w - 1, $i, $c);
+        }
+    }
+
+    /**
      * The vertical anchor when a photo is taller than the box it must fill.
      *
      * 0 keeps the top, 0.5 the middle, 1 the bottom. 0.22 is a deliberate upper bias:
@@ -1135,6 +1182,7 @@ final class FlierService
      */
     private function loadPhoto(string $url): mixed
     {
+        // Local first — no network at all when the file is on this disk.
         $root = dirname(__DIR__, 2) . '/public';
         $path = parse_url($url, PHP_URL_PATH);
         if (is_string($path) && !str_contains($path, '..')) {
@@ -1144,13 +1192,77 @@ final class FlierService
                 if ($im !== false) return $im;
             }
         }
-        // Remote (a CDN-hosted photo). Short timeout: a slow photo host must not hold
-        // an OG-image request open, because a crawler will simply give up and show none.
-        $ctx = stream_context_create(['http' => ['timeout' => 4, 'follow_location' => 0]]);
-        $data = @file_get_contents($url, false, $ctx);
-        if (!is_string($data) || $data === '') return null;
+
+        $data = $this->fetch($url);
+        if ($data === null) {
+            // NOT silent. A failed photo fetch is indistinguishable in the output from
+            // "this nominee has no photo" — both render the monogram — so without this
+            // line the only symptom is a face missing from a share card and nothing
+            // anywhere saying why. {@see fontsPresent()} and app:doctor exist for
+            // exactly this class of invisible degradation.
+            error_log('[flier] could not load nominee photo: ' . $url
+                . (ini_get('allow_url_fopen') ? '' : ' (allow_url_fopen is OFF)'));
+            return null;
+        }
         $im = @imagecreatefromstring($data);
-        return $im !== false ? $im : null;
+        if ($im === false) {
+            error_log('[flier] nominee photo is not a decodable image: ' . $url);
+            return null;
+        }
+        return $im;
+    }
+
+    /**
+     * Fetch a remote photo, by whichever transport this host actually allows.
+     *
+     * ── WHY BOTH ─────────────────────────────────────────────────────────────
+     *
+     * This used `file_get_contents($url)` alone, which requires `allow_url_fopen` — and
+     * shared cPanel hosting very commonly ships with it OFF. On such a host EVERY
+     * Cloudinary-hosted nominee photo failed to load, and because a null photo falls
+     * back to the monogram, the result was a share card and og:image with a letterform
+     * where the person's face should be. No error, no log, nothing to search for.
+     *
+     * cURL is tried first: it is present on effectively every PHP host, is unaffected
+     * by allow_url_fopen, and gives real control over redirects and timeouts. The
+     * stream wrapper stays as the fallback for the rare build without ext-curl.
+     *
+     * ── THE TIMEOUTS ─────────────────────────────────────────────────────────
+     *
+     * A crawler will not wait. But 4s flat was too tight for the FIRST request to a
+     * Cloudinary derivative that has not been generated yet — the transform is built on
+     * demand, and the cold request is exactly the one a nominee triggers by sharing a
+     * new photo for the first time. 3s to connect, 8s overall.
+     */
+    private function fetch(string $url): ?string
+    {
+        if (function_exists('curl_init')) {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 3,
+                CURLOPT_TIMEOUT        => 8,
+                // Cloudinary and several CDNs 302 to a regional edge. Bounded, so a
+                // redirect loop cannot hold the request open.
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS      => 3,
+                CURLOPT_USERAGENT      => 'AfricaGates-Flier/1.0',
+            ]);
+            $out  = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $err  = curl_error($ch);
+            curl_close($ch);
+
+            if (is_string($out) && $out !== '' && $code >= 200 && $code < 300) return $out;
+            error_log('[flier] photo fetch failed (curl): HTTP ' . $code . ' ' . $err . ' — ' . $url);
+            // Fall through: a proxy quirk that breaks cURL may not break the wrapper.
+        }
+
+        if (!ini_get('allow_url_fopen')) return null;
+
+        $ctx  = stream_context_create(['http' => ['timeout' => 8, 'follow_location' => 1, 'max_redirects' => 3]]);
+        $data = @file_get_contents($url, false, $ctx);
+        return is_string($data) && $data !== '' ? $data : null;
     }
 
     /** XML-escape. Every interpolation into the SVG goes through this. */

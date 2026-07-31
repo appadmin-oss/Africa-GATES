@@ -58,6 +58,35 @@ final class FlierLayout
     /** The scrim is always this tall and always ends flush with the panel base. */
     public const SCRIM_H = 380;
 
+    /**
+     * A SECOND scrim, at the top, behind the kicker lockup.
+     *
+     * The bottom scrim protects the name, the category and the standing. Nothing
+     * protected the top — and the kicker is set in white and mist, so against a photo
+     * shot on a pale background (a whitewashed wall, an overcast sky, a studio
+     * backdrop) "VOTE NOW / AFRICA GATES 2026" simply disappeared. Seen the first time
+     * the card was rendered over a real light portrait rather than the dark test
+     * fixture the geometry was designed against.
+     *
+     * ── IT HOLDS, THEN FADES ─────────────────────────────────────────────────
+     *
+     * A plain linear fade was tried first and was not enough: the kicker's second line
+     * sits at y≈134, by which point a 220px linear ramp has decayed to roughly 15%
+     * opacity, and "AFRICA GATES 2026" was still washed out. So the scrim stays at full
+     * strength through the lockup (to 55% of its height, y≈120) and only then falls
+     * away — the fade lands BELOW the type it exists to protect, which is the whole
+     * point of it.
+     *
+     * 0.72 peak over 240px. Strong enough to hold white type on a near-white backdrop,
+     * short enough that it reads as a vignette rather than a bar across someone's head.
+     * The rank pill needs no help — gold with dark ink carries its own contrast.
+     */
+    public const TOP_SCRIM_H  = 240;
+    public const TOP_SCRIM_OP = 0.72;
+
+    /** Fraction of the top scrim's height held at full strength before it fades. */
+    public const TOP_SCRIM_HOLD = 0.55;
+
     /** Fixed rows in the bottom third — identical in every state, so the card always ends the same way. */
     public const STANDING_Y  = 1068;
     public const PILL_Y      = 1140;
