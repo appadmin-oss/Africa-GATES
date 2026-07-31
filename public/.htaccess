@@ -107,7 +107,56 @@ Options -MultiViews
   Header unset Server
   Header unset X-Powered-By
 
-  # ── THE STATIC-FILE CSP IS NOT HERE. IT IS PER-DIRECTORY. ─────────────────
+  # ── THE HOST INJECTS ITS OWN CSP. THESE TWO LINES TAKE IT BACK. ───────────
+  #
+  # Production serves `script-src 'self' 'unsafe-inline' 'unsafe-eval'` with no host
+  # list and `form-action 'self'` with no gateways — which blocks every CDN script and
+  # stylesheet, and refused every paid vote against a same-origin URL. This was recorded
+  # as a stale deployment (DocumentRoot / opcache / a proxy). It is none of those.
+  #
+  # The identical policy, to the directive, is served on afrovanguard.org.ng — the same
+  # cPanel account — on a STATIC homepage that runs no PHP, with no such header anywhere
+  # in that project's files. A security suite on the host adds it to every response for
+  # the account. That is why planting a syntax error in Csp::policy() on the server
+  # changed nothing, and why the fix has never appeared to deploy: PHP's header was being
+  # replaced or duplicated whatever PHP did. (Two CSP headers are enforced as their
+  # INTERSECTION, so the injected one wins on every directive it narrows.)
+  #
+  # `unset` alone is not enough: mod_headers runs after the content handler, so it drops
+  # PHP's policy along with the injected one and the page ends up with none. The value
+  # therefore has to be restated here — and a file on disk cannot carry a per-request
+  # nonce, so this is Csp::staticPolicy(): the same host allowlists, with
+  # 'unsafe-inline' where the nonce would be.
+  #
+  # That is not the loss it appears to be. The nonce policy in Csp::policy() has never
+  # reached a browser on this host; what is live is already 'unsafe-inline'. This
+  # restores the allowlists and the gateway form-action on top of it.
+  #
+  # REVERT once the host stops injecting: delete these two lines and Csp::policy() —
+  # nonce and all — applies again untouched. `php bin/console app:doctor` reports which
+  # policy a visitor is actually receiving.
+  #
+  # Kept identical to Csp::staticPolicy() by CspStaticFallbackTest, which fails if either
+  # side is edited alone.
+  Header always unset Content-Security-Policy
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com https://code.jquery.com https://cdn.plyr.io https://challenges.cloudflare.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://tpc.googlesyndication.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdn.plyr.io https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com https://fonts.googleapis.com; connect-src 'self' https://challenges.cloudflare.com https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com; media-src 'self' https://r2.vidzflow.com https://cdn.plyr.io; frame-src https://challenges.cloudflare.com https://www.youtube.com https://www.youtube-nocookie.com https://my.spline.design https://prod.spline.design https://googleads.g.doubleclick.net https://tpc.googlesyndication.com https://www.google.com https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com; object-src 'none'; base-uri 'self'; form-action 'self' https://*.paystack.com https://*.paystack.co https://*.flutterwave.com https://flutterwave.com; frame-ancestors 'self'"
+
+  # ── WHY A CSP IS SET HERE AFTER ALL — read together with the block above ──
+  #
+  # What follows was the reasoning for keeping the CSP OUT of this file. It remains
+  # correct on a host that does not interfere, and it is why the policy is nonce-based
+  # in PHP rather than static. It was written before the injected header described
+  # above was identified, so read it as the reason those two lines are a REMEDY and not
+  # the design: delete them the moment the host stops adding its own, and every word
+  # below applies again unchanged.
+  #
+  # In particular, point 1 below — that `Header always set` here replaces the
+  # nonce-bearing policy — is exactly what the remedy now does ON PURPOSE, because the
+  # alternative is the host's policy replacing it instead, and that one has no host
+  # allowlist and no gateway form-action. Point 2 (`setifempty` is unsupported by
+  # LiteSpeed and takes the site down) still stands and is why that is not used.
+  #
+  # ── THE STATIC-FILE CSP IS PER-DIRECTORY ──────────────────────────────────
   #
   # The site's real Content-Security-Policy is built per request by
   # AfricaGates\Support\Csp and sent by SecurityHeadersMiddleware, because it carries

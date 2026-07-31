@@ -131,4 +131,64 @@ final class Csp
             . "form-action 'self' " . self::PAY_HOSTS . '; '
             . "frame-ancestors 'self'";
     }
+
+    /**
+     * The same policy WITHOUT the nonce — for .htaccess, where a nonce cannot exist.
+     *
+     * ── WHY THIS IS NEEDED, WHICH IS NOT WHAT THIS REPO PREVIOUSLY BELIEVED ──────
+     *
+     * Production serves `script-src 'self' 'unsafe-inline' 'unsafe-eval'` with no host
+     * list and `form-action 'self'` with no gateways. This codebase recorded that as a
+     * stale deployment — DocumentRoot, opcache, a proxy — and DoctorCommand still names
+     * those three causes.
+     *
+     * It is none of them. That header is injected by the HOST, account-wide. The identical
+     * policy, to the directive, was found being served on afrovanguard.org.ng — the same
+     * cPanel account — on responses for a STATIC homepage that runs no PHP at all, with no
+     * such header anywhere in that project's files. A security suite on the server adds it
+     * to every response for the account, which is why planting a syntax error in
+     * `Csp::policy()` on the server changed nothing: PHP's header was being replaced (or
+     * duplicated, which is worse — multiple CSP headers are enforced as their
+     * INTERSECTION, so the injected one wins on every directive it narrows) regardless of
+     * what PHP emitted.
+     *
+     * That also explains every symptom at once, which the stale-deploy theory never did:
+     * the blocked CDN scripts, the blocked stylesheets, and paid votes refused against a
+     * same-origin URL.
+     *
+     * ── THE REMEDY, AND ITS ONE REAL COST ───────────────────────────────────────
+     *
+     * `Header always unset` removes the injected header — but it removes PHP's too, since
+     * mod_headers runs after the content handler. So the docroot .htaccess must unset and
+     * then set a complete policy itself, and a file on disk cannot carry a per-request
+     * nonce. Hence this variant: identical host allowlists, `'unsafe-inline'` in place of
+     * the nonce.
+     *
+     * The cost is smaller than it reads. Production has NO nonce protection today — the
+     * injected policy is `'unsafe-inline'` already — so this strictly improves on what is
+     * live: it restores the host allowlists and the gateway `form-action`. It is a
+     * downgrade only against the policy in `policy()`, which the host has never let reach
+     * a browser.
+     *
+     * REVERT IT once the host stops injecting: delete the two lines from public/.htaccess
+     * and `policy()` — nonce and all — applies again, unchanged. `app:doctor` reports
+     * which one a visitor is actually getting.
+     *
+     * Kept here, beside `policy()`, so the allowlists cannot drift apart; asserted against
+     * the .htaccess text by CspStaticFallbackTest.
+     */
+    public static function staticPolicy(): string
+    {
+        return "default-src 'self'; "
+            . "script-src 'self' 'unsafe-inline' 'unsafe-eval' " . self::SCRIPT_HOSTS . '; '
+            . "style-src 'self' 'unsafe-inline' " . self::STYLE_HOSTS . '; '
+            . "img-src 'self' data: blob: https:; "
+            . "font-src 'self' data: " . self::FONT_HOSTS . '; '
+            . "connect-src 'self' " . self::CONNECT_HOSTS . '; '
+            . "media-src 'self' " . self::MEDIA_HOSTS . '; '
+            . 'frame-src ' . self::FRAME_HOSTS . '; '
+            . "object-src 'none'; base-uri 'self'; "
+            . "form-action 'self' " . self::PAY_HOSTS . '; '
+            . "frame-ancestors 'self'";
+    }
 }

@@ -210,6 +210,14 @@ class SecurityHeadersTest extends TestCase
             }
         }
         foreach ($inApache as $name => $value) {
+            // Content-Security-Policy is deliberately NOT in SHARED, and is the one
+            // header allowed here without a counterpart there. SHARED holds the fixed
+            // strings duplicated between PHP and Apache; the CSP is generated per
+            // request, so PHP sends Csp::policy() (with a nonce) while this file sends
+            // Csp::staticPolicy() (without one) to displace the policy the host injects.
+            // That pairing is checked by CspStaticFallbackTest, which is its proper
+            // home — asserting it here would compare a nonce to a file on disk.
+            if (strcasecmp($name, 'Content-Security-Policy') === 0) continue;
             if (!isset(SecurityHeadersMiddleware::SHARED[$name])) {
                 $mismatch[] = "{$name}: in .htaccess but not in SHARED — static files and PHP would differ";
             }
@@ -253,12 +261,18 @@ class SecurityHeadersTest extends TestCase
         $rootHtaccess = (string) preg_replace('~^\s*#.*$~m', '',
             (string) file_get_contents($root . '/public/.htaccess'));
 
-        // Neither form may appear in the root file: one breaks every page, the other
-        // breaks every server that does not implement it.
-        $this->assertDoesNotMatchRegularExpression(
-            '~^\s*Header\s+(always\s+)?set\s+Content-Security-Policy~mi',
+        // A CSP `set` here DOES replace the nonce policy — that has not changed, and it
+        // is why this test forbade it. What changed is the finding that the host injects
+        // its own policy account-wide, so the alternative to replacing the nonce policy
+        // ourselves is the host replacing it with one that has no allowlist and no
+        // gateways. Displacing it is now deliberate, and it is only safe while it is
+        // paired with the `unset` and generated from Csp::staticPolicy() — both asserted
+        // by CspStaticFallbackTest. Remove all of it when the host stops injecting.
+        $this->assertMatchesRegularExpression(
+            '~^\s*Header\s+always\s+unset\s+Content-Security-Policy~mi',
             $rootHtaccess,
-            'a CSP `set` in public/.htaccess replaces the nonce policy and kills every inline script'
+            'the CSP `set` in public/.htaccess must be preceded by an `unset`, or the '
+            . 'host-injected policy remains on the response and is enforced alongside ours'
         );
         $this->assertDoesNotMatchRegularExpression(
             '~setifempty~i',
