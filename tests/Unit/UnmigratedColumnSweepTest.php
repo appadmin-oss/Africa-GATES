@@ -7,6 +7,7 @@ use AfricaGates\Services\BonusVoteService;
 use AfricaGates\Support\OptionalColumn;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
+use Tests\Support\DropsColumns;
 use Tests\TestCase;
 
 /**
@@ -38,6 +39,8 @@ use Tests\TestCase;
  */
 final class UnmigratedColumnSweepTest extends TestCase
 {
+    use DropsColumns;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -48,20 +51,12 @@ final class UnmigratedColumnSweepTest extends TestCase
 
     protected function tearDown(): void
     {
+        // Puts back anything this test dropped. Mandatory: against a real MySQL the
+        // database persists between tests and the harness's intactness check counts
+        // TABLES, so a missing COLUMN would leak into every test that follows.
+        $this->restoreDroppedColumns();
         OptionalColumn::forget();
         parent::tearDown();
-    }
-
-    /** Skips rather than passing vacuously if the driver cannot drop a column. */
-    private function drop(string $table, string $col): void
-    {
-        try {
-            DB::connection()->getPdo()->exec("ALTER TABLE {$table} DROP COLUMN {$col}");
-        } catch (\Throwable $e) {
-            $this->markTestSkipped("cannot drop a column here: {$e->getMessage()}");
-        }
-        OptionalColumn::forget();
-        $this->assertFalse(DB::schema()->hasColumn($table, $col));
     }
 
     // ── FILTER: the decision must land without its note ──────────────────────
@@ -73,7 +68,7 @@ final class UnmigratedColumnSweepTest extends TestCase
             'status' => 'pending', 'created_at' => Carbon::now()->toDateTimeString(),
         ]);
 
-        $this->drop('gates_nominations', 'decision_reason');
+        $this->dropColumnForTest('gates_nominations', 'decision_reason');
 
         $update = OptionalColumn::filter('gates_nominations', [
             'status'          => 'rejected',
@@ -129,7 +124,7 @@ final class UnmigratedColumnSweepTest extends TestCase
             'voted_at' => Carbon::now()->toDateTimeString(),
         ]);
 
-        $this->drop('gates_donations', 'refunded_at');
+        $this->dropColumnForTest('gates_donations', 'refunded_at');
 
         $out = BonusVoteService::clawbackDonation($donationId);
 
@@ -173,7 +168,7 @@ final class UnmigratedColumnSweepTest extends TestCase
 
     public function test_missing_reports_only_the_absent_columns(): void
     {
-        $this->drop('gates_donations', 'refunded_at');
+        $this->dropColumnForTest('gates_donations', 'refunded_at');
 
         $this->assertSame(['refunded_at'],
             OptionalColumn::missing('gates_donations', ['donor_email', 'refunded_at', 'amount_naira']));

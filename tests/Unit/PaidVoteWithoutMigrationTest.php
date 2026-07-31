@@ -7,6 +7,7 @@ use AfricaGates\Services\PaidVoteService;
 use AfricaGates\Support\OptionalColumn;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
+use Tests\Support\DropsColumns;
 use Tests\TestCase;
 
 /**
@@ -40,6 +41,8 @@ use Tests\TestCase;
  */
 final class PaidVoteWithoutMigrationTest extends TestCase
 {
+    use DropsColumns;
+
     private int $nomineeId = 0;
 
     protected function setUp(): void
@@ -60,28 +63,13 @@ final class PaidVoteWithoutMigrationTest extends TestCase
 
     protected function tearDown(): void
     {
+        // Puts back anything this test dropped — see DropsColumns. Without it, a real
+        // MySQL run carries the missing column into every later test.
+        $this->restoreDroppedColumns();
         OptionalColumn::forget();
         parent::tearDown();
     }
 
-    /**
-     * Reproduce the unmigrated deployment: drop `show_name` from a table.
-     *
-     * SQLite has supported ALTER TABLE … DROP COLUMN since 3.35. If this build cannot
-     * do it the test SKIPS rather than silently passing against the migrated schema —
-     * a green tick that proved nothing is exactly how this bug shipped.
-     */
-    private function dropShowName(string $table): void
-    {
-        try {
-            DB::connection()->getPdo()->exec("ALTER TABLE {$table} DROP COLUMN show_name");
-        } catch (\Throwable $e) {
-            $this->markTestSkipped("cannot drop a column on this driver: {$e->getMessage()}");
-        }
-        OptionalColumn::forget();
-        $this->assertFalse(DB::schema()->hasColumn($table, 'show_name'),
-            'the fixture must actually remove the column, or this test proves nothing');
-    }
 
     // ── 1. Taking the money ──────────────────────────────────────────────────
 
@@ -92,7 +80,7 @@ final class PaidVoteWithoutMigrationTest extends TestCase
      */
     public function test_a_pending_order_can_still_be_created_without_the_column(): void
     {
-        $this->dropShowName('gates_donations');
+        $this->dropColumnForTest('gates_donations', 'show_name');
 
         $row = OptionalColumn::filter('gates_donations', [
             'donor_name'        => 'Ada Obi',
@@ -143,7 +131,7 @@ final class PaidVoteWithoutMigrationTest extends TestCase
      */
     public function test_a_paid_order_still_mints_its_votes_without_the_column(): void
     {
-        $this->dropShowName('gates_votes');
+        $this->dropColumnForTest('gates_votes', 'show_name');
 
         $ref = 'AFG-NOMIG-2';
         $id = (int) DB::table('gates_donations')->insertGetId(OptionalColumn::filter('gates_donations', [
@@ -169,7 +157,7 @@ final class PaidVoteWithoutMigrationTest extends TestCase
      */
     public function test_votes_used_and_the_vote_row_never_disagree(): void
     {
-        $this->dropShowName('gates_votes');
+        $this->dropColumnForTest('gates_votes', 'show_name');
 
         $ref = 'AFG-NOMIG-3';
         $id = (int) DB::table('gates_donations')->insertGetId(OptionalColumn::filter('gates_donations', [
@@ -191,7 +179,7 @@ final class PaidVoteWithoutMigrationTest extends TestCase
     /** Minting stays idempotent — the filter must not disturb the claim gate. */
     public function test_minting_twice_still_credits_once(): void
     {
-        $this->dropShowName('gates_votes');
+        $this->dropColumnForTest('gates_votes', 'show_name');
 
         $ref = 'AFG-NOMIG-4';
         $id = (int) DB::table('gates_donations')->insertGetId(OptionalColumn::filter('gates_donations', [
@@ -214,7 +202,7 @@ final class PaidVoteWithoutMigrationTest extends TestCase
 
     public function test_the_filter_only_touches_columns_it_was_told_are_optional(): void
     {
-        $this->dropShowName('gates_donations');
+        $this->dropColumnForTest('gates_donations', 'show_name');
 
         $row = OptionalColumn::filter('gates_donations',
             ['donor_email' => 'a@b.test', 'show_name' => 1, 'nonexistent_column' => 'x'],
