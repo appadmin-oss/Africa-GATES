@@ -179,26 +179,41 @@ abstract class TestCase extends BaseTestCase
      */
     private const NARROW_AUTO_INCREMENT = ['gates_award_programmes'];
 
-    /** Boots so far in this process, for the periodic rewind below. */
-    private static int $boots = 0;
-
     /**
-     * Rewind the narrow counters periodically.
+     * Rewind narrow counters AT THE CEILING, not on a schedule.
      *
-     * Every 64 boots rather than every test: `ALTER TABLE … AUTO_INCREMENT` is DDL, so
-     * per-test it would implicitly commit on every single test and defeat the transaction
-     * isolation the whole harness rests on. 64 keeps the headroom at ~4x the worst case
-     * (a handful of programmes per test) while costing about eighteen statements across
-     * the full run.
+     * ── WHY THIS IS MEASURED RATHER THAN COUNTED ─────────────────────────────
      *
-     * MySQL clamps the value to max(id)+1 when rows exist, so this is a no-op rather than
-     * a hazard if a dropping test left something behind.
+     * This used to rewind every 64th boot, sized against "a handful of programmes per
+     * test". That is a guess about a number nobody controls: it is whatever the suite
+     * happens to seed, and it moves every time a test is added. Five new tests in
+     * PulseReactionsTest — two programmes each — were enough to burn all 255 values
+     * inside one 64-boot window, and the failure surfaced in SupportGroundingTest, which
+     * seeds no more programmes than it ever did. A schedule cannot be right about a
+     * budget it does not measure.
+     *
+     * So the trigger is now the thing that actually matters: what the counter reads.
+     * `information_schema` answers in one cheap SELECT with no implicit commit, and the
+     * DDL runs only when the number really is approaching the cap. Adding a hundred
+     * programme-seeding tests tomorrow cannot silently re-break this.
+     *
+     * Half the ceiling rather than, say, 240: InnoDB's cached AUTO_INCREMENT can lag
+     * reality, and there is nothing to buy by cutting it fine.
+     *
+     * MySQL clamps the new value up to max(id)+1 when rows exist, so this is a no-op
+     * rather than a hazard if a dropping test left something behind.
      */
+    private const AUTO_INCREMENT_REWIND_AT = 128;
+
     private function relieveAutoIncrementPressure(): void
     {
-        if (self::$boots++ % 64 !== 0) return;
         foreach (self::NARROW_AUTO_INCREMENT as $table) {
             try {
+                $next = (int) (Capsule::connection()->selectOne(
+                    'SELECT AUTO_INCREMENT n FROM information_schema.TABLES
+                      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?', [$table])?->n ?? 0);
+
+                if ($next < self::AUTO_INCREMENT_REWIND_AT) continue;
                 Capsule::connection()->statement('ALTER TABLE `' . $table . '` AUTO_INCREMENT = 1');
             } catch (\Throwable) { /* a dropping test removed it; setUp rebuilds */ }
         }

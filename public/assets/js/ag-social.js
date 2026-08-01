@@ -86,6 +86,82 @@
   }
 
   /**
+   * Set, change or clear one of the four reactions.
+   *
+   * ── WHY THIS IS NOT `cheer` WITH AN EXTRA ARGUMENT ─────────────────────────
+   *
+   * A cheer is a BOOLEAN and rolls back to on or off. A reaction is SINGULAR:
+   * you hold at most one, and pressing a different one MOVES it rather than
+   * adding a second. That is three optimistic outcomes, not two —
+   *
+   *   press the one you hold  → cleared, total −1
+   *   press a different one   → moved,   total UNCHANGED
+   *   press with none held    → set,     total +1
+   *
+   * — and the middle case is the one a boolean cannot express. Written as a flag
+   * on cheer(), changing a reaction would flash the total up or down and then
+   * snap back when the server answered.
+   *
+   * `state` is {kind, n, breakdown, busy}, mutated in place — same contract as
+   * everything else here: no Alpine, no framework, just an object to watch.
+   */
+  function react(targetType, targetId, kind, state, hooks) {
+    hooks = hooks || {};
+    if (state.busy) return Promise.resolve(false);
+    state.busy = true;
+
+    var prev = { kind: state.kind, n: state.n | 0, breakdown: assign({}, state.breakdown) };
+    var held = state.kind || null;
+    var bd = assign({}, state.breakdown);
+
+    if (held) bd[held] = Math.max(0, (bd[held] | 0) - 1);
+    if (held === kind) {
+      state.kind = null;
+      state.n = Math.max(0, (state.n | 0) - 1);
+    } else {
+      bd[kind] = (bd[kind] | 0) + 1;
+      state.kind = kind;
+      if (!held) state.n = (state.n | 0) + 1;
+      if (hooks.onReacted) hooks.onReacted(kind);
+    }
+    // A kind that has fallen to zero is REMOVED, not left sitting at 0 — the
+    // rail draws whatever is in the breakdown, and a lingering zero renders as
+    // an empty pip that nobody pressed.
+    state.breakdown = prune(bd);
+
+    return send('/cheer', { target_type: targetType, target_id: targetId, kind: kind })
+      .then(function (r) {
+        if (r.data && r.data.success) {
+          state.kind = r.data.kind || null;
+          if (typeof r.data.count === 'number') state.n = r.data.count;
+          if (r.data.breakdown) state.breakdown = prune(assign({}, r.data.breakdown));
+          return true;
+        }
+        state.kind = prev.kind; state.n = prev.n; state.breakdown = prev.breakdown;
+        if (needsSignIn(r.status, r.data)) { if (hooks.onSignIn) hooks.onSignIn(); }
+        else if (hooks.onError) hooks.onError((r.data && r.data.message) || 'Could not react just now.');
+        return false;
+      })
+      .catch(function () {
+        state.kind = prev.kind; state.n = prev.n; state.breakdown = prev.breakdown;
+        if (hooks.onError) hooks.onError('Network error — please try again.');
+        return false;
+      })
+      .finally(function () { state.busy = false; });
+  }
+
+  /** Object.assign, minus the assumption that every browser here has it. */
+  function assign(to, from) {
+    if (from) for (var k in from) if (Object.prototype.hasOwnProperty.call(from, k)) to[k] = from[k];
+    return to;
+  }
+
+  function prune(bd) {
+    for (var k in bd) if (!(bd[k] | 0)) delete bd[k];
+    return bd;
+  }
+
+  /**
    * Save / repost / follow. Same shape as cheer but the server names the new
    * state differently per endpoint (`bookmarked`, `reposted`, `following`), so
    * the caller says which field to read.
@@ -233,6 +309,7 @@
 
   w.agSocial = {
     cheer: cheer,
+    react: react,
     toggle: toggle,
     comment: comment,
     report: report,

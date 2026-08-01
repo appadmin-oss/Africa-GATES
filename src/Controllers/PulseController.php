@@ -79,8 +79,11 @@ final class PulseController
         $q      = $req->getQueryParams();
         $cursor = isset($q['cursor']) ? (int) $q['cursor'] : null;
         $limit  = isset($q['limit'])  ? (int) $q['limit']  : PulseFeedService::PAGE;
+        // The channel chip. 0 and absent both mean "every channel", so deselecting
+        // a chip can simply send nothing rather than a sentinel value.
+        $chan   = isset($q['channel']) ? (int) $q['channel'] : 0;
 
-        $page = $this->feed->page($cursor, $limit, $this->viewerId());
+        $page = $this->feed->page($cursor, $limit, $this->viewerId(), $chan ?: null);
         return $this->json($res, ['success' => true] + $page);
     }
 
@@ -138,6 +141,8 @@ final class PulseController
             'pulse_max'        => self::MAX_LEN,
             'feed'             => $first['items'],
             'feed_cursor'      => $first['next_cursor'],
+            // Channel chips, driven by where people have actually posted.
+            'channels'         => $this->feed?->channels() ?? [],
             // The newest id the reader has seen. The new-posts pill counts past it.
             'feed_head'        => $first['items'][0]['id'] ?? 0,
             // The real ceiling, which is the smaller of ours and what PHP will

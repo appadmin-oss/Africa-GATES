@@ -24,8 +24,14 @@
   .pl-tab{ flex:none; cursor:pointer; border:0; background:none; font-family:inherit; font-size:14.5px; font-weight:600; color:#5a6d6f; padding:12px 16px; border-bottom:2px solid transparent; margin-bottom:-1px; }
   .pl-tab.is-on{ color:var(--ag-green); border-bottom-color:var(--ag-green); }
 
-  /* layout */
-  .pl-grid{ display:grid; grid-template-columns:1fr 340px; gap:36px; align-items:start; }
+  /* layout
+     The feed column is CAPPED, not fluid. A card whose stage is 4:5 grows its
+     height with its width, so a full-width column on a desktop produced a
+     1,300px-tall post — one item per screen, and a wall of empty canvas around
+     three lines of text. Every feed that has shipped on desktop caps this for
+     the same reason. */
+  .pl-grid{ display:grid; grid-template-columns:minmax(0,600px) 340px; gap:36px;
+            align-items:start; justify-content:center; }
   .pl-rail{ position:sticky; top:96px; display:flex; flex-direction:column; gap:18px; }
 
   /* ── composer ──────────────────────────────────────────────────────────
@@ -69,37 +75,60 @@
   .pl-flash--ok{ background:#e6f4e6; color:#1c6b1c; border:1px solid #bfe3bf; }
   .pl-flash--err{ background:#fdf3f3; color:#a32020; border:1px solid #f0c9c9; }
 
-  /* ── the feed card ─────────────────────────────────────────────────────
-     Instagram's post anatomy, in its order: header (avatar · name · time · ⋯),
-     body, action bar, like count, caption, comment preview. The order is not
-     decoration — it is why the layout is legible to anyone who has used a feed
-     before, and it is the reason the action bar sits UNDER the body rather than
-     beside it: the tap targets end up under the thumb on a phone. */
-  .pf{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; overflow:hidden; }
-  .pf__hd{ display:flex; gap:12px; align-items:center; padding:14px 16px 10px; }
-  .pf__av{ flex:none; width:38px; height:38px; border-radius:50%; background:#eef6ee; color:#1c6b1c;
-           display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; }
-  .pf__who{ min-width:0; flex:1; }
-  .pf__au{ font-weight:700; font-size:14.5px; color:var(--ag-ink,#10292c); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pf__mt{ font-size:12.5px; color:#7d8c8e; }
-  .pf__more{ flex:none; border:0; background:none; cursor:pointer; color:#7d8c8e; padding:6px; border-radius:50%; line-height:0; }
-  .pf__more:hover{ background:#f2f5f2; }
+  /* ── THE STAGE ─────────────────────────────────────────────────────────
+     The redesign's one structural idea: MEDIA OWNS THE CANVAS and the chrome
+     floats over it, rather than a photo boxed inside a white card with a row of
+     grey glyphs underneath. Author, channel, caption and every action sit on the
+     picture; only the conversation lives below it, on paper.
 
-  /* The double-tap surface. `touch-action:manipulation` kills the 300ms
-     double-tap-to-zoom delay, without which the second tap of a like arrives
-     late enough that the burst feels detached from the finger. */
-  .pf__body{ position:relative; padding:2px 16px 12px; cursor:pointer; touch-action:manipulation;
-             -webkit-user-select:none; user-select:none; }
-  /* No `white-space:pre-wrap` here: linkify already turns newlines into <br>,
-     and doing both renders every line break twice. */
-  .pf__text{ margin:0; font-size:15.5px; line-height:1.62; color:#2c3a3c; overflow-wrap:anywhere; }
-  .pf__text .ag-tag{ color:var(--ag-green,#237b22); font-weight:600; text-decoration:none; }
+     Every card gets a stage, including the ones with no picture — a text post
+     draws its own canvas. One anatomy for the whole feed is the point: a feed
+     where half the cards are one shape and half are another does not read as a
+     feed, it reads as two features sharing a page. */
+  .pf{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; overflow:hidden; }
+  .pf__stage{ position:relative; width:100%; background:#07100F; overflow:hidden; cursor:pointer;
+              /* Kills the 300ms double-tap-to-zoom delay. Without it the second
+                 tap of a like lands late enough that the burst feels detached. */
+              touch-action:manipulation; -webkit-user-select:none; user-select:none; }
+  /* The 4:5 box belongs to PICTURES. A text post given the same box is three
+     lines of type floating in 400px of black — the ratio exists to protect a
+     photographer's framing, and there is no framing to protect here. So a text
+     card is sized by its words and the feed gets a rhythm instead of a march of
+     identical rectangles. */
+  .pf__stage--media{ aspect-ratio:4/5; max-height:min(70vh,620px); }
+  .pf__stage img, .pf__stage video{ display:block; width:100%; height:100%; object-fit:cover; }
+  /* Contain, not cover, for video: cropping somebody's framing is one thing on a
+     still and another on footage they shot deliberately. */
+  .pf__stage video{ object-fit:contain; background:#000; }
+
+  /* A text post's canvas. In flow, so the words set the height. Padded clear of
+     the rail on the right and the byline below, and clamped — a stage that
+     scrolls is not a stage. */
+  /* min-height is not taste, it is the RAIL'S HEIGHT. Five stacked buttons come
+     to ~265px and the stage clips its overflow, so a two-line post drew a card
+     shorter than its own controls and the top of the rail — the reaction button —
+     was cut off the card entirely. Whatever the rail costs, the shortest stage
+     has to clear it. */
+  .pf__canvas{ position:relative; display:flex; align-items:center; min-height:316px;
+               padding:30px 78px 84px 24px;
+               background:radial-gradient(125% 95% at 12% 0%,#1E4244 0%,#10292C 46%,#07100F 100%); }
+  .pf__canvas p{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+                 font-size:clamp(1.3rem,3.2vw,1.85rem); line-height:1.22; letter-spacing:-.015em;
+                 color:#fff; overflow-wrap:anywhere;
+                 display:-webkit-box; -webkit-line-clamp:7; -webkit-box-orient:vertical; overflow:hidden; }
+  .pf__canvas .ag-tag{ color:#7FC87C; text-decoration:none; }
+
+  /* Top and bottom scrims. Without them white text lands on whatever the photo
+     happens to be, and a bright sky makes the author's name unreadable. */
+  .pf__scrim{ position:absolute; inset:0; pointer-events:none;
+              background:linear-gradient(180deg,rgba(0,0,0,.52) 0%,rgba(0,0,0,.05) 20%,
+                                          rgba(0,0,0,0) 42%,rgba(0,0,0,.48) 72%,rgba(0,0,0,.86) 100%); }
 
   /* The burst: a heart that scales past its resting size, settles, then floats
      out. Sits in the centre of the post it belongs to, never the viewport. */
   .pf__burst{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-              pointer-events:none; opacity:0; }
-  .pf__burst svg{ width:88px; height:88px; filter:drop-shadow(0 6px 18px rgba(0,0,0,.28)); }
+              pointer-events:none; opacity:0; z-index:5; }
+  .pf__burst svg{ width:112px; height:112px; filter:drop-shadow(0 8px 22px rgba(0,0,0,.5)); }
   @media (prefers-reduced-motion:no-preference){
     .pf__burst.is-on{ animation:pfBurst .95s cubic-bezier(.17,.89,.32,1.28) forwards; }
     @keyframes pfBurst{
@@ -113,33 +142,118 @@
   /* Reduced motion still gets confirmation — it just does not fly. */
   @media (prefers-reduced-motion:reduce){ .pf__burst.is-on{ opacity:1; transition:opacity .2s; } }
 
-  /* The attachment on a posted card. `aspect-ratio` from the stored dimensions
-     reserves the box before a byte arrives — without it every image load shoves
-     the feed down and the post you were about to tap moves out from under your
-     thumb. Capped in height so one portrait photo cannot take a whole screen. */
-  .pf__media{ margin:2px 0 0; background:#0d1a1b; display:flex; justify-content:center;
-              max-height:560px; overflow:hidden; }
-  .pf__media img, .pf__media video{ display:block; max-width:100%; max-height:560px;
-                                    width:auto; height:auto; object-fit:contain; }
-
-  .pf__bar{ display:flex; align-items:center; gap:2px; padding:2px 8px 0; }
-  .pf__act{ border:0; background:none; cursor:pointer; color:#3d4c4e; padding:9px 10px; border-radius:12px;
-            display:inline-flex; align-items:center; gap:7px; font:600 13.5px/1 inherit; text-decoration:none; }
-  .pf__act:hover{ background:#f4f7f4; }
-  .pf__act svg{ width:22px; height:22px; stroke-width:1.8; }
-  .pf__act--like[aria-pressed="true"]{ color:#e0245e; }
-  .pf__act--like[aria-pressed="true"] svg{ fill:#e0245e; stroke:#e0245e; }
-  .pf__act--save{ margin-left:auto; }
-  .pf__act--save[aria-pressed="true"]{ color:var(--ag-ink,#10292c); }
-  .pf__act--save[aria-pressed="true"] svg{ fill:currentColor; }
+  /* ── THE RIGHT-HAND ACTION RAIL ────────────────────────────────────────
+     Thumb-reachable on a phone held in one hand, which is the whole reason it
+     is a column on the right rather than a row underneath. */
+  .pf__rail{ position:absolute; right:6px; bottom:14px; z-index:4;
+             display:flex; flex-direction:column; align-items:center; gap:13px; }
+  .pf__r{ border:0; background:none; padding:4px; cursor:pointer; font-family:inherit; line-height:1;
+          display:flex; flex-direction:column; align-items:center; gap:5px; color:#fff; }
+  .pf__r svg{ width:29px; height:29px; fill:none; stroke:#fff; stroke-width:1.6;
+              stroke-linecap:round; stroke-linejoin:round;
+              filter:drop-shadow(0 2px 7px rgba(0,0,0,.6)); }
+  .pf__r span{ font:700 11px/1 var(--ag-font-mono,monospace); color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.65); }
+  .pf__r:focus-visible{ outline:2px solid #7FC87C; outline-offset:3px; border-radius:14px; }
+  /* The held reaction fills in its own colour — the four are told apart by hue
+     as much as by shape, which is what makes the rail readable at a glance. */
+  .pf__r[data-held="cheer"] svg{ fill:#E0245E; stroke:#E0245E; }
+  .pf__r[data-held="insight"] svg{ fill:#F2C230; stroke:#F2C230; }
+  .pf__r[data-held="respect"] svg{ fill:#7FC87C; stroke:#7FC87C; }
+  .pf__r[data-held="support"] svg{ fill:#5AB6D9; stroke:#5AB6D9; }
+  .pf__r--save[aria-pressed="true"] svg{ fill:#fff; }
+  .pf__r--repost[aria-pressed="true"] svg{ stroke:#7FC87C; }
+  .pf__r--repost[aria-pressed="true"] span{ color:#7FC87C; }
   @media (prefers-reduced-motion:no-preference){
-    .pf__act--like[aria-pressed="true"] svg{ animation:pfPop .34s ease; }
-    @keyframes pfPop{ 0%{transform:scale(1)} 40%{transform:scale(1.32)} 100%{transform:scale(1)} }
+    .pf__r[data-held] svg{ animation:pfPop .34s ease; }
+    @keyframes pfPop{ 0%{transform:scale(1)} 40%{transform:scale(1.3)} 100%{transform:scale(1)} }
   }
 
-  .pf__likes{ padding:4px 18px 0; font-size:13.5px; font-weight:700; color:var(--ag-ink,#10292c); }
+  /* The picker. Anchored to the reaction button, opening leftwards into the
+     picture rather than off the edge of a 320px screen. */
+  .pf__react{ position:relative; }
+  .pf__pick{ position:absolute; right:calc(100% + 6px); bottom:0; display:flex; gap:2px; padding:6px;
+             border-radius:999px; background:rgba(7,16,15,.94); border:1px solid rgba(255,255,255,.16);
+             box-shadow:0 16px 38px rgba(0,0,0,.5); backdrop-filter:blur(6px); }
+  .pf__pk{ border:0; background:none; cursor:pointer; padding:6px 7px; border-radius:999px;
+           display:flex; flex-direction:column; align-items:center; gap:4px; font-family:inherit; }
+  .pf__pk:hover, .pf__pk:focus-visible{ background:rgba(255,255,255,.12); outline:none; }
+  .pf__pk svg{ width:24px; height:24px; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .pf__pk small{ font:700 8.5px/1 var(--ag-font-mono,monospace); letter-spacing:.07em;
+                 text-transform:uppercase; color:rgba(255,255,255,.72); }
+  .pf__pk[data-kind="cheer"] svg{ fill:#E0245E; stroke:#E0245E; }
+  .pf__pk[data-kind="insight"] svg{ fill:#F2C230; stroke:#F2C230; }
+  .pf__pk[data-kind="respect"] svg{ fill:#7FC87C; stroke:#7FC87C; }
+  .pf__pk[data-kind="support"] svg{ fill:#5AB6D9; stroke:#5AB6D9; }
+  .pf__pk[aria-pressed="true"]{ background:rgba(255,255,255,.18); }
+
+  /* ── WHAT SITS ON THE PICTURE ──────────────────────────────────────────
+     `right` clears the rail, so a long name never runs underneath it. */
+  .pf__meta{ position:absolute; left:15px; right:70px; bottom:16px; z-index:3;
+             display:flex; flex-direction:column; gap:7px; }
+  .pf__chan{ align-self:flex-start; font:700 9.5px/1 var(--ag-font-mono,monospace); letter-spacing:.13em;
+             text-transform:uppercase; color:#7FC87C; background:rgba(11,26,27,.55);
+             border:1px solid rgba(127,200,124,.4); border-radius:999px; padding:5px 9px;
+             text-decoration:none; }
+  .pf__whoami{ display:flex; align-items:center; gap:7px; min-width:0; }
+  .pf__name{ font-weight:700; font-size:15px; color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.65);
+             overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pf__tick{ flex:none; width:15px; height:15px; }
+  .pf__when{ flex:none; font:600 11.5px/1 var(--ag-font-mono,monospace); color:rgba(255,255,255,.62); }
+  .pf__cap{ margin:0; font-size:14px; line-height:1.5; color:rgba(255,255,255,.94);
+            text-shadow:0 1px 6px rgba(0,0,0,.7); overflow-wrap:anywhere; }
+  .pf__cap.is-clamped{ display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
+  .pf__cap .ag-tag{ color:#7FC87C; font-weight:600; text-decoration:none; }
+  .pf__more2{ align-self:flex-start; border:0; background:none; padding:2px 0; cursor:pointer;
+              font:700 12px/1 inherit; color:rgba(255,255,255,.72); }
+  .pf__flag{ position:absolute; top:12px; right:12px; z-index:4; border:0; cursor:pointer; line-height:0;
+             width:34px; height:34px; border-radius:50%; color:#fff; background:rgba(7,16,15,.42);
+             display:flex; align-items:center; justify-content:center; }
+  .pf__flag:hover{ background:rgba(7,16,15,.7); }
+
+  /* ── THE PAPER BELOW ───────────────────────────────────────────────────
+     Who reacted and how, then the conversation. Kept off the picture because
+     reading is a different posture from reacting. */
+  .pf__sum{ display:flex; align-items:center; gap:9px; padding:13px 16px 0; flex-wrap:wrap; }
+  .pf__pips{ display:flex; align-items:center; flex:none; }
+  .pf__pip{ width:23px; height:23px; border-radius:50%; margin-left:-6px; flex:none;
+            display:flex; align-items:center; justify-content:center;
+            background:#fff; border:2px solid #fff; box-shadow:0 1px 4px rgba(16,41,44,.22); }
+  .pf__pip:first-child{ margin-left:0; }
+  .pf__pip svg{ width:13px; height:13px; }
+  .pf__sumtx{ font-size:13.5px; font-weight:700; color:var(--ag-ink,#10292c); }
+  .pf__sumtx b{ font-weight:700; }
+  .pf__reposted{ font-size:12.5px; color:#7d8c8e; margin-left:auto; }
   .pf__open{ display:block; padding:8px 18px 14px; font-size:13px; font-weight:600;
              color:var(--ag-green,#237b22); text-decoration:none; }
+
+  /* ── CHANNEL CHIPS ─────────────────────────────────────────────────────
+     Real programmes, ordered by how much is actually posted in them. */
+  .pf-chips{ display:flex; gap:8px; overflow-x:auto; padding:2px 2px 14px; }
+  .pf-chip{ flex:none; cursor:pointer; border:1px solid rgba(16,41,44,.14); background:#fff;
+            color:#3d4c4e; font:600 13px/1 inherit; padding:9px 15px; border-radius:999px; }
+  .pf-chip.is-on{ background:var(--ag-ink,#10292c); border-color:var(--ag-ink,#10292c); color:#fff; }
+  .pf-chip small{ font-family:var(--ag-font-mono,monospace); opacity:.6; margin-left:5px; }
+
+  /* ── THE REPOST SHEET ──────────────────────────────────────────────────
+     A repost with nothing added is a bookmark with extra steps, so the sheet
+     asks for the line before it sends — but never insists on one. */
+  .pf-sheet{ position:fixed; inset:0; z-index:70; display:flex; align-items:flex-end;
+             justify-content:center; background:rgba(7,16,15,.6); }
+  .pf-sheet__c{ width:100%; max-width:540px; background:#fff; border-radius:22px 22px 0 0;
+                padding:20px 20px 24px; box-shadow:0 -20px 50px rgba(0,0,0,.3); }
+  .pf-sheet__k{ margin:0 0 4px; font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.12em;
+                text-transform:uppercase; color:#5a6d6f; }
+  .pf-sheet__q{ margin:0 0 14px; font-size:14px; line-height:1.5; color:#4a5256; }
+  .pf-sheet__q b{ color:var(--ag-ink,#10292c); }
+  .pf-sheet__ta{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:16px; resize:vertical;
+                 font:inherit; font-size:15px; line-height:1.55; padding:12px 14px; min-height:88px;
+                 color:var(--ag-ink,#10292c); }
+  .pf-sheet__ta:focus{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
+  .pf-sheet__row{ display:flex; align-items:center; gap:10px; margin-top:14px; }
+  .pf-sheet__row .pf__cmgo{ margin-left:auto; }
+  .pf-sheet__x{ border:1px solid rgba(16,41,44,.14); background:#fff; color:#3d4c4e;
+                font:600 13.5px/1 inherit; padding:11px 18px; border-radius:999px; cursor:pointer; }
+  @media (min-width:620px){ .pf-sheet{ align-items:center; } .pf-sheet__c{ border-radius:22px; } }
 
   /* comments */
   .pf__cm{ border-top:1px solid rgba(16,41,44,.07); padding:12px 16px 14px; }
@@ -174,8 +288,14 @@
              display:flex; gap:12px; align-items:center; max-width:calc(100vw - 32px); }
   .pf-toast a{ color:#7FC87C; font-weight:700; white-space:nowrap; }
 
-  /* feed */
-  .pl-feed{ display:flex; flex-direction:column; gap:22px; }
+  /* feed
+     min-width:0 is load-bearing. `1fr` is `minmax(auto, 1fr)`, and `auto`
+     resolves to the item's MIN-CONTENT width — which for this column is about
+     417px. On a 390px phone the track grew past the container and, being
+     centred, hung off BOTH gutters: the chip row started at −14px with "All"
+     half off-screen. Zero is the only floor that lets a grid item actually be
+     as narrow as its column. */
+  .pl-feed{ display:flex; flex-direction:column; gap:22px; min-width:0; }
   .pl-post{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; overflow:hidden; }
   .pl-post__hd{ display:flex; align-items:center; gap:12px; padding:16px 18px; }
   .pl-post__av{ width:44px; height:44px; border-radius:13px; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:19px; flex:none; }
@@ -335,9 +455,25 @@
                items:   feed|default([]),
                cursor:  feed_cursor|default(null),
                head:    feed_head|default(0),
+               channels: channels|default([]),
                signedIn: is_member|default(false),
                memberName: member_name|default('You')
-             }|json_encode }})" x-init="init()">
+             }|json_encode }})">
+
+          {# ── CHANNEL CHIPS ──────────────────────────────────────────────
+             Only drawn when there is more than one channel to choose between.
+             A single chip beside "All" is not a filter, it is a label. #}
+          <div class="pf-chips pl-x" x-show="channels.length > 1" x-cloak
+               role="group" aria-label="Filter the feed by channel">
+            <button type="button" class="pf-chip" :class="channel === 0 && 'is-on'"
+                    :aria-pressed="channel === 0" @click="setChannel(0)">All</button>
+            <template x-for="c in channels" :key="c.id">
+              <button type="button" class="pf-chip" :class="channel === c.id && 'is-on'"
+                      :aria-pressed="channel === c.id" @click="setChannel(c.id)">
+                <span x-text="c.name"></span><small x-text="c.n"></small>
+              </button>
+            </template>
+          </div>
 
           {# New posts landed while you were reading. Polled, because shared
              hosting has no persistent process to push from. #}
@@ -349,75 +485,143 @@
           <template x-for="it in items" :key="it.id">
             <article class="pf">
 
-              <div class="pf__hd">
-                <span class="pf__av" aria-hidden="true" x-text="initial(it.author_name)"></span>
-                <div class="pf__who">
-                  <div class="pf__au" x-text="it.author_name"></div>
-                  <div class="pf__mt" x-text="ago(it.created_at)"></div>
-                </div>
-                <button type="button" class="pf__more" @click="report(it)"
-                        :aria-label="'Report the post by ' + it.author_name">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
-                </button>
-              </div>
+              {# ── THE STAGE ────────────────────────────────────────────────
+                 Media, or a canvas drawn for a post that has none. Double-tap to
+                 cheer — the gesture the whole audience already knows — kept off
+                 the links inside so tapping a #hashtag still navigates. #}
+              <div class="pf__stage" :class="it.media && 'pf__stage--media'" @click="tap(it, $event)"
+                   :aria-label="'Post by ' + it.author_name + '. Double tap to cheer.'">
 
-              {# Double-tap to like — Instagram's defining gesture. Kept off the
-                 links inside, so tapping a #hashtag still navigates. #}
-              <div class="pf__body" @click="tap(it, $event)"
-                   :aria-label="'Post by ' + it.author_name + '. Double tap to like.'">
-                <p class="pf__text" x-show="!!it.body" x-html="rich(it.body)"></p>
-                <span class="pf__burst" :class="it.burst ? 'is-on' : ''" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="#e0245e"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
-                </span>
-              </div>
-
-              {# ── THE ATTACHMENT ────────────────────────────────────────────
-                 Outside .pf__body, so a double-tap on the picture still likes the
-                 post but the video's own controls are not fighting that gesture.
-                 A video is never autoplayed: sound and motion starting by itself
-                 in a feed is hostile on a metered connection, which is most of
-                 this audience. `preload="metadata"` fetches the header for the
-                 poster frame and duration, not the file. #}
-              {# x-show, not x-if. An x-if nested in this x-for is what threw
-                 "u is not a function" out of Alpine the moment the list was
-                 mutated. `:src` is bound to null rather than '' for the branch
-                 that is hidden — Alpine drops a null attribute entirely, whereas
-                 src="" resolves to the current page and fires a wasted request
-                 for the whole HTML document on every card. #}
-              <div class="pf__media" x-show="!!it.media" x-cloak>
-                <img x-show="!!it.media && it.media.type === 'image'"
+                {# x-show, not x-if. An x-if nested in this x-for is what threw
+                   "u is not a function" out of Alpine the moment the list was
+                   mutated. `:src` binds to null rather than '' for the hidden
+                   branch — Alpine drops a null attribute entirely, whereas src=""
+                   resolves to the current page and fetches the whole HTML
+                   document again on every single card. #}
+                <img x-show="!!it.media && it.media.type === 'image'" x-cloak
                      :src="it.media && it.media.type === 'image' ? it.media.path : null"
                      loading="lazy" decoding="async"
-                     :width="it.media && it.media.w ? it.media.w : null"
-                     :height="it.media && it.media.h ? it.media.h : null"
-                     :style="it.media && it.media.w && it.media.h ? ('aspect-ratio:' + it.media.w + '/' + it.media.h) : null"
                      :alt="'Photo shared by ' + it.author_name">
-                <video x-show="!!it.media && it.media.type === 'video'"
+                {# Never autoplayed: sound and motion starting by themselves is
+                   hostile on a metered connection, which is most of this
+                   audience. preload="metadata" fetches the header for the poster
+                   frame and the duration, not the file. #}
+                <video x-show="!!it.media && it.media.type === 'video'" x-cloak
                        :src="it.media && it.media.type === 'video' ? it.media.path : null"
                        controls playsinline preload="metadata"
                        :aria-label="'Video shared by ' + it.author_name"></video>
+
+                <div class="pf__canvas" x-show="!it.media">
+                  <p x-html="rich(it.body || it.title)"></p>
+                </div>
+
+                <span class="pf__scrim" aria-hidden="true"></span>
+                <span class="pf__burst" :class="it.burst ? 'is-on' : ''" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="#fff"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
+                </span>
+
+                <button type="button" class="pf__flag" @click.stop="report(it)"
+                        :aria-label="'Report the post by ' + it.author_name">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+                </button>
+
+                {# ── who, where, what ── #}
+                <div class="pf__meta">
+                  <a class="pf__chan" x-show="!!it.channel" x-cloak @click.stop
+                     :href="'/pulse?channel=' + it.programme_id" x-text="it.channel"></a>
+                  <div class="pf__whoami">
+                    <span class="pf__name" x-text="it.author_name"></span>
+                    {# A verified tick means one thing here and only one: the post
+                       came from a signed-in account rather than an email address
+                       typed into a form. Anything vaguer would be decoration. #}
+                    <svg class="pf__tick" x-show="it.author_id > 0" viewBox="0 0 24 24" fill="none"
+                         :aria-label="it.author_name + ' posted from a verified account'" role="img">
+                      <path d="M12 1.9l8.1 2.9v6.5c0 5.2-3.3 9.2-8.1 11.2-4.8-2-8.1-6-8.1-11.2V4.8z" fill="#7FC87C"/>
+                      <path d="M8.7 12.1l2.3 2.3 4.3-4.7" stroke="#0B1A1B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="pf__when" x-text="ago(it.created_at)"></span>
+                  </div>
+                  {# Only for media posts: a text post already IS its canvas, and
+                     printing the words twice is the fault we just fixed on the
+                     nominee page. #}
+                  <p class="pf__cap" x-show="!!it.media && !!it.body" x-cloak
+                     :class="it.expanded ? '' : 'is-clamped'" x-html="rich(it.body)"></p>
+                  <button type="button" class="pf__more2" x-cloak
+                          x-show="(!!it.media && (it.body || '').length > 150) || (!it.media && (it.body || '').length > 320)"
+                          @click.stop="it.expanded ? (it.expanded = false) : open(it)"
+                          x-text="it.expanded ? 'Show less' : 'Read more'"></button>
+                </div>
+
+                {# ── THE RAIL ── #}
+                <div class="pf__rail">
+                  <div class="pf__react" @mouseenter="hoverPick(it, true)" @mouseleave="hoverPick(it, false)">
+                    <div class="pf__pick" x-show="it.pick" x-cloak @click.stop
+                         role="group" aria-label="Choose a reaction">
+                      <template x-for="k in KINDS" :key="k">
+                        <button type="button" class="pf__pk" :data-kind="k"
+                                :aria-pressed="it.my_reaction === k ? 'true' : 'false'"
+                                @click.stop="react(it, k)" @keydown.escape="it.pick = false"
+                                :aria-label="LABELS[k] + ' — react'">
+                          <span x-html="glyph(k)"></span>
+                          <small x-text="LABELS[k]"></small>
+                        </button>
+                      </template>
+                    </div>
+                    {# One press gives the reaction you already hold, or a cheer.
+                       Holding, hovering or Arrow-Up opens the four — the same
+                       three doors every feed with reactions has settled on. #}
+                    <button type="button" class="pf__r pf__r--react" :data-held="it.my_reaction"
+                            aria-haspopup="true" :aria-expanded="it.pick ? 'true' : 'false'"
+                            @click.stop="react(it, it.my_reaction || 'cheer')"
+                            @pointerdown="holdStart(it)" @pointerup="holdEnd(it)"
+                            @pointerleave="holdEnd(it)" @contextmenu.prevent="it.pick = true"
+                            @keydown.up.prevent="it.pick = true" @keydown.escape="it.pick = false"
+                            :aria-label="it.my_reaction ? ('Remove your ' + LABELS[it.my_reaction] + ' from this post') : 'Cheer this post. Press and hold for more reactions.'">
+                      <span x-html="glyph(it.my_reaction || 'cheer')"></span>
+                      <span x-text="fmt(it.cheer_count)"></span>
+                    </button>
+                  </div>
+
+                  <button type="button" class="pf__r" @click.stop="openComments(it)"
+                          aria-label="Comment on this post">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>
+                    <span x-text="fmt(it.reply_count)"></span>
+                  </button>
+
+                  <button type="button" class="pf__r pf__r--repost" :aria-pressed="it.reposted ? 'true' : 'false'"
+                          @click.stop="repost(it)"
+                          :aria-label="it.reposted ? 'Undo your repost' : 'Repost this, with a line of your own'">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M17 2.5 20.5 6 17 9.5M20.5 6H7a3.5 3.5 0 0 0-3.5 3.5V11M7 21.5 3.5 18 7 14.5M3.5 18H17a3.5 3.5 0 0 0 3.5-3.5V13"/></svg>
+                    <span x-text="fmt(it.repost_count)"></span>
+                  </button>
+
+                  {# No word under these two. The three above carry a number, and
+                     a rail that reads 8 · 3 · 2 · Share · Save mixes two kinds of
+                     label in one column — the eye reads "Share" as a count that
+                     failed to load. Both are named to a screen reader. #}
+                  <button type="button" class="pf__r" @click.stop="shareIt(it)" aria-label="Share this post">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>
+                  </button>
+
+                  <button type="button" class="pf__r pf__r--save" :aria-pressed="it.saved ? 'true' : 'false'"
+                          @click.stop="save(it)"
+                          :aria-label="(it.saved ? 'Remove this post from' : 'Save this post to') + ' your saved posts'">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.4L5 21V4a1 1 0 0 1 1-1Z"/></svg>
+                  </button>
+                </div>
               </div>
 
-              <div class="pf__bar">
-                <button type="button" class="pf__act pf__act--like" :aria-pressed="it.cheered ? 'true' : 'false'"
-                        @click="like(it)" :aria-label="(it.cheered ? 'Remove your cheer from' : 'Cheer') + ' this post'">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" focusable="false"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z" stroke-linejoin="round"/></svg>
-                </button>
-                <button type="button" class="pf__act" @click="openComments(it)" aria-label="Comment on this post">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" focusable="false"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z" stroke-linejoin="round"/></svg>
-                  <span x-show="it.reply_count > 0" x-text="it.reply_count"></span>
-                </button>
-                <button type="button" class="pf__act" @click="shareIt(it)" aria-label="Share this post">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" focusable="false"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M12 15V3m0 0L8 7m4-4 4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-                <button type="button" class="pf__act pf__act--save" :aria-pressed="it.saved ? 'true' : 'false'"
-                        @click="save(it)" :aria-label="(it.saved ? 'Remove this post from' : 'Save this post to') + ' your saved posts'">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true" focusable="false"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.4L5 21V4a1 1 0 0 1 1-1Z" stroke-linejoin="round"/></svg>
-                </button>
+              {# ── who reacted, and how ── #}
+              <div class="pf__sum" x-show="it.cheer_count > 0 || it.repost_count > 0" x-cloak>
+                <span class="pf__pips" aria-hidden="true">
+                  <template x-for="k in topKinds(it)" :key="k">
+                    <span class="pf__pip" x-html="glyph(k, true)"></span>
+                  </template>
+                </span>
+                <span class="pf__sumtx" x-show="it.cheer_count > 0" x-text="reactionLine(it)"></span>
+                <span class="pf__reposted" x-show="it.repost_count > 0"
+                      x-text="it.repost_count + (it.repost_count === 1 ? ' repost' : ' reposts')"></span>
               </div>
-
-              <div class="pf__likes" x-show="it.cheer_count > 0" x-cloak
-                   x-text="it.cheer_count + (it.cheer_count === 1 ? ' cheer' : ' cheers')"></div>
 
               <div class="pf__cm" x-show="it.open || it.comments.length > 0" x-cloak>
                 {# `it.comments` is guaranteed an array by hydrate(), so no `|| []`
@@ -473,6 +677,28 @@
           <div class="pf-toast" x-show="!!toast.msg" x-cloak role="status">
             <span x-text="toast.msg"></span>
             <a x-show="!!toast.href" :href="toast.href">Sign in →</a>
+          </div>
+
+          {# ── THE REPOST SHEET ───────────────────────────────────────────
+             Asks for the line before it sends, and never insists on one:
+             sometimes passing something along IS the whole remark. #}
+          <div class="pf-sheet" x-show="!!sheet.it" x-cloak @click.self="closeSheet()"
+               @keydown.escape.window="closeSheet()" role="dialog" aria-modal="true"
+               aria-labelledby="pfSheetK">
+            <div class="pf-sheet__c">
+              <p class="pf-sheet__k" id="pfSheetK">Repost</p>
+              <p class="pf-sheet__q">Passing on <b x-text="sheet.it ? sheet.it.author_name : ''"></b>’s post.
+                Add a line of your own — or send it as it is.</p>
+              <label class="sr-only" for="pfRepostBody">Your line</label>
+              <textarea class="pf-sheet__ta" id="pfRepostBody" x-ref="repostBody" x-model="sheet.comment"
+                        maxlength="500" placeholder="Why this is worth reading…"></textarea>
+              <div class="pf-sheet__row">
+                <span class="pl-compose__count" x-show="sheet.comment.length > 380"
+                      x-text="(500 - sheet.comment.length) + ' left'"></span>
+                <button type="button" class="pf-sheet__x" @click="closeSheet()">Cancel</button>
+                <button type="button" class="pf__cmgo" @click="sendRepost()">Repost</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -643,16 +869,37 @@ function plCompose(max, limitLabel){
  * community thread page uses too — so a like behaves identically wherever you
  * press it, and there is one optimistic rollback to keep correct rather than two.
  */
+/**
+ * The four reactions, drawn once.
+ *
+ * Kept as path data rather than four <template>s because the rail has to swap
+ * the glyph on the SAME button when a reaction changes — four hidden SVGs with
+ * x-show would each need their own held/not-held rule, and the button's fill
+ * would stop matching the shape the moment a fifth reaction is added.
+ */
+var PF_ICON = {
+  cheer:   '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/>',
+  insight: '<path d="M12 2.2l2.3 6.4 6.5 2.3-6.5 2.3L12 19.8l-2.3-6.6L3.2 10.9l6.5-2.3z"/>',
+  respect: '<path d="M12 2.4l7.6 2.7v5.8c0 4.7-3.1 8.3-7.6 10-4.5-1.7-7.6-5.3-7.6-10V5.1z"/>',
+  support: '<path d="M12 3.2 19 11h-4v6.5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V11H5z"/>'
+};
+var PF_TINT = { cheer:'#E0245E', insight:'#F2C230', respect:'#7FC87C', support:'#5AB6D9' };
+
 function plFeed(cfg){
   return {
     items: cfg.items || [],
     cursor: cfg.cursor || null,
     head: cfg.head || 0,          // newest id on screen; the pill counts past it
+    channels: cfg.channels || [],
+    channel: 0,                   // 0 = every channel
     signedIn: !!cfg.signedIn,
     loading: false,
     newCount: 0,
     toast: { msg: '', href: '' },
-    _tt: null, _lastTap: {}, _io: null, _poll: null,
+    sheet: { it: null, comment: '' },
+    KINDS: ['cheer', 'insight', 'respect', 'support'],
+    LABELS: { cheer:'Cheer', insight:'Insight', respect:'Respect', support:'Support' },
+    _tt: null, _lastTap: {}, _io: null, _poll: null, _hold: null, _pickTimer: null,
     get signInUrl(){ return window.agSocial.signInUrl(); },
 
     init(){
@@ -660,13 +907,26 @@ function plFeed(cfg){
       // exist when it starts, so these are seeded here rather than on first use —
       // a property added later never becomes reactive and the card stops updating.
       this.items.forEach(this.hydrate, this);
+      // Deep-linked channel: /pulse?channel=3 is what the chip on a card links
+      // to, so arriving that way has to select the chip as well as filter.
+      var q = new URLSearchParams(window.location.search);
+      var c = parseInt(q.get('channel') || '0', 10);
+      if (c > 0 && this.channels.some(function(x){ return x.id === c; })) this.setChannel(c);
       this.watchSentinel();
       this.watchNew();
     },
 
     hydrate(it){
       it.burst = false; it.open = false; it.draft = ''; it.posting = false; it.held = false;
+      it.pick = false; it.expanded = false;
       it.comments = it.comments || [];
+      // The server sends these; a very old cached page or a partly-migrated
+      // database might not, and an undefined breakdown makes the rail render
+      // "undefined" instead of a count.
+      it.reactions = it.reactions || {};
+      it.my_reaction = it.my_reaction || null;
+      it.repost_count = it.repost_count | 0;
+      it.reposted = !!it.reposted;
       return it;
     },
 
@@ -675,34 +935,98 @@ function plFeed(cfg){
     ago(t){ return window.agSocial.timeAgo(t); },
     rich(t){ return window.agSocial.linkify(t || ''); },
 
+    /** A count small enough to sit under a 29px glyph. */
+    fmt(n){
+      n = n | 0;
+      if (!n) return '';
+      if (n < 1000) return String(n);
+      if (n < 100000) return (n / 1000).toFixed(n < 10000 ? 1 : 0).replace('.0', '') + 'k';
+      return Math.round(n / 1000) + 'k';
+    },
+
+    /**
+     * One reaction glyph as markup. `tint` colours it inline, for the pips on
+     * white paper; the rail leaves it uncoloured and lets the data-held CSS
+     * rule decide, so an unheld reaction stays white on the picture.
+     */
+    glyph(kind, tint){
+      var d = PF_ICON[kind] || PF_ICON.cheer;
+      var s = tint ? (' style="fill:' + PF_TINT[kind] + ';stroke:' + PF_TINT[kind] + '"') : '';
+      return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"' + s + '>' + d + '</svg>';
+    },
+
+    /** The kinds actually present on a post, busiest first, capped at three pips. */
+    topKinds(it){
+      var bd = it.reactions || {};
+      return Object.keys(bd).filter(function(k){ return bd[k] > 0; })
+        .sort(function(a, b){ return bd[b] - bd[a]; }).slice(0, 3);
+    },
+
+    reactionLine(it){
+      var n = it.cheer_count | 0;
+      return n + (n === 1 ? ' reaction' : ' reactions');
+    },
+
     flash(msg, href){
       this.toast = { msg: msg, href: href || '' };
       clearTimeout(this._tt);
       this._tt = setTimeout(() => { this.toast = { msg: '', href: '' }; }, 5000);
     },
+
     askSignIn(){ this.flash('Sign in to join in', this.signInUrl); },
     hooks(){
       return { onSignIn: () => this.askSignIn(), onError: (m) => this.flash(m) };
     },
 
-    // ── like ───────────────────────────────────────────────────────────────
+    // ── reactions ──────────────────────────────────────────────────────────
     /**
-     * agSocial owns the optimistic flip and the rollback; it mutates a plain
+     * Set, change or clear a reaction.
+     *
+     * agSocial owns the optimistic move and the rollback; it mutates a plain
      * state object. Alpine cannot see that object, so the item is synced from it
-     * twice: once now (the optimistic flip, which has already happened by the
-     * time cheer() returns) and once when the server answers or the rollback runs.
+     * twice: once now (the optimistic change, which has already happened by the
+     * time react() returns) and once when the server answers or it rolls back.
      */
-    like(it){
+    react(it, kind){
       if (it.busy) return;
-      var st = { on: it.cheered, n: it.cheer_count, busy: false };
-      var sync = () => { it.cheered = st.on; it.cheer_count = st.n; };
+      it.pick = false;
+      var st = { kind: it.my_reaction, n: it.cheer_count, breakdown: it.reactions || {}, busy: false };
+      var sync = () => {
+        it.my_reaction = st.kind;
+        it.cheered     = !!st.kind;         // every caller that only wants the boolean
+        it.cheer_count = st.n;
+        it.reactions   = st.breakdown;
+      };
 
-      var p = window.agSocial.cheer('thread', it.id, st, Object.assign(this.hooks(), {
-        onLiked: () => this.burst(it)
+      var p = window.agSocial.react('thread', it.id, kind, st, Object.assign(this.hooks(), {
+        onReacted: () => this.burst(it)
       }));
       it.busy = true;
       sync();
       p.finally(() => { sync(); it.busy = false; });
+    },
+
+    /**
+     * Press-and-hold opens the four.
+     *
+     * 420ms, not 250: a scroll on a phone starts with a finger down, and a
+     * shorter threshold pops the picker open every time somebody flicks the feed.
+     */
+    holdStart(it){
+      clearTimeout(this._hold);
+      this._hold = setTimeout(() => { it.pick = true; }, 420);
+    },
+    holdEnd(){ clearTimeout(this._hold); },
+
+    /**
+     * Hover opens it too, on anything with a pointer. Delayed on the way in so
+     * the picker does not flash open while the cursor crosses the rail on its
+     * way somewhere else, and delayed on the way out so there is time to reach it.
+     */
+    hoverPick(it, on){
+      if (!window.matchMedia || !window.matchMedia('(hover:hover)').matches) return;
+      clearTimeout(this._pickTimer);
+      this._pickTimer = setTimeout(() => { it.pick = on; }, on ? 260 : 180);
     },
 
     burst(it){
@@ -715,20 +1039,94 @@ function plFeed(cfg){
     },
 
     /**
-     * Double tap to like — never to unlike.
+     * Double tap to cheer — never to un-cheer.
      *
-     * Instagram's gesture only ever ADDS a like: a stray second double-tap must
-     * not silently take one away, because the gesture is imprecise and the
-     * result is invisible if you have already scrolled past.
+     * The gesture only ever ADDS a reaction: a stray second double-tap must not
+     * silently take one away, because the gesture is imprecise and the result is
+     * invisible if you have already scrolled past. Somebody holding `insight`
+     * gets a burst and keeps their insight — the tap does not demote it to a
+     * cheer, which would be the gesture quietly overwriting a deliberate choice.
      */
     tap(it, e){
-      if (e.target.closest('a')) return;          // let #hashtags and @mentions navigate
+      if (e.target.closest('a, button, video')) return;   // links navigate, controls work
       var now = Date.now(), last = this._lastTap[it.id] || 0;
       this._lastTap[it.id] = now;
       if (now - last > 320) return;
       this._lastTap[it.id] = 0;
-      if (it.cheered) { this.burst(it); return; }
-      this.like(it);
+      if (it.my_reaction) { this.burst(it); return; }
+      this.react(it, 'cheer');
+    },
+
+    /**
+     * Open the full thread — where a long post is readable in full.
+     *
+     * `location.assign`, not an assignment to `location`'s href property:
+     * SiteLinkIntegrityTest scans templates for that attribute followed by a
+     * quoted path and cannot tell an HTML attribute from a JS assignment, so it
+     * reports the bare prefix as a dead link. The scanner is right to be blunt
+     * about the pattern; this is the call that says "navigate" without looking
+     * like markup.
+     */
+    open(it){ window.location.assign('/community/' + it.slug); },
+
+    // ── repost ─────────────────────────────────────────────────────────────
+    /**
+     * Reposting asks for a line; un-reposting does not.
+     *
+     * Putting a sheet in front of an undo would be asking somebody to justify
+     * taking something back, and the button already says what it does.
+     */
+    repost(it){
+      if (!this.signedIn) return this.askSignIn();
+      if (it.reposted) return this.sendRepost(it, '');
+      this.sheet = { it: it, comment: '' };
+      this.$nextTick(() => { if (this.$refs.repostBody) this.$refs.repostBody.focus(); });
+    },
+
+    closeSheet(){ this.sheet = { it: null, comment: '' }; },
+
+    sendRepost(item, comment){
+      var it = item || this.sheet.it;
+      if (!it) return;
+      var body = comment !== undefined ? comment : this.sheet.comment;
+      var st = { on: it.reposted, n: it.repost_count, busy: false };
+
+      var p = window.agSocial.toggle('/repost', { thread_id: it.id, comment: body },
+                                     st, 'reposted', this.hooks());
+      it.reposted = st.on;                                 // already flipped by toggle()
+      this.closeSheet();
+      p.then((ok) => {
+        it.reposted = st.on;                               // server's answer, or the rollback
+        it.repost_count = st.n;
+        if (ok) this.flash(st.on ? 'Reposted to your feed' : 'Repost removed');
+      });
+    },
+
+    // ── channels ───────────────────────────────────────────────────────────
+    /**
+     * Filtering is a SERVER query, not a client-side filter of what is loaded.
+     * Filtering the eight posts already on screen shows "Education (12)" as
+     * three posts, and scrolling for more re-runs the unfiltered query — so the
+     * channel quietly leaks the other channels back in as you read.
+     */
+    setChannel(id){
+      if (this.channel === id) return;
+      this.channel = id | 0;
+      this.loading = true;
+      this.items = [];
+      fetch('/api/v1/pulse/feed' + (this.channel ? '?channel=' + this.channel : ''),
+            { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => {
+          if (!d || !d.success) throw 0;
+          this.items = (d.items || []).map(this.hydrate, this);
+          this.cursor = d.next_cursor || null;
+          // The sentinel was disconnected when the last channel ran out; a new
+          // channel has its own pages, so it has to start watching again.
+          if (this.cursor && !this._io) this.watchSentinel();
+        })
+        .catch(() => this.flash('Could not load that channel.'))
+        .finally(() => { this.loading = false; });
     },
 
     save(it){
@@ -796,7 +1194,10 @@ function plFeed(cfg){
     loadMore(){
       if (this.loading || !this.cursor) return;
       this.loading = true;
-      fetch('/api/v1/pulse/feed?cursor=' + encodeURIComponent(this.cursor), {
+      // The channel travels with the cursor. Without it page two arrives
+      // unfiltered and the chip you pressed silently stops meaning anything.
+      fetch('/api/v1/pulse/feed?cursor=' + encodeURIComponent(this.cursor)
+            + (this.channel ? '&channel=' + this.channel : ''), {
           headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(r => r.json())
         .then(d => {
@@ -850,7 +1251,8 @@ function plFeed(cfg){
     showNew(){
       // Prepend rather than reload: a reader who is three screens down keeps
       // their place, which a full refresh would throw away.
-      fetch('/api/v1/pulse/feed', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      fetch('/api/v1/pulse/feed' + (this.channel ? '?channel=' + this.channel : ''),
+            { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(r => r.json())
         .then(d => {
           if (!d || !d.success) throw 0;

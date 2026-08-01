@@ -89,10 +89,16 @@ CREATE TABLE IF NOT EXISTS gates_cheers (
   target_type ENUM('profile','nominee','comment','thread') NOT NULL,
   target_id BIGINT UNSIGNED NOT NULL,
   fp VARCHAR(64) NOT NULL,
+  -- Which of the four reactions this person holds. Deliberately NOT part of
+  -- uq_cheer: one reaction per person per thing, changeable. Inside the key it
+  -- would let one person hold all four at once, and the counts would stop
+  -- summing to the number of people.
+  kind VARCHAR(12) NOT NULL DEFAULT 'cheer',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_cheer (target_type, target_id, fp),
-  KEY idx_cheers_target (target_type, target_id)
+  KEY idx_cheers_target (target_type, target_id),
+  KEY idx_cheers_kind (target_type, target_id, kind)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gates_activity (
@@ -206,6 +212,8 @@ CREATE TABLE IF NOT EXISTS gates_reposts (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   user_id BIGINT UNSIGNED NOT NULL,
   thread_id BIGINT UNSIGNED NOT NULL,
+  -- A line of your own. A repost without one is a bookmark with extra steps.
+  comment VARCHAR(500) NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_repost (user_id, thread_id)

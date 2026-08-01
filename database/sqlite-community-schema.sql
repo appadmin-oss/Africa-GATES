@@ -87,10 +87,14 @@ CREATE TABLE IF NOT EXISTS gates_cheers (
   target_type TEXT NOT NULL CHECK(target_type IN ('profile','nominee','comment','thread')),
   target_id INTEGER NOT NULL,
   fp TEXT NOT NULL,
+  -- One reaction per person per thing, changeable — so `kind` sits OUTSIDE the
+  -- unique key on purpose. See database/migrations/2026_08_05_pulse_reactions.php.
+  kind TEXT NOT NULL DEFAULT 'cheer',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(target_type, target_id, fp)
 );
 CREATE INDEX IF NOT EXISTS idx_cheers_target ON gates_cheers(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_cheers_kind ON gates_cheers(target_type, target_id, kind);
 
 -- Public activity feed (Pulse)
 CREATE TABLE IF NOT EXISTS gates_activity (
@@ -193,6 +197,8 @@ CREATE TABLE IF NOT EXISTS gates_reposts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
   thread_id INTEGER NOT NULL,
+  -- A line of your own. A repost without one is a bookmark with extra steps.
+  comment TEXT NULL DEFAULT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(user_id, thread_id)
 );

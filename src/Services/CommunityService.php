@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\OptionalColumn;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
@@ -92,29 +93,103 @@ class CommunityService
             ->map(fn($r) => (array)$r)->all();
     }
 
-    /** Toggle a cheer (idempotent). Returns ['cheered'=>bool, 'count'=>int]. */
-    public function toggleCheer(string $targetType, int $targetId, string $fp): array
+    /**
+     * The four reactions a post can carry.
+     *
+     * ONE PER PERSON, CHANGEABLE — not four independent toggles. The unique key
+     * on gates_cheers is (target_type, target_id, fp) and stays that way: put the
+     * kind inside it and one person can hold all four at once, at which point the
+     * counts stop summing to the number of PEOPLE and "1.2k reactions" stops
+     * meaning anything.
+     *
+     * `cheer` leads because every row that existed before this was one.
+     */
+    public const REACTIONS = ['cheer', 'insight', 'respect', 'support'];
+
+    /**
+     * Set, change or clear a reaction. Idempotent.
+     *
+     * Tapping the reaction you already hold clears it; tapping a different one
+     * moves it. That is one round trip either way, and it is the behaviour every
+     * feed with reactions has converged on because it matches what the gesture
+     * means: this is my reaction, singular.
+     *
+     * @return array{cheered:bool, kind:?string, count:int, breakdown:array<string,int>}
+     */
+    public function react(string $targetType, int $targetId, string $fp, string $kind = 'cheer'): array
     {
-        if (!in_array($targetType, ['profile','nominee','comment','thread'], true)) {
-            return ['cheered' => false, 'count' => $this->cheerCount($targetType, $targetId)];
+        if (!in_array($targetType, ['profile','nominee','comment','thread'], true)
+            || !in_array($kind, self::REACTIONS, true)) {
+            return ['cheered' => false, 'kind' => null, 'count' => $this->cheerCount($targetType, $targetId),
+                    'breakdown' => $this->reactionBreakdown($targetType, $targetId)];
         }
-        $row = DB::table('gates_cheers')->where('target_type',$targetType)->where('target_id',$targetId)->where('fp',$fp)->first();
-        if ($row) {
+
+        $row  = DB::table('gates_cheers')->where('target_type',$targetType)
+            ->where('target_id',$targetId)->where('fp',$fp)->first();
+        $held = $row ? (string) ($row->kind ?? 'cheer') : null;
+
+        if ($row && $held === $kind) {
             DB::table('gates_cheers')->where('id', $row->id)->delete();
-            $count = $this->cheerCount($targetType, $targetId);
-            $this->syncCheerCount($targetType, $targetId, $count);
-            return ['cheered' => false, 'count' => $count];
+            $now = null;
+        } elseif ($row) {
+            // Changed their mind. An update rather than delete+insert so the
+            // original timestamp survives — when somebody first reacted is more
+            // interesting than when they last changed their mind about how.
+            DB::table('gates_cheers')->where('id', $row->id)
+                ->update(OptionalColumn::filter('gates_cheers', ['kind' => $kind], ['kind']));
+            $now = $kind;
+        } else {
+            DB::table('gates_cheers')->insert(OptionalColumn::filter('gates_cheers', [
+                'target_type' => $targetType,
+                'target_id' => $targetId,
+                'fp' => $fp,
+                'kind' => $kind,
+                'created_at' => Carbon::now()->toDateTimeString(),
+            ], ['kind']));
+            $this->recordActivity('cheer', 'a community member', $targetType, $targetId, $this->resolveLabel($targetType, $targetId));
+            $now = $kind;
         }
-        DB::table('gates_cheers')->insert([
-            'target_type' => $targetType,
-            'target_id' => $targetId,
-            'fp' => $fp,
-            'created_at' => Carbon::now()->toDateTimeString(),
-        ]);
-        $this->recordActivity('cheer', 'a community member', $targetType, $targetId, $this->resolveLabel($targetType, $targetId));
+
         $count = $this->cheerCount($targetType, $targetId);
         $this->syncCheerCount($targetType, $targetId, $count);
-        return ['cheered' => true, 'count' => $count];
+
+        return ['cheered' => $now !== null, 'kind' => $now, 'count' => $count,
+                'breakdown' => $this->reactionBreakdown($targetType, $targetId)];
+    }
+
+    /**
+     * Toggle a cheer. Kept as the plain-cheer door onto {@see react()}.
+     *
+     * Every existing caller — the profile page, the nominee card, the comment
+     * row — wants exactly this and should not have to learn about kinds.
+     */
+    public function toggleCheer(string $targetType, int $targetId, string $fp): array
+    {
+        $r = $this->react($targetType, $targetId, $fp, 'cheer');
+        return ['cheered' => $r['cheered'], 'count' => $r['count']];
+    }
+
+    /**
+     * How the reactions split. Empty kinds are omitted rather than zeroed — the
+     * rail draws what is there, and a row of four zeroes is noise.
+     *
+     * @return array<string,int>
+     */
+    public function reactionBreakdown(string $targetType, int $targetId): array
+    {
+        if (!OptionalColumn::on('gates_cheers', 'kind')) {
+            // Pre-migration: everything is a cheer, which is exactly true.
+            $n = $this->cheerCount($targetType, $targetId);
+            return $n > 0 ? ['cheer' => $n] : [];
+        }
+        try {
+            return DB::table('gates_cheers')
+                ->where('target_type', $targetType)->where('target_id', $targetId)
+                ->selectRaw('kind, COUNT(*) as n')->groupBy('kind')
+                ->pluck('n', 'kind')->map(fn($v) => (int) $v)->all();
+        } catch (\Throwable) {
+            return [];
+        }
     }
 
     /** Keep the denormalised gates_threads.cheer_count column in step with reality. */
@@ -515,15 +590,31 @@ class CommunityService
         return ['ok' => true, 'bookmarked' => true];
     }
 
-    public function toggleRepost(int $userId, int $threadId): array
+    /**
+     * Repost a thread onto your own feed, optionally with a line of your own.
+     *
+     * The comment is what makes a repost worth making — a bare one is a bookmark
+     * with extra steps — and it is optional because sometimes passing something
+     * along IS the whole remark.
+     *
+     * Toggling, like a reaction: reposting something already reposted takes it
+     * back down. A feed whose only undo is "find the copy and delete it" is a
+     * feed people stop reposting on.
+     */
+    public function toggleRepost(int $userId, int $threadId, string $comment = ''): array
     {
         if ($userId < 1 || $threadId < 1) return ['ok' => false, 'message' => 'Invalid repost.'];
+        $comment = mb_substr(trim($comment), 0, 500);
         $row = DB::table('gates_reposts')->where('user_id', $userId)->where('thread_id', $threadId)->first();
         if ($row) {
             DB::table('gates_reposts')->where('id', $row->id)->delete();
             $reposted = false;
         } else {
-            DB::table('gates_reposts')->insert(['user_id' => $userId, 'thread_id' => $threadId, 'created_at' => Carbon::now()->toDateTimeString()]);
+            DB::table('gates_reposts')->insert(OptionalColumn::filter('gates_reposts', [
+                'user_id' => $userId, 'thread_id' => $threadId,
+                'comment' => $comment !== '' ? $comment : null,
+                'created_at' => Carbon::now()->toDateTimeString(),
+            ], ['comment']));
             $reposted = true;
         }
         $count = (int)DB::table('gates_reposts')->where('thread_id', $threadId)->count();

@@ -233,8 +233,13 @@ class CommunityController
         $b = (array)$req->getParsedBody();
         $targetType = (string)($b['target_type'] ?? '');
         $targetId   = (int)($b['target_id'] ?? 0);
-        // Account-keyed fingerprint: one cheer per member per target, any device.
-        $r = $this->community->toggleCheer($targetType, $targetId, 'u:' . $m['id']);
+        // Which of the four. Defaults to `cheer`, so every caller that predates
+        // reactions — the profile page, the nominee card, the comment row — keeps
+        // working without knowing the parameter exists. An unknown kind is
+        // rejected inside react(), not here.
+        $kind = (string) ($b['kind'] ?? 'cheer');
+        // Account-keyed fingerprint: one reaction per member per target, any device.
+        $r = $this->community->react($targetType, $targetId, 'u:' . $m['id'], $kind);
         $res->getBody()->write(json_encode(array_merge(['success' => true], $r)));
         return $res->withHeader('Content-Type', 'application/json');
     }
@@ -381,7 +386,8 @@ class CommunityController
     {
         if ($deny = $this->memberOr401($res)) return $deny;
         $b = (array)$req->getParsedBody();
-        $r = $this->community->toggleRepost((int)$_SESSION['user_id'], (int)($b['thread_id'] ?? 0));
+        $r = $this->community->toggleRepost((int)$_SESSION['user_id'], (int)($b['thread_id'] ?? 0),
+            (string)($b['comment'] ?? ''));
         return $this->json($res, $r);
     }
 
