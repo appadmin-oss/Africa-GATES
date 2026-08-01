@@ -2,99 +2,154 @@
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  body[data-page="support"]{ background:#f4f6f5; }
+  /* ══════════════════════════════════════════════════════════════════════════
+     THE TICKET DESK
+
+     Rebuilt from a stack of white cards into two things that are actually
+     different: a CONVERSATION, and a rail that answers "what is happening to my
+     money". The old layout gave both the same visual weight — three identical
+     boxes down the page — so the thread read as one more form to fill in and
+     the state of the ticket was buried in a chip next to the date.
+
+     Desktop is two columns; the rail is sticky because "is this settled" is the
+     question a person re-asks while scrolling. Mobile stacks, rail first: on a
+     phone the state IS the answer, and the replies are what you scroll to.
+     ══════════════════════════════════════════════════════════════════════════ */
+  body[data-page="support"]{ background:#f2f5f3; }
   body[data-page="support"] [x-cloak]{ display:none !important; }
 
-  .st{ max-width:860px; margin:0 auto; padding:clamp(1.2rem,3.5vw,2rem) var(--ag-gutter,40px) 64px; }
-  .st-eyebrow{ margin:0 0 6px; font:700 11.5px/1 var(--ag-font-mono,monospace); letter-spacing:.14em;
+  .st{ max-width:1060px; margin:0 auto; padding:clamp(1.1rem,3vw,1.8rem) var(--ag-gutter,40px) 64px; }
+
+  .st-head{ margin-bottom:18px; }
+  .st-eyebrow{ margin:0 0 5px; font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.15em;
                text-transform:uppercase; color:var(--ag-green,#237b22); }
   /* `.st .st-h1`, not `.st-h1`. The layout sets `.ag-scope h1 { font-size: var(--ag-fs-hero) }`,
      which is specificity (0,1,1) and beats a bare class — so every page-level h1
      rule in this codebase is silently overridden unless it is qualified. That is
      why this heading once rendered at 72px with a rule asking for 24px. */
   .st .st-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
-              font-size:clamp(1.6rem,3.4vw,2.1rem); line-height:1.1; color:var(--ag-ink,#10292c); }
-  /* A ticket subject is DERIVED from what someone typed, so it is a sentence and
-     not a headline — set at display size it ran to four lines and pushed the
-     conversation below the fold, which is the one thing this page exists to show.
-     Smaller, tighter, and `anywhere` so a pasted reference cannot widen the page. */
-  .st .st-h1--subject{ font-size:clamp(1.15rem,2.2vw,1.5rem); line-height:1.28;
+              font-size:clamp(1.5rem,3vw,1.95rem); line-height:1.12; color:var(--ag-ink,#10292c); }
+  /* A ticket subject is DERIVED from a sentence somebody typed, so it is prose,
+     not a headline. At display size it ran to four lines and pushed the
+     conversation below the fold — the one thing this page exists to show. */
+  .st .st-h1--subject{ font-size:clamp(1.1rem,2vw,1.4rem); line-height:1.3;
                        overflow-wrap:anywhere; hyphens:auto; }
-  .st-sub{ margin:8px 0 0; max-width:60ch; font-size:14.5px; line-height:1.6; color:#5a6d6f; }
+  .st-sub{ margin:7px 0 0; max-width:62ch; font-size:14px; line-height:1.6; color:#5a6d6f; }
+  .st-back{ display:inline-flex; align-items:center; gap:5px; margin-bottom:10px;
+            font-size:13px; font-weight:600; color:#5a6d6f; text-decoration:none; }
+  .st-back:hover{ color:var(--ag-ink,#10292c); }
 
-  .st-card{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:18px;
-            padding:16px 18px; margin-top:16px; }
-  .st-card > h2{ margin:0 0 4px; font-size:15.5px; font-weight:700; color:var(--ag-ink,#10292c); }
+  /* ── two columns ───────────────────────────────────────────────────────── */
+  .st-split{ display:grid; grid-template-columns:minmax(0,1fr) 264px; gap:20px; align-items:start; }
+  .st-rail{ position:sticky; top:86px; display:flex; flex-direction:column; gap:12px; }
 
-  /* ── list ──────────────────────────────────────────────────────────────── */
-  .st-filters{ display:flex; gap:8px; flex-wrap:wrap; margin:18px 0 0; }
-  .st-filters button{ border:1px solid rgba(16,41,44,.14); background:#fff; cursor:pointer;
-                      font:600 12.5px/1 inherit; color:#3d4c4e; padding:8px 13px; border-radius:999px; }
+  .st-panel{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:16px; }
+  .st-panel__h{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+                padding:13px 16px; border-bottom:1px solid rgba(16,41,44,.07); }
+  .st-panel__h h2{ margin:0; font-size:13px; font-weight:700; letter-spacing:.02em;
+                   text-transform:uppercase; color:#5a6d6f; }
+  .st-panel__b{ padding:16px; }
+
+  /* ── the state rail ────────────────────────────────────────────────────── */
+  .st-state{ padding:16px; border-radius:16px; border:1px solid transparent; }
+  .st-state--open{ background:#e9f5e9; border-color:#c3e3c3; }
+  .st-state--closed{ background:#eef1ef; border-color:rgba(16,41,44,.1); }
+  .st-state__k{ margin:0; font:700 10.5px/1 var(--ag-font-mono,monospace); letter-spacing:.1em;
+                text-transform:uppercase; color:#5a6d6f; }
+  .st-state__v{ margin:6px 0 0; font-family:var(--ag-font-display); font-weight:700;
+                font-size:19px; line-height:1.2; color:var(--ag-ink,#10292c); }
+  .st-state__n{ margin:7px 0 0; font-size:12.5px; line-height:1.55; color:#4a5c5e; }
+
+  .st-facts{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px; }
+  .st-facts li{ display:flex; justify-content:space-between; gap:10px; font-size:12.5px; line-height:1.4; }
+  .st-facts dt, .st-facts .k{ color:#8a9a9c; }
+  .st-facts .v{ color:var(--ag-ink,#10292c); font-weight:600; text-align:right;
+                overflow-wrap:anywhere; font-family:var(--ag-font-mono,monospace); font-size:12px; }
+
+  /* ── the conversation ──────────────────────────────────────────────────── */
+  .st-thread{ display:flex; flex-direction:column; gap:2px; padding:6px 0; }
+  .st-turn{ display:flex; gap:11px; align-items:flex-start; padding:12px 16px; }
+  .st-turn + .st-turn{ border-top:1px solid rgba(16,41,44,.05); }
+  .st-turn--me{ background:#fbfcfb; }
+  .st-av{ flex:none; width:29px; height:29px; border-radius:50%; display:flex; align-items:center;
+          justify-content:center; font-size:11.5px; font-weight:800; }
+  .st-av--staff{ background:#10292C; color:#7FC87C; }
+  .st-av--bot{ background:#1d4a63; color:#bfe0f2; }
+  .st-av--me{ background:#e6f2e6; color:#1c6b1c; }
+  .st-turn__b{ min-width:0; flex:1; }
+  .st-who{ display:flex; align-items:baseline; gap:7px; flex-wrap:wrap;
+           font-size:12.5px; font-weight:700; color:#3d4c4e; }
+  .st-when{ font-weight:500; font-size:11.5px; color:#9aa8aa; }
+  /* Says what wrote it. A member told a person read their ticket, who later
+     works out it was a machine, has been lied to about the one thing support
+     cannot lie about — whether anyone is actually looking. */
+  .st-bot{ font:700 9px/1 var(--ag-font-mono,monospace); letter-spacing:.08em; text-transform:uppercase;
+           color:#1d4a63; background:#e8f2f8; border:1px solid #c9e0ee; border-radius:4px; padding:3px 5px; }
+  /* A ticket carries whatever somebody typed — a pasted reference, a URL, a
+     stack trace. `anywhere` is what stops one unbroken run widening the column. */
+  .st-say{ margin:3px 0 0; font-size:14.5px; line-height:1.65; color:#2c3a3c;
+           white-space:pre-wrap; overflow-wrap:anywhere; }
+
+  /* ── composer ──────────────────────────────────────────────────────────── */
+  .st-compose{ border-top:1px solid rgba(16,41,44,.07); padding:14px 16px; }
+  .st-ta{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:12px; font:inherit;
+          font-size:14.5px; line-height:1.55; padding:11px 13px; color:var(--ag-ink,#10292c);
+          background:#fff; min-height:88px; resize:vertical; }
+  .st-in{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:12px; font:inherit;
+          font-size:14.5px; padding:11px 13px; color:var(--ag-ink,#10292c); background:#fff; }
+  .st-ta:focus, .st-in:focus{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
+  .st-bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:10px; }
+  .st-go{ border:0; background:var(--ag-green,#237b22); color:#fff; font-weight:700;
+          font-size:14px; padding:10px 20px; border-radius:999px; cursor:pointer; }
+  .st-go[disabled]{ opacity:.45; cursor:default; }
+  .st-hint{ margin:8px 0 0; font-size:12px; line-height:1.55; color:#8a9a9c; }
+  .st-hint a{ color:var(--ag-green,#237b22); font-weight:600; }
+  .st-note{ margin:0; font-size:13px; line-height:1.5; font-weight:600; }
+  .st-note--ok{ color:#1c6b1c; } .st-note--err{ color:#a32020; }
+
+  /* ── the list ──────────────────────────────────────────────────────────── */
+  .st-filters{ display:flex; gap:7px; flex-wrap:wrap; }
+  .st-filters button{ border:1px solid rgba(16,41,44,.13); background:#fff; cursor:pointer;
+                      font:600 12px/1 inherit; color:#3d4c4e; padding:7px 12px; border-radius:999px; }
   .st-filters button[aria-pressed="true"]{ background:var(--ag-ink,#10292c); border-color:var(--ag-ink,#10292c); color:#fff; }
   .st-filters button:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
 
-  .st-list{ list-style:none; margin:12px 0 0; padding:0; display:flex; flex-direction:column; gap:10px; }
-  .st-row{ display:flex; align-items:center; gap:12px; padding:13px 15px; background:#fff;
-           border:1px solid rgba(16,41,44,.09); border-radius:14px; text-decoration:none; color:inherit; }
-  .st-row:hover{ border-color:rgba(16,41,44,.22); }
-  .st-row:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+  .st-list{ list-style:none; margin:0; padding:0; }
+  .st-list li + li .st-row{ border-top:1px solid rgba(16,41,44,.06); }
+  .st-row{ display:flex; align-items:center; gap:13px; padding:13px 16px;
+           text-decoration:none; color:inherit; }
+  .st-row:hover{ background:#fbfcfb; }
+  .st-row:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:-2px; }
+  /* One dot carries the only thing a list of tickets really has to say: is
+     anyone waiting on me, or am I waiting on them. */
+  .st-dot{ flex:none; width:8px; height:8px; border-radius:50%; background:transparent;
+           box-shadow:inset 0 0 0 1.5px rgba(16,41,44,.18); }
+  .st-dot--wait{ background:var(--ag-green,#237b22); box-shadow:none; }
   .st-row__t{ flex:1; min-width:0; }
   .st-row__s{ display:block; font-weight:600; font-size:14.5px; color:var(--ag-ink,#10292c);
               overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .st-row__m{ display:block; margin-top:2px; font:500 12.5px/1.4 var(--ag-font-mono,monospace); color:#8a9a9c; }
+  .st-row__m{ display:block; margin-top:2px; font-size:12px; color:#8a9a9c; }
+  .st-row__m code{ font-family:var(--ag-font-mono,monospace); font-size:11.5px; }
   .st-tags{ flex:none; display:flex; gap:6px; align-items:center; }
-  .st-tag{ font:700 10.5px/1 var(--ag-font-mono,monospace); letter-spacing:.06em;
+  .st-tag{ font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.06em;
            text-transform:uppercase; border-radius:999px; padding:5px 9px; white-space:nowrap; }
   .st-tag--open{ background:#e6f4e6; color:#1c6b1c; border:1px solid #bfe3bf; }
   .st-tag--closed{ background:#f2f5f2; color:#5a6d6f; border:1px solid rgba(16,41,44,.1); }
   .st-tag--urgent{ background:#fdf3f3; color:#a32020; border:1px solid #f0c9c9; }
   .st-tag--high{ background:#fdf6e3; color:#7a611a; border:1px solid #efe0b5; }
 
-  /* ── thread ────────────────────────────────────────────────────────────── */
-  .st-msgs{ display:flex; flex-direction:column; gap:16px; margin-top:14px; }
-  .st-msg{ display:flex; gap:11px; align-items:flex-start; }
-  .st-msg__av{ flex:none; width:30px; height:30px; border-radius:50%; display:flex; align-items:center;
-               justify-content:center; font-size:12px; font-weight:800; }
-  .st-msg--staff .st-msg__av{ background:#10292C; color:#7FC87C; }
-  .st-msg--me    .st-msg__av{ background:#eef6ee; color:#1c6b1c; }
-  .st-msg__b{ min-width:0; flex:1; }
-  .st-msg__who{ display:flex; align-items:center; gap:7px; flex-wrap:wrap;
-                font-size:12.5px; font-weight:700; color:#5a6d6f; }
-  .st-msg__when{ font-weight:500; color:#8a9a9c; }
-  /* Says what wrote it. A member who is told a person read their ticket and
-     later works out it was a machine has been lied to about the one thing
-     support cannot lie about — whether anyone is actually looking. */
-  .st-bot{ font:700 9.5px/1 var(--ag-font-mono,monospace); letter-spacing:.07em; text-transform:uppercase;
-           color:#28536b; background:#eef5fb; border:1px solid #cfe1f0; border-radius:4px; padding:3px 5px; }
-  /* A ticket carries whatever a person typed — a pasted reference, a URL, a
-     stack trace. `anywhere` is what stops one unbroken run widening the card. */
-  .st-msg__x{ margin:3px 0 0; font-size:14.5px; line-height:1.62; color:#2c3a3c;
-              white-space:pre-wrap; overflow-wrap:anywhere; }
-
-  .st-form{ margin-top:14px; display:flex; flex-direction:column; gap:10px; }
-  .st-in, .st-ta{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:12px; font:inherit;
-                  font-size:15px; padding:11px 13px; color:var(--ag-ink,#10292c); background:#fff; }
-  .st-ta{ min-height:112px; resize:vertical; line-height:1.55; }
-  .st-in:focus, .st-ta:focus{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
-  .st-hint{ margin:6px 0 0; font-size:12.5px; line-height:1.55; color:#8a9a9c; }
-  .st-hint a{ color:var(--ag-green,#237b22); font-weight:600; }
-  .st-row2{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-  .st-go{ border:0; background:var(--ag-green,#237b22); color:#fff; font-weight:700;
-          font-size:14px; padding:11px 20px; border-radius:999px; cursor:pointer; }
-  .st-go[disabled]{ opacity:.45; cursor:default; }
-  .st-count{ font:500 12.5px/1 var(--ag-font-mono,monospace); color:#8a9a9c; }
-  .st-note{ margin:0; font-size:13.5px; line-height:1.5; font-weight:600; }
-  .st-note--ok{ color:#1c6b1c; } .st-note--err{ color:#a32020; }
-
-  .st-empty{ margin:14px 0 0; padding:22px 18px; text-align:center; background:#fff;
-             border:1px dashed rgba(16,41,44,.16); border-radius:14px; }
+  .st-empty{ padding:26px 18px; text-align:center; }
   .st-empty p{ margin:0; font-size:14px; line-height:1.65; color:#5a6d6f; }
   .st-empty a{ color:var(--ag-green,#237b22); font-weight:700; }
   .st-link{ border:0; background:none; padding:0; cursor:pointer;
             font:700 14px/1.65 inherit; color:var(--ag-green,#237b22); text-decoration:underline; }
-  .st-back{ display:inline-block; margin-bottom:12px; font-size:13.5px; font-weight:700;
-            color:var(--ag-green,#237b22); text-decoration:none; }
-  .st-back:hover{ text-decoration:underline; }
+
+  @media (max-width:880px){
+    .st-split{ grid-template-columns:1fr; }
+    /* Rail first on a phone: the state IS the answer, and the replies are what
+       you scroll to once you have it. */
+    .st-rail{ position:static; order:-1; }
+  }
 </style>
 {% endblock %}
 
@@ -115,127 +170,216 @@
 <section class="ag-scope st" x-data="ticketDesk()">
 
   {% if thread %}
-    <a class="st-back" href="/support/tickets">← All tickets</a>
-    <p class="st-eyebrow">Ticket {{ thread.ticket.reference }}</p>
-    <h1 class="st-h1 st-h1--subject">{{ thread.ticket.subject }}</h1>
-    <p class="st-sub">
-      Opened {{ thread.ticket.created_at|date('j M Y, H:i') }} ·
-      <span class="st-tag st-tag--{{ thread.ticket.status == 'open' ? 'open' : 'closed' }}">{{ thread.ticket.status }}</span>
-      {% if thread.ticket.severity != 'normal' %}
-      <span class="st-tag st-tag--{{ thread.ticket.severity }}">{{ thread.ticket.severity }}</span>
-      {% endif %}
-    </p>
+    {% set t = thread.ticket %}
+    {% set settled = t.status != 'open' %}
 
-    <div class="st-card">
-      <h2>What you told us</h2>
-      <p class="st-msg__x">{{ thread.ticket.transcript }}</p>
+    <div class="st-head">
+      <a class="st-back" href="/support/tickets">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18 9 12l6-6"/></svg>
+        All tickets
+      </a>
+      <p class="st-eyebrow">{{ t.reference }}</p>
+      <h1 class="st-h1 st-h1--subject">{{ t.subject }}</h1>
     </div>
 
-    {% if thread.messages %}
-    <div class="st-card">
-      <h2>Replies</h2>
-      <div class="st-msgs">
-        {% for m in thread.messages %}
-        <div class="st-msg {{ m.staff ? 'st-msg--staff' : 'st-msg--me' }}">
-          <span class="st-msg__av" aria-hidden="true">{{ m.staff ? 'G' : (m.from|first|upper) }}</span>
-          <div class="st-msg__b">
-            <div class="st-msg__who">
-              <span>{{ m.from }}</span>
-              {% if m.agent %}<span class="st-bot" title="Written by the support assistant, not by a person">automated</span>{% endif %}
-              <span class="st-msg__when">{{ m.created_at|date('j M, H:i') }}</span>
+    <div class="st-split">
+      <div>
+        <div class="st-panel">
+          <div class="st-panel__h">
+            <h2>Conversation</h2>
+            {% set _turns = thread.messages|length + t.opening|length %}
+            <span class="st-when">{{ _turns }} message{{ _turns == 1 ? '' : 's' }}</span>
+          </div>
+
+          {# The opening is the FIRST TURNS of the conversation, not a separate
+             "what you told us" box above it — the same people saying the same
+             things at the same desk, so splitting it made the thread start
+             halfway through. Parsed into speakers by the service: an escalated
+             conversation opens with several turns, and rendering them as one
+             message would put the assistant's words in the member's mouth. #}
+          <div class="st-thread">
+            {% for o in t.opening %}
+            <div class="st-turn{{ o.staff ? '' : ' st-turn--me' }}">
+              <span class="st-av {{ o.staff ? 'st-av--staff' : 'st-av--me' }}" aria-hidden="true">{{ o.staff ? 'G' : (member_name|default('You'))|first|upper }}</span>
+              <div class="st-turn__b">
+                <div class="st-who">
+                  <span>{{ o.staff ? 'Support assistant' : 'You' }}</span>
+                  {% if loop.first %}<span class="st-when">{{ t.created_at|date('j M Y, H:i') }}</span>{% endif %}
+                </div>
+                <p class="st-say">{{ o.body }}</p>
+              </div>
             </div>
-            <p class="st-msg__x">{{ m.body }}</p>
+            {% endfor %}
+
+            {% for m in thread.messages %}
+            <div class="st-turn{{ m.staff ? '' : ' st-turn--me' }}">
+              <span class="st-av {{ m.agent ? 'st-av--bot' : (m.staff ? 'st-av--staff' : 'st-av--me') }}" aria-hidden="true">{{ m.staff ? 'G' : (m.from|first|upper) }}</span>
+              <div class="st-turn__b">
+                <div class="st-who">
+                  <span>{{ m.from }}</span>
+                  {% if m.agent %}<span class="st-bot" title="Written by the support assistant, not by a person">automated</span>{% endif %}
+                  <span class="st-when">{{ m.created_at|date('j M, H:i') }}</span>
+                </div>
+                <p class="st-say">{{ m.body }}</p>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="st-compose">
+            <label class="sr-only" for="stReply">Your reply</label>
+            <textarea class="st-ta" id="stReply" x-model="replyBody" maxlength="5000"
+                      placeholder="{{ settled ? 'Still not right? Reply and this reopens.' : 'Add anything that would help…' }}"
+                      @keydown.meta.enter="reply('{{ t.reference }}')"
+                      @keydown.ctrl.enter="reply('{{ t.reference }}')"></textarea>
+            <div class="st-bar">
+              <button class="st-go" type="button" :disabled="busy || !replyBody.trim()"
+                      @click="reply('{{ t.reference }}')">Send reply</button>
+              <span class="st-when" x-show="replyBody.length > 4000" x-cloak
+                    x-text="(5000 - replyBody.length) + ' characters left'"></span>
+              <p class="st-note" :class="noteOk ? 'st-note--ok' : 'st-note--err'" x-show="!!note" x-cloak x-text="note"></p>
+            </div>
+            <p class="st-hint">Your reply reaches the team by email, and theirs reaches you the same way.</p>
           </div>
         </div>
-        {% endfor %}
       </div>
-    </div>
-    {% endif %}
 
-    <div class="st-card">
-      <h2>{{ thread.ticket.status == 'open' ? 'Add a reply' : 'Not settled? Reply and it reopens' }}</h2>
-      <form class="st-form" @submit.prevent="reply('{{ thread.ticket.reference }}')">
-        <label class="sr-only" for="stReply">Your reply</label>
-        <textarea class="st-ta" id="stReply" x-model="replyBody" maxlength="5000"
-                  placeholder="Anything to add?"></textarea>
-        <div class="st-row2">
-          <button class="st-go" type="submit" :disabled="busy || !replyBody.trim()">Send reply</button>
-          <span class="st-count" x-show="replyBody.length > 4000" x-cloak
-                x-text="(5000 - replyBody.length) + ' characters left'"></span>
-          <p class="st-note" :class="noteOk ? 'st-note--ok' : 'st-note--err'" x-show="!!note" x-cloak x-text="note"></p>
+      <aside class="st-rail" aria-label="Ticket status">
+        <div class="st-state {{ settled ? 'st-state--closed' : 'st-state--open' }}">
+          <p class="st-state__k">Status</p>
+          <p class="st-state__v">{{ settled ? 'Settled' : 'Open' }}</p>
+          <p class="st-state__n">
+            {%- if settled -%}
+              Nothing is waiting on you. If it is not actually settled, reply below and it reopens.
+            {%- elseif t.severity == 'urgent' -%}
+              Flagged urgent — a person is handling this one, not the assistant.
+            {%- else -%}
+              With the team. You will get every reply by email as well as here.
+            {%- endif -%}
+          </p>
         </div>
-      </form>
-      <p class="st-hint">Your reply reaches the team by email, and theirs reaches you the same way.</p>
+
+        <div class="st-panel">
+          <div class="st-panel__h"><h2>Details</h2></div>
+          <div class="st-panel__b">
+            <ul class="st-facts">
+              <li><span class="k">Reference</span><span class="v">{{ t.reference }}</span></li>
+              <li><span class="k">Opened</span><span class="v">{{ t.created_at|date('j M Y') }}</span></li>
+              {% if t.last_activity and t.last_activity != t.created_at %}
+              <li><span class="k">Last activity</span><span class="v">{{ t.last_activity|date('j M, H:i') }}</span></li>
+              {% endif %}
+              {% if t.severity != 'normal' %}
+              <li><span class="k">Priority</span><span class="v"><span class="st-tag st-tag--{{ t.severity }}">{{ t.severity }}</span></span></li>
+              {% endif %}
+              {# Proof that something was actually looked at. A ticket that was
+                 investigated and one that was merely filed look identical
+                 otherwise, and the difference is the whole promise. #}
+              {% if t.tools_used %}
+              <li><span class="k">Checked</span><span class="v" style="font-family:inherit;font-size:12px;font-weight:500">{{ t.tools_used|replace({'_': ' '}) }}</span></li>
+              {% endif %}
+            </ul>
+          </div>
+        </div>
+
+        <div class="st-panel">
+          <div class="st-panel__b">
+            <p class="st-hint" style="margin:0">Something else gone wrong?
+              The <a href="/support/assistant">assistant</a> can re-check a payment on the spot,
+              or email <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</p>
+          </div>
+        </div>
+      </aside>
     </div>
 
   {% else %}
-    <p class="st-eyebrow">Support</p>
-    <h1 class="st-h1">Your tickets</h1>
-    <p class="st-sub">Everything you have raised, and every reply — from the team or from the assistant.
-      Each one reaches you by email as well as appearing here.</p>
+    <div class="st-head">
+      <p class="st-eyebrow">Support</p>
+      <h1 class="st-h1">Your tickets</h1>
+      <p class="st-sub">Everything you have raised, and every reply — from the team or from the assistant.
+        Each one reaches you by email as well as appearing here.</p>
+    </div>
 
     {% if not_found %}
-    <div class="st-card"><p class="st-note st-note--err" style="margin:0">No ticket <strong>{{ not_found }}</strong> on this account.</p></div>
+    <div class="st-panel" style="margin-bottom:14px">
+      <div class="st-panel__b"><p class="st-note st-note--err" style="margin:0">No ticket <strong>{{ not_found }}</strong> on this account.</p></div>
+    </div>
     {% endif %}
 
-    <div class="st-card">
-      <h2>Raise a ticket</h2>
-      <p class="st-hint" style="margin-top:2px">Payments, votes, your account — anything the
-        <a href="/support/assistant">assistant</a> could not settle.</p>
-      <form class="st-form" @submit.prevent="create()">
-        <label class="sr-only" for="stSubject">Subject</label>
-        <input class="st-in" id="stSubject" x-model="subject" maxlength="180"
-               placeholder="Subject (optional — I will write one from your message)">
-        <label class="sr-only" for="stBody">What has gone wrong?</label>
-        <textarea class="st-ta" id="stBody" x-model="body" maxlength="5000"
-                  placeholder="What has gone wrong? Include a payment reference if you have one."></textarea>
-        <div class="st-row2">
-          <button class="st-go" type="submit" :disabled="busy || !body.trim()">Open ticket</button>
-          <p class="st-note" :class="noteOk ? 'st-note--ok' : 'st-note--err'" x-show="!!note" x-cloak x-text="note"></p>
+    <div class="st-split">
+      <div>
+        <div class="st-panel">
+          <div class="st-panel__h">
+            <h2>{{ tickets|default([])|length }} ticket{{ (tickets|default([])|length) == 1 ? '' : 's' }}</h2>
+            {% if tickets %}
+            <div class="st-filters" role="group" aria-label="Filter tickets by status">
+              <button type="button" @click="filter = 'all'"    :aria-pressed="filter === 'all'">All</button>
+              <button type="button" @click="filter = 'open'"   :aria-pressed="filter === 'open'">Open</button>
+              <button type="button" @click="filter = 'closed'" :aria-pressed="filter === 'closed'">Settled</button>
+            </div>
+            {% endif %}
+          </div>
+
+          {% if tickets %}
+          <ul class="st-list">
+            {% for t in tickets %}
+            <li x-show="shown('{{ t.status }}')">
+              <a class="st-row" href="/support/tickets?ref={{ t.reference|url_encode }}">
+                <span class="st-dot{{ t.waiting and t.status == 'open' ? ' st-dot--wait' : '' }}"
+                      aria-hidden="true" title="{{ t.waiting and t.status == 'open' ? 'Waiting on the team' : 'Nothing waiting' }}"></span>
+                <span class="st-row__t">
+                  <span class="st-row__s">{{ t.subject }}</span>
+                  <span class="st-row__m">
+                    <code>{{ t.reference }}</code> · {{ t.created_at|date('j M Y') }}
+                    {%- if t.replies %} · {{ t.replies }} repl{{ t.replies == 1 ? 'y' : 'ies' }}{% endif -%}
+                    {%- if t.answered_by_assistant %} · answered by the assistant{% endif -%}
+                  </span>
+                </span>
+                <span class="st-tags">
+                  {% if t.severity != 'normal' %}<span class="st-tag st-tag--{{ t.severity }}">{{ t.severity }}</span>{% endif %}
+                  <span class="st-tag st-tag--{{ t.status == 'open' ? 'open' : 'closed' }}">{{ t.status }}</span>
+                </span>
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
+          {# A filter that hides everything has to say so, or it reads as a broken page. #}
+          <div class="st-empty" x-show="!anyShown()" x-cloak>
+            <p>Nothing <span x-text="filter === 'open' ? 'still open' : 'settled'"></span> right now.
+              <button type="button" class="st-link" @click="filter = 'all'">Show all</button></p>
+          </div>
+          {% else %}
+          <div class="st-empty">
+            <p>No tickets yet — which is the good outcome.<br>
+              If something is wrong, the <a href="/support/assistant">assistant</a> can often fix it on the spot.</p>
+          </div>
+          {% endif %}
         </div>
-      </form>
-      {# Said BEFORE they write, not after. Somebody who knows a reference makes
-         the difference will go and find one. #}
-      <p class="st-hint">A payment reference is the single most useful thing you can include — it is on the
-        payment page, in your bank alert, and in any receipt you did get. With one, the assistant can
-        usually put it right before a person even opens this.</p>
-    </div>
+      </div>
 
-    {% if tickets %}
-    <div class="st-filters" role="group" aria-label="Filter tickets by status">
-      <button type="button" @click="filter = 'all'"    :aria-pressed="filter === 'all'">All ({{ tickets|length }})</button>
-      <button type="button" @click="filter = 'open'"   :aria-pressed="filter === 'open'">Open</button>
-      <button type="button" @click="filter = 'closed'" :aria-pressed="filter === 'closed'">Settled</button>
+      <aside class="st-rail" aria-label="Raise a ticket">
+        <div class="st-panel">
+          <div class="st-panel__h"><h2>Raise a ticket</h2></div>
+          <div class="st-panel__b">
+            <form class="st-form" @submit.prevent="create()">
+              <label class="sr-only" for="stSubject">Subject</label>
+              <input class="st-in" id="stSubject" x-model="subject" maxlength="180" placeholder="Subject (optional)">
+              <label class="sr-only" for="stBody">What has gone wrong?</label>
+              <textarea class="st-ta" id="stBody" x-model="body" maxlength="5000" style="margin-top:9px"
+                        placeholder="What has gone wrong? Include a payment reference if you have one."></textarea>
+              <div class="st-bar">
+                <button class="st-go" type="submit" :disabled="busy || !body.trim()">Open ticket</button>
+              </div>
+              <p class="st-note" :class="noteOk ? 'st-note--ok' : 'st-note--err'" x-show="!!note" x-cloak x-text="note" style="margin-top:9px"></p>
+            </form>
+            {# Said BEFORE they write, not after. Somebody who knows a reference
+               makes the difference will go and find one. #}
+            <p class="st-hint">A payment reference is the most useful thing you can include — it is on the payment
+              page, in your bank alert, and in any receipt you did get. With one, the
+              <a href="/support/assistant">assistant</a> can often settle it before a person even opens this.</p>
+          </div>
+        </div>
+      </aside>
     </div>
-
-    <ul class="st-list">
-      {% for t in tickets %}
-      <li x-show="shown('{{ t.status }}')">
-        <a class="st-row" href="/support/tickets?ref={{ t.reference|url_encode }}">
-          <span class="st-row__t">
-            <span class="st-row__s">{{ t.subject }}</span>
-            <span class="st-row__m">{{ t.reference }} · {{ t.created_at|date('j M Y') }}</span>
-          </span>
-          <span class="st-tags">
-            {% if t.severity != 'normal' %}<span class="st-tag st-tag--{{ t.severity }}">{{ t.severity }}</span>{% endif %}
-            <span class="st-tag st-tag--{{ t.status == 'open' ? 'open' : 'closed' }}">{{ t.status }}</span>
-          </span>
-        </a>
-      </li>
-      {% endfor %}
-    </ul>
-
-    {# A filter that hides everything has to say so, or it reads as a broken page. #}
-    <div class="st-empty" x-show="!anyShown()" x-cloak>
-      <p>Nothing <span x-text="filter === 'open' ? 'still open' : 'settled'"></span> right now.
-        <button type="button" class="st-link" @click="filter = 'all'">Show all</button></p>
-    </div>
-    {% else %}
-    <div class="st-empty">
-      <p>No tickets yet — which is the good outcome.<br>
-        If something is wrong, the <a href="/support/assistant">assistant</a> can often fix it on the spot.</p>
-    </div>
-    {% endif %}
   {% endif %}
 </section>
 

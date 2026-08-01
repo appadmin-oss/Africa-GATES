@@ -425,6 +425,13 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   -- round-trip and copied onto the vote at mint. Default 0 = private.
   show_name INTEGER NOT NULL DEFAULT 0,
   refunded_at TEXT DEFAULT NULL,
+  -- Automatic-refund bookkeeping. `refund_requested_at` is the CLAIM stamp,
+  -- written before the gateway is called so two workers can never both refund
+  -- the same order — see AfricaGates\Services\RefundService.
+  refund_state TEXT DEFAULT NULL,
+  refund_ref TEXT DEFAULT NULL,
+  refund_reason TEXT DEFAULT NULL,
+  refund_requested_at TEXT DEFAULT NULL,
   -- Send-exactly-once claim stamps; see CheckoutMailer.
   receipt_sent_at TEXT DEFAULT NULL,
   abandoned_mail_at TEXT DEFAULT NULL,
@@ -433,6 +440,7 @@ CREATE TABLE IF NOT EXISTS gates_donations (
 CREATE INDEX IF NOT EXISTS idx_donation_email ON gates_donations(donor_email);
 CREATE INDEX IF NOT EXISTS idx_donation_status ON gates_donations(status);
 CREATE INDEX IF NOT EXISTS idx_donations_abandon ON gates_donations(status, abandoned_mail_at, created_at);
+CREATE INDEX IF NOT EXISTS idx_donation_refundable ON gates_donations(status, tier, votes_used, refund_requested_at);
 
 -- ─── Site events (public calendar; distinct from gates_events analytics log) ───
 CREATE TABLE IF NOT EXISTS gates_site_events (

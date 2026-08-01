@@ -159,6 +159,49 @@ class PaymentService
         }
     }
 
+    /**
+     * Give the money back.
+     *
+     * ── THE ONLY OUTBOUND MONEY MOVEMENT IN THIS CODEBASE ────────────────────
+     *
+     * Everything else here takes payment or reads its status. This hands cash
+     * back, so it is deliberately dumb: it does what it is told, to one
+     * reference, and it decides nothing. Whether a refund is OWED is a question
+     * about votes, cycles and ceilings, and it is answered in
+     * {@see RefundService} where it can be read and tested on its own.
+     *
+     * `pending` is a real and common outcome, not a failure. Both gateways queue
+     * a refund and settle it hours later, so a caller that treats anything but
+     * `refunded` as an error will retry a refund that is already on its way —
+     * which is how somebody gets paid back twice.
+     *
+     * @return array{ok:bool, status:'refunded'|'pending'|'failed', message:string, provider_ref:?string}
+     */
+    public function refund(string $provider, string $reference, ?int $amountNaira = null): array
+    {
+        $fail = static fn(string $m): array =>
+            ['ok' => false, 'status' => 'failed', 'message' => $m, 'provider_ref' => null];
+
+        if (!$this->isEnabled($provider)) return $fail('Payment provider is not available.');
+        if (trim($reference) === '')      return $fail('Missing payment reference.');
+        if ($amountNaira !== null && $amountNaira < 1) return $fail('Refund amount must be positive.');
+
+        try {
+            return match ($provider) {
+                'paystack'    => $this->refundPaystack($reference, $amountNaira),
+                'flutterwave' => $this->refundFlutterwave($reference, $amountNaira),
+                default       => $fail('Unknown provider.'),
+            };
+        } catch (\Throwable $e) {
+            $this->log?->error('[payment] refund error', ['provider' => $provider, 'ref' => $reference, 'err' => $e->getMessage()]);
+            // NOT 'failed'. A thrown exception means we do not know whether the
+            // gateway accepted it, and reporting a definite failure for an unknown
+            // outcome is what makes a caller retry into a double refund.
+            return ['ok' => false, 'status' => 'pending', 'provider_ref' => null,
+                    'message' => 'Could not reach the gateway. The refund may or may not have been accepted — check before retrying.'];
+        }
+    }
+
     // ─────────────────────────────── Paystack ───────────────────────────────
 
     private function initializePaystack(int $amountNaira, string $email, string $reference, string $callbackUrl, array $meta): array
@@ -220,6 +263,44 @@ class PaymentService
         ];
     }
 
+    /**
+     * Paystack takes the transaction REFERENCE directly, and amounts in kobo.
+     * Omitting the amount refunds the full charge, which is what we want for an
+     * order that delivered nothing.
+     */
+    private function refundPaystack(string $reference, ?int $amountNaira): array
+    {
+        $payload = ['transaction' => $reference];
+        if ($amountNaira !== null) $payload['amount'] = $amountNaira * 100;
+
+        $res  = $this->request('POST', 'https://api.paystack.co/refund', $payload,
+            ['Authorization: Bearer ' . $this->secret('paystack')]);
+        $body = $res['json'];
+        $data = is_array($body['data'] ?? null) ? $body['data'] : [];
+
+        if (!$res['ok'] || ($body['status'] ?? false) !== true) {
+            $msg = (string) ($body['message'] ?? 'Refund was refused.');
+            // Already refunded is a SUCCESS from our side: the money is back with
+            // the buyer, which is the outcome the caller wanted. Treating it as a
+            // failure leaves the row unmarked and invites another attempt.
+            if (stripos($msg, 'already') !== false && stripos($msg, 'refund') !== false) {
+                return ['ok' => true, 'status' => 'refunded', 'message' => 'Already refunded at the gateway.',
+                        'provider_ref' => null];
+            }
+            $this->log?->warning('[payment] paystack refund refused', ['ref' => $reference, 'http' => $res['code'], 'msg' => $msg]);
+            return ['ok' => false, 'status' => 'failed', 'message' => $msg, 'provider_ref' => null];
+        }
+
+        // Paystack refund status: 'pending' | 'processing' | 'processed' | 'failed'
+        $raw = strtolower((string) ($data['status'] ?? 'pending'));
+        return [
+            'ok'           => $raw !== 'failed',
+            'status'       => $raw === 'processed' ? 'refunded' : ($raw === 'failed' ? 'failed' : 'pending'),
+            'message'      => (string) ($body['message'] ?? 'Refund submitted.'),
+            'provider_ref' => isset($data['id']) ? (string) $data['id'] : null,
+        ];
+    }
+
     // ───────────────────────────── Flutterwave ──────────────────────────────
 
     private function initializeFlutterwave(int $amountNaira, string $email, string $reference, string $callbackUrl, array $meta): array
@@ -278,6 +359,47 @@ class PaymentService
             'amount'   => $amount,
             'currency' => (string)($data['currency'] ?? 'NGN'),
             'meta'     => is_array($data['meta'] ?? null) ? $data['meta'] : [],
+        ];
+    }
+
+    /**
+     * Flutterwave refunds by NUMERIC TRANSACTION ID, not by our tx_ref — so this
+     * costs two calls: resolve the id, then refund it. Worth naming, because a
+     * refund that silently no-ops on a 404 is indistinguishable from one that
+     * worked until somebody complains a week later.
+     */
+    private function refundFlutterwave(string $reference, ?int $amountNaira): array
+    {
+        $look = $this->request('GET',
+            'https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=' . rawurlencode($reference),
+            null, ['Authorization: Bearer ' . $this->secret('flutterwave')]);
+        $txId = $look['json']['data']['id'] ?? null;
+
+        if (!$look['ok'] || !$txId) {
+            return ['ok' => false, 'status' => 'failed', 'provider_ref' => null,
+                    'message' => 'Flutterwave does not recognise that reference, so nothing was refunded.'];
+        }
+
+        $res  = $this->request('POST',
+            'https://api.flutterwave.com/v3/transactions/' . rawurlencode((string) $txId) . '/refund',
+            $amountNaira !== null ? ['amount' => $amountNaira] : [],
+            ['Authorization: Bearer ' . $this->secret('flutterwave')]);
+        $body = $res['json'];
+        $data = is_array($body['data'] ?? null) ? $body['data'] : [];
+
+        if (!$res['ok'] || ($body['status'] ?? '') !== 'success') {
+            $msg = (string) ($body['message'] ?? 'Refund was refused.');
+            $this->log?->warning('[payment] flutterwave refund refused', ['ref' => $reference, 'http' => $res['code'], 'msg' => $msg]);
+            return ['ok' => false, 'status' => 'failed', 'message' => $msg, 'provider_ref' => null];
+        }
+
+        // Flutterwave refund status: 'completed' | 'pending' | 'failed'
+        $raw = strtolower((string) ($data['status'] ?? 'pending'));
+        return [
+            'ok'           => $raw !== 'failed',
+            'status'       => $raw === 'completed' ? 'refunded' : ($raw === 'failed' ? 'failed' : 'pending'),
+            'message'      => (string) ($body['message'] ?? 'Refund submitted.'),
+            'provider_ref' => isset($data['id']) ? (string) $data['id'] : null,
         ];
     }
 

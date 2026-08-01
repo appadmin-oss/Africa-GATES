@@ -129,6 +129,16 @@ final class SupportContext
              'description' => "Send the receipt for a confirmed payment again. Use when the votes ARE there but the email never "
                             . "arrived. It always goes to the address on the payment, which cannot be changed here.",
              'args' => ['reference' => 'the payment reference']],
+            // READ ONLY, and deliberately so. There is no tool that CAUSES a
+            // refund: an assistant that can move money is an assistant that can
+            // be talked into moving money. It reports what the platform has
+            // already decided by itself — see RefundService.
+            ['name' => 'refund_status',
+             'description' => "Check whether a payment is being refunded. The platform refunds automatically when votes "
+                            . "could not be counted (usually because voting closed first), so a payment with no votes may "
+                            . "already have money on its way back. ALWAYS check this before telling anybody a refund needs "
+                            . "arranging. You cannot start one — only a person can.",
+             'args' => ['reference' => 'the payment reference']],
         ];
 
         if ($this->isMember()) {
@@ -182,6 +192,7 @@ final class SupportContext
                 'lookup_reference' => $this->lookupReference((string) ($args['reference'] ?? '')),
                 'fix_payment'      => $this->fixPayment((string) ($args['reference'] ?? '')),
                 'resend_receipt'   => $this->resendReceipt((string) ($args['reference'] ?? '')),
+                'refund_status'    => RefundService::statusFor((string) ($args['reference'] ?? '')),
                 'ops_summary'      => $this->opsSummary(),
                 default            => null,
             };

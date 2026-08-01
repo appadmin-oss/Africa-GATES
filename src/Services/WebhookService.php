@@ -38,6 +38,10 @@ class WebhookService
         // Money
         'order.paid'                => 'A shop order is paid',
         'donation.confirmed'        => 'A donation payment is confirmed',
+        // Money going back OUT. Worth a subscription of its own: this is the only
+        // event on the platform that means cash has left the account, and it can
+        // fire without any human involvement — see AfricaGates\Services\RefundService.
+        'payment.refunded'          => 'A payment was refunded (votes could not be counted)',
         // Community & moderation
         'community.thread_created'  => 'A community thread is created',
         'community.comment_posted'  => 'A community comment/reply is posted',

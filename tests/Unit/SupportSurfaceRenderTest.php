@@ -146,32 +146,73 @@ final class SupportSurfaceRenderTest extends TestCase
         );
     }
 
-    // ── the nominee brief ────────────────────────────────────────────────────
+    // ── the ticket thread ────────────────────────────────────────────────────
 
-    public function test_the_nominee_brief_is_collapsed_by_css_not_by_truncation(): void
+    public function test_an_escalated_conversation_opens_as_turns_not_as_one_blob(): void
     {
-        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/vote-nominee.twig');
+        // The transcript is STORED as "User: … / Support: …" because it is a
+        // frozen snapshot. Rendering that as a single message attributed to the
+        // member prints the literal word "User:" at somebody who knows who they
+        // are, and puts the assistant's earlier replies in their mouth.
+        $turns = \AfricaGates\Services\SupportTicketService::opening(
+            "User: I paid and nothing came.\n\nSupport: Which reference was it?\n\nUser: paystack_1_x");
 
-        // Nothing is destroyed server-side: the full tagline is printed and the
-        // clamp is presentational, so "Show more" has something to show and a
-        // reader with no JavaScript still gets a tidy four lines.
-        $this->assertStringContainsString('{{ n.tagline }}', $src);
-        $this->assertStringNotContainsString('n.tagline|slice', $src);
-        $this->assertStringNotContainsString('n.tagline|u.truncate', $src);
-        $this->assertStringContainsString('.vn-bioline--clamp', $src);
-        $this->assertStringContainsString('-webkit-line-clamp:4', $src);
+        $this->assertCount(3, $turns);
+        $this->assertFalse($turns[0]['staff']);
+        $this->assertSame('I paid and nothing came.', $turns[0]['body'], 'the label is not part of what they said');
+        $this->assertTrue($turns[1]['staff']);
+        $this->assertSame('paystack_1_x', $turns[2]['body']);
     }
 
-    public function test_the_show_more_control_is_a_real_accessible_button(): void
+    public function test_a_ticket_raised_directly_is_a_single_unlabelled_turn(): void
+    {
+        // Most tickets never went through the assistant, so there are no labels
+        // to parse and the text must survive exactly as typed.
+        $turns = \AfricaGates\Services\SupportTicketService::opening(
+            "My votes have not arrived.\n\nI paid at 12:36 with OPay.");
+
+        $this->assertCount(1, $turns);
+        $this->assertFalse($turns[0]['staff']);
+        $this->assertStringContainsString('OPay', $turns[0]['body']);
+        $this->assertStringContainsString("\n\n", $turns[0]['body'], 'their paragraphs are theirs');
+    }
+
+    public function test_an_empty_transcript_produces_no_turns_rather_than_an_empty_bubble(): void
+    {
+        $this->assertSame([], \AfricaGates\Services\SupportTicketService::opening('   '));
+    }
+
+    // ── the nominee brief ────────────────────────────────────────────────────
+
+    public function test_the_nominee_brief_appears_once_and_is_never_truncated(): void
     {
         $src = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/vote-nominee.twig');
 
-        $this->assertMatchesRegularExpression('/<button[^>]*class="vn-more"/', $src);
-        $this->assertStringContainsString(':aria-expanded="open ? \'true\' : \'false\'"', $src);
-        $this->assertStringContainsString('aria-controls="vnBio"', $src);
-        $this->assertStringContainsString("x-text=\"open ? 'Show less' : 'Show more'\"", $src);
-        // Only rendered when there is something behind it — a control that does
-        // nothing teaches people to ignore the ones that do.
-        $this->assertStringContainsString('x-show="long"', $src);
+        // It belongs in the About card, where there is room for it, and NOT in
+        // the hero as well — printing it twice made the reader meet the same
+        // paragraph again forty pixels later, and pushed the vote count and the
+        // CTA down the page on a phone.
+        $this->assertSame(1, substr_count($src, '{{ n.tagline }}') + substr_count($src, '{{ _brief }}'),
+            'the brief is printed exactly once');
+        $this->assertStringNotContainsString('vn-bioline', $src,
+            'the hero copy is gone, and so is the CSS that positioned it');
+
+        // And nothing is destroyed on the way there.
+        $this->assertStringNotContainsString('n.tagline|slice', $src);
+        $this->assertStringNotContainsString('n.tagline|u.truncate', $src);
+        $this->assertStringContainsString('overflow-wrap:anywhere', $src,
+            'a pasted URL must break rather than widen the column');
+    }
+
+    public function test_a_registry_bio_no_longer_swallows_the_nomination_brief(): void
+    {
+        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/pages/vote-nominee.twig');
+
+        // The brief is the one place a nominee's case is stated in their
+        // nominator's words. It used to vanish entirely whenever a registry
+        // profile existed, because the bio REPLACED it rather than joining it.
+        $this->assertStringNotContainsString("(profile and profile.bio) ? profile.bio : n.tagline", $src);
+        $this->assertStringContainsString('_brief != _bio', $src,
+            'and when the two are the same text, only one of them prints');
     }
 }

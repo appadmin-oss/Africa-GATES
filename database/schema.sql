@@ -474,6 +474,13 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   -- round-trip and copied onto the vote at mint. Default 0 = private.
   show_name TINYINT(1) NOT NULL DEFAULT 0,
   refunded_at TIMESTAMP NULL DEFAULT NULL,
+  -- Automatic-refund bookkeeping. `refund_requested_at` is the CLAIM stamp,
+  -- written before the gateway is called so two workers can never both refund
+  -- the same order — see AfricaGates\Services\RefundService.
+  refund_state VARCHAR(16) DEFAULT NULL,
+  refund_ref VARCHAR(120) DEFAULT NULL,
+  refund_reason VARCHAR(255) DEFAULT NULL,
+  refund_requested_at TIMESTAMP NULL DEFAULT NULL,
   -- Send-exactly-once claim stamps. Both emails have more than one caller racing
   -- to send them (callback vs webhook; every maintenance tick), so the claim is a
   -- guarded UPDATE on a NULL column. See CheckoutMailer.
@@ -483,7 +490,8 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   PRIMARY KEY(id),
   KEY idx_donation_email(donor_email),
   KEY idx_donation_status(status),
-  KEY idx_donations_abandon(status, abandoned_mail_at, created_at)
+  KEY idx_donations_abandon(status, abandoned_mail_at, created_at),
+  KEY idx_donation_refundable(status, tier, votes_used, refund_requested_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- NOTE: the gates_nominations location + reference columns (nominee_state,

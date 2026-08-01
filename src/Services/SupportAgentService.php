@@ -167,6 +167,12 @@ final class SupportAgentService implements SupportAnswerer
             if ($tools === []) return null;   // nothing it may do — do not ask
         }
         $playbooks = SupportKnowledge::playbooks();
+        // The planner gets the live report too, and needs it more than the writer
+        // does: during an incident the RIGHT FIRST TOOL changes. "My votes have
+        // not arrived" is normally a lookup; when a dozen payments are stuck it is
+        // a repair, immediately, without gathering anything first.
+        $now = SupportSignals::brief();
+        $now = $now === '' ? '' : "\n\n" . $now;
 
         // The planner gets the PLAYBOOKS but not the whole briefing. Its job is one
         // mapping — sentence to tool — and the platform history, tone rules and
@@ -191,7 +197,7 @@ final class SupportAgentService implements SupportAnswerer
           from a lookup, answer instead and let the writer ask for it.
         - Stop as soon as you can answer. Two tools is a lot. Four is a failure.
 
-        {$playbooks}
+        {$playbooks}{$now}
 
         WORKED EXAMPLES
         User: "I bought 20 votes with opay and nothing has come to my email, ref paystack_6413965117_hw8rf"

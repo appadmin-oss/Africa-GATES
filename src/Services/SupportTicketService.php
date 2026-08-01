@@ -184,7 +184,9 @@ final class SupportTicketService
                 ->orderByDesc(OptionalColumn::on('gates_support_tickets', 'last_activity')
                     ? DB::raw('COALESCE(last_activity, created_at)') : 'id')
                 ->limit($limit)
-                ->get(['id', 'reference', 'subject', 'severity', 'status', 'created_at']);
+                ->get(OptionalColumn::filter('gates_support_tickets',
+                    ['id', 'reference', 'subject', 'severity', 'status', 'created_at', 'last_activity'],
+                    ['last_activity']));
         } catch (\Throwable $e) {
             // Loud. An empty ticket list and a broken ticket list look identical to
             // the reader, and the second one is the one somebody has to fix.
@@ -192,11 +194,55 @@ final class SupportTicketService
             return [];
         }
 
-        return $rows->map(fn($r) => [
-            'id' => (int) $r->id, 'reference' => (string) $r->reference,
-            'subject' => (string) $r->subject, 'severity' => (string) $r->severity,
-            'status' => (string) $r->status, 'created_at' => (string) $r->created_at,
-        ])->all();
+        // One query for every row's activity rather than one per row. A member
+        // with twenty-five tickets would otherwise cost fifty round trips to
+        // render a list, which is the shape of slowness nobody profiles because
+        // each individual query looks fine.
+        $ids  = $rows->pluck('id')->all();
+        $meta = $this->activity($ids);
+
+        return $rows->map(function ($r) use ($meta) {
+            $m = $meta[(int) $r->id] ?? ['replies' => 0, 'last' => null];
+            return [
+                'id' => (int) $r->id, 'reference' => (string) $r->reference,
+                'subject' => (string) $r->subject, 'severity' => (string) $r->severity,
+                'status' => (string) $r->status, 'created_at' => (string) $r->created_at,
+                'last_activity' => (string) ($r->last_activity ?? $r->created_at),
+                'replies' => $m['replies'],
+                // "Who spoke last" is the single most useful thing on a ticket
+                // list and the one nobody renders: it is the difference between
+                // "they owe me an answer" and "I owe them one".
+                'waiting' => $m['last'] === null || $m['last'] === 'member',
+                'answered_by_assistant' => $m['last'] === 'agent',
+            ];
+        })->all();
+    }
+
+    /**
+     * Reply count and last author for a batch of tickets.
+     *
+     * @param list<int> $ids
+     * @return array<int, array{replies:int, last:?string}>
+     */
+    private function activity(array $ids): array
+    {
+        if ($ids === []) return [];
+        try {
+            $rows = DB::table('gates_support_messages')
+                ->whereIn('ticket_id', $ids)->where('is_internal', 0)
+                ->orderBy('id')->get(['ticket_id', 'author_type']);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $r) {
+            $t = (int) $r->ticket_id;
+            $out[$t] ??= ['replies' => 0, 'last' => null];
+            $out[$t]['replies']++;
+            $out[$t]['last'] = (string) $r->author_type;
+        }
+        return $out;
     }
 
     /**
@@ -240,7 +286,16 @@ final class SupportTicketService
             'ticket' => [
                 'reference' => (string) $t->reference, 'subject' => (string) $t->subject,
                 'severity' => (string) $t->severity, 'status' => (string) $t->status,
-                'transcript' => (string) ($t->transcript ?? ''), 'created_at' => (string) $t->created_at,
+                'transcript' => (string) ($t->transcript ?? ''),
+                // The transcript parsed back into turns. See opening().
+                'opening'    => self::opening((string) ($t->transcript ?? '')),
+                'created_at' => (string) $t->created_at,
+                'last_activity' => (string) ($t->last_activity ?? $t->created_at),
+                'resolved_at'   => $t->resolved_at ?? null,
+                // Whether anything was actually looked up before a human saw it.
+                // Shown in the rail so a member can tell a ticket that was
+                // investigated from one that was merely filed.
+                'tools_used'    => (string) ($t->tools_used ?? ''),
             ],
             'messages' => $msgs->map(fn($m) => [
                 'from'  => match ((string) $m->author_type) {
@@ -432,6 +487,50 @@ final class SupportTicketService
         $cut = mb_substr($flat, 0, 90);
         $sp  = mb_strrpos($cut, ' ');
         return rtrim($sp !== false && $sp > 40 ? mb_substr($cut, 0, $sp) : $cut) . '…';
+    }
+
+    /**
+     * The stored transcript, read back as the conversation it was.
+     *
+     * {@see transcript()} freezes what was said before escalation as one blob of
+     * "User: …" / "Support: …" lines — the right storage shape, because it is a
+     * SNAPSHOT and must not drift as the thread grows. But rendering that blob as
+     * a single message attributed to the member is wrong twice over: it prints
+     * the literal word "User:" at somebody who knows perfectly well who they are,
+     * and it puts the assistant's earlier replies in their mouth.
+     *
+     * Parsed here rather than in the template because a template that does this
+     * is a template doing string surgery on stored data, and the next person to
+     * change the storage format will not think to look there.
+     *
+     * @return list<array{staff:bool, body:string}>
+     */
+    public static function opening(string $transcript): array
+    {
+        $text = trim($transcript);
+        if ($text === '') return [];
+
+        // No labels at all — a ticket raised directly rather than escalated from a
+        // conversation. One turn, theirs, exactly as they wrote it.
+        if (!preg_match('/^(User|Support):\s/m', $text)) {
+            return [['staff' => false, 'body' => $text]];
+        }
+
+        $turns = [];
+        foreach (preg_split('/\n\n+/', $text) ?: [] as $block) {
+            $block = trim($block);
+            if ($block === '') continue;
+            if (preg_match('/^(User|Support):\s*(.*)$/s', $block, $m)) {
+                $turns[] = ['staff' => $m[1] === 'Support', 'body' => trim($m[2])];
+            } elseif ($turns !== []) {
+                // A continuation line of the previous turn — a paragraph break
+                // inside one message, not a new speaker.
+                $turns[count($turns) - 1]['body'] .= "\n\n" . $block;
+            } else {
+                $turns[] = ['staff' => false, 'body' => $block];
+            }
+        }
+        return array_values(array_filter($turns, static fn($t) => $t['body'] !== ''));
     }
 
     /** @param list<array{role:string,content:string}> $history */

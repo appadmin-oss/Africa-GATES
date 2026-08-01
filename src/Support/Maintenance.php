@@ -125,10 +125,13 @@ final class Maintenance
             // was dropped receives is an email saying they did not pay.
             $ran[] = ['payments',      $this->task('payments',      fn() => $this->reconcilePayments())];
             $ran[] = ['checkout-mail', $this->task('checkout-mail', fn() => $this->mailAbandonedCheckouts())];
-            // AFTER reconciliation, deliberately. The sweep answers tickets about
-            // payments, and the run above may have just fixed the payment a ticket
-            // is asking about — going first would have it write "still pending" a
-            // second before that stopped being true.
+            // BOTH after reconciliation, deliberately, and refunds before support.
+            // Reconciliation may have just confirmed and minted the very payment a
+            // refund would otherwise return or a ticket would call stuck — going
+            // first would send money back a second before it stopped being owed,
+            // and would have the assistant write "still pending" a second before
+            // it stopped being true.
+            $ran[] = ['refunds',       $this->task('refunds',       fn() => $this->refundUnminted())];
             $ran[] = ['support',       $this->task('support',       fn() => $this->answerTickets())];
             // Every hour
             if ((int)$now->minute < 15) {
@@ -164,6 +167,7 @@ final class Maintenance
                 'payments'  => $ran[] = ['payments', $this->task('payments', fn() => $this->reconcilePayments())],
                 'checkout-mail' => $ran[] = ['checkout-mail', $this->task('checkout-mail', fn() => $this->mailAbandonedCheckouts())],
                 'support'   => $ran[] = ['support', $this->task('support', fn() => $this->answerTickets())],
+                'refunds'   => $ran[] = ['refunds', $this->task('refunds', fn() => $this->refundUnminted())],
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
                 'all'       => (function () use (&$ran) {
                     $ran[] = ['queue', $this->task('queue', fn() => $this->drainJobs())];
@@ -392,6 +396,32 @@ final class Maintenance
      * there are only ever a handful of rows older than fifteen minutes; clearing a real
      * backlog is `bin/console payments:reconcile --limit 200` from a shell.
      */
+    /**
+     * Give back money for votes that were paid for and never counted.
+     *
+     * The rule, the ceilings and the double-payment guards are all in
+     * {@see RefundService} — see its class note. This stays a one-line call
+     * because the one thing maintenance must not do is develop opinions about
+     * when money moves.
+     */
+    private function refundUnminted(): int
+    {
+        try {
+            if (!\AfricaGates\Services\RefundService::autoEnabled()) {
+                $this->log('refunds: automatic refunds are switched off');
+                return 0;
+            }
+            $n = (new \AfricaGates\Services\RefundService(
+                new \AfricaGates\Services\PaymentService(), $this->mailer()
+            ))->sweep();
+            $this->log('refunds: ' . $n . ' unminted order(s) refunded');
+            return $n;
+        } catch (\Throwable $e) {
+            $this->log('refunds error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
     /**
      * Let the support assistant answer the tickets it can.
      *

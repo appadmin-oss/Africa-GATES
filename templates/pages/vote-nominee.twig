@@ -20,25 +20,6 @@
   .vn-rankpill{ font-size:11px; font-weight:600; letter-spacing:.04em; padding:6px 13px; border-radius:999px; background:rgba(127,200,124,.16); color:#7FC87C; }
   .vn-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,5vw,3rem); line-height:1; letter-spacing:-.02em; color:#fff; }
   .vn-meta{ margin:14px 0 0; font-size:15.5px; color:rgba(255,255,255,.86); }
-  /* `overflow-wrap:anywhere` rather than `break-word`: break-word only breaks a
-     word that is alone on its line, so "see https://very-long-url…" still pushes
-     the box wide. `anywhere` also lets the browser count the break opportunity
-     when sizing, which is what keeps the column from growing in the first place.
-     Hyphens make the forced break read as a break rather than as a typo. */
-  .vn-bioline{ margin:14px 0 0; font-size:14.5px; line-height:1.6; color:rgba(255,255,255,.76);
-               max-width:460px; overflow-wrap:anywhere; hyphens:auto; }
-  /* Collapsed to four lines by DEFAULT — not by JavaScript. If the script never
-     runs, the clamp still holds and the layout is still right; the only thing
-     lost is the ability to expand, and `.is-open` removing the clamp is the one
-     thing the script has to do. The opposite arrangement (expanded until JS
-     collapses it) flashes the full text on every load. */
-  .vn-bioline--clamp{ display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:4;
-                      line-clamp:4; overflow:hidden; }
-  .vn-bioline--clamp.is-open{ display:block; -webkit-line-clamp:none; line-clamp:none; overflow:visible; }
-  .vn-more{ margin:6px 0 0; border:0; background:none; padding:2px 0; cursor:pointer;
-            font:600 13px/1 inherit; color:#7FC87C; text-decoration:underline; text-underline-offset:2px; }
-  .vn-more:hover{ color:#fff; }
-  .vn-more:focus-visible{ outline:2px solid #7FC87C; outline-offset:3px; border-radius:3px; }
   .vn-stats{ display:flex; align-items:center; gap:clamp(16px,3vw,26px); margin-top:24px; flex-wrap:wrap; }
   .vn-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:clamp(24px,3.5vw,30px); line-height:1; color:#fff; }
   .vn-stat__n.g{ color:#7FC87C; }
@@ -61,7 +42,16 @@
   .vn-side{ display:flex; flex-direction:column; gap:20px; position:sticky; top:88px; }
   .vn-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(20px,3vw,26px); }
   .vn-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:20px; color:var(--ag-ink); }
-  .vn-card p.body{ margin:14px 0 0; font-size:15px; line-height:1.7; color:#3a4448; }
+  /* `overflow-wrap:anywhere` rather than `break-word`: break-word only breaks a
+     word that is alone on its line, so "see https://very-long-url…" still pushes
+     the box wide. `anywhere` also lets the browser count the break opportunity
+     when sizing, which is what keeps the column from growing in the first place.
+     Hyphens make the forced break read as a break rather than as a typo. */
+  .vn-card p.body{ margin:14px 0 0; font-size:15px; line-height:1.7; color:#3a4448;
+                   overflow-wrap:anywhere; hyphens:auto; }
+  /* The nomination brief, when a fuller profile bio follows it. Set apart so the
+     two read as a lead and a body rather than as one paragraph that repeats. */
+  .vn-card p.vn-lede{ font-size:16px; line-height:1.65; color:var(--ag-ink,#10292c); font-weight:500; }
   .vn-full{ margin:16px 0 0; font-size:13.5px; font-weight:600; color:var(--ag-green-dark); text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
 
   /* others in category */
@@ -157,7 +147,6 @@
     .vn-portrait{ width:186px; height:224px; }
     .vn-mono{ width:140px; height:140px; font-size:56px; }
     .vn-tags, .vn-stats{ justify-content:center; }
-    .vn-bioline{ margin-left:auto; margin-right:auto; }
     .vn-cta{ width:100%; justify-content:center; }
     .vn-btn--light{ flex:1; justify-content:center; }   /* full-width primary CTA — clearer, bigger tap target */
   }
@@ -205,30 +194,12 @@
           {{ n.organisation }}
         </p>
         {% endif %}
-        {# The whole brief, four lines at a time.
-           It used to hard-truncate with an ellipsis, which cut a nominee's case
-           off mid-sentence on the one page where the case for them is the point,
-           and gave the reader no way to see the rest. Now nothing is destroyed:
-           the text is all there, collapsed to four lines, and expandable.
-
-           The button only exists when there is something behind it. Rendering
-           "Show more" over text that is already fully visible is a control that
-           does nothing, which teaches people to ignore the ones that do — so the
-           script measures the paragraph and removes itself when it fits. A long
-           unbroken run (a pasted URL, a hyphen-free name) is handled separately
-           by `overflow-wrap:anywhere`; clamping alone would not stop it widening
-           the column. #}
-        {% if n.tagline %}
-        <div x-data="{ open: false, long: true }"
-             x-init="$nextTick(() => { const p = $refs.bio; long = p.scrollHeight - p.clientHeight > 2; })">
-          <p class="vn-bioline vn-bioline--clamp" x-ref="bio" :class="open ? 'is-open' : ''"
-             id="vnBio">{{ n.tagline }}</p>
-          <button type="button" class="vn-more" x-show="long" x-cloak
-                  :aria-expanded="open ? 'true' : 'false'" aria-controls="vnBio"
-                  @click="open = !open" x-text="open ? 'Show less' : 'Show more'"></button>
-        </div>
-        {% endif %}
-
+        {# NO BRIEF HERE. It is rendered in full in the "About" card below, and
+           printing it twice made the hero carry a paragraph the reader then met
+           again forty pixels later — which reads as a mistake even when it is
+           deliberate, and pushed the vote count and the CTA down the page on a
+           phone. The hero's job is who this is and where they stand; the case
+           for them belongs where there is room to make it. #}
         <div class="vn-stats">
           {% if profile and profile.cpi_score %}
           <div><div class="vn-stat__n g">{{ profile.cpi_score }}</div><div class="vn-stat__l">CPI · of 1000</div></div>
@@ -322,7 +293,15 @@
       {% if (profile and profile.bio) or n.tagline %}
       <section class="vn-card">
         <h2>Why {{ firstName }} is nominated</h2>
-        <p class="body">{{ (profile and profile.bio) ? profile.bio : n.tagline }}</p>
+        {# The nomination brief is the ONE place a nominee's case is stated in
+           their nominator's words, and it used to vanish entirely whenever a
+           registry profile existed — the bio replaced it rather than joining it.
+           Now the brief leads and the fuller profile bio follows, and when the
+           two are the same text only one of them prints. #}
+        {% set _brief = n.tagline|default('')|trim %}
+        {% set _bio   = (profile and profile.bio) ? profile.bio|trim : '' %}
+        {% if _brief and _brief != _bio %}<p class="body vn-lede">{{ _brief }}</p>{% endif %}
+        {% if _bio %}<p class="body">{{ _bio }}</p>{% endif %}
         {% if profile and profile.slug %}<a class="vn-full" href="/registry/{{ profile.slug }}">View full profile <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>{% endif %}
       </section>
       {% endif %}

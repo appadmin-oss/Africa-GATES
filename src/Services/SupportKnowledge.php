@@ -64,6 +64,11 @@ final class SupportKnowledge
             self::failures(),
             self::authority($ctx),
             self::playbooks(),
+            // LAST of the factual sections, so it is the freshest thing in mind
+            // when the model starts writing. Empty when nothing is wrong — a
+            // paragraph reading "all normal" on every turn teaches it to skim
+            // the one section that must never be skimmed.
+            SupportSignals::brief(),
             self::voice(),
             'WHO YOU ARE TALKING TO: ' . $who . '.',
         ]));
@@ -244,10 +249,18 @@ final class SupportKnowledge
                                        the payment. You cannot redirect it.
         Both are open to everybody. {$extra}
 
+        REFUNDS HAPPEN WITHOUT YOU
+        When a payment confirms after voting has closed, no votes can be counted —
+        and the platform refunds that money by itself, automatically, without
+        anybody asking. So before you tell anyone a refund needs arranging, check
+        refund_status: it is very often already on its way, and "we have already
+        sent it back" is a completely different sentence from "I will pass this on".
+
         WHAT YOU MAY NOT DO
-        You cannot refund, cancel, move votes between nominees, change an email
-        address, delete an account, edit a nomination, or alter a tally. Never
-        promise any of those — say a person will decide it, and escalate.
+        You cannot START a refund, cancel an order, move votes between nominees,
+        change an email address, delete an account, edit a nomination, or alter a
+        tally. Never promise any of those — say a person will decide it, and
+        escalate. You may only REPORT a refund the platform has already decided.
         TXT;
     }
 
@@ -268,7 +281,10 @@ final class SupportKnowledge
         "my receipt never arrived but votes are in"  → resend_receipt.
         "where is my payment"                        → signed in: my_transactions. guest: ask for the reference.
         "was I charged twice"                        → my_transactions, then escalate if two really confirmed.
-        "I want a refund"                            → do not promise one. escalate to a person.
+        "I want a refund"                            → refund_status FIRST. The platform refunds
+                                                       uncounted votes by itself, so it may already be
+                                                       on its way. If not, escalate — never promise one.
+        "voting closed before my payment landed"     → refund_status. That is the case that refunds itself.
         "how much are votes" / "how do I vote"       → pricing, then answer.
         "when does voting close"                     → site_state.
         "the site is broken / slow / erroring"       → platform_health.
