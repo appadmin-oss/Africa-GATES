@@ -303,11 +303,16 @@
           <span style="display:inline-flex;align-items:center;gap:7px;background:#f4f9f4;border:1px solid #cfe6cf;border-radius:999px;padding:6px 13px 6px 7px;font-size:13px;color:#10292c">
             <span aria-hidden="true" style="width:24px;height:24px;border-radius:50%;background:#237b22;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">{{ s.name|slice(0,1)|upper }}</span>
             <strong style="font-weight:600">{{ s.name }}</strong>
-            {% if s.votes > 1 %}<span style="color:#5a6d6f;font-size:12px">{{ s.votes|number_format }} votes</span>{% endif %}
           </span>
           {% endfor %}
-          {% if supporter_count|default(0) > supporters|length %}
-          <span style="display:inline-flex;align-items:center;padding:6px 13px;font-size:13px;color:#5a6d6f">and {{ (supporter_count - supporters|length)|number_format }} more</span>
+          {# No per-supporter vote numbers, deliberately.
+             The list is RANKED by contribution, but printing each person's total
+             turns a thank-you into a table of who spent most — it invites exactly
+             the escalation this platform should not encourage, and it discloses
+             one person's spending to every reader. The ranking is the useful
+             part; the figure behind it is nobody's business. #}
+          {% if supporters_more|default('') %}
+          <span style="display:inline-flex;align-items:center;padding:6px 13px;font-size:13px;color:#5a6d6f">{{ supporters_more }}</span>
           {% endif %}
         </div>
       </section>

@@ -49,6 +49,22 @@
   .pl-compose--guest{ display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; }
   .pl-compose__guest{ margin:0; font-size:14px; color:#5a6d6f; }
 
+  /* attach control + pre-send preview */
+  .pl-compose__spacer{ flex:1; }
+  .pl-attach{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; color:#3d4c4e;
+              font-size:13.5px; font-weight:600; padding:8px 12px; border-radius:12px; }
+  .pl-attach:hover{ background:#f4f7f4; }
+  /* The input is visually hidden but still focusable, so the label lights up from
+     the keyboard as well as the mouse — `display:none` would take it out of the
+     tab order entirely and make attaching a photo mouse-only. */
+  .pl-attach:focus-within{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
+  .pl-mediaprev{ position:relative; margin:12px 0 0; border-radius:16px; overflow:hidden;
+                 background:#0d1a1b; max-height:420px; display:flex; justify-content:center; }
+  .pl-mediaprev__el{ max-width:100%; max-height:420px; display:block; object-fit:contain; }
+  .pl-mediaprev__x{ position:absolute; top:8px; right:8px; width:30px; height:30px; border:0; cursor:pointer;
+                    border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:19px; line-height:1; }
+  .pl-mediaprev__err{ margin:8px 0 0; font-size:13px; font-weight:600; color:#a32020; }
+
   .pl-flash{ border-radius:14px; padding:11px 15px; font-size:14px; font-weight:600; }
   .pl-flash--ok{ background:#e6f4e6; color:#1c6b1c; border:1px solid #bfe3bf; }
   .pl-flash--err{ background:#fdf3f3; color:#a32020; border:1px solid #f0c9c9; }
@@ -96,6 +112,15 @@
   }
   /* Reduced motion still gets confirmation — it just does not fly. */
   @media (prefers-reduced-motion:reduce){ .pf__burst.is-on{ opacity:1; transition:opacity .2s; } }
+
+  /* The attachment on a posted card. `aspect-ratio` from the stored dimensions
+     reserves the box before a byte arrives — without it every image load shoves
+     the feed down and the post you were about to tap moves out from under your
+     thumb. Capped in height so one portrait photo cannot take a whole screen. */
+  .pf__media{ margin:2px 0 0; background:#0d1a1b; display:flex; justify-content:center;
+              max-height:560px; overflow:hidden; }
+  .pf__media img, .pf__media video{ display:block; max-width:100%; max-height:560px;
+                                    width:auto; height:auto; object-fit:contain; }
 
   .pf__bar{ display:flex; align-items:center; gap:2px; padding:2px 8px 0; }
   .pf__act{ border:0; background:none; cursor:pointer; color:#3d4c4e; padding:9px 10px; border-radius:12px;
@@ -248,22 +273,46 @@
         {% if flash_error %}<div class="pl-flash pl-flash--err" role="alert">{{ flash_error }}</div>{% endif %}
 
         {% if is_member %}
-        <form class="pl-compose" method="POST" action="/pulse"
-              x-data="{ n: 0, max: {{ pulse_max|default(600) }} }">
+        {# enctype is what makes the file field work at all — without it the browser
+           urlencodes the form and the server receives the filename as a string. #}
+        <form class="pl-compose" method="POST" action="/pulse" enctype="multipart/form-data"
+              x-data="plCompose({{ pulse_max|default(600) }}, {{ (media_limit|default('8MB'))|json_encode }})">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <div class="pl-compose__row">
             <span class="pl-compose__av" aria-hidden="true">{{ (member_name|default('You'))|first|upper }}</span>
             <label for="plBody" class="sr-only">Share something with the community</label>
+            {# `required` is gone: a photo with no caption is a post. The server
+               enforces "text OR media", which is the rule that actually holds. #}
             <textarea id="plBody" name="body" class="pl-compose__ta" rows="2"
                       :maxlength="max" x-on:input="n = $event.target.value.length"
-                      placeholder="Share something with the community…" required></textarea>
+                      placeholder="Share something with the community…"></textarea>
           </div>
+
+          {# The chosen file, before it is sent. Reading it back from the input is
+             the only honest preview — it shows the bytes the browser will upload,
+             not a guess from the filename. #}
+          <div class="pl-mediaprev" x-show="!!preview" x-cloak>
+            <img class="pl-mediaprev__el" x-show="kind === 'image'"
+                 :src="kind === 'image' ? preview : null" alt="The photo you are about to post">
+            <video class="pl-mediaprev__el" x-show="kind === 'video'"
+                   :src="kind === 'video' ? preview : null" controls playsinline muted></video>
+            <button type="button" class="pl-mediaprev__x" @click="clear()" aria-label="Remove the attachment">×</button>
+          </div>
+          <p class="pl-mediaprev__err" x-show="err" x-cloak x-text="err" role="alert"></p>
+
           <div class="pl-compose__foot">
+            <label class="pl-attach">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m3.5 17 4.7-4.6a1.8 1.8 0 0 1 2.5 0L15 16.7m2-3.2a1.7 1.7 0 0 1 2.3 0l1.2 1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span>Photo or video</span>
+              <input type="file" name="media" accept="image/*,video/*" class="sr-only"
+                     x-ref="file" @change="pick($event)">
+            </label>
+            <span class="pl-compose__spacer"></span>
             {# The counter appears only once it starts to matter. A number ticking up
                from zero on an empty box is pressure, not help. #}
             <span class="pl-compose__count" x-show="n > max - 120" x-cloak
                   :class="n >= max ? 'is-full' : ''" x-text="(max - n) + ' left'"></span>
-            <button class="pl-compose__go" type="submit">Post</button>
+            <button class="pl-compose__go" type="submit" :disabled="busy">Post</button>
           </div>
         </form>
         {% else %}
@@ -316,10 +365,37 @@
                  links inside, so tapping a #hashtag still navigates. #}
               <div class="pf__body" @click="tap(it, $event)"
                    :aria-label="'Post by ' + it.author_name + '. Double tap to like.'">
-                <p class="pf__text" x-html="rich(it.body)"></p>
+                <p class="pf__text" x-show="!!it.body" x-html="rich(it.body)"></p>
                 <span class="pf__burst" :class="it.burst ? 'is-on' : ''" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="#e0245e"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
                 </span>
+              </div>
+
+              {# ── THE ATTACHMENT ────────────────────────────────────────────
+                 Outside .pf__body, so a double-tap on the picture still likes the
+                 post but the video's own controls are not fighting that gesture.
+                 A video is never autoplayed: sound and motion starting by itself
+                 in a feed is hostile on a metered connection, which is most of
+                 this audience. `preload="metadata"` fetches the header for the
+                 poster frame and duration, not the file. #}
+              {# x-show, not x-if. An x-if nested in this x-for is what threw
+                 "u is not a function" out of Alpine the moment the list was
+                 mutated. `:src` is bound to null rather than '' for the branch
+                 that is hidden — Alpine drops a null attribute entirely, whereas
+                 src="" resolves to the current page and fires a wasted request
+                 for the whole HTML document on every card. #}
+              <div class="pf__media" x-show="!!it.media" x-cloak>
+                <img x-show="!!it.media && it.media.type === 'image'"
+                     :src="it.media && it.media.type === 'image' ? it.media.path : null"
+                     loading="lazy" decoding="async"
+                     :width="it.media && it.media.w ? it.media.w : null"
+                     :height="it.media && it.media.h ? it.media.h : null"
+                     :style="it.media && it.media.w && it.media.h ? ('aspect-ratio:' + it.media.w + '/' + it.media.h) : null"
+                     :alt="'Photo shared by ' + it.author_name">
+                <video x-show="!!it.media && it.media.type === 'video'"
+                       :src="it.media && it.media.type === 'video' ? it.media.path : null"
+                       controls playsinline preload="metadata"
+                       :aria-label="'Video shared by ' + it.author_name"></video>
               </div>
 
               <div class="pf__bar">
@@ -510,6 +586,56 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
+/**
+ * The composer's attachment.
+ *
+ * Everything here is a COURTESY, not a control: the browser can be told to
+ * refuse a 40MB file, and it will, but nothing stops a hand-made POST. The size
+ * and type rules that matter are the ones in PulseMediaService, which reads the
+ * bytes. This exists so the common case fails in half a second against a local
+ * check instead of after a two-minute upload on a phone connection.
+ */
+function plCompose(max, limitLabel){
+  return {
+    max: max, n: 0, busy: false,
+    preview: '', kind: '', err: '',
+    // Parsed from the server's own limit string so the two cannot disagree.
+    get limitBytes(){ return (parseFloat(limitLabel) || 8) * 1048576; },
+
+    pick(e){
+      var f = e.target.files && e.target.files[0];
+      this.clearPreview();
+      this.err = '';
+      if (!f) return;
+
+      var isImg = /^image\//.test(f.type), isVid = /^video\//.test(f.type);
+      if (!isImg && !isVid){
+        this.err = 'Attach a photo or a video.';
+        return this.clear();
+      }
+      if (f.size > this.limitBytes){
+        this.err = 'That file is ' + (f.size / 1048576).toFixed(1) + 'MB — the limit here is ' + limitLabel + '.';
+        return this.clear();
+      }
+      this.kind = isImg ? 'image' : 'video';
+      // An object URL previews the actual bytes rather than a guess from the
+      // filename, and costs no upload. Revoked in clearPreview so a member who
+      // swaps files ten times does not leak ten blobs.
+      this.preview = URL.createObjectURL(f);
+    },
+
+    clearPreview(){
+      if (this.preview) { try { URL.revokeObjectURL(this.preview); } catch(e){} }
+      this.preview = ''; this.kind = '';
+    },
+
+    clear(){
+      this.clearPreview();
+      if (this.$refs.file) this.$refs.file.value = '';
+    }
+  };
+}
+
 /**
  * The feed.
  *

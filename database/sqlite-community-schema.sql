@@ -124,6 +124,11 @@ CREATE TABLE IF NOT EXISTS gates_threads (
   repost_count INTEGER NOT NULL DEFAULT 0,
   last_activity TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   is_pinned INTEGER NOT NULL DEFAULT 0,
+  -- Photo/video on a post — see database/migrations/2026_08_01_thread_media.php.
+  media_path TEXT NULL DEFAULT NULL,
+  media_type TEXT NULL DEFAULT NULL,
+  media_w INTEGER NULL DEFAULT NULL,
+  media_h INTEGER NULL DEFAULT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(programme_id) REFERENCES gates_award_programmes(id) ON DELETE SET NULL
 );

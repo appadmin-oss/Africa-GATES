@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Support\OptionalColumn;
 
 /**
  * One page of the Pulse feed, assembled in a fixed number of queries.
@@ -46,9 +47,18 @@ final class PulseFeedService
 
         // Fetch one extra row: its existence is what tells us there is a next page,
         // without a second COUNT query over the whole table.
+        $cols = ['id','slug','title','body','author_name','author_user_id',
+                 'cheer_count','reply_count','created_at'];
+        // Selected only where they exist. A database between a deploy and
+        // `db:migrate` has no media columns, and naming one in a SELECT is a hard
+        // error — the feed would 500 rather than render text posts it can render
+        // perfectly well. See database/migrations/2026_08_01_thread_media.php.
+        foreach (['media_path','media_type','media_w','media_h'] as $c) {
+            if (OptionalColumn::on('gates_threads', $c)) $cols[] = $c;
+        }
+
         $rows = $q->orderByDesc('id')->limit($limit + 1)
-            ->get(['id','slug','title','body','author_name','author_user_id',
-                   'cheer_count','reply_count','created_at'])
+            ->get($cols)
             ->map(fn($r) => (array) $r)->all();
 
         $hasMore = count($rows) > $limit;
@@ -80,6 +90,9 @@ final class PulseFeedService
                 'saved'        => in_array($id, $saved, true),
                 'is_mine'      => $userId !== null && $userId > 0 && (int) ($r['author_user_id'] ?? 0) === $userId,
                 'comments'     => $comments[$id] ?? [],
+                // Null for a text post, and for every post on a database that has
+                // not been migrated yet. The renderer treats null as "no media".
+                'media'        => $this->media($r),
             ];
         }
 
@@ -101,6 +114,32 @@ final class PulseFeedService
         if ($afterId < 1) return 0;
         return (int) DB::table('gates_threads')
             ->where('status', 'approved')->where('id', '>', $afterId)->count();
+    }
+
+    /**
+     * The post's attachment, or null.
+     *
+     * `type` is normalised to the two values the renderer knows how to emit. A row
+     * carrying anything else — a value from a future migration, or a hand-edited
+     * database — is treated as having no media rather than rendered as a guess: an
+     * <img> pointed at a video shows a broken icon, which looks like the upload
+     * failed when it did not.
+     *
+     * @param array<string,mixed> $r
+     * @return array{path:string,type:string,w:int,h:int}|null
+     */
+    private function media(array $r): ?array
+    {
+        $path = trim((string) ($r['media_path'] ?? ''));
+        $type = strtolower(trim((string) ($r['media_type'] ?? '')));
+        if ($path === '' || !in_array($type, ['image', 'video'], true)) return null;
+
+        return [
+            'path' => $path,
+            'type' => $type,
+            'w'    => (int) ($r['media_w'] ?? 0),
+            'h'    => (int) ($r['media_h'] ?? 0),
+        ];
     }
 
     /** @param list<int> $ids @return list<int> */

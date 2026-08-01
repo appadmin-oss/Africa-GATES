@@ -126,6 +126,13 @@ CREATE TABLE IF NOT EXISTS gates_threads (
   repost_count INT UNSIGNED NOT NULL DEFAULT 0,
   last_activity TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   is_pinned TINYINT(1) NOT NULL DEFAULT 0,
+  -- Photo/video on a post. Type is stored rather than sniffed from the extension,
+  -- and the dimensions let the feed reserve the box so it does not reflow as
+  -- media loads. See database/migrations/2026_08_01_thread_media.php.
+  media_path VARCHAR(500) NULL DEFAULT NULL,
+  media_type VARCHAR(10) NULL DEFAULT NULL,
+  media_w INT NULL DEFAULT NULL,
+  media_h INT NULL DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_thread_slug (slug),

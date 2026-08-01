@@ -7,7 +7,8 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
-use AfricaGates\Services\{CacheService, CommunityService, Notifier, OtpService, ProfileService, PulseFeedService, RateLimitService, UserAccountService};
+use AfricaGates\Services\{CacheService, CommunityService, Notifier, OtpService, ProfileService, PulseFeedService, PulseMediaService, RateLimitService, UserAccountService};
+use AfricaGates\Support\OptionalColumn;
 
 /**
  * Pulse — the living feed. The design is an Instagram-style hub; this build keeps
@@ -48,6 +49,7 @@ final class PulseController
         private readonly ?RateLimitService $rateLimit = null,
         private readonly ?OtpService $mailer = null,
         private readonly ?PulseFeedService $feed = null,
+        private readonly ?PulseMediaService $media = null,
     ) {}
 
     /** The signed-in member's id, or null. Feed state is per-viewer. */
@@ -138,6 +140,11 @@ final class PulseController
             'feed_cursor'      => $first['next_cursor'],
             // The newest id the reader has seen. The new-posts pill counts past it.
             'feed_head'        => $first['items'][0]['id'] ?? 0,
+            // The real ceiling, which is the smaller of ours and what PHP will
+            // accept — a host with upload_max_filesize = 8M silently discards
+            // anything larger, so promising 25MB there produces a bug nobody can
+            // reproduce anywhere else.
+            'media_limit'      => PulseMediaService::humanLimit(),
         ]);
     }
 
@@ -177,19 +184,67 @@ final class PulseController
         // is_string check is for `body[]`, which arrives as an array and would fatal on cast.
         $raw  = ((array) $req->getParsedBody())['body'] ?? '';
         $body = is_string($raw) ? trim($raw) : '';
-        if ($body === '') {
-            $_SESSION['flash_error'] = 'Write something first.';
+
+        // An attachment is stored BEFORE the thread, because storing it is the step
+        // that can fail for a reason the author needs to act on ("that is not a
+        // video we can play"). Posting first would leave a text-only post standing
+        // next to an error about the picture that was meant to be the whole point.
+        $upload = $req->getUploadedFiles()['media'] ?? null;
+        $media  = null;
+        if ($upload instanceof \Psr\Http\Message\UploadedFileInterface
+            && $upload->getError() !== UPLOAD_ERR_NO_FILE) {
+            if ($this->media === null) {
+                $_SESSION['flash_error'] = 'Attachments are unavailable right now.';
+                return $res->withHeader('Location', '/pulse')->withStatus(302);
+            }
+            $stored = $this->media->store($upload, (int) $m['id']);
+            if (!$stored['ok']) {
+                $_SESSION['flash_error'] = $stored['message'] ?? 'That file could not be attached.';
+                return $res->withHeader('Location', '/pulse')->withStatus(302);
+            }
+            $media = $stored;
+        }
+
+        // A picture on its own IS a post — that is most of what a photo feed is —
+        // so the text is only required when there is nothing else.
+        if ($body === '' && $media === null) {
+            $_SESSION['flash_error'] = 'Write something, or attach a photo or video.';
             return $res->withHeader('Location', '/pulse')->withStatus(302);
         }
         $body = mb_substr($body, 0, self::MAX_LEN);
 
         $r = $this->community->postThread([
-            'title'        => self::titleFrom($body),
+            'title'        => self::titleFrom($body !== '' ? $body : ($media['type'] === 'video' ? 'A video' : 'A photo')),
             'body'         => $body,
             'author_name'  => $m['name'],
             'author_email' => $m['email'],
             'author_user_id' => $m['id'],
-        ], (string) ($req->getServerParams()['REMOTE_ADDR'] ?? ''));
+            // The media is the post when there is no caption — and by here the file
+            // is already stored, so this cannot create an empty thread.
+        ], (string) ($req->getServerParams()['REMOTE_ADDR'] ?? ''), $media !== null);
+
+        // Attach after the insert, and only through OptionalColumn: on a database
+        // where 2026_08_01_thread_media has not been applied these columns do not
+        // exist, and an unguarded write would turn a working text post into a 500.
+        // The post survives without its picture; that is the right way round.
+        if ($r['ok'] && $media !== null && !empty($r['id'])) {
+            $row = OptionalColumn::filter('gates_threads', [
+                'media_path' => $media['path'],
+                'media_type' => $media['type'],
+                'media_w'    => $media['w'] ?: null,
+                'media_h'    => $media['h'] ?: null,
+            ], ['media_path', 'media_type', 'media_w', 'media_h']);
+
+            if ($row) {
+                try {
+                    DB::table('gates_threads')->where('id', (int) $r['id'])->update($row);
+                } catch (\Throwable $e) {
+                    error_log('[pulse] media not attached to thread ' . $r['id'] . ': ' . $e->getMessage());
+                }
+            } else {
+                error_log('[pulse] media columns absent — post stored without its attachment. Run db:migrate.');
+            }
+        }
 
         if (!$r['ok']) {
             $_SESSION['flash_error'] = $r['message'];

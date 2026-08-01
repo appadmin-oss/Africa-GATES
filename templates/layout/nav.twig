@@ -60,6 +60,16 @@
     </nav>
 
     <div class="ag-nav__cta">
+      {# Opens the site-wide search. A BUTTON, not a link: it opens a dialog on this
+         page rather than navigating, and announcing "link" for something that does
+         not go anywhere is a promise the control cannot keep. The shortcut is named
+         in the accessible label, because a keyboard or touch user has no hover to
+         discover it with. #}
+      <button type="button" class="ag-searchbtn" data-ag-search-open
+              aria-haspopup="dialog" aria-label="Search the site. Shortcut: press the slash key">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6" stroke-linecap="round"/></svg>
+        <span class="ag-searchbtn__k" aria-hidden="true">/</span>
+      </button>
       <a href="/vote" class="ag-vote {% if _p=='vote' %}is-active{% endif %}"{% if _p=='vote' %} aria-current="page"{% endif %}>Vote</a>
       {% if is_member %}
         <a href="/account" class="ag-register {% if _p=='account' %}is-active{% endif %}"{% if _p=='account' %} aria-current="page"{% endif %}>{{ member_name ? 'My account' : 'Account' }}

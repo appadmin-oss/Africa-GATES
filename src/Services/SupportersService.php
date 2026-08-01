@@ -50,11 +50,38 @@ use Illuminate\Database\Capsule\Manager as DB;
  */
 final class SupportersService
 {
-    /** How many names the ballot shows before "and N others". */
-    public const DEFAULT_LIMIT = 12;
+    /** How many names the ballot shows before "and N more". */
+    public const DEFAULT_LIMIT = 10;
 
     /**
-     * Consenting supporters of one nominee, most recent first.
+     * How many rows to read before aggregating. One person's votes can be spread
+     * over many rows, so finding the top 10 PEOPLE needs considerably more than
+     * 10 rows — but not the whole table, which on a popular nominee is unbounded.
+     */
+    private const SCAN = 600;
+
+    /**
+     * The nominee's biggest named backers — deduplicated, ranked, capped.
+     *
+     * ── ONE PERSON IS ONE SUPPORTER ─────────────────────────────────────────
+     *
+     * This used to return vote ROWS. Someone who bought votes on three occasions
+     * appeared three times, so a list of "supporters" was really a list of
+     * transactions, and a nominee with four loyal backers looked like it had
+     * twelve. Rows are now folded by name and their weights summed, which is
+     * also what makes "top" mean anything: the ranking is by what a person
+     * actually contributed, not by who happened to pay most recently.
+     *
+     * Folding ignores case and spacing, so "ADA  OKONKWO" and "Ada Okonkwo" are
+     * one person; the spelling kept is the one carrying the most votes.
+     *
+     * ── THE NUMBERS RANK THE LIST AND ARE NEVER PRINTED ─────────────────────
+     *
+     * `votes` decides the order and nothing else. The ballot deliberately does
+     * not show it: publishing what each named person paid turns a thank-you into
+     * a table of who spent most, invites exactly the escalation this platform
+     * should not encourage, and discloses one person's spending to every reader.
+     * Ranking by a number nobody sees is fine. Printing it is not.
      *
      * @return list<array{name:string, votes:int, paid:bool, when:string}>
      */
@@ -72,47 +99,107 @@ final class SupportersService
                 ->whereNotNull('voter_name')
                 ->where('voter_name', '<>', '')
                 ->orderByDesc('id')
-                ->limit(max(1, $limit))
+                ->limit(self::SCAN)
                 ->get(['voter_name', 'weight', 'vote_type', 'voted_at']);
         } catch (\Throwable) {
             return [];
         }
 
-        $out = [];
+        /** @var array<string, array{name:string, votes:int, paid:bool, when:string, top:int}> $people */
+        $people = [];
         foreach ($rows as $r) {
             $name = trim((string) ($r->voter_name ?? ''));
             // 'Supporter' is PaidVoteController's placeholder for "no name given",
             // not a name anyone chose. It reaches here only if someone both left the
             // field blank and ticked the box.
             if ($name === '' || strcasecmp($name, 'Supporter') === 0) continue;
-            $out[] = [
-                'name'  => mb_substr($name, 0, 60),
-                'votes' => max(1, (int) ($r->weight ?? 1)),
-                'paid'  => ((string) ($r->vote_type ?? '')) === 'paid',
-                'when'  => (string) ($r->voted_at ?? ''),
-            ];
+
+            $name   = mb_substr($name, 0, 60);
+            $key    = self::fold($name);
+            $weight = max(1, (int) ($r->weight ?? 1));
+
+            if (!isset($people[$key])) {
+                // Rows arrive newest first, so the first date seen is the latest.
+                $people[$key] = ['name' => $name, 'votes' => 0, 'paid' => false,
+                                 'when' => (string) ($r->voted_at ?? ''), 'top' => 0];
+            }
+            $people[$key]['votes'] += $weight;
+            $people[$key]['paid']   = $people[$key]['paid'] || ((string) ($r->vote_type ?? '')) === 'paid';
+            if ($weight > $people[$key]['top']) {
+                $people[$key]['top']  = $weight;
+                $people[$key]['name'] = $name;
+            }
+        }
+
+        // Biggest backer first, ties broken by name so the order is stable between
+        // requests instead of depending on however the rows happened to arrive.
+        uasort($people, static fn($a, $b) => $b['votes'] <=> $a['votes'] ?: strcasecmp($a['name'], $b['name']));
+
+        $out = [];
+        foreach (array_slice(array_values($people), 0, max(1, $limit)) as $p) {
+            unset($p['top']);
+            $out[] = $p;
         }
         return $out;
     }
 
     /**
-     * How many supporters consented in total — the "and N others" figure.
+     * How many DISTINCT people consented — the figure behind "and N more".
      *
-     * Counted separately from the list rather than derived from it, because the list
-     * is truncated and the count is not.
+     * Counted over people rather than rows so it agrees with the list above it.
+     * A COUNT(*) of vote rows would say "and 40 more" beneath a list of four
+     * names when the truth is that those same four people voted often.
      */
     public static function countForNominee(int $nomineeId): int
     {
         if ($nomineeId < 1) return 0;
         try {
-            return (int) DB::table('gates_votes')
+            $names = DB::table('gates_votes')
                 ->where('nominee_id', $nomineeId)
                 ->where('show_name', 1)
                 ->whereNotNull('voter_name')
                 ->where('voter_name', '<>', '')
-                ->count();
+                ->limit(self::SCAN * 4)
+                ->pluck('voter_name');
         } catch (\Throwable) {
             return 0;
         }
+
+        $seen = [];
+        foreach ($names as $n) {
+            $n = trim((string) $n);
+            if ($n === '' || strcasecmp($n, 'Supporter') === 0) continue;
+            $seen[self::fold($n)] = true;
+        }
+        return count($seen);
+    }
+
+    /**
+     * How to describe the people not shown.
+     *
+     * Exact while the number is small enough for exactness to be information, and
+     * rounded to a round number with a "+" once it is not. "and 12 more" is a
+     * fact; "and 1,247 more" is a big number wearing a comma, and it turns the
+     * tail of the list into a counter that changes on every reload for no
+     * reader's benefit. Rounding DOWN matters — "100+" must never be a claim the
+     * real count cannot back.
+     */
+    public static function overflowLabel(int $remaining): string
+    {
+        if ($remaining < 1)  return '';
+        if ($remaining < 25) return 'and ' . $remaining . ' more';
+
+        foreach ([1000, 500, 100, 50, 25] as $step) {
+            if ($remaining >= $step) {
+                return 'and ' . number_format(intdiv($remaining, $step) * $step) . '+ more';
+            }
+        }
+        return 'and ' . $remaining . ' more';   // unreachable, but every path returns
+    }
+
+    /** Case- and whitespace-insensitive identity for a supporter's name. */
+    private static function fold(string $name): string
+    {
+        return mb_strtolower(trim((string) preg_replace('/\s+/u', ' ', $name)));
     }
 }

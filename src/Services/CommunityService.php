@@ -189,14 +189,24 @@ class CommunityService
         return ['thread' => (array)$t, 'replies' => $replies, 'poll' => $this->getPoll('thread', (int)$t->id, $fp)];
     }
 
-    public function postThread(array $data, string $ip = ''): array
+    /**
+     * @param bool $bodyOptional Allow an EMPTY body. Off by default, because a
+     *   community thread with nothing in it is not a thread. The one caller that
+     *   passes true is the Pulse composer posting a photo or video with no
+     *   caption — there the media is the post and a caption is optional, exactly
+     *   as it is on every photo feed. It passes true only after the file has
+     *   actually been stored, so this can never be used to create an empty
+     *   thread; making that an explicit argument rather than relaxing the check
+     *   keeps the community form as strict as it was.
+     */
+    public function postThread(array $data, string $ip = '', bool $bodyOptional = false): array
     {
         $title = trim((string)($data['title'] ?? ''));
         $body  = trim((string)($data['body'] ?? ''));
         $author = trim((string)($data['author_name'] ?? ''));
         $email = strtolower(trim((string)($data['author_email'] ?? '')));
         $progId = isset($data['programme_id']) ? (int)$data['programme_id'] : null;
-        if (!$title || !$body || !$author || !$email) return ['ok' => false, 'message' => 'All fields required.'];
+        if (!$title || (!$body && !$bodyOptional) || !$author || !$email) return ['ok' => false, 'message' => 'All fields required.'];
 
         $verdict = $this->spam->evaluate($title . "\n\n" . $body);
         if ($verdict['decision'] === 'reject') return ['ok' => false, 'message' => 'Looks like spam. Please rephrase.'];

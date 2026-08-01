@@ -403,8 +403,13 @@ class VoteController {
             'pay_providers'      => (PaidVoteService::enabled() && $this->payments) ? $this->payments->enabledProviders() : [],
             // Supporters who ASKED to be named. Empty for every nominee until someone
             // ticks the box — the reader publishes consent, not names it happens to hold.
-            'supporters'         => \AfricaGates\Services\SupportersService::forNominee((int) $nom->id),
-            'supporter_count'    => \AfricaGates\Services\SupportersService::countForNominee((int) $nom->id),
+            'supporters'         => $supporters = \AfricaGates\Services\SupportersService::forNominee((int) $nom->id),
+            'supporter_count'    => $supporterCount = \AfricaGates\Services\SupportersService::countForNominee((int) $nom->id),
+            // The tail is phrased by the service, not the template: exact while the
+            // number is small enough to be information, rounded to "100+" once it
+            // is just a big number that changes on every reload.
+            'supporters_more'    => \AfricaGates\Services\SupportersService::overflowLabel(
+                                        max(0, $supporterCount - count($supporters))),
         ] + array_filter([
             // Social card: the nominee's own photo when they have one.
             /**

@@ -201,6 +201,13 @@ final class ActivityFeedService
             'thread'  => fn (): array => $this->threads($q, $limit),
             'profile' => fn (): array => $this->profiles($q, $limit),
             'phase'   => fn (): array => $this->transitions($q, $limit),
+            // Added so this searches the SITE, not only its activity. Without
+            // them, "choral" or "how does voting work" returned nothing — which
+            // reads as "we have nothing on that" rather than "this box only
+            // covers recent events". A search offered site-wide has to be able to
+            // reach the destination pages themselves.
+            'award'   => fn (): array => $this->awards($q, $limit),
+            'page'    => fn (): array => $this->pages($q),
         ];
 
         // An interpreted `kinds` narrows WHICH SOURCES RUN, which is where the speed-up
@@ -231,7 +238,44 @@ final class ActivityFeedService
 
         usort($items, static fn (array $a, array $b): int => strcmp($b['at'], $a['at']));
 
-        return ['items' => array_slice($items, 0, $limit), 'sources' => $ok];
+        return ['items' => self::withSignposts($items, $limit), 'sources' => $ok];
+    }
+
+    /**
+     * Keep a few signposts on the page after the recency sort.
+     *
+     * Pages and award programmes are destinations, not events, so they carry no
+     * timestamp and land at the very bottom of a recency-ordered list. That is
+     * the correct order — a live result should outrank a signpost — but it means
+     * a busy week pushes the answer to "how does voting work" past the cut-off
+     * entirely, and the reader is shown twenty recent things and not the page
+     * they asked for.
+     *
+     * So the tail of the list is reserved: up to SIGNPOSTS of them are moved
+     * inside the limit. The dated results still lead, which keeps the ordering
+     * meaningful, and nothing is invented to make that happen.
+     *
+     * @param list<array> $items
+     * @return list<array>
+     */
+    private const SIGNPOSTS = 3;
+
+    private static function withSignposts(array $items, int $limit): array
+    {
+        if (count($items) <= $limit) return $items;
+
+        $isSignpost = static fn (array $i): bool => in_array($i['kind'], ['page', 'award'], true);
+
+        $signposts = array_values(array_filter($items, $isSignpost));
+        if ($signposts === []) return array_slice($items, 0, $limit);
+
+        $dated = array_values(array_filter($items, static fn ($i) => !$isSignpost($i)));
+        $keep  = min(self::SIGNPOSTS, count($signposts), $limit);
+
+        return array_merge(
+            array_slice($dated, 0, max(0, $limit - $keep)),
+            array_slice($signposts, 0, $keep),
+        );
     }
 
     /**
@@ -508,6 +552,142 @@ final class ActivityFeedService
      * sees. Both are produced here so a template can never format a date one way on
      * one page and another way on the next.
      */
+    /**
+     * Award programmes and their categories.
+     *
+     * "Choral" is a category, not an event, so before this the one word most
+     * likely to be typed into a search box on this site matched nothing.
+     */
+    private function awards(?string $q, int $limit): array
+    {
+        $out = [];
+
+        $progs = $this->filter(
+            DB::table('gates_award_programmes')->where('is_active', 1),
+            $q, ['title', 'subtitle', 'description'],
+        )->orderBy('sort_order')->limit($limit)->get(['slug', 'title', 'subtitle'])->all();
+
+        foreach ($progs as $r) {
+            $out[] = $this->item(
+                kind: 'award', label: 'Award programme',
+                title: (string) $r->title,
+                detail: (string) ($r->subtitle ?? ''),
+                url: '/awards/' . $r->slug,
+                // These are destinations, not events. There is no honest timestamp
+                // for "the Choral programme", so they carry none and sort to the
+                // bottom of a mixed list — which is right: a live result should
+                // outrank a signpost.
+                at: '',
+            );
+        }
+
+        $cats = $this->filter(
+            DB::table('gates_award_categories as c')
+                ->join('gates_award_cycles as y', 'y.id', '=', 'c.cycle_id')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+                ->where('p.is_active', 1),
+            $q, ['c.title', 'c.description', 'p.title'],
+        )->orderByDesc('y.year')->limit($limit)
+         ->get(['c.title', 'c.description', 'p.slug as programme_slug', 'p.title as programme', 'y.year'])->all();
+
+        foreach ($cats as $r) {
+            $out[] = $this->item(
+                kind: 'award', label: 'Category',
+                title: (string) $r->title,
+                detail: trim((string) ($r->programme ?? '') . ' · ' . (string) ($r->year ?? ''), ' ·'),
+                url: '/awards/' . $r->programme_slug,
+                at: '',
+            );
+        }
+
+        return $out;
+    }
+
+    /**
+     * The site's own pages.
+     *
+     * ── WHY THIS IS A HAND-WRITTEN LIST ─────────────────────────────────────
+     *
+     * These pages are Twig templates, not rows, so there is nothing to query.
+     * The alternatives were a crawler (a background job this host cannot run) or
+     * a search index (a table to build and keep in step with the templates). A
+     * list of the ~20 destinations people actually look for is smaller, has no
+     * staleness failure mode, and is honest about what it is.
+     *
+     * Its cost is that it must be edited when a page is added. That is stated
+     * here rather than discovered later — and a missing page degrades to "not in
+     * search", never to a broken link, because every URL below is a route that
+     * exists.
+     */
+    private function pages(?string $q): array
+    {
+        if ($q === null || mb_strlen(trim($q)) < 2) return [];
+
+        // title, url, keywords people actually type (not synonyms of the title)
+        $pages = [
+            ['Vote',              '/vote',              'cast a ballot voting how to vote ballot categories'],
+            ['Nominate someone',  '/nominate',          'nomination submit put forward entry enter'],
+            ['Leaderboard',       '/leaderboard',       'rankings standings cpi cultural power index scores top'],
+            ['The Registry',      '/registry',          'profiles directory people search nominees browse'],
+            ['Integrity Center',  '/integrity',         'how voting works fraud audit methodology scoring rules trust'],
+            ['Pulse',             '/pulse',             'feed posts community latest news updates'],
+            ['Community',         '/community',         'forum threads discussion channels talk'],
+            ['Events',            '/events',            'ceremony webinar sessions calendar dates'],
+            ['Journal',           '/blog',              'blog articles announcements writing news'],
+            ['Meet the Judges',   '/judges',            'panel jury evaluators experts scoring'],
+            ['Awards',            '/awards',            'programmes categories prizes'],
+            ['Legacy Vault',      '/legacy',            'archive past editions history winners previous'],
+            ['Donate',            '/donate',            'give support fund contribute money programmes'],
+            ['Shop',              '/shop',              'merch store buy t-shirt wear'],
+            ['Partner with us',   '/partners',          'sponsor sponsorship partnership brands collaborate'],
+            ['Opportunities',     '/opportunities',     'jobs roles calls apply grants'],
+            ['Create an account', '/account/register',  'sign up register join membership free'],
+            ['Sign in',           '/account/login',     'log in login account access'],
+            // Contact lives on the parent site — there is no /contact route here,
+            // and offering one would have been a search result that 404s.
+            ['Contact',           'https://afrovanguard.org.ng/contact/', 'email get in touch support help enquiry'],
+            ['Privacy',           '/privacy',           'data protection ndpr gdpr personal information'],
+            ['Terms',             '/terms',             'conditions rules legal agreement'],
+        ];
+
+        // Stripped before matching, because people type questions, not keywords.
+        // "how does voting work" carries two words that mean anything here; the
+        // other two appear in no page's vocabulary and, under an all-words rule,
+        // made the whole question match nothing — which is the single most likely
+        // thing a first-time visitor types.
+        static $stop = ['a','an','and','are','as','at','be','by','can','did','do','does','for','from',
+                        'get','how','i','in','is','it','me','my','of','on','or','that','the','their',
+                        'they','this','to','was','we','what','when','where','which','who','why','will',
+                        'with','you','your'];
+
+        $all = array_values(array_filter(preg_split('/\s+/u', mb_strtolower(trim($q))) ?: []));
+        $words = array_values(array_filter($all, static fn ($w) => mb_strlen($w) >= 2 && !in_array($w, $stop, true)));
+        // A query made ENTIRELY of stop words ("what is it") has no content to match;
+        // falling back to the raw words there would match everything.
+        if ($words === []) return [];
+
+        $hits = [];
+        foreach ($pages as [$title, $url, $keys]) {
+            $hay   = mb_strtolower($title . ' ' . $keys);
+            $lower = mb_strtolower($title);
+
+            // Every CONTENT word must appear. Matching any single word would turn
+            // "vote in ghana" into a hit on every page containing "vote".
+            $score = 0;
+            foreach ($words as $w) {
+                if (!str_contains($hay, $w)) { $score = 0; break; }
+                // A hit in the title outranks one in the keyword bag.
+                $score += str_contains($lower, $w) ? 3 : 1;
+            }
+            if ($score > 0) $hits[] = [$score, $this->item(
+                kind: 'page', label: 'Page', title: $title, detail: $url, url: $url, at: '',
+            )];
+        }
+
+        usort($hits, static fn ($a, $b) => $b[0] <=> $a[0]);
+        return array_column(array_slice($hits, 0, 5), 1);
+    }
+
     private function item(string $kind, string $label, string $title, string $detail, string $url, string $at): array
     {
         return [

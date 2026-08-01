@@ -200,6 +200,7 @@
   <link rel="stylesheet" href="/assets/css/components/footer.css?v={{ asset_version }}">
   <link rel="stylesheet" href="/assets/css/components/gee.css?v={{ asset_version }}">
   <link rel="stylesheet" href="/assets/css/components/community-modal.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="/assets/css/components/site-search.css?v={{ asset_version }}">
   {# Accessibility layer — loaded LAST so its corrections win (WCAG 2.2 AA) #}
   <link rel="stylesheet" href="/assets/css/a11y.css?v={{ asset_version }}">
   {% endif %}
@@ -365,6 +366,9 @@
 
 {# Join-our-community modal — present site-wide; opened once/session after a vote or nomination #}
 {% include 'partials/community-modal.twig' %}
+{# Site-wide search. Included on every page because the header button is, and a
+   button whose dialog is missing is worse than no button. #}
+{% include 'partials/site-search.twig' %}
 
 {# ── Library stack — deferred where safe ────────────────────────── #}
 {# jQuery — kept lightweight as a vendor compatibility shim #}
@@ -379,6 +383,10 @@
    call window.agSocial before it exists. Loading it second threw
    "Cannot read properties of undefined" on every card in the feed. #}
 <script defer src="/assets/js/ag-social.js?v={{ asset_version }}"></script>
+{# Site-wide search overlay. Plain JS, no Alpine — it has to work on every page
+   including the ones that never load Alpine, and it enhances a form that already
+   submits without it. #}
+<script defer src="/assets/js/ag-search.js?v={{ asset_version }}"></script>
 {# Alpine.js — reactive bindings on /vote, /community, /pulse, admin tables #}
 <script defer src="/assets/js/vendor/alpine-3.13.5.min.js?v={{ asset_version }}"></script>
 {# Community modal — self-contained; loaded site-wide (outside the lite_page gate) #}

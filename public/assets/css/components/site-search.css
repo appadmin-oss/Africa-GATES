@@ -1,0 +1,105 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   Site-wide search overlay.
+
+   Two rules do most of the work here and both are accessibility, not styling:
+
+   • `.sr-only` is clip-not-hidden. `display:none` removes an element from the
+     accessibility tree entirely, so a visually-hidden label written that way is
+     a label no screen reader ever reads.
+   • Every interactive thing keeps a visible :focus-visible ring. Removing focus
+     outlines is the single most common way a keyboard user is locked out of an
+     otherwise correct dialog — they can move, but cannot see where they are.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* the header trigger */
+.ag-searchbtn{
+  display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+  border:1px solid rgba(16,41,44,.14); background:transparent; color:var(--ag-ink,#10292c);
+  border-radius:999px; padding:8px 12px; line-height:0;
+}
+.ag-searchbtn svg{ width:17px; height:17px; }
+.ag-searchbtn:hover{ background:rgba(16,41,44,.05); }
+.ag-searchbtn:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+.ag-searchbtn__k{
+  font:600 11px/1 var(--ag-font-mono,monospace); color:#7d8c8e;
+  border:1px solid rgba(16,41,44,.16); border-radius:5px; padding:3px 5px;
+}
+@media (max-width: 880px){ .ag-searchbtn__k{ display:none; } }
+
+/* the overlay */
+.ags[hidden]{ display:none; }
+.ags{ position:fixed; inset:0; z-index:1200; display:flex; justify-content:center;
+      align-items:flex-start; padding:clamp(12px,7vh,90px) 16px 16px; }
+.ags__scrim{ position:absolute; inset:0; background:rgba(8,18,19,.55); backdrop-filter:blur(3px); }
+.ags__panel{
+  position:relative; width:min(680px,100%); max-height:calc(100vh - 100px);
+  display:flex; flex-direction:column; background:#fff; border-radius:20px;
+  box-shadow:0 24px 70px rgba(0,0,0,.34); overflow:hidden;
+}
+
+.ags__bar{ display:flex; align-items:center; gap:10px; padding:14px 16px;
+           border-bottom:1px solid rgba(16,41,44,.08); }
+.ags__icon{ width:20px; height:20px; flex:none; color:#7d8c8e; }
+.ags__input{
+  flex:1; min-width:0; border:0; background:transparent; font:inherit; font-size:16px;
+  color:var(--ag-ink,#10292c); padding:6px 0;
+}
+/* 16px above is deliberate: anything smaller makes iOS Safari zoom the page on
+   focus, which on a modal leaves the panel half off-screen. */
+.ags__input:focus{ outline:none; }
+/* Hide the browser's own search-cancel affordance. `type="search"` is kept for
+   the semantics and the mobile keyboard's "search" key, but Chrome draws a blue
+   × that sits right beside our own close button — two controls, different
+   meanings ("clear" and "close"), no way to tell which is which. */
+.ags__input::-webkit-search-cancel-button,
+.ags__input::-webkit-search-decoration{ -webkit-appearance:none; appearance:none; }
+.ags__close{ flex:none; border:0; background:none; cursor:pointer; color:#5a6d6f;
+             padding:7px; border-radius:50%; line-height:0; }
+.ags__close svg{ width:18px; height:18px; }
+.ags__close:hover{ background:#f2f5f2; }
+.ags__close:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
+
+.ags__hint{ margin:0; padding:10px 18px 0; font-size:12.5px; color:#8a9a9c; }
+.ags__status{ margin:0; padding:8px 18px 0; font-size:12.5px; font-weight:600; color:#5a6d6f; }
+.ags__status:empty{ padding:0; }
+
+.ags__list{ list-style:none; margin:8px 0 0; padding:0 8px 8px; overflow-y:auto; flex:1; }
+.ags__link{
+  display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:baseline; gap:4px 10px;
+  padding:11px 12px; border-radius:12px; text-decoration:none; color:var(--ag-ink,#10292c);
+}
+.ags__link:hover, .ags__link.is-active{ background:#eef6ee; }
+/* The active option is marked by aria-activedescendant and cannot receive real
+   focus, so its highlight is the ONLY signal that it is selected. It has to be
+   visible in forced-colors mode too, where a background colour is discarded. */
+.ags__link.is-active{ box-shadow:inset 0 0 0 2px var(--ag-green,#237b22); }
+@media (forced-colors: active){
+  .ags__link.is-active{ outline:3px solid Highlight; outline-offset:-3px; }
+}
+.ags__link:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:-2px; }
+
+.ags__kind{
+  grid-row:1; font:700 10px/1.6 var(--ag-font-mono,monospace); letter-spacing:.08em;
+  text-transform:uppercase; color:#237b22; background:#eaf4ea; border-radius:5px; padding:2px 6px;
+}
+.ags__t{ grid-row:1; font-weight:600; font-size:14.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ags__at{ grid-row:1; font-size:11.5px; color:#8a9a9c; white-space:nowrap; }
+.ags__d{ grid-row:2; grid-column:2 / -1; font-size:12.5px; color:#5a6d6f;
+         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.ags__foot{
+  margin:0; padding:11px 18px; border-top:1px solid rgba(16,41,44,.08);
+  font-size:12px; color:#8a9a9c; display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+}
+.ags__foot kbd{
+  font:600 11px/1 var(--ag-font-mono,monospace); color:#5a6d6f; background:#f2f5f2;
+  border:1px solid rgba(16,41,44,.12); border-radius:5px; padding:3px 5px;
+}
+.ags__foot a{ margin-left:auto; color:var(--ag-green,#237b22); font-weight:700; text-decoration:none; }
+.ags__foot a:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+
+@media (max-width: 560px){
+  .ags{ padding:0; }
+  .ags__panel{ width:100%; max-height:100vh; height:100%; border-radius:0; }
+  .ags__foot kbd{ display:none; }
+}

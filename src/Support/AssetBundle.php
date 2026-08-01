@@ -72,6 +72,7 @@ final class AssetBundle
         'assets/css/components/footer.css',
         'assets/css/components/gee.css',
         'assets/css/components/community-modal.css',
+        'assets/css/components/site-search.css',
         // LAST, and it must stay last — its corrections are meant to win.
         'assets/css/a11y.css',
     ];

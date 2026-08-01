@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 use Illuminate\Support\Carbon;
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Support\OptionalColumn;
 
 class AwardService {
     public function __construct(private readonly ?SpamService $spam = null) {}
@@ -49,7 +50,7 @@ class AwardService {
         $cycle=DB::table('gates_award_cycles')->where('programme_id',$p->id)
             ->orderByRaw("CASE WHEN status IN ('nominations','shortlisting','voting','judging','results') THEN 0 ELSE 1 END")
             ->orderByDesc('year')->orderByDesc('id')->first();
-        $cats=$cycle?DB::table('gates_award_categories')->where('cycle_id',$cycle->id)->orderBy('sort_order')->get()->map(fn($c)=>['id'=>$c->id,'slug'=>$c->slug,'title'=>$c->title,'description'=>$c->description,'nominee_count'=>MergeService::notMerged(DB::table('gates_nominees')->where('category_id',$c->id)->where('status','approved'))->count()])->values()->all():[];
+        $cats = $cycle ? $this->categoriesByHeat((int) $cycle->id) : [];
         // `cycle_status` and `phase` were MISSING here, while the programme page
         // read `a.cycle_status` — so `status` was always 'upcoming' and the
         // "Cast a vote" / "Submit a nomination" CTAs never rendered in ANY
@@ -57,6 +58,86 @@ class AwardService {
         // the same policy every other surface uses.
         $phase = $cycle ? CyclePolicy::stateFor($cycle) : null;
         return['id'=>$p->id,'slug'=>$p->slug,'title'=>$p->title,'subtitle'=>$p->subtitle ?? null,'description'=>$p->description ?? null,'icon_emoji'=>$p->icon_emoji ?? null,'cycle'=>$cycle?(array)$cycle:null,'cycle_status'=>$phase['phase'] ?? 'upcoming','phase'=>$phase,'year'=>$cycle->year ?? (int)date('Y'),'categories'=>$cats];
+    }
+
+    /**
+     * A cycle's categories, hottest race first.
+     *
+     * ── WHY THE ORDER CHANGES ───────────────────────────────────────────────
+     *
+     * `sort_order` is an admin's filing order. It is stable, which is exactly
+     * what makes it useless on a page people open to find out what is happening:
+     * the category with the runaway leader and the one nobody has voted in sit
+     * wherever someone typed them months ago, and the reader has to open all of
+     * them to find the race. Ordering by the leading nominee's votes puts the
+     * story at the top, which is also where the "Vote" button then is.
+     *
+     * ── AND WHY IT SOMETIMES DOESN'T ────────────────────────────────────────
+     *
+     * A category with no votes has no leader, so there is nothing to rank it by.
+     * Before voting opens EVERY category is in that state, and sorting them by a
+     * column of zeroes would shuffle the page into an order with no meaning that
+     * changes the moment the first vote lands. So a tie on votes — including the
+     * all-zero tie — falls back to `sort_order`, and the page looks exactly as it
+     * does today until there is something real to rank.
+     *
+     * Batched: two queries for the whole page, not two per category.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function categoriesByHeat(int $cycleId): array
+    {
+        $cats = DB::table('gates_award_categories')->where('cycle_id', $cycleId)
+            ->orderBy('sort_order')->get();
+        if ($cats->isEmpty()) return [];
+
+        $ids  = $cats->pluck('id')->map(fn($v) => (int) $v)->all();
+        $cols = ['id', 'name', 'photo_path', 'vote_count', 'category_id'];
+        if (OptionalColumn::on('gates_nominees', 'organisation')) $cols[] = 'organisation';
+
+        // Every approved nominee in the cycle, biggest first. One pass gives both
+        // the per-category leader and the per-category totals; a leader query per
+        // category would be one round trip per card on the page.
+        $q = DB::table('gates_nominees')->whereIn('category_id', $ids)->where('status', 'approved');
+        MergeService::notMerged($q);
+        $nominees = $q->orderByDesc('vote_count')->orderBy('id')->get($cols);
+
+        $leader = $count = $total = [];
+        foreach ($nominees as $n) {
+            $c = (int) $n->category_id;
+            $count[$c] = ($count[$c] ?? 0) + 1;
+            $total[$c] = ($total[$c] ?? 0) + (int) $n->vote_count;
+            // Rows arrive biggest-first, so the first one seen for a category is
+            // its leader. Ties resolve by id, which keeps the choice stable.
+            $leader[$c] ??= [
+                'id'           => (int) $n->id,
+                'name'         => (string) $n->name,
+                'photo_path'   => (string) ($n->photo_path ?? ''),
+                'votes'        => (int) $n->vote_count,
+                'organisation' => (string) ($n->organisation ?? ''),
+            ];
+        }
+
+        $out = [];
+        foreach ($cats as $i => $c) {
+            $id = (int) $c->id;
+            $ld = $leader[$id] ?? null;
+            $out[] = [
+                'id' => $id, 'slug' => $c->slug, 'title' => $c->title, 'description' => $c->description,
+                'nominee_count' => $count[$id] ?? 0,
+                'total_votes'   => $total[$id] ?? 0,
+                // Null until somebody has actually voted. A nominee on zero votes
+                // is not "leading" — presenting them as the front-runner of a race
+                // that has not started is a claim the data does not support.
+                'leader'        => ($ld && $ld['votes'] > 0) ? $ld : null,
+                'lead_votes'    => ($ld && $ld['votes'] > 0) ? $ld['votes'] : 0,
+                '_order'        => $i,
+            ];
+        }
+
+        usort($out, static fn($a, $b) => $b['lead_votes'] <=> $a['lead_votes'] ?: $a['_order'] <=> $b['_order']);
+        foreach ($out as &$row) unset($row['_order']);
+        return $out;
     }
 
     public function getNominees(int $programmeId, int $categoryId=0, int $year=0): array {

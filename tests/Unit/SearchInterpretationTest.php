@@ -209,15 +209,15 @@ class SearchInterpretationTest extends TestCase
 
     public function test_narrowing_to_one_kind_reads_fewer_sources(): void
     {
-        // Where the speed-up is: "winners in Ghana" reads two tables instead of seven.
+        // Where the speed-up is: "winners in Ghana" reads two tables instead of nine.
         // `sources` counts what was ASKED for, so a narrowed search does not look like
-        // five unavailable sources.
+        // seven unavailable sources.
         $ref = new \ReflectionMethod(ActivityFeedService::class, 'collect');
 
         $all = $ref->invoke($this->feed, null, 20, null);
         $one = $ref->invoke($this->feed, null, 20, ['kinds' => ['post'], 'country' => null, 'days' => null]);
 
-        $this->assertSame(7, $all['sources']);
+        $this->assertSame(9, $all['sources']);   // seven activity sources + award + page
         $this->assertSame(1, $one['sources'], 'one kind, one source read');
     }
 
