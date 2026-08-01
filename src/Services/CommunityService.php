@@ -47,7 +47,16 @@ class CommunityService
         $row = [
             'target_type' => $targetType,
             'target_id'   => $targetId,
-            'parent_id'   => isset($data['parent_id']) ? (int)$data['parent_id'] : null,
+            // A top-level comment has no parent, and the only correct value for
+            // "no parent" is NULL. This was `isset(...) ? (int)... : null`, and
+            // every client sends the field as '' rather than omitting it — so
+            // isset() was true, (int)'' was 0, and the row pointed at comment #0,
+            // which cannot exist. Against a database that enforces the
+            // parent_id → gates_comments(id) foreign key that is a hard failure:
+            // "FOREIGN KEY constraint failed", a 500, and no comment stored. It
+            // made top-level replies impossible on the community thread page too,
+            // not just in the feed — the two send an identical payload.
+            'parent_id'   => ((int) ($data['parent_id'] ?? 0)) ?: null,
             'author_name' => $author,
             'author_email' => $email,
             'author_email_hash' => $email ? hash('sha256', $email) : null,

@@ -823,6 +823,12 @@ return function(App $app) {
             $a->post('/community/bookmark', CommunityController::class.':bookmark');
             $a->post('/community/repost',   CommunityController::class.':repost');
             $a->get('/community/activity',  CommunityController::class.':activity');
+            // Pulse feed: page N of the infinite scroll, and the new-posts pill count.
+            // Public, because reading Pulse is public. The per-viewer fields
+            // (cheered/saved/is_mine) come from the SESSION, never a parameter, so
+            // one reader cannot ask the server what another reader has liked.
+            $a->get('/pulse/feed',          PulseController::class.':feed');
+            $a->get('/pulse/new',           PulseController::class.':feedNew');
             // Gee — the page-aware AI guide
             $a->post('/guide',              GuideController::class.':chat');
             // Inbound Make.com agent bridge — bearer-authenticated, 404 until configured.

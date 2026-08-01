@@ -370,7 +370,16 @@
 {# jQuery — kept lightweight as a vendor compatibility shim #}
 <script defer src="https://code.jquery.com/jquery-3.7.1.slim.min.js"
         integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
-{# Alpine.js — reactive bindings on /vote, /community, admin tables #}
+{# Shared social primitives (like / comment / save / share), used by the Pulse
+   feed, the community thread page and the registry profiles.
+
+   ORDER MATTERS: this must come BEFORE Alpine. Deferred scripts run in document
+   order, and Alpine starts as soon as its own script executes — not on
+   DOMContentLoaded — so anything loaded after it initialises components that
+   call window.agSocial before it exists. Loading it second threw
+   "Cannot read properties of undefined" on every card in the feed. #}
+<script defer src="/assets/js/ag-social.js?v={{ asset_version }}"></script>
+{# Alpine.js — reactive bindings on /vote, /community, /pulse, admin tables #}
 <script defer src="/assets/js/vendor/alpine-3.13.5.min.js?v={{ asset_version }}"></script>
 {# Community modal — self-contained; loaded site-wide (outside the lite_page gate) #}
 <script defer src="/assets/js/community-modal.js?v={{ asset_version }}"></script>

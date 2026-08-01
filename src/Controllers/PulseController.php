@@ -7,7 +7,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
-use AfricaGates\Services\{CacheService, CommunityService, Notifier, OtpService, ProfileService, RateLimitService, UserAccountService};
+use AfricaGates\Services\{CacheService, CommunityService, Notifier, OtpService, ProfileService, PulseFeedService, RateLimitService, UserAccountService};
 
 /**
  * Pulse — the living feed. The design is an Instagram-style hub; this build keeps
@@ -47,7 +47,54 @@ final class PulseController
         private readonly ?CommunityService $community = null,
         private readonly ?RateLimitService $rateLimit = null,
         private readonly ?OtpService $mailer = null,
+        private readonly ?PulseFeedService $feed = null,
     ) {}
+
+    /** The signed-in member's id, or null. Feed state is per-viewer. */
+    private function viewerId(): ?int
+    {
+        $m = UserAccountService::memberForForms();
+        return $m ? (int) $m['id'] : null;
+    }
+
+    private function json(Response $res, array $payload, int $status = 200): Response
+    {
+        $res->getBody()->write((string) json_encode($payload));
+        return $res->withHeader('Content-Type', 'application/json')->withStatus($status);
+    }
+
+    /**
+     * A page of the feed as JSON — what infinite scroll asks for.
+     *
+     * Public, because reading Pulse is public. The per-viewer bits (`cheered`,
+     * `saved`, `is_mine`) come from the SESSION, never from a parameter, so one
+     * reader cannot ask the server what another reader has liked.
+     */
+    public function feed(Request $req, Response $res): Response
+    {
+        if ($this->feed === null) return $this->json($res, ['success' => false, 'items' => []], 503);
+
+        $q      = $req->getQueryParams();
+        $cursor = isset($q['cursor']) ? (int) $q['cursor'] : null;
+        $limit  = isset($q['limit'])  ? (int) $q['limit']  : PulseFeedService::PAGE;
+
+        $page = $this->feed->page($cursor, $limit, $this->viewerId());
+        return $this->json($res, ['success' => true] + $page);
+    }
+
+    /**
+     * How many posts have landed since the reader loaded the page.
+     *
+     * Polled by the "N new posts" pill. Shared cPanel hosting gives us no
+     * persistent process, so there is no websocket to push this down — the
+     * honest implementation is a cheap indexed COUNT the client asks for.
+     */
+    public function feedNew(Request $req, Response $res): Response
+    {
+        if ($this->feed === null) return $this->json($res, ['success' => false, 'count' => 0], 503);
+        $after = (int) ($req->getQueryParams()['after'] ?? 0);
+        return $this->json($res, ['success' => true, 'count' => $this->feed->newSince($after)]);
+    }
 
     public function index(Request $req, Response $res): Response
     {
@@ -66,6 +113,15 @@ final class PulseController
 
         $leaders = $this->cache->remember('pulse:leaders', 600, fn() => $this->profiles->getLeaderboard(8), ['leaderboard']);
 
+        // The first page is rendered server-side and every later page arrives from
+        // /api/pulse/feed — so both come from the SAME assembler. Two code paths
+        // building the same card is how the third page ends up subtly different
+        // from the first, and it is also why this is not cached: `cheered` and
+        // `saved` are per-viewer, and a shared cache would show one member's
+        // likes to everybody.
+        $first = $this->feed?->page(null, PulseFeedService::PAGE, $this->viewerId())
+                 ?? ['items' => [], 'next_cursor' => null];
+
         return $this->view->render($res, 'pages/pulse.twig', [
             'page_title'       => 'Pulse — Africa GATES',
             'meta_description' => 'Pulse — the living feed of Africa GATES: the latest posts, events, and the community shaping the continental Cultural Power Index.',
@@ -78,6 +134,10 @@ final class PulseController
             // The composer's limit comes from the controller, so the textarea's
             // maxlength and the server's truncation cannot disagree.
             'pulse_max'        => self::MAX_LEN,
+            'feed'             => $first['items'],
+            'feed_cursor'      => $first['next_cursor'],
+            // The newest id the reader has seen. The new-posts pill counts past it.
+            'feed_head'        => $first['items'][0]['id'] ?? 0,
         ]);
     }
 
