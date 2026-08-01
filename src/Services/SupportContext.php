@@ -133,6 +133,18 @@ final class SupportContext
             // refund: an assistant that can move money is an assistant that can
             // be talked into moving money. It reports what the platform has
             // already decided by itself — see RefundService.
+            ['name' => 'check_reference',
+             'description' => "Ask whether a string is one of OUR references before doing anything with it. Ours all begin "
+                            . "with AFG-. Wallet apps (OPay, PalmPay, Kuda) show their own transaction number instead, "
+                            . "which is real but cannot be looked up here. Use this the moment somebody gives you "
+                            . "something that does not start with AFG-, so you can point them at the right number "
+                            . "rather than telling them their payment does not exist.",
+             'args' => ['reference' => 'whatever they gave you']],
+            ['name' => 'free_vote_help',
+             'description' => "Why a FREE vote might not be showing. Most votes on this platform are free and have no "
+                            . "payment and no reference at all, so use this — not a payment tool — when somebody says "
+                            . "their vote is not reflecting and has NOT mentioned paying.",
+             'args' => []],
             ['name' => 'refund_status',
              'description' => "Check whether a payment is being refunded. The platform refunds automatically when votes "
                             . "could not be counted (usually because voting closed first), so a payment with no votes may "
@@ -192,6 +204,8 @@ final class SupportContext
                 'lookup_reference' => $this->lookupReference((string) ($args['reference'] ?? '')),
                 'fix_payment'      => $this->fixPayment((string) ($args['reference'] ?? '')),
                 'resend_receipt'   => $this->resendReceipt((string) ($args['reference'] ?? '')),
+                'check_reference'  => $this->checkReference((string) ($args['reference'] ?? '')),
+                'free_vote_help'   => $this->freeVoteHelp(),
                 'refund_status'    => RefundService::statusFor((string) ($args['reference'] ?? '')),
                 'ops_summary'      => $this->opsSummary(),
                 default            => null,
@@ -424,9 +438,72 @@ final class SupportContext
      *     nobody paid for confirms nothing;
      *   • it is idempotent, so a planner that calls it twice credits once.
      */
+    /**
+     * Is this even one of our references?
+     *
+     * ── THE DEAD END THIS EXISTS TO PREVENT ──────────────────────────────────
+     *
+     * Every reference this platform mints starts with `AFG-`. A wallet app shows
+     * its OWN transaction or "Merchant Order" number for the same payment —
+     * `paystack_6413965117_hw8rf`, or a long run of digits — and that is what a
+     * person reads off their phone when asked for a reference, because it is the
+     * only number in front of them.
+     *
+     * Running a repair on it fails, truthfully, with "no payment with that
+     * reference". To the reader that is the platform denying a payment they are
+     * looking at proof of, and the conversation is over. The number is real; it
+     * is just not ours.
+     *
+     * So the shape is checked BEFORE the lookup, and a wrong shape produces
+     * directions rather than a denial.
+     */
+    private static function shapeOf(string $reference): string
+    {
+        $ref = trim($reference);
+        if ($ref === '') return 'empty';
+        if (preg_match('/^AFG-[A-Z]*-?[0-9a-f]{8,}$/i', $ref)) return 'ours';
+        // Anything a gateway or wallet would show: a provider-prefixed token, or
+        // a bare run of digits long enough to be a transaction id.
+        if (preg_match('/^[a-z]{3,12}[_-]\w{6,}$/i', $ref) || preg_match('/^\d{8,}$/', $ref)) return 'gateway';
+        return 'unknown';
+    }
+
+    /** @return array{ok:bool, shape:string, say:string} */
+    private function checkReference(string $reference): array
+    {
+        $shape = self::shapeOf($reference);
+
+        return match ($shape) {
+            'ours' => ['ok' => true, 'shape' => 'ours',
+                       'say' => 'That is one of our references. Look it up or repair it.'],
+            'empty' => ['ok' => false, 'shape' => 'empty',
+                        'say' => 'No reference given yet.'],
+            'gateway' => ['ok' => false, 'shape' => 'gateway',
+                          'say' => 'That is the bank or wallet app\'s own transaction number, not ours — it is real, '
+                                 . 'it is just their record of paying us rather than our record of the order. Ours '
+                                 . 'always begin with AFG-, like AFG-PVOTE-. Tell them it is on the confirmation '
+                                 . 'page they landed on after paying and at the bottom of the receipt email. Do NOT '
+                                 . 'say the payment cannot be found — it can, once you have the right number.'],
+            default => ['ok' => false, 'shape' => 'unknown',
+                        'say' => 'That does not look like a payment reference at all. Ours begin with AFG-. '
+                               . 'Ask them to check the confirmation page or the receipt email.'],
+        };
+    }
+
     private function fixPayment(string $reference): array
     {
         $ref = trim($reference);
+
+        // Shape first. See checkReference(): a wallet's own number is real, and
+        // answering it with "no payment found" ends the conversation on a lie the
+        // reader can disprove by looking at their phone.
+        if ($ref !== '') {
+            $shape = $this->checkReference($ref);
+            if (!$shape['ok']) {
+                return ['ok' => false, 'outcome' => 'NOT_OUR_REFERENCE', 'say' => $shape['say']];
+            }
+        }
+
         if ($ref === '') {
             return ['ok' => false, 'note' => 'A payment reference is needed. Ask the user for it — it is on the '
                                            . 'payment page, in the bank alert, and in any receipt they did get.'
@@ -514,6 +591,63 @@ final class SupportContext
                       . 'and check the spam folder, because receipts often land there.']
             : ['ok' => false, 'outcome' => strtoupper((string) ($r['reason'] ?? 'FAILED')),
                'say' => 'The receipt could not be sent. The team will look at it.'];
+    }
+
+    /**
+     * Why a FREE vote might not be showing.
+     *
+     * ── THE CASE THE ASSISTANT KEPT GETTING WRONG ────────────────────────────
+     *
+     * "I voted but it is not reflecting" arrives constantly, and most of the time
+     * no money was involved at all — free voting is the default here and a free
+     * vote has no payment, no receipt and no reference. Asked for one anyway, the
+     * person cannot produce it, and a conversation that had a two-line answer
+     * turns into an interrogation about a transaction that never existed.
+     *
+     * Returned as ORDERED causes rather than prose so the model asks the
+     * discriminating question first — and the first cause is by a distance the
+     * commonest: the emailed code was never entered, which feels exactly like
+     * having voted.
+     *
+     * The counts at the end are live, so the assistant can tell "your vote is not
+     * there" from "nothing is being recorded at all", which are different
+     * problems with different owners.
+     */
+    private function freeVoteHelp(): array
+    {
+        $out = [
+            'ask_first' => 'Did you pay for these votes, or was it the free vote with the six-digit '
+                         . 'code emailed to you? A free vote has no payment and no reference.',
+            'causes' => [
+                ['cause' => 'The emailed code was never entered',
+                 'why'   => 'A vote is only cast when the six-digit code is submitted. Leaving the page at that '
+                          . 'step feels like voting and records nothing.',
+                 'do'    => 'Ask them to vote again and watch for the code — it often lands in spam.'],
+                ['cause' => 'They already voted in that category',
+                 'why'   => 'One free vote per person per category. The second is refused on purpose to keep the '
+                          . 'tally honest.',
+                 'do'    => 'Say so kindly. This is the integrity system working, not a fault. They can still '
+                          . 'buy votes if they want to add more weight.'],
+                ['cause' => 'They are looking at the wrong nominee or category',
+                 'why'   => 'A vote counts in the category it was cast in.',
+                 'do'    => 'Ask which nominee, and check the nominee\'s own page rather than a leaderboard.'],
+                ['cause' => 'A cached tally',
+                 'why'   => 'Some listing pages cache counts for a few minutes; a nominee\'s own page is live.',
+                 'do'    => 'Ask them to open the nominee\'s page directly.'],
+            ],
+        ];
+
+        // Is the platform recording ANY free votes right now? If it has gone
+        // quiet, this person is not confused — something is broken, and that is a
+        // completely different answer.
+        try {
+            $out['free_votes_last_hour'] = (int) DB::table('gates_votes')
+                ->where('vote_type', '!=', 'paid')
+                ->where('voted_at', '>=', date('Y-m-d H:i:s', time() - 3600))
+                ->count();
+        } catch (\Throwable) {}
+
+        return $out;
     }
 
     /**

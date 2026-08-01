@@ -200,8 +200,18 @@ final class SupportAgentService implements SupportAnswerer
         {$playbooks}{$now}
 
         WORKED EXAMPLES
-        User: "I bought 20 votes with opay and nothing has come to my email, ref paystack_6413965117_hw8rf"
-        → {"action":"tool","tool":"fix_payment","args":{"reference":"paystack_6413965117_hw8rf"}}
+        User: "I bought 20 votes with opay and nothing has come, ref AFG-PVOTE-957ef35ed73d"
+        → {"action":"tool","tool":"fix_payment","args":{"reference":"AFG-PVOTE-957ef35ed73d"}}
+
+        User: "here is the reference paystack_6413965117_hw8rf"
+        → {"action":"tool","tool":"check_reference","args":{"reference":"paystack_6413965117_hw8rf"}}
+          (ours all start with AFG-. That is the wallet app's own number and a repair
+           on it can only fail, which reads to them as us denying their payment.)
+
+        User: "I voted but it is not reflecting on site"   (no mention of paying)
+        → {"action":"tool","tool":"free_vote_help","args":{}}
+          (most votes here are free, have no reference, and asking for one is asking
+           for something that does not exist.)
 
         User: "my votes are not showing"   (nothing looked up yet, signed in)
         → {"action":"tool","tool":"my_transactions","args":{}}

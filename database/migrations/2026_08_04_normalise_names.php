@@ -27,10 +27,14 @@
  * deliberate styling (McDonald, deWayne, NneKa) survives. What changes is the
  * output of a stuck caps-lock key.
  *
- * Voter names on `gates_donations` are deliberately NOT touched. They are shown
- * on public supporters lists, they came from a payment form rather than an
- * editorial one, and rewriting how somebody signed their own donation is a
- * different decision from tidying an editorial record — one for a human to make.
+ * Donor names ARE included. They are published — on a nominee's supporters list
+ * and on the receipt — and they are typed into a phone at checkout, so they
+ * arrive in block capitals at least as often as the editorial fields do. The
+ * same conservative rule applies: anything that already mixes cases is somebody's
+ * own styling and is returned untouched.
+ *
+ * The literal placeholder `Supporter`, written when a buyer gives no name at all,
+ * is already correctly cased and so is a no-op here rather than a special case.
  */
 require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
@@ -72,5 +76,11 @@ $normalise('gates_nominees', 'name');
 // in the admin list rather than only after it is approved.
 $normalise('gates_nominations', 'nominee_name');
 $normalise('gates_nominations', 'nominator_name');
+// Buyers and donors — published on supporters lists and printed on receipts.
+$normalise('gates_donations', 'donor_name');
+// The name copied onto a vote at mint time, which is what the public supporters
+// list actually reads. Normalising the donation but not this would leave the two
+// disagreeing on the same page.
+$normalise('gates_votes', 'voter_name');
 
 echo "name normalisation OK\n";

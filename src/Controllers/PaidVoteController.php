@@ -71,7 +71,10 @@ final class PaidVoteController
         $b         = (array)$req->getParsedBody();
         $provider  = strtolower(trim((string)($b['provider'] ?? '')));
         $email     = strtolower(trim((string)($b['email'] ?? '')));
-        $name      = trim((string)($b['name'] ?? ''));
+        // Title-cased on the way in. This name is PUBLISHED — it appears on the
+        // nominee's supporters list and on the receipt — and buyers type it into a
+        // phone at checkout, so it arrives as often in block capitals as not.
+        $name      = \AfricaGates\Support\Name::title((string)($b['name'] ?? ''));
         $nomineeId = (int)($b['nominee_id'] ?? 0);
         // CONSENT TO BE NAMED PUBLICLY = the buyer typed a name.
         //

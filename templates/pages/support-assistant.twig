@@ -277,7 +277,8 @@
 function supportDesk(){
   return {
     msgs: [], draft: '', busy: false,
-    starters: ['My votes have not arrived', 'I paid but got no receipt', 'How much are votes?', 'When does voting close?'],
+    starters: ['I voted but it is not showing', 'I paid and my votes never arrived',
+               'My receipt never came', 'How much are votes?'],
 
     init(){
       this.push('assistant',
@@ -323,6 +324,9 @@ function supportDesk(){
       return ({
         fix_payment:      're-checked the payment',
         resend_receipt:   'sent the receipt again',
+        check_reference:  'checked the reference',
+        free_vote_help:   'checked free voting',
+        refund_status:    'checked the refund',
         my_transactions:  'checked your payments',
         my_votes:         'checked your votes',
         lookup_reference: 'looked up that reference',
@@ -421,7 +425,23 @@ function supportDesk(){
       // Sends the whole conversation, so the person does not have to explain
       // themselves a second time to a human who has not read any of it.
       var last = [...this.msgs].reverse().find(m => m.role === 'user');
-      var text = last ? last.text : 'A visitor asked to speak to someone.';
+
+      // NOTHING SAID YET — ask, do not file.
+      //
+      // This used to post a placeholder sentence and open a real ticket from it.
+      // In a live conversation the reader pressed the button first, got "Passed
+      // to the team — your reference is AGS-9B5DE7" before they had typed a word,
+      // and then explained their problem to the assistant while a blank ticket
+      // sat in the queue carrying that reference. A ticket with no content is a
+      // promise to reply to nothing.
+      if (!last) {
+        this.push('assistant', 'Of course — tell me what has gone wrong first, in a line or two. '
+          + 'I will pass the whole thing to the team so you do not have to explain it twice.');
+        this.$nextTick(() => { if (this.$refs.ta) this.$refs.ta.focus(); });
+        return;
+      }
+
+      var text = last.text;
       this.busy = true;
 
       fetch('/api/v1/support/escalate', {

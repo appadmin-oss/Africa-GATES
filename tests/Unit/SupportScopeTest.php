@@ -78,7 +78,7 @@ final class SupportScopeTest extends TestCase
         // No gateway is configured in the test environment, so the reclaim cannot
         // confirm anything — the point here is that it is ATTEMPTED and answers,
         // rather than being turned away for want of a session.
-        $r = $this->guest()->run('fix_payment', ['reference' => 'paystack_6413965117_hw8rf']);
+        $r = $this->guest()->run('fix_payment', ['reference' => 'AFG-PVOTE-957ef35ed73d']);
 
         $this->assertTrue($r['ok'], 'the tool must be permitted');
         $this->assertIsArray($r['data']);
@@ -87,9 +87,9 @@ final class SupportScopeTest extends TestCase
 
     public function test_a_guest_can_have_a_receipt_resent_without_being_told_where_it_went(): void
     {
-        $this->order('ref_resend_ok', self::THEIRS);
+        $this->order('AFG-PVOTE-aaaaaaaaaaaa', self::THEIRS);
 
-        $r = $this->guest()->run('resend_receipt', ['reference' => 'ref_resend_ok']);
+        $r = $this->guest()->run('resend_receipt', ['reference' => 'AFG-PVOTE-aaaaaaaaaaaa']);
         $blob = json_encode($r);
 
         // It may or may not have sent — there is no mail transport here. What must
@@ -101,9 +101,9 @@ final class SupportScopeTest extends TestCase
 
     public function test_resending_a_receipt_for_an_unconfirmed_payment_points_at_the_repair_instead(): void
     {
-        $this->order('ref_pending', self::MINE, 'pending');
+        $this->order('AFG-PVOTE-bbbbbbbbbbbb', self::MINE, 'pending');
 
-        $r = $this->guest()->run('resend_receipt', ['reference' => 'ref_pending']);
+        $r = $this->guest()->run('resend_receipt', ['reference' => 'AFG-PVOTE-bbbbbbbbbbbb']);
 
         $this->assertSame('NOT_CONFIRMED', $r['data']['outcome']);
         $this->assertStringContainsString('fix_payment', $r['data']['say'],
@@ -133,9 +133,9 @@ final class SupportScopeTest extends TestCase
 
     public function test_a_member_cannot_read_another_persons_reference(): void
     {
-        $this->order('ref_not_mine', self::THEIRS);
+        $this->order('AFG-PVOTE-cccccccccccc', self::THEIRS);
 
-        $r = $this->member()->run('lookup_reference', ['reference' => 'ref_not_mine']);
+        $r = $this->member()->run('lookup_reference', ['reference' => 'AFG-PVOTE-cccccccccccc']);
 
         $this->assertTrue($r['ok']);
         $this->assertFalse($r['data']['found'],
@@ -160,7 +160,11 @@ final class SupportScopeTest extends TestCase
 
         $outcomes = [];
         for ($i = 0; $i < 10; $i++) {
-            $r = $ctx->run('fix_payment', ['reference' => 'ref_probe_' . $i]);
+            // A REAL reference shape. The shape check now runs before the limiter
+            // — deliberately, since it costs no query and no gateway call — so a
+            // fixture using made-up strings would be refused for the wrong reason
+            // and never reach the ceiling this is testing.
+            $r = $ctx->run('fix_payment', ['reference' => sprintf('AFG-PVOTE-%012x', $i)]);
             $outcomes[] = $r['data']['outcome'] ?? 'ran';
         }
 
@@ -178,7 +182,8 @@ final class SupportScopeTest extends TestCase
         $outcomes = [];
         $ctx = $this->guest();
         for ($i = 0; $i < 12; $i++) {
-            $outcomes[] = $ctx->run('fix_payment', ['reference' => 'ref_open_' . $i])['data']['outcome'] ?? 'ran';
+            $outcomes[] = $ctx->run('fix_payment',
+                ['reference' => sprintf('AFG-GIVE-%012x', $i)])['data']['outcome'] ?? 'ran';
         }
 
         $this->assertNotContains('RATE_LIMITED', $outcomes);

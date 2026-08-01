@@ -132,7 +132,9 @@ final class DonationController
         $b        = (array)$req->getParsedBody();
         $provider = strtolower(trim((string)($b['provider'] ?? '')));
         $email    = strtolower(trim((string)($b['email'] ?? '')));
-        $name     = trim((string)($b['name'] ?? ''));
+        // Title-cased on the way in — see PaidVoteController. A donor's name is
+        // published on the supporters wall and printed on their receipt.
+        $name     = \AfricaGates\Support\Name::title((string)($b['name'] ?? ''));
         $baseAmt  = (int) preg_replace('/[^0-9]/', '', (string)($b['amount'] ?? '0'));
         $cover    = !empty($b['cover_fees']);
 

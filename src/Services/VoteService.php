@@ -32,7 +32,12 @@ class VoteService {
         $ipHash = $ip !== '' ? hash('sha256', $ip) : null;
         // Voter identity captured alongside the (hashed) email — stored as-is for
         // accountability/contact. Required-validation lives at the API boundary.
-        $voterName  = $voterName  !== null ? mb_substr(trim($voterName), 0, 120) : null;
+        // Title-cased here rather than at each caller: a free vote's name is
+        // published on the nominee's supporters list beside a paid one, and two
+        // spellings of the same convention on one list looks like a bug in the
+        // list rather than a difference in how two people typed.
+        $voterName  = $voterName  !== null
+            ? mb_substr(\AfricaGates\Support\Name::title($voterName), 0, 120) : null;
         $voterPhone = $voterPhone !== null ? mb_substr(trim($voterPhone), 0, 40) : null;
 
         // Idempotent replay: a retry carrying the same key returns the ORIGINAL
