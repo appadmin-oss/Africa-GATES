@@ -53,6 +53,23 @@
   .pl-flash--ok{ background:#e6f4e6; color:#1c6b1c; border:1px solid #bfe3bf; }
   .pl-flash--err{ background:#fdf3f3; color:#a32020; border:1px solid #f0c9c9; }
 
+  /* ── what members posted ───────────────────────────────────────────────
+     Deliberately quieter than an editorial card: no cover, no category, body
+     first and the derived headline demoted to the "open thread" link. It is a
+     status update, and dressing it as an article would flatten the difference
+     between the platform speaking and a member speaking. */
+  .pl-mine{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:16px 18px; }
+  .pl-mine__hd{ display:flex; gap:12px; align-items:center; margin-bottom:10px; }
+  .pl-mine__av{ flex:none; width:38px; height:38px; border-radius:50%; background:#eef6ee; color:#1c6b1c;
+                display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; }
+  .pl-mine__au{ font-weight:700; font-size:14.5px; color:var(--ag-ink,#10292c); }
+  .pl-mine__mt{ font-size:12.5px; color:#7d8c8e; }
+  .pl-mine__bd{ margin:0 0 12px; font-size:15px; line-height:1.6; color:#2c3a3c; overflow-wrap:anywhere; }
+  .pl-mine__ft{ display:flex; align-items:center; gap:16px; font-size:13px; color:#5a6d6f; }
+  .pl-mine__ft a{ color:var(--ag-green,#237b22); font-weight:700; text-decoration:none; }
+  .pl-mine__pend{ font-size:12.5px; font-weight:700; color:#8a6d1f; background:#fdf6e3;
+                  border:1px solid #efe0b5; border-radius:999px; padding:3px 10px; }
+
   /* feed */
   .pl-feed{ display:flex; flex-direction:column; gap:22px; }
   .pl-post{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; overflow:hidden; }
@@ -177,6 +194,31 @@
         </div>
         {% endif %}
 
+        {# ── WHAT MEMBERS POSTED ──────────────────────────────────────────
+           Above the editorial cards, on the tab the composer lives on. Without
+           this the composer said "Posted to the Pulse." and the post appeared
+           nowhere on the screen — it only rendered under the Community tab — so
+           a successful post was indistinguishable from one that failed. The
+           author is the one person guaranteed to look immediately, and this is
+           where they look. #}
+        {% for t in threads %}
+        <article class="pl-mine">
+          <div class="pl-mine__hd">
+            <span class="pl-mine__av" aria-hidden="true">{{ t.author_name|default('?')|first|upper }}</span>
+            <div>
+              <div class="pl-mine__au">{{ t.author_name|default('A member') }}</div>
+              <div class="pl-mine__mt">{% if t.created_at %}{{ t.created_at|date('M j, Y') }}{% endif %}</div>
+            </div>
+          </div>
+          <p class="pl-mine__bd">{{ t.body|default('')|striptags }}</p>
+          <div class="pl-mine__ft">
+            <a href="/community/{{ t.slug }}">Open thread →</a>
+            {% if t.reply_count|default(0) %}<span>{{ t.reply_count }} {{ t.reply_count == 1 ? 'reply' : 'replies' }}</span>{% endif %}
+            {% if t.cheer_count|default(0) %}<span>{{ t.cheer_count }} cheers</span>{% endif %}
+          </div>
+        </article>
+        {% endfor %}
+
         {% if posts is not empty %}
           {% for post in posts %}
           {% set cover = post.cover_image|default(post.cover_path|default(post.hero_image|default(''))) %}
@@ -195,7 +237,9 @@
             </div>
           </article>
           {% endfor %}
-        {% else %}
+        {% elseif threads is empty %}
+          {# Only truly empty when there are no member posts either — otherwise this
+             told a member who had just posted that the feed had not started yet. #}
           <div class="pl-empty">The feed is just getting started. Follow the cycle as nominations open — or read the latest on the <a href="/blog">journal</a>.</div>
         {% endif %}
       </div>
