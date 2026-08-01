@@ -289,7 +289,19 @@ return [
     \AfricaGates\Admin\Controllers\AssistantController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AssistantController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     FlierController::class        => fn(ContainerInterface $c)=>new FlierController($c->get(Twig::class), new \AfricaGates\Services\FlierService()),
     ActivityController::class     => fn(ContainerInterface $c)=>new ActivityController($c->get(Twig::class), new \AfricaGates\Services\ActivityFeedService()),
-    PulseController::class        => fn(ContainerInterface $c)=>new PulseController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(CommunityService::class), $c->get(RateLimitService::class), $c->get(OtpService::class), new \AfricaGates\Services\PulseFeedService(), new \AfricaGates\Services\PulseMediaService($c->get(UploadService::class))),
+    // Support assistant. The agent gets AiService (Groq + Gemini, whichever the
+    // admin configured) and the ticket service; the ticket service gets the
+    // mailer so an escalation can actually reach somebody.
+    \AfricaGates\Controllers\SupportController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\SupportController(
+        $c->get(Twig::class),
+        new \AfricaGates\Services\SupportAgentService(
+            $c->get(\AfricaGates\Services\AiService::class),
+            new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
+        ),
+        new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class)),
+        $c->get(RateLimitService::class)
+    ),
+    PulseController::class        => fn(ContainerInterface $c)=>new PulseController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(CommunityService::class), $c->get(RateLimitService::class), $c->get(OtpService::class), new \AfricaGates\Services\PulseFeedService(), new \AfricaGates\Services\PulseMediaService($c->get(UploadService::class), new \AfricaGates\Services\R2Service(null, $c->get(\Psr\Log\LoggerInterface::class)), new \AfricaGates\Services\MediaModerationService())),
     VoteController::class        => fn(ContainerInterface $c)=>new VoteController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class), $c->get(PaymentService::class)),
     CommunityController::class   => fn(ContainerInterface $c)=>new CommunityController($c->get(Twig::class), $c->get(CommunityService::class), $c->get(CacheService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
     JudgeAuthController::class   => fn(ContainerInterface $c)=>new JudgeAuthController($c->get(Twig::class), $c->get(JudgeService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),

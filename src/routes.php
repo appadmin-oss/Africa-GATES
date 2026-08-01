@@ -3,7 +3,7 @@ declare(strict_types=1);
 use AfricaGates\Support\Env;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController};
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
     BallotController as JudgeBallotController
@@ -728,6 +728,15 @@ return function(App $app) {
             $overall = ($pay==='Operational' && $mail==='Operational') ? 'operational' : 'degraded';
             return $tv($req)->render($res,'pages/status.twig',['page_title'=>'System status — Africa GATES','meta_description'=>'The operational status of Africa GATES — voting, leaderboard, registry, payments and notifications.','gates_page'=>'status','has_hero'=>false,'overall'=>$overall,'components'=>$components]);
         });
+        // Support assistant. A SEPARATE path from /support, which is the appeals
+        // hub above and stays exactly as it is — registering a second '/support'
+        // would have been dead code, because Slim matches the first route and the
+        // assistant would never have been reachable at all.
+        $g->get('/support/assistant', SupportController::class.':page');
+        // Ticket threads. The page redirects a guest to sign-in; the write
+        // endpoints refuse one, because a ticket is a promise to reply and a
+        // reply needs a verified address.
+        $g->get('/support/tickets',   SupportController::class.':tickets');
         $g->get('/help',   fn($req,$res)=>$tv($req)->render($res,'pages/help.twig',['page_title'=>'Help Center — Africa GATES','meta_description'=>'Answers about voting, nominations, profiles, donations and privacy on Africa GATES — plus how to reach our support team.','gates_page'=>'help','has_hero'=>false]));
 
         // SEO: robots.txt + sitemap.xml
@@ -829,6 +838,12 @@ return function(App $app) {
             // one reader cannot ask the server what another reader has liked.
             $a->get('/pulse/feed',          PulseController::class.':feed');
             $a->get('/pulse/new',           PulseController::class.':feedNew');
+            // Support assistant. Both are same-origin POSTs (the /api/ CSRF rule),
+            // and neither accepts an identity — see SupportController.
+            $a->post('/support/chat',       SupportController::class.':chat');
+            $a->post('/support/escalate',   SupportController::class.':escalate');
+            $a->post('/support/ticket',     SupportController::class.':ticketCreate');
+            $a->post('/support/reply',      SupportController::class.':ticketReply');
             // Gee — the page-aware AI guide
             $a->post('/guide',              GuideController::class.':chat');
             // Inbound Make.com agent bridge — bearer-authenticated, 404 until configured.

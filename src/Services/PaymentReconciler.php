@@ -204,6 +204,117 @@ final class PaymentReconciler
      * `gates_donations` carries no provider, so every enabled gateway is asked — only
      * the one that issued the reference recognises it.
      */
+    /**
+     * Fix ONE payment, on demand, for the person who made it.
+     *
+     * ── WHY THIS EXISTS SEPARATELY FROM run() ────────────────────────────────
+     *
+     * `run()` is a sweep over pending orders older than N minutes, and it only
+     * helps if something schedules it. On shared cPanel hosting cron is a checkbox
+     * somebody has to have ticked, and the failure it covers — a webhook that
+     * never arrives — is silent at both ends. So the gap between "I paid" and
+     * "someone runs the sweep" is unbounded, and for its whole length the buyer
+     * has votes they paid for and no way to get them.
+     *
+     * That gap is the reported incident. Paying inside a wallet app (OPay, bank
+     * apps) very often means the browser never returns to us, so the callback
+     * never fires and the WEBHOOK is the only crediting path left. If the webhook
+     * URL or signing secret is wrong in the gateway dashboard, every such payment
+     * stalls silently — which is exactly what "my votes are not reflecting" looks
+     * like from outside, and why it hit more than one buyer at once.
+     *
+     * Nothing here trusts the user. The GATEWAY is re-queried and its answer is the
+     * only thing that can confirm anything, exactly as in the sweep. The reference
+     * is scoped to the caller's own email so nobody can poke at another's payment.
+     *
+     * @param string|null $email Payment must belong to this address. Null = staff.
+     * @return array{ok:bool, code:string, message:string, minted?:int, status?:string}
+     */
+    public function reclaim(string $reference, ?string $email = null): array
+    {
+        $ref = trim($reference);
+        if ($ref === '' || mb_strlen($ref) > 120) {
+            return ['ok' => false, 'code' => 'BAD_REF', 'message' => 'That does not look like a payment reference.'];
+        }
+
+        try {
+            $q = DB::table('gates_donations')->where('payment_ref', $ref);
+            if ($email !== null && trim($email) !== '') {
+                $q->whereRaw('LOWER(donor_email) = ?', [mb_strtolower(trim($email))]);
+            }
+            $d = $q->first();
+        } catch (\Throwable) {
+            return ['ok' => false, 'code' => 'UNAVAILABLE', 'message' => 'I could not look that up just now.'];
+        }
+
+        if (!$d) {
+            // The SAME answer for "no such reference" and "not yours". Splitting
+            // them would make this an oracle for whether a reference exists.
+            return ['ok' => false, 'code' => 'NOT_FOUND',
+                    'message' => 'No payment with that reference is on this account. '
+                               . 'It may have been made with a different email address.'];
+        }
+
+        if ((string) ($d->status ?? '') === 'refunded' || ($d->refunded_at ?? null) !== null) {
+            return ['ok' => false, 'code' => 'REFUNDED', 'status' => 'refunded',
+                    'message' => 'That payment was refunded, so its votes were removed.'];
+        }
+
+        if ((string) ($d->status ?? '') === 'confirmed') {
+            // Confirmed but never minted IS the "paid, no votes" case, and it is
+            // repairable — mint() is idempotent, so retrying is always safe.
+            if ((string) ($d->tier ?? '') === 'paid-vote' && (int) ($d->votes_used ?? 0) === 0) {
+                $note = $this->afterConfirm($d);
+                $used = (int) (DB::table('gates_donations')->where('id', $d->id)->value('votes_used') ?? 0);
+                return $used > 0
+                    ? ['ok' => true, 'code' => 'MINTED', 'minted' => $used, 'status' => 'confirmed',
+                       'message' => 'Found it — your payment was confirmed and ' . $used . ' vote(s) have now been added.']
+                    : ['ok' => false, 'code' => 'MINT_REFUSED', 'status' => 'confirmed',
+                       'message' => 'Your payment is confirmed but the votes could not be added: ' . $note
+                                  . '. This order is refundable — the team has been notified.'];
+            }
+            return ['ok' => true, 'code' => 'ALREADY', 'status' => 'confirmed',
+                    'minted' => (int) ($d->votes_used ?? 0),
+                    'message' => 'That payment is already confirmed and its votes were added.'];
+        }
+
+        // Still pending on our side. Ask every enabled gateway — the reference
+        // format does not reliably say which one took the money.
+        foreach ($this->payments->enabledProviderIds() as $provider) {
+            $v = $this->payments->verify($provider, $ref);
+            if (!($v['ok'] ?? false) || ($v['status'] ?? '') !== 'success') continue;
+
+            // The same amount check the live path makes. A gateway saying "paid"
+            // for a different amount is not authorisation to credit THIS order.
+            if ((int) ($v['amount'] ?? 0) !== (int) $d->amount_naira) {
+                return ['ok' => false, 'code' => 'MISMATCH', 'status' => 'pending',
+                        'message' => 'The gateway shows a different amount for that reference, so I have not '
+                                   . 'credited anything. The team will look at it.'];
+            }
+
+            $changed = DB::table('gates_donations')->where('payment_ref', $ref)
+                ->where('status', 'pending')->update(['status' => 'confirmed']);
+            if ($changed === 0) {
+                return ['ok' => true, 'code' => 'ALREADY', 'status' => 'confirmed',
+                        'message' => 'That payment was confirmed a moment ago — your votes are on their way.'];
+            }
+
+            $this->afterConfirm($d);
+            $used = (int) (DB::table('gates_donations')->where('id', $d->id)->value('votes_used') ?? 0);
+
+            return ['ok' => true, 'code' => 'CONFIRMED', 'status' => 'confirmed', 'minted' => $used,
+                    'message' => $used > 0
+                        ? 'Found it. Your payment went through but our record had not caught up — '
+                        . $used . ' vote(s) have now been added and your receipt is on its way.'
+                        : 'Your payment is now confirmed and your receipt is on its way.'];
+        }
+
+        return ['ok' => false, 'code' => 'NOT_PAID', 'status' => 'pending',
+                'message' => 'The gateway does not show that payment as successful yet. If your bank has '
+                           . 'debited you it can take a few minutes — try again shortly, and if it '
+                           . 'persists the team will chase it.'];
+    }
+
     private function donations(string $cutoff, int $limit, bool $apply): array
     {
         $providers = $this->payments->enabledProviderIds();

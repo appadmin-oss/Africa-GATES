@@ -57,12 +57,20 @@ final class PulseMediaService
         'video/quicktime' => 'mov',
     ];
 
-    public function __construct(private readonly ?UploadService $uploads = null) {}
+    public function __construct(
+        private readonly ?UploadService $uploads = null,
+        private readonly ?R2Service $r2 = null,
+        private readonly ?MediaModerationService $moderation = null,
+    ) {}
 
     /**
      * Store one attachment.
      *
-     * @return array{ok:bool, path?:string, type?:string, w?:int, h?:int, message?:string}
+     * The returned `verdict` is what the caller must honour: 'approved' publishes,
+     * 'review' stores the post as quarantined, 'rejected' means nothing is kept.
+     *
+     * @return array{ok:bool, path?:string, type?:string, w?:int, h?:int,
+     *               verdict?:string, reason?:string, message?:string}
      */
     public function store(UploadedFileInterface $file, ?int $userId = null): array
     {
@@ -101,14 +109,64 @@ final class PulseMediaService
 
         $path = (string) ($r['path'] ?? $r['url'] ?? '');
         if ($path === '') return ['ok' => false, 'message' => 'The photo could not be stored.'];
+        $path = str_starts_with($path, 'http') || str_starts_with($path, '/') ? $path : '/' . $path;
+
+        // MODERATE THE RE-ENCODED FILE ON DISK, not the upload. uploadImage has
+        // already normalised it, and the bytes now on disk are the bytes that
+        // would be served — checking anything else checks something nobody sees.
+        $local = $this->localPath($path);
+        $mod = $this->moderation?->check($local ?? '', 'image', 'image/jpeg')
+               ?? ['verdict' => 'approved', 'score' => 0.0, 'reason' => 'No moderation configured.'];
+
+        if ($mod['verdict'] === 'rejected') {
+            if ($local !== null) @unlink($local);
+            return ['ok' => false,
+                    'message' => 'That image cannot be published here. If you think that is wrong, use the support page.'];
+        }
+
+        // R2 AFTER moderation, so a rejected image never leaves this server.
+        $served = $this->toR2($local, $path, 'image/jpeg') ?? $path;
 
         return [
-            'ok'   => true,
-            'path' => str_starts_with($path, 'http') || str_starts_with($path, '/') ? $path : '/' . $path,
-            'type' => 'image',
-            'w'    => (int) ($r['width'] ?? 0),
-            'h'    => (int) ($r['height'] ?? 0),
+            'ok'      => true,
+            'path'    => $served,
+            'type'    => 'image',
+            'w'       => (int) ($r['width'] ?? 0),
+            'h'       => (int) ($r['height'] ?? 0),
+            'verdict' => $mod['verdict'],
+            'reason'  => $mod['reason'],
         ];
+    }
+
+    /**
+     * Hand a stored file to R2 and return its public URL, or null to keep local.
+     *
+     * Failure is not fatal by design: the file is already stored and serveable
+     * from this host, so a CDN outage or a wrong key costs bandwidth, not a
+     * member's post. The local copy is removed ONLY once R2 has confirmed it has
+     * the object — deleting first would turn a failed upload into a broken image.
+     */
+    private function toR2(?string $localAbs, string $localUrl, string $contentType): ?string
+    {
+        if ($this->r2 === null || $localAbs === null || !R2Service::configured()) return null;
+
+        $ext = strtolower(pathinfo($localAbs, PATHINFO_EXTENSION)) ?: 'bin';
+        $r = $this->r2->put($localAbs, R2Service::keyFor('pulse', $ext), $contentType);
+        if (!($r['ok'] ?? false)) {
+            error_log('[pulse] R2 upload failed, serving from local disk: ' . ($r['error'] ?? 'unknown'));
+            return null;
+        }
+
+        @unlink($localAbs);          // now safe: R2 has it
+        return (string) $r['url'];
+    }
+
+    /** The absolute path behind a locally-served URL, or null if it is remote. */
+    private function localPath(string $url): ?string
+    {
+        if (!str_starts_with($url, '/')) return null;      // already a CDN URL
+        $abs = dirname(__DIR__, 2) . '/public' . $url;
+        return is_file($abs) ? $abs : null;
     }
 
     private function storeVideo(UploadedFileInterface $file): array
@@ -159,7 +217,16 @@ final class PulseMediaService
         }
         @chmod($root . '/' . $rel, 0644);
 
-        return ['ok' => true, 'path' => '/' . $rel, 'type' => 'video', 'w' => 0, 'h' => 0];
+        // Video is never machine-inspected — no ffmpeg means no frame to look at,
+        // and claiming otherwise would be the real failure. It is HELD, and the
+        // caller quarantines the post so a moderator sees it before the feed does.
+        $mod = $this->moderation?->check($root . '/' . $rel, 'video', $mime)
+               ?? ['verdict' => 'review', 'reason' => 'Video is reviewed by a moderator before it appears.'];
+
+        $served = $this->toR2($root . '/' . $rel, '/' . $rel, $mime) ?? '/' . $rel;
+
+        return ['ok' => true, 'path' => $served, 'type' => 'video', 'w' => 0, 'h' => 0,
+                'verdict' => $mod['verdict'], 'reason' => $mod['reason']];
     }
 
     /**

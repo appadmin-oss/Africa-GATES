@@ -244,6 +244,30 @@ final class PulseController
             } else {
                 error_log('[pulse] media columns absent — post stored without its attachment. Run db:migrate.');
             }
+
+            // THE MEDIA VERDICT OVERRIDES THE TEXT VERDICT, one way only.
+            //
+            // The spam filter judged the caption; MediaModerationService judged
+            // the picture. A clean caption on an image that could not be checked
+            // must not publish the image — and video is never machine-checked at
+            // all on this host, so every video post lands here. Downgrade only:
+            // a media verdict can hold an approved post, never release a held one.
+            if (($media['verdict'] ?? 'approved') !== 'approved' && ($r['status'] ?? '') === 'approved') {
+                try {
+                    DB::table('gates_threads')->where('id', (int) $r['id'])->update(['status' => 'quarantined']);
+                    $r['status'] = 'quarantined';
+                } catch (\Throwable $e) {
+                    // Could not hold it — so remove the attachment rather than
+                    // leave unreviewed media on a live post.
+                    error_log('[pulse] could not quarantine thread ' . $r['id'] . ': ' . $e->getMessage());
+                    try {
+                        DB::table('gates_threads')->where('id', (int) $r['id'])
+                          ->update(OptionalColumn::filter('gates_threads',
+                                ['media_path' => null, 'media_type' => null],
+                                ['media_path', 'media_type']));
+                    } catch (\Throwable) {}
+                }
+            }
         }
 
         if (!$r['ok']) {
@@ -258,8 +282,17 @@ final class PulseController
         Notifier::adminAlert($this->mailer, 'New Pulse post (' . $r['status'] . ')',
             "By: {$m['name']}\nStatus: {$r['status']}\n\n" . mb_substr($body, 0, 400));
 
-        $_SESSION[$r['status'] === 'approved' ? 'flash_notice' : 'flash_error'] =
-            $r['status'] === 'approved' ? 'Posted to the Pulse.' : 'Posted — held for review by a moderator.';
+        // Say WHICH thing is being reviewed. "Held for review" on a post whose
+        // caption was fine and whose video simply cannot be machine-checked reads
+        // as an accusation; naming the reason makes it a process, not a verdict.
+        $held = $r['status'] !== 'approved';
+        $_SESSION[$held ? 'flash_error' : 'flash_notice'] = match (true) {
+            !$held                       => 'Posted to the Pulse.',
+            $media !== null && ($media['verdict'] ?? '') !== 'approved'
+                                         => 'Posted — a moderator will check the '
+                                            . ($media['type'] === 'video' ? 'video' : 'photo') . ' before it appears.',
+            default                      => 'Posted — held for review by a moderator.',
+        };
 
         return $res->withHeader('Location', '/pulse')->withStatus(302);
     }

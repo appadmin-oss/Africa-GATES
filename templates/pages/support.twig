@@ -80,6 +80,22 @@
     <p>Dispute a result, report a profile, recover access, or raise a concern. Every appeal is reviewed by a real person — most within one business day.</p>
   </header>
 
+  {# The assistant and the ticket queue are the two routes that resolve something
+     rather than record it, so they lead. Real links, not form presets — they go
+     somewhere else. #}
+  <div class="sp-routes" style="margin-top:26px">
+    <a class="sp-route" href="/support/assistant">
+      <span class="sp-route__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg></span>
+      <div class="sp-route__t">Ask the assistant</div>
+      <div class="sp-route__d">Payments, votes and account questions — it can look up your own records and often fix the problem outright.</div>
+    </a>
+    <a class="sp-route" href="/support/tickets">
+      <span class="sp-route__ico" style="background:#e9efef;color:#2b373d"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4V6Z"/><path d="M12 6v12"/></svg></span>
+      <div class="sp-route__t">Your tickets</div>
+      <div class="sp-route__d">Raise a ticket and follow the replies. Members only, so we have somewhere to reply to.</div>
+    </a>
+  </div>
+
   <div class="sp-routes">
     <a class="sp-route" href="#sp-form" @click="reason='Dispute a result'" :class="reason==='Dispute a result' && 'is-active'">
       <span class="sp-route__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6ZM4 7h16"/></svg></span>

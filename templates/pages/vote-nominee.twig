@@ -20,7 +20,13 @@
   .vn-rankpill{ font-size:11px; font-weight:600; letter-spacing:.04em; padding:6px 13px; border-radius:999px; background:rgba(127,200,124,.16); color:#7FC87C; }
   .vn-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,5vw,3rem); line-height:1; letter-spacing:-.02em; color:#fff; }
   .vn-meta{ margin:14px 0 0; font-size:15.5px; color:rgba(255,255,255,.86); }
-  .vn-bioline{ margin:14px 0 0; font-size:14.5px; line-height:1.6; color:rgba(255,255,255,.76); max-width:460px; }
+  /* `overflow-wrap:anywhere` rather than `break-word`: break-word only breaks a
+     word that is alone on its line, so "see https://very-long-url…" still pushes
+     the box wide. `anywhere` also lets the browser count the break opportunity
+     when sizing, which is what keeps the column from growing in the first place.
+     Hyphens make the forced break read as a break rather than as a typo. */
+  .vn-bioline{ margin:14px 0 0; font-size:14.5px; line-height:1.6; color:rgba(255,255,255,.76);
+               max-width:460px; overflow-wrap:anywhere; hyphens:auto; }
   .vn-stats{ display:flex; align-items:center; gap:clamp(16px,3vw,26px); margin-top:24px; flex-wrap:wrap; }
   .vn-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:clamp(24px,3.5vw,30px); line-height:1; color:#fff; }
   .vn-stat__n.g{ color:#7FC87C; }
@@ -187,7 +193,15 @@
           {{ n.organisation }}
         </p>
         {% endif %}
-        {% if n.tagline %}<p class="vn-bioline">{{ n.tagline|length > 160 ? n.tagline|slice(0,157) ~ '…' : n.tagline }}</p>{% endif %}
+        {# The whole brief, not the first 157 characters of it.
+           This used to hard-truncate with an ellipsis, which cut a nominee's
+           description off mid-sentence on their own ballot — the one page where
+           the case for them is the point. It is a tagline, not a body of text, so
+           the length is already bounded by whoever wrote it; what actually needed
+           guarding was a single unbroken run of characters (a pasted URL, a long
+           hyphen-free name) overflowing the column, and `.vn-bioline` now breaks
+           those instead. #}
+        {% if n.tagline %}<p class="vn-bioline">{{ n.tagline }}</p>{% endif %}
 
         <div class="vn-stats">
           {% if profile and profile.cpi_score %}

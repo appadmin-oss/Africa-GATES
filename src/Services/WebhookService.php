@@ -47,6 +47,12 @@ class WebhookService
         'cycle.status_changed'      => 'An award cycle changes status (nominations/voting/results…)',
         'event.registration'        => 'Someone registers (RSVPs) for an event',
         'partner.enquiry'           => 'A partnership enquiry is submitted',
+        // Support. `support.escalated` is the one to wire to a pager or an SMS
+        // gateway: it fires when the assistant has decided a human is needed,
+        // which is the only support event that is time-sensitive.
+        'support.escalated'         => 'The support assistant escalated a conversation to a human',
+        'support.ticket_opened'     => 'A support ticket is opened',
+        'support.ticket_replied'    => 'Someone replies on a support ticket',
         'ping'                      => 'Test event (sent from the admin console)',
     ];
 

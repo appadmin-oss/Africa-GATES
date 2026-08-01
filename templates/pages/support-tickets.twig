@@ -1,0 +1,219 @@
+{% extends "layout/gates.twig" %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="support"]{ background:#f5f7f6; }
+  body[data-page="support"] [x-cloak]{ display:none !important; }
+
+  .st{ max-width:840px; margin:0 auto; padding:clamp(1.4rem,4vw,2.2rem) var(--ag-gutter,40px) 70px; }
+  .st-eyebrow{ margin:0 0 6px; font:700 11.5px/1 var(--ag-font-mono); letter-spacing:.14em;
+               text-transform:uppercase; color:var(--ag-green,#237b22); }
+  /* `.st .st-h1`, not `.st-h1`. The layout sets `.ag-scope h1 { font-size: var(--ag-fs-hero) }`,
+     which is specificity (0,1,1) and beats a bare class — so every page-level h1
+     rule in this codebase is silently overridden unless it is qualified. That is
+     why this heading rendered at 72px with a rule asking for 24px. */
+  .st .st-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+          font-size:clamp(1.7rem,3.6vw,2.2rem); line-height:1.08; color:var(--ag-ink,#10292c); }
+  /* A ticket subject is DERIVED from what someone typed, so it is a sentence and
+     not a headline — set at display size it ran to four lines and pushed the
+     conversation below the fold, which is the one thing this page exists to show.
+     Smaller, tighter, and `anywhere` so a pasted reference cannot widen the page. */
+  .st .st-h1--subject{ font-size:clamp(1.2rem,2.3vw,1.55rem); line-height:1.25;
+                   overflow-wrap:anywhere; hyphens:auto; }
+  .st-sub{ margin:8px 0 0; font-size:14.5px; line-height:1.6; color:#5a6d6f; }
+
+  .st-card{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:18px;
+            padding:16px 18px; margin-top:16px; }
+  .st-card h2{ margin:0 0 4px; font-size:16px; font-weight:700; color:var(--ag-ink,#10292c); }
+
+  .st-list{ list-style:none; margin:14px 0 0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  .st-row{ display:flex; align-items:center; gap:12px; padding:13px 15px; background:#fff;
+           border:1px solid rgba(16,41,44,.09); border-radius:14px; text-decoration:none; color:inherit; }
+  .st-row:hover{ border-color:rgba(16,41,44,.22); }
+  .st-row__t{ flex:1; min-width:0; }
+  .st-row__s{ font-weight:600; font-size:14.5px; color:var(--ag-ink,#10292c);
+              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .st-row__m{ font-size:12.5px; color:#8a9a9c; }
+  .st-tag{ flex:none; font:700 10.5px/1 var(--ag-font-mono,monospace); letter-spacing:.06em;
+           text-transform:uppercase; border-radius:999px; padding:4px 9px; }
+  .st-tag--open{ background:#e6f4e6; color:#1c6b1c; border:1px solid #bfe3bf; }
+  .st-tag--closed{ background:#f2f5f2; color:#5a6d6f; border:1px solid rgba(16,41,44,.1); }
+  .st-tag--urgent{ background:#fdf3f3; color:#a32020; border:1px solid #f0c9c9; }
+  .st-tag--high{ background:#fdf6e3; color:#7a611a; border:1px solid #efe0b5; }
+
+  .st-msgs{ display:flex; flex-direction:column; gap:12px; margin-top:14px; }
+  .st-msg{ display:flex; gap:11px; align-items:flex-start; }
+  .st-msg__av{ flex:none; width:30px; height:30px; border-radius:50%; display:flex; align-items:center;
+               justify-content:center; font-size:12px; font-weight:800; }
+  .st-msg--staff .st-msg__av{ background:#10292C; color:#7FC87C; }
+  .st-msg--me    .st-msg__av{ background:#eef6ee; color:#1c6b1c; }
+  .st-msg__b{ min-width:0; flex:1; }
+  .st-msg__who{ font-size:12.5px; font-weight:700; color:#5a6d6f; }
+  /* A ticket carries whatever a person typed — a pasted reference, a URL, a
+     stack trace. `anywhere` is what stops one unbroken run widening the card. */
+  .st-msg__x{ margin:2px 0 0; font-size:14.5px; line-height:1.6; color:#2c3a3c;
+              white-space:pre-wrap; overflow-wrap:anywhere; }
+
+  .st-form{ margin-top:16px; display:flex; flex-direction:column; gap:10px; }
+  .st-in, .st-ta{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:12px; font:inherit;
+                  font-size:15px; padding:11px 13px; color:var(--ag-ink,#10292c); }
+  .st-ta{ min-height:110px; resize:vertical; line-height:1.55; }
+  .st-in:focus, .st-ta:focus{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
+  .st-go{ align-self:flex-start; border:0; background:var(--ag-green,#237b22); color:#fff; font-weight:700;
+          font-size:14px; padding:11px 20px; border-radius:999px; cursor:pointer; }
+  .st-go[disabled]{ opacity:.45; cursor:default; }
+  .st-note{ margin:0; font-size:13.5px; font-weight:600; }
+  .st-note--ok{ color:#1c6b1c; } .st-note--err{ color:#a32020; }
+  .st-empty{ margin:14px 0 0; font-size:14px; color:#5a6d6f; }
+  .st-back{ display:inline-block; margin-bottom:12px; font-size:13.5px; font-weight:700;
+            color:var(--ag-green,#237b22); text-decoration:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+{# ══════════════════════════════════════════════════════════════════════════
+   TICKETS
+
+   The half of support the assistant cannot be. A conversation ends when you
+   close the tab; a ticket is a thing with a reference, a state and a reply you
+   can come back for — which is what somebody whose money has gone missing
+   actually needs.
+
+   Members only, and not as gatekeeping: a ticket is a promise to reply, a reply
+   needs an address we have verified, and following it needs an account to
+   follow it FROM. A visitor still reaches the same team through the assistant's
+   "talk to a human"; they just cannot be promised a thread.
+   ══════════════════════════════════════════════════════════════════════════ #}
+<section class="ag-scope st" x-data="ticketDesk()">
+
+  {% if thread %}
+    <a class="st-back" href="/support/tickets">← All tickets</a>
+    <p class="st-eyebrow">Ticket {{ thread.ticket.reference }}</p>
+    <h1 class="st-h1 st-h1--subject">{{ thread.ticket.subject }}</h1>
+    <p class="st-sub">
+      Opened {{ thread.ticket.created_at|date('j M Y, H:i') }} ·
+      <span class="st-tag st-tag--{{ thread.ticket.status == 'open' ? 'open' : 'closed' }}">{{ thread.ticket.status }}</span>
+      {% if thread.ticket.severity != 'normal' %}
+      <span class="st-tag st-tag--{{ thread.ticket.severity }}">{{ thread.ticket.severity }}</span>
+      {% endif %}
+    </p>
+
+    <div class="st-card">
+      <h2>What you told us</h2>
+      <p class="st-msg__x">{{ thread.ticket.transcript }}</p>
+    </div>
+
+    {% if thread.messages %}
+    <div class="st-card">
+      <h2>Replies</h2>
+      <div class="st-msgs">
+        {% for m in thread.messages %}
+        <div class="st-msg {{ m.staff ? 'st-msg--staff' : 'st-msg--me' }}">
+          <span class="st-msg__av" aria-hidden="true">{{ m.staff ? 'G' : (m.from|first|upper) }}</span>
+          <div class="st-msg__b">
+            <div class="st-msg__who">{{ m.from }} · {{ m.created_at|date('j M, H:i') }}</div>
+            <p class="st-msg__x">{{ m.body }}</p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="st-card">
+      <h2>Add a reply</h2>
+      <form class="st-form" @submit.prevent="reply('{{ thread.ticket.reference }}')">
+        <label class="sr-only" for="stReply">Your reply</label>
+        <textarea class="st-ta" id="stReply" x-model="replyBody" maxlength="5000"
+                  placeholder="Anything to add?"></textarea>
+        <button class="st-go" type="submit" :disabled="busy || !replyBody.trim()">Send reply</button>
+        <p class="st-note" :class="noteOk ? 'st-note--ok' : 'st-note--err'" x-show="!!note" x-cloak x-text="note"></p>
+      </form>
+    </div>
+
+  {% else %}
+    <p class="st-eyebrow">Support</p>
+    <h1 class="st-h1">Your tickets</h1>
+    <p class="st-sub">Everything you have raised, and every reply from the team. You will also get each reply by email.</p>
+
+    {% if not_found %}
+    <div class="st-card"><p class="st-note st-note--err" style="margin:0">No ticket <strong>{{ not_found }}</strong> on this account.</p></div>
+    {% endif %}
+
+    <div class="st-card">
+      <h2>Raise a ticket</h2>
+      <p class="st-sub" style="margin-top:2px">Payments, votes, your account — anything the
+        <a href="/support/assistant">assistant</a> could not settle.</p>
+      <form class="st-form" @submit.prevent="create()">
+        <label class="sr-only" for="stSubject">Subject</label>
+        <input class="st-in" id="stSubject" x-model="subject" maxlength="180"
+               placeholder="Subject (optional — I will write one from your message)">
+        <label class="sr-only" for="stBody">What has gone wrong?</label>
+        <textarea class="st-ta" id="stBody" x-model="body" maxlength="5000"
+                  placeholder="What has gone wrong? Include a payment reference if you have one."></textarea>
+        <button class="st-go" type="submit" :disabled="busy || !body.trim()">Open ticket</button>
+        <p class="st-note" :class="noteOk ? 'st-note--ok' : 'st-note--err'" x-show="!!note" x-cloak x-text="note"></p>
+      </form>
+    </div>
+
+    {% if tickets %}
+    <ul class="st-list">
+      {% for t in tickets %}
+      <li>
+        <a class="st-row" href="/support/tickets?ref={{ t.reference|url_encode }}">
+          <span class="st-row__t">
+            <span class="st-row__s">{{ t.subject }}</span>
+            <span class="st-row__m">{{ t.reference }} · {{ t.created_at|date('j M Y') }}</span>
+          </span>
+          {% if t.severity != 'normal' %}<span class="st-tag st-tag--{{ t.severity }}">{{ t.severity }}</span>{% endif %}
+          <span class="st-tag st-tag--{{ t.status == 'open' ? 'open' : 'closed' }}">{{ t.status }}</span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="st-empty">No tickets yet — which is the good outcome.</p>
+    {% endif %}
+  {% endif %}
+</section>
+
+<script nonce="{{ csp_nonce }}">
+function ticketDesk(){
+  return {
+    subject: '', body: '', replyBody: '', busy: false, note: '', noteOk: false,
+
+    post(url, params){
+      this.busy = true; this.note = '';
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+        body: new URLSearchParams(params)
+      })
+        .then(r => r.json())
+        .catch(() => ({ ok: false, message: 'Lost the connection. Please try again.' }))
+        .finally(() => { this.busy = false; });
+    },
+
+    create(){
+      if (!this.body.trim() || this.busy) return;
+      this.post('/api/v1/support/ticket', { subject: this.subject, body: this.body, page_url: location.href })
+        .then(j => {
+          this.noteOk = !!j.ok; this.note = j.message || '';
+          // Reload so the new ticket appears in the list rather than being
+          // described as existing somewhere the reader cannot see.
+          if (j.ok) setTimeout(() => location.reload(), 900);
+        });
+    },
+
+    reply(ref){
+      if (!this.replyBody.trim() || this.busy) return;
+      this.post('/api/v1/support/reply', { reference: ref, body: this.replyBody })
+        .then(j => {
+          this.noteOk = !!j.ok; this.note = j.message || '';
+          if (j.ok) { this.replyBody = ''; setTimeout(() => location.reload(), 900); }
+        });
+    }
+  };
+}
+</script>
+{% endblock %}

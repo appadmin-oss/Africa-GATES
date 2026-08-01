@@ -428,6 +428,57 @@ final class AiCapability
                 'data_purpose'    => 'To answer questions about how the awards work. Falls back to scripted '
                     . 'answers when unavailable.',
             ]),
+            // ── Support assistant ────────────────────────────────────────
+            // Two capabilities, because they are two different jobs with
+            // different failure modes, and collapsing them would mean one budget
+            // and one kill switch for both.
+            //
+            // PLANNING picks the next lookup. It runs several times per answer,
+            // must return JSON, and is pinned to the FAST tier — a routing
+            // decision does not need a 70B model, and its latency is multiplied
+            // by the number of rounds.
+            'support.plan' => $c('support.plan', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_FAST,
+                'model'           => self::PRIMARY[self::TIER_FAST],
+                // A planner that fails just means the agent answers with what it
+                // already has. That is a worse answer, never a broken page.
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 220,
+                'calls_per_day'   => 8000,
+                'tokens_per_day'  => 1_500_000,
+                'timeout'         => 15,
+                'untrusted_input' => true,
+                'public_content'  => false,
+                'data_sent'       => 'Your support message and the names of the lookups available, so the '
+                    . 'assistant can decide what to check. No account data is sent at this step.',
+                'data_purpose'    => 'To decide which of your records to look up before answering.',
+            ]),
+            // COMPOSING writes the reply. It reads every lookup result at once,
+            // so it wants the long-context provider and a larger budget — and it
+            // is the step whose output a person actually reads.
+            'support.answer' => $c('support.answer', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                // Gemini first here, deliberately: this step is judged on prose
+                // and on holding several lookup results in mind at once. Pinned to
+                // a NAMED model rather than 'gemini:' — a pin that defers to
+                // whatever the provider defaults to is not a pin, and the registry
+                // test enforces that.
+                'model'           => 'gemini:gemini-3.6-flash',
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 700,
+                'calls_per_day'   => 4000,
+                'tokens_per_day'  => 2_000_000,
+                'timeout'         => 25,
+                'untrusted_input' => true,
+                'public_content'  => false,
+                'data_sent'       => 'Your support message and the results of the lookups the assistant ran '
+                    . 'on YOUR OWN records — payment status, amounts, dates. Never another person\'s data.',
+                'data_purpose'    => 'To write an answer grounded in your actual records rather than a guess.',
+            ]),
             // Reviewer-to-nominator decision note. Interpolates the nominator's
             // own text, and the output is sent to a real person, so a bad reply
             // must be discardable rather than merely clamped.
