@@ -2,51 +2,92 @@
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  /* A support console, not a marketing page. Deliberately plain: someone who
-     opens this has a problem and is not here to be sold to. */
-  body[data-page="support"]{ background:#f5f7f6; }
+  /* ══════════════════════════════════════════════════════════════════════════
+     A SUPPORT DESK, NOT A MARKETING PAGE
+
+     Everyone who opens this has a problem, so the page is built around one
+     question — what has gone wrong — and answers it with as little furniture as
+     possible. Every colour is a token with a literal fallback, because a support
+     page that fails to load its theme must still be legible.
+     ══════════════════════════════════════════════════════════════════════════ */
+  body[data-page="support"]{ background:#f4f6f5; }
   body[data-page="support"] [x-cloak]{ display:none !important; }
 
-  .sa{ max-width:840px; margin:0 auto; padding:clamp(1.4rem,4vw,2.2rem) var(--ag-gutter,40px) 70px; }
-  .sa-eyebrow{ margin:0 0 6px; font:700 11.5px/1 var(--ag-font-mono); letter-spacing:.14em;
+  .sa{ max-width:900px; margin:0 auto; padding:clamp(1.2rem,3.5vw,2rem) var(--ag-gutter,40px) 64px; }
+
+  /* ── header ────────────────────────────────────────────────────────────── */
+  .sa-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .sa-eyebrow{ margin:0 0 6px; font:700 11.5px/1 var(--ag-font-mono,monospace); letter-spacing:.14em;
                text-transform:uppercase; color:var(--ag-green,#237b22); }
-  /* Qualified for the same reason as the ticket page: `.ag-scope h1` is (0,1,1)
-     and would otherwise win. */
+  /* Qualified: `.ag-scope h1` is (0,1,1) and beats any bare page class. */
   .sa .sa-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700;
-          font-size:clamp(1.7rem,3.6vw,2.2rem); line-height:1.08; color:var(--ag-ink,#10292c); }
-  .sa-sub{ margin:8px 0 0; font-size:14.5px; line-height:1.6; color:#5a6d6f; }
+              font-size:clamp(1.55rem,3.4vw,2.1rem); line-height:1.1; color:var(--ag-ink,#10292c); }
+  .sa-sub{ margin:8px 0 0; max-width:56ch; font-size:14.5px; line-height:1.6; color:#5a6d6f; }
+
+  /* Live capability read-out. A support bot that states what it can see is one
+     nobody has to guess at — and it makes "I cannot see your payment" read as a
+     boundary rather than as a failure. */
+  .sa-caps{ display:flex; flex-wrap:wrap; gap:6px; margin:14px 0 0; padding:0; list-style:none; }
+  .sa-cap{ display:inline-flex; align-items:center; gap:6px; font:600 12px/1 inherit; color:#3d4c4e;
+           background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:999px; padding:6px 11px; }
+  .sa-cap svg{ flex:none; }
+  .sa-cap--off{ color:#8a9a9c; background:#f2f4f3; }
 
   .sa-note{ margin:14px 0 0; padding:11px 14px; border-radius:12px; font-size:13.5px; line-height:1.55;
             background:#fdf6e3; border:1px solid #efe0b5; color:#7a611a; }
   .sa-note a{ color:#7a611a; font-weight:700; }
+  .sa-note--info{ background:#eef5fb; border-color:#cfe1f0; color:#28536b; }
+  .sa-note--info a{ color:#28536b; }
 
+  /* ── the console ───────────────────────────────────────────────────────── */
   .sa-box{ margin-top:18px; background:#fff; border:1px solid rgba(16,41,44,.09);
-           border-radius:20px; display:flex; flex-direction:column; overflow:hidden; }
+           border-radius:20px; display:flex; flex-direction:column; overflow:hidden;
+           box-shadow:0 1px 2px rgba(16,41,44,.04), 0 8px 24px -18px rgba(16,41,44,.35); }
 
-  .sa-log{ padding:18px; display:flex; flex-direction:column; gap:14px;
-           min-height:280px; max-height:56vh; overflow-y:auto; }
+  /* min-height is small on purpose. A 300px floor left a blank slab between the
+     opening line and the starter chips on first load — an empty console reading
+     as a broken one. The box grows with the conversation and only starts
+     scrolling at max-height, so the tall version arrives when there is something
+     to be tall about. */
+  .sa-log{ padding:18px; display:flex; flex-direction:column; gap:16px;
+           min-height:96px; max-height:58vh; overflow-y:auto; scroll-behavior:smooth; }
+  @media (prefers-reduced-motion:reduce){ .sa-log{ scroll-behavior:auto; } }
+
   .sa-msg{ display:flex; gap:11px; align-items:flex-start; }
   .sa-msg__av{ flex:none; width:30px; height:30px; border-radius:50%; display:flex; align-items:center;
                justify-content:center; font-size:12px; font-weight:800; }
   .sa-msg--bot .sa-msg__av{ background:#10292C; color:#7FC87C; }
   .sa-msg--me  .sa-msg__av{ background:#eef6ee; color:#1c6b1c; }
-  .sa-msg__b{ min-width:0; flex:1; font-size:14.5px; line-height:1.62; color:#2c3a3c; overflow-wrap:anywhere; }
-  .sa-msg__b p{ margin:0 0 8px; } .sa-msg__b p:last-child{ margin:0; }
+  .sa-msg__b{ min-width:0; flex:1; font-size:14.75px; line-height:1.62; color:#2c3a3c; overflow-wrap:anywhere; }
+  .sa-msg__b p{ margin:0 0 9px; } .sa-msg__b p:last-child{ margin:0; }
   .sa-msg__b a{ color:var(--ag-green,#237b22); font-weight:600; }
-  .sa-msg__b code{ background:#f2f5f2; border-radius:4px; padding:1px 5px; font-size:13px; }
+  .sa-msg__b code{ background:#f2f5f2; border-radius:4px; padding:1px 5px; font-size:13px;
+                   font-family:var(--ag-font-mono,monospace); }
+  .sa-msg__b ul{ margin:0 0 9px; padding-left:20px; } .sa-msg__b li{ margin:0 0 4px; }
   .sa-msg--me .sa-msg__b{ color:var(--ag-ink,#10292c); }
 
-  /* What the assistant looked at. A support bot that shows its sources is one
-     the reader can sanity-check instead of having to take on trust. */
-  .sa-used{ margin-top:7px; display:flex; flex-wrap:wrap; gap:6px; }
+  /* What it looked at. Shown because a support answer you can sanity-check is
+     worth more than one you have to take on trust. */
+  .sa-used{ margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
   .sa-used span{ font:600 10.5px/1 var(--ag-font-mono,monospace); letter-spacing:.05em;
                  text-transform:uppercase; color:#5a6d6f; background:#f2f5f2;
-                 border:1px solid rgba(16,41,44,.09); border-radius:5px; padding:3px 6px; }
+                 border:1px solid rgba(16,41,44,.09); border-radius:5px; padding:4px 7px; }
+  .sa-used span.is-act{ color:#1c6b1c; background:#e9f5e9; border-color:#bfe3bf; }
 
-  .sa-ticket{ margin-top:9px; display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700;
-              color:#1c6b1c; background:#e6f4e6; border:1px solid #bfe3bf; border-radius:10px; padding:7px 11px; }
+  .sa-ticket{ margin-top:10px; display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700;
+              color:#1c6b1c; background:#e6f4e6; border:1px solid #bfe3bf; border-radius:10px; padding:7px 11px;
+              text-decoration:none; }
+  .sa-ticket:hover{ background:#dcefdc; }
 
-  .sa-typing{ display:inline-flex; gap:4px; align-items:center; padding:4px 0; }
+  /* Per-message actions. Copying a reference out of a support reply by hand is
+     how a digit gets dropped, and a dropped digit is another failed lookup. */
+  .sa-acts{ margin-top:8px; display:flex; gap:12px; flex-wrap:wrap; }
+  .sa-acts button{ border:0; background:none; padding:2px 0; cursor:pointer;
+                   font:600 12.5px/1 inherit; color:#5a6d6f; text-decoration:underline; }
+  .sa-acts button:hover{ color:var(--ag-ink,#10292c); }
+  .sa-acts button:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; border-radius:3px; }
+
+  .sa-typing{ display:inline-flex; gap:4px; align-items:center; padding:5px 0; }
   .sa-typing i{ width:6px; height:6px; border-radius:50%; background:#9bb0b2; display:block; }
   @media (prefers-reduced-motion:no-preference){
     .sa-typing i{ animation:saBlink 1.2s infinite; }
@@ -54,29 +95,43 @@
     @keyframes saBlink{ 0%,60%,100%{opacity:.25} 30%{opacity:1} }
   }
 
-  .sa-starters{ display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 4px; }
+  .sa-starters{ display:flex; flex-wrap:wrap; gap:8px; padding:0 18px 6px; }
   .sa-starters button{ border:1px solid rgba(16,41,44,.14); background:#fff; cursor:pointer;
                        font:600 13px/1 inherit; color:#3d4c4e; padding:9px 13px; border-radius:999px; }
-  .sa-starters button:hover{ background:#f4f7f4; }
+  .sa-starters button:hover{ background:#f4f7f4; border-color:rgba(16,41,44,.24); }
   .sa-starters button:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
 
   .sa-form{ display:flex; gap:10px; align-items:flex-end; padding:14px 16px;
             border-top:1px solid rgba(16,41,44,.08); }
-  .sa-ta{ flex:1; min-width:0; border:1px solid rgba(16,41,44,.14); border-radius:14px; resize:vertical;
+  .sa-ta{ flex:1; min-width:0; border:1px solid rgba(16,41,44,.14); border-radius:14px; resize:none;
           font:inherit; font-size:15px; line-height:1.5; padding:11px 13px; color:var(--ag-ink,#10292c);
-          min-height:46px; max-height:180px; }
+          min-height:46px; max-height:180px; overflow-y:auto; background:#fff; }
   .sa-ta:focus{ outline:2px solid var(--ag-green,#237b22); outline-offset:1px; }
   .sa-go{ flex:none; border:0; background:var(--ag-green,#237b22); color:#fff; font-weight:700; font-size:14px;
           padding:12px 20px; border-radius:999px; cursor:pointer; }
   .sa-go[disabled]{ opacity:.45; cursor:default; }
 
   .sa-foot{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
-            padding:0 18px 16px; font-size:12.5px; color:#8a9a9c; }
+            padding:0 18px 16px; font-size:12.5px; line-height:1.5; color:#8a9a9c; }
+  .sa-foot p{ margin:0; max-width:52ch; }
   .sa-human{ border:0; background:none; cursor:pointer; font:700 13px/1 inherit;
-             color:var(--ag-green,#237b22); text-decoration:underline; padding:4px; }
+             color:var(--ag-green,#237b22); text-decoration:underline; padding:5px; }
+  .sa-human[disabled]{ opacity:.5; cursor:default; }
   .sa-human:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
 
-  @media (max-width:560px){ .sa-log{ max-height:none; } }
+  /* ── the shelf under the console ───────────────────────────────────────── */
+  .sa-more{ margin-top:20px; display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); }
+  .sa-more a{ display:block; padding:14px 16px; background:#fff; border:1px solid rgba(16,41,44,.09);
+              border-radius:14px; text-decoration:none; color:inherit; }
+  .sa-more a:hover{ border-color:rgba(16,41,44,.22); }
+  .sa-more strong{ display:block; font-size:14.5px; color:var(--ag-ink,#10292c); }
+  .sa-more span{ display:block; margin-top:3px; font-size:13px; line-height:1.5; color:#5a6d6f; }
+
+  @media (max-width:560px){
+    .sa-log{ max-height:none; }
+    .sa-form{ padding:12px; }
+    .sa-go{ padding:12px 16px; }
+  }
 </style>
 {% endblock %}
 
@@ -91,20 +146,51 @@
    "talk to a human" on screen from the first frame instead of behind three
    failed attempts.
 
-   /support remains the appeals hub. This is the assistant.
+   OPEN TO EVERYONE. A guest cannot be shown a LIST of their payments — there is
+   no identity to scope one to — but a guest with a reference gets the same
+   repair a member does, because most people who buy votes here never make an
+   account and they were the ones locked out of the fix built for them.
    ══════════════════════════════════════════════════════════════════════════ #}
-<section class="ag-scope sa" x-data="supportDesk()" x-init="init()">
+{# No `x-init="init()"`. Alpine calls a data object's own `init()` automatically,
+   so naming the method AND wiring x-init ran it twice — the greeting appeared
+   twice, and because the starter chips are gated on `msgs.length <= 1` they
+   never appeared at all. Two bugs, one duplicated call. #}
+<section class="ag-scope sa" x-data="supportDesk()">
 
   <header>
-    <p class="sa-eyebrow">Support assistant</p>
-    <h1 class="sa-h1">{% if member_first %}Hello {{ member_first }} — what has gone wrong?{% else %}What has gone wrong?{% endif %}</h1>
-    <p class="sa-sub">Payments, votes, nominations, your account. I can look up your own records and the platform's live state — and hand you to a person the moment that is the right answer.</p>
+    <div class="sa-top">
+      <div>
+        <p class="sa-eyebrow">Support assistant</p>
+        <h1 class="sa-h1">{% if member_first %}Hello {{ member_first }} — what has gone wrong?{% else %}What has gone wrong?{% endif %}</h1>
+      </div>
+    </div>
+    <p class="sa-sub">Payments, votes, nominations, your account. I can re-check a payment against the
+      gateway and put right what it finds — and hand you to a person the moment that is the better answer.</p>
 
-    {# Said up front, not discovered. A signed-out visitor asking "where is my
-       payment" would otherwise read a truthful "I cannot see it" as a failure. #}
+    {# Capabilities as a read-out rather than a paragraph of prose. Two of the
+       three are true for everybody; only the third depends on signing in. #}
+    <ul class="sa-caps">
+      <li class="sa-cap">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.4" aria-hidden="true"><path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Repair a stuck payment</li>
+      <li class="sa-cap">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.4" aria-hidden="true"><path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Resend a receipt</li>
+      <li class="sa-cap{% if not can_see_payments %} sa-cap--off{% endif %}">
+        {% if can_see_payments %}
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.4" aria-hidden="true"><path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Read your own payments and votes
+        {% else %}
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" stroke-linecap="round"/></svg>
+        Read your payments — needs sign-in
+        {% endif %}
+      </li>
+    </ul>
+
     {% if not can_see_payments %}
-    <p class="sa-note">You are not signed in, so I cannot see your payments or votes.
-      <a href="/account/login?next=%2Fsupport%2Fassistant">Sign in</a> and I can — or describe the problem and I will pass it to the team.</p>
+    <p class="sa-note sa-note--info">You are not signed in, so I cannot <em>list</em> what you have paid.
+      I can still fix a specific payment — paste its reference and I will re-check it with the gateway.
+      <a href="/account/login?next=%2Fsupport%2Fassistant">Sign in</a> if you would rather see the whole list.</p>
     {% endif %}
     {% if not ai_on %}
     <p class="sa-note">The assistant is offline right now, but “Talk to a human” below still works — it reaches the team without going near a model.</p>
@@ -121,12 +207,22 @@
           <span class="sa-msg__av" aria-hidden="true" x-text="m.role === 'user' ? '{{ (member_first|default('You'))|first|upper }}' : 'G'"></span>
           <div class="sa-msg__b">
             <div x-html="m.html"></div>
+
             <div class="sa-used" x-show="!!(m.used && m.used.length)" x-cloak>
-              <template x-for="u in m.used" :key="u"><span x-text="label(u)"></span></template>
+              <template x-for="u in m.used" :key="u">
+                <span :class="acted(u) ? 'is-act' : ''" x-text="label(u)"></span>
+              </template>
             </div>
-            <div class="sa-ticket" x-show="!!m.ticket" x-cloak>
+
+            <a class="sa-ticket" x-show="!!m.ticket" x-cloak
+               :href="'/support/tickets?ref=' + encodeURIComponent(m.ticket || '')">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span x-text="'Ticket ' + m.ticket"></span>
+              <span x-text="'Ticket ' + m.ticket + ' — follow it here'"></span>
+            </a>
+
+            <div class="sa-acts" x-show="m.role === 'assistant' && i > 0" x-cloak>
+              <button type="button" @click="copy(m, $event)" x-text="m.copied ? 'Copied' : 'Copy'"></button>
+              <button type="button" x-show="!!m.retry" @click="send(m.retry)">Ask again</button>
             </div>
           </div>
         </div>
@@ -146,19 +242,34 @@
 
     <form class="sa-form" @submit.prevent="send()">
       <label class="sr-only" for="saMsg">Describe the problem</label>
-      <textarea class="sa-ta" id="saMsg" rows="1" x-model="draft" maxlength="1500"
-                placeholder="Describe what happened…"
-                @keydown.enter.exact.prevent="send()"></textarea>
+      <textarea class="sa-ta" id="saMsg" rows="1" x-model="draft" maxlength="1500" x-ref="ta"
+                placeholder="Describe what happened — and paste a payment reference if you have one"
+                @input="grow()" @keydown.enter.exact.prevent="send()"></textarea>
       <button class="sa-go" type="submit" :disabled="busy || !draft.trim()">Send</button>
     </form>
 
     <div class="sa-foot">
-      <span>Answers come from your own records and the live site. I never invent a reference or an amount.</span>
+      <p>Answers come from your own records and the live site. I never invent a reference or an amount.</p>
       {# On screen from the first frame. Making someone argue with a robot to
          reach a person is the most resented pattern in support software, and
          this path touches no model — it works when the assistant is down. #}
       <button type="button" class="sa-human" @click="human()" :disabled="busy">Talk to a human</button>
     </div>
+  </div>
+
+  <div class="sa-more">
+    <a href="/support/tickets">
+      <strong>Your tickets</strong>
+      <span>Anything already with the team, and every reply — by email and here.</span>
+    </a>
+    <a href="/help">
+      <strong>Help centre</strong>
+      <span>How voting, nominations and the index work, written out in full.</span>
+    </a>
+    <a href="mailto:{{ support_email }}">
+      <strong>{{ support_email }}</strong>
+      <span>Email the team directly. Include a payment reference if you have one.</span>
+    </a>
   </div>
 </section>
 
@@ -166,20 +277,52 @@
 function supportDesk(){
   return {
     msgs: [], draft: '', busy: false,
-    starters: ['Where is my payment?', 'My votes have not arrived', 'How does voting work?', 'I want a refund'],
+    starters: ['My votes have not arrived', 'I paid but got no receipt', 'How much are votes?', 'When does voting close?'],
 
     init(){
       this.push('assistant',
         {% if can_see_payments %}
-        'Ask away. I can see your own payments and votes, the live cycle state, and whether anything on the platform is currently degraded.'
+        'Ask away. I can see your own payments and votes, re-check a payment with the gateway, and tell you what the platform is actually doing right now.'
         {% else %}
-        'Ask away. Sign in first if this is about your own payment or votes — otherwise I can still help with how things work, and I can pass anything to the team.'
+        'Ask away. If a payment has not come through, paste its reference and I will re-check it with the gateway — you do not need an account for that.'
         {% endif %});
+      this.fromLink();
+    },
+
+    /**
+     * Arrive from a support prompt with the problem already stated.
+     *
+     * The pages that link here — a stalled payment page, a checkout, an error —
+     * already know the reference and already know what went wrong. Making the
+     * person retype it is asking them to copy forty characters by hand, which is
+     * where a digit gets dropped and the lookup fails and they conclude nothing
+     * works. `?ref=` is validated to the shape a reference actually has, because
+     * it lands in a message the assistant then acts on.
+     */
+    fromLink(){
+      var q = new URLSearchParams(location.search);
+      var ref = (q.get('ref') || '').trim().slice(0, 120);
+      if (ref && !/^[A-Za-z0-9_\-]{6,120}$/.test(ref)) ref = '';
+      var topic = q.get('topic') || '';
+      if (!ref && topic !== 'payment' && topic !== 'votes') return;
+
+      var text = ref
+        ? 'I paid but nothing has come through. The reference is ' + ref
+        : (topic === 'votes' ? 'My votes have not arrived.' : 'I paid but nothing has come through.');
+
+      // Auto-send only when we have something to act on. Firing off a vague
+      // question on the reader's behalf spends a turn and teaches them the
+      // assistant guesses — with a reference there is a real repair to attempt.
+      if (ref && q.get('ask') === '1') { this.send(text); return; }
+      this.draft = text;
+      this.$nextTick(() => { this.grow(); if (this.$refs.ta) this.$refs.ta.focus(); });
     },
 
     /** Tool names, in words a person would use. */
     label(t){
       return ({
+        fix_payment:      're-checked the payment',
+        resend_receipt:   'sent the receipt again',
         my_transactions:  'checked your payments',
         my_votes:         'checked your votes',
         lookup_reference: 'looked up that reference',
@@ -190,6 +333,9 @@ function supportDesk(){
         ops_summary:      'checked operations',
       })[t] || t;
     },
+
+    /** Tools that CHANGED something, marked apart from the ones that only read. */
+    acted(t){ return t === 'fix_payment' || t === 'resend_receipt'; },
 
     /**
      * Markdown-ish, ESCAPED FIRST.
@@ -208,16 +354,46 @@ function supportDesk(){
            .replace(/`([^`]+)`/g, '<code>$1</code>')
            .replace(/\[([^\]]+)\]\((\/[^)\s]*)\)/g, '<a href="$2">$1</a>')
            .replace(/(^|\s)(\/[a-z0-9\-\/]{2,60})(?=[\s.,)]|$)/gi, '$1<a href="$2">$2</a>');
-      return e.split(/\n{2,}/).map(function(p){ return '<p>' + p.replace(/\n/g,'<br>') + '</p>'; }).join('');
+      return e.split(/\n{2,}/).map(function(p){
+        // A run of "- " lines is a list. Models write them constantly and a
+        // paragraph of dashes reads as broken formatting rather than as prose.
+        if (/^-\s+/.test(p) && p.split('\n').every(function(l){ return /^-\s+/.test(l) || !l.trim(); })){
+          return '<ul>' + p.split('\n').filter(function(l){ return l.trim(); })
+            .map(function(l){ return '<li>' + l.replace(/^-\s+/, '') + '</li>'; }).join('') + '</ul>';
+        }
+        return '<p>' + p.replace(/\n/g,'<br>') + '</p>';
+      }).join('');
     },
 
     push(role, text, extra){
-      this.msgs.push(Object.assign({ role: role, text: text, html: this.fmt(text), used: [], ticket: null }, extra || {}));
+      this.msgs.push(Object.assign({ role: role, text: text, html: this.fmt(text),
+                                     used: [], ticket: null, retry: null, copied: false }, extra || {}));
       this.$nextTick(() => { var l = this.$refs.log; if (l) l.scrollTop = l.scrollHeight; });
     },
 
     /** What goes back to the server as context: roles and text, nothing else. */
     history(){ return this.msgs.slice(-12).map(m => ({ role: m.role, content: m.text })); },
+
+    /** Grow the composer with the text, up to the CSS max-height. */
+    grow(){
+      var t = this.$refs.ta; if (!t) return;
+      t.style.height = 'auto';
+      t.style.height = Math.min(t.scrollHeight, 180) + 'px';
+    },
+
+    copy(m, ev){
+      var done = () => { m.copied = true; setTimeout(() => { m.copied = false; }, 1600); };
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(m.text).then(done).catch(function(){});
+        return;
+      }
+      // No clipboard API (http, or an older browser). Select the text instead —
+      // silently doing nothing would look like a broken button.
+      try {
+        var r = document.createRange(); r.selectNodeContents(ev.target.closest('.sa-msg__b'));
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); done();
+      } catch (e) {}
+    },
 
     send(preset){
       var text = (preset || this.draft).trim();
@@ -225,6 +401,7 @@ function supportDesk(){
       var prior = this.history();          // before pushing, so we do not send the new message twice
       this.push('user', text);
       this.draft = ''; this.busy = true;
+      this.$nextTick(() => this.grow());
 
       fetch('/api/v1/support/chat', {
         method: 'POST',
@@ -233,9 +410,10 @@ function supportDesk(){
       })
         .then(r => r.json())
         .then(j => this.push('assistant', j.reply || 'I could not answer that just now.',
-                             { used: j.used || [], ticket: j.ticket || null }))
+                             { used: j.used || [], ticket: j.ticket || null, retry: text }))
         .catch(() => this.push('assistant',
-          'I lost the connection. Press “Talk to a human” and the team will pick this up.'))
+          'I lost the connection. Press “Talk to a human” and the team will pick this up.',
+          { retry: text }))
         .finally(() => { this.busy = false; });
     },
 

@@ -41,16 +41,10 @@
  * Idempotent + driver-agnostic (one settings row). NEVER exit/die here (include()d in
  * a loop).
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 \AfricaGates\Support\Clock::boot();
 
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 if (!DB::schema()->hasTable('gates_settings')) {
     echo "gates_settings absent — skipped\n";

@@ -6,14 +6,8 @@
  * Idempotent + driver-aware. The email stays hashed; these are plaintext contact
  * fields, so they are covered by the data-retention purge (see SECURITY-HARDENING-V3).
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 $schema = DB::schema();
 $driver = DB::connection()->getDriverName();

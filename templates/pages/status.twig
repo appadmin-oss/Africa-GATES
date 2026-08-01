@@ -124,5 +124,16 @@
       </div>
     {% endfor %}
   {% endif %}
+
+  {# This page answers "is it me or is it them". It does not answer "so where is
+     my money", and that is what most people came to ask — a green board and a
+     missing payment is the most frustrating combination on the site. The
+     assistant can check the same services by PROBING them, not by reading a
+     configuration flag, and can repair the payment while it is there. #}
+  {% include 'partials/support-prompt.twig' with {
+    sp_kind: 'general',
+    sp_title: 'Everything green but something is still wrong?',
+    sp_body: 'This board reports the services. The assistant can check your specific problem — and re-check a payment against the gateway if that is what is stuck.'
+  } %}
 </div>
 {% endblock %}

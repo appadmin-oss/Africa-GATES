@@ -8,14 +8,8 @@
  * This adds the missing tables (SQLite dialect) + the fraud columns FraudService
  * stamps onto gates_votes. Idempotent: safe to re-run.
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 if (DB::connection()->getDriverName() !== 'sqlite') {
     // SQLite-only drift repair — on MySQL these tables already ship in schema.sql /

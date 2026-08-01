@@ -8,14 +8,8 @@
  * schema apply (and therefore every later migration). Per-column hasColumn guards
  * work on MySQL, MariaDB and SQLite alike. NEVER use exit/die here (include()d in a loop).
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 $schema = DB::schema();
 if (!$schema->hasTable('gates_nominations')) { echo "no gates_nominations — skip\n"; return; }

@@ -33,14 +33,8 @@
  * customer by accident. The column exists so the safe thing is also the easy one,
  * and the default is 0 so a plain reply is a reply TO the member.
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 $sqlite = DB::connection()->getDriverName() === 'sqlite';
 

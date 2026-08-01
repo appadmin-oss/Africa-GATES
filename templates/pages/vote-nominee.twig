@@ -27,6 +27,18 @@
      Hyphens make the forced break read as a break rather than as a typo. */
   .vn-bioline{ margin:14px 0 0; font-size:14.5px; line-height:1.6; color:rgba(255,255,255,.76);
                max-width:460px; overflow-wrap:anywhere; hyphens:auto; }
+  /* Collapsed to four lines by DEFAULT — not by JavaScript. If the script never
+     runs, the clamp still holds and the layout is still right; the only thing
+     lost is the ability to expand, and `.is-open` removing the clamp is the one
+     thing the script has to do. The opposite arrangement (expanded until JS
+     collapses it) flashes the full text on every load. */
+  .vn-bioline--clamp{ display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:4;
+                      line-clamp:4; overflow:hidden; }
+  .vn-bioline--clamp.is-open{ display:block; -webkit-line-clamp:none; line-clamp:none; overflow:visible; }
+  .vn-more{ margin:6px 0 0; border:0; background:none; padding:2px 0; cursor:pointer;
+            font:600 13px/1 inherit; color:#7FC87C; text-decoration:underline; text-underline-offset:2px; }
+  .vn-more:hover{ color:#fff; }
+  .vn-more:focus-visible{ outline:2px solid #7FC87C; outline-offset:3px; border-radius:3px; }
   .vn-stats{ display:flex; align-items:center; gap:clamp(16px,3vw,26px); margin-top:24px; flex-wrap:wrap; }
   .vn-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:clamp(24px,3.5vw,30px); line-height:1; color:#fff; }
   .vn-stat__n.g{ color:#7FC87C; }
@@ -193,15 +205,29 @@
           {{ n.organisation }}
         </p>
         {% endif %}
-        {# The whole brief, not the first 157 characters of it.
-           This used to hard-truncate with an ellipsis, which cut a nominee's
-           description off mid-sentence on their own ballot — the one page where
-           the case for them is the point. It is a tagline, not a body of text, so
-           the length is already bounded by whoever wrote it; what actually needed
-           guarding was a single unbroken run of characters (a pasted URL, a long
-           hyphen-free name) overflowing the column, and `.vn-bioline` now breaks
-           those instead. #}
-        {% if n.tagline %}<p class="vn-bioline">{{ n.tagline }}</p>{% endif %}
+        {# The whole brief, four lines at a time.
+           It used to hard-truncate with an ellipsis, which cut a nominee's case
+           off mid-sentence on the one page where the case for them is the point,
+           and gave the reader no way to see the rest. Now nothing is destroyed:
+           the text is all there, collapsed to four lines, and expandable.
+
+           The button only exists when there is something behind it. Rendering
+           "Show more" over text that is already fully visible is a control that
+           does nothing, which teaches people to ignore the ones that do — so the
+           script measures the paragraph and removes itself when it fits. A long
+           unbroken run (a pasted URL, a hyphen-free name) is handled separately
+           by `overflow-wrap:anywhere`; clamping alone would not stop it widening
+           the column. #}
+        {% if n.tagline %}
+        <div x-data="{ open: false, long: true }"
+             x-init="$nextTick(() => { const p = $refs.bio; long = p.scrollHeight - p.clientHeight > 2; })">
+          <p class="vn-bioline vn-bioline--clamp" x-ref="bio" :class="open ? 'is-open' : ''"
+             id="vnBio">{{ n.tagline }}</p>
+          <button type="button" class="vn-more" x-show="long" x-cloak
+                  :aria-expanded="open ? 'true' : 'false'" aria-controls="vnBio"
+                  @click="open = !open" x-text="open ? 'Show less' : 'Show more'"></button>
+        </div>
+        {% endif %}
 
         <div class="vn-stats">
           {% if profile and profile.cpi_score %}
@@ -530,6 +556,13 @@
                 </button>
                 <p style="margin:8px 0 0;font-size:11.5px;color:#5a6d6f">Secured checkout — the charge is verified server-side before any vote counts.</p>
               </form>
+              {# One line, on the buy form itself. Somebody who paid an hour ago and
+                 came back to try again is about to pay TWICE for votes they have
+                 already bought — and this is the last screen before they do. #}
+              {% include 'partials/support-prompt.twig' with {
+                sp_compact: true,
+                sp_title: 'Paid already and the votes never arrived? Get it re-checked instead of paying again.'
+              } %}
             </section>
             {% if not paid_free_disabled %}<p class="vn-redeem__or" aria-hidden="true">— or vote free with email verification —</p>{% endif %}
             {% endif %}

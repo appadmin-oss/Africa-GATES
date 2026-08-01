@@ -762,3 +762,45 @@ CREATE TABLE IF NOT EXISTS gates_products (
   UNIQUE KEY uq_product_slug (slug),
   KEY idx_product_active (is_active, sort_order)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── SUPPORT DESK ────────────────────────────────────────────────────────────
+-- See the note in sqlite-schema.sql: these tables shipped only as migrations, so
+-- a database built from this file had a support desk with nothing behind it.
+CREATE TABLE IF NOT EXISTS gates_support_tickets (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  reference VARCHAR(24) NOT NULL,
+  user_id BIGINT UNSIGNED NULL,
+  email VARCHAR(255) NULL,
+  name VARCHAR(160) NULL,
+  subject VARCHAR(255) NOT NULL,
+  transcript MEDIUMTEXT NULL,
+  tools_used VARCHAR(255) NULL,
+  severity VARCHAR(16) NOT NULL DEFAULT 'normal',
+  status VARCHAR(16) NOT NULL DEFAULT 'open',
+  emailed TINYINT(1) NOT NULL DEFAULT 0,
+  webhooked TINYINT(1) NOT NULL DEFAULT 0,
+  page_url VARCHAR(500) NULL,
+  user_agent VARCHAR(255) NULL,
+  ip_hash CHAR(64) NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_activity TIMESTAMP NULL,
+  resolved_at TIMESTAMP NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_ticket_ref (reference),
+  KEY idx_ticket_status (status),
+  KEY idx_ticket_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS gates_support_messages (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  ticket_id BIGINT UNSIGNED NOT NULL,
+  author_type VARCHAR(12) NOT NULL DEFAULT 'member',
+  author_id BIGINT UNSIGNED NULL,
+  author_name VARCHAR(160) NULL,
+  body MEDIUMTEXT NOT NULL,
+  is_internal TINYINT(1) NOT NULL DEFAULT 0,
+  emailed TINYINT(1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_smsg_ticket (ticket_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

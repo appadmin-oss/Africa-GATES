@@ -31,8 +31,19 @@ use Tests\TestCase;
  */
 final class CommentParentIdTest extends TestCase
 {
+    /**
+     * Run the body with the foreign key ENFORCED, on whichever database this is.
+     *
+     * `PRAGMA` is SQLite's spelling and MySQL rejects it as a syntax error, so
+     * this test errored out on the parity run — the one run where the constraint
+     * is enforced by default and the regression would actually be caught. MySQL
+     * needs nothing turned on; it needs nothing turned off either, so there the
+     * body simply runs.
+     */
     private function withForeignKeys(callable $fn): void
     {
+        if (DB::connection()->getDriverName() !== 'sqlite') { $fn(); return; }
+
         $pdo = DB::connection()->getPdo();
         $pdo->exec('PRAGMA foreign_keys = ON');
         try { $fn(); } finally { $pdo->exec('PRAGMA foreign_keys = OFF'); }

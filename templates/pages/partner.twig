@@ -207,7 +207,7 @@
     <div class="pt-enq__l">
       <h2>Let’s build something lasting</h2>
       <p>Tell us about your organisation and a partnerships lead will reach out within two business days with a tailored proposal.</p>
-      <a class="pt-enq__mail" href="mailto:support@afrovanguard.org.ng?subject=Partnership%20enquiry"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg>support@afrovanguard.org.ng</a>
+      <a class="pt-enq__mail" href="mailto:{{ support_email }}?subject=Partnership%20enquiry"><svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg>{{ support_email }}</a>
     </div>
     <form class="pt-form" method="post" action="/partner">
       <input type="hidden" name="_token" value="{{ csrf_token }}">

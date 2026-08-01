@@ -22,14 +22,8 @@
  * or CHECK rebuild. Idempotent. NEVER exit/die here — the runner applies the
  * whole directory in one pass.
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 $sqlite = DB::connection()->getDriverName() === 'sqlite';
 $ts     = $sqlite ? 'TEXT' : 'TIMESTAMP';

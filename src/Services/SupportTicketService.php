@@ -5,6 +5,7 @@ namespace AfricaGates\Services;
 
 use AfricaGates\Support\Env;
 use AfricaGates\Support\OptionalColumn;
+use AfricaGates\Support\SiteUrl;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -95,7 +96,7 @@ final class SupportTicketService
 
     private function email(string $ref, array $row): bool
     {
-        $to = trim((string) (Env::get('SUPPORT_EMAIL') ?: Notifier::adminEmail()));
+        $to = Notifier::supportEmail();
         if ($to === '' || $this->mailer === null) return false;
 
         $body = "A support conversation was escalated.\n\n"
@@ -107,7 +108,15 @@ final class SupportTicketService
               . "\n— — — conversation — — —\n\n" . $row['transcript'] . "\n";
 
         try {
-            Notifier::adminAlert($this->mailer, "[{$row['severity']}] Support escalation {$ref}: " . $row['subject'], $body);
+            // Addressed to $to, NOT via Notifier::adminAlert(). adminAlert always
+            // sends to the admin-alert inbox, so the SUPPORT_EMAIL resolved two
+            // lines up was computed, checked for emptiness, and then thrown away —
+            // every ticket went to the operations address no matter what support
+            // was configured to be. The bug was invisible because both addresses
+            // usually resolve to somebody who reads mail.
+            $this->mailer->sendBranded($to,
+                "[Africa GATES] [{$row['severity']}] Support {$ref}: " . $row['subject'],
+                nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8')), $body, 'Support');
             return true;
         } catch (\Throwable $e) {
             error_log('[support] escalation email failed for ' . $ref . ': ' . $e->getMessage());
@@ -234,8 +243,17 @@ final class SupportTicketService
                 'transcript' => (string) ($t->transcript ?? ''), 'created_at' => (string) $t->created_at,
             ],
             'messages' => $msgs->map(fn($m) => [
-                'from' => (string) $m->author_type === 'staff' ? 'Support' : ((string) ($m->author_name ?: 'You')),
-                'staff' => (string) $m->author_type === 'staff',
+                'from'  => match ((string) $m->author_type) {
+                    'staff' => 'Support',
+                    // Labelled as itself, always. A member who is told a person
+                    // read their ticket, and later works out it was a machine,
+                    // has been lied to about the one thing support cannot lie
+                    // about — whether anyone is actually looking.
+                    'agent' => 'Support assistant',
+                    default => (string) ($m->author_name ?: 'You'),
+                },
+                'staff' => in_array((string) $m->author_type, ['staff', 'agent'], true),
+                'agent' => (string) $m->author_type === 'agent',
                 'body' => (string) $m->body,
                 'created_at' => (string) $m->created_at,
             ])->all(),
@@ -282,8 +300,10 @@ final class SupportTicketService
         // already safe, so a mail or webhook failure loses a notification, not
         // the reply itself.
         try {
-            Notifier::adminAlert($this->mailer, "Support reply on {$reference}: " . ($t->subject ?? ''),
-                "A member replied on ticket {$reference}.\n\n" . $body);
+            $note = "A member replied on ticket {$reference}.\n\n" . $body;
+            $this->mailer?->sendBranded(Notifier::supportEmail(),
+                "[Africa GATES] Support reply on {$reference}: " . ($t->subject ?? ''),
+                nl2br(htmlspecialchars($note, ENT_QUOTES, 'UTF-8')), $note, 'Support');
         } catch (\Throwable) {}
         try {
             WebhookService::dispatch('support.ticket_replied',
@@ -308,6 +328,74 @@ final class SupportTicketService
             'user_id' => $userId, 'email' => $email, 'name' => $name,
             'subject_override' => $subject,
         ]);
+    }
+
+    /**
+     * A reply written by the assistant rather than by a person.
+     *
+     * Separate from {@see reply()} for three reasons that all matter:
+     *   • it is attributed to `agent`, so the member is told what answered them;
+     *   • it does NOT reopen the ticket — an automated reply is not activity from
+     *     the member, and treating it as such would make every auto-answered
+     *     ticket look freshly urgent to whoever triages the queue;
+     *   • it can RESOLVE, which a member's reply must never do.
+     *
+     * The email is the point. A reply nobody sees is not support — and somebody
+     * whose payment has just been repaired should learn that from their inbox,
+     * not by remembering to come back and look.
+     */
+    public function agentReply(int $ticketId, string $body, bool $resolve = false): bool
+    {
+        $body = trim($body);
+        if ($ticketId < 1 || $body === '') return false;
+        $body = mb_substr($body, 0, 5000);
+        $now  = date('Y-m-d H:i:s');
+
+        try {
+            $t = DB::table('gates_support_tickets')->where('id', $ticketId)
+                ->first(['id', 'reference', 'subject', 'email', 'name', 'status']);
+            if (!$t) return false;
+
+            DB::table('gates_support_messages')->insert([
+                'ticket_id' => $ticketId, 'author_type' => 'agent', 'author_id' => null,
+                'author_name' => 'Support assistant', 'body' => $body,
+                'is_internal' => 0, 'emailed' => 0, 'created_at' => $now,
+            ]);
+
+            $patch = ['last_activity' => $now];
+            if ($resolve) { $patch['status'] = 'resolved'; $patch['resolved_at'] = $now; }
+            DB::table('gates_support_tickets')->where('id', $ticketId)->update(
+                OptionalColumn::filter('gates_support_tickets', $patch, ['last_activity', 'resolved_at']));
+        } catch (\Throwable $e) {
+            error_log('[support] agent reply not stored on ticket ' . $ticketId . ': ' . $e->getMessage());
+            return false;
+        }
+
+        $to = trim((string) ($t->email ?? ''));
+        if ($this->mailer !== null && filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            $text = "Hi " . (trim((string) ($t->name ?? '')) ?: 'there') . ",\n\n" . $body
+                  . "\n\n— — —\nTicket {$t->reference}: {$t->subject}\n"
+                  . "Reply to this ticket at " . SiteUrl::base() . "/support/tickets?ref="
+                  . rawurlencode((string) $t->reference) . "\n"
+                  . "This reply was written by the Africa GATES support assistant. If it did not solve it, "
+                  . "reply on the ticket and a person will pick it up.";
+            try {
+                $this->mailer->sendBranded($to, "Re: [{$t->reference}] {$t->subject}",
+                    nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8')), $text, 'Support');
+                DB::table('gates_support_messages')->where('ticket_id', $ticketId)
+                    ->orderByDesc('id')->limit(1)->update(['emailed' => 1]);
+            } catch (\Throwable $e) {
+                error_log('[support] agent reply email failed on ' . $t->reference . ': ' . $e->getMessage());
+            }
+        }
+
+        try {
+            WebhookService::dispatch('support.ticket_replied',
+                ['reference' => (string) $t->reference, 'from' => 'assistant',
+                 'resolved' => $resolve, 'at' => date('c')]);
+        } catch (\Throwable) {}
+
+        return true;
     }
 
     // ── shaping ──────────────────────────────────────────────────────────────

@@ -47,9 +47,12 @@ final class SupportController
             'ai_on'            => $this->agent?->available() ?? false,
             'is_signed_in'     => $m !== null,
             'member_first'     => $m ? explode(' ', trim((string) $m['name']))[0] : null,
-            // Shown to a guest so they understand WHY the assistant cannot see
-            // their payment, instead of concluding it is broken.
+            // Shown to a guest so they understand WHY the assistant cannot LIST
+            // their payments, instead of concluding it is broken. It is no longer
+            // the same thing as "cannot help with a payment" — a guest with a
+            // reference gets the repair, which is what they came for.
             'can_see_payments' => $m !== null,
+            'support_email'    => \AfricaGates\Services\Notifier::supportEmail(),
         ]);
     }
 
@@ -101,7 +104,7 @@ final class SupportController
             return $this->json($res, ['ok' => false, 'reply' => 'Support chat is unavailable right now.'], 503);
         }
 
-        $ctx = $this->context();
+        $ctx = $this->context($ip);
         $r   = $this->agent->ask($message, $history, $ctx);
 
         return $this->json($res, [
@@ -154,7 +157,7 @@ final class SupportController
         }
 
         $m   = UserAccountService::memberForForms();
-        $ref = $this->tickets->open($message, $history, $this->context(), [], [
+        $ref = $this->tickets->open($message, $history, $this->context($ip), [], [
             'user_id'    => $m['id']    ?? null,
             'email'      => $m['email'] ?? (filter_var(trim((string) ($b['email'] ?? '')), FILTER_VALIDATE_EMAIL) ?: null),
             'name'       => $m['name']  ?? null,
@@ -280,7 +283,7 @@ final class SupportController
     }
 
     /** Identity from the SESSION, never from the request. See the class note. */
-    private function context(): SupportContext
+    private function context(string $ip = ''): SupportContext
     {
         $m = UserAccountService::memberForForms();
 
@@ -290,6 +293,11 @@ final class SupportController
             // Staff scope requires a real admin session — the same one /admin uses.
             isAdmin:     (int) ($_SESSION['admin_id'] ?? 0) > 0,
             search:      new ActivityFeedService(),
+            // The repair tools are open to guests, so they need their own ceiling
+            // — separate from the chat limit, because one conversation can ask for
+            // several repairs and a hundred repairs is not a conversation.
+            limits:      $this->rateLimit,
+            clientKey:   $ip !== '' ? hash('sha256', $ip) : '',
         );
     }
 

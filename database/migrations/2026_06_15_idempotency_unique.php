@@ -4,15 +4,9 @@
  * DB layer (SQLite allows many NULLs in a unique index, so the vast majority of
  * votes — which carry no key — are unaffected). Idempotent.
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Support\SchemaIndex;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 // BOTH halves of this were broken on MySQL, in different ways. `DROP INDEX IF
 // EXISTS name` is SQLite-only — MySQL needs `DROP INDEX name ON table` — and

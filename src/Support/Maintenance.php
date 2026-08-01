@@ -125,6 +125,11 @@ final class Maintenance
             // was dropped receives is an email saying they did not pay.
             $ran[] = ['payments',      $this->task('payments',      fn() => $this->reconcilePayments())];
             $ran[] = ['checkout-mail', $this->task('checkout-mail', fn() => $this->mailAbandonedCheckouts())];
+            // AFTER reconciliation, deliberately. The sweep answers tickets about
+            // payments, and the run above may have just fixed the payment a ticket
+            // is asking about — going first would have it write "still pending" a
+            // second before that stopped being true.
+            $ran[] = ['support',       $this->task('support',       fn() => $this->answerTickets())];
             // Every hour
             if ((int)$now->minute < 15) {
                 $ran[] = ['otp',        $this->task('otp',        fn() => $this->purgeExpiredOtp())];
@@ -158,6 +163,7 @@ final class Maintenance
                 'collusion' => $ran[] = ['collusion', $this->task('collusion', fn() => $this->scanCollusion())],
                 'payments'  => $ran[] = ['payments', $this->task('payments', fn() => $this->reconcilePayments())],
                 'checkout-mail' => $ran[] = ['checkout-mail', $this->task('checkout-mail', fn() => $this->mailAbandonedCheckouts())],
+                'support'   => $ran[] = ['support', $this->task('support', fn() => $this->answerTickets())],
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
                 'all'       => (function () use (&$ran) {
                     $ran[] = ['queue', $this->task('queue', fn() => $this->drainJobs())];
@@ -386,6 +392,36 @@ final class Maintenance
      * there are only ever a handful of rows older than fifteen minutes; clearing a real
      * backlog is `bin/console payments:reconcile --limit 200` from a shell.
      */
+    /**
+     * Let the support assistant answer the tickets it can.
+     *
+     * Runs here rather than in the request that opens a ticket: two model calls
+     * and a gateway round-trip do not belong in front of somebody pressing a
+     * button, and a support desk that answers a minute later is a support desk
+     * answering quickly. Every safety rule lives in the resolver — see its class
+     * note — so this stays a one-line call that cannot smuggle in an exception.
+     */
+    private function answerTickets(): int
+    {
+        try {
+            $r = new \AfricaGates\Services\SupportAutoResolver(
+                new \AfricaGates\Services\SupportAgentService(
+                    \AfricaGates\Services\AiService::boot(),
+                    new \AfricaGates\Services\SupportTicketService($this->mailer())
+                ),
+                new \AfricaGates\Services\SupportTicketService($this->mailer())
+            );
+            if (!$r->available()) { $this->log('support: assistant unavailable, skipped'); return 0; }
+
+            $n = $r->sweep();
+            $this->log('support: ' . $n . ' ticket(s) answered');
+            return $n;
+        } catch (\Throwable $e) {
+            $this->log('support error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
     private function reconcilePayments(): int
     {
         try {

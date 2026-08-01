@@ -112,6 +112,21 @@
     {% if dark and error_ref is defined and error_ref %}
       <p class="err__ref">Ref · {{ error_ref }}</p>
     {% endif %}
+
+    {# A 500 catches somebody in the middle of something — very often paying.
+       "Our team has been notified" is true and useless to them; the assistant can
+       say what is actually degraded right now and repair a stuck payment. Not on
+       a 404, where nothing has gone wrong for anybody, and not on a 403, where
+       the answer is to sign in and the page already says so. #}
+    {% if dark %}
+      <div class="ag-sprompt--dark">
+        {% include 'partials/support-prompt.twig' with {
+          sp_kind: 'general',
+          sp_title: 'Were you in the middle of something?',
+          sp_body: 'The assistant can tell you what is actually degraded right now, and re-check a payment if that is what broke.'
+        } %}
+      </div>
+    {% endif %}
   </div>
 </section>
 {% endblock %}

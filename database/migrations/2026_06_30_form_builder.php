@@ -1,13 +1,7 @@
 <?php
 /** Advanced form builder: admin-designed forms + their submissions. Idempotent + driver-aware. */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 $schema = DB::schema();
 $sqlite = DB::connection()->getDriverName() === 'sqlite';

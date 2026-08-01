@@ -27,8 +27,8 @@ use Illuminate\Database\Capsule\Manager as DB;
  * for a different one.
  *
  * Concretely:
- *   • a GUEST gets site state and public help. No transactions. Not "their"
- *     transactions — none, because a guest has no identity to scope to.
+ *   • a GUEST gets site state, public help, and the two REPAIR actions below.
+ *     No transaction data — a guest has no identity to scope a read to.
  *   • a MEMBER gets their own orders, donations and votes. One extra tool,
  *     lookupReference(), resolves a payment reference the user pastes in, and
  *     it returns the row ONLY when the reference belongs to them.
@@ -36,6 +36,27 @@ use Illuminate\Database\Capsule\Manager as DB;
  *     not a dump: "seven orders are stuck pending" answers the support question;
  *     the list of who they are does not, and the admin has /admin/finance for
  *     that behind a real login.
+ *
+ * ── REPAIR IS OPEN. DISCLOSURE IS SCOPED. ────────────────────────────────────
+ *
+ * These are different questions and were wrongly answered as one. Almost nobody
+ * who buys votes has an account — the ballot takes an email and a card — so
+ * gating the repair tools behind a session locked the people hit by the missing
+ * -votes incident out of the fix built for them, while the members who could
+ * reach it were the least likely to need it.
+ *
+ * So `fix_payment` and `resend_receipt` take a reference from anyone, and are
+ * safe because neither one HANDS ANYTHING BACK:
+ *   • the gateway decides whether money arrived — not the model, not the user;
+ *   • the votes go to the nominee the order already named;
+ *   • the receipt goes to the address on the order, never one that was typed;
+ *   • the return value is an outcome word, never an amount, name or address.
+ * The worst an attacker with a stranger's reference can do is cause that
+ * stranger's own payment to complete correctly.
+ *
+ * `lookup_reference` and `my_transactions` DO hand data back, so they stay
+ * members-only and email-scoped. That is the line: acting on a payment is open,
+ * reading one is not.
  *
  * The second rule: every value returned from here is DATA, never instruction.
  * The caller fences it before it reaches a model (see AiGateway::FENCE_OPEN),
@@ -47,12 +68,26 @@ final class SupportContext
     /** Money figures are naira; formatted here so the model never does arithmetic. */
     private const CURRENCY = '₦';
 
+    /**
+     * How many repairs one client may attempt per hour.
+     *
+     * The repair tools are open to guests, so this is the only thing standing
+     * between them and someone walking a reference space. Deliberately generous
+     * for a real person — nobody legitimately re-checks a payment nine times —
+     * and hopeless for a script.
+     */
+    private const REPAIRS_PER_HOUR = 8;
+
     public function __construct(
         /** From $_SESSION only. Null for a guest. */
         private readonly ?int $viewerId = null,
         private readonly ?string $viewerEmail = null,
         private readonly bool $isAdmin = false,
         private readonly ?ActivityFeedService $search = null,
+        /** Guards the two repair tools. Null in tests and on the CLI. */
+        private readonly ?RateLimitService $limits = null,
+        /** Already hashed by the caller — this class never sees a raw address. */
+        private readonly string $clientKey = '',
     ) {}
 
     public function isMember(): bool { return $this->viewerId !== null && $this->viewerId > 0; }
@@ -82,6 +117,18 @@ final class SupportContext
             ['name' => 'pricing',
              'description' => 'What a vote costs, the bundle tiers, and which payment providers are live.',
              'args' => []],
+            // ── the repair tools. Open to everyone: see the class note. ──────
+            ['name' => 'fix_payment',
+             'description' => "Re-check ONE payment against the payment gateway and credit its votes if the money really did arrive. "
+                            . "Use this whenever someone says they paid but their votes have not appeared, or no receipt came. "
+                            . "Works for people who are not signed in. Safe to run more than once. Needs the reference the "
+                            . "payment page or the bank showed them; if they are signed in and have not given one, use "
+                            . "my_transactions first and try their most recent unconfirmed payment.",
+             'args' => ['reference' => 'the payment reference']],
+            ['name' => 'resend_receipt',
+             'description' => "Send the receipt for a confirmed payment again. Use when the votes ARE there but the email never "
+                            . "arrived. It always goes to the address on the payment, which cannot be changed here.",
+             'args' => ['reference' => 'the payment reference']],
         ];
 
         if ($this->isMember()) {
@@ -92,14 +139,9 @@ final class SupportContext
                     'description' => "The signed-in person's own cast votes: which nominee, how many, when.",
                     'args' => []];
             $t[] = ['name' => 'lookup_reference',
-                    'description' => 'Look up ONE payment by the reference the user pasted. Returns nothing unless that payment belongs to them.',
+                    'description' => 'Look up ONE payment by the reference the user pasted, and see its amount, status and votes. '
+                                   . 'Returns nothing unless that payment belongs to them.',
                     'args' => ['reference' => 'the payment reference as the user typed it']];
-            $t[] = ['name' => 'fix_payment',
-                    'description' => "Re-check a payment against the payment gateway and CREDIT the votes if it really did go through. "
-                                   . "Use this whenever someone says they paid but their votes have not appeared, or no receipt arrived. "
-                                   . "Safe to run more than once. Needs the reference; if they have not given one, use my_transactions first "
-                                   . "and try their most recent unconfirmed payment.",
-                    'args' => ['reference' => 'the payment reference']];
         }
 
         if ($this->isAdmin) {
@@ -139,6 +181,7 @@ final class SupportContext
                 'my_votes'         => $this->myVotes(),
                 'lookup_reference' => $this->lookupReference((string) ($args['reference'] ?? '')),
                 'fix_payment'      => $this->fixPayment((string) ($args['reference'] ?? '')),
+                'resend_receipt'   => $this->resendReceipt((string) ($args['reference'] ?? '')),
                 'ops_summary'      => $this->opsSummary(),
                 default            => null,
             };
@@ -159,9 +202,15 @@ final class SupportContext
             ->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
             ->where('p.is_active', 1)
             ->orderByDesc('y.year')->limit(12)
+            // The columns are `voting_open`, not `voting_open_at`. Naming them
+            // wrongly made every site_state call throw, which the catch in run()
+            // turned into a polite "that information is unavailable right now" —
+            // so the assistant has never once been able to say when voting closes,
+            // and nothing in any log said why. A tool that fails softly on a typo
+            // is a tool that is silently absent.
             ->get(['p.title as programme', 'p.slug', 'y.year', 'y.status',
-                   'y.nominations_open_at', 'y.nominations_close_at',
-                   'y.voting_open_at', 'y.voting_close_at'])
+                   'y.nominations_open', 'y.nominations_close',
+                   'y.voting_open', 'y.voting_close'])
             ->map(fn($r) => array_filter((array) $r, fn($v) => $v !== null && $v !== ''))
             ->all();
 
@@ -366,19 +415,30 @@ final class SupportContext
      */
     private function fixPayment(string $reference): array
     {
-        if (!$this->isMember()) return [];
         $ref = trim($reference);
         if ($ref === '') {
-            return ['ok' => false, 'note' => 'A payment reference is needed. Ask the user for it, '
-                                           . 'or find it with my_transactions.'];
+            return ['ok' => false, 'note' => 'A payment reference is needed. Ask the user for it — it is on the '
+                                           . 'payment page, in the bank alert, and in any receipt they did get.'
+                                           . ($this->isMember() ? ' Or find it with my_transactions.' : '')];
+        }
+        if (!$this->spendRepair()) {
+            return ['ok' => false, 'outcome' => 'RATE_LIMITED',
+                    'say' => 'That has been re-checked several times already in the last hour. '
+                           . 'Give it a few minutes, and I will pass it to the team if it still has not landed.'];
         }
 
         try {
-            $r = (new PaymentReconciler(new PaymentService()))->reclaim($ref, (string) $this->viewerEmail);
+            // Reference only — NOT scoped to the session's email, and that is the
+            // whole point. Most people who buy votes are not signed in, and plenty
+            // of signed-in members pay with a different address from the one on
+            // their account; scoping here failed both of them. Nothing about the
+            // payer comes back, so an unscoped repair discloses nothing.
+            $r = (new PaymentReconciler(new PaymentService()))->reclaim($ref, null);
         } catch (\Throwable $e) {
             error_log('[support] reclaim failed for ' . $ref . ': ' . $e->getMessage());
-            return ['ok' => false, 'note' => 'The payment gateway could not be reached. Tell the user to try '
-                                           . 'again shortly, and offer to pass it to the team.'];
+            return ['ok' => false, 'outcome' => 'UNAVAILABLE',
+                    'say' => 'The payment gateway could not be reached. Tell the user to try '
+                           . 'again shortly, and offer to pass it to the team.'];
         }
 
         return [
@@ -389,6 +449,74 @@ final class SupportContext
             // relay it rather than reword it into a claim of its own.
             'say'     => $r['message'],
         ];
+    }
+
+    /**
+     * "The votes are there, the email never came."
+     *
+     * A distinct failure from a stuck payment and needs a distinct answer: there
+     * is nothing to repair, the person simply has no proof. Sending it again is
+     * the entire fix, and it is safe to offer to anybody because the destination
+     * is read off the order — {@see CheckoutMailer::receipt()} — so this can only
+     * ever mail the buyer.
+     */
+    private function resendReceipt(string $reference): array
+    {
+        $ref = trim($reference);
+        if ($ref === '' || mb_strlen($ref) > 120) {
+            return ['ok' => false, 'note' => 'A payment reference is needed to find the receipt.'];
+        }
+        if (!$this->spendRepair()) {
+            return ['ok' => false, 'outcome' => 'RATE_LIMITED',
+                    'say' => 'I have already sent that a few times in the last hour. Check the spam folder — '
+                           . 'if it is not there either, the address on the payment may be wrong, '
+                           . 'and the team can correct it.'];
+        }
+
+        try {
+            $d = DB::table('gates_donations')->where('payment_ref', $ref)->first(['id', 'status', 'refunded_at']);
+        } catch (\Throwable $e) {
+            error_log('[support] receipt lookup failed for ' . $ref . ': ' . $e->getMessage());
+            return ['ok' => false, 'outcome' => 'UNAVAILABLE', 'say' => 'I could not check that just now.'];
+        }
+
+        if (!$d) {
+            return ['ok' => false, 'outcome' => 'NOT_FOUND',
+                    'say' => 'No payment with that reference is on record. Check the reference, '
+                           . 'or the payment may have been made somewhere other than this site.'];
+        }
+        if ((string) $d->status !== 'confirmed' || $d->refunded_at !== null) {
+            // Deliberately routed to the OTHER tool rather than answered here: an
+            // unconfirmed payment does not need a receipt, it needs repairing.
+            return ['ok' => false, 'outcome' => 'NOT_CONFIRMED',
+                    'say' => 'That payment is not confirmed, so there is no receipt to send yet. '
+                           . 'Use fix_payment on the same reference first.'];
+        }
+
+        $r = CheckoutMailer::resend((int) $d->id);
+
+        return $r['sent']
+            ? ['ok' => true, 'outcome' => 'SENT',
+               // The address is not named. Somebody holding a reference should not
+               // learn who paid with it, and the buyer already knows their own inbox.
+               'say' => 'Sent again, to the email address on that payment. It can take a few minutes — '
+                      . 'and check the spam folder, because receipts often land there.']
+            : ['ok' => false, 'outcome' => strtoupper((string) ($r['reason'] ?? 'FAILED')),
+               'say' => 'The receipt could not be sent. The team will look at it.'];
+    }
+
+    /**
+     * Spend one repair attempt. True when there was one left.
+     *
+     * Fails OPEN when no limiter was injected — the CLI, the tests and the
+     * auto-responder all run without one, and a payment repair that silently
+     * refuses is worse than one that runs too often. The guest-facing path always
+     * has a limiter, which is where it matters.
+     */
+    private function spendRepair(): bool
+    {
+        if ($this->limits === null || $this->clientKey === '') return true;
+        return $this->limits->check($this->clientKey, 'support_repair', self::REPAIRS_PER_HOUR, 3600);
     }
 
     // ── staff tools ──────────────────────────────────────────────────────────

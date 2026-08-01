@@ -30,10 +30,16 @@
   sc_heading: 'We’re checking your payment',
   sc_body: 'If you completed payment, confirmation can take a moment — you’ll get an email once it clears. If something went wrong, our team is happy to help.',
   sc_receipt: reference ? { label: 'Reference', code: reference } : null,
-  sc_primary: { label: 'Contact support', href: '/support' },
+  sc_primary: { label: 'Re-check this payment', href: '/support/assistant?topic=payment'
+    ~ (reference ? '&ref=' ~ reference|url_encode ~ '&ask=1' : '') },
   sc_secondary: { label: 'Back home', href: '/' },
   sc_email_note: 'No charge is confirmed until you receive an emailed receipt.',
   sc_confetti: false
 } only %}
+{# THE page for the incident this was built after. Somebody who paid inside a
+   wallet app lands here, reads "awaiting confirmation", and has no way of
+   knowing that a single re-check against the gateway would settle it. The prompt
+   carries the reference, so the repair costs them one tap and no typing. #}
+{% include 'partials/support-prompt.twig' with { sp_kind: 'payment', sp_ref: reference|default('') } %}
 {% endif %}
 {% endblock %}

@@ -6,15 +6,9 @@
  * CHECK on vote_type is omitted here (kept in the fresh schema) — SQLite's
  * ADD COLUMN can't always attach it post-hoc; the app writes only known values.
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Support\SchemaIndex;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 $schema = DB::schema();
 

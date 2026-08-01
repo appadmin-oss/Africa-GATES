@@ -5,14 +5,8 @@
  * altered the MySQL ENUM — so an existing SQLite DB created before the moderator
  * role rejects it. Idempotent: no-op on MySQL or when the CHECK already allows it.
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 // MUST `return` (never exit): include()d in a loop by MigrationRunner / db:migrate.
 if (DB::connection()->getDriverName() !== 'sqlite') { echo "not sqlite — skip\n"; return; }

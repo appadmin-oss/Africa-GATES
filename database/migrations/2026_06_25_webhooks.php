@@ -1,13 +1,7 @@
 <?php
 /** Outbound webhooks — gates_webhooks + gates_webhook_deliveries. Idempotent; sqlite + mysql. */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 $sqlite = DB::connection()->getDriverName() === 'sqlite';
 

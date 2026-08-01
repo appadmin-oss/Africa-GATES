@@ -112,6 +112,11 @@ return [
             // Canonical shop delivery regions — drives the checkout region selector.
             'shop_regions'   => \AfricaGates\Admin\Controllers\ProductsController::REGIONS,
             'gas_url'           => Env::get('GAS_URL', ''),
+            // The address printed on help, partner and support pages, quoted by
+            // the assistant and used to deliver tickets. A global because it was
+            // previously typed out in three templates, which is how a site ends
+            // up advertising a mailbox nobody reads any more.
+            'support_email'     => \AfricaGates\Services\Notifier::supportEmail(),
             // Email transport health for the admin banner — config check only
             // (no network). Null-safe when the mailer can't build.
             'smtp_ok'           => (function () use ($c) {

@@ -292,7 +292,14 @@
    give the client the current-page context for a tailored welcome.
    Suppressed for signed-in MEMBERS on community pages — AI assistance is
    built into the community UI there, so the fab would be redundant. #}
-{% set gee_suppressed = gates_page|default('') == 'community' and is_member|default(false) %}
+{# Also suppressed on the SUPPORT pages. Gee is a guide that volunteers
+   suggestions as you browse; the support desk is a desk you arrive at with a
+   problem, and it can do things Gee cannot — read your payments, re-check one
+   with the gateway, open a ticket. Two chat launchers on one screen makes the
+   reader choose between them with no way to know which is which, and the odds
+   are even they pick the one that cannot help. #}
+{% set gee_suppressed = (gates_page|default('') == 'community' and is_member|default(false))
+                        or gates_page|default('') == 'support' %}
 {% if not gee_suppressed %}
 <div class="gee" id="gee"
      data-gee-page="{{ gates_page|default('') }}"

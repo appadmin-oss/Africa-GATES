@@ -150,8 +150,25 @@ class PhaseSurfaceRenderTest extends TestCase
             '/awards/yearly', ['p' => 'yearly']
         );
 
-        $this->assertStringContainsString('2031 Cycle', $body);
-        $this->assertStringNotContainsString('2026 Cycle', $body, 'the eyebrow used to be a literal');
+        // Asserted against the EYEBROW, not against the whole document.
+        //
+        // Scanning the entire page for "<this year> Cycle" also scanned the
+        // announcement bar, whose text is operator-authored and legitimately says
+        // things like "Nominations open — 2026 Cycle". Under SQLite the settings
+        // read returns nothing and the bar falls back to a year-free default, so
+        // this passed; under MySQL the read succeeds, `.env`'s ANNOUNCE_TEXT is
+        // used, and the identical, correct product failed. The regression being
+        // guarded is a hardcoded year in the PROGRAMME EYEBROW, so that is what
+        // this now looks at — and a literal `2026` is replaced by date('Y'), or
+        // the test stops testing anything at all next January.
+        $this->assertMatchesRegularExpression(
+            '/class="eyebrow"[^>]*>[^<]*2031 Cycle/u', $body,
+            'the eyebrow must render the cycle\'s own year'
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/class="eyebrow"[^>]*>[^<]*' . date('Y') . ' Cycle/u', $body,
+            'the eyebrow used to be a literal'
+        );
     }
 
     // ── /nominate ────────────────────────────────────────────────────────────

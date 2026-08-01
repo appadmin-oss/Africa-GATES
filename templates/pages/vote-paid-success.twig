@@ -36,6 +36,14 @@
       'If the category reopens before then, we can deliver the votes instead — your choice.'
     ]
   } only %}
+  {# A refund is a human decision — the assistant is told never to promise one —
+     so this prompt is here to open the thread and carry the reference into it,
+     not to settle it. #}
+  {% include 'partials/support-prompt.twig' with {
+    sp_kind: 'payment', sp_ref: reference|default(''),
+    sp_title: 'Arrange the refund',
+    sp_body: 'Start here and the reference travels with you. A person decides every refund, but the assistant opens the ticket and makes sure it reaches them with everything attached.'
+  } %}
 {% else %}
   {% include 'partials/success.twig' with {
     sc_accent: 'green',
@@ -60,9 +68,15 @@
       'The independent jury score (55% of the CPI) is never affected by paid votes.'
     ] : [
       'Payments are verified server-side with the gateway before any vote counts.',
-      'If you were charged but see no votes within a few minutes, contact /support with your reference.'
+      'If you were charged but see no votes within a few minutes, use the re-check below — it asks the gateway directly.'
     ]
   } only %}
+  {# Only on the branch where something is still wrong. Offering a repair to
+     somebody whose votes have just landed reads as doubt about the thing that
+     did work. #}
+  {% if not minted %}
+    {% include 'partials/support-prompt.twig' with { sp_kind: 'payment', sp_ref: reference|default('') } %}
+  {% endif %}
 {% endif %}
 
 {# The /vote hub counts "programmes voted on this device" from localStorage. The

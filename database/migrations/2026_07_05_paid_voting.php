@@ -5,14 +5,8 @@
  * it is for, so a confirmed payment auto-mints the weighted paid votes.
  * Idempotent + driver-aware. NEVER exit/die here.
  */
-require __DIR__ . '/../../vendor/autoload.php';
-Dotenv\Dotenv::createImmutable(__DIR__ . '/../../')->safeLoad();
+require __DIR__ . '/../bootstrap.php';
 use Illuminate\Database\Capsule\Manager as DB;
-
-$c = new DB();
-$c->addConnection(require __DIR__ . '/../../config/database.php');
-$c->setAsGlobal();
-$c->bootEloquent();
 
 $schema = DB::schema();
 if ($schema->hasTable('gates_donations') && !$schema->hasColumn('gates_donations', 'intent_nominee_id')) {

@@ -24,6 +24,28 @@ final class Notifier {
         return $e;
     }
 
+    /**
+     * The address a member is told to write to.
+     *
+     * Separate from {@see adminEmail()} on purpose: admin alerts are internal
+     * plumbing and can point at whoever is on call, whereas THIS address is
+     * printed on pages, quoted by the assistant and put in ticket emails — so it
+     * has to be one a stranger can write to and get an answer from. Resolving it
+     * in one place is what stops the site telling three different stories about
+     * where to send a complaint, which is exactly what it did before.
+     */
+    public static function supportEmail(): string {
+        $e = '';
+        try {
+            $e = (string)(\Illuminate\Database\Capsule\Manager::table('gates_settings')
+                ->where('key_name', 'support_email')->value('value') ?? '');
+        } catch (\Throwable $ex) {}
+        $e = trim($e);
+        if ($e === '') $e = trim((string) Env::get('SUPPORT_EMAIL', ''));
+        if ($e === '') $e = 'gates@afrovanguard.org.ng';
+        return $e;
+    }
+
     /** Email the operators about a new submission — branded HTML. Best-effort. */
     public static function adminAlert(?OtpService $mailer, string $subject, string $body): void {
         if ($mailer === null) return;

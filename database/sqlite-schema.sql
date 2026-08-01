@@ -847,3 +847,51 @@ CREATE TABLE IF NOT EXISTS gates_products (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_product_active ON gates_products(is_active, sort_order);
+
+-- ── SUPPORT DESK ────────────────────────────────────────────────────────────
+-- Same gap gates_orders and gates_products each had before them: these lived
+-- only in the 2026_08 migrations, so a database built from this file had a
+-- /support/tickets page with no tables behind it — and the whole feature was
+-- untestable on the default (SQLite) suite, because the tables never existed
+-- there to write to. A migration is how an EXISTING database catches up; this
+-- file is what a NEW one is, and both have to describe the same platform.
+CREATE TABLE IF NOT EXISTS gates_support_tickets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  reference TEXT NOT NULL,
+  user_id INTEGER,
+  email TEXT,
+  name TEXT,
+  subject TEXT NOT NULL,
+  transcript TEXT,
+  tools_used TEXT,
+  severity TEXT NOT NULL DEFAULT 'normal',
+  status TEXT NOT NULL DEFAULT 'open',
+  emailed INTEGER NOT NULL DEFAULT 0,
+  webhooked INTEGER NOT NULL DEFAULT 0,
+  page_url TEXT,
+  user_agent TEXT,
+  ip_hash TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_activity TEXT,
+  resolved_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ticket_ref ON gates_support_tickets(reference);
+CREATE INDEX IF NOT EXISTS idx_ticket_status ON gates_support_tickets(status);
+CREATE INDEX IF NOT EXISTS idx_ticket_created ON gates_support_tickets(created_at DESC);
+
+-- Replies. A row each, not an appended blob: an author, a time, a delivery flag
+-- and an internal/visible distinction are all things a concatenated transcript
+-- destroys. `is_internal` exists so a staff note ("refunded manually, chased
+-- Paystack") has somewhere safe to live instead of being emailed to the customer.
+CREATE TABLE IF NOT EXISTS gates_support_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ticket_id INTEGER NOT NULL,
+  author_type TEXT NOT NULL DEFAULT 'member',
+  author_id INTEGER,
+  author_name TEXT,
+  body TEXT NOT NULL,
+  is_internal INTEGER NOT NULL DEFAULT 0,
+  emailed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_smsg_ticket ON gates_support_messages(ticket_id, id);

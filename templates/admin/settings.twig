@@ -153,6 +153,9 @@
         <div><label for="f-mail_reply_to">Reply-to <small>where replies should land — optional</small></label><input type="email" name="mail_reply_to" id="f-mail_reply_to" value="{{ values.mail_reply_to|default('') }}" placeholder="africa-gates@afrovanguard.org.ng"></div>
         <div><label for="f-admin_alert_email">Admin alerts to</label><input type="email" name="admin_alert_email" id="f-admin_alert_email" value="{{ values.admin_alert_email|default('') }}" placeholder="app.admin@afrovanguard.org.ng"></div>
       </div>
+      <div class="row">
+        <div><label for="f-support_email">Support inbox <small>printed on the site, quoted by the assistant, and where tickets are delivered</small></label><input type="email" name="support_email" id="f-support_email" value="{{ values.support_email|default('') }}" placeholder="gates@afrovanguard.org.ng"></div>
+      </div>
       <div><button class="ad-btn" type="submit" formaction="/admin/settings/smtp-test" formnovalidate>Send a test email to me</button></div>
 
       {# ── Delivery health: is mail ACTUALLY leaving the building? ── #}

@@ -155,6 +155,29 @@ final class CheckoutMailer
      *
      * @return array{sent:bool, reason?:string, kind?:string}
      */
+    /**
+     * Send the receipt AGAIN, on purpose, because somebody asked for it.
+     *
+     * {@see receipt()} claims `receipt_sent_at` so two concurrent confirmations
+     * cannot produce two receipts — correct for the automatic path, and exactly
+     * wrong here. "It never arrived" is the single most common support message
+     * about a payment that worked, and the claim flag turns every attempt to
+     * answer it into a silent `already_sent`. Spam filters eat mail, addresses
+     * get typo'd, and a shared host's SMTP drops messages with a cheerful 250.
+     *
+     * Releasing the claim first is safe because the destination is not a choice:
+     * `receipt()` reads the address off the ORDER. Whoever asks for a resend, the
+     * mail goes to the buyer — so this can annoy that buyer, and can never be
+     * used to send their receipt to anybody else.
+     *
+     * @return array{sent:bool, reason?:string, kind?:string}
+     */
+    public static function resend(int $donationId): array
+    {
+        self::release($donationId, 'receipt_sent_at');
+        return self::receipt($donationId);
+    }
+
     public static function receipt(int $donationId): array
     {
         try {
