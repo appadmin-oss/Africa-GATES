@@ -323,7 +323,11 @@ HTML;
                         OptionalColumn::filter('gates_nominees', [
                             'category_id'  => $catId,
                             'profile_id'   => $profileId ?: null,
-                            'name'         => $nom->nominee_name,
+                            // Normalised again at approval, not only at submission.
+                            // Rows already sitting in the queue when this shipped
+                            // still carry whatever was typed, and this is the last
+                            // moment before the name becomes a public ballot entry.
+                            'name'         => \AfricaGates\Support\Name::title((string)$nom->nominee_name),
                             'tagline'      => mb_substr((string)$nom->reason, 0, 200),
                             'country_code' => $nom->country_code,
                             // CARRIED ACROSS, not re-asked. The nomination form already

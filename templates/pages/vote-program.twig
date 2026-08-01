@@ -41,6 +41,14 @@
      row is allowed to wrap rather than squeezing three items into a narrow card. */
   .vp-card__foot{ display:flex; align-items:center; gap:10px; margin-top:7px; flex-wrap:wrap; }
   .vp-card__cta{ margin-left:auto }
+  /* Below 420px the footer wrapped for SOME cards and not others — 8 of 12 at
+     360px — because whether "Vote →" fitted depended on how many digits the vote
+     count had. A list where the same control sits on a different line in each row
+     reads as broken layout, not as a responsive one. Under 420px it therefore
+     wraps for ALL of them, deliberately, and gets a full line to itself. */
+  @media (max-width:419px){
+    .vp-card__cta{ flex-basis:100%; margin-left:0; text-align:right; }
+  }
   .vp-card__votes{ font:700 12px/1 var(--ag-font-mono,monospace); color:#1a6118; }
   .vp-card__cta{ font-size:12.5px; font-weight:600; color:var(--ag-green,#237b22); }
   .vp-card__chev{ flex:none; color:#c4cdc6; }
@@ -57,7 +65,16 @@
      to first". */
   .vp-card__org{ font-size:12px; color:#6b7a7c; margin-top:2px; display:flex; align-items:center; gap:5px; }
   .vp-card__org svg{ flex:none; opacity:.7 }
-  .vp-rank{ flex:none; width:30px; text-align:center; font:800 13px/1 var(--ag-font-mono,monospace); color:#8a9a9c; align-self:flex-start; padding-top:20px }
+  /* Centred against the row, not pushed down by a magic 20px.
+     `align-self:flex-start; padding-top:20px` lined the rank up with the avatar
+     ONLY while the card was exactly as tall as the desktop layout made it. On a
+     narrow screen the name, the school and the footer each wrap or not depending
+     on their length, so the rank drifted between 3px and 37px away from the
+     avatar's top — different in every card in the same list. The card is already
+     `align-items:center`, so centring the rank puts it level with the avatar at
+     every card height, with nothing to tune. */
+  .vp-rank{ flex:none; width:30px; text-align:center; font:800 13px/1 var(--ag-font-mono,monospace);
+            color:#8a9a9c; align-self:center }
   .vp-rank--1{ color:#b8860b }
   .vp-rank--2, .vp-rank--3{ color:#5a6d6f }
   /* display:block is load-bearing — these are <span>s inside an <a>, and an inline
@@ -68,9 +85,24 @@
   .vp-gap{ font-size:12px; font-weight:700; color:#8a5a00 }
   .vp-gap--lead{ color:#1a6118 }
 
-  /* The one line that makes a category worth watching. */
-  .vp-close{ display:inline-flex; align-items:center; gap:7px; background:rgba(201,162,39,.12); border:1px solid rgba(201,162,39,.3);
-             border-radius:999px; padding:5px 12px; font-size:12.5px; font-weight:600; color:#7a5c00; margin-top:8px }
+  /* The one line that makes a category worth watching.
+
+     `border-radius:14px`, not 999px. A capsule is only a capsule while its text
+     fits on one line; "Mrs Chinelo Eze leads Mr Tunde Adeyemi by 136 votes" wraps
+     to two lines below about 420px, and a 999px radius turned that into a lozenge
+     with the words bulging out of the curve. `align-items:flex-start` keeps the
+     trend icon on the first line instead of floating to the middle of a two-line
+     block. */
+  .vp-close{ display:inline-flex; align-items:flex-start; gap:7px; background:rgba(201,162,39,.12);
+             border:1px solid rgba(201,162,39,.3); border-radius:14px; padding:6px 12px;
+             font-size:12.5px; font-weight:600; line-height:1.45; color:#7a5c00; margin-top:8px }
+  .vp-close svg{ flex:none; margin-top:3px }
+  /* `hidden` is a UA rule of the lowest possible specificity, so ANY class rule
+     that sets `display` beats it. This element carries `hidden` when a category
+     has no contest to describe — and rendered anyway, as an empty gold pill with
+     an icon and no words, on every such category, at every width. The attribute
+     was always right; it just needed saying twice. */
+  .vp-close[hidden]{ display:none }
 
   /* Live updates. The pulse only runs while the page is actually being watched. */
   .vp-live{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:#5a6d6f }

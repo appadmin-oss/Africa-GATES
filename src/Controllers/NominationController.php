@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace AfricaGates\Controllers;
 use AfricaGates\Support\Env;
+use AfricaGates\Support\Name;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -113,9 +114,16 @@ class NominationController {
         }
 
         // ── Notifications ────────────────────────────────────────────────────
-        $nomName   = trim((string)$b['nominee_name']);
+        // Normalised HERE, at the only door nominations come through, so the
+        // reviewer sees the tidy version and every surface downstream — ballot,
+        // registry, flier, OG card, the receipt email — inherits it without a
+        // display filter that the next new template forgets to apply. Forms get
+        // filled in on phones with caps lock on: the same person arrived as
+        // ADA OKONKWO, ada okonkwo and Ada Okonkwo, and the ballot rendered all
+        // three. See Support\Name for what it will and will not touch.
+        $nomName   = Name::title((string)$b['nominee_name']);
         $nomEmail  = strtolower(trim((string)($b['nominee_email'] ?? '')));
-        $byName    = trim((string)$b['nominator_name']);
+        $byName    = Name::title((string)$b['nominator_name']);
         $byEmail   = strtolower(trim((string)$b['nominator_email']));
         $progName  = trim((string)($b['programme_title'] ?? ('Programme #' . (int)$b['programme_id'])));
         $reference = \AfricaGates\Support\Reference::nomination((int)$nominationId);
