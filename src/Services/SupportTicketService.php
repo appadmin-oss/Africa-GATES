@@ -369,6 +369,108 @@ final class SupportTicketService
     }
 
     /**
+     * An OPEN ticket this person already has about the same thing, or null.
+     *
+     * ── WHY THE QUEUE NEEDS THIS ─────────────────────────────────────────────
+     *
+     * "Talk to a human" is on screen from the first frame, deliberately, and it
+     * gets pressed more than once. Somebody escalates on Monday, hears nothing by
+     * Tuesday, comes back and presses it again — and receives a SECOND reference
+     * for one problem. Two people can now pick up two tickets about one payment,
+     * the member has been handed two numbers to quote, and the backlog reads as
+     * twice the size it is. They did nothing wrong; the button did what it said.
+     *
+     * So a repeat escalation becomes a reply on the ticket that already exists,
+     * and the member is given back the reference they already have — which is
+     * also the one sitting in their inbox.
+     *
+     * MATCHING IS DELIBERATELY NARROW: same person, still open, opened within
+     * three days, same normalised subject. Anything looser — fuzzy text, a longer
+     * window — starts folding genuinely separate problems into one thread, and a
+     * merged ticket is far worse than a duplicate one: the second problem simply
+     * disappears.
+     *
+     * @return array{id:int, reference:string}|null
+     */
+    public function openTicketFor(int $userId, string $email, string $subject): ?array
+    {
+        $email   = mb_strtolower(trim($email));
+        $subject = self::normaliseSubject($subject);
+        if ($subject === '' || ($userId < 1 && $email === '')) return null;
+
+        try {
+            $rows = DB::table('gates_support_tickets')
+                ->where('status', 'open')
+                ->where('created_at', '>=', date('Y-m-d H:i:s', time() - 3 * 86400))
+                ->where(function ($q) use ($userId, $email) {
+                    if ($userId > 0) $q->orWhere('user_id', $userId);
+                    if ($email !== '') $q->orWhereRaw('LOWER(email) = ?', [$email]);
+                })
+                ->orderByDesc('id')->limit(10)
+                ->get(['id', 'reference', 'subject']);
+        } catch (\Throwable $e) {
+            // Never fatal. Failing to FIND a duplicate must not block an
+            // escalation — the worst case is the behaviour we had before.
+            error_log('[support] duplicate check failed: ' . $e->getMessage());
+            return null;
+        }
+
+        foreach ($rows as $r) {
+            if (self::normaliseSubject((string) $r->subject) === $subject) {
+                return ['id' => (int) $r->id, 'reference' => (string) $r->reference];
+            }
+        }
+        return null;
+    }
+
+    /** Case, punctuation and runs of space removed — subjects are generated, not typed. */
+    private static function normaliseSubject(string $s): string
+    {
+        return trim((string) preg_replace('/\s+/u', ' ',
+            mb_strtolower((string) preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $s))));
+    }
+
+    /**
+     * Add this conversation to a ticket that is already open.
+     *
+     * Attributed to the member and it REOPENS nothing — the ticket was never
+     * closed. What it does is move `last_activity`, so a chased ticket rises in
+     * the queue instead of ageing quietly at the bottom of it.
+     */
+    public function appendEscalation(array $ticket, string $message, array $history, string $name = ''): bool
+    {
+        $id = (int) ($ticket['id'] ?? 0);
+        if ($id < 1) return false;
+
+        $body = "The member came back through the assistant and said:\n\n" . trim($message);
+        if ($history) $body .= "\n\n— — — the conversation since — — —\n\n" . self::transcript($history, '');
+
+        try {
+            DB::table('gates_support_messages')->insert([
+                'ticket_id' => $id, 'author_type' => 'member', 'author_id' => null,
+                'author_name' => mb_substr($name !== '' ? $name : 'Member', 0, 160),
+                'body' => mb_substr($body, 0, 5000), 'is_internal' => 0, 'emailed' => 0,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+            DB::table('gates_support_tickets')->where('id', $id)->update(
+                OptionalColumn::filter('gates_support_tickets',
+                    ['status' => 'open', 'last_activity' => date('Y-m-d H:i:s')], ['last_activity']));
+        } catch (\Throwable $e) {
+            error_log('[support] could not append to ' . ($ticket['reference'] ?? '?') . ': ' . $e->getMessage());
+            return false;
+        }
+
+        try {
+            $note = "A member chased ticket {$ticket['reference']}.\n\n" . $body;
+            $this->mailer?->sendBranded(Notifier::supportEmail(),
+                "[Africa GATES] Chased: Support {$ticket['reference']}",
+                nl2br(htmlspecialchars($note, ENT_QUOTES, 'UTF-8')), $note, 'Support');
+        } catch (\Throwable) {}
+
+        return true;
+    }
+
+    /**
      * Open a ticket directly, without a conversation behind it.
      *
      * Members only, and that is enforced by the CALLER holding a session; this

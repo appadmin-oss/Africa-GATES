@@ -156,10 +156,32 @@ final class SupportController
             }
         }
 
-        $m   = UserAccountService::memberForForms();
+        $m     = UserAccountService::memberForForms();
+        $email = $m['email'] ?? (filter_var(trim((string) ($b['email'] ?? '')), FILTER_VALIDATE_EMAIL) ?: null);
+
+        // ── ALREADY ASKED? ──────────────────────────────────────────────────
+        //
+        // This button is on screen from the first frame, on purpose, and people
+        // press it again when a day goes by with no answer. Minting a second
+        // reference for one problem splits it across two tickets and hands the
+        // member two numbers to quote. Chasing is added to the ticket they have.
+        $existing = $this->tickets->openTicketFor(
+            (int) ($m['id'] ?? 0), (string) ($email ?? ''),
+            SupportTicketService::subjectFrom($message));
+
+        if ($existing !== null
+            && $this->tickets->appendEscalation($existing, $message, $history, (string) ($m['name'] ?? ''))) {
+            return $this->json($res, [
+                'ok' => true, 'ticket' => $existing['reference'], 'appended' => true,
+                'message' => "You already have this with the team as {$existing['reference']} — I have added what "
+                           . 'you just said to it and pushed it back up their queue, rather than starting a second '
+                           . 'ticket about the same thing.',
+            ]);
+        }
+
         $ref = $this->tickets->open($message, $history, $this->context($ip), [], [
             'user_id'    => $m['id']    ?? null,
-            'email'      => $m['email'] ?? (filter_var(trim((string) ($b['email'] ?? '')), FILTER_VALIDATE_EMAIL) ?: null),
+            'email'      => $email,
             'name'       => $m['name']  ?? null,
             'page_url'   => (string) ($b['page_url'] ?? ''),
             'user_agent' => $req->getHeaderLine('User-Agent'),

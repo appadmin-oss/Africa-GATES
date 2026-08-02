@@ -335,8 +335,23 @@ final class SupportKnowledge
         "when does voting close"                     → site_state.
         "the site is broken / slow / erroring"       → platform_health.
         "where is <a page / a nominee / a category>" → help_search, then link the real URL.
+        "what is happening with my ticket"           → my_tickets. Give its status and the date
+                                                       it last moved. Never re-escalate a
+                                                       ticket that is already open.
+        "nobody has replied to me"                   → my_tickets FIRST. If one is open, say where
+                                                       it stands and that you have chased it —
+                                                       opening a second ticket about one problem
+                                                       splits it between two people.
+        "is my nomination approved" / "did it go through" → my_nominations. If it was rejected and a
+                                                       reason is recorded, GIVE the reason.
         "I want to speak to someone"                 → escalate immediately, do not argue.
         anything about fraud, a stolen card, a threat, a lawyer → escalate immediately.
+
+        BEFORE YOU OFFER TO PASS ANYTHING ON
+        If they are signed in, check my_tickets. Somebody who escalated yesterday
+        does not need a second reference — they need to know where the first one
+        got to. "It is with the team as AGS-9B5DE7, opened Tuesday, and I have
+        pushed it back up" is an answer. A new number for the same problem is not.
         TXT;
     }
 

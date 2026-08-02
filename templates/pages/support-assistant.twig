@@ -44,6 +44,22 @@
            border-radius:20px; display:flex; flex-direction:column; overflow:hidden;
            box-shadow:0 1px 2px rgba(16,41,44,.04), 0 8px 24px -18px rgba(16,41,44,.35); }
 
+  /* The bar that makes this read as a DESK rather than a comment form. It also
+     carries the one piece of state the reader needs before typing: whether the
+     assistant is actually up. That used to be a separate amber slab above the
+     console, which pushed the input below the fold on a phone to say something
+     that belongs on the thing it is about. */
+  .sa-head{ display:flex; align-items:center; gap:11px; padding:13px 18px;
+            border-bottom:1px solid rgba(16,41,44,.08); background:#fbfcfb; }
+  .sa-head__av{ flex:none; width:34px; height:34px; border-radius:50%; background:#10292C; color:#7FC87C;
+                display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; }
+  .sa-head__n{ font-weight:700; font-size:14.5px; color:var(--ag-ink,#10292c); line-height:1.3; }
+  .sa-head__s{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:#5a6d6f; line-height:1.4; }
+  .sa-dot{ width:7px; height:7px; border-radius:50%; background:#3aa03a; flex:none; }
+  .sa-dot--off{ background:#c9a24b; }
+  .sa-head__t{ margin-left:auto; font-size:12.5px; font-weight:700; color:var(--ag-green,#237b22);
+               text-decoration:none; white-space:nowrap; }
+
   /* min-height is small on purpose. A 300px floor left a blank slab between the
      opening line and the starter chips on first load — an empty console reading
      as a broken one. The box grows with the conversation and only starts
@@ -101,6 +117,25 @@
   .sa-starters button:hover{ background:#f4f7f4; border-color:rgba(16,41,44,.24); }
   .sa-starters button:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
 
+  /* ── the strip above the composer ──────────────────────────────────────
+     Everything the conversation has established, kept in view: which
+     reference it is about, and what it can do next. A support console that
+     forgets the number it was just given makes the reader paste it twice. */
+  .sa-strip{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:0 18px 10px; }
+  .sa-ref{ display:inline-flex; align-items:center; gap:7px; font:700 12px/1 var(--ag-font-mono,monospace);
+           color:#1c6b1c; background:#e9f5e9; border:1px solid #bfe3bf; border-radius:999px; padding:7px 11px; }
+  .sa-ref button{ border:0; background:none; cursor:pointer; color:#1c6b1c; font:inherit;
+                  padding:0; line-height:1; opacity:.65; }
+  .sa-ref button:hover{ opacity:1; }
+  .sa-reset{ margin-left:auto; border:0; background:none; cursor:pointer; font:600 12.5px/1 inherit;
+             color:#8a9a9c; text-decoration:underline; padding:5px; }
+  .sa-reset:hover{ color:var(--ag-ink,#10292c); }
+
+  /* The busy line says WHICH kind of work is running. "…" for eight seconds
+     is indistinguishable from a hung page, and this desk's slowest answers are
+     the ones that talk to a payment gateway. */
+  .sa-work{ font-size:13px; color:#7d8c8e; }
+
   .sa-form{ display:flex; gap:10px; align-items:flex-end; padding:14px 16px;
             border-top:1px solid rgba(16,41,44,.08); }
   .sa-ta{ flex:1; min-width:0; border:1px solid rgba(16,41,44,.14); border-radius:14px; resize:none;
@@ -131,6 +166,10 @@
     .sa-log{ max-height:none; }
     .sa-form{ padding:12px; }
     .sa-go{ padding:12px 16px; }
+    /* Room for a placeholder that wraps. grow() takes over the moment anything
+       is typed, so this only governs the empty state. */
+    .sa-ta{ min-height:58px; }
+    .sa-head__t{ font-size:12px; }
   }
 </style>
 {% endblock %}
@@ -192,12 +231,25 @@
       I can still fix a specific payment — paste its reference and I will re-check it with the gateway.
       <a href="/account/login?next=%2Fsupport%2Fassistant">Sign in</a> if you would rather see the whole list.</p>
     {% endif %}
-    {% if not ai_on %}
-    <p class="sa-note">The assistant is offline right now, but “Talk to a human” below still works — it reaches the team without going near a model.</p>
-    {% endif %}
   </header>
 
   <div class="sa-box">
+    {# Who you are talking to, and whether it is up. The status lives HERE rather
+       than in a banner above the console: a warning about the assistant belongs
+       on the assistant, and the banner it replaces was pushing the input below
+       the fold on a phone. #}
+    <div class="sa-head">
+      <span class="sa-head__av" aria-hidden="true">G</span>
+      <div>
+        <div class="sa-head__n">Gee · support</div>
+        <div class="sa-head__s">
+          <span class="sa-dot{% if not ai_on %} sa-dot--off{% endif %}" aria-hidden="true"></span>
+          {% if ai_on %}Online — reading live records{% else %}Offline — the team still gets your message{% endif %}
+        </div>
+      </div>
+      <a class="sa-head__t" href="/support/tickets">Your tickets →</a>
+    </div>
+
     {# The transcript is a log, announced politely. aria-live sits on a container
        that is always present, so a reply is announced rather than silently
        appearing for anyone using a screen reader. #}
@@ -230,20 +282,38 @@
 
       <div class="sa-msg sa-msg--bot" x-show="busy" x-cloak>
         <span class="sa-msg__av" aria-hidden="true">G</span>
-        <div class="sa-msg__b"><span class="sa-typing" aria-label="Looking that up"><i></i><i></i><i></i></span></div>
+        <div class="sa-msg__b">
+          <span class="sa-typing" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="sa-work" x-text="work" x-show="!!work"></span>
+        </div>
       </div>
     </div>
 
-    <div class="sa-starters" x-show="msgs.length <= 1" x-cloak>
-      <template x-for="s in starters" :key="s">
+    {# The chips do not vanish after the first message. Half of what this desk
+       can do is invisible until somebody happens to ask for it, and "what else
+       can you do" is not a question people put to a support bot — they leave. #}
+    <div class="sa-starters">
+      <template x-for="s in (msgs.length <= 1 ? starters : more)" :key="s">
         <button type="button" @click="send(s)" x-text="s"></button>
       </template>
+    </div>
+
+    <div class="sa-strip" x-show="!!ref || msgs.length > 1" x-cloak>
+      <span class="sa-ref" x-show="!!ref">
+        <span x-text="ref"></span>
+        <button type="button" @click="ref = ''" aria-label="Forget this reference">×</button>
+      </span>
+      <button type="button" class="sa-reset" @click="reset()" x-show="msgs.length > 1">Start over</button>
     </div>
 
     <form class="sa-form" @submit.prevent="send()">
       <label class="sr-only" for="saMsg">Describe the problem</label>
       <textarea class="sa-ta" id="saMsg" rows="1" x-model="draft" maxlength="1500" x-ref="ta"
-                placeholder="Describe what happened — and paste a payment reference if you have one"
+                {# Short on purpose. The long version wrapped to two lines inside a
+                   one-row box on a 390px phone and the second half was clipped,
+                   so the first thing this desk showed was a sentence it had cut
+                   in half. #}
+                placeholder="What happened? Add a reference if you have one"
                 @input="grow()" @keydown.enter.exact.prevent="send()"></textarea>
       <button class="sa-go" type="submit" :disabled="busy || !draft.trim()">Send</button>
     </form>
@@ -276,18 +346,86 @@
 <script nonce="{{ csp_nonce }}">
 function supportDesk(){
   return {
-    msgs: [], draft: '', busy: false,
+    msgs: [], draft: '', busy: false, work: '', ref: '',
     starters: ['I voted but it is not showing', 'I paid and my votes never arrived',
                'My receipt never came', 'How much are votes?'],
+    // Shown once the conversation is under way. Different from the openers on
+    // purpose: by then the reader has stated their problem, and what they need
+    // next is the things they did not know to ask for.
+    more: [{% if can_see_payments %}'What is happening with my ticket?', 'Is my nomination approved?',
+            'Show my recent payments', {% endif %}'When does voting close?', 'Is anything broken right now?'],
+
+    /** Where the transcript is kept across an accidental reload. */
+    KEY: 'ag_support_desk_v1',
 
     init(){
-      this.push('assistant',
-        {% if can_see_payments %}
-        'Ask away. I can see your own payments and votes, re-check a payment with the gateway, and tell you what the platform is actually doing right now.'
-        {% else %}
-        'Ask away. If a payment has not come through, paste its reference and I will re-check it with the gateway — you do not need an account for that.'
-        {% endif %});
+      // ── SURVIVE A RELOAD ───────────────────────────────────────────────
+      //
+      // The single most infuriating thing a support console can do is lose the
+      // conversation. People switch to their banking app to find a reference and
+      // come back to a mobile browser that has discarded the tab — and every
+      // sentence they typed is gone, including the reference they just went to
+      // fetch. sessionStorage, so it lives as long as the tab and no longer:
+      // this is somebody's payment problem, not something to leave on a shared
+      // machine after they close it.
+      if (!this.restore()) {
+        this.push('assistant',
+          {% if can_see_payments %}
+          'Ask away. I can see your own payments, votes, nominations and tickets, re-check a payment with the gateway, and tell you what the platform is actually doing right now.'
+          {% else %}
+          'Ask away. If a payment has not come through, paste its reference and I will re-check it with the gateway — you do not need an account for that.'
+          {% endif %});
+      }
       this.fromLink();
+    },
+
+    /** @return {boolean} true if a previous conversation was put back. */
+    restore(){
+      try {
+        var raw = sessionStorage.getItem(this.KEY);
+        if (!raw) return false;
+        var saved = JSON.parse(raw);
+        if (!saved || !Array.isArray(saved.msgs) || !saved.msgs.length) return false;
+        // Re-rendered through fmt() rather than trusting stored HTML: the
+        // markup in storage came from this page, but anything that reaches
+        // innerHTML should be built here and now, from the text.
+        this.msgs = saved.msgs.slice(-40).map((m) => Object.assign({}, m, {
+          html: this.fmt(m.text), copied: false
+        }));
+        this.ref = String(saved.ref || '');
+        return true;
+      } catch (e) { return false; }
+    },
+
+    save(){
+      try {
+        sessionStorage.setItem(this.KEY, JSON.stringify({
+          ref: this.ref,
+          // Text, not HTML, and not the per-message UI flags.
+          msgs: this.msgs.slice(-40).map(m => ({
+            role: m.role, text: m.text, used: m.used || [], ticket: m.ticket || null
+          }))
+        }));
+      } catch (e) { /* private mode, or the quota — the conversation still works */ }
+    },
+
+    reset(){
+      try { sessionStorage.removeItem(this.KEY); } catch (e) {}
+      this.msgs = []; this.ref = ''; this.draft = ''; this.work = '';
+      this.init();
+    },
+
+    /**
+     * Remember the reference the conversation is about.
+     *
+     * Pulled out of whatever either side has said, so the reader does not have
+     * to paste it a second time when the conversation moves on to the receipt.
+     * Only OUR shape is captured — a bank's own transaction number is real but
+     * useless here, and pinning one would be pinning a dead end.
+     */
+    noteRef(text){
+      var m = String(text || '').match(/\bAFG-[A-Z]*-?[0-9a-f]{8,}\b/i);
+      if (m) this.ref = m[0].toUpperCase();
     },
 
     /**
@@ -329,6 +467,8 @@ function supportDesk(){
         refund_status:    'checked the refund',
         my_transactions:  'checked your payments',
         my_votes:         'checked your votes',
+        my_tickets:       'checked your tickets',
+        my_nominations:   'checked your nominations',
         lookup_reference: 'looked up that reference',
         site_state:       'checked the cycle',
         platform_health:  'checked platform health',
@@ -372,7 +512,28 @@ function supportDesk(){
     push(role, text, extra){
       this.msgs.push(Object.assign({ role: role, text: text, html: this.fmt(text),
                                      used: [], ticket: null, retry: null, copied: false }, extra || {}));
+      this.noteRef(text);
+      this.save();
       this.$nextTick(() => { var l = this.$refs.log; if (l) l.scrollTop = l.scrollHeight; });
+    },
+
+    /**
+     * What the wait is FOR.
+     *
+     * Three dots for eight seconds is indistinguishable from a hung page, and
+     * the slowest answers here are the ones that go out to a payment gateway —
+     * exactly the ones worth waiting for. The line is chosen from what the
+     * reader actually said, so it is a description and not a guess: a message
+     * carrying a reference really does go on to re-check a payment.
+     */
+    workingOn(text){
+      var t = String(text || '').toLowerCase();
+      if (/afg-|reference|receipt|refund|paid|payment|charged/.test(t)) return 'Checking that with the payment gateway…';
+      if (/ticket|replied|nobody|escalat/.test(t))                     return 'Looking up your tickets…';
+      if (/nominat/.test(t))                                           return 'Checking your nominations…';
+      if (/broken|down|slow|error/.test(t))                            return 'Checking the platform…';
+      if (/close|deadline|when/.test(t))                               return 'Checking the cycle…';
+      return 'Looking that up…';
     },
 
     /** What goes back to the server as context: roles and text, nothing else. */
@@ -404,7 +565,7 @@ function supportDesk(){
       if (!text || this.busy) return;
       var prior = this.history();          // before pushing, so we do not send the new message twice
       this.push('user', text);
-      this.draft = ''; this.busy = true;
+      this.draft = ''; this.busy = true; this.work = this.workingOn(text);
       this.$nextTick(() => this.grow());
 
       fetch('/api/v1/support/chat', {
@@ -418,7 +579,7 @@ function supportDesk(){
         .catch(() => this.push('assistant',
           'I lost the connection. Press “Talk to a human” and the team will pick this up.',
           { retry: text }))
-        .finally(() => { this.busy = false; });
+        .finally(() => { this.busy = false; this.work = ""; });
     },
 
     human(){
@@ -452,7 +613,7 @@ function supportDesk(){
         .then(r => r.json())
         .then(j => this.push('assistant', j.message || 'I could not reach the team.', { ticket: j.ticket || null }))
         .catch(() => this.push('assistant', 'I could not reach the team. Please email us directly.'))
-        .finally(() => { this.busy = false; });
+        .finally(() => { this.busy = false; this.work = ""; });
     }
   };
 }

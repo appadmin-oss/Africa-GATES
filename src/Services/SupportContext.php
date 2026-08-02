@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use AfricaGates\Support\Env;
+use AfricaGates\Support\OptionalColumn;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -164,6 +165,17 @@ final class SupportContext
                     'description' => 'Look up ONE payment by the reference the user pasted, and see its amount, status and votes. '
                                    . 'Returns nothing unless that payment belongs to them.',
                     'args' => ['reference' => 'the payment reference as the user typed it']];
+            $t[] = ['name' => 'my_tickets',
+                    'description' => "The signed-in person's own support tickets: reference, subject, status, when the team last "
+                                   . "moved on it. ALWAYS use this before offering to pass anything to the team — if they "
+                                   . "already have an open ticket about it, tell them where it stands instead of opening a "
+                                   . "second one. Also answers \"what is happening with my ticket\" and \"has anyone replied\".",
+                    'args' => []];
+            $t[] = ['name' => 'my_nominations',
+                    'description' => "Nominations the signed-in person SUBMITTED, with the decision on each: pending, approved or "
+                                   . "rejected, and the reason if there is one. Use for \"is my nomination approved\", \"did my "
+                                   . "entry go through\", \"why was my nomination rejected\". Not the same as votes.",
+                    'args' => []];
         }
 
         if ($this->isAdmin) {
@@ -207,6 +219,8 @@ final class SupportContext
                 'check_reference'  => $this->checkReference((string) ($args['reference'] ?? '')),
                 'free_vote_help'   => $this->freeVoteHelp(),
                 'refund_status'    => RefundService::statusFor((string) ($args['reference'] ?? '')),
+                'my_tickets'       => $this->myTickets(),
+                'my_nominations'   => $this->myNominations(),
                 'ops_summary'      => $this->opsSummary(),
                 default            => null,
             };
@@ -360,6 +374,87 @@ final class SupportContext
             ])->all();
 
         return ['donations' => $donations, 'orders' => $orders];
+    }
+
+    /**
+     * The signed-in person's own tickets.
+     *
+     * ── WHY THE ASSISTANT NEEDS TO SEE THESE ─────────────────────────────────
+     *
+     * Without it, every conversation starts from nothing. Somebody who was told
+     * yesterday "passed to the team, your reference is AGS-9B5DE7" comes back
+     * today, asks what is happening, and gets offered an escalation — so they
+     * accept, and now the queue holds two tickets about one problem, each with a
+     * reference the person has been told to quote. That is not a worse answer, it
+     * is a worse QUEUE, and it compounds every day the first ticket sits there.
+     *
+     * Scoped exactly like the ticket page: account id OR the address on the
+     * ticket, both from the session. No argument, so nothing to point elsewhere.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function myTickets(): array
+    {
+        if (!$this->isMember()) return [];
+        $email = strtolower(trim((string) $this->viewerEmail));
+
+        $rows = DB::table('gates_support_tickets')
+            ->where(function ($q) use ($email) {
+                $q->orWhere('user_id', (int) $this->viewerId);
+                if ($email !== '') $q->orWhereRaw('LOWER(email) = ?', [$email]);
+            })
+            ->orderByDesc('id')->limit(10)
+            ->get(OptionalColumn::filter('gates_support_tickets',
+                ['reference', 'subject', 'severity', 'status', 'created_at', 'last_activity'],
+                ['last_activity']));
+
+        return $rows->map(fn($r) => [
+            'reference' => (string) $r->reference,
+            'subject'   => (string) $r->subject,
+            'status'    => (string) $r->status,
+            'severity'  => (string) ($r->severity ?? 'normal'),
+            'opened'    => (string) $r->created_at,
+            'last_move' => (string) ($r->last_activity ?? $r->created_at),
+            // The page the person can actually watch it on, so the assistant
+            // links rather than describing where to look.
+            'follow'    => '/support/tickets?ref=' . rawurlencode((string) $r->reference),
+        ])->all();
+    }
+
+    /**
+     * Nominations this person SUBMITTED, and what was decided.
+     *
+     * Matched on the nominator's address, not the nominee's: somebody asking
+     * "did my entry go through" is asking about a form they filled in, and the
+     * person they nominated may well be somebody else entirely.
+     *
+     * `decision_reason` is operator-authored and is exactly what a rejected
+     * nominator is owed — "rejected" with no reason is the answer that generates
+     * the angry second ticket.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function myNominations(): array
+    {
+        if (!$this->isMember()) return [];
+        $email = strtolower(trim((string) $this->viewerEmail));
+        if ($email === '') return [];
+
+        return DB::table('gates_nominations as n')
+            ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+            ->whereRaw('LOWER(n.nominator_email) = ?', [$email])
+            ->orderByDesc('n.id')->limit(20)
+            ->get(['n.nominee_name', 'n.status', 'n.reference', 'n.decision_reason',
+                   'n.created_at', 'c.title as category'])
+            ->map(fn($r) => array_filter([
+                'nominee'   => (string) $r->nominee_name,
+                'category'  => (string) ($r->category ?? ''),
+                'status'    => (string) $r->status,
+                'reference' => (string) ($r->reference ?? ''),
+                'reason'    => (string) ($r->decision_reason ?? ''),
+                'submitted' => (string) $r->created_at,
+            ], fn($v) => $v !== ''))
+            ->all();
     }
 
     private function myVotes(): array
