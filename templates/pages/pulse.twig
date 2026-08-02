@@ -57,9 +57,13 @@
      1,300px-tall post — one item per screen, and a wall of empty canvas around
      three lines of text. Every feed that has shipped on desktop caps this for
      the same reason. */
-  .pl-grid{ display:grid; grid-template-columns:minmax(0,600px) 340px; gap:36px;
+  .pl-grid{ display:grid; grid-template-columns:minmax(0,600px) 320px; gap:56px;
             align-items:start; justify-content:center; }
-  .pl-rail{ position:sticky; top:96px; display:flex; flex-direction:column; gap:18px; }
+  /* The rail is a sidebar, not a second column of content: quieter type, no
+     borders competing with the cards, and it scrolls with you rather than
+     sitting in one place looking like an advert. 36px was not enough gutter to
+     read as separate — at 56px the eye stops treating them as one grid. */
+  .pl-rail{ position:sticky; top:96px; display:flex; flex-direction:column; gap:16px; }
 
   /* ── composer ──────────────────────────────────────────────────────────
      The one thing that turns Pulse from a wall into a feed. Styled as the first
@@ -138,6 +142,13 @@
      where half the cards are one shape and half are another does not read as a
      feed, it reads as two features sharing a page. */
   .pf{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; overflow:hidden; }
+  /* The rhythm between posts. `.pl-feed` has a gap, but every card lives inside
+     ONE of its flex children (the Alpine component), so that gap has never
+     reached them — measured at 0px, cards butted edge to edge, which is what
+     made the feed feel cramped no matter how much padding went inside a card.
+     Whitespace BETWEEN things is what reads as calm; whitespace inside them
+     just reads as a big box. */
+  .pf + .pf{ margin-top:22px; }
   .pf__stage{ position:relative; width:100%; background:#07100F; overflow:hidden; cursor:pointer;
               /* Kills the 300ms double-tap-to-zoom delay. Without it the second
                  tap of a like lands late enough that the burst feels detached. */
@@ -367,9 +378,12 @@
   .pl-empty{ background:#fff; border:1px dashed rgba(16,41,44,.16); border-radius:20px; padding:48px 24px; text-align:center; color:#5a6d6f; font-size:14.5px; }
   .pl-empty a{ color:var(--ag-green); font-weight:600; }
 
-  /* rail cards */
-  .pl-card{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px; }
-  .pl-card__k{ margin:0 0 16px; font:700 12px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase; color:#5a6d6f; }
+  /* rail cards — borderless by default. Four bordered boxes beside a column of
+     bordered cards is eight competing outlines on one screen. */
+  .pl-card{ background:transparent; border:0; border-radius:20px; padding:2px 0 18px;
+            border-bottom:1px solid rgba(16,41,44,.08); }
+  .pl-card:last-child{ border-bottom:0; }
+  .pl-card__k{ margin:0 0 14px; font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:#8a9a9c; }
   .pl-lead{ display:flex; align-items:center; gap:12px; text-decoration:none; }
   .pl-lead + .pl-lead{ margin-top:14px; }
   .pl-lead__r{ font-family:var(--ag-font-mono); font-weight:700; font-size:14px; color:#5a6d6f; width:18px; flex:none; }
@@ -402,7 +416,56 @@
   .pl-ch__x{ margin:8px 0 0; font-size:13.5px; line-height:1.5; color:#5a6d6f; }
   .pl-ch__m{ margin-top:14px; padding-top:14px; border-top:1px solid rgba(16,41,44,.06); font-size:12.5px; color:#5a6d6f; }
 
+  /* The collapsed composer. display:none by default, because on anything with
+     room the expanded box IS the right answer — a desktop reader is not paying
+     for it with the only screen they have. */
+  .pl-openc{ display:none; width:100%; align-items:center; gap:12px; cursor:pointer;
+             border:0; background:none; padding:8px 0; font:inherit; color:#8a9a9c; text-align:left; }
+  .pl-openc__t{ flex:1; min-width:0; font-size:15px; }
+  .pl-openc svg{ flex:none; color:#3d4c4e; }
+  .pl-openc:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:3px; border-radius:12px; }
+
   @media (max-width:900px){ .pl-grid{ grid-template-columns:1fr; } .pl-rail{ position:static; } }
+
+  /* ── PHONE ───────────────────────────────────────────────────────────────
+     Measured, not guessed: before this block there were 614px of chrome above
+     the first post on a 390x900 screen — a masthead, a one-avatar stories rail,
+     four tabs and a 300px empty textarea. Two thirds of the screen spent before
+     any content. What follows removes furniture rather than shrinking it, and
+     spends the space it frees on the gap BETWEEN cards, which is what actually
+     reads as calm. */
+  @media (max-width:700px){
+    .pl{ padding-top:14px; padding-bottom:96px; }
+    /* The masthead goes; the h1 survives as sr-only for readers and crawlers. */
+    .pl-head{ display:none; }
+    .pl-stories{ display:none; }
+
+    /* Tabs become app chrome: smaller, tighter, and stuck under the site bar so
+       switching surface never costs a scroll back to the top. */
+    .pl-tabs{ margin:0 0 18px; gap:0; position:sticky; top:0; z-index:6;
+              background:#fbfbfa; box-shadow:0 6px 10px -10px rgba(16,41,44,.5);
+              /* Four tabs do not fit 296px of usable width at 320. They scroll —
+                 but a scroller with a hard edge looks like a row that simply ends,
+                 and the tab that gets hidden is whichever was added last. The fade
+                 says "there is more" without costing a pixel of label. */
+              -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent);
+              mask-image:linear-gradient(90deg,#000 calc(100% - 26px),transparent); }
+    .pl-tab{ padding:11px 12px; font-size:14px; }
+    /* No fade once everything fits — a permanent one reads as a rendering fault. */
+    @media (min-width:430px){ .pl-tabs{ -webkit-mask-image:none; mask-image:none; } }
+
+    .pl-compose{ padding:10px 14px; border-radius:18px; }
+    /* One tap-target instead of a form, until somebody actually wants the form. */
+    .pl-compose:not(.is-open) .pl-openc{ display:flex; }
+    .pl-compose:not(.is-open) .pl-compose__full{ display:none; }
+
+    .pf-chips{ padding-bottom:14px; }
+    /* The whitespace the clutter paid for. */
+    .pf + .pf{ margin-top:28px; }
+    .pl-feed{ gap:22px; }
+    .pl-grid{ gap:26px; }
+  }
+
   @media (max-width:560px){ .pl-chs{ grid-template-columns:1fr; } .pl-ev{ flex-wrap:wrap; } .pl-ev__cta{ width:100%; } }
 </style>
 {% endblock %}
@@ -413,13 +476,21 @@
    feed keeps its own component; they do not need to know about each other. #}
 <div class="pl" x-data="plPage({{ (is_member|default(false))|json_encode }})">
 
-  <header>
+  {# ── THE HEADER ────────────────────────────────────────────────────────
+     Present for a reader on a desktop and for every screen reader; visually
+     gone on a phone. A feed does not need a masthead: the nav already says
+     Pulse, and on a 900px screen this eyebrow and headline were spending 200
+     of the 614 pixels that stood between opening the page and seeing a post. #}
+  <header class="pl-head">
     <p class="pl-eyebrow">Pulse · the living feed</p>
     <h1 class="pl-h1">What the continent is <em>talking about.</em></h1>
   </header>
+  <h1 class="sr-only pl-h1--sr">Pulse — what the continent is talking about</h1>
 
-  {# Featured profiles (real top of the index) — the design's stories tray #}
-  {% if leaders is not empty %}
+  {# Featured profiles (real top of the index) — the design's stories tray.
+     Drawn only when there are enough to BE a tray: one lonely avatar in a
+     250px-tall rail is not a feature, it is 250px of nothing on a phone. #}
+  {% if leaders|default([])|length >= 4 %}
   <div class="pl-stories pl-x">
     {% for p in leaders %}
     <a class="pl-story" href="/registry/{{ p.slug }}">
@@ -463,8 +534,21 @@
            urlencodes the form and the server receives the filename as a string. #}
         <form class="pl-compose" method="POST" action="/pulse" enctype="multipart/form-data"
               x-data="plCompose({{ pulse_max|default(600) }}, {{ (media_limit|default('8MB'))|json_encode }})"
-              @submit="render($event)">
+              :class="open && 'is-open'" @submit="render($event)">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+          {# ── THE COLLAPSED COMPOSER ──────────────────────────────────────
+             Phone only. Expanded, this box is 300px of empty textarea sitting
+             between the reader and the feed, every visit, whether or not they
+             came here to write. Collapsed it is one 56px row that says what it
+             does, and one tap opens the real thing with the caret already in it. #}
+          <button type="button" class="pl-openc" @click="expand()">
+            <span class="pl-compose__av" aria-hidden="true">{{ (member_name|default('You'))|first|upper }}</span>
+            <span class="pl-openc__t">Share something…</span>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m3.5 17 4.7-4.6a1.8 1.8 0 0 1 2.5 0L15 16.7m2-3.2a1.7 1.7 0 0 1 2.3 0l1.2 1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+
+          <div class="pl-compose__full">
           <div class="pl-compose__row">
             <span class="pl-compose__av" aria-hidden="true">{{ (member_name|default('You'))|first|upper }}</span>
             <label for="plBody" class="sr-only">Share something with the community</label>
@@ -472,7 +556,7 @@
                enforces "text OR media", which is the rule that actually holds. #}
             <textarea id="plBody" name="body" class="pl-compose__ta" rows="2"
                       :maxlength="max" x-on:input="n = $event.target.value.length"
-                      placeholder="Share something with the community…"></textarea>
+                      x-ref="ta" placeholder="Share something with the community…"></textarea>
           </div>
 
           {# The chosen file, before it is sent. Reading it back from the input is
@@ -535,6 +619,7 @@
             <span class="pl-compose__count" x-show="n > max - 120" x-cloak
                   :class="n >= max ? 'is-full' : ''" x-text="(max - n) + ' left'"></span>
             <button class="pl-compose__go" type="submit" :disabled="busy">Post</button>
+          </div>
           </div>
         </form>
         {% else %}
@@ -964,8 +1049,15 @@
  */
 function plCompose(max, limitLabel){
   return {
-    max: max, n: 0, busy: false,
+    max: max, n: 0, busy: false, open: false,
     preview: '', kind: '', err: '', sizeNote: '',
+
+    /** Open the real composer and put the caret in it, in that order. */
+    expand(){
+      this.open = true;
+      this.$nextTick(() => { if (this.$refs.ta) this.$refs.ta.focus(); });
+    },
+
 
     // ── the studio ────────────────────────────────────────────────────────
     // Culturally named rather than "Filter 1..6" — these are the design's, and
