@@ -12,13 +12,6 @@
   .pl-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4.6vw,2.75rem); line-height:1.02; letter-spacing:-.02em; color:var(--ag-ink); }
   .pl-h1 em{ color:var(--ag-green); font-style:italic; }
 
-  /* stories tray */
-  .pl-stories{ display:flex; gap:16px; overflow-x:auto; padding:22px 2px 6px; }
-  .pl-story{ flex:none; display:flex; flex-direction:column; align-items:center; gap:8px; width:74px; text-decoration:none; }
-  .pl-story__ring{ width:70px; height:70px; border-radius:50%; padding:2.5px; background:conic-gradient(from 210deg,#237b22,#7fc87c,#d49a0e,#237b22); display:flex; }
-  .pl-story__av{ width:100%; height:100%; border-radius:50%; border:2.5px solid #fbfbfa; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:23px; background-size:cover; background-position:center; }
-  .pl-story__n{ font-size:11.5px; font-weight:500; color:#4a5256; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:74px; }
-
   /* tabs */
   .pl-tabs{ display:flex; gap:4px; border-bottom:1px solid rgba(16,41,44,.08); margin:20px 0 26px; overflow-x:auto; }
   .pl-tab{ flex:none; cursor:pointer; border:0; background:none; font-family:inherit; font-size:14.5px; font-weight:600; color:#5a6d6f; padding:12px 16px; border-bottom:2px solid transparent; margin-bottom:-1px; }
@@ -438,7 +431,6 @@
     .pl{ padding-top:14px; padding-bottom:96px; }
     /* The masthead goes; the h1 survives as sr-only for readers and crawlers. */
     .pl-head{ display:none; }
-    .pl-stories{ display:none; }
 
     /* Tabs become app chrome: smaller, tighter, and stuck under the site bar so
        switching surface never costs a scroll back to the top. */
@@ -487,19 +479,12 @@
   </header>
   <h1 class="sr-only pl-h1--sr">Pulse — what the continent is talking about</h1>
 
-  {# Featured profiles (real top of the index) — the design's stories tray.
-     Drawn only when there are enough to BE a tray: one lonely avatar in a
-     250px-tall rail is not a feature, it is 250px of nothing on a phone. #}
-  {% if leaders|default([])|length >= 4 %}
-  <div class="pl-stories pl-x">
-    {% for p in leaders %}
-    <a class="pl-story" href="/registry/{{ p.slug }}">
-      <span class="pl-story__ring"><span class="pl-story__av" {% if p.avatar_path %}style="background-image:url('{{ p.avatar_path }}')"{% endif %}>{% if not p.avatar_path %}{{ p.display_name|default('?')|first|upper }}{% endif %}</span></span>
-      <span class="pl-story__n">{{ p.display_name|default('Profile')|split(' ')|first }}</span>
-    </a>
-    {% endfor %}
-  </div>
-  {% endif %}
+  {# NO STORIES ROW. It borrowed Instagram's shape without Instagram's content:
+     the ring promises something posted today that disappears tomorrow, and what
+     it actually linked was the CPI leaderboard — permanent profiles, unchanged
+     from one visit to the next. A control that lies about what is behind it gets
+     tapped once. The leaderboard is still on the page, in the rail, labelled as
+     what it is. #}
 
   {# Tabs #}
   <div class="pl-tabs">

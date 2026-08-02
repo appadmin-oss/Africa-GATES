@@ -154,7 +154,10 @@ final class PulseController
             ];
         }, ['registry']);
 
-        $leaders = $this->cache->remember('pulse:leaders', 600, fn() => $this->profiles->getLeaderboard(8), ['leaderboard']);
+        // Four, not eight: the stories row that consumed the other four is gone,
+        // and the rail shows four. Fetching rows nothing renders is how a query
+        // grows a cost nobody can trace back to a feature.
+        $leaders = $this->cache->remember('pulse:leaders', 600, fn() => $this->profiles->getLeaderboard(4), ['leaderboard']);
 
         // The first page is rendered server-side and every later page arrives from
         // /api/pulse/feed — so both come from the SAME assembler. Two code paths
