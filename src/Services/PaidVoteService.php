@@ -77,6 +77,20 @@ class PaidVoteService
     public const MAX_ORDER_NAIRA = 100_000_000;
 
     /**
+     * Hours after a cycle's close that a payment STARTED BEFORE THE CLOSE may
+     * still mint. Six covers a stuck webhook, a retried 502 and a bank transfer
+     * that settles overnight; it is far short of a results announcement.
+     */
+    public const DEFAULT_GRACE_HOURS = 6;
+
+    /**
+     * Minutes before a cycle's close that paid checkout stops taking new orders.
+     * Ten is roughly three times the slowest realistic 3-D Secure round trip,
+     * so an order accepted at the cutoff has ample room to confirm in time.
+     */
+    public const DEFAULT_CUTOFF_MINUTES = 10;
+
+    /**
      * @deprecated Read {@see maxQty()} instead — this is only the default.
      *             Kept as an alias so nothing that referenced the old constant breaks.
      */
@@ -97,9 +111,88 @@ class PaidVoteService
      * shared COMPUTED-phase guard. One helper so checkout, minting and any
      * future paid-vote surface cannot drift apart.
      */
-    public static function votingOpenFor(int $categoryId): bool
+    public static function votingOpenFor(int $categoryId, ?Carbon $at = null): bool
     {
-        return BallotGuard::isVotable($categoryId);
+        return BallotGuard::isVotable($categoryId, $at);
+    }
+
+    /**
+     * When the buyer actually placed this order.
+     *
+     * `created_at` is written by start(), which has already refused the order
+     * unless voting was open — so this is not a guess about intent, it is a
+     * timestamp the platform stamped on a check it performed itself.
+     *
+     * A row with no usable timestamp falls back to now, which reproduces the old
+     * behaviour for that row rather than minting on an assumption.
+     */
+    private static function orderPlacedAt(object $don): Carbon
+    {
+        $raw = trim((string) ($don->created_at ?? ''));
+        if ($raw === '') return Carbon::now();
+        try { return Carbon::parse($raw); } catch (\Throwable) { return Carbon::now(); }
+    }
+
+    /**
+     * How long after a cycle closes a payment TAKEN BEFORE THE CLOSE may still mint.
+     *
+     * Gateway confirmation is neither instant nor ours. A 3-D Secure round trip,
+     * a bank transfer that settles on the bank's schedule, a webhook retried
+     * after a 502 — each can put minutes or hours between somebody paying and us
+     * hearing about it. That lag belongs to our infrastructure, not to the buyer,
+     * and charging them for it is what made people furious.
+     *
+     * Bounded, though: a webhook arriving three weeks late must not move a tally
+     * whose winner has been announced. Inside the window it mints; outside it is
+     * refused and refunded, which RefundService already does by itself.
+     */
+    public static function lateMintGraceHours(): int
+    {
+        $v = (int) (self::setting('paid_vote_grace_hours') ?? 0);
+        return $v > 0 ? min($v, 168) : self::DEFAULT_GRACE_HOURS;
+    }
+
+    /**
+     * How long BEFORE a cycle closes paid checkout stops taking new orders.
+     *
+     * The prevention half. If nothing can START in the last few minutes, almost
+     * nothing is ever in flight when the ballot shuts, and the grace window above
+     * becomes a safety net rather than a routine code path.
+     *
+     * Free OTP voting is untouched — it mints inside the request, so it can run
+     * to the bell. Only the path that has to wait on somebody else's server stops
+     * early, and the ballot says so rather than silently refusing.
+     */
+    public static function checkoutCutoffMinutes(): int
+    {
+        $v = self::setting('paid_vote_cutoff_minutes');
+        if ($v === null || $v === '') return self::DEFAULT_CUTOFF_MINUTES;
+        return max(0, min((int) $v, 240));
+    }
+
+    /**
+     * When paid checkout stops for this category, or null when it is not votable.
+     *
+     * Returned so the ballot can SAY the time rather than just refuse at it —
+     * "card payment closes 23:50" is a plan; "closed" thirty seconds after you
+     * tapped pay is a betrayal.
+     */
+    public static function checkoutClosesAt(int $categoryId): ?Carbon
+    {
+        $close = BallotGuard::votingCloseFor($categoryId);
+        return $close?->copy()->subMinutes(self::checkoutCutoffMinutes());
+    }
+
+    /** True when paid checkout is inside its (earlier) window for this category. */
+    public static function checkoutOpenFor(int $categoryId, ?Carbon $at = null): bool
+    {
+        $at = $at ?? Carbon::now();
+        if (!self::votingOpenFor($categoryId, $at)) return false;
+
+        $cutoff = self::checkoutClosesAt($categoryId);
+        // No published close time means no cutoff to enforce — an open-ended
+        // cycle must not have paid voting silently disabled by a null.
+        return $cutoff === null || $at->lt($cutoff);
     }
 
     /** Master toggle — OFF by default. */
@@ -308,21 +401,75 @@ class PaidVoteService
                         . 'this order is refundable, or can be re-entered as several smaller orders.'];
         }
 
-        // PHASE GATE. `start()` checked that voting was open before taking the
-        // money, but mint() — reachable from BOTH the browser callback and the
-        // gateway webhook, either of which can land arbitrarily late — checked
-        // nothing. A payment initiated while voting was open but CONFIRMED
-        // after it closed still minted weighted votes and bumped the public
-        // tally. Refuse instead, and mark the order so it can be refunded.
-        // Deliberately leaves the order at votes_used = 0. A CONFIRMED
-        // 'paid-vote' row with votes_used = 0 is therefore the queryable
-        // "paid but never minted — refund owed" signal for ops, and the
-        // existing clawback path can reverse it. No new column needed, and the
-        // idempotency gate below is never armed, so a later retry inside a
-        // reopened window would still mint correctly.
-        if (!self::votingOpenFor((int) $nominee->category_id)) {
+        // ── PHASE GATE, ON THE BUYER'S CLOCK ─────────────────────────────────
+        //
+        // This gate used to ask "is voting open RIGHT NOW", where "now" was
+        // whenever the gateway's webhook happened to land. It was added for a
+        // real reason — a late confirmation must not bump a closed tally — but it
+        // read the wrong clock, and the people it punished were the ones who had
+        // done nothing wrong.
+        //
+        // Somebody pays at 23:58 while the ballot is plainly open. 3-D Secure
+        // takes a minute. The webhook is retried once after a 502. It lands at
+        // 00:02, this gate says "closed", the money has already left their
+        // account and no votes appear. They watch a nominee they paid to support
+        // finish without their votes and are told days later that a refund is
+        // coming. That is not an edge case; it is every deadline, and it is the
+        // single most enraging thing this platform can do.
+        //
+        // THE ORDER'S OWN TIMESTAMP IS THE ANSWER. `start()` already refuses to
+        // create a paid-vote order unless voting is open, so `created_at` is a
+        // verified record that the ballot WAS open when we took the money. We
+        // sold them a vote; we owe them the vote. The lag is our
+        // infrastructure's, not theirs.
+        //
+        // BallotGuard::isVotable() has always accepted a `$now` and threaded it
+        // down to CyclePolicy::stateFor(). The parameter existed; the caller was
+        // not using it.
+        //
+        // Still bounded on the late side, because the original concern is valid:
+        // a webhook three weeks late must not move a tally whose winner has been
+        // announced. Past the grace window this refuses exactly as before,
+        // leaving votes_used = 0 — the queryable "paid but never minted" signal
+        // that cycles:audit reports and RefundService already acts on by itself.
+        // ── MONEY GOING BACK BEATS VOTES GOING OUT ───────────────────────────
+        //
+        // New, and required BY the widened window below. RefundService refunds an
+        // order that could not mint, and it used to be impossible for a refunded
+        // order to mint afterwards because the phase gate stayed shut forever.
+        // Now the gate can reopen for hours, so a reconciler retry could credit
+        // votes for money that has already been sent back — free votes, paid for
+        // by us.
+        //
+        // `refund_requested_at` is the CLAIM stamp RefundService writes BEFORE it
+        // calls the gateway, so this refuses while a refund is merely in flight,
+        // not only once it has landed. Checked through OptionalColumn because
+        // these columns arrive with 2026_08_03_auto_refunds.
+        if (OptionalColumn::on('gates_donations', 'refunded_at')) {
+            $refunded = ($don->refunded_at ?? null) !== null
+                || (($don->refund_requested_at ?? null) !== null);
+            if ($refunded) {
+                return ['ok' => false, 'code' => 'ALREADY_REFUNDED',
+                        'message' => 'This order has been refunded, so no votes were added.'];
+            }
+        }
+
+        $placedAt = self::orderPlacedAt($don);
+        $catId    = (int) $nominee->category_id;
+
+        if (!self::votingOpenFor($catId, $placedAt)) {
             return ['ok' => false, 'code' => 'VOTING_CLOSED',
-                    'message' => 'Voting closed before this payment confirmed. No votes were added — this order is refundable.'];
+                    'message' => 'Voting was already closed when this payment was started. '
+                               . 'No votes were added — this order is refundable.'];
+        }
+
+        // Open when they paid. Is the confirmation within reach of the close?
+        $grace = self::lateMintGraceHours();
+        $close = BallotGuard::votingCloseFor($catId);
+        if ($close !== null && Carbon::now()->gt($close->copy()->addHours($grace))) {
+            return ['ok' => false, 'code' => 'CONFIRMED_TOO_LATE',
+                    'message' => 'This payment confirmed more than ' . $grace . ' hours after voting closed, '
+                               . 'so the votes could not be counted. The order is refundable.'];
         }
 
         return DB::connection()->transaction(function () use ($don, $nominee, $qty, $nomineeId) {

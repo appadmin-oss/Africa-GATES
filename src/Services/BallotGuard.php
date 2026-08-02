@@ -131,6 +131,22 @@ final class BallotGuard
     }
 
     /**
+     * When voting closes for this category, or null when no close is published.
+     *
+     * Exposed because two callers need the BOUNDARY, not a yes/no. Paid checkout
+     * has to stop a few minutes early so nothing is in flight when the ballot
+     * shuts; minting has to know how late is too late for a confirmation that
+     * was started in time. Both were previously reduced to "is it open now" —
+     * the question that cost buyers their votes.
+     */
+    public static function votingCloseFor(int $categoryId): ?Carbon
+    {
+        $raw = trim((string) (self::cycleForCategory($categoryId)->voting_close ?? ''));
+        if ($raw === '') return null;
+        try { return Carbon::parse($raw); } catch (\Throwable) { return null; }
+    }
+
+    /**
      * The cycle owning a category, with the window columns the policy needs.
      * Deliberately NOT memoised — a stale row here would mis-gate a write, and
      * these are indexed primary-key joins hit a handful of times per request.

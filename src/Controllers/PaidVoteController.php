@@ -112,6 +112,13 @@ final class PaidVoteController
             || !in_array((string)$nominee->status, ['approved', 'winner', 'runner_up'], true)
             || !empty($nominee->merged_into ?? null))                         return $bail('nominee');
         if (!$this->votingOpenFor($nominee))                                 return $bail('closed');
+        // ── DO NOT SELL INTO THE CLOSING BELL ────────────────────────────────
+        // A payment started in the last minutes cannot reliably reach a bank and
+        // back before the ballot shuts, and taking money we might not be able to
+        // honour is the whole problem. Refusing here is a sentence the buyer can
+        // act on; a mint refused four minutes later is money gone and nothing to
+        // show for it. Free OTP voting is untouched and runs to the bell.
+        if (!PaidVoteService::checkoutOpenFor((int) $nominee->category_id))   return $bail('cutoff');
         if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL))     return $bail('email');
         if ($qty > $maxQty) {

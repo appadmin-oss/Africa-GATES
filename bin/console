@@ -34,7 +34,8 @@ use AfricaGates\Console\Commands\{
     PaymentClawbackCommand,
     PrivacyPurgeCommand,
     PrivacyEraseUserCommand,
-    RepairIndexesCommand
+    RepairIndexesCommand,
+    VotesRemintCommand
 };
 
 $capsule = new DB();
@@ -69,4 +70,5 @@ $app->add(new PaymentClawbackCommand());
 $app->add(new PrivacyPurgeCommand());
 $app->add(new PrivacyEraseUserCommand());
 $app->add(new RepairIndexesCommand());
+$app->add(new VotesRemintCommand());
 $app->run();

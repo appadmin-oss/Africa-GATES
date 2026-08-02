@@ -239,6 +239,11 @@ class VoteController {
         // limit instead of having their order quietly cut down to it.
         'toomany'     => 'That is more votes than one order can carry. The maximum is',
         'closed'      => 'Voting has closed for this category, so no votes could be purchased.',
+        // The last few minutes belong to the free ballot. Card payments stop a
+        // little earlier because they have to travel to a bank and back, and an
+        // order that cannot finish in time is one we should never have taken.
+        'cutoff'      => 'Card payment for this category has closed so payments in progress can finish. '
+                       . 'Free voting is still open — use the ballot above.',
         'unavailable' => 'That payment method is unavailable right now. Please try another.',
         'email'       => 'Please enter a valid email address for your receipt.',
         'start'       => 'We could not start the checkout. No payment was taken — please try again.',

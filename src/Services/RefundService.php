@@ -6,6 +6,7 @@ namespace AfricaGates\Services;
 use AfricaGates\Support\Env;
 use AfricaGates\Support\OptionalColumn;
 use Illuminate\Database\Capsule\Manager as DB;
+use Illuminate\Support\Carbon;
 
 /**
  * Giving money back without being asked.
@@ -75,7 +76,15 @@ use Illuminate\Database\Capsule\Manager as DB;
  */
 final class RefundService
 {
-    /** Do not refund a payment that confirmed within this window. It may still mint. */
+    /**
+     * Do not refund a payment that confirmed within this window. It may still mint.
+     *
+     * Stays a flat hour. The other race — against a LATE mint of an order placed
+     * before the cycle closed — is handled per order in {@see terminallyUnminted()},
+     * because it depends on that cycle's close time rather than on the order's age.
+     * Widening this constant instead would also have delayed the orders that can
+     * never mint, which are the ones somebody is waiting on a refund for.
+     */
     private const GRACE_MINUTES = 60;
 
     /** Refuse to auto-refund a single order larger than this. */
@@ -224,7 +233,29 @@ final class RefundService
             if ($catId < 1) return false;
             // The same call mint() makes. If it ever says yes again, this order
             // mints instead of being refunded, which is the better outcome.
-            return !PaidVoteService::votingOpenFor($catId);
+            if (PaidVoteService::votingOpenFor($catId)) return false;
+
+            // ── AND MINT MUST HAVE RUN OUT OF ROAD ───────────────────────────
+            //
+            // mint() no longer judges the phase on the webhook's clock; it judges
+            // on the ORDER'S, and will still deliver a payment that was started
+            // before the close for several hours afterwards. Refunding inside
+            // that window races it — the supporter gets their money back at 01:00
+            // and their votes at 03:00, which is worse than either outcome alone.
+            //
+            // So: refund only once no mint can succeed for this cycle. Measured
+            // from the CLOSE, not from the order, because that is what mint()
+            // measures — and an order placed AFTER the close was never going to
+            // mint anyway, so this leaves the hopeless cases as fast as before.
+            $close = BallotGuard::votingCloseFor($catId);
+            if ($close !== null) {
+                $mintWindowEnds = $close->copy()->addHours(PaidVoteService::lateMintGraceHours());
+                if (Carbon::now()->lt($mintWindowEnds)
+                    && Carbon::parse((string) $don->created_at)->lt($close)) {
+                    return false;   // still deliverable — votes beat a refund
+                }
+            }
+            return true;
         } catch (\Throwable $e) {
             error_log('[refund] could not test the cycle for ' . $don->payment_ref . ': ' . $e->getMessage());
             return false;   // unknown is never a reason to move money
