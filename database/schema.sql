@@ -606,6 +606,10 @@ CREATE TABLE IF NOT EXISTS gates_users (
   created_at TIMESTAMP NULL DEFAULT NULL,
   last_login_at TIMESTAMP NULL DEFAULT NULL,
   last_login_ip VARCHAR(64) DEFAULT NULL,
+  -- How far this member has read their alerts. The ONLY state the alerts
+  -- feature stores: everything else is derived from the tables that already
+  -- record the events. NULL = never opened = everything unread.
+  alerts_read_at DATETIME NULL DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_user_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

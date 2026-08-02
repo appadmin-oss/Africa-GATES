@@ -838,6 +838,12 @@ return function(App $app) {
             // one reader cannot ask the server what another reader has liked.
             $a->get('/pulse/feed',          PulseController::class.':feed');
             $a->get('/pulse/new',           PulseController::class.':feedNew');
+            // Alerts. Members only, and scoped from the SESSION inside
+            // AlertService — no parameter here names a member, so one reader
+            // cannot ask the server what happened to another reader's posts.
+            $a->get('/pulse/alerts',        PulseController::class.':alerts');
+            $a->get('/pulse/alerts/count',  PulseController::class.':alertCount');
+            $a->post('/pulse/alerts/read',  PulseController::class.':alertsRead');
             // Support assistant. Both are same-origin POSTs (the /api/ CSRF rule),
             // and neither accepts an identity — see SupportController.
             $a->post('/support/chat',       SupportController::class.':chat');

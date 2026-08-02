@@ -7,7 +7,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
-use AfricaGates\Services\{CacheService, CommunityService, Notifier, OtpService, ProfileService, PulseFeedService, PulseMediaService, RateLimitService, UserAccountService};
+use AfricaGates\Services\{AlertService, CacheService, CommunityService, Notifier, OtpService, ProfileService, PulseFeedService, PulseMediaService, RateLimitService, UserAccountService};
 use AfricaGates\Support\OptionalColumn;
 
 /**
@@ -85,6 +85,44 @@ final class PulseController
 
         $page = $this->feed->page($cursor, $limit, $this->viewerId(), $chan ?: null);
         return $this->json($res, ['success' => true] + $page);
+    }
+
+    /**
+     * What happened to your things while you were away.
+     *
+     * Members only, and scoped in the SERVICE from the session id — there is no
+     * parameter here that could point the query at somebody else's posts.
+     */
+    public function alerts(Request $req, Response $res): Response
+    {
+        $m = UserAccountService::memberForForms();
+        if (!$m) return $this->json($res, ['success' => false, 'items' => [], 'unread' => 0], 401);
+
+        $svc   = new AlertService();
+        $items = $svc->forMember((int) $m['id'], (string) $m['email']);
+
+        // Counted from the list that is being returned, not by a second query —
+        // a badge that disagrees with the screen under it is worse than no badge.
+        $unread = 0;
+        foreach ($items as $a) if ($a['unread']) $unread++;
+
+        return $this->json($res, ['success' => true, 'items' => $items, 'unread' => $unread]);
+    }
+
+    /** Just the number, for the dot on the bell. Polled, so it stays cheap. */
+    public function alertCount(Request $req, Response $res): Response
+    {
+        $m = UserAccountService::memberForForms();
+        if (!$m) return $this->json($res, ['success' => true, 'unread' => 0]);
+        return $this->json($res, ['success' => true,
+            'unread' => (new AlertService())->unreadFor((int) $m['id'], (string) $m['email'])]);
+    }
+
+    public function alertsRead(Request $req, Response $res): Response
+    {
+        $m = UserAccountService::memberForForms();
+        if (!$m) return $this->json($res, ['success' => false], 401);
+        return $this->json($res, ['success' => (new AlertService())->markRead((int) $m['id'])]);
     }
 
     /**

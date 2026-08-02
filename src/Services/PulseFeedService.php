@@ -89,6 +89,7 @@ final class PulseFeedService
         $myKind    = $this->myReactionKinds($ids, $userId);
         $reposted  = $this->repostedIds($ids, $userId);
         $channels  = $this->channelNames();
+        $authors   = $this->authorProfiles($rows);
 
         $items = [];
         foreach ($rows as $r) {
@@ -106,6 +107,12 @@ final class PulseFeedService
                 'body'         => (string) ($r['body'] ?? ''),
                 'author_name'  => (string) ($r['author_name'] ?? 'A member'),
                 'author_id'    => (int) ($r['author_user_id'] ?? 0),
+                // What the badge means, in one of four words. 'none' draws
+                // nothing at all — an unearned tick is worse than no tick.
+                'author_tier'  => $authors[(int) ($r['author_user_id'] ?? 0)]['tier'] ?? 'none',
+                // The line under the name: what this person actually does.
+                'author_role'  => $authors[(int) ($r['author_user_id'] ?? 0)]['role'] ?? '',
+                'author_slug'  => $authors[(int) ($r['author_user_id'] ?? 0)]['slug'] ?? '',
                 'created_at'   => (string) ($r['created_at'] ?? ''),
                 // The stored counters are the source of truth for the number shown;
                 // they are what toggleCheer and replyToThread maintain.
@@ -132,6 +139,62 @@ final class PulseFeedService
             'items'       => $items,
             'next_cursor' => $hasMore ? (int) end($ids) : null,
         ];
+    }
+
+    /**
+     * Who the authors of this page are, professionally.
+     *
+     * ── WHY A BADGE NEEDS FOUR STATES AND NOT TWO ────────────────────────────
+     *
+     * A tick that means "has an account" means nothing, and people correctly
+     * read it as meaning something. `gates_profiles.verification_tier` already
+     * carries what was actually checked — none / basic / verified / premium —
+     * and the feed simply had not been asking. Rendering `none` as no badge at
+     * all is the important half: an unearned tick devalues every earned one.
+     *
+     * Matched account → profile by EMAIL, which is what links them today. One
+     * query for the page, like every other decoration here.
+     *
+     * @param list<array<string,mixed>> $rows
+     * @return array<int, array{tier:string, role:string, slug:string}>
+     */
+    private function authorProfiles(array $rows): array
+    {
+        $ids = array_values(array_unique(array_filter(
+            array_map(static fn($r) => (int) ($r['author_user_id'] ?? 0), $rows))));
+        if (!$ids) return [];
+
+        try {
+            // gates_profiles has no user_id: the join is through the address on
+            // both sides, which is how every other profile lookup here works.
+            $emails = DB::table('gates_users')->whereIn('id', $ids)
+                ->pluck('email', 'id')->map(fn($v) => strtolower(trim((string) $v)))->all();
+            if (!$emails) return [];
+
+            $profiles = DB::table('gates_profiles')
+                ->whereIn(DB::raw('LOWER(email)'), array_values($emails))
+                ->where('status', 'approved')
+                ->whereNull('merged_into')
+                ->get(['email', 'slug', 'category', 'verification_tier']);
+        } catch (\Throwable $e) {
+            error_log('[pulse] author profiles unavailable: ' . $e->getMessage());
+            return [];
+        }
+
+        $byEmail = [];
+        foreach ($profiles as $p) {
+            $byEmail[strtolower(trim((string) $p->email))] = [
+                'tier' => (string) ($p->verification_tier ?? 'none'),
+                'role' => trim((string) ($p->category ?? '')),
+                'slug' => (string) ($p->slug ?? ''),
+            ];
+        }
+
+        $out = [];
+        foreach ($emails as $id => $email) {
+            if (isset($byEmail[$email])) $out[(int) $id] = $byEmail[$email];
+        }
+        return $out;
     }
 
     /**

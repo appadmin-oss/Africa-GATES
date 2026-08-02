@@ -23,6 +23,33 @@
   .pl-tabs{ display:flex; gap:4px; border-bottom:1px solid rgba(16,41,44,.08); margin:20px 0 26px; overflow-x:auto; }
   .pl-tab{ flex:none; cursor:pointer; border:0; background:none; font-family:inherit; font-size:14.5px; font-weight:600; color:#5a6d6f; padding:12px 16px; border-bottom:2px solid transparent; margin-bottom:-1px; }
   .pl-tab.is-on{ color:var(--ag-green); border-bottom-color:var(--ag-green); }
+  .pl-tab__dot{ display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px;
+                margin-left:6px; padding:0 5px; border-radius:999px; background:#e0245e; color:#fff;
+                font:700 10.5px/1 var(--ag-font-mono,monospace); vertical-align:1px; }
+
+  /* ── alerts ────────────────────────────────────────────────────────────
+     One row per GROUP, never per event. Forty-three "X cheered your post"
+     rows is not a notifications screen, it is a punishment. */
+  .pl-alerts{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:20px; overflow:hidden; }
+  .pl-alerts__hd{ display:flex; align-items:center; gap:12px; padding:16px 18px;
+                  border-bottom:1px solid rgba(16,41,44,.07); }
+  .pl .pl-alerts__h{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:19px;
+                     color:var(--ag-ink,#10292c); }
+  .pl-alerts__read{ margin-left:auto; border:0; background:none; cursor:pointer;
+                    font:600 13px/1 inherit; color:var(--ag-green,#237b22); text-decoration:underline; padding:5px; }
+  .pl-alert{ display:flex; align-items:flex-start; gap:12px; padding:14px 18px; text-decoration:none;
+             color:inherit; border-bottom:1px solid rgba(16,41,44,.05); }
+  .pl-alert:last-child{ border-bottom:0; }
+  .pl-alert:hover{ background:#fafbfa; }
+  .pl-alert.is-new{ background:#f4faf4; }
+  .pl-alert.is-new:hover{ background:#eef6ee; }
+  .pl-alert__i{ flex:none; width:34px; height:34px; border-radius:50%; background:#f2f5f2;
+                display:flex; align-items:center; justify-content:center; line-height:0; }
+  .pl-alert__i svg{ width:17px; height:17px; }
+  .pl-alert__b{ flex:1; min-width:0; }
+  .pl-alert__t{ display:block; font-size:14.5px; line-height:1.5; color:#2c3a3c; overflow-wrap:anywhere; }
+  .pl-alert__m{ display:block; margin-top:3px; font:600 12px/1 var(--ag-font-mono,monospace); color:#8a9a9c; }
+  .pl-alert__n{ flex:none; width:8px; height:8px; border-radius:50%; background:#e0245e; margin-top:6px; }
 
   /* layout
      The feed column is CAPPED, not fluid. A card whose stage is 4:5 grows its
@@ -70,6 +97,31 @@
   .pl-mediaprev__x{ position:absolute; top:8px; right:8px; width:30px; height:30px; border:0; cursor:pointer;
                     border-radius:50%; background:rgba(0,0,0,.6); color:#fff; font-size:19px; line-height:1; }
   .pl-mediaprev__err{ margin:8px 0 0; font-size:13px; font-weight:600; color:#a32020; }
+
+  /* ── THE PHOTO STUDIO ───────────────────────────────────────────────────
+     The design's Create screen, minus the music library — that is a licensing
+     question, not a code one, and shipping a track list we have no rights to
+     would be worse than shipping nothing.
+
+     What is here earns its place twice: it makes a post look composed, AND it
+     re-encodes the photo before it leaves the phone. A 6MB camera JPEG becomes
+     roughly 300KB, which on a metered Nigerian connection is the difference
+     between posting and giving up halfway through an upload. */
+  .pl-studio{ margin-top:12px; border:1px solid rgba(16,41,44,.1); border-radius:16px; overflow:hidden; }
+  .pl-studio__row{ display:flex; gap:7px; overflow-x:auto; padding:11px 12px;
+                   border-top:1px solid rgba(16,41,44,.07); align-items:center; }
+  .pl-studio__k{ flex:none; font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.12em;
+                 text-transform:uppercase; color:#8a9a9c; margin-right:2px; }
+  .pl-studio__c{ flex:none; cursor:pointer; border:1px solid rgba(16,41,44,.14); background:#fff;
+                 color:#3d4c4e; font:600 12.5px/1 inherit; padding:8px 12px; border-radius:999px; }
+  .pl-studio__c.is-on{ background:var(--ag-ink,#10292c); border-color:var(--ag-ink,#10292c); color:#fff; }
+  .pl-studio__c:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+  /* The focus slider only appears when the crop is actually cutting something
+     off — offering it on an uncropped photo is a control that does nothing. */
+  .pl-studio__focus{ display:flex; align-items:center; gap:10px; padding:4px 12px 12px; }
+  .pl-studio__focus input{ flex:1; min-width:0; accent-color:var(--ag-green,#237b22); }
+  .pl-studio__note{ padding:0 12px 11px; font-size:12px; color:#8a9a9c; }
+  .pl-studio__note b{ color:#3d4c4e; font-weight:700; }
 
   .pl-flash{ border-radius:14px; padding:11px 15px; font-size:14px; font-weight:600; }
   .pl-flash--ok{ background:#e6f4e6; color:#1c6b1c; border:1px solid #bfe3bf; }
@@ -197,7 +249,11 @@
   .pf__whoami{ display:flex; align-items:center; gap:7px; min-width:0; }
   .pf__name{ font-weight:700; font-size:15px; color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.65);
              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pf__tick{ flex:none; width:15px; height:15px; }
+  .pf__tick{ flex:none; width:15px; height:15px; line-height:0; }
+  .pf__tick svg{ display:block; width:15px; height:15px; }
+  .pf__role{ align-self:flex-start; font-size:12px; font-weight:600; color:rgba(255,255,255,.72);
+             text-shadow:0 1px 5px rgba(0,0,0,.6); text-decoration:none; margin-top:-3px; }
+  .pf__role:hover{ color:#7FC87C; }
   .pf__when{ flex:none; font:600 11.5px/1 var(--ag-font-mono,monospace); color:rgba(255,255,255,.62); }
   .pf__cap{ margin:0; font-size:14px; line-height:1.5; color:rgba(255,255,255,.94);
             text-shadow:0 1px 6px rgba(0,0,0,.7); overflow-wrap:anywhere; }
@@ -352,7 +408,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="pl" x-data="{ tab:'foryou' }">
+{# The page shell owns the tabs AND the alerts, because the unread dot lives on
+   a tab and the list lives in a panel — one state, two places on screen. The
+   feed keeps its own component; they do not need to know about each other. #}
+<div class="pl" x-data="plPage({{ (is_member|default(false))|json_encode }})">
 
   <header>
     <p class="pl-eyebrow">Pulse · the living feed</p>
@@ -376,6 +435,13 @@
     <button type="button" class="pl-tab" :class="tab==='foryou' && 'is-on'" @click="tab='foryou'" :aria-pressed="tab==='foryou'">For you</button>
     <button type="button" class="pl-tab" :class="tab==='events' && 'is-on'" @click="tab='events'" :aria-pressed="tab==='events'">Events</button>
     <button type="button" class="pl-tab" :class="tab==='community' && 'is-on'" @click="tab='community'" :aria-pressed="tab==='community'">Community</button>
+    {% if is_member %}
+    {# Members only. There is nothing to alert a guest about — they have no posts
+       to be reacted to and no profile to be followed. #}
+    <button type="button" class="pl-tab" :class="tab==='alerts' && 'is-on'" @click="tab='alerts'"
+            :aria-pressed="tab==='alerts'">Alerts<span class="pl-tab__dot" x-show="unread > 0" x-cloak
+            :aria-label="unread + ' unread'" x-text="unread > 9 ? '9+' : unread"></span></button>
+    {% endif %}
   </div>
 
   {# ── FOR YOU ── #}
@@ -396,7 +462,8 @@
         {# enctype is what makes the file field work at all — without it the browser
            urlencodes the form and the server receives the filename as a string. #}
         <form class="pl-compose" method="POST" action="/pulse" enctype="multipart/form-data"
-              x-data="plCompose({{ pulse_max|default(600) }}, {{ (media_limit|default('8MB'))|json_encode }})">
+              x-data="plCompose({{ pulse_max|default(600) }}, {{ (media_limit|default('8MB'))|json_encode }})"
+              @submit="render($event)">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <div class="pl-compose__row">
             <span class="pl-compose__av" aria-hidden="true">{{ (member_name|default('You'))|first|upper }}</span>
@@ -411,12 +478,47 @@
           {# The chosen file, before it is sent. Reading it back from the input is
              the only honest preview — it shows the bytes the browser will upload,
              not a guess from the filename. #}
-          <div class="pl-mediaprev" x-show="!!preview" x-cloak>
+          <div class="pl-mediaprev" x-show="!!preview" x-cloak
+               :style="kind === 'image' && crop !== 'free' ? ('aspect-ratio:' + RATIOS[crop]) : null">
+            {# object-position carries the focus slider, so a portrait keeps its
+               head in frame rather than being centre-cropped through the chin.
+               The preview uses CSS for both the crop and the filter — instant,
+               and the canvas only runs once, on submit. #}
             <img class="pl-mediaprev__el" x-show="kind === 'image'"
-                 :src="kind === 'image' ? preview : null" alt="The photo you are about to post">
+                 :src="kind === 'image' ? preview : null"
+                 :style="kind === 'image' ? previewStyle() : null"
+                 alt="The photo you are about to post">
             <video class="pl-mediaprev__el" x-show="kind === 'video'"
                    :src="kind === 'video' ? preview : null" controls playsinline muted></video>
             <button type="button" class="pl-mediaprev__x" @click="clear()" aria-label="Remove the attachment">×</button>
+          </div>
+
+          {# Photos only. There is no client-side video editing here: trimming
+             video in a browser means WebCodecs or ffmpeg.wasm, and neither is a
+             reasonable thing to hand a mid-range Android on a metered plan. #}
+          <div class="pl-studio" x-show="kind === 'image'" x-cloak>
+            <div class="pl-studio__row" role="group" aria-label="Shape">
+              <span class="pl-studio__k">Shape</span>
+              <template x-for="c in CROPS" :key="c">
+                <button type="button" class="pl-studio__c" :class="crop === c && 'is-on'"
+                        :aria-pressed="crop === c" @click="crop = c" x-text="CROP_LABEL[c]"></button>
+              </template>
+            </div>
+
+            <div class="pl-studio__focus" x-show="crop !== 'free'">
+              <label class="pl-studio__k" for="plFocus">Focus</label>
+              <input type="range" id="plFocus" min="0" max="100" step="1" x-model.number="focus">
+            </div>
+
+            <div class="pl-studio__row" role="group" aria-label="Colour">
+              <span class="pl-studio__k">Colour</span>
+              <template x-for="(css, name) in FILTERS" :key="name">
+                <button type="button" class="pl-studio__c" :class="filter === name && 'is-on'"
+                        :aria-pressed="filter === name" @click="filter = name" x-text="name"></button>
+              </template>
+            </div>
+
+            <p class="pl-studio__note" x-show="!!sizeNote" x-html="sizeNote"></p>
           </div>
           <p class="pl-mediaprev__err" x-show="err" x-cloak x-text="err" role="alert"></p>
 
@@ -531,16 +633,21 @@
                      :href="'/pulse?channel=' + it.programme_id" x-text="it.channel"></a>
                   <div class="pf__whoami">
                     <span class="pf__name" x-text="it.author_name"></span>
-                    {# A verified tick means one thing here and only one: the post
-                       came from a signed-in account rather than an email address
-                       typed into a form. Anything vaguer would be decoration. #}
-                    <svg class="pf__tick" x-show="it.author_id > 0" viewBox="0 0 24 24" fill="none"
-                         :aria-label="it.author_name + ' posted from a verified account'" role="img">
-                      <path d="M12 1.9l8.1 2.9v6.5c0 5.2-3.3 9.2-8.1 11.2-4.8-2-8.1-6-8.1-11.2V4.8z" fill="#7FC87C"/>
-                      <path d="M8.7 12.1l2.3 2.3 4.3-4.7" stroke="#0B1A1B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
+                    {# FOUR states, not two. A tick that means "has an account"
+                       means nothing, and people correctly read it as meaning
+                       something — so `none` draws nothing at all. An unearned
+                       badge devalues every earned one. #}
+                    <span class="pf__tick" x-show="it.author_tier && it.author_tier !== 'none'" x-cloak
+                          x-html="badge(it.author_tier)" role="img"
+                          :aria-label="it.author_name + ' — ' + TIERS[it.author_tier]"></span>
                     <span class="pf__when" x-text="ago(it.created_at)"></span>
                   </div>
+                  {# What this person actually does. The mockup's "professional
+                     headline", and the thing that makes a feed of strangers
+                     legible — driven by gates_profiles.category, never invented. #}
+                  <a class="pf__role" x-show="!!it.author_role" x-cloak @click.stop
+                     :href="it.author_slug ? ('/registry/' + it.author_slug) : null"
+                     x-text="it.author_role"></a>
                   {# Only for media posts: a text post already IS its canvas, and
                      printing the words twice is the fault we just fixed on the
                      nominee page. #}
@@ -790,6 +897,40 @@
     {% endif %}
   </div>
 
+  {# ── ALERTS ──────────────────────────────────────────────────────────────
+     Derived on read from the tables that already record the events, so an
+     alert cannot outlive the thing it is about and there is no backfill for
+     the posts that already exist. See AfricaGates\Services\AlertService. #}
+  {% if is_member %}
+  <div x-show="tab==='alerts'" x-cloak>
+    <div class="pl-alerts">
+      <div class="pl-alerts__hd">
+        <h2 class="pl-alerts__h">Alerts</h2>
+        <button type="button" class="pl-alerts__read" @click="markRead()"
+                x-show="unread > 0">Mark all read</button>
+      </div>
+
+      <div x-show="alertsLoading" class="pf-end">Loading…</div>
+
+      <template x-for="(a, i) in alerts" :key="i">
+        <a class="pl-alert" :class="a.unread && 'is-new'" :href="a.href">
+          <span class="pl-alert__i" aria-hidden="true" x-html="alertIcon(a.kind)"></span>
+          <span class="pl-alert__b">
+            <span class="pl-alert__t" x-text="a.text"></span>
+            <span class="pl-alert__m" x-text="ago(a.at)"></span>
+          </span>
+          <span class="pl-alert__n" x-show="a.unread" aria-label="Unread"></span>
+        </a>
+      </template>
+
+      <div class="pl-empty" x-show="!alertsLoading && alerts.length === 0">
+        Nothing yet. When somebody reacts to a post of yours, replies, reposts it
+        or follows you, it lands here.
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {# ── COMMUNITY ── #}
   <div x-show="tab==='community'" x-cloak>
     {% if threads is not empty %}
@@ -824,14 +965,48 @@
 function plCompose(max, limitLabel){
   return {
     max: max, n: 0, busy: false,
-    preview: '', kind: '', err: '',
+    preview: '', kind: '', err: '', sizeNote: '',
+
+    // ── the studio ────────────────────────────────────────────────────────
+    // Culturally named rather than "Filter 1..6" — these are the design's, and
+    // a name you recognise is a name you can ask for again.
+    FILTERS: {
+      Original:  'none',
+      Harmattan: 'sepia(.28) saturate(1.2) contrast(1.05)',
+      Indigo:    'saturate(1.15) hue-rotate(-12deg) contrast(1.1)',
+      Ochre:     'sepia(.5) saturate(1.35) brightness(1.04)',
+      Ink:       'grayscale(1) contrast(1.15)',
+      Sunset:    'saturate(1.4) contrast(1.08) brightness(1.05)'
+    },
+    CROPS: ['free', 'square', 'portrait', 'wide'],
+    CROP_LABEL: { free:'As shot', square:'1:1', portrait:'4:5', wide:'16:9' },
+    RATIOS: { square:'1/1', portrait:'4/5', wide:'16/9' },
+    crop: 'free', filter: 'Original', focus: 50,
+    _file: null,
+
+    /** The longest edge we upload. Beyond this is detail no feed ever shows. */
+    MAX_EDGE: 1600,
+
     // Parsed from the server's own limit string so the two cannot disagree.
     get limitBytes(){ return (parseFloat(limitLabel) || 8) * 1048576; },
+
+    /** CSS does the preview: instant, and no canvas work until submit. */
+    previewStyle(){
+      var f = this.FILTERS[this.filter] || 'none';
+      var s = 'filter:' + f + ';';
+      if (this.crop !== 'free'){
+        s += 'width:100%;height:100%;max-height:none;object-fit:cover;'
+           + 'object-position:50% ' + this.focus + '%;';
+      }
+      return s;
+    },
 
     pick(e){
       var f = e.target.files && e.target.files[0];
       this.clearPreview();
-      this.err = '';
+      this.err = ''; this.sizeNote = '';
+      this.crop = 'free'; this.filter = 'Original'; this.focus = 50;
+      this._file = f || null;
       if (!f) return;
 
       var isImg = /^image\//.test(f.type), isVid = /^video\//.test(f.type);
@@ -844,6 +1019,12 @@ function plCompose(max, limitLabel){
         return this.clear();
       }
       this.kind = isImg ? 'image' : 'video';
+      // Stated, not estimated. Promising "this will be 0.3MB" before the
+      // encoder has run is a number we would sometimes be wrong about.
+      if (isImg && f.size > 900000){
+        this.sizeNote = '<b>' + (f.size / 1048576).toFixed(1) + 'MB</b> — '
+          + 'resized before it uploads, so it sends faster on mobile data.';
+      }
       // An object URL previews the actual bytes rather than a guess from the
       // filename, and costs no upload. Revoked in clearPreview so a member who
       // swaps files ten times does not leak ten blobs.
@@ -857,8 +1038,91 @@ function plCompose(max, limitLabel){
 
     clear(){
       this.clearPreview();
+      this._file = null; this.sizeNote = '';
       if (this.$refs.file) this.$refs.file.value = '';
-    }
+    },
+
+    /**
+     * Bake the crop, the filter and the downscale into the bytes, then post.
+     *
+     * ── WHY THIS IS DONE HERE AND NOT ON THE SERVER ──────────────────────────
+     *
+     * Because the win is the UPLOAD, not the pixels. A 6MB camera JPEG over a
+     * Nigerian mobile connection is a minute of progress bar and a real chance
+     * of the tab being backgrounded before it finishes; the same photo at 1600px
+     * and q0.82 is a few hundred kilobytes. Doing it on the server saves the
+     * disk and none of the waiting, which is the part that makes people give up.
+     *
+     * EVERY FAILURE PATH POSTS THE ORIGINAL. No canvas, no DataTransfer, a
+     * tainted context, an image that will not decode — all of them fall through
+     * to the file the browser already has. A studio that can lose somebody's
+     * photo is worse than no studio.
+     */
+    render(ev){
+      if (this.busy) { ev.preventDefault(); return; }        // already working
+      if (this.kind !== 'image' || !this._file) return;      // text or video: nothing to do
+
+      // Nothing to bake and nothing to save — let the plain POST through.
+      var edited = this.crop !== 'free' || this.filter !== 'Original';
+      if (!edited && this._file.size <= 900000) return;
+
+      if (typeof DataTransfer === 'undefined' || !document.createElement('canvas').getContext) return;
+
+      ev.preventDefault();
+      this.busy = true;
+      var form = ev.target, self = this;
+
+      var img = new Image();
+      img.onload = function(){
+        try {
+          var sw = img.naturalWidth, sh = img.naturalHeight;
+          var sx = 0, sy = 0, cw = sw, ch = sh;
+
+          // Centre-cover crop to the chosen ratio, offset vertically by focus.
+          if (self.crop !== 'free'){
+            var r = { square: 1, portrait: 4 / 5, wide: 16 / 9 }[self.crop];
+            if (sw / sh > r) { cw = Math.round(sh * r); sx = Math.round((sw - cw) / 2); }
+            else             { ch = Math.round(sw / r); sy = Math.round((sh - ch) * (self.focus / 100)); }
+          }
+
+          var scale = Math.min(1, self.MAX_EDGE / Math.max(cw, ch));
+          var dw = Math.max(1, Math.round(cw * scale)), dh = Math.max(1, Math.round(ch * scale));
+
+          var c = document.createElement('canvas');
+          c.width = dw; c.height = dh;
+          var ctx = c.getContext('2d');
+          // A transparent PNG flattened onto nothing becomes black; JPEG has no
+          // alpha, so the background is chosen here rather than by the encoder.
+          ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, dw, dh);
+          var f = self.FILTERS[self.filter];
+          if (f && f !== 'none' && 'filter' in ctx) ctx.filter = f;
+          ctx.drawImage(img, sx, sy, cw, ch, 0, 0, dw, dh);
+
+          c.toBlob(function(blob){
+            if (!blob || blob.size >= self._file.size && !edited) return self.submitOriginal(form);
+            try {
+              var name = (self._file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg';
+              var dt = new DataTransfer();
+              dt.items.add(new File([blob], name, { type: 'image/jpeg' }));
+              self.$refs.file.files = dt.files;
+            } catch (e) { return self.submitOriginal(form); }
+            form.submit();
+          }, 'image/jpeg', 0.82);
+        } catch (e) {
+          self.submitOriginal(form);
+        }
+      };
+      img.onerror = function(){ self.submitOriginal(form); };
+      img.src = this.preview;
+    },
+
+    /**
+     * The fallback every failure path takes: post exactly what was chosen.
+     *
+     * The input still holds the original — nothing is written to it until the
+     * blob is in hand — so this is just "give up and send what we had."
+     */
+    submitOriginal(form){ form.submit(); }
   };
 }
 
@@ -885,6 +1149,100 @@ var PF_ICON = {
 };
 var PF_TINT = { cheer:'#E0245E', insight:'#F2C230', respect:'#7FC87C', support:'#5AB6D9' };
 
+/**
+ * The verification badge, at the level that was actually checked.
+ *
+ * gates_profiles.verification_tier has carried four states all along and the
+ * feed was rendering a binary tick, which is the worst of both: it overstates
+ * `basic` and understates `premium`. Colour does the work — one shield shape,
+ * three fills — so the levels are told apart at 15px without a legend.
+ */
+var PF_BADGE = {
+  basic:   '#8FB3B5',   // ID checked
+  verified:'#7FC87C',   // verified nominee
+  premium: '#C9A24B',   // official
+};
+
+/**
+ * The page shell: which tab is showing, and the alerts.
+ *
+ * Alerts live here rather than in plFeed because the unread count is rendered
+ * on a TAB and the list in a PANEL — two places on screen, one piece of state.
+ * Putting it in the feed component would mean the tab reaching into a sibling.
+ */
+function plPage(isMember){
+  return {
+    tab: 'foryou',
+    isMember: !!isMember,
+    alerts: [], unread: 0, alertsLoading: false, _loaded: false, _poll: null,
+
+    init(){
+      if (!this.isMember) return;
+      this.count();
+      // Every 90s, and never while the tab is hidden. A notification count is
+      // the classic thing left polling in a forgotten tab for an hour.
+      this._poll = setInterval(() => { if (!document.hidden) this.count(); }, 90000);
+
+      // Deep link: /pulse#alerts, which is where the alert emails will point.
+      if (location.hash === '#alerts') this.open();
+      this.$watch('tab', (t) => { if (t === 'alerts') this.open(); });
+    },
+
+    ago(t){ return window.agSocial.timeAgo(t); },
+
+    count(){
+      fetch('/api/v1/pulse/alerts/count', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => { if (d && d.success) this.unread = d.unread | 0; })
+        .catch(() => {});
+    },
+
+    open(){
+      this.tab = 'alerts';
+      // Fetched once per page load. Re-fetching on every tab switch would make
+      // the list flicker for a screen whose contents change by the hour.
+      if (this._loaded || this.alertsLoading) return;
+      this.alertsLoading = true;
+      fetch('/api/v1/pulse/alerts', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => {
+          if (!d || !d.success) throw 0;
+          this.alerts = d.items || [];
+          this.unread = d.unread | 0;
+          this._loaded = true;
+        })
+        .catch(() => {})
+        .finally(() => { this.alertsLoading = false; });
+    },
+
+    markRead(){
+      // Optimistic, and deliberately does NOT re-fetch: the rows stay where
+      // they are and simply stop being highlighted. A list that reorders itself
+      // under your thumb the moment you press "mark all read" loses your place.
+      this.alerts = this.alerts.map(a => Object.assign({}, a, { unread: false }));
+      this.unread = 0;
+      fetch('/api/v1/pulse/alerts/read', {
+        method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      }).catch(() => {});
+    },
+
+    /** One glyph per kind, tinted like the reaction it refers to. */
+    alertIcon(kind){
+      var d = {
+        reaction:  ['#E0245E', PF_ICON.cheer],
+        reply:     ['#5AB6D9', '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z" fill="none" stroke="#5AB6D9" stroke-width="1.8" stroke-linejoin="round"/>'],
+        repost:    ['#7FC87C', '<path d="M17 2.5 20.5 6 17 9.5M20.5 6H7a3.5 3.5 0 0 0-3.5 3.5V11M7 21.5 3.5 18 7 14.5M3.5 18H17a3.5 3.5 0 0 0 3.5-3.5V13" fill="none" stroke="#7FC87C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'],
+        save:      ['#10292C', '<path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.4L5 21V4a1 1 0 0 1 1-1Z" fill="#10292C"/>'],
+        follow:    ['#237B22', '<path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm-8 9a8 8 0 0 1 16 0Z" fill="#237B22"/>'],
+        milestone: ['#C9A24B', PF_ICON.insight],
+      }[kind];
+      if (!d) return '';
+      return '<svg viewBox="0 0 24 24" style="fill:' + d[0] + '" aria-hidden="true" focusable="false">'
+             + d[1] + '</svg>';
+    }
+  };
+}
+
 function plFeed(cfg){
   return {
     items: cfg.items || [],
@@ -899,6 +1257,7 @@ function plFeed(cfg){
     sheet: { it: null, comment: '' },
     KINDS: ['cheer', 'insight', 'respect', 'support'],
     LABELS: { cheer:'Cheer', insight:'Insight', respect:'Respect', support:'Support' },
+    TIERS: { basic:'ID verified', verified:'Verified nominee', premium:'Official' },
     _tt: null, _lastTap: {}, _io: null, _poll: null, _hold: null, _pickTimer: null,
     get signInUrl(){ return window.agSocial.signInUrl(); },
 
@@ -953,6 +1312,16 @@ function plFeed(cfg){
       var d = PF_ICON[kind] || PF_ICON.cheer;
       var s = tint ? (' style="fill:' + PF_TINT[kind] + ';stroke:' + PF_TINT[kind] + '"') : '';
       return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"' + s + '>' + d + '</svg>';
+    },
+
+    /** The verification shield, or nothing at all for an unverified author. */
+    badge(tier){
+      var fill = PF_BADGE[tier];
+      if (!fill) return '';
+      return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">'
+        + '<path d="M12 1.9l8.1 2.9v6.5c0 5.2-3.3 9.2-8.1 11.2-4.8-2-8.1-6-8.1-11.2V4.8z" fill="' + fill + '"/>'
+        + '<path d="M8.7 12.1l2.3 2.3 4.3-4.7" stroke="#0B1A1B" stroke-width="2.4" '
+        + 'stroke-linecap="round" stroke-linejoin="round"/></svg>';
     },
 
     /** The kinds actually present on a post, busiest first, capped at three pips. */
