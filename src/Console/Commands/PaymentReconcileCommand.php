@@ -78,6 +78,10 @@ final class PaymentReconcileCommand extends Command
                 'failed'       => '  · marked failed',
                 'mismatch'     => '  ! AMOUNT MISMATCH',
                 'unverifiable' => '  ? could not verify',
+                // Not a failure — a checkout nobody ever completed, finally allowed
+                // to leave the queue. Named rather than silent, because "we gave up
+                // after three days" is a decision an operator should see being taken.
+                'expired'      => '  ✗ expired (abandoned checkout)',
                 default        => '  · still pending',
             };
             $io->writeln(sprintf('%s %s %s — %s', $mark, $it['kind'], $it['ref'], $it['note']));
@@ -89,10 +93,10 @@ final class PaymentReconcileCommand extends Command
         PaymentReconciler::log($r, 'cron');
 
         $io->success(sprintf(
-            '%schecked %d · confirmed %d (₦%s) · failed %d · mismatch %d · unverifiable %d',
+            '%schecked %d · confirmed %d (₦%s) · failed %d · mismatch %d · unverifiable %d · expired %d',
             $dry ? '[dry-run] ' : '',
             $r['checked'], $r['confirmed'], number_format($r['naira']),
-            $r['failed'], $r['mismatch'], $r['unverifiable']
+            $r['failed'], $r['mismatch'], $r['unverifiable'], $r['expired'] ?? 0
         ));
 
         // A mismatch is not a crash, but it is not success either — it is money that

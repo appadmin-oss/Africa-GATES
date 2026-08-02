@@ -68,9 +68,16 @@ final class SupportAutoResolver
      * that is not my payment". Here nobody is. So the reads that DISCLOSE are
      * dropped — there is no audience to disclose to — and what remains is the
      * work: look up how the platform stands, and repair the thing that broke.
+     *
+     * `voting_deadlines` qualifies on both counts: it is the published schedule
+     * plus two admin settings, with no payer, no member and no amount in it — and
+     * it is the difference between "my payment confirmed four minutes after the
+     * bell" being answered correctly and being guessed at. That question arrives
+     * on tickets more than any other.
      */
     private const SAFE_TOOLS = ['fix_payment', 'resend_receipt', 'site_state',
-                                'pricing', 'platform_health', 'help_search'];
+                                'pricing', 'platform_health', 'help_search',
+                                'voting_deadlines'];
 
     /** Tickets per sweep. A cron tick is not the place to answer two hundred. */
     private const PER_SWEEP = 12;

@@ -6,6 +6,7 @@ namespace AfricaGates\Services;
 use AfricaGates\Support\Env;
 use AfricaGates\Support\OptionalColumn;
 use Illuminate\Database\Capsule\Manager as DB;
+use Illuminate\Support\Carbon;
 
 /**
  * What the support agent is allowed to look at, and for whom.
@@ -152,6 +153,14 @@ final class SupportContext
                             . "already have money on its way back. ALWAYS check this before telling anybody a refund needs "
                             . "arranging. You cannot start one — only a person can.",
              'args' => ['reference' => 'the payment reference']],
+            ['name' => 'voting_deadlines',
+             'description' => "The three clocks that govern paid voting: when voting closes, the EARLIER moment card "
+                            . "payment stops for that category, and how long after the close a payment already in "
+                            . "progress can still deliver its votes. Use for \"why can't I pay when voting is still "
+                            . "open\", \"I paid just before it closed — do I get my votes\", \"how long do I have\", and "
+                            . "before telling anyone a late payment is lost. These three moments are different and "
+                            . "confusing them is what makes a supporter feel cheated.",
+             'args' => []],
         ];
 
         if ($this->isMember()) {
@@ -219,6 +228,7 @@ final class SupportContext
                 'check_reference'  => $this->checkReference((string) ($args['reference'] ?? '')),
                 'free_vote_help'   => $this->freeVoteHelp(),
                 'refund_status'    => RefundService::statusFor((string) ($args['reference'] ?? '')),
+                'voting_deadlines' => $this->votingDeadlines(),
                 'my_tickets'       => $this->myTickets(),
                 'my_nominations'   => $this->myNominations(),
                 'ops_summary'      => $this->opsSummary(),
@@ -741,6 +751,91 @@ final class SupportContext
                 ->where('voted_at', '>=', date('Y-m-d H:i:s', time() - 3600))
                 ->count();
         } catch (\Throwable) {}
+
+        return $out;
+    }
+
+    /**
+     * The three clocks, said out loud.
+     *
+     * ── WHY THIS IS ITS OWN TOOL ─────────────────────────────────────────────
+     *
+     * Paid voting does not have a deadline. It has three, and they fall at
+     * different moments:
+     *
+     *   CHECKOUT CLOSES   a few minutes BEFORE the ballot does. A card payment has
+     *                     to travel to a bank and back, and an order that cannot
+     *                     finish in time is one we should never have taken.
+     *   VOTING CLOSES     the ballot itself. Free voting runs right to this moment.
+     *   DELIVERY ENDS     hours AFTER the close. A payment STARTED before the bell
+     *                     still delivers its votes when the confirmation arrives
+     *                     late — it is judged on the buyer's clock, not the
+     *                     gateway's.
+     *
+     * A supporter refused at checkout while the ballot is visibly still open is
+     * certain something is broken, and the assistant had no way to tell them
+     * otherwise: `site_state` reports the cycle's close and nothing else, so the
+     * honest answer to "why can't I pay" was unavailable and the model filled the
+     * gap by guessing. It also could not answer the harder one — "it confirmed
+     * four minutes late, is my money gone" — where the true answer is usually no.
+     *
+     * Live values, not documentation: the cutoff and the grace are both admin
+     * settings, so a hard-coded sentence would start lying the first time either
+     * was changed.
+     */
+    private function votingDeadlines(): array
+    {
+        $cutoffMins  = PaidVoteService::checkoutCutoffMinutes();
+        $graceHours  = PaidVoteService::lateMintGraceHours();
+
+        $out = [
+            'now'   => date('Y-m-d H:i') . ' ' . date_default_timezone_get(),
+            'rules' => [
+                'checkout_closes_before_voting_by_minutes' => $cutoffMins,
+                'late_delivery_window_after_close_hours'   => $graceHours,
+                'free_voting_runs_to_the_close'            => true,
+            ],
+            // Written for the model to relay, because each of these is a sentence
+            // that has to be exactly right or it reads as an excuse.
+            'say' => [
+                'refused_at_checkout' => "Card payment for a category stops {$cutoffMins} minutes before voting "
+                                       . "closes, so a payment already under way has time to finish. Free voting "
+                                       . "is still open until the close — that is the thing to point them at.",
+                'paid_just_before'    => "A payment STARTED before voting closed still delivers its votes, even if "
+                                       . "the bank confirms it up to {$graceHours} hours late. It is judged on when "
+                                       . "they paid, not on when the confirmation reached us. Do not tell somebody "
+                                       . "in this position that they have missed it — run fix_payment on their "
+                                       . "reference first.",
+                'paid_after_close'    => "A payment that STARTED after voting closed cannot deliver votes. Nothing "
+                                       . "was counted, so the money goes back automatically — check refund_status "
+                                       . "before saying anything about arranging one.",
+            ],
+        ];
+
+        // Per-cycle, so the assistant can name an actual time rather than a rule.
+        try {
+            $rows = DB::table('gates_award_cycles as y')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'y.programme_id')
+                ->where('p.is_active', 1)
+                ->whereNotNull('y.voting_close')
+                ->orderByDesc('y.year')->limit(8)
+                ->get(['p.title as programme', 'y.year', 'y.status', 'y.voting_open', 'y.voting_close']);
+
+            $out['cycles'] = $rows->map(function ($r) use ($cutoffMins, $graceHours) {
+                $close = Carbon::parse((string) $r->voting_close);
+                return [
+                    'programme'       => (string) $r->programme,
+                    'year'            => (int) $r->year,
+                    'status'          => (string) $r->status,
+                    'voting_closes'   => $close->format('Y-m-d H:i'),
+                    'checkout_closes' => $close->copy()->subMinutes($cutoffMins)->format('Y-m-d H:i'),
+                    'delivery_ends'   => $close->copy()->addHours($graceHours)->format('Y-m-d H:i'),
+                ];
+            })->all();
+        } catch (\Throwable) {
+            // A cycle table that will not read is not a reason to withhold the
+            // rules — those are the part that answers the question.
+        }
 
         return $out;
     }

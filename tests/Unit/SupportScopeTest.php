@@ -198,4 +198,52 @@ final class SupportScopeTest extends TestCase
         $this->assertStringNotContainsString('my_transactions', $r['data']['note'],
             'a guest must not be told to use a tool they do not have');
     }
+
+    // ── the three clocks ─────────────────────────────────────────────────────
+
+    /**
+     * A supporter refused at checkout while the ballot is visibly still open is
+     * certain something is broken, and the assistant had no way to tell them
+     * otherwise — `site_state` reports the cycle's close and nothing else, so the
+     * true answer was unavailable and the model filled the gap by guessing.
+     *
+     * The values are LIVE, not documentation: both the cutoff and the late-delivery
+     * grace are admin settings, so a hard-coded sentence would start lying the
+     * first time either was changed.
+     */
+    public function test_the_deadline_tool_gives_all_three_clocks_and_reads_them_live(): void
+    {
+        $r = $this->guest()->run('voting_deadlines');
+
+        $this->assertTrue($r['ok']);
+        $rules = $r['data']['rules'];
+        $this->assertSame(\AfricaGates\Services\PaidVoteService::checkoutCutoffMinutes(),
+            $rules['checkout_closes_before_voting_by_minutes']);
+        $this->assertSame(\AfricaGates\Services\PaidVoteService::lateMintGraceHours(),
+            $rules['late_delivery_window_after_close_hours']);
+        $this->assertTrue($rules['free_voting_runs_to_the_close']);
+    }
+
+    /**
+     * The hardest of the three questions — "it confirmed four minutes late, is my
+     * money gone" — where the true answer is usually NO, and where a wrong answer
+     * sends somebody away believing they were robbed.
+     */
+    public function test_the_deadline_tool_refuses_to_write_off_a_payment_started_in_time(): void
+    {
+        $say = $this->guest()->run('voting_deadlines')['data']['say'];
+
+        $this->assertStringContainsString('fix_payment', $say['paid_just_before'],
+            'the model must be told to try the repair before saying anything is lost');
+        $this->assertStringContainsString('refund_status', $say['paid_after_close'],
+            'and to check for a refund already under way before offering to arrange one');
+        $this->assertStringContainsString('Free voting', $say['refused_at_checkout'],
+            'a buyer refused at the cutoff still has a ballot to use');
+    }
+
+    /** It is public schedule information, so it is available to a guest. */
+    public function test_the_deadline_tool_is_open_to_everyone(): void
+    {
+        $this->assertContains('voting_deadlines', $this->toolNames($this->guest()));
+    }
 }

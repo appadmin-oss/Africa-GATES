@@ -35,6 +35,9 @@
   .fi-act--unverifiable{background:#fdf0d5;color:#8a5a00}
   .fi-act--failed{background:#f3f4f6;color:#4b5563}
   .fi-act--pending{background:#eef2f0;color:#5a6d6f}
+  /* Grey with the other terminal states: an abandoned checkout is a row leaving
+     the queue, not money anybody needs to chase. */
+  .fi-act--expired{background:#f3f4f6;color:#4b5563}
   .fi-danger{border:1px solid #f0c9c9;background:#fdf3f3;border-radius:12px;padding:12px 14px}
   /* Focus must survive the visually-hidden input — the strip is keyboard-navigable
      with arrow keys, and without this the focused tab is invisible. */
@@ -351,6 +354,7 @@
             <span class="fi-note" style="margin:0">
               {{ recon.confirmed }} {{ recon.applied ? 'confirmed' : 'would be confirmed' }} (₦{{ recon.naira|number_format }})
               · {{ recon.mismatch }} mismatched · {{ recon.unverifiable }} unverifiable · {{ recon.failed }} failed
+              {% if recon.expired|default(0) %}· {{ recon.expired }} expired{% endif %}
             </span>
           </div>
 

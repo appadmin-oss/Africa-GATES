@@ -282,7 +282,7 @@ final class RefundService
         if ($claimed === 0) return false;   // another worker has it
 
         // ── 2. ask the gateway ───────────────────────────────────────────────
-        $provider = $this->providerFor($ref);
+        $provider = $this->providerFor($don);
         if ($provider === null) {
             $this->settle($don->id, 'failed', null, 'no gateway recognised this reference');
             error_log('[refund] no gateway recognised ' . $ref . ' — left for a human.');
@@ -338,15 +338,25 @@ final class RefundService
     /**
      * Which gateway took this money?
      *
-     * Donations do not store the provider — the reference carries it by
-     * convention (`paystack_…`), and where that fails every enabled gateway is
-     * asked whether it recognises the reference. Guessing wrong would send a
-     * refund request to a gateway that never took the payment; it would fail
-     * harmlessly, but it would also record a failure that is not true.
+     * The order RECORDS it now, which is the answer, and this is the one caller
+     * where being wrong sends money to the wrong place. It was guesswork: a
+     * `paystack_` reference prefix our own references have never carried (they are
+     * `AFG-PVOTE-…`), so in practice every refund fell through to asking each
+     * gateway in turn and taking the first that recognised it.
+     *
+     * The fallback is kept for orders taken before the column existed, and it is
+     * still a real verification rather than a guess — but a recorded provider is
+     * never second-guessed. Only when the recorded gateway has since been switched
+     * off in the environment do we look further, because a refund that cannot be
+     * sent at all is worse than one sent through the surviving gateway and refused.
      */
-    private function providerFor(string $reference): ?string
+    private function providerFor(object $don): ?string
     {
-        $enabled = $this->payments->enabledProviderIds();
+        $enabled  = $this->payments->enabledProviderIds();
+        $recorded = strtolower(trim((string) ($don->provider ?? '')));
+        if ($recorded !== '' && in_array($recorded, $enabled, true)) return $recorded;
+
+        $reference = (string) $don->payment_ref;
         foreach ($enabled as $p) {
             if (str_starts_with(strtolower($reference), $p . '_')) return $p;
         }

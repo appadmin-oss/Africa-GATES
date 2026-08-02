@@ -432,6 +432,12 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   refund_ref TEXT DEFAULT NULL,
   refund_reason TEXT DEFAULT NULL,
   refund_requested_at TEXT DEFAULT NULL,
+  -- WHICH gateway took the money. Without it the reconciler asks every gateway
+  -- about every reference, and a refund has to guess where to send cash back to.
+  provider TEXT DEFAULT NULL,
+  -- Stamped when the reconciler gives up on a checkout nobody ever completed.
+  -- `status` also becomes 'failed'; this records that TIME decided, not a bank.
+  expired_at TEXT DEFAULT NULL,
   -- Send-exactly-once claim stamps; see CheckoutMailer.
   receipt_sent_at TEXT DEFAULT NULL,
   abandoned_mail_at TEXT DEFAULT NULL,
@@ -439,6 +445,7 @@ CREATE TABLE IF NOT EXISTS gates_donations (
 );
 CREATE INDEX IF NOT EXISTS idx_donation_email ON gates_donations(donor_email);
 CREATE INDEX IF NOT EXISTS idx_donation_status ON gates_donations(status);
+CREATE INDEX IF NOT EXISTS idx_donations_pending_age ON gates_donations(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_donations_abandon ON gates_donations(status, abandoned_mail_at, created_at);
 CREATE INDEX IF NOT EXISTS idx_donation_refundable ON gates_donations(status, tier, votes_used, refund_requested_at);
 

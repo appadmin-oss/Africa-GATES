@@ -156,11 +156,16 @@ final class PaidVoteController
                 'intent_nominee_id' => $nomineeId,
                 'payment_ref'       => $reference,
                 'status'            => 'pending',
+                // WHICH gateway took the money. Dropped on an unmigrated database
+                // like `show_name`. Without it the reconciler asks every gateway
+                // about every reference, and a refund has to GUESS where to send
+                // money — see PaymentReconciler::providersFor.
+                'provider'          => $provider,
                 // Stored on the ORDER, not applied yet: the vote does not exist until
                 // the gateway confirms, and PaidVoteService::mint() copies this onto it.
                 'show_name'         => $showName ? 1 : 0,
                 'created_at'        => Carbon::now()->toDateTimeString(),
-            ], ['show_name']));
+            ], ['show_name', 'provider']));
         } catch (\Throwable $e) {
             $this->log?->error('[paid-vote] could not persist pending order', ['err' => $e->getMessage()]);
             return $bail('error');
@@ -343,9 +348,21 @@ final class PaidVoteController
             }
             return 'failed';
         }
-        if ((int)$v['amount'] !== (int)$don->amount_naira) {
-            $this->log?->warning('[paid-vote] amount mismatch — refusing to confirm', ['ref' => $reference]);
+        // SHORT of the price never confirms. OVER it does — see the long note in
+        // PaymentController::confirmByReference for why `!==` was the wrong test and
+        // what one gateway-dashboard toggle used to do to every payment on the site.
+        $paid     = (int) ($v['amount'] ?? 0);
+        $owed     = (int) $don->amount_naira;
+        $currency = strtoupper(trim((string) ($v['currency'] ?? '')));
+        if ($paid < $owed || !($currency === '' || $currency === 'NGN')) {
+            $this->log?->warning('[paid-vote] amount/currency mismatch — refusing to confirm', [
+                'ref' => $reference, 'expected' => $owed, 'verified' => $paid, 'currency' => $currency,
+            ]);
             return 'failed';
+        }
+        if ($paid > $owed) {
+            $this->log?->warning('[paid-vote] OVERPAID — confirming anyway',
+                ['ref' => $reference, 'expected' => $owed, 'paid' => $paid, 'surplus' => $paid - $owed]);
         }
         $changed = DB::table('gates_donations')->where('payment_ref', $reference)->where('status', 'pending')->update(['status' => 'confirmed']);
         return $changed > 0 ? 'confirmed' : 'already';

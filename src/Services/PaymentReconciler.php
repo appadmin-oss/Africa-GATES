@@ -60,11 +60,56 @@ use Illuminate\Support\Carbon;
  *
  * Every write is guarded by `where(status, 'pending')`, so two concurrent runs — a
  * cron and an admin pressing the button — cannot both fulfil the same order.
+ *
+ * ── THE QUEUE HAS TO STAY SHORT, OR IT STOPS WORKING ─────────────────────────
+ *
+ * A pending row leaves this queue by being confirmed or failed. An ABANDONED
+ * checkout is neither — Paystack reports it `abandoned`, which verify() maps to
+ * `pending`, so it was asked about again on every sweep forever. Most checkouts on
+ * a voting night are abandoned, so the backlog only grew.
+ *
+ * That was not just wasted API calls. The sweep read `ORDER BY id LIMIT 200` —
+ * OLDEST FIRST — so once the abandoned backlog passed the limit, every row beyond
+ * it was permanently out of reach, including the payments that genuinely
+ * succeeded. The safety net silently stopped catching anything, and it stopped at
+ * the busy end first: the more money came in, the less of it was reconciled.
+ *
+ * Two changes, and both are needed:
+ *   NEWEST FIRST     a payment made in the last hour is the one somebody is
+ *                    waiting on. It is now always in the first page.
+ *   AN AGE CEILING   a checkout still pending after {@see EXPIRE_AFTER_DAYS} is
+ *                    asked once more and then marked failed with `expired_at`
+ *                    stamped, so it leaves the queue instead of crowding it.
  */
 final class PaymentReconciler
 {
     /** Outcomes, in the order an operator cares about them. */
-    public const ACTIONS = ['confirmed', 'mismatch', 'failed', 'unverifiable', 'pending'];
+    public const ACTIONS = ['confirmed', 'mismatch', 'failed', 'unverifiable', 'pending', 'expired'];
+
+    /**
+     * A checkout still pending after this long is treated as abandoned.
+     *
+     * Three days, not three hours. A Nigerian bank transfer can settle the next
+     * morning, and a gateway's own reversal window is longer than its checkout
+     * window — so the ceiling has to sit well past any honest late settlement. The
+     * row is still VERIFIED one last time before it is expired, so a payment that
+     * did arrive on day three is confirmed rather than written off.
+     *
+     * It also must not undercut {@see CheckoutMailer::WINDOW_HOURS}: that sweep
+     * finds abandoned carts by `status = 'pending'`, so expiring a row before the
+     * mailer has finished with it would silently stop the "you left this behind"
+     * email. Two constants, one queue — {@see expiryCutoff()} takes the later of
+     * them so lowering this one can never quietly delete a feature.
+     */
+    private const EXPIRE_AFTER_DAYS = 3;
+
+    /** The moment before which a still-pending checkout is treated as dead. */
+    private static function expiryCutoff(): Carbon
+    {
+        $mine    = Carbon::now()->subDays(self::EXPIRE_AFTER_DAYS);
+        $mailers = Carbon::now()->subHours(CheckoutMailer::WINDOW_HOURS);
+        return $mine->lt($mailers) ? $mine : $mailers;
+    }
 
     public function __construct(
         private readonly PaymentService $payments = new PaymentService(),
@@ -80,7 +125,7 @@ final class PaymentReconciler
      *
      * @return array{
      *   applied:bool, checked:int, confirmed:int, failed:int, mismatch:int,
-     *   unverifiable:int, pending:int, naira:int,
+     *   unverifiable:int, pending:int, expired:int, naira:int,
      *   items:list<array{kind:string,ref:string,who:string,ours:string,gateway:string,
      *                    amount_ours:int,amount_gateway:int,action:string,note:string}>
      * }
@@ -110,6 +155,7 @@ final class PaymentReconciler
             'mismatch'     => $tally['mismatch'],
             'unverifiable' => $tally['unverifiable'],
             'pending'      => $tally['pending'],
+            'expired'      => $tally['expired'],
             'naira'        => $naira,
             'items'        => $items,
         ];
@@ -120,8 +166,10 @@ final class PaymentReconciler
     {
         $out = [];
         try {
+            // Newest first, for the same reason as donations(): the abandoned
+            // basket from last month must never push today's paid order off the page.
             $rows = DB::table('gates_orders')->where('status', 'pending')
-                ->where('created_at', '<', $cutoff)->orderBy('id')->limit($limit)->get();
+                ->where('created_at', '<', $cutoff)->orderByDesc('id')->limit($limit)->get();
         } catch (\Throwable) {
             return [];
         }
@@ -170,17 +218,25 @@ final class PaymentReconciler
                 continue;
             }
             // Amount parity is load-bearing: never confirm an order for less than its
-            // subtotal. A short payment is a person's problem, not a cron's.
-            if ($row['amount_gateway'] !== $row['amount_ours']) {
+            // subtotal. A short payment is a person's problem, not a cron's. Paying
+            // MORE than the subtotal is not a short payment and is not held back —
+            // that only ever left a paying customer with nothing.
+            if ($row['amount_gateway'] < $row['amount_ours'] || !$this->currencyAgrees($v)) {
                 $row['action'] = 'mismatch';
-                $row['note']   = 'paid ₦' . number_format($row['amount_gateway'])
-                               . ' against ₦' . number_format($row['amount_ours']) . ' ordered';
+                $row['note']   = $this->currencyAgrees($v)
+                    ? 'paid ₦' . number_format($row['amount_gateway'])
+                      . ' against ₦' . number_format($row['amount_ours']) . ' ordered'
+                    : 'paid in ' . ((string) ($v['currency'] ?? '?')) . ', not NGN';
                 $out[] = $row;
                 continue;
             }
 
             $row['action'] = 'confirmed';
             $row['note']   = $apply ? 'confirmed and fulfilled' : 'would be confirmed';
+            if ($row['amount_gateway'] > $row['amount_ours']) {
+                $row['note'] .= ' (overpaid by ₦'
+                    . number_format($row['amount_gateway'] - $row['amount_ours']) . ')';
+            }
             if ($apply) {
                 // Idempotent: only the single winning pending→paid writer fulfils.
                 $changed = DB::table('gates_orders')->where('reference', $o->reference)
@@ -278,22 +334,28 @@ final class PaymentReconciler
                     'message' => 'That payment is already confirmed and its votes were added.'];
         }
 
-        // Still pending on our side. Ask every enabled gateway — the reference
-        // format does not reliably say which one took the money.
-        foreach ($this->payments->enabledProviderIds() as $provider) {
+        // Not confirmed on our side — pending, or written off as failed/expired.
+        // Ask the gateway that took it; only when we did not record one is every
+        // enabled gateway tried in turn.
+        foreach ($this->providersFor($d, $this->payments->enabledProviderIds()) as $provider) {
             $v = $this->payments->verify($provider, $ref);
             if (!($v['ok'] ?? false) || ($v['status'] ?? '') !== 'success') continue;
 
             // The same amount check the live path makes. A gateway saying "paid"
-            // for a different amount is not authorisation to credit THIS order.
-            if ((int) ($v['amount'] ?? 0) !== (int) $d->amount_naira) {
+            // for LESS than the order is not authorisation to credit it.
+            if ((int) ($v['amount'] ?? 0) < (int) $d->amount_naira || !$this->currencyAgrees($v)) {
                 return ['ok' => false, 'code' => 'MISMATCH', 'status' => 'pending',
                         'message' => 'The gateway shows a different amount for that reference, so I have not '
                                    . 'credited anything. The team will look at it.'];
             }
 
+            // 'failed' is included deliberately. A checkout the sweep expired after
+            // three days, or one a transient gateway error marked failed, is exactly
+            // the row a buyer comes to support holding a bank debit alert for — and
+            // the gateway has just said it was paid. Still a conditional UPDATE, so
+            // only one writer wins and a confirmed row is never touched.
             $changed = DB::table('gates_donations')->where('payment_ref', $ref)
-                ->where('status', 'pending')->update(['status' => 'confirmed']);
+                ->whereIn('status', ['pending', 'failed'])->update(['status' => 'confirmed']);
             if ($changed === 0) {
                 return ['ok' => true, 'code' => 'ALREADY', 'status' => 'confirmed',
                         'message' => 'That payment was confirmed a moment ago — your votes are on their way.'];
@@ -320,12 +382,18 @@ final class PaymentReconciler
         $providers = $this->payments->enabledProviderIds();
         if (!$providers) return [];
 
+        // NEWEST FIRST. The row somebody is refreshing their inbox over was made in
+        // the last few minutes; the row from six weeks ago is an abandoned cart. The
+        // old ascending order meant the abandoned carts were reconciled first and,
+        // once there were more of them than the limit, they were reconciled ONLY.
         try {
             $rows = DB::table('gates_donations')->where('status', 'pending')
-                ->where('created_at', '<', $cutoff)->orderBy('id')->limit($limit)->get();
+                ->where('created_at', '<', $cutoff)->orderByDesc('id')->limit($limit)->get();
         } catch (\Throwable) {
             return [];
         }
+
+        $deadline = self::expiryCutoff()->toDateTimeString();
 
         $out = [];
         foreach ($rows as $d) {
@@ -338,7 +406,14 @@ final class PaymentReconciler
                 'action' => 'unverifiable', 'note' => 'no gateway recognised this reference',
             ];
 
-            foreach ($providers as $provider) {
+            $stale = (string) ($d->created_at ?? '') !== '' && (string) $d->created_at < $deadline;
+
+            // The recorded gateway, when we have it. Only when we do not — orders
+            // taken before the column existed — is every gateway asked in turn.
+            // That loop is what made a 200-row sweep 400 HTTPS calls long.
+            $ask = $this->providersFor($d, $providers);
+
+            foreach ($ask as $provider) {
                 $v = $this->payments->verify($provider, (string) $d->payment_ref);
                 if (!$v['ok'] || ($v['status'] ?? '') !== 'success') {
                     continue;   // not this gateway, or not paid yet — try the next
@@ -346,16 +421,29 @@ final class PaymentReconciler
 
                 $row['gateway']        = 'success';
                 $row['amount_gateway'] = (int) ($v['amount'] ?? 0);
+                $stale = false;      // it PAID. Age is no longer the interesting fact.
 
-                if ($row['amount_gateway'] !== $row['amount_ours']) {
+                // Short of the price is never confirmed by a cron. Over it is: the
+                // buyer has paid at least what was asked and refusing them leaves
+                // money with us and nothing delivered. Same rule as the live path.
+                if ($row['amount_gateway'] < $row['amount_ours']) {
                     $row['action'] = 'mismatch';
                     $row['note']   = 'paid ₦' . number_format($row['amount_gateway'])
                                    . ' against ₦' . number_format($row['amount_ours']) . ' expected';
                     break;
                 }
+                if (!$this->currencyAgrees($v)) {
+                    $row['action'] = 'mismatch';
+                    $row['note']   = 'paid in ' . ((string) ($v['currency'] ?? '?')) . ', not NGN';
+                    break;
+                }
 
                 $row['action'] = 'confirmed';
                 $row['note']   = $apply ? 'confirmed' : 'would be confirmed';
+                if ($row['amount_gateway'] > $row['amount_ours']) {
+                    $row['note'] .= ' (overpaid by ₦'
+                        . number_format($row['amount_gateway'] - $row['amount_ours']) . ')';
+                }
                 if ($apply) {
                     $changed = DB::table('gates_donations')->where('payment_ref', $d->payment_ref)
                         ->where('status', 'pending')->update(['status' => 'confirmed']);
@@ -367,9 +455,74 @@ final class PaymentReconciler
                 }
                 break;   // a provider recognised this reference — done with this row
             }
+
+            // Asked, and still nobody says it was paid, and it is older than the
+            // ceiling. Tombstone it so the queue can move on. Note the ORDER: this
+            // runs after the gateways have had their say, so a genuinely late
+            // settlement on day three is confirmed rather than written off.
+            if ($stale && $row['action'] === 'unverifiable') {
+                $row['action'] = 'expired';
+                $row['note']   = 'abandoned — no gateway has seen it since '
+                               . self::expiryCutoff()->format('Y-m-d H:i');
+                if ($apply) $this->expire($d);
+            }
+
             $out[] = $row;
         }
         return $out;
+    }
+
+    /**
+     * Which gateway to ask about this row, best first.
+     *
+     * The stored provider is authoritative and makes this one call. It is not
+     * treated as the ONLY answer, though: a row whose recorded gateway has since
+     * been switched off in the environment would otherwise become permanently
+     * unverifiable, which is the abandoned-queue problem all over again.
+     *
+     * @param list<string> $enabled
+     * @return list<string>
+     */
+    private function providersFor(object $d, array $enabled): array
+    {
+        $stored = strtolower(trim((string) ($d->provider ?? '')));
+        if ($stored === '' || !in_array($stored, $enabled, true)) return $enabled;
+        return array_merge([$stored], array_values(array_diff($enabled, [$stored])));
+    }
+
+    /**
+     * Everything is priced and charged in naira. A gateway reporting success in
+     * another currency has not paid this order, whatever the number says — ₦5,000
+     * and $5,000 are the same integer and three orders of magnitude apart.
+     */
+    private function currencyAgrees(array $v): bool
+    {
+        $c = strtoupper(trim((string) ($v['currency'] ?? '')));
+        return $c === '' || $c === 'NGN';   // '' = a gateway that does not report one
+    }
+
+    /**
+     * Mark an abandoned checkout dead so it stops crowding the queue.
+     *
+     * `status = failed` because that is the vocabulary the finance pages, the
+     * abandoned-cart mailer and every other reader already understand. `expired_at`
+     * alongside it records that TIME decided this, not a gateway — so months later
+     * "we gave up after three days" is still distinguishable from "the bank said no",
+     * and a support conversation about an old reference gets the honest answer.
+     */
+    private function expire(object $d): void
+    {
+        try {
+            DB::table('gates_donations')
+                ->where('payment_ref', $d->payment_ref)
+                ->where('status', 'pending')
+                ->update(OptionalColumn::filter('gates_donations', [
+                    'status'     => 'failed',
+                    'expired_at' => Carbon::now()->toDateTimeString(),
+                ], ['expired_at']));
+        } catch (\Throwable $e) {
+            error_log('[reconcile] could not expire ' . $d->payment_ref . ': ' . $e->getMessage());
+        }
     }
 
     /**

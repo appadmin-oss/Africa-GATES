@@ -182,7 +182,12 @@ final class PaymentController
         //    has something to reconcile against and nothing is credited until
         //    server-side verification flips it to 'confirmed'.
         try {
-            DB::table('gates_donations')->insert([
+            // `provider` is dropped on an unmigrated database rather than throwing,
+            // for the same reason `show_name` is on the paid-vote path: losing which
+            // gateway took the money costs a lookup later, losing the INSERT costs
+            // the buyer the ability to pay at all. Everything downstream still
+            // falls back to asking every gateway when the column is absent.
+            DB::table('gates_donations')->insert(\AfricaGates\Support\OptionalColumn::filter('gates_donations', [
                 'donor_name'     => $name !== '' ? $name : 'Supporter',
                 'donor_email'    => $email,
                 'donor_phone'    => $phone !== '' ? $phone : null,
@@ -193,8 +198,9 @@ final class PaymentController
                 'votes_used'     => 0,
                 'payment_ref'    => $reference,
                 'status'         => 'pending',
+                'provider'       => $provider,
                 'created_at'     => Carbon::now()->toDateTimeString(),
-            ]);
+            ], ['provider']));
         } catch (\Throwable $e) {
             $this->log?->error('[payment] could not persist pending donation', ['err' => $e->getMessage()]);
             return $bail('Could not start checkout. Please try the enquiry form.');
@@ -346,13 +352,16 @@ final class PaymentController
         // Refund / chargeback / dispute → claw back the purchased votes this
         // donation bought. Purely ADDITIVE: it never runs the confirm path and
         // only removes paid display votes (organic CPI is untouched).
-        if ($this->webhookIsReversal($payload)) {
+        $reversal = $this->webhookReversalKind($payload);
+        if ($reversal !== null) {
             $ref = $this->webhookReversalReference($provider, $payload);
             if ($ref !== '') {
                 $d = DB::table('gates_donations')->where('payment_ref', $ref)->first();
                 if ($d) {
-                    $r = \AfricaGates\Services\BonusVoteService::clawbackDonation((int) $d->id, null, 'webhook:' . $provider);
-                    $this->log?->info('[payment] reversal clawback', ['ref' => $ref, 'provider' => $provider, 'cleared' => $r['cleared'] ?? 0]);
+                    $r = \AfricaGates\Services\BonusVoteService::clawbackDonation((int) $d->id, null, 'webhook:' . $provider . ':' . $reversal);
+                    $this->log?->info('[payment] reversal clawback', [
+                        'ref' => $ref, 'provider' => $provider, 'event' => $reversal, 'cleared' => $r['cleared'] ?? 0,
+                    ]);
                 }
             }
             return $res->withStatus(200);   // ack either way so the gateway stops retrying
@@ -391,7 +400,14 @@ final class PaymentController
     private function confirmByReference(string $provider, string $reference, object $donation, string $source): string
     {
         if (($donation->status ?? '') === 'confirmed') {
-            return 'already'; // idempotent fast-path; never re-credits
+            // Idempotent fast-path: the money is settled and is never re-verified
+            // or re-credited. But it is NOT nothing-to-do. The commonest way to
+            // arrive here is the webhook reading a row the browser callback
+            // confirmed a second earlier — and if that callback's mint was refused
+            // or its process died, this is the only other chance anybody gets. Both
+            // calls claim before they act, so a completed order is untouched.
+            $this->deliver($reference);
+            return 'already';
         }
 
         $v = $this->payments->verify($provider, $reference);
@@ -407,13 +423,36 @@ final class PaymentController
             return 'failed';
         }
 
-        // CRITICAL: the verified amount must equal what we asked the buyer to pay.
-        // Guards against a buyer paying a different amount or a forged callback.
-        if ((int) $v['amount'] !== (int) $donation->amount_naira) {
-            $this->log?->warning('[payment] amount mismatch — refusing to confirm', [
-                'ref' => $reference, 'expected' => (int) $donation->amount_naira, 'verified' => (int) $v['amount'],
+        // CRITICAL: the buyer must have paid at least what we asked for, in naira.
+        //
+        // ── WHY THIS IS `<` AND NOT `!==` ────────────────────────────────────
+        //
+        // Strict equality refused an OVERpayment as hard as an underpayment, and
+        // the two are nothing alike. Short of the price is a partial payment or a
+        // tampered reference and must never confirm. Over the price is somebody who
+        // paid MORE than we asked and got nothing: the row stayed `pending`, so the
+        // refund sweep — which only ever looks at CONFIRMED orders — never saw it
+        // either. They were owed money by rules that could not reach them.
+        //
+        // It is not hypothetical. Turning on "customer bears the transaction fee" in
+        // a gateway dashboard adds the fee to the charged amount, and every single
+        // payment on the platform then arrives a few hundred naira over and is
+        // refused. One dashboard toggle, total outage, no code change.
+        //
+        // The surplus is logged rather than silently absorbed, because money we did
+        // not ask for is a conversation somebody has to have.
+        if ((int) $v['amount'] < (int) $donation->amount_naira || !$this->currencyAgrees($v)) {
+            $this->log?->warning('[payment] amount/currency mismatch — refusing to confirm', [
+                'ref' => $reference, 'expected' => (int) $donation->amount_naira,
+                'verified' => (int) $v['amount'], 'currency' => (string) ($v['currency'] ?? ''),
             ]);
             return 'failed';
+        }
+        if ((int) $v['amount'] > (int) $donation->amount_naira) {
+            $this->log?->warning('[payment] OVERPAID — confirming anyway', [
+                'ref' => $reference, 'expected' => (int) $donation->amount_naira,
+                'paid' => (int) $v['amount'], 'surplus' => (int) $v['amount'] - (int) $donation->amount_naira,
+            ]);
         }
 
         // IDEMPOTENT transition: the WHERE status='pending' clause means only the
@@ -433,27 +472,55 @@ final class PaymentController
                 'amount'    => $v['amount'] ?? null,
                 'source'    => $source,
             ]);
-            // Paid-vote orders: a confirmed payment auto-mints the votes for the
-            // nominee the order was created for. Idempotent (guarded votes_used
-            // flip) so the browser callback minting the same order is harmless.
-            try {
-                $row = DB::table('gates_donations')->where('payment_ref', $reference)->first(['id', 'tier', 'intent_nominee_id']);
-                if ($row && ($row->tier ?? '') === 'paid-vote' && !empty($row->intent_nominee_id)) {
-                    \AfricaGates\Services\PaidVoteService::mint((int) $row->id);
-                    // The buyer's receipt — and the one path that NEEDS it, because a
-                    // webhook confirm means the browser never came back, so the
-                    // confirmation page was never seen. Claimed once per order, so
-                    // whichever of {webhook, callback} lands second sends nothing.
-                    \AfricaGates\Services\CheckoutMailer::receipt((int) $row->id);
-                }
-            } catch (\Throwable $e) {
-                $this->log?->error('[payment] paid-vote mint failed', ['ref' => $reference, 'err' => $e->getMessage()]);
-            }
+            $this->deliver($reference);
             return 'confirmed';
         }
 
         // 0 rows: someone else confirmed it between our read and write.
+        //
+        // DELIVER ANYWAY. This used to return here, which quietly assumed the writer
+        // that won the race also finished the job. It need not have: mint() can be
+        // refused, the process can die between the flip and the mint, a receipt can
+        // throw. The loser of the race then walked away from a confirmed order with
+        // no votes on it — and the WEBHOOK is very often that loser, because a buyer
+        // paying inside a wallet app comes back late or not at all. Both calls are
+        // idempotent, so the second one either finishes the work or does nothing.
+        $this->deliver($reference);
         return 'already';
+    }
+
+    /**
+     * Everything a confirmed order still owes its buyer. Idempotent, and it never
+     * throws: a receipt failure must not undo a confirmation.
+     */
+    private function deliver(string $reference): void
+    {
+        try {
+            $row = DB::table('gates_donations')->where('payment_ref', $reference)->first(['id', 'tier', 'intent_nominee_id']);
+            if ($row && ($row->tier ?? '') === 'paid-vote' && !empty($row->intent_nominee_id)) {
+                // Guarded by the votes_used claim, so a second call credits nothing.
+                \AfricaGates\Services\PaidVoteService::mint((int) $row->id);
+                // The buyer's receipt — and the one path that NEEDS it, because a
+                // webhook confirm means the browser never came back, so the
+                // confirmation page was never seen. Claimed once per order, so
+                // whichever of {webhook, callback} lands second sends nothing.
+                \AfricaGates\Services\CheckoutMailer::receipt((int) $row->id);
+            }
+        } catch (\Throwable $e) {
+            $this->log?->error('[payment] paid-vote delivery failed', ['ref' => $reference, 'err' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Everything is priced and charged in naira. A gateway reporting success in
+     * another currency has not paid THIS order, whatever the number says — ₦5,000
+     * and $5,000 are the same integer and three orders of magnitude apart, and the
+     * amount check above compares integers.
+     */
+    private function currencyAgrees(array $v): bool
+    {
+        $c = strtoupper(trim((string) ($v['currency'] ?? '')));
+        return $c === '' || $c === 'NGN';   // '' = a gateway that does not report one
     }
 
     // ──────────────────────────── webhook helpers ───────────────────────────
@@ -506,15 +573,59 @@ final class PaymentController
         return '';
     }
 
-    /** True when the webhook event is a refund / chargeback / dispute / reversal. */
-    private function webhookIsReversal(array $payload): bool
+    /**
+     * Did money actually go BACK?
+     *
+     * ── WHY THIS IS NOT A SUBSTRING SEARCH ───────────────────────────────────
+     *
+     * It used to be: any event whose name contained "refund" or "dispute" claimed
+     * back the votes that donation had bought. Both gateways emit an event per STEP
+     * of a refund, not just per outcome, so that matched:
+     *
+     *   refund.failed        the refund did NOT happen. The buyer still has no
+     *                        money back — and now no votes either, permanently,
+     *                        because the clawback stamps `refunded_at` and that
+     *                        blocks both re-minting and redeeming. The single worst
+     *                        outcome available, produced by the gateway telling us
+     *                        nothing had happened.
+     *   refund.pending       queued, hours from settling, might still fail.
+     *   charge.dispute.remind  a reminder to respond to a dispute we already
+     *                        handled at .create.
+     *
+     * Removing somebody's votes cannot be undone from here, so the rule is now the
+     * other way round: act ONLY on events that mean the money is gone, name them,
+     * and treat everything else as information. An unrecognised money-movement
+     * event is LOGGED rather than acted on — a person reading a warning is a much
+     * better failure than a supporter silently losing what they paid for.
+     */
+    private function webhookReversalKind(array $payload): ?string
     {
-        $event = strtolower((string)($payload['event'] ?? ($payload['event.type'] ?? ($payload['type'] ?? ''))));
-        if ($event === '') return false;
-        foreach (['refund', 'dispute', 'chargeback', 'charge.back', 'reversed', 'reversal'] as $needle) {
-            if (str_contains($event, $needle)) return true;
+        $event = strtolower(trim((string)($payload['event'] ?? ($payload['event.type'] ?? ($payload['type'] ?? '')))));
+        if ($event === '') return null;
+
+        // Steps along the way, not outcomes. Explicit, and checked FIRST so no
+        // later pattern can reach them.
+        foreach (['refund.failed', 'refund.pending', 'refund.processing',
+                  'dispute.remind', 'dispute.resolve'] as $step) {
+            if (str_contains($event, $step)) return null;
         }
-        return false;
+
+        // The money is gone. A dispute at CREATE is included on purpose: the bank
+        // has already pulled the funds, whatever the eventual resolution.
+        foreach (['refund.processed', 'refund.completed', 'refund.success', 'charge.refunded',
+                  'chargeback', 'charge.back', 'dispute.create', 'reversed', 'reversal'] as $done) {
+            if (str_contains($event, $done)) return $event;
+        }
+
+        // Names a refund or a dispute and matches nothing above — a gateway has
+        // added an event, or renamed one. Say so; do not guess with someone's votes.
+        foreach (['refund', 'dispute', 'chargeback'] as $hint) {
+            if (str_contains($event, $hint)) {
+                $this->log?->warning('[payment] unrecognised reversal-shaped webhook — no clawback', ['event' => $event]);
+                return null;
+            }
+        }
+        return null;
     }
 
     /**
