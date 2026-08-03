@@ -50,6 +50,30 @@ class PaymentService
 
     private const TIMEOUT = 15;
 
+    /**
+     * How long a payment may still legitimately be MOVING.
+     *
+     * ── ONE FACT, BECAUSE SEVERAL PLACES WERE GUESSING IT SEPARATELY ─────────
+     *
+     * Not every payment here is a card. A bank transfer settles when the bank
+     * feels like it, USSD involves a person walking through a menu on a feature
+     * phone, and a wallet app switch can strand a buyer on a network that drops.
+     * Thirty to ninety minutes is ordinary, not pathological.
+     *
+     * Anything that declares a pending checkout DEAD — an abandoned-cart nudge, a
+     * reconciliation tombstone — must sit outside this window, or it is telling
+     * somebody they did not pay while they are in the middle of paying. Each of
+     * those places used to pick its own number; this is the number.
+     *
+     * DELIBERATELY NOT the same constant as {@see GatewayHandoff}'s TTL, which
+     * governs a stored checkout URL. That URL is a bearer capability for a live
+     * payment session, and "how patient we are with a slow bank" and "how long a
+     * capability may sit in a session" are different questions that must be
+     * allowed to have different answers. Tolerance growing must never drag a
+     * credential's lifetime along with it.
+     */
+    public const IN_FLIGHT_MINUTES = 120;
+
     public function __construct(private readonly ?LoggerInterface $log = null) {}
 
     /** Whether $provider is a provider we know how to talk to. */
@@ -175,12 +199,37 @@ class PaymentService
      * `refunded` as an error will retry a refund that is already on its way —
      * which is how somebody gets paid back twice.
      *
-     * @return array{ok:bool, status:'refunded'|'pending'|'failed', message:string, provider_ref:?string}
+     * ── AND IT SAYS WHETHER "NO" IS WORTH ASKING AGAIN ───────────────────────
+     *
+     * `retryable` classifies the refusal, because "the gateway said no" is two
+     * completely different events wearing the same word:
+     *
+     *   true   The gateway could not do it JUST NOW. An insufficient settlement
+     *          balance is the common one here and it is a clock problem, not a
+     *          decision: Nigerian card settlement is T+1, so the refund refused at
+     *          09:00 very often succeeds by itself that evening. A person told
+     *          about it has nothing to do but wait.
+     *   false  The gateway will never do it. An unknown reference, a transaction
+     *          past the refundable age, a revoked key, a permission that is not
+     *          granted. Waiting cannot help, so every retry is noise and every
+     *          hour of retrying is an hour a person has not been told.
+     *   null   Unrecognised. Not assumed either way.
+     *
+     * Classified HERE and not in the caller, because this is the layer that has
+     * the gateway's own words and its HTTP status. {@see RefundService} then makes
+     * a policy decision from a typed signal instead of grepping prose, and adding
+     * a provider does not mean teaching a second class to read its error strings.
+     *
+     * @return array{ok:bool, status:'refunded'|'pending'|'failed', message:string,
+     *               provider_ref:?string, retryable?:?bool}
      */
     public function refund(string $provider, string $reference, ?int $amountNaira = null): array
     {
+        // A refusal WE generate before any network call is permanent by
+        // construction: no gateway has been asked, and nothing about waiting
+        // changes an unconfigured provider or a missing reference.
         $fail = static fn(string $m): array =>
-            ['ok' => false, 'status' => 'failed', 'message' => $m, 'provider_ref' => null];
+            ['ok' => false, 'status' => 'failed', 'message' => $m, 'provider_ref' => null, 'retryable' => false];
 
         if (!$this->isEnabled($provider)) return $fail('Payment provider is not available.');
         if (trim($reference) === '')      return $fail('Missing payment reference.');
@@ -197,9 +246,58 @@ class PaymentService
             // NOT 'failed'. A thrown exception means we do not know whether the
             // gateway accepted it, and reporting a definite failure for an unknown
             // outcome is what makes a caller retry into a double refund.
-            return ['ok' => false, 'status' => 'pending', 'provider_ref' => null,
+            return ['ok' => false, 'status' => 'pending', 'provider_ref' => null, 'retryable' => null,
                     'message' => 'Could not reach the gateway. The refund may or may not have been accepted — check before retrying.'];
         }
+    }
+
+    /**
+     * Will waiting help?
+     *
+     * ── WHY PHRASE MATCHING, AND WHY THAT IS ACCEPTABLE HERE ─────────────────
+     *
+     * Neither gateway returns a machine-readable refusal code on the refund
+     * endpoint — Paystack and Flutterwave both answer with `message` written for a
+     * human. So the choice is between reading those words and treating every "no"
+     * identically, and treating them identically is what produced a day of pointless
+     * retries on a revoked API key.
+     *
+     * The classification is deliberately CONSERVATIVE in one direction: an
+     * unrecognised message returns null, not a guess. Null gets a short bounded
+     * schedule rather than either extreme, so a gateway that rewords an error never
+     * causes an infinite loop and never silently abandons a refund that is owed.
+     *
+     * HTTP status is consulted first because it is the one structured signal both
+     * gateways do give: 5xx and 429 are the gateway's own admission that this was
+     * about capacity rather than about the request.
+     */
+    private static function classifyRefusal(int $httpCode, string $message): ?bool
+    {
+        if ($httpCode >= 500 || $httpCode === 429 || $httpCode === 408) return true;
+
+        $m = mb_strtolower($message);
+
+        // Permanent FIRST. "insufficient permission" contains "insufficient", and
+        // reading it as an insufficient balance would retry a revoked key for a day.
+        foreach ([
+            'not found', 'does not exist', 'unknown transaction', 'invalid transaction',
+            'invalid key', 'invalid secret', 'unauthor', 'forbidden', 'permission', 'not allowed',
+            'not permitted', 'disabled', 'too old', 'no longer', 'cannot be refunded',
+            'not refundable', 'exceeds', 'greater than', 'more than the', 'currency',
+        ] as $needle) {
+            if (str_contains($m, $needle)) return false;
+        }
+
+        // Transient: the gateway is telling us to come back.
+        foreach ([
+            'insufficient', 'balance', 'try again', 'temporar', 'timeout', 'timed out',
+            'unavailable', 'rate limit', 'too many', 'busy', 'settlement', 'processing',
+            'in progress', 'later',
+        ] as $needle) {
+            if (str_contains($m, $needle)) return true;
+        }
+
+        return null;   // unrecognised — say so rather than guess
     }
 
     // ─────────────────────────────── Paystack ───────────────────────────────
@@ -285,10 +383,15 @@ class PaymentService
             // failure leaves the row unmarked and invites another attempt.
             if (stripos($msg, 'already') !== false && stripos($msg, 'refund') !== false) {
                 return ['ok' => true, 'status' => 'refunded', 'message' => 'Already refunded at the gateway.',
-                        'provider_ref' => null];
+                        'provider_ref' => null, 'retryable' => false];
             }
-            $this->log?->warning('[payment] paystack refund refused', ['ref' => $reference, 'http' => $res['code'], 'msg' => $msg]);
-            return ['ok' => false, 'status' => 'failed', 'message' => $msg, 'provider_ref' => null];
+            $retryable = self::classifyRefusal((int) $res['code'], $msg);
+            $this->log?->warning('[payment] paystack refund refused', [
+                'ref' => $reference, 'http' => $res['code'], 'msg' => $msg,
+                'retryable' => $retryable === null ? 'unknown' : ($retryable ? 'yes' : 'no'),
+            ]);
+            return ['ok' => false, 'status' => 'failed', 'message' => $msg,
+                    'provider_ref' => null, 'retryable' => $retryable];
         }
 
         // Paystack refund status: 'pending' | 'processing' | 'processed' | 'failed'
@@ -376,8 +479,15 @@ class PaymentService
         $txId = $look['json']['data']['id'] ?? null;
 
         if (!$look['ok'] || !$txId) {
+            // A 5xx on the lookup is the gateway being unwell, not the reference
+            // being wrong — and telling those apart is the difference between
+            // waiting an hour and telling a person their refund needs doing by hand.
+            $transportFault = (int) $look['code'] >= 500 || (int) $look['code'] === 429;
             return ['ok' => false, 'status' => 'failed', 'provider_ref' => null,
-                    'message' => 'Flutterwave does not recognise that reference, so nothing was refunded.'];
+                    'retryable' => $transportFault,
+                    'message' => $transportFault
+                        ? 'Flutterwave could not be asked about that reference just now.'
+                        : 'Flutterwave does not recognise that reference, so nothing was refunded.'];
         }
 
         $res  = $this->request('POST',
@@ -388,9 +498,14 @@ class PaymentService
         $data = is_array($body['data'] ?? null) ? $body['data'] : [];
 
         if (!$res['ok'] || ($body['status'] ?? '') !== 'success') {
-            $msg = (string) ($body['message'] ?? 'Refund was refused.');
-            $this->log?->warning('[payment] flutterwave refund refused', ['ref' => $reference, 'http' => $res['code'], 'msg' => $msg]);
-            return ['ok' => false, 'status' => 'failed', 'message' => $msg, 'provider_ref' => null];
+            $msg       = (string) ($body['message'] ?? 'Refund was refused.');
+            $retryable = self::classifyRefusal((int) $res['code'], $msg);
+            $this->log?->warning('[payment] flutterwave refund refused', [
+                'ref' => $reference, 'http' => $res['code'], 'msg' => $msg,
+                'retryable' => $retryable === null ? 'unknown' : ($retryable ? 'yes' : 'no'),
+            ]);
+            return ['ok' => false, 'status' => 'failed', 'message' => $msg,
+                    'provider_ref' => null, 'retryable' => $retryable];
         }
 
         // Flutterwave refund status: 'completed' | 'pending' | 'failed'

@@ -67,8 +67,22 @@ final class CheckoutMailer
      * Long enough to be past the gateway itself: a card that needs a bank OTP, a
      * transfer that needs an app switch, a slow 3-D Secure step. Mailing "you didn't
      * finish" to somebody still typing their PIN is worse than not mailing at all.
+     *
+     * ── AND IT IS NOT THIS CLASS'S NUMBER TO PICK ────────────────────────────
+     *
+     * It was 45 minutes, chosen here, while the rest of the platform separately
+     * assumed a payment could still be moving for two hours — which is what a
+     * Nigerian bank transfer or a walk through a USSD menu actually takes. So this
+     * class was nudging people mid-payment: exactly what the paragraph above says
+     * it must not do, and nowhere did one place say what the tolerance was.
+     *
+     * {@see PaymentService::IN_FLIGHT_MINUTES} is now that place, read by
+     * everything that declares a pending checkout dead, so the windows cannot
+     * drift apart again. It is also better recovery practice on its own terms: an
+     * hour or two is the ordinary cart-recovery delay and 45 minutes was
+     * aggressive enough to reach people who had not finished deciding.
      */
-    public const GRACE_MINUTES = 45;
+    public const GRACE_MINUTES = PaymentService::IN_FLIGHT_MINUTES;
 
     /**
      * How far back the sweep will look.

@@ -321,7 +321,10 @@ final class AutoRefundTest extends TestCase
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
                                         string $category = '', string $hero = ''): array
             {
-                $this->sent[] = $subject;
+                // Subject AND body. What an alert SAYS is the point of it — an
+                // email that arrives and explains the wrong thing is barely
+                // better than one that never arrives.
+                $this->sent[] = $subject . "\n" . $plainBody;
                 return ['ok' => true];
             }
         };
@@ -407,13 +410,77 @@ final class AutoRefundTest extends TestCase
         $this->assertNull($d->refund_retry_after, 'a settled refund must not still look like it is waiting');
     }
 
-    /** And it stops rather than trying forever. Three refusals over a day is enough. */
-    public function test_it_gives_up_after_the_last_attempt_and_says_so(): void
+    /**
+     * A REFUSAL THAT WAITING CAN FIX GETS THE FULL SCHEDULE.
+     *
+     * "Insufficient settlement balance" is the commonest refusal on these gateways
+     * and it is a clock problem, not a decision: Nigerian card settlement is T+1,
+     * so a refund refused at 09:00 very often succeeds that evening with nobody
+     * doing anything. Four attempts across 31 hours covers that cycle.
+     */
+    public function test_a_transient_refusal_is_retried_across_a_settlement_cycle(): void
+    {
+        $id   = $this->order();
+        $post = $this->mailbox();
+        $answer = ['ok' => false, 'status' => 'failed', 'retryable' => true];
+
+        for ($i = 0; $i < 5; $i++) {
+            (new RefundService($this->gateway($answer), $post))->sweep();
+            DB::table('gates_donations')->where('id', $id)
+                ->update(['refund_retry_after' => date('Y-m-d H:i:s', strtotime('-1 minute'))]);
+        }
+
+        $d = $this->row($id);
+        $this->assertSame('exhausted', $d->refund_state);
+        $this->assertSame(4, (int) $d->refund_attempts);
+        // Told at both ends and never in between: a hundred copies of the same
+        // paragraph is how an alert becomes a mail filter.
+        $this->assertCount(2, $post->sent);
+        $this->assertStringContainsString('refused', $post->sent[0]);
+        $this->assertStringContainsString('GAVE UP', $post->sent[1]);
+    }
+
+    /**
+     * A REFUSAL THAT WAITING CANNOT FIX GOES STRAIGHT TO A PERSON.
+     *
+     * A revoked key, an unknown reference, a transaction past its refundable age.
+     * Under a single schedule for every refusal these burned thirty-one hours of
+     * pointless retries before anybody heard about them — which is thirty-one
+     * hours in which somebody could have fixed the key.
+     */
+    public function test_a_permanent_refusal_is_escalated_at_once_and_never_retried(): void
+    {
+        $id   = $this->order();
+        $post = $this->mailbox();
+        $answer = ['ok' => false, 'status' => 'failed', 'retryable' => false];
+
+        $svc = new RefundService($this->gateway($answer), $post);
+        $svc->sweep();
+        $svc->sweep();
+
+        $d = $this->row($id);
+        $this->assertSame('exhausted', $d->refund_state, 'no schedule — a person has it now');
+        $this->assertSame(1, (int) $d->refund_attempts);
+        $this->assertNull($d->refund_retry_after, 'there is no next attempt to schedule');
+        $this->assertCount(1, $post->sent);
+        $this->assertStringContainsString('NOT retryable', $post->sent[0]);
+    }
+
+    /**
+     * AND A REFUSAL WE DO NOT RECOGNISE GETS ONE TRY, THEN A PERSON.
+     *
+     * An unrecognised message usually means a gateway has reworded an error. The
+     * costs are lopsided: guess "retryable" and a dead refund waits a day and a
+     * half; guess "permanent" and a self-healing one reaches a human who can
+     * simply re-run it. One retry buys the common transient case without making
+     * anybody wait out a full schedule for wording we do not understand.
+     */
+    public function test_an_unclassified_refusal_gets_one_retry_then_a_person(): void
     {
         $id   = $this->order();
         $post = $this->mailbox();
 
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 3; $i++) {
             (new RefundService($this->gateway(['ok' => false, 'status' => 'failed']), $post))->sweep();
             DB::table('gates_donations')->where('id', $id)
                 ->update(['refund_retry_after' => date('Y-m-d H:i:s', strtotime('-1 minute'))]);
@@ -421,16 +488,10 @@ final class AutoRefundTest extends TestCase
 
         $d = $this->row($id);
         $this->assertSame('exhausted', $d->refund_state);
-        // Four attempts spread over 31 hours. The SPAN is the point, not the
-        // count: Nigerian card settlement is T+1, so a schedule that finished
-        // inside a working day would give up before the likeliest cause cleared.
-        $this->assertSame(4, (int) $d->refund_attempts);
-
-        // Told at both ends and never in between: a hundred copies of the same
-        // paragraph is how an alert becomes a mail filter.
+        $this->assertSame(2, (int) $d->refund_attempts, 'one attempt, one retry, then stop');
         $this->assertCount(2, $post->sent);
-        $this->assertStringContainsString('refused', $post->sent[0]);
-        $this->assertStringContainsString('GAVE UP', $post->sent[1]);
+        $this->assertStringContainsString('could not tell', $post->sent[0],
+            'the first alert says plainly that the wording was unrecognised');
     }
 
     /** An exhausted order is a person's problem now, so the sweep leaves it alone. */

@@ -92,8 +92,21 @@ final class RefundService
      * questions and they diverge exactly where it matters: an order created at
      * 23:00 and confirmed at 23:59 got one minute of grace, not sixty. There is a
      * `confirmed_at` column now, and {@see graceCutoff()} is compared against it.
+     *
+     * ── TWO HOURS, DOUBLE THE OLD ONE ────────────────────────────────────────
+     *
+     * The hour was chosen when the only late mint anybody had in mind was a
+     * webhook arriving before a browser callback — seconds, not minutes. The real
+     * population is slower than that: a cycle an admin is about to extend, a
+     * reconciliation sweep that has not run because web-cron ticks on traffic and
+     * it is 04:00, an operator mid-decision. An hour is inside all of those.
+     *
+     * Doubling costs an hour of waiting for a buyer who is owed money and will be
+     * told either way; not doubling costs a refund that races a delivery, which
+     * leaves the same person with their money back AND their votes gone. Those are
+     * not symmetrical, so the window goes where the cheaper mistake is.
      */
-    private const GRACE_MINUTES = 60;
+    private const GRACE_MINUTES = 120;
 
     /** Refuse to auto-refund a single order larger than this. Overridable; see {@see maxOrderNaira()}. */
     private const MAX_ORDER_NAIRA = 200_000;
@@ -133,7 +146,37 @@ final class RefundService
      */
     private const RETRY_AFTER_HOURS = [1, 6, 24];
 
-    /** Attempts before the automatic path gives up. Derived, so the two cannot drift. */
+    /**
+     * The schedule for a refusal we could not classify.
+     *
+     * ── WHY THERE ARE TWO SCHEDULES AND NOT ONE POLICY ───────────────────────
+     *
+     * "Retry everything" and "park everything" are both wrong, and for the same
+     * reason: they treat "the gateway said no" as one event when it is two. An
+     * insufficient settlement balance is a clock problem that fixes itself by the
+     * evening; a revoked API key is a decision that will never change. Retrying the
+     * first is right and retrying the second burns a day before anybody is told.
+     *
+     * So the gateway's own answer decides, via {@see PaymentService::refund()}'s
+     * `retryable` flag:
+     *
+     *   retryable  the full 1h → 6h → 24h, spanning a T+1 settlement cycle
+     *   permanent  parked immediately, a person told within the sweep
+     *   unknown    THIS: one retry an hour later, then a person
+     *
+     * The unknown case is the one worth arguing about, and it is short on purpose.
+     * An unrecognised message means a gateway has reworded something, and the cost
+     * of guessing wrong in each direction is lopsided: guess "retryable" and a dead
+     * refund waits 31 hours; guess "permanent" and a self-healing one reaches a
+     * human who can simply re-run it. One hour buys the common transient case
+     * without making anybody wait out the full schedule for a message we do not
+     * understand.
+     *
+     * @var list<int>
+     */
+    private const RETRY_UNKNOWN_HOURS = [1];
+
+    /** Attempts before the automatic path gives up on a retryable refusal. */
     private const MAX_REFUND_ATTEMPTS = 4;   // count(RETRY_AFTER_HOURS) + 1
 
     public function __construct(
@@ -467,7 +510,9 @@ final class RefundService
         $r = $this->payments->refund($provider, $ref, (int) $don->amount_naira);
 
         // ── 3. record ────────────────────────────────────────────────────────
-        if ($r['status'] === 'failed') return $this->backOff($don, (string) $r['message']);
+        if ($r['status'] === 'failed') {
+            return $this->backOff($don, (string) $r['message'], $r['retryable'] ?? null);
+        }
 
         $settled = $r['status'] === 'refunded';
         $this->settle($don->id, $settled ? 'refunded' : 'pending', $r['provider_ref'],
@@ -501,19 +546,43 @@ final class RefundService
      * day's takings settle — so the order that failed at 09:00 very often succeeds
      * at 15:00 with nobody doing anything.
      *
-     * The pace is now 1h → 6h → 24h, and then it stops and says so. A person is
-     * told on the FIRST refusal (so a broken key or a revoked permission surfaces
-     * within the hour) and on the LAST (so nothing is quietly abandoned), and not
-     * in between.
+     * ── AND THE PACE DEPENDS ON WHAT THE GATEWAY ACTUALLY SAID ───────────────
      *
+     * A single schedule for every refusal is still the wrong shape. "Insufficient
+     * settlement balance" and "invalid secret key" both arrive as `status: failed`
+     * and they need opposite handling: the first wants patience, the second wants a
+     * person, immediately, because no amount of waiting will change it and every
+     * hour spent retrying is an hour nobody has been told.
+     *
+     * {@see PaymentService::refund()} classifies the gateway's own answer, and this
+     * reads the verdict rather than the prose:
+     *
+     *   retryable  1h → 6h → 24h, four attempts across a T+1 settlement cycle
+     *   permanent  no retry at all; parked and escalated on the spot
+     *   unknown    one retry an hour later, then parked
+     *
+     * A person is told on the FIRST refusal — so a revoked key surfaces inside the
+     * sweep that found it — and on the LAST, so nothing is quietly abandoned. Never
+     * in between, because a hundred copies of one paragraph is how an alert stops
+     * being read.
+     *
+     * @param bool|null $retryable true = wait, false = a person, null = unrecognised
      * @return false always — no money moved, so this is not a completed refund.
      */
-    private function backOff(object $don, string $why): bool
+    private function backOff(object $don, string $why, ?bool $retryable = null): bool
     {
         $ref      = (string) $don->payment_ref;
         $amount   = '₦' . number_format((int) $don->amount_naira);
         $attempts = (int) ($don->refund_attempts ?? 0) + 1;
-        $waitHrs  = self::RETRY_AFTER_HOURS[$attempts - 1] ?? null;   // null = out of road
+
+        // The schedule this refusal earns. An empty one means there is no next
+        // attempt at all, which is exactly right for a refusal that cannot change.
+        $schedule = match ($retryable) {
+            true    => self::RETRY_AFTER_HOURS,
+            false   => [],
+            default => self::RETRY_UNKNOWN_HOURS,
+        };
+        $waitHrs = $schedule[$attempts - 1] ?? null;   // null = out of road
 
         $patch = [
             'refund_requested_at' => null,
@@ -536,27 +605,47 @@ final class RefundService
             error_log('[refund] could not record the refusal for ' . $ref . ': ' . $e->getMessage());
         }
 
-        error_log('[refund] ' . $ref . ' refused (attempt ' . $attempts . '): ' . $why);
+        error_log('[refund] ' . $ref . ' refused (attempt ' . $attempts . ', '
+            . ($retryable === null ? 'unclassified' : ($retryable ? 'transient' : 'permanent')) . '): ' . $why);
+
+        $owed = "This order is confirmed with no votes minted, so the refund is still owed.";
+        $hand = "Please refund it in the gateway dashboard. It stays visible on /admin/finance as `exhausted`.";
+
+        // A PERMANENT refusal is escalated on the first and only attempt. No
+        // schedule to describe, and describing one would be a lie — this is the
+        // case that used to burn thirty-one hours before anybody heard about it.
+        if ($retryable === false) {
+            $this->alert("Automatic refund refused and NOT retryable — {$ref}",
+                "The gateway refused an automatic refund for {$ref} ({$amount}), and the reason is one that "
+                . "waiting cannot fix.\n\nReason: {$why}\n\n{$owed} Nothing will be retried — a stale key, a "
+                . "revoked permission, a transaction past its refundable age and an unrecognised reference all "
+                . "look like this, and all of them need somebody. {$hand}");
+            return false;
+        }
 
         // FIRST and LAST only. The ones in between are the same sentence with a
         // different timestamp, and a hundred of those is how an alert stops being
         // read at all.
         if ($attempts === 1) {
+            $span  = array_sum($schedule);
+            $tries = count($schedule) + 1;
             $this->alert("Automatic refund refused — {$ref}",
                 "The gateway refused an automatic refund for {$ref} ({$amount}).\n\n"
-                . "Reason: {$why}\n\n"
-                . "This order is confirmed with no votes minted, so the refund is still owed. It will be "
-                . "retried in " . $waitHrs . "h, and " . (self::MAX_REFUND_ATTEMPTS - 1) . " times in all over "
-                . "the next " . array_sum(self::RETRY_AFTER_HOURS) . " hours. If the reason is an insufficient "
-                . "settlement balance it will very likely clear by itself once the day's takings settle; if it "
-                . "is a key or a permission, it will not, and that is the window you have to fix it in.");
+                . "Reason: {$why}\n\n{$owed} It will be retried in {$waitHrs}h"
+                . ($tries > 2 ? ", {$tries} times in all over the next {$span} hours" : ", once")
+                . ".\n\n"
+                . ($retryable === true
+                    ? "The gateway's own words say this is temporary — an insufficient settlement balance is "
+                    . "the usual one here and it clears by itself once the day's takings settle. You probably "
+                    . "do not need to do anything."
+                    : "We could not tell from the gateway's wording whether this is temporary, so it gets one "
+                    . "retry rather than the full schedule. If it fails again it comes straight to you — and "
+                    . "the wording is worth reading, because an unrecognised message usually means a gateway "
+                    . "has renamed an error we used to understand."));
         } elseif ($waitHrs === null) {
             $this->alert("Automatic refund GAVE UP — {$ref}",
-                "After " . $attempts . " attempts over " . array_sum(self::RETRY_AFTER_HOURS)
-                . " hours, the gateway is still refusing to refund {$ref} ({$amount}).\n\n"
-                . "Last reason: {$why}\n\n"
-                . "Nothing further will be tried automatically. The money is genuinely owed — please refund it "
-                . "in the gateway dashboard. The order stays visible on /admin/finance as `exhausted`.");
+                "After {$attempts} attempt(s), the gateway is still refusing to refund {$ref} ({$amount}).\n\n"
+                . "Last reason: {$why}\n\n{$owed} Nothing further will be tried automatically. {$hand}");
         }
 
         return false;
