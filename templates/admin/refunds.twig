@@ -135,7 +135,7 @@
     {% if is_super and schema_ok %}
       {% if o == 'OWED' %}
         <form method="post" action="/admin/refunds/issue" class="rf-row" style="margin-top:16px">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
           <input type="hidden" name="reference" value="{{ ref }}">
           <button class="rf-btn rf-btn--pay" type="submit">Refund ₦{{ verdict.amount|default(0)|number_format }} now</button>
           <span style="font-size:12.5px;color:#5a6d6f">The buyer is emailed automatically.</span>
@@ -158,7 +158,7 @@
             It needs a written reason, it is stamped on the order next to the verdict it contradicted, and it
             is recorded as <code>overridden</code> so it can never be mistaken for a routine refund.</p>
           <form method="post" action="/admin/refunds/issue">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
             <input type="hidden" name="reference" value="{{ ref }}">
             <input type="hidden" name="override" value="1">
             <div class="rf-row">

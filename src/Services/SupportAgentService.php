@@ -375,7 +375,7 @@ final class SupportAgentService implements SupportAnswerer
             // to that is to stop GENERATING — not to generate more carefully.
             //
             // Stopping generating is not the same as having nothing to say.
-            return self::fromFactsAlone($facts);
+            return self::fromFactsAlone($facts, $message);
         }
         return trim($out);
     }
@@ -415,7 +415,7 @@ final class SupportAgentService implements SupportAnswerer
      *
      * @param array<string,array<string,mixed>> $facts tool results, keyed tool:args
      */
-    private static function fromFactsAlone(array $facts): string
+    private static function fromFactsAlone(array $facts, string $message = ''): string
     {
         $lines = [];
         foreach ($facts as $f) {
@@ -435,6 +435,24 @@ final class SupportAgentService implements SupportAnswerer
         $lines = array_keys($lines);
 
         if (!$lines) {
+            /* ── THE DEAD END THIS REPLACES ──────────────────────────────────
+               "I could not put an answer together just now." Reported from
+               production as Gee NEVER being able to answer, and the report was
+               right: this branch is reached whenever the model produced nothing
+               AND no tool ran — which is every single turn once the provider is
+               failing, because the planner is a model call too. No plan, no
+               tools, no facts, dead end.
+ 
+               The Help-Centre floor existed but was wired to the wrong condition:
+               ask() only reached for it when the provider was UNCONFIGURED. A
+               provider that is configured and erroring — an expired key, a spent
+               quota, a network fault, the common case — skipped it entirely and
+               landed here. Same floor, now on the failure that actually happens. */
+            $written = HelpCentre::writtenAnswer($message);
+            if ($written !== null) {
+                return $written . "\n\nIf that is not it, say “talk to a human” and I will pass "
+                     . "this straight to the team.";
+            }
             return "I could not put an answer together just now. If this is urgent, say “talk to a "
                  . "human” and I will pass it straight to the team.";
         }

@@ -76,8 +76,24 @@ final class Csp
 
     public const FONT_HOSTS = 'https://fonts.gstatic.com https://fonts.googleapis.com';
 
-    /** XHR/fetch/WebSocket targets. Tight on purpose: this is the exfiltration path. */
-    public const CONNECT_HOSTS = 'https://challenges.cloudflare.com ' . self::PAY_HOSTS;
+    /**
+     * XHR/fetch/WebSocket targets. Tight on purpose: this is the exfiltration path.
+     *
+     * The three script CDNs are here for ONE reason — SOURCE MAPS. Every vendor
+     * bundle we load ends with a `//# sourceMappingURL=` comment, and when a
+     * developer opens the console the browser fetches that `.map` through the
+     * connect-src channel. Reported from production as four CSP violations on
+     * every page load: leaflet, swiper, splide and plyr.
+     *
+     * They are the same origins already trusted in SCRIPT_HOSTS, so this grants no
+     * new capability — the code from those hosts is already executing. What it buys
+     * is a console that shows real problems instead of four permanent red lines
+     * that train everyone to ignore it. The payment and Turnstile hosts remain the
+     * only places that can receive DATA, because nothing on those CDNs is ever a
+     * fetch target from our own code.
+     */
+    public const CONNECT_HOSTS = 'https://challenges.cloudflare.com ' . self::PAY_HOSTS
+        . ' https://cdn.jsdelivr.net https://unpkg.com https://cdn.plyr.io';
 
     public const MEDIA_HOSTS = 'https://r2.vidzflow.com https://cdn.plyr.io';
 

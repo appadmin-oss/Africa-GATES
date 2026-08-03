@@ -62,7 +62,12 @@ class SecurityHeadersMiddleware {
         'Permissions-Policy'     => 'accelerometer=(), autoplay=(), camera=(), '
             . 'display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), '
             . 'gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), '
-            . 'picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), '
+            /* picture-in-picture=(self): Plyr requests it for every video it mounts —
+               Pulse posts, the nominee films — and with it denied the console logged
+               a permissions-policy violation per player while the PiP button sat
+               there dead. `self` and not `*`: our own pages may offer it, an
+               embedded third party may not. */
+            . 'picture-in-picture=(self), publickey-credentials-get=(), screen-wake-lock=(), '
             . 'usb=(), xr-spatial-tracking=()',
         /**
          * Isolate this browsing context from anything it opens or that opens it.
