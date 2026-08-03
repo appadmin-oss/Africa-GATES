@@ -434,15 +434,34 @@ class SettingsController
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);
     }
 
-    /** Make one live AI call and report which provider answered — diagnoses "AI doesn't work". */
+    /**
+     * Make one live AI call and report which provider answered — diagnoses "AI doesn't work".
+     *
+     * This is the only way to read the provider's own refusal on this deployment,
+     * because there is no shell to tail a log with. So it reports EVERY hop that
+     * failed rather than one of them, and the action each code implies, and it
+     * records both in the audit trail — otherwise the answer scrolls away with the
+     * flash message and the next person starts from nothing.
+     */
     public function testAi(Request $req, Response $res): Response
     {
         $adminId = (int)($_SESSION['admin_id'] ?? 0);
         $r = \AfricaGates\Services\AiService::boot()->selfTest();
+
         $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
             ? sprintf('AI OK — answered by %s (%s).', $r['provider'] ?? '?', $r['model'] ?? '?')
-            : 'AI test failed: ' . ($r['error'] ?? 'no response') . '. Check the provider key and that the host can reach the provider API.';
-        try { $this->audit->record($adminId, 'settings.ai_test', null, null, ['ok' => $r['ok'], 'provider' => $r['provider']]); } catch (\Throwable) {}
+            // The provider's own words first, then what to change. Never only the
+            // interpretation: a guess that displaces the evidence is how somebody
+            // rotates a working key while the real fault is an egress block.
+            : 'AI test failed. Tried: ' . ($r['error'] ?? 'no response')
+              . (($r['cause'] ?? null) !== null ? ' — ' . $r['cause'] : '');
+
+        try {
+            $this->audit->record($adminId, 'settings.ai_test', null, null, [
+                'ok' => $r['ok'], 'provider' => $r['provider'],
+                'hops' => $r['hops'] ?? [], 'cause' => $r['cause'] ?? null,
+            ]);
+        } catch (\Throwable) {}
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);
     }
 }

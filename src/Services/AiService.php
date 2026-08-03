@@ -176,8 +176,47 @@ class AiService
         }
     }
 
-    /** Last provider error seen during a call, for diagnostics ({@see selfTest()}). */
-    private ?string $lastError = null;
+    /**
+     * Last provider error seen during a call, for diagnostics ({@see selfTest()}).
+     *
+     * Protected for the same reason {@see httpPost()} is: a test double replaces the
+     * one network call, and the thing worth asserting is that the PROVIDER'S OWN
+     * words — its HTTP code and refusal text — survive into the per-hop record. A
+     * double that could only return null would prove the plumbing while leaving the
+     * part operators actually read untested.
+     */
+    protected ?string $lastError = null;
+
+    /**
+     * EVERY hop's failure, not just the last one.
+     *
+     * `$lastError` is overwritten by each hop in the chain, so on a deployment with
+     * two keys — which is this one — a Groq failure followed by a Gemini failure
+     * left only the Gemini reason behind. Both the error log and the admin "Test AI
+     * now" button then reported one cause for two unrelated faults, and the first
+     * one — the hop that fires first on every single request — was invisible.
+     *
+     * That is the difference between "this host cannot reach api.groq.com AND the
+     * Gemini key is rejected", which is two things to fix, and "gemini said 401",
+     * which invites you to replace a key that may well be fine.
+     *
+     * Recorded per hop as provider/model → reason, because the same HTTP code means
+     * different things at different hops: 404 is a decommissioned model name on one
+     * provider and a wrong endpoint path on another.
+     *
+     * @var list<array{provider:string,model:string,error:string}>
+     */
+    private array $hopErrors = [];
+
+    /**
+     * Per-hop failures from the most recent call, oldest first.
+     *
+     * @return list<array{provider:string,model:string,error:string}>
+     */
+    public function hopErrors(): array
+    {
+        return $this->hopErrors;
+    }
 
     /**
      * Token usage from the most recent successful call.
@@ -308,8 +347,13 @@ class AiService
         $this->lastUsage    = ['in' => 0, 'out' => 0];
         $this->lastProvider = null;
         $this->lastModel    = null;
+        $this->hopErrors    = [];
 
         foreach ($this->resolveRoute($route, $maxAttempts) as [$provider, $model]) {
+            // Cleared per hop so `httpPost()`'s HTTP code and the provider's own
+            // body — the only text that says WHY — is attributed to this hop and
+            // cannot be inherited from the previous one.
+            $this->lastError = null;
             try {
                 $out = match ($provider) {
                     'groq'      => $this->groqChat($system, $user, $maxTokens, $json, $temperature, $model),
@@ -325,14 +369,43 @@ class AiService
                     $this->lastModel    = $model;
                     return $json ? self::stripJsonFence($out) : $out;
                 }
-                $this->lastError = $provider . '/' . $model . ': empty/failed response';
+                // `lastError` already holds the HTTP code and the provider's own
+                // words when the failure was an HTTP one; the generic phrase is
+                // only for a 200 that carried nothing usable.
+                $why = $this->lastError ?? 'empty/failed response';
             } catch (\Throwable $e) {
-                $this->lastError = $provider . '/' . $model . ': ' . $e->getMessage();
+                $why = $e->getMessage();
             }
+            $this->hopErrors[] = ['provider' => $provider, 'model' => $model, 'error' => $why];
+            $this->lastError   = $provider . '/' . $model . ': ' . $why;
             // fall through to the next hop
         }
-        if ($this->lastError !== null) error_log('[AiService] all providers failed — ' . $this->lastError);
+        if ($this->hopErrors !== []) {
+            // Every hop, on one line. A log that named only the last one is why
+            // "AI doesn't work" stayed unexplained through several attempts to fix it.
+            error_log('[AiService] all providers failed — ' . self::describeHops($this->hopErrors));
+        }
         return null;
+    }
+
+    /**
+     * Per-hop failures as one readable line.
+     *
+     * Shared by the error log and the admin health check so an operator reading
+     * either one is looking at the same text, rather than two summaries that have
+     * to be reconciled before they can be acted on.
+     *
+     * @param list<array{provider:string,model:string,error:string}> $hops
+     */
+    public static function describeHops(array $hops): string
+    {
+        if ($hops === []) return 'no provider was tried — no key is configured.';
+
+        $parts = [];
+        foreach ($hops as $h) {
+            $parts[] = $h['provider'] . '/' . $h['model'] . ' → ' . $h['error'];
+        }
+        return implode(' | ', $parts);
     }
 
     /**
@@ -386,16 +459,22 @@ class AiService
      * provider answered (or the error). Powers the admin Settings "test AI"
      * button so "AI doesn't work" is diagnosable instead of silent.
      *
-     * @return array{ok:bool,provider:?string,model:?string,error:?string}
+     * @return array{ok:bool,provider:?string,model:?string,error:?string,
+     *               hops:list<array{provider:string,model:string,error:string}>,cause:?string}
      */
     public function selfTest(): array
     {
         if (!$this->configured()) {
-            return ['ok' => false, 'provider' => null, 'model' => null, 'error' => 'No provider key configured.'];
+            return ['ok' => false, 'provider' => null, 'model' => null, 'hops' => [],
+                    'error' => 'No provider key configured.',
+                    'cause' => 'Set GROQ_API_KEY or GEMINI_API_KEY, in the .env or in admin Settings. '
+                             . 'Note that a key present but blank counts as unset.'];
         }
         $this->lastError = null;
         $out = $this->complete('You are a health check. Reply with the single word OK.', 'ping', 8, false, 0.0);
         $ok = is_string($out) && $out !== '';
+        $hops = $this->hopErrors();
+
         return [
             'ok' => $ok,
             // What ANSWERED, falling back to what would be tried first only when
@@ -403,8 +482,59 @@ class AiService
             // rather than the one that worked is the same lie as the audit log's.
             'provider' => $ok ? $this->lastProvider() : $this->activeProvider(),
             'model'    => $ok ? $this->lastModel()    : $this->activeModel(),
-            'error'    => $ok ? null : ($this->lastError ?? 'No response from any provider.'),
+            'hops'     => $hops,
+            'error'    => $ok ? null : self::describeHops($hops),
+            'cause'    => $ok ? null : self::likelyCause($hops),
         ];
+    }
+
+    /**
+     * Turn the providers' HTTP codes into the thing an operator has to go and change.
+     *
+     * The raw text is kept as well — this never replaces it — because a guess that
+     * displaces the provider's own words is how you end up fixing the wrong thing.
+     * But "HTTP 401 {\"error\":{\"message\":\"Invalid API Key\"...}}" in a flash
+     * message is not an instruction, and the person reading it has no shell to go
+     * digging with. Each mapping below is the ONE action that clears that code.
+     *
+     * `HTTP 0` deserves its mention: it is not a provider answer at all, it is the
+     * request never arriving. On shared hosting that is usually the account's own
+     * outbound firewall, which no amount of key-rotation will fix, and it is the
+     * failure most likely to be misread as "the key expired".
+     *
+     * @param list<array{provider:string,model:string,error:string}> $hops
+     */
+    public static function likelyCause(array $hops): ?string
+    {
+        if ($hops === []) return null;
+
+        $causes = [];
+        foreach ($hops as $h) {
+            $e = $h['error'];
+            $at = $h['provider'];
+
+            if (preg_match('~\bHTTP 0\b~', $e)) {
+                $causes[] = "{$at}: the request never reached the provider — DNS, egress firewall or a "
+                          . "blocked outbound port on this host. Rotating the key will not help. Ask the "
+                          . "host whether outbound HTTPS to the provider's API domain is permitted.";
+            } elseif (preg_match('~\bHTTP 40[13]\b~', $e)) {
+                $causes[] = "{$at}: the key was rejected — expired, revoked, or from a different project. "
+                          . "Issue a new one and put it in admin Settings.";
+            } elseif (preg_match('~\bHTTP 429\b~', $e)) {
+                $causes[] = "{$at}: rate-limited or out of quota. Free tiers reset — check the provider's "
+                          . "usage page before changing anything.";
+            } elseif (preg_match('~\bHTTP 404\b~', $e)) {
+                $causes[] = "{$at}: the model name is not served — '{$h['model']}' has most likely been "
+                          . "decommissioned. Set a current model for {$at} in admin Settings.";
+            } elseif (preg_match('~\bHTTP 5\d\d\b~', $e)) {
+                $causes[] = "{$at}: the provider itself is erroring. Nothing to change here; retry later.";
+            } elseif (str_contains($e, 'empty/failed response')) {
+                $causes[] = "{$at}: answered 200 with nothing usable — usually a model that rejected the "
+                          . "request shape rather than a key problem.";
+            }
+        }
+
+        return $causes === [] ? null : implode(' ', array_unique($causes));
     }
 
     /** Strip a leading/trailing markdown ```json … ``` fence some models wrap JSON in. */
