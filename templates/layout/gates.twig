@@ -215,17 +215,39 @@
 
   {% block head_styles %}{% endblock %}
 
-  {# Mobile entrance loader: decide BEFORE paint so content never flashes.
-     Mobile only · once per session · motion-safe. #}
+  {# ── Mobile entrance loader ────────────────────────────────────────────────
+     Decided BEFORE paint so content never flashes. Mobile · once per session ·
+     motion-safe · and NOT on a page somebody arrived at with a problem.
+
+     MEASURED, BEFORE THE FIX: the splash covered the page for 5.4 SECONDS on the
+     first mobile view of every session. Not a network stall — a deliberate
+     timeline: ~3.7s of reveal, a 1.2s hold, then a 0.7s fade. And it played
+     everywhere, including /vote/verify and /support/assistant, so a supporter
+     tapping a link from an email about their missing money watched a logo
+     animation for five seconds before they could read anything.
+
+     Two changes. The reveal is compressed to ~1s (see the SMIL timings in the
+     SVG below and loader.css), and the exit is now driven by PAGE READINESS
+     rather than a fixed delay — so a fast page exits as soon as it is drawn, and
+     the floor exists only so it does not flash.
+
+     TASK PAGES ARE EXEMPT. A brand moment is for somebody arriving at the front
+     door. Support, help, the account area, a payment and the proof page are
+     places people arrive at BECAUSE something is wrong or something is owed, and
+     an animation there is an obstacle wearing a logo. #}
   <script nonce="{{ csp_nonce }}">
   (function(){try{
+    var TASK = ['support','help','account','verify','pay','checkout','form','status'];
+    var page = {{ (gates_page|default(''))|json_encode|raw }};
     var mobile = window.matchMedia('(max-width:879px)').matches;
     var motion = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
     var first  = !sessionStorage.getItem('ag_intro');
-    if (mobile && motion && first) {
+    if (mobile && motion && first && TASK.indexOf(page) === -1) {
       document.documentElement.classList.add('ag-loading');
-      sessionStorage.setItem('ag_intro','1');
     }
+    /* Stamped whatever we decided, so a task page does not merely postpone the
+       intro to the next page somebody opens. */
+    if (first) sessionStorage.setItem('ag_intro','1');
   }catch(e){}})();
   </script>
 </head>
@@ -236,33 +258,21 @@
   <svg class="ag-loader__logo" viewBox="0 0 1563 1563" role="img" aria-label="Africa GATES logo">
     <defs><clipPath id="agDiscClip"><circle cx="781.1" cy="781.4" r="756.2"/></clipPath></defs>
     {# Disc — SMIL (Safari-safe; animate r to avoid SVG transform-origin issues) #}
-    <circle cx="781.1" cy="781.4" r="0" fill="#10292c">
-      {# keySplines control-point Y values must lie in [0,1]. The first segment said
-         `0.34 1.1 0.64 1` — CSS easeOutBack, borrowed wholesale — and 1.1 made the
-         browser reject the WHOLE attribute, so both segments silently degraded to
-         linear and every page load logged
-         `Error: <animate> attribute keySplines: Invalid value`.
-         The overshoot this was reaching for is already expressed in `values`
-         (0 → 794 → 756.2, i.e. past the target and back), so the spline only has to
-         be a valid ease-out: 0.33 1 0.68 1 is easeOutCubic, in range. #}
-      <animate attributeName="r" values="0;794;756.2" keyTimes="0;0.72;1" dur="1.0s" begin="0s" fill="freeze" calcMode="spline" keySplines="0.33 1 0.68 1;0.33 0 0.67 1"/>
-      <animate attributeName="r" values="756.2;784;756.2" keyTimes="0;0.45;1" dur="0.8s" begin="2.5s" fill="freeze" calcMode="spline" keySplines="0.4 0 0.2 1;0.4 0 0.2 1"/>
-    </circle>
+    {# One clock only. Every animation on this splash is now CSS, keyed on
+       `.ag-loader.is-playing`, which the script adds on the first rendered frame.
+
+       SMIL used to drive the reveal, and SMIL's timeline starts on DOCUMENT LOAD —
+       after every subresource. Measured here: svg.getCurrentTime() was still 0.00
+       when the CSS clock had already passed 1.0s. That skew is the real reason the
+       original hold was 4.9 seconds, and it cannot be fixed from the SVG side:
+       pauseAnimations() before the timeline has begun is a no-op, so the reveal
+       always started whenever the page finished loading. #}
+    <circle class="ag-loader__disc" cx="781.1" cy="781.4" r="756.2" fill="#10292c"/>
     <g clip-path="url(#agDiscClip)">
       {# Mainland — stroke draws on, then floods to fill #}
-      <path pathLength="1000" fill="#7fc87c" fill-opacity="0" stroke="#7fc87c" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="1000" stroke-dashoffset="1000" opacity="0" d="M 427.0,237.0 L 368.0,307.0 L 354.0,351.0 L 326.0,370.0 L 256.0,468.0 L 275.0,535.0 L 254.0,593.0 L 260.0,633.0 L 325.0,709.0 L 384.0,753.0 L 505.0,744.0 L 574.0,718.0 L 610.0,757.0 L 655.0,759.0 L 665.0,789.0 L 652.0,842.0 L 707.0,912.0 L 727.0,982.0 L 702.0,1023.0 L 695.0,1074.0 L 733.0,1157.0 L 755.0,1256.0 L 789.0,1311.0 L 789.0,1353.0 L 828.0,1388.0 L 857.0,1377.0 L 925.0,1375.0 L 963.0,1344.0 L 1015.0,1274.0 L 1026.0,1223.0 L 1060.0,1199.0 L 1058.0,1140.0 L 1069.0,1113.0 L 1144.0,1050.0 L 1142.0,980.0 L 1122.0,955.0 L 1128.0,927.0 L 1117.0,910.0 L 1130.0,868.0 L 1181.0,813.0 L 1243.0,767.0 L 1294.0,694.0 L 1306.0,643.0 L 1217.0,657.0 L 1193.0,652.0 L 1174.0,617.0 L 1125.0,572.0 L 1119.0,549.0 L 1096.0,527.0 L 1086.0,479.0 L 1065.0,456.0 L 1016.0,356.0 L 1025.0,351.0 L 1047.0,374.0 L 1063.0,362.0 L 1065.0,351.0 L 1039.0,314.0 L 899.0,315.0 L 842.0,285.0 L 823.0,301.0 L 817.0,331.0 L 764.0,321.0 L 759.0,301.0 L 687.0,277.0 L 680.0,215.0 L 667.0,202.0 L 623.0,213.0 L 563.0,208.0 L 488.0,245.0 Z">
-        <set attributeName="opacity" to="1" begin="0.55s"/>
-        <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="1.5s" begin="0.55s" fill="freeze" calcMode="spline" keySplines="0.65 0 0.35 1"/>
-        <animate attributeName="fill-opacity" from="0" to="1" dur="0.6s" begin="2.1s" fill="freeze"/>
-        <animate attributeName="stroke-width" from="6" to="0" dur="0.6s" begin="2.1s" fill="freeze"/>
-      </path>
+      <path class="ag-loader__land" pathLength="1000" fill="#7fc87c" fill-opacity="0" stroke="#7fc87c" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="1000" stroke-dashoffset="1000" opacity="0" d="M 427.0,237.0 L 368.0,307.0 L 354.0,351.0 L 326.0,370.0 L 256.0,468.0 L 275.0,535.0 L 254.0,593.0 L 260.0,633.0 L 325.0,709.0 L 384.0,753.0 L 505.0,744.0 L 574.0,718.0 L 610.0,757.0 L 655.0,759.0 L 665.0,789.0 L 652.0,842.0 L 707.0,912.0 L 727.0,982.0 L 702.0,1023.0 L 695.0,1074.0 L 733.0,1157.0 L 755.0,1256.0 L 789.0,1311.0 L 789.0,1353.0 L 828.0,1388.0 L 857.0,1377.0 L 925.0,1375.0 L 963.0,1344.0 L 1015.0,1274.0 L 1026.0,1223.0 L 1060.0,1199.0 L 1058.0,1140.0 L 1069.0,1113.0 L 1144.0,1050.0 L 1142.0,980.0 L 1122.0,955.0 L 1128.0,927.0 L 1117.0,910.0 L 1130.0,868.0 L 1181.0,813.0 L 1243.0,767.0 L 1294.0,694.0 L 1306.0,643.0 L 1217.0,657.0 L 1193.0,652.0 L 1174.0,617.0 L 1125.0,572.0 L 1119.0,549.0 L 1096.0,527.0 L 1086.0,479.0 L 1065.0,456.0 L 1016.0,356.0 L 1025.0,351.0 L 1047.0,374.0 L 1063.0,362.0 L 1065.0,351.0 L 1039.0,314.0 L 899.0,315.0 L 842.0,285.0 L 823.0,301.0 L 817.0,331.0 L 764.0,321.0 L 759.0,301.0 L 687.0,277.0 L 680.0,215.0 L 667.0,202.0 L 623.0,213.0 L 563.0,208.0 L 488.0,245.0 Z"/>
       {# Madagascar #}
-      <path pathLength="1000" fill="#7fc87c" fill-opacity="0" stroke="#7fc87c" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="1000" stroke-dashoffset="1000" opacity="0" d="M 1274.0,1000.0 L 1270.0,1000.0 L 1260.0,1013.0 L 1249.0,1021.0 L 1247.0,1026.0 L 1247.0,1034.0 L 1245.0,1040.0 L 1227.0,1059.0 L 1208.0,1061.0 L 1197.0,1068.0 L 1188.0,1076.0 L 1188.0,1083.0 L 1190.0,1090.0 L 1190.0,1106.0 L 1186.0,1127.0 L 1178.0,1147.0 L 1177.0,1154.0 L 1179.0,1162.0 L 1180.0,1198.0 L 1190.0,1211.0 L 1197.0,1223.0 L 1200.0,1223.0 L 1215.0,1215.0 L 1224.0,1214.0 L 1230.0,1211.0 L 1234.0,1195.0 L 1241.0,1181.0 L 1245.0,1169.0 L 1247.0,1146.0 L 1248.0,1145.0 L 1248.0,1135.0 L 1250.0,1129.0 L 1261.0,1117.0 L 1269.0,1104.0 L 1273.0,1083.0 L 1278.0,1069.0 L 1278.0,1058.0 L 1285.0,1057.0 L 1287.0,1055.0 L 1287.0,1046.0 L 1285.0,1041.0 L 1285.0,1037.0 L 1277.0,1005.0 Z">
-        <set attributeName="opacity" to="1" begin="1.7s"/>
-        <animate attributeName="stroke-dashoffset" from="1000" to="0" dur="0.6s" begin="1.7s" fill="freeze" calcMode="spline" keySplines="0.65 0 0.35 1"/>
-        <animate attributeName="fill-opacity" from="0" to="1" dur="0.5s" begin="2.35s" fill="freeze"/>
-        <animate attributeName="stroke-width" from="6" to="0" dur="0.5s" begin="2.35s" fill="freeze"/>
-      </path>
+      <path class="ag-loader__isle" pathLength="1000" fill="#7fc87c" fill-opacity="0" stroke="#7fc87c" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="1000" stroke-dashoffset="1000" opacity="0" d="M 1274.0,1000.0 L 1270.0,1000.0 L 1260.0,1013.0 L 1249.0,1021.0 L 1247.0,1026.0 L 1247.0,1034.0 L 1245.0,1040.0 L 1227.0,1059.0 L 1208.0,1061.0 L 1197.0,1068.0 L 1188.0,1076.0 L 1188.0,1083.0 L 1190.0,1090.0 L 1190.0,1106.0 L 1186.0,1127.0 L 1178.0,1147.0 L 1177.0,1154.0 L 1179.0,1162.0 L 1180.0,1198.0 L 1190.0,1211.0 L 1197.0,1223.0 L 1200.0,1223.0 L 1215.0,1215.0 L 1224.0,1214.0 L 1230.0,1211.0 L 1234.0,1195.0 L 1241.0,1181.0 L 1245.0,1169.0 L 1247.0,1146.0 L 1248.0,1145.0 L 1248.0,1135.0 L 1250.0,1129.0 L 1261.0,1117.0 L 1269.0,1104.0 L 1273.0,1083.0 L 1278.0,1069.0 L 1278.0,1058.0 L 1285.0,1057.0 L 1287.0,1055.0 L 1287.0,1046.0 L 1285.0,1041.0 L 1285.0,1037.0 L 1277.0,1005.0 Z"/>
     </g>
   </svg>
   <div class="ag-loader__word">Africa <span>GATES</span></div>
@@ -496,17 +506,47 @@
   document.addEventListener('keydown', function(e){ if(e.key==='Escape') setTimeout(sync,0); });
 })();
 </script>
-{# ── Mobile entrance loader: the CSS/SVG plays itself on a fixed timeline;
-   JS only removes the node after the fade (+ a hard failsafe so it can
-   never block the site). ── #}
+{# ── Mobile entrance loader: the exit ──────────────────────────────────────────
+   The fade used to be a CSS animation with a hard-coded 4.9s delay, and this
+   script just deleted the node at 5900ms. So the page was covered for 5.4s no
+   matter how fast it had loaded — the splash was a timer, not a loader.
+
+   Now the exit is driven by READINESS. It leaves as soon as the document is
+   parsed, with a floor of MIN so it does not flash into and out of existence on
+   a fast connection, and a hard cap so it can never hold the page.
+
+   performance.now() is milliseconds since navigation start, so the floor is
+   measured from when the visitor actually asked for the page — not from when
+   this script happened to run, which is already after the HTML arrived. ── #}
 <script nonce="{{ csp_nonce }}">
 (function(){
   var h=document.documentElement;
   if(!h.classList.contains('ag-loading')) return;
   var l=document.getElementById('agLoader');
-  function rm(){ try{ if(l) l.remove(); }catch(e){} h.classList.remove('ag-loading'); }
-  setTimeout(rm,5900);   // just after the overlay finishes fading (full reveal + hold)
-  setTimeout(rm,8000);   // hard failsafe
+  /* REVEAL is the length of the CSS reveal (see loader.css). The wait is measured
+     from when the reveal actually STARTS, so it can never be cut off half-drawn;
+     CAP is measured from navigation start, so however slow the page turns out to
+     be, the splash is never the thing somebody is waiting on. */
+  var REVEAL=980, FADE=340, CAP=2600;
+  var gone=false, playing=false;
+  function rm(){ if(gone) return; gone=true; try{ if(l) l.remove(); }catch(e){} h.classList.remove('ag-loading'); }
+  function out(){
+    if(gone) return;
+    if(!l){ rm(); return; }
+    l.classList.add('is-out');
+    setTimeout(rm, FADE+60);
+  }
+  function play(){
+    if(playing) return;
+    playing = true;
+    if(l) l.classList.add('is-playing');
+    setTimeout(out, REVEAL);
+  }
+  /* Two frames in: the first is the paint we are decorating, the second is the one
+     the animation can actually start on without being skipped. */
+  if(window.requestAnimationFrame) requestAnimationFrame(function(){ requestAnimationFrame(play); });
+  else play();
+  setTimeout(out, CAP);
 })();
 </script>
 {# ── Screen-reader announcer: any script can say something without visual

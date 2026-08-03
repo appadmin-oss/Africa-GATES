@@ -1,30 +1,71 @@
 /* ════════════════════════════════════════════════════════════════
    Africa GATES — Mobile entrance loader
-   The disc + continent reveal is driven by SMIL inside the SVG
-   (Safari-safe — no CSS transform/clip-path on SVG). This file only
-   handles the overlay, the wordmark, and the fade-out (HTML elements).
-   Shown once per session on mobile (gated by html.ag-loading), then
-   removed by JS (+ failsafe) so it can never block the site.
+   The whole reveal — disc, continent, wordmark, fade — lives HERE, on
+   one clock, keyed on `.ag-loader.is-playing`. It used to be SMIL
+   inside the SVG, whose timeline starts on document load and therefore
+   drifted from the CSS by however long the page took; that skew is what
+   the original 4.9s hold was absorbing, and it cost 5.4s of covered
+   page on every first mobile view.
+   Shown once per session, on mobile, motion-safe, and never on a page
+   somebody arrived at with a problem (gated by html.ag-loading — see
+   the head script in layout/gates.twig). Removed by JS, with a hard cap.
    ════════════════════════════════════════════════════════════════ */
 .ag-loader{
   position:fixed; inset:0; z-index:var(--ag-z-loader,2147483000);
   display:none; flex-direction:column; align-items:center; justify-content:center; gap:30px;
   background:var(--ag-bg,#fbfbfa);
 }
+/* The fade is TRIGGERED, not scheduled. It used to be `animation:agExit .7s 4.9s`,
+   which covered the page for 5.4s however fast it had loaded — the splash was a
+   timer wearing a loader's clothes. `.is-out` is added by the script at the end of
+   <body> as soon as the document is parsed. See the note there. */
 html.ag-loading .ag-loader{
   display:flex;
-  animation:agExit .7s 4.9s ease forwards;   /* fade only after the full reveal + a hold */
+  opacity:1;
+  transition:opacity .34s ease, visibility .34s ease;
 }
-@keyframes agExit{ to{ opacity:0; visibility:hidden; } }
+html.ag-loading .ag-loader.is-out{ opacity:0; visibility:hidden; }
 
 .ag-loader__logo{ width:min(52vw,190px); height:auto; overflow:visible; }
 
-/* Wordmark — appears as the SMIL reveal completes (~3.1s) */
+/* ── The reveal, on ONE clock ────────────────────────────────────────────────
+   Everything here starts from `.is-playing`, added by the script on the first
+   rendered frame. It used to be SMIL inside the SVG, and SMIL's timeline starts
+   on DOCUMENT LOAD — after every subresource — so it ran at an unpredictable
+   offset from the CSS. Measured: getCurrentTime() still 0.00 with the CSS clock
+   past 1.0s, which is what the original 4.9s hold was really absorbing, and it
+   cannot be corrected from the SVG side because pauseAnimations() before the
+   timeline starts does nothing.
+
+   `stroke-dashoffset`, `fill-opacity` and `opacity` are all long-standing CSS
+   properties on SVG geometry, so this needs no transform-origin tricks — which is
+   what the SMIL was originally chosen to avoid. Total reveal ≈ 0.90s.
+
+   Held at their end state by `forwards`, so a frame dropped mid-animation cannot
+   leave a half-drawn continent on screen. */
+.ag-loader__disc{ opacity:0; }
+.ag-loader__land, .ag-loader__isle{ opacity:0; }
+
+.ag-loader.is-playing .ag-loader__disc{ animation:agDisc .34s ease-out forwards; }
+.ag-loader.is-playing .ag-loader__land{ animation:agDraw .48s .16s cubic-bezier(.65,0,.35,1) forwards,
+                                                  agFlood .26s .60s ease forwards; }
+.ag-loader.is-playing .ag-loader__isle{ animation:agDraw .22s .46s cubic-bezier(.65,0,.35,1) forwards,
+                                                  agFlood .2s .68s ease forwards; }
+
+@keyframes agDisc { from{ opacity:0 } to{ opacity:1 } }
+@keyframes agDraw { from{ opacity:1; stroke-dashoffset:1000 } to{ opacity:1; stroke-dashoffset:0 } }
+@keyframes agFlood{ to{ opacity:1; fill-opacity:1; stroke-width:0 } }
+
+/* Wordmark — lands as the continent finishes filling.
+   The delay is relative to `.is-playing`, like every other part of the reveal, so
+   the order is guaranteed. A bare `animation-delay` here would be relative to FIRST
+   RENDER, which is a different clock from the one the drawing runs on — that is
+   precisely how the wordmark used to appear before the continent had begun. */
 .ag-loader__word{
   font-family:var(--ag-font-display,"Playfair Display",serif); font-weight:700;
   font-size:clamp(1.4rem,6vw,1.9rem); color:var(--ag-ink,#10292c);
   opacity:0; transform:translateY(10px);
-  animation:agWord .6s 3.1s ease forwards;
 }
+.ag-loader.is-playing .ag-loader__word{ animation:agWord .28s .70s ease forwards; }
 .ag-loader__word span{ color:var(--ag-green,#237b22); letter-spacing:.16em; font-size:.6em; font-weight:700; vertical-align:.14em; margin-left:.4em; }
 @keyframes agWord{ to{opacity:1;transform:none} }
