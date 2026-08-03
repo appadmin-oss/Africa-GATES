@@ -83,8 +83,24 @@ final class PulseController
         // a chip can simply send nothing rather than a sentinel value.
         $chan   = isset($q['channel']) ? (int) $q['channel'] : 0;
 
-        $page = $this->feed->page($cursor, $limit, $this->viewerId(), $chan ?: null);
+        $page = $this->feed->page($cursor, $limit, $this->viewerId(), $chan ?: null,
+            self::mediaFilter($q));
         return $this->json($res, ['success' => true] + $page);
+    }
+
+    /**
+     * `?media=video` — the Reels tab. Allowlisted, never passed through.
+     *
+     * The value reaches a WHERE clause. The query builder parameterises it, so this
+     * is not about injection; it is about not letting a stranger define what the
+     * feed means. An arbitrary string would silently return an empty feed for any
+     * typo and make "Reels is broken" indistinguishable from "nobody has posted a
+     * video", which is the one distinction anybody debugging this needs.
+     */
+    private static function mediaFilter(array $q): ?string
+    {
+        $v = strtolower(trim((string) ($q['media'] ?? '')));
+        return in_array($v, ['image', 'video'], true) ? $v : null;
     }
 
     /**
@@ -135,8 +151,16 @@ final class PulseController
     public function feedNew(Request $req, Response $res): Response
     {
         if ($this->feed === null) return $this->json($res, ['success' => false, 'count' => 0], 503);
-        $after = (int) ($req->getQueryParams()['after'] ?? 0);
-        return $this->json($res, ['success' => true, 'count' => $this->feed->newSince($after)]);
+
+        $q     = $req->getQueryParams();
+        $after = (int) ($q['after'] ?? 0);
+        // The SAME filters the pill's own refetch will apply. Counting unfiltered
+        // and fetching filtered is how a pill offers three new posts and then
+        // delivers none.
+        $chan  = isset($q['channel']) ? (int) $q['channel'] : 0;
+
+        return $this->json($res, ['success' => true,
+            'count' => $this->feed->newSince($after, $chan ?: null, self::mediaFilter($q))]);
     }
 
     public function index(Request $req, Response $res): Response

@@ -591,6 +591,11 @@ return function(App $app) {
         $g->get('/blog',           BlogController::class.':index');
         $g->get('/blog/{slug}',    BlogController::class.':show');
         $g->get('/pulse',          PulseController::class.':index');
+        // Reels is the same page on its video tab. A real URL rather than only a
+        // client-side tab, because the main navigation, the home page and the
+        // status page all advertise Reels as a place — so it has to be linkable,
+        // shareable and indexable like one. The template reads the path.
+        $g->get('/pulse/reels',    PulseController::class.':index');
         // Members post to the feed. Goes through CommunityService::postThread, so it
         // inherits the spam filter, the moderation verdict and the moderation queue.
         $g->post('/pulse',         PulseController::class.':post');

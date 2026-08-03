@@ -53,8 +53,18 @@
      bar at the bottom, which this site already has. So the announcement strip,
      the top nav, the page hero, the tab strip, the sidebar and the footer all
      stand down here — every one of them was pushing the first post below the
-     fold on a 390px screen. Nothing becomes unreachable: the bottom nav keeps
-     Home, Pulse, Nominate, Ranks and Menu. */
+     fold on a 390px screen. The bottom nav keeps Home, Pulse, Nominate, Ranks
+     and Menu.
+
+     THE TAB STRIP USED TO BE IN THIS LIST, AND THAT WAS A MISTAKE. Hiding it
+     took Community, Events and Alerts off the phone entirely — there is no other
+     route to them from /pulse — and it also left nowhere to put Reels, which the
+     main navigation advertises. The comment here used to say "nothing becomes
+     unreachable", which was simply not true of those tabs.
+
+     The mockup does not drop them either: it floats them in the top chrome, over
+     the media, beside the wordmark. So they are restyled below rather than
+     removed. */
   body[data-page="pulse"] .ag-announce,
   body[data-page="pulse"] .announcement,
   body[data-page="pulse"] .site-nav,
@@ -62,12 +72,45 @@
   body[data-page="pulse"] .nav,
   body[data-page="pulse"] .site-footer,
   body[data-page="pulse"] footer,
-  body[data-page="pulse"] .pl-tabs,
   body[data-page="pulse"] .pl-rail,
   body[data-page="pulse"] .community-fab,
   body[data-page="pulse"] #backToTop,
   body[data-page="pulse"] .pl-hero,
   body[data-page="pulse"] .pf-chips{ display:none !important; }
+
+  /* ── Tabs, floated over the media ─────────────────────────────────────────
+     Fixed, so they cost the feed no vertical space — the reason they were hidden
+     in the first place was that they pushed the first post below the fold, and a
+     fixed overlay does not.
+
+     The gradient behind them is doing real work: these sit on top of arbitrary
+     photography, and white text on a pale sky is unreadable. Same device the
+     mockup uses for its top bar. */
+  body[data-page="pulse"] .pl-tabs{
+    position:fixed; top:0; left:0; right:0; z-index:12;
+    display:flex; gap:2px; margin:0; padding:8px 10px 14px;
+    overflow-x:auto; -webkit-overflow-scrolling:touch;
+    border:0; background:linear-gradient(rgba(0,0,0,.62), rgba(0,0,0,.16) 78%, transparent);
+    scrollbar-width:none;
+  }
+  body[data-page="pulse"] .pl-tabs::-webkit-scrollbar{ display:none; }
+
+  body[data-page="pulse"] .pl-tab{
+    flex:0 0 auto; border:0; background:none; cursor:pointer;
+    padding:7px 11px; border-radius:999px;
+    font:600 13px/1 var(--ag-font-sans, system-ui, sans-serif);
+    /* !important because a11y.css loads last and repaints link/button colour for
+       contrast against a LIGHT background — which is the wrong correction here,
+       where the backdrop is a darkened photograph. */
+    color:rgba(255,255,255,.72) !important;
+    text-shadow:0 1px 6px rgba(0,0,0,.55);
+    white-space:nowrap;
+  }
+  body[data-page="pulse"] .pl-tab.is-on{
+    color:#fff !important;
+    background:rgba(255,255,255,.18);
+  }
+  body[data-page="pulse"] .pl-tab:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
 
   /* ── The feed IS the screen ───────────────────────────────────────────────
      `100dvh` not `100vh`: on mobile Safari and Chrome the visual viewport
@@ -126,7 +169,9 @@
   body[data-page="pulse"] .pf__canvas{
     position:relative; z-index:2;
     min-height:100%; align-items:flex-end;
-    padding:96px 78px 200px 15px;
+    /* 104px of top padding, not 96: the tab strip now floats over the canvas
+       and the caption has to start below it rather than behind it. */
+    padding:104px 78px 200px 15px;
     background:radial-gradient(120% 90% at 20% 15%, #12211F 0%, #07100F 70%);
   }
   /* `!important` on the colour, and it is not laziness: a11y.css loads LAST by

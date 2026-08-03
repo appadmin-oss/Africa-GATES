@@ -40,9 +40,12 @@ final class PulseFeedService
      * @param int|null $cursor Return posts with a LOWER id than this (null = start).
      * @param int|null $userId The signed-in member, for per-viewer state. Null for guests.
      * @param int|null $programmeId Restrict to one channel. Null = every channel.
+     * @param string|null $mediaType Restrict to one kind of media — 'video' is Reels.
+     *                               Null = everything, including text-only posts.
      * @return array{items: list<array<string,mixed>>, next_cursor: int|null}
      */
-    public function page(?int $cursor = null, int $limit = self::PAGE, ?int $userId = null, ?int $programmeId = null): array
+    public function page(?int $cursor = null, int $limit = self::PAGE, ?int $userId = null,
+                         ?int $programmeId = null, ?string $mediaType = null): array
     {
         $limit = max(1, min(30, $limit));
 
@@ -53,6 +56,25 @@ final class PulseFeedService
         // be in the first eight — and scrolling for more re-runs the unfiltered
         // query, so the channel silently leaks other channels back in.
         if ($programmeId !== null && $programmeId > 0) $q->where('programme_id', $programmeId);
+
+        // ── REELS ────────────────────────────────────────────────────────────
+        //
+        // Reels is not a second feed; it is this one restricted to video. The
+        // mockup says so in as many words — "VERTICAL FEED (Feed + Reels share
+        // this)" — and building a parallel query would mean two places to fix
+        // every time the card gains a field.
+        //
+        // Guarded on the column existing, and the guard decides the ANSWER rather
+        // than just avoiding an error: on a database with no media columns there
+        // are no videos, so a video-only feed is empty. Ignoring the filter would
+        // quietly serve the whole feed under a Reels heading, which is worse than
+        // an honest empty state because nothing looks wrong.
+        if ($mediaType !== null && $mediaType !== '') {
+            if (!OptionalColumn::on('gates_threads', 'media_type')) {
+                return ['items' => [], 'next_cursor' => null];
+            }
+            $q->where('media_type', $mediaType);
+        }
 
         // Fetch one extra row: its existence is what tells us there is a next page,
         // without a second COUNT query over the whole table.
@@ -257,12 +279,33 @@ final class PulseFeedService
      * Drives the "N new posts" pill. Polled, because shared cPanel hosting has no
      * persistent process to hold a websocket open — so this has to stay a single
      * indexed COUNT that is cheap to call every 45 seconds by every open tab.
+     *
+     * ── IT HAS TO COUNT THE SAME POSTS THE PILL WILL SHOW ────────────────────
+     *
+     * This counted every approved post regardless of the filters the reader has on.
+     * With only the channel chip that was a mild over-count. On Reels it becomes a
+     * plain lie: almost every new post is a photo or text, so the pill offers "3 new
+     * posts", the reader taps, `showNew()` re-fetches WITH the video filter, and
+     * nothing appears. A control that promises something and then does nothing is
+     * read as the page being broken.
+     *
+     * So it takes the same two filters as {@see page()} and stays one indexed COUNT.
      */
-    public function newSince(int $afterId): int
+    public function newSince(int $afterId, ?int $programmeId = null, ?string $mediaType = null): int
     {
         if ($afterId < 1) return 0;
-        return (int) DB::table('gates_threads')
-            ->where('status', 'approved')->where('id', '>', $afterId)->count();
+
+        $q = DB::table('gates_threads')->where('status', 'approved')->where('id', '>', $afterId);
+        if ($programmeId !== null && $programmeId > 0) $q->where('programme_id', $programmeId);
+
+        if ($mediaType !== null && $mediaType !== '') {
+            // No media column means no videos, so nothing can be newer. Same
+            // reasoning as page(): answer honestly rather than ignore the filter.
+            if (!OptionalColumn::on('gates_threads', 'media_type')) return 0;
+            $q->where('media_type', $mediaType);
+        }
+
+        return (int) $q->count();
     }
 
     /**

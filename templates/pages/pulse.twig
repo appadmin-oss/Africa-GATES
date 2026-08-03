@@ -370,6 +370,11 @@
 
   .pl-empty{ background:#fff; border:1px dashed rgba(16,41,44,.16); border-radius:20px; padding:48px 24px; text-align:center; color:#5a6d6f; font-size:14.5px; }
   .pl-empty a{ color:var(--ag-green); font-weight:600; }
+  /* A button that has to read as a link: switching tab is not navigation, so an
+     <a href> would be a lie to a screen reader and a broken middle-click. */
+  .pl-linkish{ border:0; background:none; padding:0; font:inherit; color:var(--ag-green);
+               font-weight:600; cursor:pointer; text-decoration:underline; }
+  .pl-linkish:focus-visible{ outline:2px solid var(--ag-ink,#10292c); outline-offset:2px; }
 
   /* rail cards — borderless by default. Four bordered boxes beside a column of
      bordered cards is eight competing outlines on one screen. */
@@ -489,6 +494,10 @@
   {# Tabs #}
   <div class="pl-tabs">
     <button type="button" class="pl-tab" :class="tab==='foryou' && 'is-on'" @click="tab='foryou'" :aria-pressed="tab==='foryou'">For you</button>
+    {# Reels. Advertised in the main navigation, on the home page and on the status
+       page — where it was listed as "Operational" — while no such surface existed
+       anywhere on the platform. #}
+    <button type="button" class="pl-tab" :class="tab==='reels' && 'is-on'" @click="tab='reels'" :aria-pressed="tab==='reels'">Reels</button>
     <button type="button" class="pl-tab" :class="tab==='events' && 'is-on'" @click="tab='events'" :aria-pressed="tab==='events'">Events</button>
     <button type="button" class="pl-tab" :class="tab==='community' && 'is-on'" @click="tab='community'" :aria-pressed="tab==='community'">Community</button>
     {% if is_member %}
@@ -500,8 +509,16 @@
     {% endif %}
   </div>
 
-  {# ── FOR YOU ── #}
-  <div x-show="tab==='foryou'">
+  {# ── FOR YOU · REELS ──────────────────────────────────────────────────────
+     ONE feed, two tabs. The mockup says it in as many words — "VERTICAL FEED
+     (Feed + Reels share this)" — and it is also the only honest way to build it:
+     Reels is not a different feed, it is this one restricted to video.
+
+     A second plFeed instance would mean duplicating ~250 lines of card markup,
+     and every future change to a card would have to be made twice or silently
+     apply to only one tab. Switching tabs re-queries with the filter, exactly as
+     pressing a channel chip already does. #}
+  <div x-show="tab==='foryou' || tab==='reels'">
     <div class="pl-grid">
       <div class="pl-feed">
 
@@ -849,6 +866,27 @@
           </div>
           <div class="pf-more" x-show="loading" x-cloak><span class="pf-end">Loading…</span></div>
           <div class="pf-end" x-show="!cursor && items.length > 0" x-cloak>You are all caught up.</div>
+
+          {# ── AN EMPTY REELS IS THE LIKELY STATE, NOT THE EDGE CASE ────────
+             Video is held for review and never machine-inspected on this host, so
+             a video-only feed can genuinely have nothing in it for a while. A
+             black screen with no explanation would read as broken, and the tab is
+             advertised in the main navigation — people will arrive.
+
+             So it says what Reels is and offers the way out, rather than
+             apologising. Only shown once the fetch has settled: during loading it
+             would flash "nothing here" at somebody whose posts are on the way. #}
+          <div class="pl-empty" x-show="media === 'video' && !loading && items.length === 0" x-cloak>
+            No reels yet. Reels are the video posts from this community —
+            {% if is_member %}record one and post it with the button above,{% else %}
+            <a href="{{ '/account/login'|e }}">sign in</a> to post one,{% endif %}
+            or <button type="button" class="pl-linkish" @click="tab='foryou'">see everything on the feed</button>.
+          </div>
+          <div class="pl-empty" x-show="media === '' && !loading && items.length === 0" x-cloak>
+            Nothing here yet. Follow the cycle as nominations open — or read the latest on the
+            <a href="/blog">journal</a>.
+          </div>
+
           <div x-ref="sentinel" aria-hidden="true"></div>
 
           <div class="pf-toast" x-show="!!toast.msg" x-cloak role="status">
@@ -1254,6 +1292,23 @@ function plPage(isMember){
     alerts: [], unread: 0, alertsLoading: false, _loaded: false, _poll: null,
 
     init(){
+      /*
+       * DEEP LINK TO A TAB.
+       *
+       * /pulse/reels and /pulse?tab=reels both have to land on Reels, because the
+       * main navigation, the home page and the status page all advertise Reels as
+       * a place — and a link that lands on the general feed instead makes the
+       * promise look broken rather than the link.
+       *
+       * Set BEFORE the feed component initialises, so its first fetch is already
+       * filtered and nothing flashes the unfiltered list.
+       */
+      var q = new URLSearchParams(window.location.search).get('tab') || '';
+      var path = window.location.pathname.replace(/\/+$/, '');
+      var want = path.endsWith('/reels') ? 'reels' : q;
+      if (['foryou', 'reels', 'events', 'community'].indexOf(want) !== -1) this.tab = want;
+      if (want === 'alerts' && this.isMember) this.tab = 'alerts';
+
       if (!this.isMember) return;
       this.count();
       // Every 90s, and never while the tab is hidden. A notification count is
@@ -1327,6 +1382,11 @@ function plFeed(cfg){
     head: cfg.head || 0,          // newest id on screen; the pill counts past it
     channels: cfg.channels || [],
     channel: 0,                   // 0 = every channel
+    // '' = every kind of post; 'video' is the Reels tab. Set from config rather
+    // than toggled, because a Reels feed and a Feed feed are two instances of this
+    // component, not one instance that switches — sharing it would mean one scroll
+    // position, one cursor and one "new posts" count across two tabs.
+    media: cfg.media || '',
     signedIn: !!cfg.signedIn,
     loading: false,
     newCount: 0,
@@ -1348,8 +1408,47 @@ function plFeed(cfg){
       var q = new URLSearchParams(window.location.search);
       var c = parseInt(q.get('channel') || '0', 10);
       if (c > 0 && this.channels.some(function(x){ return x.id === c; })) this.setChannel(c);
+
+      // ── REELS ────────────────────────────────────────────────────────────
+      // `tab` lives on the parent component; Alpine resolves it up the scope
+      // chain, so the feed can follow the tab without the tab having to know a
+      // feed exists. Deep links (/pulse/reels and ?tab=reels) set the parent's
+      // tab before this runs, so the first fetch is already filtered.
+      this.$watch('tab', (v) => this.setMedia(v === 'reels' ? 'video' : ''));
+      if (this.tab === 'reels' && this.media !== 'video') this.setMedia('video');
+
       this.watchSentinel();
       this.watchNew();
+    },
+
+    /**
+     * Switch what kind of post the feed is showing.
+     *
+     * Same shape as setChannel(): clear the list, refetch from the top, restart
+     * the sentinel. Losing scroll position on a tab switch is expected; silently
+     * keeping photos from the previous tab in the list would not be.
+     */
+    setMedia(kind){
+      kind = kind || '';
+      if (this.media === kind) return;
+      this.media   = kind;
+      this.loading = true;
+      this.items   = [];
+      this.newCount = 0;
+      fetch(this._feedUrl(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(d => {
+          if (!d || !d.success) throw 0;
+          this.items  = (d.items || []).map(this.hydrate, this);
+          this.cursor = d.next_cursor || null;
+          // `head` drives the new-posts pill. Left pointing at a post from the
+          // other tab it would count everything published since, on a feed that
+          // will not show most of it.
+          this.head   = this.items.length ? this.items[0].id : 0;
+          if (this.cursor && !this._io) this.watchSentinel();
+        })
+        .catch(() => this.flash('Could not load that.'))
+        .finally(() => { this.loading = false; });
     },
 
     hydrate(it){
@@ -1555,13 +1654,30 @@ function plFeed(cfg){
      * three posts, and scrolling for more re-runs the unfiltered query — so the
      * channel quietly leaks the other channels back in as you read.
      */
+    /*
+     * ONE PLACE THAT KNOWS WHAT THE FEED IS CURRENTLY SHOWING.
+     *
+     * Four call sites used to hand-assemble this query string. That survived one
+     * filter; it would not survive two. The failure is specific and quiet: a
+     * page-two fetch that forgets `media` returns photos into Reels, so the tab the
+     * reader chose stops meaning anything halfway down the scroll. The service warns
+     * about precisely this for channels — the answer is to make it impossible to
+     * forget rather than to remember in four places.
+     */
+    _feedUrl(extra){
+      var p = new URLSearchParams(extra || {});
+      if (this.channel) p.set('channel', this.channel);
+      if (this.media)   p.set('media', this.media);
+      var s = p.toString();
+      return '/api/v1/pulse/feed' + (s ? '?' + s : '');
+    },
+
     setChannel(id){
       if (this.channel === id) return;
       this.channel = id | 0;
       this.loading = true;
       this.items = [];
-      fetch('/api/v1/pulse/feed' + (this.channel ? '?channel=' + this.channel : ''),
-            { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      fetch(this._feedUrl(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(r => r.json())
         .then(d => {
           if (!d || !d.success) throw 0;
@@ -1642,8 +1758,7 @@ function plFeed(cfg){
       this.loading = true;
       // The channel travels with the cursor. Without it page two arrives
       // unfiltered and the chip you pressed silently stops meaning anything.
-      fetch('/api/v1/pulse/feed?cursor=' + encodeURIComponent(this.cursor)
-            + (this.channel ? '&channel=' + this.channel : ''), {
+      fetch(this._feedUrl({ cursor: this.cursor }), {
           headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(r => r.json())
         .then(d => {
@@ -1684,7 +1799,13 @@ function plFeed(cfg){
     watchNew(){
       var tick = () => {
         if (document.hidden || !this.head) return;
-        fetch('/api/v1/pulse/new?after=' + encodeURIComponent(this.head), {
+        // The SAME filters showNew() will refetch with. Counting unfiltered while
+        // fetching filtered is how a pill offers "3 new posts" on Reels — where
+        // nearly every new post is a photo — and then delivers none.
+        var p = new URLSearchParams({ after: this.head });
+        if (this.channel) p.set('channel', this.channel);
+        if (this.media)   p.set('media', this.media);
+        fetch('/api/v1/pulse/new?' + p.toString(), {
             headers: { 'X-Requested-With': 'XMLHttpRequest' } })
           .then(r => r.json())
           .then(d => { if (d && d.success) this.newCount = d.count | 0; })
@@ -1697,8 +1818,7 @@ function plFeed(cfg){
     showNew(){
       // Prepend rather than reload: a reader who is three screens down keeps
       // their place, which a full refresh would throw away.
-      fetch('/api/v1/pulse/feed' + (this.channel ? '?channel=' + this.channel : ''),
-            { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      fetch(this._feedUrl(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(r => r.json())
         .then(d => {
           if (!d || !d.success) throw 0;
