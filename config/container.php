@@ -306,6 +306,13 @@ return [
         new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class)),
         $c->get(RateLimitService::class)
     ),
+    // Refunds. Gets the mailer so the buyer is told, and the auditor because
+    // money leaving needs a name against it.
+    \AfricaGates\Admin\Controllers\RefundsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\RefundsController(
+        $c->get(Twig::class),
+        $c->get(OtpService::class),
+        $c->get(AuditService::class)
+    ),
     // Vote delivery. Audited, because delivering writes to a public tally and
     // "who did this and when" has to be answerable months later.
     \AfricaGates\Admin\Controllers\VoteDeliveryController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\VoteDeliveryController(

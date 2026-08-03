@@ -486,6 +486,12 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   -- two turn that loop into 1h -> 6h -> 24h and then a stop.
   refund_attempts INT UNSIGNED NOT NULL DEFAULT 0,
   refund_retry_after TIMESTAMP NULL DEFAULT NULL,
+  -- The gateway's own answer behind a refund decision. `unreachable` is a
+  -- distinct verdict: a confident refusal made out of a network timeout is the
+  -- worst thing this column could be used to justify. See RefundDecision.
+  gateway_checked_at TIMESTAMP NULL DEFAULT NULL,
+  gateway_verdict VARCHAR(24) DEFAULT NULL,
+  gateway_evidence TEXT DEFAULT NULL,
   -- WHEN the money arrived, as distinct from when checkout started. The refund
   -- grace window measures this; before the column it measured created_at.
   confirmed_at TIMESTAMP NULL DEFAULT NULL,

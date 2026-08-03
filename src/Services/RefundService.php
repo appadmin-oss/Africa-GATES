@@ -481,6 +481,103 @@ final class RefundService
     }
 
     /**
+     * Refund ONE reference on a person's instruction — and only on evidence.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE FRAUD GUARD IS THAT THIS ASKS THE GATEWAY FIRST
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The automatic sweep only ever touches one narrow, arithmetic case. Everything
+     * else — over the ceiling, out of retries, a permanently refused refund — was
+     * left for a person with no way for that person to act. So this is the manual
+     * path, and the danger it introduces is obvious: a refund issued because
+     * somebody asked convincingly.
+     *
+     * It is closed by refusing to move money without a gateway verdict.
+     * {@see RefundDecision} is consulted at the moment of the click, not read from
+     * a stale column, and anything other than `OWED` stops here. In particular:
+     *
+     *   NEVER_PAID     the gateway was reached and says nothing settled. Refunding
+     *                  would be sending money we were never paid — and this is the
+     *                  commonest request, because an abandoned checkout leaves a
+     *                  pending authorisation that looks exactly like a charge.
+     *   UNVERIFIABLE   the gateway could not be reached. An unanswered check is not
+     *                  a reason to pay out, and it is not a reason to refuse either
+     *                  — it is a reason to try again in a minute.
+     *   DELIVERABLE    the votes can still be minted. Mint them; that is what the
+     *                  buyer paid for and it costs the platform nothing.
+     *
+     * ── THE OVERRIDE, AND WHY IT EXISTS AT ALL ───────────────────────────────
+     *
+     * `$override` lets a named person refund against the verdict, because reality
+     * produces cases no rule anticipates — a duplicate charge across two
+     * references, a gateway whose API has gone permanently silent on an old
+     * transaction. Refusing to build it would only move those cases into somebody's
+     * personal bank app, where there is no record at all.
+     *
+     * It is deliberately expensive: it requires a written reason, it is recorded
+     * against the order alongside the verdict it contradicted, and the outcome is
+     * `refund_state = overridden` rather than the ordinary value, so it is visible
+     * forever rather than indistinguishable from a routine refund.
+     *
+     * @param string $actor  who is doing this, for the record.
+     * @param bool   $override refund against the verdict.
+     * @param string $why     required when overriding.
+     * @return array{ok:bool, outcome:string, say:string}
+     */
+    public function refundByReference(string $reference, string $actor,
+                                     bool $override = false, string $why = ''): array
+    {
+        $ref = trim($reference);
+        if ($ref === '') return ['ok' => false, 'outcome' => 'NOT_FOUND', 'say' => 'No reference given.'];
+        if (!self::ready()) {
+            return ['ok' => false, 'outcome' => 'NOT_READY',
+                    'say' => 'The schema cannot record a refund safely yet — run the migrations first. '
+                           . 'Refusing rather than paying out something we cannot write down.'];
+        }
+        if ($override && trim($why) === '') {
+            return ['ok' => false, 'outcome' => 'NEED_REASON',
+                    'say' => 'An override needs a written reason. It is recorded against the order '
+                           . 'permanently, next to the verdict it contradicted.'];
+        }
+
+        // THE GUARD. Asked now, of the gateway, not read from a column.
+        $verdict = (new RefundDecision($this->payments))->for($ref, askGateway: true);
+
+        if ($verdict['outcome'] !== 'OWED' && !$override) {
+            return ['ok' => false, 'outcome' => (string) $verdict['outcome'], 'say' => (string) $verdict['say']];
+        }
+
+        try {
+            $don = DB::table('gates_donations')->where('payment_ref', $ref)->first();
+        } catch (\Throwable) { $don = null; }
+        if (!$don) return ['ok' => false, 'outcome' => 'NOT_FOUND', 'say' => 'No payment with that reference.'];
+
+        if (!$this->refundOne($don)) {
+            return ['ok' => false, 'outcome' => 'NOT_SENT',
+                    'say' => 'The refund was not sent. Either another worker already has it, or the gateway '
+                           . 'refused — the order\'s refund state and reason say which.'];
+        }
+
+        // Recorded so an override is never mistaken for a routine refund.
+        try {
+            $note = $override
+                ? 'OVERRIDE by ' . $actor . ' against verdict ' . $verdict['outcome'] . ': ' . trim($why)
+                : 'manual refund by ' . $actor . ' on verdict OWED';
+            DB::table('gates_donations')->where('id', $don->id)->update([
+                'refund_reason' => mb_substr($note, 0, 250),
+            ] + ($override ? ['refund_state' => 'overridden'] : []));
+        } catch (\Throwable) {}
+
+        return ['ok' => true, 'outcome' => 'SENT',
+                'say' => $override
+                    ? 'Refund sent as an OVERRIDE against a ' . $verdict['outcome'] . ' verdict. The reason '
+                      . 'you gave is on the order permanently.'
+                    : 'Refund sent. The buyer is emailed automatically and banks usually take 5–10 working '
+                      . 'days to show it.'];
+    }
+
+     /**
      * Refund one order. True only when the gateway accepted it.
      *
      * The order of operations is the safety property, and it is the same one the

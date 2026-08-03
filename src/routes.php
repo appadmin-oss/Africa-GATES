@@ -983,6 +983,11 @@ return function(App $app) {
         // on this deployment, so `votes:proof` and `votes:remint` were unreachable
         // by the only person who needed them. Same engine, same check-then-apply
         // shape as reconciliation.
+        // REFUNDS. Verdict first, button second — the commonest request here is an
+        // abandoned checkout whose bank hold looks exactly like a charge, and
+        // paying that out is money leaving for nothing. See RefundDecision.
+        $a->get('/refunds',        \AfricaGates\Admin\Controllers\RefundsController::class.':index');
+        $a->post('/refunds/issue', \AfricaGates\Admin\Controllers\RefundsController::class.':issue');
         $a->get('/vote-delivery',          \AfricaGates\Admin\Controllers\VoteDeliveryController::class.':index');
         $a->post('/vote-delivery/deliver', \AfricaGates\Admin\Controllers\VoteDeliveryController::class.':deliver');
         $a->get('/support',                          \AfricaGates\Admin\Controllers\SupportController::class.':index');
