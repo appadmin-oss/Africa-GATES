@@ -760,6 +760,24 @@ return function(App $app) {
         // endpoints refuse one, because a ticket is a promise to reply and a
         // reply needs a verified address.
         $g->get('/support/tickets',   SupportController::class.':tickets');
+        // ── ONE TICKET, NO ACCOUNT ──────────────────────────────────────────
+        //
+        // The rule above is right about members and wrong about everyone else. Paid
+        // voting takes an email and a card and creates no account, so the whole
+        // unminted-vote incident population was given the repair tools and then no
+        // way to answer the reply they got; and the claim rules require a human
+        // route that works WITHOUT an account, while the assisted path routes to a
+        // ticket the person could not open. A thread the requester cannot reply to
+        // is a monologue.
+        //
+        // The link IS the verified address: it was mailed to the address on the
+        // ticket and dies if that address changes. Scoped to one thread, expiring,
+        // and unable to list — see TicketLinkService.
+        //
+        // The 64-hex pattern cannot collide with /support/tickets or any other
+        // /support/… path, so registration order here is not load-bearing.
+        $g->get('/support/t/{token:[a-f0-9]{64}}',        SupportController::class.':linkedThread');
+        $g->post('/support/t/{token:[a-f0-9]{64}}/reply', SupportController::class.':linkedReply');
         // The Help Centre. One URL per answer, so support can paste one into a
         // reply, the assistant can cite one, a receipt email can point at the
         // exact paragraph and a search engine can index it — none of which a

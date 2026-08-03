@@ -530,10 +530,28 @@ final class SupportTicketService
 
         $to = trim((string) ($t->email ?? ''));
         if ($this->mailer !== null && filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            // ── THE LINK HAS TO WORK FOR SOMEBODY WITH NO ACCOUNT ────────────
+            //
+            // This pointed at /support/tickets?ref=…, which redirects a guest
+            // straight to sign-in. Paid voting takes an email and a card and
+            // creates no account, so the entire unminted-vote population got a
+            // reply whose only "reply here" link bounced them to a login they
+            // could never complete. From their side the conversation was a
+            // monologue, which is exactly the complaint that started all this.
+            //
+            // A scoped link works for everyone: it opens this one thread and
+            // nothing else, and it goes to the address already on the ticket.
+            // Falls back to the member desk when one cannot be minted, because an
+            // email with a worse link still beats a reply that never goes out.
+            $link = TicketLinkService::urlFor((int) $t->id, $to);
+            if ($link === '') {
+                $link = SiteUrl::base() . '/support/tickets?ref=' . rawurlencode((string) $t->reference);
+            }
+
             $text = "Hi " . (trim((string) ($t->name ?? '')) ?: 'there') . ",\n\n" . $body
                   . "\n\n— — —\nTicket {$t->reference}: {$t->subject}\n"
-                  . "Reply to this ticket at " . SiteUrl::base() . "/support/tickets?ref="
-                  . rawurlencode((string) $t->reference) . "\n"
+                  . "Reply to this ticket at " . $link . "\n"
+                  . "No account needed — the link opens your conversation.\n"
                   . "This reply was written by the Africa GATES support assistant. If it did not solve it, "
                   . "reply on the ticket and a person will pick it up.";
             try {

@@ -100,6 +100,77 @@ final class CsrfFieldNameTest extends TestCase
     }
 
     /**
+     * A `fetch` POST needs the token too, and forgetting it looks like nothing.
+     *
+     * ── WHY THIS WAS ADDED ───────────────────────────────────────────────────
+     *
+     * The test above scans for hidden INPUTS, so it only ever sees form posts. The
+     * account-free ticket reply is a `fetch`; it shipped without a token, and the
+     * button reported "CSRF validation failed" — the same inert-button failure this
+     * whole file exists because of, reappearing in a new shape inside one change.
+     *
+     * The middleware accepts an `X-CSRF-Token` header or a `_token` body field, and
+     * `/api/` is exempt from the same-origin rule. So a template that POSTs via
+     * fetch must show one of those three things.
+     *
+     * Deliberately COARSE, and the first draft was too clever about it. It tried to
+     * recognise the fetch target — `fetch('/api/…')` — and flagged three innocent
+     * templates that build the URL in a variable (`fetch(API + '/cheer')`,
+     * `post('/api/v1/support/reply')`). A guard with false positives gets weakened
+     * or deleted, so the rule is now the crudest thing that still catches the real
+     * mistake: a template that POSTs, mentions no `/api/` path anywhere, and carries
+     * no token, cannot possibly be sending one.
+     */
+    public function test_a_template_that_posts_by_fetch_carries_a_token(): void
+    {
+        $root = dirname(__DIR__, 2) . '/templates';
+        $bad  = [];
+
+        $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root,
+            \FilesystemIterator::SKIP_DOTS));
+        foreach ($it as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'twig') continue;
+            $body = (string) file_get_contents($file->getPathname());
+
+            // Only files that actually issue a POST from JavaScript.
+            if (!preg_match('~method\s*:\s*[\'"]POST[\'"]~i', $body)) continue;
+
+            $hasToken = str_contains($body, 'X-CSRF-Token') || str_contains($body, '_token');
+            $usesApi  = str_contains($body, '/api/');   // exempt namespace
+
+            if (!$hasToken && !$usesApi) {
+                $bad[] = str_replace($root . '/', '', $file->getPathname());
+            }
+        }
+
+        $this->assertSame([], $bad,
+            "These templates POST from JavaScript with no CSRF token and no /api/ path, "
+            . "so every one of those requests is rejected and the button silently does "
+            . "nothing:\n  " . implode("\n  ", $bad));
+    }
+
+    /**
+     * The account-free ticket reply specifically, by name.
+     *
+     * The scan above is a net; this is the hook. That page is the only route on the
+     * platform that accepts a write from somebody with no session at all, it POSTs
+     * outside `/api/`, and it shipped without a token — so it is named here the same
+     * way the three admin incident tools are, rather than trusted to a heuristic that
+     * a later refactor could slip past.
+     */
+    public function test_the_account_free_ticket_reply_can_actually_post(): void
+    {
+        $body = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/support-ticket-link.twig');
+
+        $this->assertStringContainsString('X-CSRF-Token', $body,
+            'Without this header the reply is rejected, and the one group who cannot '
+            . 'fall back to an account is the group left unable to answer.');
+        $this->assertStringContainsString('meta[name="csrf-token"]', $body,
+            'The token must come from the tag the layout already emits, not a copy.');
+    }
+
+    /**
      * And the admin screens for the incident specifically.
      *
      * Named one by one because these three are the tools somebody reaches for when

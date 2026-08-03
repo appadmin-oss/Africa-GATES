@@ -307,6 +307,101 @@ final class SupportController
         ]);
     }
 
+    /**
+     * One ticket, opened by a link, with no account.
+     *
+     * ── WHY THIS ROUTE EXISTS ────────────────────────────────────────────────
+     *
+     * Every other ticket endpoint requires a member, and the reasoning was sound as
+     * far as it went — a reply needs a verified address. But it locked out the two
+     * groups most likely to need support. Paid voting takes an email and a card and
+     * creates no account, so the entire unminted-vote incident population was given
+     * the repair tools and then had no way to answer the reply they received. And
+     * the claim rules require a human route that works WITHOUT an account, while the
+     * assisted path routes to a ticket the person could not open.
+     *
+     * A support thread the requester cannot reply to is a monologue.
+     *
+     * ── WHAT THE LINK IS TRUSTED FOR ─────────────────────────────────────────
+     *
+     * Exactly one thread and nothing else. It cannot list, cannot reach another
+     * reference, and grants no capability the member path does not already have —
+     * {@see \AfricaGates\Services\TicketLinkService} owns those properties and this
+     * action adds none of its own.
+     *
+     * A bad token renders the SAME page as an expired one, because distinguishing
+     * them turns this into an oracle for which references exist — and references
+     * travel in emails, receipts and screenshots.
+     */
+    public function linkedThread(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $who   = \AfricaGates\Services\TicketLinkService::resolve($token);
+
+        if ($who === null || $this->tickets === null) {
+            // 404, not 403. A refusal that distinguishes "no such token" from
+            // "expired token on a real ticket" is itself a disclosure.
+            return $this->view->render($res->withStatus(404), 'pages/support-ticket-link.twig', [
+                'page_title'       => 'This link has expired — Africa GATES',
+                'meta_description' => 'Support ticket link.',
+                'gates_page'       => 'support',
+                'has_hero'         => false,
+                'thread'           => null,
+                'token'            => '',
+            ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        }
+
+        \AfricaGates\Services\TicketLinkService::touch($token);
+
+        return $this->view->render($res, 'pages/support-ticket-link.twig', [
+            'page_title'       => 'Ticket ' . $who['reference'] . ' — Africa GATES',
+            'meta_description' => 'Your Africa GATES support conversation.',
+            'gates_page'       => 'support',
+            'has_hero'         => false,
+            // userId 0 — threadFor() has always matched on email alone, so the guest
+            // path reuses the member reader rather than a parallel one that could
+            // drift from it and start returning internal staff notes.
+            'thread'           => $this->tickets->threadFor($who['reference'], 0, $who['email']),
+            'token'            => $token,
+        ])->withHeader('X-Robots-Tag', 'noindex, nofollow')
+          ->withHeader('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * Reply on a link-opened ticket.
+     *
+     * Rate limited on the token, because this is the one write on the platform that
+     * takes no session at all: without a limit, a leaked link would be an unbounded
+     * way to append text to somebody else's support thread.
+     */
+    public function linkedReply(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $who   = \AfricaGates\Services\TicketLinkService::resolve($token);
+
+        if ($who === null || $this->tickets === null) {
+            return $this->json($res, ['ok' => false,
+                'message' => 'This link has expired. Reply to the email instead and we will pick it up.'], 404);
+        }
+
+        // Keyed on the TOKEN, not the IP. The people this exists for share networks —
+        // a cyber-café, a household router, a carrier NAT — so an IP bucket would
+        // have one person's replies throttle their neighbour's. The token identifies
+        // the thread being written to, which is the thing actually worth bounding.
+        if ($this->rateLimit !== null
+            && !$this->rateLimit->check(hash('sha256', $token), 'ticket_link_reply', 10, 3600)) {
+            return $this->json($res, ['ok' => false,
+                'message' => 'That is a lot of replies at once. Try again shortly.'], 429);
+        }
+
+        $r = $this->tickets->reply(
+            $who['reference'], (string) (((array) $req->getParsedBody())['body'] ?? ''),
+            0, $who['email'], ''
+        );
+
+        return $this->json($res, ['ok' => $r['ok'], 'message' => $r['message']], $r['ok'] ? 200 : 422);
+    }
+
     /** Reply on one of the member's own tickets. */
     public function ticketReply(Request $req, Response $res): Response
     {

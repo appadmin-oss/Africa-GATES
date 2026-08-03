@@ -1,0 +1,240 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  ONE TICKET, OPENED BY A LINK, WITH NO ACCOUNT
+
+  Deliberately NOT support-tickets.twig with a flag. That page is a desk: a list
+  down one side, filters, "your other tickets". Every one of those is a capability
+  a link must not have — it is permission for one conversation, not for an
+  address's history — and building this as a variant would mean the containment
+  rule lived in a chain of {% if %} that any later edit could quietly break.
+
+  So this template renders exactly one thread and offers no navigation into
+  anything else. There is nothing here to accidentally reveal.
+
+  The audience is somebody on a phone, on mobile data, who tapped a link in an
+  email and may never have visited the site. No sign-in, no jargon, and the reply
+  box is the first thing under the conversation.
+  ══════════════════════════════════════════════════════════════════════════════
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="support"]{ background:#f2f5f3; }
+  body[data-page="support"] [x-cloak]{ display:none !important; }
+
+  .tl{ max-width:720px; margin:0 auto; padding:28px 16px 72px; }
+  .tl-head{ margin-bottom:18px; }
+  .tl-ref{ font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.1em;
+           text-transform:uppercase; color:var(--ag-green,#237b22); }
+  .tl-h1{ font-size:clamp(21px,4.4vw,27px); line-height:1.22; margin:8px 0 0; color:var(--ag-ink,#10292c); }
+  .tl-sub{ margin:7px 0 0; font-size:13.5px; line-height:1.6; color:#5a6d6f; }
+
+  .tl-card{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:16px; padding:18px 16px; }
+
+  .tl-state{ display:inline-flex; align-items:center; gap:7px; font:700 10px/1 var(--ag-font-mono,monospace);
+             letter-spacing:.09em; text-transform:uppercase; border-radius:999px; padding:6px 11px; }
+  .tl-state--open{ background:rgba(35,123,34,.1); color:var(--ag-green,#237b22); }
+  .tl-state--closed{ background:rgba(16,41,44,.07); color:#5a6d6f; }
+
+  /* ── the conversation ─────────────────────────────────────────────────── */
+  .tl-thread{ display:flex; flex-direction:column; gap:15px; margin-top:16px; }
+  .tl-turn{ display:flex; gap:10px; align-items:flex-start; }
+  .tl-turn--me{ flex-direction:row-reverse; }
+  .tl-av{ flex:0 0 30px; width:30px; height:30px; border-radius:50%; display:grid; place-items:center;
+          font:700 12px/1 var(--ag-font-sans,sans-serif); color:#fff; background:#5a6d6f; }
+  .tl-av--staff{ background:var(--ag-green,#237b22); }
+  .tl-av--bot{ background:#7a8b8d; }
+  .tl-av--me{ background:var(--ag-ink,#10292c); }
+  /* min-width:0 so a long unbroken string cannot push the bubble past the card. */
+  .tl-b{ min-width:0; flex:1 1 auto; background:#f6f8f5; border-radius:13px; padding:10px 13px; }
+  .tl-turn--me .tl-b{ background:rgba(16,41,44,.055); }
+  .tl-who{ display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; margin-bottom:3px; }
+  .tl-who span:first-child{ font-weight:700; font-size:12.5px; color:var(--ag-ink,#10292c); }
+  .tl-when{ font-size:11px; color:#8a9a9c; }
+  .tl-bot{ font:700 9px/1 var(--ag-font-mono,monospace); letter-spacing:.08em; text-transform:uppercase;
+           background:rgba(122,139,141,.16); color:#5a6d6f; border-radius:999px; padding:3px 6px; }
+  .tl-say{ margin:0; font-size:14px; line-height:1.62; color:#22383a; white-space:pre-wrap;
+           overflow-wrap:anywhere; }
+
+  /* ── reply ────────────────────────────────────────────────────────────── */
+  .tl-compose{ margin-top:18px; border-top:1px solid rgba(16,41,44,.09); padding-top:16px; }
+  .tl-ta{ width:100%; min-height:112px; resize:vertical; border:1px solid rgba(16,41,44,.16);
+          border-radius:12px; padding:12px 13px; font:inherit; font-size:14.5px; line-height:1.6;
+          color:#22383a; background:#fff; }
+  .tl-ta:focus{ outline:none; border-color:#3f9c3c; box-shadow:0 0 0 3px rgba(127,200,124,.16); }
+  .tl-bar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-top:11px; }
+  .tl-go{ background:var(--ag-green,#237b22); color:#fff; border:0; border-radius:999px;
+          padding:11px 22px; font-weight:700; font-size:14px; cursor:pointer; }
+  .tl-go[disabled]{ opacity:.5; cursor:not-allowed; }
+  .tl-go:focus-visible{ outline:2px solid var(--ag-ink,#10292c); outline-offset:2px; }
+  .tl-note{ margin:0; font-size:13px; }
+  .tl-note--ok{ color:var(--ag-green,#237b22); }
+  .tl-note--err{ color:#b4452f; }
+  .tl-hint{ margin:10px 0 0; font-size:12.5px; line-height:1.55; color:#7a8b8d; }
+
+  /* ── the expired / unknown state ──────────────────────────────────────── */
+  .tl-gone{ text-align:center; padding:14px 4px 6px; }
+  .tl-gone h1{ font-size:clamp(20px,4.2vw,25px); margin:0 0 10px; color:var(--ag-ink,#10292c); }
+  .tl-gone p{ margin:0 auto 14px; max-width:44ch; font-size:14px; line-height:1.65; color:#5a6d6f; }
+  .tl-gone a{ color:var(--ag-green,#237b22); font-weight:700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="ag-scope tl">
+
+{% if thread is null %}
+  {#
+    THE SAME PAGE FOR EVERY FAILURE.
+
+    Unknown, expired, revoked and reassigned all land here with identical wording.
+    Telling them apart would turn this URL into an oracle for which references
+    exist — and references travel in emails, receipts and screenshots.
+
+    It still has to be useful to the overwhelmingly likely visitor: somebody whose
+    link simply aged out. So it says what to do next, and that route needs no
+    account either.
+  #}
+  <div class="tl-card tl-gone">
+    <h1>This link is no longer active</h1>
+    <p>Support links stop working after a while, for your safety. Nothing has gone
+       wrong with your ticket and nothing has been lost.</p>
+    <p><strong>Just reply to the last email we sent you</strong> — it reaches the same
+       people and lands on the same conversation.</p>
+    <p><a href="/support">Or start a new conversation</a></p>
+  </div>
+
+{% else %}
+  {% set t = thread.ticket %}
+  {% set settled = t.status in ['resolved','closed'] %}
+
+  <div class="tl-head">
+    <p class="tl-ref">Ticket {{ t.reference }}</p>
+    <h1 class="tl-h1">{{ t.subject }}</h1>
+    <p class="tl-sub">
+      <span class="tl-state {{ settled ? 'tl-state--closed' : 'tl-state--open' }}">{{ settled ? 'Settled' : 'Open' }}</span>
+    </p>
+  </div>
+
+  <div class="tl-card" x-data="ticketLink()">
+    <div class="tl-thread">
+      {# The opening turns, parsed by the service. An escalated conversation starts
+         with several, and rendering them as one would put the assistant's words in
+         the visitor's mouth. #}
+      {% for o in t.opening %}
+      <div class="tl-turn{{ o.staff ? '' : ' tl-turn--me' }}">
+        <span class="tl-av {{ o.staff ? 'tl-av--staff' : 'tl-av--me' }}" aria-hidden="true">{{ o.staff ? 'G' : 'Y' }}</span>
+        <div class="tl-b">
+          <div class="tl-who">
+            <span>{{ o.staff ? 'Support assistant' : 'You' }}</span>
+            {% if loop.first %}<span class="tl-when">{{ t.created_at|date('j M Y, H:i') }}</span>{% endif %}
+          </div>
+          <p class="tl-say">{{ o.body }}</p>
+        </div>
+      </div>
+      {% endfor %}
+
+      {% for m in thread.messages %}
+      <div class="tl-turn{{ m.staff ? '' : ' tl-turn--me' }}">
+        <span class="tl-av {{ m.agent ? 'tl-av--bot' : (m.staff ? 'tl-av--staff' : 'tl-av--me') }}" aria-hidden="true">{{ m.staff ? 'G' : 'Y' }}</span>
+        <div class="tl-b">
+          <div class="tl-who">
+            <span>{{ m.from }}</span>
+            {# Labelled as itself, always. Somebody told a person read their ticket
+               who later works out it was a machine has been lied to about the one
+               thing support cannot lie about. #}
+            {% if m.agent %}<span class="tl-bot" title="Written by the support assistant, not by a person">automated</span>{% endif %}
+            <span class="tl-when">{{ m.created_at|date('j M, H:i') }}</span>
+          </div>
+          <p class="tl-say">{{ m.body }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="tl-compose">
+      <label class="sr-only" for="tlReply">Your reply</label>
+      <textarea class="tl-ta" id="tlReply" x-model="body" maxlength="5000"
+                placeholder="{{ settled ? 'Still not right? Reply and this reopens.' : 'Tell us anything that would help…' }}"
+                @keydown.meta.enter="send()" @keydown.ctrl.enter="send()"></textarea>
+      <div class="tl-bar">
+        <button class="tl-go" type="button" :disabled="busy || !body.trim()" @click="send()">Send reply</button>
+        <span class="tl-when" x-show="body.length > 4000" x-cloak
+              x-text="(5000 - body.length) + ' characters left'"></span>
+        <p class="tl-note" :class="ok ? 'tl-note--ok' : 'tl-note--err'" x-show="!!note" x-cloak x-text="note"></p>
+      </div>
+      <p class="tl-hint">You do not need an account. Your reply reaches the team by email,
+         and theirs reaches you the same way.</p>
+    </div>
+  </div>
+{% endif %}
+
+{% if thread is not null %}
+<script nonce="{{ csp_nonce }}">
+/*
+ * The token is read from the URL rather than printed into the page.
+ *
+ * It is already in the address bar, so this discloses nothing new — but it keeps
+ * the secret out of the HTML source, out of anything that scrapes the DOM, and out
+ * of a "view source" screenshot somebody pastes into a support conversation.
+ */
+function ticketLink() {
+  return {
+    body: '', busy: false, note: '', ok: false,
+    async send() {
+      const text = this.body.trim();
+      if (!text || this.busy) return;
+      this.busy = true; this.note = '';
+
+      // /support/t/<token>  →  /support/t/<token>/reply
+      const base = window.location.pathname.replace(/\/+$/, '');
+
+      /*
+       * THE CSRF TOKEN IS NOT OPTIONAL HERE, AND FORGETTING IT IS EASY.
+       *
+       * This is a same-origin POST outside /api/, so CsrfMiddleware applies and
+       * reads either an X-CSRF-Token header or a `_token` body field. The first
+       * version of this page sent neither, and the symptom was the button
+       * reporting "CSRF validation failed" — the same inert-button failure that
+       * left three admin incident tools unusable in production, arriving again in
+       * a new place within the same change.
+       *
+       * Read from the meta tag the layout already emits, so there is one source.
+       */
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+      try {
+        const r = await fetch(base + '/reply', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-CSRF-Token': csrf,
+          },
+          body: JSON.stringify({ body: text }),
+        });
+        const d = await r.json().catch(() => ({}));
+        this.ok = !!d.ok;
+        this.note = d.message || (d.ok ? 'Sent.' : 'That did not send. Try again.');
+        if (d.ok) {
+          this.body = '';
+          // Reload so the new turn appears in the thread rather than being
+          // optimistically drawn — a support reply that LOOKS sent and was not is
+          // exactly the failure this whole page exists to stop.
+          setTimeout(() => window.location.reload(), 900);
+        }
+      } catch (e) {
+        this.ok = false;
+        this.note = 'No connection. Your words are still in the box — try again in a moment.';
+      } finally {
+        this.busy = false;
+      }
+    },
+  };
+}
+</script>
+{% endif %}
+</section>
+{% endblock %}
