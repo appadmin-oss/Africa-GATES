@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use AfricaGates\Support\Env;
+use AfricaGates\Support\ProviderBreaker;
 use Illuminate\Database\Capsule\Manager as DB;
 
 /**
@@ -378,6 +379,15 @@ class AiService
             }
             $this->hopErrors[] = ['provider' => $provider, 'model' => $model, 'error' => $why];
             $this->lastError   = $provider . '/' . $model . ': ' . $why;
+
+            // The request never reached this provider — DNS, or an egress firewall.
+            // That stays true for minutes, so learn it once instead of paying a full
+            // timeout for it on every subsequent call. Deliberately NOT tripped by
+            // 401/429/5xx: those are the provider answering, which proves the network
+            // path works and each has its own correct handling.
+            if (ProviderBreaker::isUnreachable($why)) {
+                ProviderBreaker::open($provider);
+            }
             // fall through to the next hop
         }
         if ($this->hopErrors !== []) {
@@ -451,6 +461,17 @@ class AiService
             $seen[$key] = true;
             $hops[] = [$provider, $model];
         }
+
+        // ── SKIP PROVIDERS THAT ARE NOT REACHABLE AT ALL ─────────────────────
+        //
+        // Only ever a REORDERING, never a removal: if every hop is open-circuit the
+        // full list is used unchanged. A cache row must not be the thing that makes
+        // the platform unable to think, so the worst this can do is change what is
+        // tried first. See ProviderBreaker.
+        $live = array_values(array_filter($hops,
+            static fn(array $h): bool => !ProviderBreaker::isOpen($h[0])));
+        if ($live !== []) $hops = $live;
+
         return $maxAttempts > 0 ? array_slice($hops, 0, $maxAttempts) : $hops;
     }
 
@@ -470,6 +491,12 @@ class AiService
                     'cause' => 'Set GROQ_API_KEY or GEMINI_API_KEY, in the .env or in admin Settings. '
                              . 'Note that a key present but blank counts as unset.'];
         }
+        // Somebody pressing "Test AI now" is asking what happens if we try RIGHT NOW.
+        // Answering from a five-minute-old breaker would report a provider as failing
+        // seconds after the host unblocked the firewall, and send them chasing a fault
+        // that no longer exists. So the health check always makes real attempts.
+        ProviderBreaker::clearAll();
+
         $this->lastError = null;
         $out = $this->complete('You are a health check. Reply with the single word OK.', 'ping', 8, false, 0.0);
         $ok = is_string($out) && $out !== '';
@@ -668,7 +695,16 @@ class AiService
                 return is_array($j) ? $j : null;
             }
 
-            $transient = ($code === 0 || $code === 429 || $code >= 500);
+            // `HTTP 0` is EXCLUDED from the retry, and that is the point.
+            //
+            // Code 0 means cURL got no response at all — the connection was refused,
+            // the name did not resolve, or the timeout expired. None of those clear in
+            // 300 milliseconds, so the retry only ever bought a second full timeout on
+            // a certainty. With a 6s timeout that is 12.3s per call spent on a
+            // provider that cannot answer, which on this deployment is what stopped
+            // Gee responding: the request ran out of patience before the chain reached
+            // a provider that could. The cross-request half is in ProviderBreaker.
+            $transient = ($code === 429 || $code >= 500);
             $this->lastError = 'HTTP ' . $code . ($cerr !== '' ? ' (' . $cerr . ')' : '')
                 . ($resp ? ' ' . substr((string) $resp, 0, 160) : '');
             if (!$transient || $attempt === 2) return null;
