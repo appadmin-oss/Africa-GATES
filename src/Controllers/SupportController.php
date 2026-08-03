@@ -189,12 +189,42 @@ final class SupportController
         // press it again when a day goes by with no answer. Minting a second
         // reference for one problem splits it across two tickets and hands the
         // member two numbers to quote. Chasing is added to the ticket they have.
-        $existing = $this->tickets->openTicketFor(
+        // ── AND WHOSE TICKET MAY IT FIND? ────────────────────────────────────
+        //
+        // This searched by the email in the REQUEST BODY, which for a guest is
+        // simply typed in. That made the endpoint do two things it must not:
+        //
+        //   DISCLOSE — supply a stranger's address with a matching first sentence
+        //     and the JSON came back with THEIR ticket reference, confirming they
+        //     have an open complaint and handing over the number used to look it up.
+        //   INJECT — appendEscalation() then wrote the sender's text into that
+        //     stranger's thread, where support staff read it. On a desk that
+        //     issues refunds and delivers votes, arbitrary text in somebody else's
+        //     complaint is a social-engineering vector, not a nuisance.
+        //
+        // And the subject match is not the obstacle it looks like: the subject is
+        // the first sentence of the message, and on this platform the complaints
+        // are near-identical — "I paid but my votes have not been added" was
+        // written almost verbatim by everyone in the unminted-vote incident.
+        //
+        // Deduplication needs a PROVEN identity. A member session is proof. A typed
+        // address is not, so for a guest the only safe match is a ticket this same
+        // browser opened — which is exactly the case the feature exists for: one
+        // person pressing the button again because nobody has answered.
+        $sessionRefs = (array) ($_SESSION['support_refs'] ?? []);
+        $existing    = $this->tickets->openTicketFor(
             (int) ($m['id'] ?? 0), (string) ($email ?? ''),
             SupportTicketService::subjectFrom($message));
 
+        if ($existing !== null && !$m
+            && !in_array((string) $existing['reference'], $sessionRefs, true)) {
+            // A guest matched somebody else's ticket. Not theirs to see or append to.
+            $existing = null;
+        }
+
         if ($existing !== null
             && $this->tickets->appendEscalation($existing, $message, $history, (string) ($m['name'] ?? ''))) {
+            $this->rememberRef($existing['reference']);
             return $this->json($res, [
                 'ok' => true, 'ticket' => $existing['reference'], 'appended' => true,
                 'message' => "You already have this with the team as {$existing['reference']} — I have added what "
@@ -219,10 +249,34 @@ final class SupportController
             ], 500);
         }
 
+        $this->rememberRef($ref);
+
         return $this->json($res, [
             'ok' => true, 'ticket' => $ref,
             'message' => "Passed to the team — your reference is {$ref}. They reply by email, usually within a working day.",
         ]);
+    }
+
+    /**
+     * Remember, in THIS browser's session, a ticket this visitor actually opened.
+     *
+     * The only identity a guest has. It is why the duplicate check can still work
+     * for the person pressing the button a second time without letting anybody
+     * reach a ticket by typing somebody else's address.
+     *
+     * Bounded, because a session is not a filing cabinet and an unbounded list in
+     * session storage is a slow memory leak on a shared host.
+     */
+    private function rememberRef(string $reference): void
+    {
+        $reference = trim($reference);
+        if ($reference === '' || !isset($_SESSION)) return;
+
+        $refs = array_values(array_filter((array) ($_SESSION['support_refs'] ?? []),
+            static fn($r): bool => is_string($r) && $r !== ''));
+        if (!in_array($reference, $refs, true)) $refs[] = $reference;
+
+        $_SESSION['support_refs'] = array_slice($refs, -10);
     }
 
     // ── tickets ──────────────────────────────────────────────────────────────
