@@ -288,7 +288,19 @@ return [
     PartnerController::class     => fn(ContainerInterface $c)=>new PartnerController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(GoogleSheetsService::class), $c->get(OtpService::class), $c->get(PaymentService::class), $c->get(StatsService::class)),
     PaymentController::class     => fn(ContainerInterface $c)=>new PaymentController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(\Psr\Log\LoggerInterface::class), $c->get(RateLimitService::class)),
     ShopCheckoutController::class => fn(ContainerInterface $c)=>new ShopCheckoutController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(OtpService::class), $c->get(\Psr\Log\LoggerInterface::class), $c->get(RateLimitService::class)),
-    GuideController::class        => fn(ContainerInterface $c)=>new GuideController($c->get(GuideService::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
+    // Gee gets the SUPPORT agent too. Gee is on every page and the support desk is
+    // on one, so the assistant a stuck person actually meets is nearly always Gee
+    // — same agent, same tools, same session-scoped identity as /support. See the
+    // GuideController class note for what is deliberately NOT relaxed.
+    GuideController::class        => fn(ContainerInterface $c)=>new GuideController(
+        $c->get(GuideService::class),
+        $c->get(RateLimitService::class),
+        $c->get(\Psr\Log\LoggerInterface::class),
+        new \AfricaGates\Services\SupportAgentService(
+            $c->get(\AfricaGates\Services\AiService::class),
+            new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
+        )
+    ),
     DonationController::class     => fn(ContainerInterface $c)=>new DonationController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(OtpService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     PaidVoteController::class     => fn(ContainerInterface $c)=>new PaidVoteController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     \AfricaGates\Admin\Controllers\AssistantController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AssistantController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),

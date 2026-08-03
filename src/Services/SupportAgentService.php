@@ -83,8 +83,22 @@ final class SupportAgentService implements SupportAnswerer
             return $this->plain('Tell me what is going wrong and I will look into it.');
         }
         if (!$this->available()) {
-            // No provider configured. Say so rather than pretending to think —
-            // and still offer the one thing that works without a model.
+            // ── NO PROVIDER, BUT NOT NOTHING ─────────────────────────────────
+            //
+            // This used to be an apology and an email address. It was the wrong
+            // answer twice over: the commonest support questions on this platform
+            // are already answered in the Help Centre, and the moments a provider
+            // is unreachable — an incident, a spent budget — are exactly the
+            // moments most people are asking one of them.
+            //
+            // Gee already quoted the written answer here, so the person who
+            // navigated all the way to the support page was getting the WORSE of
+            // the two floors. Same composer now, so they cannot drift again.
+            $written = HelpCentre::writtenAnswer($message);
+            if ($written !== null) {
+                return $this->plain($written . "\n\nIf that is not it, say so and I will pass this to the team.");
+            }
+            // Nothing matched — now an honest apology is the right answer.
             return $this->plain(
                 "I cannot reach my assistant service right now. You can still reach a human: "
                 . "describe the problem and I will pass it on, or email " . $this->teamEmail() . " directly."
@@ -148,6 +162,33 @@ final class SupportAgentService implements SupportAnswerer
             'results'   => array_values($facts),
             'provider'  => $this->ai?->lastProvider(),
         ];
+    }
+
+    /**
+     * The Help Centre slugs this turn's answer was actually built from.
+     *
+     * Lives here, next to the tool loop, because it reads the shape `results`
+     * comes back in — and that shape is this class's business, not a caller's.
+     * Both front doors (the support desk and Gee) hand the result of this to
+     * {@see HelpCentre::previews()}, which knows nothing about tool traces.
+     *
+     * @param list<array<string,mixed>> $results the turn's tool results
+     * @return list<string>
+     */
+    public static function citedSlugs(array $results): array
+    {
+        $slugs = [];
+        foreach ($results as $r) {
+            if (($r['tool'] ?? '') !== 'help_article') continue;
+            $d = $r['data'] ?? [];
+            if (!is_array($d) || empty($d['found'])) continue;
+
+            foreach (array_merge([$d['article'] ?? null], (array) ($d['other_matches'] ?? [])) as $a) {
+                if (!is_array($a) || empty($a['url'])) continue;
+                $slugs[basename((string) $a['url'])] = true;
+            }
+        }
+        return array_keys($slugs);
     }
 
     // ── the planner (Groq) ───────────────────────────────────────────────────

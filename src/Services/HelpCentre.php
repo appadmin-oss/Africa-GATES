@@ -720,6 +720,140 @@ final class HelpCentre
         return array_slice($hits, 0, max(1, $limit));
     }
 
+    /**
+     * The best written answer to a question, composed as a chat reply.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE FLOOR UNDER EVERY ASSISTANT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Both assistants need an answer for the case where no model can be reached:
+     * no provider configured, the daily AI budget spent, or this visitor past
+     * their allowance. Those conditions correlate with an incident — everybody
+     * arrives at once and the budget goes first — which is exactly the moment a
+     * support widget must not turn into a "please email us" box.
+     *
+     * It lives here, once, because the two front doors had drifted: Gee quoted the
+     * article and the support DESK returned "I cannot reach my assistant service
+     * right now" — so the person who had navigated all the way to the support page,
+     * the most stuck of the two, got the worse answer.
+     *
+     * ── WHY THREE BLOCKS ─────────────────────────────────────────────────────
+     *
+     * Title, first paragraph, then the link and the offer of a person. An earlier
+     * version also quoted the summary and named the runner-up article; measured in
+     * a 390px chat sheet that filled the entire 284px scroll window on its own,
+     * pushing the handoff button and the preview cards out of sight — and the
+     * summary was being said twice, because the card beside it carries the summary
+     * already.
+     *
+     * Returns null when nothing matches, so the caller can say something honest
+     * rather than quoting an irrelevant article at somebody.
+     */
+    public static function writtenAnswer(string $question): ?string
+    {
+        $hits = self::search($question, 1);
+        if ($hits === []) return null;
+
+        $top   = $hits[0];
+        $lines = ['**' . (string) $top['title'] . '**'];
+
+        // The first substantive paragraph. The article page has the steps and the
+        // caveats; this is enough to know whether to go and read them.
+        foreach ((array) ($top['body'] ?? []) as $block) {
+            if (!empty($block['p'])) { $lines[] = (string) $block['p']; break; }
+        }
+        // Worded so a linkified label reads as part of the sentence: Gee's widget
+        // renders an article URL as "the Help Centre answer", so "Full answer:
+        // /help/x" would have come out as "Full answer: the Help Centre answer".
+        $lines[] = 'Read it here: ' . self::url((string) $top['slug'])
+                 . ' — if that is not your case, say so and I will pass it to the team at /support.';
+
+        return implode("\n\n", $lines);
+    }
+
+    /**
+     * The articles worth showing beside an assistant's reply, as preview cards.
+     *
+     * ── WHY A URL INSIDE A SENTENCE IS NOT ENOUGH ────────────────────────────
+     *
+     * An assistant that cites an article writes the link into its prose. In a chat
+     * bubble that is a bare blue string mid-paragraph: no title, no sense of what
+     * is behind it, nothing to weigh against the effort of leaving the
+     * conversation. People do not click it, so the answer we vetted goes unread
+     * while they keep typing at the robot.
+     *
+     * A card with a title, a one-line summary and its category is a decision
+     * somebody can make at a glance. Same destination, several times the traffic.
+     *
+     * ── TWO SOURCES, AND THE ORDER MATTERS ───────────────────────────────────
+     *
+     *   CITED     slugs the model actually read this turn. These belong to the
+     *             answer, so they lead and are flagged as used.
+     *   SEARCHED  the USER'S OWN WORDS, independently of the model.
+     *
+     * The second exists because the model does not always reach for the tool, and
+     * when it does not, a perfectly good written answer stays invisible. Searching
+     * the question directly costs nothing and does not depend on the model having
+     * made a good decision — which is a thing a UI should never depend on.
+     *
+     * This lives here rather than in a controller because there are now two
+     * assistants rendering these cards — the support desk and Gee — and a second
+     * copy would drift. Differently ranked cards under the same question read as a
+     * bug in whichever one the person saw second.
+     *
+     * @param list<string> $cited slugs the model read, best first
+     * @param bool $lastResort offer the three commonest articles when nothing
+     *        matched. True at the support desk, where somebody arrived stuck and a
+     *        blank strip is a failure; false for Gee's ordinary browsing chatter,
+     *        where "how do I nominate" must not sprout a refunds card.
+     * @return list<array<string,mixed>>
+     */
+    public static function previews(string $message, array $cited = [], int $limit = 3,
+                                    bool $lastResort = false): array
+    {
+        $picked = [];
+        foreach ($cited as $slug) {
+            $slug = trim((string) $slug);
+            if ($slug !== '') $picked[$slug] = true;
+        }
+        foreach (self::search($message, $limit) as $hit) {
+            $picked[(string) $hit['slug']] ??= true;
+        }
+
+        // Observed at the desk: a user typed "send an article I can read" and got
+        // nothing at all. Nothing was wrong with the corpus — that sentence has no
+        // topic in it, so it matches no keyword, so the search correctly returns
+        // empty, and the person asking most explicitly for something to read got
+        // the least. These three are the commonest reasons anybody is here.
+        if ($picked === [] && $lastResort) {
+            foreach (['paid-but-no-votes', 'vote-not-showing', 'code-did-not-arrive'] as $s) {
+                $picked[$s] = true;
+            }
+        }
+
+        $out = [];
+        foreach (array_keys($picked) as $slug) {
+            $a = self::bySlug((string) $slug);
+            if ($a === null) continue;
+            $cat = self::CATEGORIES[$a['cat']] ?? ['title' => '', 'tint' => '#eef2ef', 'fg' => '#39464a'];
+            $out[] = [
+                'slug'     => (string) $a['slug'],
+                'title'    => (string) $a['title'],
+                'summary'  => (string) $a['summary'],
+                'url'      => self::url((string) $a['slug']),
+                'category' => (string) $cat['title'],
+                'tint'     => (string) $cat['tint'],
+                'fg'       => (string) $cat['fg'],
+                // Lets the UI say "I used this" rather than "you might also want",
+                // which are different claims and should not look identical.
+                'cited'    => in_array((string) $a['slug'], $cited, true),
+            ];
+            if (count($out) >= max(1, $limit)) break;
+        }
+        return $out;
+    }
+
     /** An article's prose with markup stripped — for searching and for the model. */
     public static function plainText(array $a): string
     {

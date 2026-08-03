@@ -6,7 +6,7 @@ namespace AfricaGates\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
-use AfricaGates\Services\{ActivityFeedService, RateLimitService, SupportAgentService,
+use AfricaGates\Services\{RateLimitService, SupportAgentService,
                           SupportContext, SupportTicketService, UserAccountService};
 
 /**
@@ -123,94 +123,23 @@ final class SupportController
     /**
      * The Help Centre answers worth showing beside this reply, as preview cards.
      *
-     * ── WHY A URL INSIDE A SENTENCE IS NOT ENOUGH ────────────────────────────
-     *
-     * The assistant can already cite an article and writes the link into its
-     * prose. In a chat bubble that is a bare blue string mid-paragraph: no title,
-     * no sense of what is behind it, nothing to weigh against the effort of
-     * leaving the conversation. People do not click it, so the answer we vetted
-     * goes unread while they keep typing at the robot.
-     *
-     * A card with a title, a one-line summary and its category is a decision
-     * somebody can make at a glance. Same destination, several times the traffic.
-     *
-     * ── TWO SOURCES, AND THE ORDER MATTERS ───────────────────────────────────
-     *
-     *   CITED     articles the model actually read this turn via help_article.
-     *             These belong to the answer, so they lead.
-     *   SUGGESTED searched over the USER'S OWN WORDS, independently of the model.
-     *
-     * The second exists because the model does not always reach for the tool, and
-     * when it does not, a perfectly good written answer stays invisible. Searching
-     * the question directly costs nothing and does not depend on the model having
-     * made a good decision — which is the sort of thing a UI should never depend on.
-     *
-     * Deduplicated and capped at three. A wall of cards under every reply is
+     * The card-building moved to {@see HelpCentre::previews()} when Gee gained the
+     * same strip: two copies of a ranking would drift, and differently ordered
+     * cards under the same question read as a bug in whichever one the person saw
+     * second. Capped at three — a wall of cards under every reply is
      * indistinguishable from an advert and teaches people to ignore the strip.
+     *
+     * `lastResort: true` here and nowhere else. Somebody at the support desk
+     * arrived stuck, so a blank strip is a failure; Gee's ordinary browsing
+     * chatter must not sprout a refunds card.
      *
      * @param list<array<string,mixed>> $results the turn's tool results
      * @return list<array<string,mixed>>
      */
     private function articlesFor(string $message, array $results): array
     {
-        $picked = [];
-
-        // 1. What the answer was actually built from.
-        foreach ($results as $r) {
-            if (($r['tool'] ?? '') !== 'help_article') continue;
-            $d = $r['data'] ?? [];
-            if (!is_array($d) || empty($d['found'])) continue;
-
-            foreach (array_merge([$d['article'] ?? null], (array) ($d['other_matches'] ?? [])) as $a) {
-                if (!is_array($a) || empty($a['url'])) continue;
-                $picked[basename((string) $a['url'])] ??= true;
-            }
-        }
-        $cited = array_keys($picked);
-
-        // 2. The safety net: their own words, whether or not the model looked.
-        foreach (\AfricaGates\Services\HelpCentre::search($message, 3) as $hit) {
-            $picked[(string) $hit['slug']] ??= true;
-        }
-
-        // 3. LAST RESORT — never show an empty strip to somebody who is stuck.
-        //
-        // Observed: a user typed "send an article I can read" and got nothing at
-        // all. Nothing was wrong with the corpus; that sentence simply has no
-        // topic in it, so it matches no keyword, so the search correctly returns
-        // empty — and the person asking most explicitly for something to read got
-        // the least. The same happens on any reply where the model failed.
-        //
-        // These four are the commonest reasons anybody is here. Offering them to
-        // someone we have otherwise failed is strictly better than a blank space,
-        // and it is the same set the Help Centre front page leads with.
-        if (!$picked) {
-            foreach (['paid-but-no-votes', 'vote-not-showing', 'code-did-not-arrive'] as $s) {
-                $picked[$s] = true;
-            }
-        }
-
-        $out = [];
-        foreach (array_keys($picked) as $slug) {
-            $a = \AfricaGates\Services\HelpCentre::bySlug((string) $slug);
-            if ($a === null) continue;
-            $cat = \AfricaGates\Services\HelpCentre::CATEGORIES[$a['cat']]
-                ?? ['title' => '', 'tint' => '#eef2ef', 'fg' => '#39464a'];
-            $out[] = [
-                'slug'     => (string) $a['slug'],
-                'title'    => (string) $a['title'],
-                'summary'  => (string) $a['summary'],
-                'url'      => \AfricaGates\Services\HelpCentre::url((string) $a['slug']),
-                'category' => (string) $cat['title'],
-                'tint'     => (string) $cat['tint'],
-                'fg'       => (string) $cat['fg'],
-                // Lets the UI say "I used this" rather than "you might also want",
-                // which are different claims and should not look identical.
-                'cited'    => in_array((string) $a['slug'], $cited, true),
-            ];
-            if (count($out) >= 3) break;
-        }
-        return $out;
+        return \AfricaGates\Services\HelpCentre::previews(
+            $message, SupportAgentService::citedSlugs($results), 3, lastResort: true);
     }
 
     /**
@@ -399,23 +328,20 @@ final class SupportController
         return $this->json($res, ['ok' => $r['ok'], 'message' => $r['message']], $r['ok'] ? 200 : 422);
     }
 
-    /** Identity from the SESSION, never from the request. See the class note. */
+    /**
+     * Identity from the SESSION, never from the request. See the class note.
+     *
+     * One line, because the rule itself lives in {@see SupportContext::fromSession()}
+     * — there is more than one front door onto this agent now, and the guarantee
+     * is only a guarantee while every door builds identity the same way.
+     *
+     * The rate limiter is passed because the repair tools are open to guests and
+     * need their own ceiling, separate from the chat limit: one conversation can
+     * ask for several repairs, and a hundred repairs is not a conversation.
+     */
     private function context(string $ip = ''): SupportContext
     {
-        $m = UserAccountService::memberForForms();
-
-        return new SupportContext(
-            viewerId:    $m['id'] ?? null,
-            viewerEmail: $m['email'] ?? null,
-            // Staff scope requires a real admin session — the same one /admin uses.
-            isAdmin:     (int) ($_SESSION['admin_id'] ?? 0) > 0,
-            search:      new ActivityFeedService(),
-            // The repair tools are open to guests, so they need their own ceiling
-            // — separate from the chat limit, because one conversation can ask for
-            // several repairs and a hundred repairs is not a conversation.
-            limits:      $this->rateLimit,
-            clientKey:   $ip !== '' ? hash('sha256', $ip) : '',
-        );
+        return SupportContext::fromSession($this->rateLimit, $ip);
     }
 
     private function json(Response $res, array $payload, int $status = 200): Response

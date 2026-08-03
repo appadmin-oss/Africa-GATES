@@ -112,7 +112,7 @@ final class GuideService
         //    the budget, the kill switch and the record. The visitor's message is
         //    fenced as untrusted content; the grounding prompt stays outside it.
         $r = (new AiGateway())->run('guide.chat', [
-            'system'      => $this->systemPrompt($page),
+            'system'      => $this->systemPrompt($page, $message),
             'trusted'     => 'The conversation with the visitor follows.',
             'user'        => $this->transcriptFor($message, $history),
             'temperature' => 0.4,
@@ -135,7 +135,53 @@ final class GuideService
     /** The zero-cost tier — also the invisible rate-limit degrade path. */
     public function scripted(string $message): array
     {
+        // A support-shaped question gets the Help Centre's own words even here.
+        // See supportFallback(): the keyword tier below is a signpost, and a
+        // signpost is the wrong answer for somebody whose money is missing.
+        if (SupportIntent::looksLikeSupport($message)) {
+            return $this->supportFallback($message);
+        }
         return ['reply' => $this->scriptedAnswer($message), 'source' => 'scripted'];
+    }
+
+    /**
+     * A real support answer with NO model involved.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS NOT A REDIRECT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * This is the path taken when the support agent cannot run — no provider
+     * configured, the daily AI budget spent, or this visitor past their support
+     * allowance. Those are the moments a support widget usually turns into
+     * "please email us", and they are disproportionately likely to happen during
+     * an incident, when everybody arrives at once and the budget goes first.
+     *
+     * So the floor is not a signpost. The Help Centre is 24 written answers,
+     * live-valued from the same settings the checkout reads, and the commonest
+     * support questions on this platform are ALREADY ANSWERED in it. Quoting the
+     * matching one costs nothing, cannot hallucinate, and is the same text a
+     * working model would have quoted.
+     *
+     * The composition lives in {@see HelpCentre::writtenAnswer()} because the
+     * support DESK needs the identical floor, and the two had drifted — Gee quoted
+     * the article while the desk said "I cannot reach my assistant service right
+     * now", so the person who had navigated all the way to the support page got
+     * the worse answer.
+     *
+     * When nothing matches, this says so and asks for the one thing that makes the
+     * next step possible — the payment reference — rather than apologising.
+     */
+    public function supportFallback(string $message): array
+    {
+        $written = HelpCentre::writtenAnswer($message);
+
+        return ['reply' => $written ?? (
+            "I want to get this to the right place rather than guess. If it is about a payment or votes you "
+            . "paid for, send me the payment reference (it looks like **AFG-…**, and it is on the checkout page "
+            . "and in your bank alert) and I will have it looked at.\n\n"
+            . "Otherwise /support will take it to the team, and /help has the written answers."
+        ), 'source' => 'help'];
     }
 
     // ───────────────────────── Site-state knowledge ──────────────────────
@@ -290,7 +336,44 @@ final class GuideService
 
     // ─────────────────────────────── Prompt ──────────────────────────────
 
-    private function systemPrompt(array $page): string
+    /**
+     * The Help Centre answers relevant to THIS question, for the prompt.
+     *
+     * ── WHY GROUND A GUIDE IN THE HELP CENTRE ────────────────────────────────
+     *
+     * Gee's prompt describes the platform in about twenty lines. The Help Centre
+     * describes it in twenty-four articles, each one live-valued from the same
+     * settings the checkout reads — so when the price of a vote changes, the
+     * articles change and the prompt does not.
+     *
+     * Ungrounded, Gee answers "how long until my votes appear?" from whatever it
+     * absorbed in training. Grounded, it answers from the sentence the team wrote
+     * and maintains. The second one is also the sentence support will repeat if
+     * the person writes in, and an assistant that contradicts the help page is
+     * worse than no assistant, because now the reader has to decide who is lying.
+     *
+     * Two articles, trimmed. This is a chat bubble, not a knowledge dump, and a
+     * prompt stuffed with 24 articles buries the page context that makes Gee
+     * page-aware in the first place.
+     */
+    private function helpGrounding(string $message): string
+    {
+        if (trim($message) === '') return '';
+        $hits = HelpCentre::search($message, 2);
+        if ($hits === []) return '';
+
+        $out = [];
+        foreach ($hits as $a) {
+            $out[] = '### ' . (string) $a['title'] . ' (' . HelpCentre::url((string) $a['slug']) . ")\n"
+                   . mb_substr(HelpCentre::plainText($a), 0, 900);
+        }
+        return "\n\nWRITTEN HELP CENTRE ANSWERS matching this question. These are the platform's OWN vetted answers "
+             . "and they are kept correct as settings change. PREFER them over your own memory — if one disagrees "
+             . "with you, it is right and you are not. Give the reader its URL so they can keep it.\n\n"
+             . implode("\n\n", $out);
+    }
+
+    private function systemPrompt(array $page, string $message = ''): string
     {
         $pageLine = '';
         $title = trim((string)($page['title'] ?? ''));
@@ -299,6 +382,7 @@ final class GuideService
             $pageLine = "\n\nRIGHT NOW the user is on: " . trim($title . ($path !== '' ? " ({$path})" : '')) . ". Tailor your help to where they are when it's relevant.";
         }
         $stateBlock = $this->siteStateDigest();
+        $helpBlock  = $this->helpGrounding($message);
 
         return <<<SYS
 You are **Gee**, the warm, sharp guide for Africa GATES — the continental Cultural Power Index (CPI) that recognises African excellence.
@@ -329,8 +413,9 @@ HOW TO RESPOND
 - Be warm, concise and specific — usually 2–4 short sentences.
 - When a page answers the question, point to it by its path (e.g. "Head to /vote to cast yours.").
 - You MAY quote figures from CURRENT SITE STATE below — it is live. NEVER invent any OTHER specific figure (prices, someone's CPI score, totals not listed). If asked for one, send them to the page that shows it.
-- You explain and direct; you don't take actions, make payments, or change accounts. For account, payment, appeal or moderation issues, point to /support.
-- Stay on Africa GATES topics. If asked something unrelated, gently steer back.{$pageLine}{$stateBlock}
+- You explain and direct; you don't take actions, make payments, or change accounts.
+- If somebody has a problem with THEIR OWN payment, votes or account, do not send them away with a link and nothing else — ask for the payment reference (it looks like AFG-…) or say you will pass it to the team, then point to /support. Being redirected after explaining yourself once is the thing people complain about most.
+- Stay on Africa GATES topics. If asked something unrelated, gently steer back.{$pageLine}{$stateBlock}{$helpBlock}
 SYS;
     }
 
@@ -365,7 +450,7 @@ SYS;
         $payload = json_encode([
             'model'      => $this->model(),
             'max_tokens' => 1024,
-            'system'     => $this->systemPrompt($page),
+            'system'     => $this->systemPrompt($page, $message),
             'messages'   => $messages,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 

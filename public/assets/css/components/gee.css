@@ -124,6 +124,64 @@
 /* keep a link legible if one ever lands in a user (green) bubble */
 .gee-msg--me .gee-bubble a.gee-link{ color:#fff; text-decoration-color:rgba(255,255,255,.6); }
 
+/* ── Gee also supports ───────────────────────────────────────────────
+   A support answer carries more than prose: what it was built from, the
+   articles worth reading, and the way out to a person. Those attach to the
+   MESSAGE ROW rather than the bubble so they run the full width — a card
+   squeezed into an 84%-wide bubble is unreadable on a 360px phone — and the
+   row wraps so they stack under it, indented past the avatar so the whole
+   turn still reads as one thing said by one assistant. */
+.gee-msg--bot{ flex-wrap:wrap; }
+/* min-width:0 is load-bearing, not tidying. A flex item's default min-width is
+   auto — its MIN-CONTENT width — and .gee-art__s is `white-space:nowrap`, so
+   without this the strip refuses to shrink below the widest unbroken summary and
+   the whole log scrolls sideways. Measured: 531px of content in a 378px log. */
+.gee-used, .gee-arts, .gee-hand{ flex:1 1 100%; min-width:0; margin-left:35px; } /* 26 avatar + 9 gap */
+
+/* provenance — quiet by design. It is a receipt, not a headline. */
+.gee-used{ display:flex; flex-wrap:wrap; gap:5px; margin-top:1px; }
+.gee-used--empty{ display:none; }
+.gee-used__c{ font:600 10.5px/1 var(--ag-font-body,sans-serif); letter-spacing:.02em;
+  color:var(--ag-green-dark,#1a6118); background:var(--ag-green-wash,rgba(127,200,124,.16));
+  border-radius:999px; padding:5px 9px; }
+
+/* article preview cards */
+.gee-arts{ display:flex; flex-direction:column; gap:6px; margin-top:3px; }
+.gee-arts__h{ margin:0; font:700 10.5px/1 var(--ag-font-body,sans-serif); letter-spacing:.07em;
+  text-transform:uppercase; color:var(--ag-ink-soft,#717a7e); }
+/* Deliberately compact. Measured: at the first draft's sizing three cards were
+   300px tall inside a 540px panel, so the answer scrolled out of sight and the
+   handoff button was off-screen entirely. The card only has to be enough to
+   decide by — the category, the title, and one clamped line of summary. */
+.gee-art{ display:block; text-decoration:none; border-radius:11px; padding:7px 10px 8px;
+  background:var(--ag-surface,#fff); border:1px solid var(--ag-line-strong,rgba(16,41,44,.12));
+  transition:border-color var(--ag-dur-fast,.15s) ease, transform var(--ag-dur-fast,.15s) ease; }
+.gee-art:hover{ border-color:var(--ag-green,#237b22); transform:translateY(-1px); }
+.gee-art:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+/* colour comes from the category, set inline — see articleStrip() */
+.gee-art__tag{ display:block; font:700 9px/1 var(--ag-font-body,sans-serif); letter-spacing:.07em;
+  text-transform:uppercase; margin-bottom:3px; color:var(--ag-ink-soft,#717a7e); }
+.gee-art__t{ display:block; font:600 12.5px/1.3 var(--ag-font-body,sans-serif); color:var(--ag-ink,#10292c); }
+/* one line, ellipsised: the title carries the decision, the summary only
+   confirms it, and a wrapping summary is what made these cards tall */
+.gee-art__s{ display:block; margin-top:2px; font:400 11px/1.4 var(--ag-font-body,sans-serif);
+  color:var(--ag-ink-soft,#717a7e); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* the escape hatch — offered, never hidden behind a failed conversation */
+.gee-hand{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:4px; }
+.gee-hand__b{ cursor:pointer; border:1px solid var(--ag-green,#237b22); background:var(--ag-surface,#fff);
+  color:var(--ag-green-dark,#1a6118); border-radius:999px; padding:7px 13px;
+  font:600 12px/1 var(--ag-font-body,sans-serif);
+  transition:background var(--ag-dur-fast,.15s) ease, color var(--ag-dur-fast,.15s) ease; }
+.gee-hand__b:hover:not(:disabled){ background:var(--ag-green,#237b22); color:#fff; }
+.gee-hand__b:disabled{ opacity:.6; cursor:default; }
+.gee-hand__b:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px; }
+.gee-hand__n{ font:400 11px/1.4 var(--ag-font-body,sans-serif); color:var(--ag-ink-soft,#717a7e); }
+
+/* the launcher dot goes amber at the support desk: the same assistant, but it is
+   now doing something consequential, and the reader should be able to tell */
+.gee[data-mode="support"] .gee-fab__dot{ background:#f0a92c; border-color:#c4831a; }
+
 /* typing indicator */
 .gee-typing{ display:inline-flex; gap:4px; align-items:center; padding:12px 14px; }
 .gee-typing span{ width:7px; height:7px; border-radius:50%; background:var(--ag-ink-soft,#717a7e);

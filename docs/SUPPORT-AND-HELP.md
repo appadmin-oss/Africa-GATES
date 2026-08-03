@@ -15,6 +15,7 @@ them.
 | Surface | URL | Who it's for | What it can actually do |
 |---|---|---|---|
 | **Help Centre** | `/help`, `/help/<slug>` | Anyone, signed in or not | Answers a general question. Cannot see your account. |
+| **Gee** | the widget on every page | Anyone | Guides while you browse — **and hands a stuck person to the support agent in the same conversation.** Same tools, same session-scoped identity. |
 | **Support assistant** | `/support/assistant` | Anyone | **Repairs things.** Re-checks a payment with the gateway, credits missing votes, resends a receipt, reports refund status. Reads *your* records if signed in. |
 | **Support & appeals** | `/support` | Anyone | Triage. Routes to the three below in the order that resolves fastest. |
 | **Tickets** | `/support/tickets` | Members only | A threaded conversation with a person. |
@@ -23,6 +24,54 @@ them.
 **The rule that decides which one gets a job:** can the outcome be reached by
 *looking something up*, or does it need *judgement*? Lookups go to the assistant.
 Judgement goes to a person. The Help Centre explains; it never adjudicates.
+
+### Gee is a second front door onto the same brain
+
+Gee is on every page; the support desk is on one. So the assistant a stuck person
+actually *meets* is nearly always Gee — and Gee's answer to "I paid and my votes
+never came" used to be a link to `/support` and nothing else, because that is
+literally what its prompt told it to do. The tools that could fix that person's
+problem in ten seconds were one link away from somebody who had already explained
+themselves, and most people do not follow the link.
+
+So `GuideController` routes:
+
+```
+SupportIntent::looksLikeSupport($message, $history)
+  false → GuideService          warm, page-aware, cheap, knows the site
+  true  → SupportAgentService   the real agent, tools and all
+          with SupportContext::fromSession() — no relaxation of anything
+```
+
+**The routing is tuned for precision, not recall.** A false negative costs nothing
+(Gee answers as a guide and points at `/support` — yesterday's behaviour, and
+people rephrase). A false positive is a downgrade nobody notices: the support agent
+is a narrower brain that reasons about transactions and can open tickets, so
+pointing ordinary curiosity at it gives a worse answer *and* burns a tool loop.
+Nothing routes on the bare words "vote", "payment" or "help" — they are the most
+common words on the platform and appear in curiosity far more often than in trouble.
+
+Once a conversation has turned into support it **stays** there until the person
+visibly changes the subject. "AFG-4c1…", then "yes", then "how long will that
+take?" — none of those looks like a support message read alone, and bouncing them
+back to the guide is the failure people describe as "the bot is useless". Only the
+*user's* turns make a conversation support-shaped: the assistant's own replies are
+full of trouble vocabulary, and letting them vote would pin the rest of the
+conversation to the support agent after one mention of the word "refund".
+
+Two things are deliberately NOT routed:
+
+- **`POST /api/v1/agent/gee`** — the inbound bridge for an external agent. It is
+  authenticated by a *shared key*, which identifies an integration and not a
+  person, so there is no session and therefore no identity to scope a read to. An
+  external agent that wants a payment repaired sends its user to sign in.
+- **The Make.com bridge.** When configured, `GuideService` forwards everything to
+  it. That agent holds none of this platform's tools and cannot be scoped to the
+  asker, so a support-shaped message never reaches it.
+
+Gee is still suppressed on `/support` — not because it is the lesser assistant any
+more, but because two launchers would be two doors onto one brain with no way for
+the reader to know they are the same thing.
 
 ---
 
@@ -186,6 +235,31 @@ Now one numbered triage, in resolution order:
 3. **Submit an appeal** — the form, with the reason chips **inside** it where they
    belong, and a hint that changes per reason.
 
+### The Gee widget, in support mode
+
+Same panel, same composer, same conversation — only the label changes, because from
+the reader's side this is one assistant and it should not feel like a transfer. The
+header sub-label follows the **last** turn in both directions (it reset badly once:
+asking "how do I nominate someone?" after a payment problem left the header reading
+*"Support — I can check a payment"* over an answer about nominations).
+
+A support turn carries three things below the reply, in this order:
+
+1. **Provenance chips** — *"re-checked the payment with the bank"*, *"checked your
+   votes"*. Plain English, never a tool name. An assistant that says where its
+   answer came from is one people can sanity-check; an unsourced paragraph about
+   somebody's money is one they can only believe or not.
+2. **The way out to a person** — offered on *every* support answer, not hidden until
+   Gee has failed twice. It posts to `/api/support/escalate`, touches no model, and
+   therefore works in exactly the conditions where the assistant does not.
+3. **Two article cards** — the server sends up to three because the support desk is
+   a full page; the widget shows two. Measured in Chromium, three cards were 300px
+   inside a 540px panel: the answer scrolled out of sight and the handoff button was
+   not visible at all.
+
+The order is the finding, not a preference. Whatever goes last goes off-screen, and
+in a 390px sheet the thing that must not go last is the action.
+
 ---
 
 ## 6b. The assistant's tools
@@ -256,6 +330,24 @@ Two details: `say` strings written **for the model** ("Do not tell them…", "Gi
 them the link…") are filtered out — excellent instructions to a writer,
 humiliating to read in a support chat. And the article preview strip is populated
 server-side regardless, so even a failed turn carries something readable.
+
+### And when there is no model at all
+
+Different failure, same principle. No provider configured, the daily AI budget
+spent, or this visitor past their support allowance — conditions that correlate
+with an *incident*, because everybody arrives at once and the budget goes first.
+That is the worst possible moment for a support widget to become a "please email
+us" box.
+
+So the floor is a real answer: `HelpCentre::writtenAnswer()` returns the matching
+article's title, its first paragraph, and its URL. It cannot hallucinate, and it is
+the same text a working model would have quoted. When nothing matches it returns
+`null`, and the caller asks for the payment reference instead of apologising.
+
+It lives in one place because the two front doors had already drifted: Gee quoted
+the article while the support **desk** replied "I cannot reach my assistant service
+right now" — so the person who had navigated all the way to the support page, the
+more stuck of the two, was getting the worse floor.
 
 ---
 

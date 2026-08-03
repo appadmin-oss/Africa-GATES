@@ -92,6 +92,41 @@ final class SupportContext
         private readonly string $clientKey = '',
     ) {}
 
+    /**
+     * The ONLY sanctioned way to build a context for a live visitor.
+     *
+     * ── WHY THIS IS A FACTORY AND NOT A LINE IN EACH CONTROLLER ──────────────
+     *
+     * There are now two front doors onto the same support brain — the support desk
+     * at /support and Gee, the guide that follows people around the whole site —
+     * and there will be more. Every one of them has to answer the same question
+     * ("who is this?") in the same way, and the class note above is only true
+     * while that stays literally true.
+     *
+     * Two hand-written copies is how a boundary rots: the second one grows an
+     * `?? $_GET['email']` for a "quick fix", and now a stranger reads somebody's
+     * payments by editing a URL. One factory means the session rule is enforced in
+     * a single place, and a caller cannot pass an identity in even by accident —
+     * there is no parameter for it.
+     *
+     * @param ?RateLimitService $limits guards the two repair tools
+     * @param string $ip hashed here; the context never holds a raw address
+     */
+    public static function fromSession(?RateLimitService $limits = null, string $ip = ''): self
+    {
+        $m = UserAccountService::memberForForms();
+
+        return new self(
+            viewerId:    $m['id'] ?? null,
+            viewerEmail: $m['email'] ?? null,
+            // Staff scope requires a real admin session — the same one /admin uses.
+            isAdmin:     (int) ($_SESSION['admin_id'] ?? 0) > 0,
+            search:      new ActivityFeedService(),
+            limits:      $limits,
+            clientKey:   $ip !== '' ? hash('sha256', $ip) : '',
+        );
+    }
+
     public function isMember(): bool { return $this->viewerId !== null && $this->viewerId > 0; }
     public function isAdmin(): bool  { return $this->isAdmin; }
 

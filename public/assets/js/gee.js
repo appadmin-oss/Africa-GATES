@@ -34,7 +34,8 @@
   var SS_SEEN  = 'gee.seen.v1';
 
   var mqMobile = window.matchMedia('(max-width:560px)');
-  var state = { open: false, busy: false, history: [] }; // history: {role:'user'|'assistant', text}
+  // history: {role:'user'|'assistant', text, extra?:{used,articles,support,ticket}}
+  var state = { open: false, busy: false, mode: 'guide', history: [] };
 
   // ── Known routes → friendly labels (used to linkify replies) ────────
   var ROUTES = {
@@ -44,7 +45,20 @@
     '/partner': 'Partner with us', '/register': 'Register', '/help': 'the Help Center',
     '/support': 'Support', '/community': 'the Community', '/donate': 'Donate'
   };
-  var ROUTE_RE = /(^|[\s(])(\/(?:vote|nominate|registry|leaderboard|awards|integrity|methodology|shop|events|partner|register|help|support|community|donate))\b/g;
+  /* `(?![\w/-])` rather than `\b`. With \b, "/help/paid-but-no-votes" matched the
+     bare "/help" prefix — because "/" is a non-word character, so \b succeeds
+     right before it — and rendered as a link labelled "the Help Center" followed
+     by the orphaned text "/paid-but-no-votes". Harmless-looking and badly wrong:
+     the reader saw a link that went to the wrong page and a fragment of a URL.
+     It only surfaced once Gee started quoting Help Centre article URLs. */
+  var ROUTE_RE = /(^|[\s(])(\/(?:vote|nominate|registry|leaderboard|awards|integrity|methodology|shop|events|partner|register|help|support|community|donate))(?![\w/-])/g;
+
+  /* Help Centre articles get their own rule, run FIRST so the route list above
+     never sees them. The slug is constrained to [a-z0-9-] by this pattern, which
+     is what keeps the SECURITY INVARIANT below true: the capture group cannot
+     contain a quote, an angle bracket or a colon, so it cannot break out of the
+     href it is interpolated into. Do not widen this character class. */
+  var HELP_RE = /(^|[\s(])(\/help\/[a-z0-9](?:[a-z0-9-]{1,60}[a-z0-9])?)/g;
 
   // ── Page-aware greetings + suggested questions ──────────────────────
   var PROFILES = {
@@ -119,6 +133,13 @@
     return blocks.map(function (block) {
       var html = esc(block).replace(/\n/g, '<br>');
       html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      // Articles before routes. The href this produces is quoted with '"', and
+      // the slug pattern excludes '"', so the ROUTE_RE pass below cannot match
+      // inside it either (the character before "/help" there is a quote, not
+      // whitespace or an open bracket).
+      html = html.replace(HELP_RE, function (_m, lead, path) {
+        return lead + '<a class="gee-link" href="' + path + '">the Help Centre answer</a>';
+      });
       html = html.replace(ROUTE_RE, function (_m, lead, path) {
         var label = ROUTES[path] || path;
         return lead + '<a class="gee-link" href="' + path + '">' + esc(label) + '</a>';
@@ -151,7 +172,185 @@
   }
 
   function addUser(text) { bubble('user', '<p>' + esc(text).replace(/\n/g, '<br>') + '</p>'); scrollDown(); }
-  function addBot(text)  { bubble('assistant', format(text)); scrollDown(); }
+
+  /* Render one assistant turn: the reply, then what it was built from, then the
+     articles worth reading. `extra` is {used, articles, support, ticket} — all
+     optional, so an ordinary guide reply renders exactly as it always did. */
+  /* ORDER MATTERS. The way out to a person comes BEFORE the reading, because
+     somebody whose money is missing wants an action and not a reading list —
+     and in a 540px panel whatever goes last goes off-screen. Measured in
+     Chromium: with three cards ahead of it, the handoff button was not visible
+     at all. */
+  function addBot(text, extra) {
+    var wrap = bubble('assistant', format(text));
+    extra = extra || {};
+    if (extra.used && extra.used.length)         wrap.appendChild(usedRow(extra.used));
+    if (extra.support && !extra.ticket)          wrap.appendChild(handoffRow());
+    if (extra.articles && extra.articles.length) wrap.appendChild(articleStrip(extra.articles));
+    // Land on the TOP of the new turn, not the bottom of its attachments — the
+    // answer is what they came for, and scrolling to the end of a 300px card
+    // strip hides it above the fold.
+    revealTop(wrap);
+  }
+
+  /* ── What the answer was built from ────────────────────────────────────
+     A support bot that says where its answer came from is one people can
+     sanity-check. "I re-checked your payment" is a claim the reader can weigh;
+     an unsourced paragraph about their money is one they can only believe or
+     not. The labels are deliberately plain-English — a tool name means nothing
+     to the person reading it. */
+  var TOOL_LABEL = {
+    fix_payment: 're-checked the payment with the bank',
+    resend_receipt: 'sent the receipt again',
+    lookup_reference: 'looked up the reference',
+    my_transactions: 'checked your payments',
+    my_votes: 'checked your votes',
+    my_tickets: 'checked your tickets',
+    my_nominations: 'checked your nominations',
+    refund_status: 'checked the refund',
+    help_article: 'read the help answer',
+    help_search: 'searched the site',
+    site_state: 'checked the current cycle',
+    platform_health: 'checked whether anything is down',
+    pricing: 'checked vote pricing',
+    gateway_status: 'checked the payment provider',
+    delivery_health: 'checked vote delivery across the platform',
+    when_did_i_vote: 'checked when you voted',
+    nominee_tally: 'checked the tally',
+    find_nominee: 'found the nominee',
+    category_state: 'checked the category',
+    check_email_domain: 'checked the email address',
+    convert_currency: 'converted the amount'
+  };
+
+  function usedRow(used) {
+    var row = document.createElement('div');
+    row.className = 'gee-used';
+    var seen = {};
+    used.forEach(function (t) {
+      var label = TOOL_LABEL[t];
+      if (!label || seen[label]) return;   // unknown tool names are not shown raw
+      seen[label] = 1;
+      var s = document.createElement('span');
+      s.className = 'gee-used__c';
+      s.textContent = label;
+      row.appendChild(s);
+    });
+    if (!row.children.length) row.className = 'gee-used gee-used--empty';
+    return row;
+  }
+
+  /* ── Article preview cards ─────────────────────────────────────────────
+     A link inside a paragraph is a bare blue string: no title, no sense of
+     what is behind it, nothing to weigh against the effort of leaving the
+     conversation. A card with a title and a one-line summary is a decision
+     somebody can make at a glance. Same destination, several times the clicks.
+
+     `cited` means the assistant actually read it, which is a different claim
+     from "you might also want" and should not look identical. */
+  /* TWO cards, not three. The server sends up to three because the support desk
+     is a full page with room for them; this is a 380×540 floating panel, and
+     three cards measured 300px — more than half the panel, pushing the answer
+     itself above the fold. The third card is the one nobody was going to read. */
+  var MAX_CARDS = 2;
+
+  function articleStrip(arts) {
+    var box = document.createElement('div');
+    box.className = 'gee-arts';
+
+    var anyCited = arts.some(function (a) { return a.cited; });
+    var h = document.createElement('p');
+    h.className = 'gee-arts__h';
+    h.textContent = anyCited ? 'From the Help Centre' : 'This might help';
+    box.appendChild(h);
+
+    arts.slice(0, MAX_CARDS).forEach(function (a) {
+      var card = document.createElement('a');
+      card.className = 'gee-art';
+      card.href = a.url || '#';
+      var tag = document.createElement('span');
+      tag.className = 'gee-art__tag';
+      tag.textContent = a.category || 'Help';
+      // The category's own colour, as a label rather than a filled pill. A pill
+      // per card added a row of coloured blocks that read as three buttons, and
+      // in this panel the vertical space it cost was the reply.
+      if (a.fg) tag.style.color = a.fg;
+      var t = document.createElement('strong');
+      t.className = 'gee-art__t';
+      t.textContent = a.title || 'Help article';
+      var s = document.createElement('span');
+      s.className = 'gee-art__s';
+      s.textContent = a.summary || '';
+      card.appendChild(tag);
+      card.appendChild(t);
+      card.appendChild(s);
+      box.appendChild(card);
+    });
+    return box;
+  }
+
+  /* ── The escape hatch ──────────────────────────────────────────────────
+     Offered on every support answer, not hidden until Gee has failed twice.
+     Making somebody negotiate with a robot to reach a person is the single
+     most resented pattern in support software, and this path touches no model
+     at all — so it works in exactly the conditions where the assistant does
+     not. It reaches the same queue as /support. */
+  function handoffRow() {
+    var row = document.createElement('div');
+    row.className = 'gee-hand';
+
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'gee-hand__b';
+    b.textContent = 'Pass this to a person';
+    b.addEventListener('click', function () { handoff(b); });
+
+    var n = document.createElement('span');
+    n.className = 'gee-hand__n';
+    n.textContent = 'They reply by email, usually within a working day.';
+
+    row.appendChild(b);
+    row.appendChild(n);
+    return row;
+  }
+
+  function handoff(btn) {
+    // The problem is the last thing the PERSON said, not the last thing Gee
+    // said — a ticket whose subject is the robot's own paragraph is useless in
+    // a queue. Falls back to the whole conversation if we cannot find one.
+    var mine = state.history.filter(function (m) { return m.role === 'user'; });
+    var problem = mine.length ? mine[mine.length - 1].text : '';
+    if (!problem) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Passing it on…';
+
+    fetch('/api/support/escalate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({
+        message: problem,
+        history: JSON.stringify(state.history.slice(-12).map(function (m) {
+          return { role: m.role, content: m.text };
+        })),
+        page_url: location.href
+      })
+    })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (d) {
+        var row = btn.parentNode;
+        if (row) row.remove();
+        addBot((d && d.message) ? d.message
+          : 'I could not reach the queue just now. /support will take it, or email the team.',
+          { articles: [] });
+        if (d && d.ok) { state.history.push({ role: 'assistant', text: d.message }); save(); }
+      })
+      .catch(function () {
+        btn.disabled = false;
+        btn.textContent = 'Pass this to a person';
+        addBot("I couldn't reach the team just now — /support has the form, and it goes to the same place.");
+      });
+  }
 
   function typing() {
     var wrap = document.createElement('div');
@@ -165,6 +364,15 @@
   function untyping() { var t = document.getElementById('geeTyping'); if (t) t.remove(); }
 
   function scrollDown() { log.scrollTop = log.scrollHeight; }
+
+  /* Bring the top of a turn to the top of the log — unless the whole turn fits,
+     in which case the ordinary bottom-scroll reads better (a short reply pinned
+     to the top of a tall panel looks like a rendering fault). */
+  function revealTop(el) {
+    var h = el.getBoundingClientRect().height;
+    if (h + 24 < log.clientHeight) { scrollDown(); return; }
+    log.scrollTop = el.offsetTop - log.offsetTop - 4;
+  }
 
   // ── Suggested-question chips ────────────────────────────────────────
   function showChips(list) {
@@ -188,13 +396,42 @@
     log.innerHTML = '';
     state.history = load();
     if (state.history.length) {
-      state.history.forEach(function (m) { m.role === 'user' ? addUser(m.text) : addBot(m.text); });
+      // The mode comes from the LAST assistant turn, not from whether any turn
+      // was ever support — a conversation that started with a payment problem and
+      // moved on must not still be labelled the support desk after a reload.
+      var lastMode = 'guide';
+      state.history.forEach(function (m) {
+        if (m.role === 'user') { addUser(m.text); return; }
+        addBot(m.text, m.extra);
+        lastMode = (m.extra && m.extra.support) ? 'support' : 'guide';
+      });
+      setMode(lastMode);
       clearChips();
     } else {
       addBot(profile().greet);
       showChips(profile().chips);
     }
     scrollDown();
+  }
+
+  /* Guide or support desk. Only the label changes — the composer, the history
+     and the endpoint are the same, because from the reader's side this is one
+     conversation with one assistant, and it should not feel like a transfer. */
+  /* TWO chips, kept short. Measured on a 390px sheet: three long chips wrapped
+     to three rows and ate ~200px of a 483px panel, which pushed the handoff
+     button and the article cards below the fold — so the suggestions were
+     crowding out the actions. There is no "speak to someone" chip because the
+     handoff button in the thread already is one, and better. */
+  var SUPPORT_CHIPS = ['My votes are missing', 'No receipt came'];
+
+  function setMode(mode) {
+    state.mode = mode;
+    root.dataset.mode = mode;
+    var s = document.getElementById('geeStatus');
+    if (!s) return;
+    s.textContent = mode === 'support'
+      ? 'Support — I can check a payment'
+      : 'Your Africa GATES guide';
   }
 
   // ── Talk to the guide ───────────────────────────────────────────────
@@ -222,14 +459,26 @@
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { return { status: r.status, data: d }; }); })
       .then(function (res) {
         untyping();
-        var reply = (res.data && res.data.reply) ? res.data.reply :
-          "I hit a snag just now. In the meantime, /help and /support have you covered.";
-        addBot(reply);
+        var d = res.data || {};
+        var reply = d.reply || "I hit a snag just now. In the meantime, /help and /support have you covered.";
+        var extra = {
+          used: d.used || [], articles: d.articles || [],
+          support: !!d.support, ticket: d.ticket || null
+        };
+        addBot(reply, extra);
+        // The header sub-label follows the LAST turn, both ways. It has to reset:
+        // measured in Chromium, asking "how do I nominate someone?" after a
+        // payment problem left the header reading "Support — I can check a
+        // payment" over an answer about nominations.
+        setMode(d.support ? 'support' : 'guide');
         // Only remember successful exchanges so a transient error doesn't poison context.
-        if (res.status >= 200 && res.status < 300 && res.data && res.data.ok) {
-          state.history.push({ role: 'assistant', text: reply });
+        if (res.status >= 200 && res.status < 300 && d.ok) {
+          state.history.push({ role: 'assistant', text: reply, extra: extra });
           save();
         }
+        // Follow-ups that fit the conversation, not the page. Somebody mid-repair
+        // does not want "How does the CPI work?" as their next suggested question.
+        if (d.support) showChips(SUPPORT_CHIPS);
       })
       .catch(function () {
         untyping();
@@ -273,6 +522,7 @@
   function newChat() {
     state.history = [];
     try { sessionStorage.removeItem(SS_MSGS); } catch (e) {}
+    setMode('guide');   // a new chat is not still mid-repair
     paintInitial();
     input.focus();
   }

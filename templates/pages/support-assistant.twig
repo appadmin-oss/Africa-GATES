@@ -257,7 +257,12 @@
         <div class="sa-head__n">Gee · support</div>
         <div class="sa-head__s">
           <span class="sa-dot{% if not ai_on %} sa-dot--off{% endif %}" aria-hidden="true"></span>
-          {% if ai_on %}Online — reading live records{% else %}Offline — the team still gets your message{% endif %}
+          {# "Offline" alone was true and unhelpful. With no model the assistant
+             still quotes the written Help Centre answer for the question asked
+             (HelpCentre::writtenAnswer), and a ticket still reaches a person — so
+             a flat "Offline" told people to give up on a page that was about to
+             answer them. Say what it CAN do. #}
+          {% if ai_on %}Online — reading live records{% else %}Answering from the written help — a person still gets your message{% endif %}
         </div>
       </div>
       <a class="sa-head__t" href="/support/tickets">Your tickets →</a>
