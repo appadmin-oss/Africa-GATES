@@ -206,6 +206,18 @@ return [
             'asset',
             [\AfricaGates\Support\Assets::class, 'url']
         ));
+        // `{{ cron_health() }}` → is the schedule still running?
+        //
+        // A function rather than something each controller passes, because a stalled
+        // schedule has to show on WHATEVER admin screen somebody happens to open, and
+        // threading it through twenty render() calls guarantees the one that forgets
+        // is the one they were on. Lazy — nothing is queried until the admin layout
+        // asks, so public pages pay nothing for it.
+        // See AfricaGates\Support\CronHealth: a stalled run cannot report itself.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'cron_health',
+            [\AfricaGates\Support\CronHealth::class, 'status']
+        ));
         // Consume one-shot flash
         unset($_SESSION['flash_ok'], $_SESSION['flash_error'], $_SESSION['flash_notice']);
         return $twig;
@@ -372,7 +384,9 @@ return [
 
     // Admin controllers
     AdminAuthController::class         => fn(ContainerInterface $c)=>new AdminAuthController($c->get(Twig::class), $c->get(AuthService::class), $c->get(LogService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
-    AdminDashboardController::class    => fn(ContainerInterface $c)=>new AdminDashboardController($c->get(Twig::class), $c->get(AuditService::class)),
+    // The mailer is here for ONE thing: emailing a stalled schedule. A run that has
+    // stopped cannot report its own stall, so the alert has to leave from a page load.
+    AdminDashboardController::class    => fn(ContainerInterface $c)=>new AdminDashboardController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class)),
     AdminProfilesController::class     => fn(ContainerInterface $c)=>new AdminProfilesController($c->get(Twig::class), $c->get(AuditService::class)),
     AdminNominationsController::class  => fn(ContainerInterface $c)=>new AdminNominationsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class), $c->get(AwardService::class)),
     AdminModerationController::class   => fn(ContainerInterface $c)=>new AdminModerationController($c->get(Twig::class), $c->get(AuditService::class)),

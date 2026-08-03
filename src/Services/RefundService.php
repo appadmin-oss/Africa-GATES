@@ -604,7 +604,24 @@ final class RefundService
             return false;
         }
 
-        $r = $this->payments->refund($provider, $ref, (int) $don->amount_naira);
+        // ── 2b. ask the gateway — FOR THE WHOLE TRANSACTION ──────────────────
+        //
+        // No amount is passed, and that is a correctness property rather than a
+        // simplification. Both gateways read a supplied amount as "refund exactly
+        // this much", so handing them `amount_naira` asked them to trust our
+        // arithmetic over their own record of what they collected — and the two ways
+        // that goes wrong are not symmetrical. Too high is refused ("exceeds the
+        // transaction amount"), which is loud and ends in front of a person. Too LOW
+        // succeeds: the gateway does as asked, the row reads `refunded`, the buyer is
+        // emailed a figure they never received, and nothing records that anything was
+        // off. Somebody is short and every screen says settled.
+        //
+        // Null is also the only defensible instruction on the merits: `owed()`
+        // selects on `votes_used = 0`, so nothing was delivered and a partial refund
+        // could never be right. Gateway fees therefore come out of our side, which is
+        // correct — a supporter should not fund our cost of taking money we could not
+        // honour.
+        $r = $this->payments->refund($provider, $ref);
 
         // ── 3. record ────────────────────────────────────────────────────────
         if ($r['status'] === 'failed') {
@@ -612,13 +629,37 @@ final class RefundService
         }
 
         $settled = $r['status'] === 'refunded';
-        $this->settle($don->id, $settled ? 'refunded' : 'pending', $r['provider_ref'],
-            'voting closed before the payment confirmed; no votes were minted');
+        // The gateway's own figure, or null when it reported none. Never defaulted to
+        // `amount_naira`: a guess recorded here would be indistinguishable from a
+        // confirmation by anyone reading the row later.
+        $sent = ($r['amount_naira'] ?? null) !== null ? (int) $r['amount_naira'] : null;
 
-        $this->tellTheBuyer($don, $settled);
+        $this->settle($don->id, $settled ? 'refunded' : 'pending', $r['provider_ref'],
+            'voting closed before the payment confirmed; no votes were minted', $sent);
+
+        // A gateway that returned a DIFFERENT amount than we charged is the exact
+        // condition this change exists to surface, so it is said out loud rather than
+        // left in a column for somebody to stumble on.
+        if ($sent !== null && $sent !== (int) $don->amount_naira) {
+            error_log('[refund] AMOUNT MISMATCH on ' . $ref . ': charged '
+                . (int) $don->amount_naira . ', gateway refunded ' . $sent);
+            $this->alert('Refund amount did not match the charge',
+                "Reference {$ref}\n\nWe charged \u{20A6}" . number_format((int) $don->amount_naira)
+                . " and the gateway reports refunding \u{20A6}" . number_format($sent) . ".\n\n"
+                . "The refund itself went through — this is about the discrepancy. Check the "
+                . "transaction at the provider before answering any question about this order, "
+                . "because our figure is not the one that moved.");
+        }
+
+        $this->tellTheBuyer($don, $settled, $sent);
         try {
             WebhookService::dispatch('payment.refunded', [
-                'reference' => $ref, 'amount_naira' => (int) $don->amount_naira,
+                'reference' => $ref,
+                // What actually went back where we know it, falling back to the charge
+                // only when the gateway said nothing. `amount_source` so a consumer is
+                // never left guessing which of the two it has been handed.
+                'amount_naira'  => $sent ?? (int) $don->amount_naira,
+                'amount_source' => $sent !== null ? 'gateway' : 'order',
                 'settled'   => $settled, 'automatic' => true, 'at' => date('c'),
             ]);
         } catch (\Throwable) {}
@@ -748,19 +789,30 @@ final class RefundService
         return false;
     }
 
-    /** Write the outcome. `refunded_at` is stamped only when the money is truly back. */
-    private function settle(int $id, string $state, ?string $providerRef, string $reason): void
+    /**
+     * Write the outcome. `refunded_at` is stamped only when the money is truly back.
+     *
+     * @param int|null $sentNaira what the GATEWAY says it returned, or null when it
+     *                            did not say. Null is written as null and never
+     *                            filled in from `amount_naira`: the whole point of
+     *                            the column is to be evidence, and a restatement of
+     *                            our own figure is not evidence of anything.
+     */
+    private function settle(int $id, string $state, ?string $providerRef, string $reason,
+                            ?int $sentNaira = null): void
     {
         try {
             $patch = ['refund_state' => $state, 'refund_reason' => mb_substr($reason, 0, 250)];
             if ($providerRef !== null) $patch['refund_ref'] = mb_substr($providerRef, 0, 120);
             if ($state === 'refunded') $patch['refunded_at'] = date('Y-m-d H:i:s');
+            if ($sentNaira !== null)   $patch['refund_amount_naira'] = $sentNaira;
             // An order that succeeded on its second or third try must not keep a
             // stale backoff stamp: it reads as "waiting to be retried" on a row
             // whose money is already on its way back.
             $patch['refund_retry_after'] = null;
             DB::table('gates_donations')->where('id', $id)
-                ->update(OptionalColumn::filter('gates_donations', $patch, ['refund_retry_after']));
+                ->update(OptionalColumn::filter('gates_donations', $patch,
+                    ['refund_retry_after', 'refund_amount_naira']));
         } catch (\Throwable $e) {
             error_log('[refund] could not record outcome for donation ' . $id . ': ' . $e->getMessage());
         }
@@ -798,14 +850,31 @@ final class RefundService
         return null;
     }
 
-    /** What has already gone out today, so the ceiling means something. */
+    /**
+     * What has already gone out today, so the ceiling means something.
+     *
+     * Counts the GATEWAY's figure where one was recorded and the charge otherwise —
+     * `COALESCE`, in that order. A ceiling that measures what we intended to send
+     * rather than what actually went is not a spend limit, it is an estimate; and on
+     * the one day the two diverge it is an estimate in the direction of letting more
+     * money out than the ceiling allows.
+     *
+     * The column may not exist yet on an unmigrated database, so it is only named in
+     * the sum when it is really there. Guarding this is not defensive padding: a
+     * throw here returns MAX_DAILY_NAIRA and stops the whole sweep, so a missing
+     * column would silently switch automatic refunds off.
+     */
     private function spentToday(): int
     {
         try {
+            $amount = OptionalColumn::on('gates_donations', 'refund_amount_naira')
+                ? 'COALESCE(refund_amount_naira, amount_naira)'
+                : 'amount_naira';
+
             return (int) (DB::table('gates_donations')
                 ->whereIn('refund_state', ['refunded', 'pending'])
                 ->where('refund_requested_at', '>=', date('Y-m-d 00:00:00'))
-                ->sum('amount_naira') ?? 0);
+                ->sum(DB::raw($amount)) ?? 0);
         } catch (\Throwable) {
             // Unknown spend means an unenforceable ceiling. Report the maximum so
             // the sweep stops rather than running unbounded.
@@ -819,21 +888,49 @@ final class RefundService
      * A refund nobody was told about looks, from the buyer's side, exactly like
      * the money still being missing — which is the complaint this whole path
      * exists to prevent, arriving a second time.
+     *
+     * ── TWO FIGURES, AND THE EMAIL MUST USE THE RIGHT ONE ────────────────────
+     *
+     * What we CHARGED and what the gateway RETURNED are separate facts. This email
+     * used to state the charge for both, which is fine while they agree and is a
+     * false statement about somebody's money the moment they do not — the worst
+     * possible sentence to put in front of a person already chasing a refund,
+     * because it invites them to reconcile our number against their statement and
+     * find us wrong.
+     *
+     * So the refunded line quotes the gateway when the gateway said, and stays
+     * deliberately silent on the amount when it did not.
+     *
+     * @param int|null $sentNaira the gateway's own figure, or null when unreported.
      */
-    private function tellTheBuyer(object $don, bool $settled): void
+    private function tellTheBuyer(object $don, bool $settled, ?int $sentNaira = null): void
     {
         $to = strtolower(trim((string) ($don->donor_email ?? '')));
         if ($this->mailer === null || !filter_var($to, FILTER_VALIDATE_EMAIL)) return;
 
-        $amount = '₦' . number_format((int) $don->amount_naira);
-        $name   = trim((string) ($don->donor_name ?? '')) ?: 'there';
-        $text   = "Hi {$name},\n\n"
-            . "Your payment of {$amount} went through, but voting in that category had already closed by the "
+        $naira   = static fn(int $n): string => '₦' . number_format($n);
+        $charged = $naira((int) $don->amount_naira);
+        $name    = trim((string) ($don->donor_name ?? '')) ?: 'there';
+
+        // The amount SENT BACK, phrased from whichever fact we actually hold.
+        if ($sentNaira !== null) {
+            $back = $settled
+                ? $naira($sentNaira) . ' has been refunded to the card or account you paid with.'
+                : $naira($sentNaira) . ' is on its way back to the card or account you paid with. '
+                  . 'Banks usually take 5–10 working days to show it.';
+        } else {
+            // No figure from the gateway, so no figure here. "Your payment" is true
+            // without asserting a number we have not confirmed.
+            $back = $settled
+                ? 'Your payment has been refunded in full to the card or account you paid with.'
+                : 'Your payment is on its way back in full to the card or account you paid with. '
+                  . 'Banks usually take 5–10 working days to show it.';
+        }
+
+        $text = "Hi {$name},\n\n"
+            . "Your payment of {$charged} went through, but voting in that category had already closed by the "
             . "time it reached us — so no votes were added. We do not keep money for votes we did not count.\n\n"
-            . ($settled
-                ? "{$amount} has been refunded to the card or account you paid with."
-                : "{$amount} is on its way back to the card or account you paid with. Banks usually take "
-                . "5–10 working days to show it.")
+            . $back
             . "\n\nNothing is needed from you. Reference: " . (string) $don->payment_ref . "\n\n"
             . "If you would rather have the votes than the money and the category reopens, reply to this "
             . "email and we will sort it out.";

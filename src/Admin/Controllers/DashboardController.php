@@ -14,10 +14,37 @@ class DashboardController
     public function __construct(
         private readonly Twig $view,
         private readonly AuditService $audit,
+        /** Only for the stalled-schedule alert; nullable so a mailerless build still renders. */
+        private readonly ?\AfricaGates\Services\OtpService $mailer = null,
     ) {}
 
     public function index(Request $req, Response $res): Response
     {
+        // ── A STALLED SCHEDULE, EMAILED ONCE A DAY ───────────────────────────
+        //
+        // The layout banner covers the admin who is already looking. This covers
+        // the days nobody looks, which are the days it matters — reconciliation and
+        // automatic refunds live entirely inside the maintenance run, so a stall
+        // means supporters who are owed money quietly stop being paid.
+        //
+        // Sent from a page load rather than from maintenance because a run that has
+        // stopped cannot report that it has stopped. `claimAlert()` holds it to one
+        // email a day; without that it would send one per click.
+        if ($this->mailer !== null && \AfricaGates\Support\CronHealth::claimAlert()) {
+            $h = \AfricaGates\Support\CronHealth::status();
+            \AfricaGates\Services\Notifier::adminAlert(
+                $this->mailer,
+                'Scheduled maintenance has stopped',
+                ($h['say'] ?? 'Scheduled maintenance is not running.') . "\n\n"
+                . "Until it runs again: payments that the browser callback missed are NOT being "
+                . "confirmed, and money owed for votes that could not be minted is NOT being "
+                . "returned. Neither shows up anywhere else — the site serves normally throughout.\n\n"
+                . "Last recorded run: " . ($h['last'] ?? 'never') . "\n"
+                . "Fix: re-check the webcron job, or press \"Run maintenance now\" in "
+                . "Settings → Automation & cron."
+            );
+        }
+
         $stats = [
             'total_profiles'      => (int)DB::table('gates_profiles')->where('status','approved')->count(),
             'pending_profiles'    => (int)DB::table('gates_profiles')->where('status','pending')->count(),

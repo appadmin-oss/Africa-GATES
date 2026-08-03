@@ -121,7 +121,14 @@ final class AutoRefundTest extends TestCase
 
         $this->assertCount(1, $gw->refunds);
         $this->assertSame(self::REF, $gw->refunds[0]['ref']);
-        $this->assertSame(3920, $gw->refunds[0]['amount'], 'the full charge, not a guess at it');
+        // This asserted the charge (3920) was passed through. The intent was "the
+        // whole thing, not a guess at it", and that is now expressed more strongly:
+        // NO amount is passed, so the gateway returns the whole transaction from its
+        // own record rather than trusting our column. Passing a figure made every
+        // refund a partial refund, and a column that was too LOW succeeded silently.
+        // See RefundAmountTest.
+        $this->assertNull($gw->refunds[0]['amount'],
+            'the whole transaction, decided by the gateway rather than by our row');
 
         $d = $this->row($id);
         $this->assertSame('refunded', $d->refund_state);
@@ -535,12 +542,18 @@ final class AutoRefundTest extends TestCase
         DB::table('gates_settings')->updateOrInsert(
             ['key_name' => 'refund_max_order_naira'], ['value' => '500000']);
 
-        $this->order(['amount_naira' => 450000]);
+        $id = $this->order(['amount_naira' => 450000]);
         $gw = $this->gateway();
         (new RefundService($gw))->sweep();
 
+        // The point of this test is the CEILING, not the amount: an order that the
+        // default ₦200,000 limit would have parked went through because the dial was
+        // raised. So it asserts the order was actually refunded, and the amount check
+        // is now the shared "no partial refunds" rule.
         $this->assertCount(1, $gw->refunds);
-        $this->assertSame(450000, $gw->refunds[0]['amount']);
+        $this->assertNull($gw->refunds[0]['amount']);
+        $this->assertSame('refunded', $this->row($id)->refund_state,
+            'the raised ceiling let a large order through rather than parking it');
     }
 
     /** But not without limit. A ceiling that can be raised to anything is not a ceiling. */

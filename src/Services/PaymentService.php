@@ -220,8 +220,20 @@ class PaymentService
      * a policy decision from a typed signal instead of grepping prose, and adding
      * a provider does not mean teaching a second class to read its error strings.
      *
+     * ── $amountNaira: LEAVE IT NULL UNLESS YOU MEAN A PARTIAL REFUND ─────────
+     *
+     * Both gateways treat a supplied amount as "refund exactly this much". Passing a
+     * figure of our own therefore asks the gateway to trust our arithmetic over its
+     * own record of what it collected, and it fails asymmetrically: too high is
+     * refused outright ("exceeds"), while too LOW succeeds quietly and leaves the
+     * buyer short with every column reading `refunded`. Null means "return the whole
+     * transaction", which is the only correct instruction when nothing was delivered.
+     *
+     * `amount_naira` in the reply is what the gateway says went back — null when it
+     * did not say, so a caller can distinguish an unknown from a figure we invented.
+     *
      * @return array{ok:bool, status:'refunded'|'pending'|'failed', message:string,
-     *               provider_ref:?string, retryable?:?bool}
+     *               provider_ref:?string, retryable?:?bool, amount_naira?:?int}
      */
     public function refund(string $provider, string $reference, ?int $amountNaira = null): array
     {
@@ -229,7 +241,8 @@ class PaymentService
         // construction: no gateway has been asked, and nothing about waiting
         // changes an unconfigured provider or a missing reference.
         $fail = static fn(string $m): array =>
-            ['ok' => false, 'status' => 'failed', 'message' => $m, 'provider_ref' => null, 'retryable' => false];
+            ['ok' => false, 'status' => 'failed', 'message' => $m, 'provider_ref' => null,
+             'retryable' => false, 'amount_naira' => null];
 
         if (!$this->isEnabled($provider)) return $fail('Payment provider is not available.');
         if (trim($reference) === '')      return $fail('Missing payment reference.');
@@ -247,6 +260,7 @@ class PaymentService
             // gateway accepted it, and reporting a definite failure for an unknown
             // outcome is what makes a caller retry into a double refund.
             return ['ok' => false, 'status' => 'pending', 'provider_ref' => null, 'retryable' => null,
+                    'amount_naira' => null,
                     'message' => 'Could not reach the gateway. The refund may or may not have been accepted — check before retrying.'];
         }
     }
@@ -383,7 +397,11 @@ class PaymentService
             // failure leaves the row unmarked and invites another attempt.
             if (stripos($msg, 'already') !== false && stripos($msg, 'refund') !== false) {
                 return ['ok' => true, 'status' => 'refunded', 'message' => 'Already refunded at the gateway.',
-                        'provider_ref' => null, 'retryable' => false];
+                        'provider_ref' => null, 'retryable' => false,
+                        // Refunded on an earlier attempt, so this reply carries no
+                        // figure. Null rather than our row's number: we genuinely do
+                        // not know what that earlier refund sent.
+                        'amount_naira' => null];
             }
             $retryable = self::classifyRefusal((int) $res['code'], $msg);
             $this->log?->warning('[payment] paystack refund refused', [
@@ -401,6 +419,12 @@ class PaymentService
             'status'       => $raw === 'processed' ? 'refunded' : ($raw === 'failed' ? 'failed' : 'pending'),
             'message'      => (string) ($body['message'] ?? 'Refund submitted.'),
             'provider_ref' => isset($data['id']) ? (string) $data['id'] : null,
+            // WHAT WAS ACTUALLY SENT BACK, in the gateway's own words. Paystack
+            // reports refunds in kobo. Null when it did not say, so a caller can
+            // tell "we do not know" apart from a figure we made up.
+            'amount_naira' => isset($data['amount']) && is_numeric($data['amount'])
+                ? (int) round(((float) $data['amount']) / 100)
+                : null,
         ];
     }
 
@@ -510,11 +534,20 @@ class PaymentService
 
         // Flutterwave refund status: 'completed' | 'pending' | 'failed'
         $raw = strtolower((string) ($data['status'] ?? 'pending'));
+        // Flutterwave reports in the settlement currency (NGN here), not in kobo —
+        // hence no /100. Getting this wrong in either direction would record a figure
+        // a hundred times out, so the two providers are converted separately rather
+        // than through one "amount" helper that has to remember which is which.
+        $amount = null;
+        foreach (['amount_refunded', 'amount'] as $k) {
+            if (isset($data[$k]) && is_numeric($data[$k])) { $amount = (int) round((float) $data[$k]); break; }
+        }
         return [
             'ok'           => $raw !== 'failed',
             'status'       => $raw === 'completed' ? 'refunded' : ($raw === 'failed' ? 'failed' : 'pending'),
             'message'      => (string) ($body['message'] ?? 'Refund submitted.'),
             'provider_ref' => isset($data['id']) ? (string) $data['id'] : null,
+            'amount_naira' => $amount,
         ];
     }
 
@@ -523,9 +556,21 @@ class PaymentService
     /**
      * Single cURL chokepoint. JSON in, JSON out, 15s timeout, TLS verified.
      *
+     * PROTECTED, not private, so a test can intercept the one network call without
+     * bypassing anything else — the same reasoning as {@see AiService::httpPost()}.
+     * Overriding `refundPaystack()`/`refundFlutterwave()` instead would skip the
+     * payload assembly and the response parsing, which is where the money lives:
+     * Paystack transacts in KOBO and Flutterwave in naira, so a unit-conversion
+     * mistake in either direction is a factor of a hundred on a figure that gets
+     * quoted to a supporter. That is exactly the code a test needs to reach.
+     *
+     * It was private, and the consequence showed up immediately: a test double could
+     * not take effect, so the "unit" test made a real HTTPS call to the live gateway
+     * with whatever key the environment happened to hold.
+     *
      * @return array{ok:bool,code:int,json:array,raw:string}
      */
-    private function request(string $method, string $url, ?array $jsonBody, array $headers): array
+    protected function request(string $method, string $url, ?array $jsonBody, array $headers): array
     {
         $ch = curl_init();
         $headers = array_merge($headers, ['Accept: application/json']);

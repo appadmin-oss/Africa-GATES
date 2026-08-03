@@ -240,6 +240,23 @@
       <span><strong>Email delivery is OFF</strong> — SMTP is not configured, so sign-in codes, verification links and notifications are <strong>not reaching anyone</strong> (they are written to <code>var/logs/outgoing-mail.log</code> instead). Set <code>SMTP_USER</code> / <code>SMTP_PASS</code> in <code>.env</code>, then confirm with <a href="/admin/settings" style="color:inherit;font-weight:700;text-decoration:underline">Settings → Send a test email</a>.</span>
     </div>
     {% endif %}
+    {#
+      THE SCHEDULE HAS STOPPED — and nothing else on the site would show it.
+      Reconciliation and automatic refunds only happen inside the maintenance run,
+      so when it stalls, supporters who are owed money stop being paid while every
+      page keeps serving normally. A stalled run cannot alert about itself, so the
+      check happens here, where traffic still arrives.
+    #}
+    {% set cron = cron_health() %}
+    {% if not cron.ok %}
+    <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">
+      <span aria-hidden="true">⏱</span>
+      <span><strong>{{ cron.never ? 'Scheduled maintenance has never run' : 'Scheduled maintenance has stopped' }}</strong>
+        — {{ cron.say }}
+        {% if cron.last %}<span style="display:block;margin-top:4px;opacity:.85;font-size:12px">Last run: {{ cron.last }}</span>{% endif %}
+      </span>
+    </div>
+    {% endif %}
     {% if flash_ok %}<div class="ad-flash ad-flash--ok" role="status">✓ {{ flash_ok }}</div>{% endif %}
     {% if flash_error %}<div class="ad-flash ad-flash--err" role="alert">⚠ {{ flash_error }}</div>{% endif %}
     {% if flash_notice %}<div class="ad-flash ad-flash--note" role="status">ℹ {{ flash_notice }}</div>{% endif %}
