@@ -257,4 +257,131 @@ final class VoteProof
     {
         return OptionalColumn::on('gates_donations', 'votes_used');
     }
+
+    /**
+     * Deliver the votes that are still owed — from a browser, with no shell.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS EXISTS AND `votes:remint` WAS NOT ENOUGH
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * There is no SSH on this deployment. That is not an unusual constraint to
+     * have missed once — it is the constraint this whole codebase was built
+     * around, which is why `/__setup/migrate` exists, why `/__setup/checkout`
+     * exists, and why {@see PaymentReconciler} was extracted out of its console
+     * command in the first place so that the admin screen and the CLI run the same
+     * engine.
+     *
+     * A repair that can only be reached by a shell, on a platform whose operator
+     * has no shell, is a repair that does not exist. Every supporter still owed
+     * votes stays owed them, and the person answering those messages has no way to
+     * act — which is precisely the position they said they did not want to be in.
+     *
+     * So this is the same work `votes:remint` does, callable from the Finance page.
+     *
+     * ── CHECK, THEN APPLY. THE SAME SHAPE AS RECONCILIATION ──────────────────
+     *
+     * `$apply = false` reports what WOULD be delivered and writes nothing. That is
+     * the default on the web for the reason it is the default there: an operator
+     * should see the population before anything moves, and the button that fixes
+     * forty orders must not also be the button that quietly touches a
+     * forty-first nobody looked at.
+     *
+     * ── EVERY DECISION IS STILL mint()'s ─────────────────────────────────────
+     *
+     * This chooses WHICH orders to offer; it decides nothing. mint() re-checks the
+     * phase on the order's own clock, the grace window, the refund state and the
+     * cap, and its idempotency claim means pressing the button twice cannot
+     * double-credit anybody. Refunded orders are excluded here as well, because
+     * belt and braces is right when the failure is paying for the same thing twice.
+     *
+     * @param bool $apply false = report only.
+     * @param int  $limit orders considered in one pass.
+     * @return array{ok:bool, applied:bool, considered:int, delivered:int, votes:int,
+     *               blocked:array<string,int>, items:list<array<string,mixed>>, say:string}
+     */
+    public static function deliverOwed(bool $apply = false, int $limit = 200): array
+    {
+        $limit = max(1, min(1000, $limit));
+
+        try {
+            $q = DB::table('gates_donations')
+                ->where('status', 'confirmed')
+                ->where('tier', 'paid-vote')
+                ->where('votes_used', 0)
+                ->whereNotNull('intent_nominee_id');
+
+            foreach (['refunded_at', 'refund_requested_at'] as $col) {
+                if (OptionalColumn::on('gates_donations', $col)) $q->whereNull($col);
+            }
+
+            // Oldest first here, unlike the reconciliation sweep. These people have
+            // been waiting longest and none of them will be crowded out — the whole
+            // population is small by construction, because it only contains orders
+            // that failed.
+            $rows = $q->orderBy('id')->limit($limit)->get();
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'applied' => false, 'considered' => 0, 'delivered' => 0, 'votes' => 0,
+                    'blocked' => [], 'items' => [],
+                    'say' => 'Could not read the queue: ' . $e->getMessage()];
+        }
+
+        if ($rows->isEmpty()) {
+            return ['ok' => true, 'applied' => $apply, 'considered' => 0, 'delivered' => 0, 'votes' => 0,
+                    'blocked' => [], 'items' => [],
+                    'say' => 'Nothing is waiting. Every confirmed paid-vote order has its votes.'];
+        }
+
+        $delivered = 0; $votes = 0; $blocked = []; $items = [];
+
+        foreach ($rows as $d) {
+            if (!$apply) {
+                $items[] = ['ref' => (string) $d->payment_ref, 'votes' => (int) $d->bonus_votes,
+                            'naira' => (int) $d->amount_naira, 'when' => (string) $d->created_at,
+                            'outcome' => 'would try'];
+                continue;
+            }
+
+            try {
+                $r = PaidVoteService::mint((int) $d->id);
+            } catch (\Throwable $e) {
+                $r = ['ok' => false, 'code' => 'ERROR', 'message' => $e->getMessage()];
+            }
+
+            if (!empty($r['ok'])) {
+                $delivered++;
+                $n = (int) ($r['minted'] ?? $d->bonus_votes);
+                $votes += $n;
+                $items[] = ['ref' => (string) $d->payment_ref, 'votes' => $n,
+                            'naira' => (int) $d->amount_naira, 'when' => (string) $d->created_at,
+                            'outcome' => 'delivered'];
+            } else {
+                $code = (string) ($r['code'] ?? 'FAILED');
+                $blocked[$code] = ($blocked[$code] ?? 0) + 1;
+                $items[] = ['ref' => (string) $d->payment_ref, 'votes' => (int) $d->bonus_votes,
+                            'naira' => (int) $d->amount_naira, 'when' => (string) $d->created_at,
+                            'outcome' => $code];
+            }
+        }
+
+        // Named outcomes rather than a total, because the two blocked reasons need
+        // completely different responses and lumping them together hides that.
+        $say = !$apply
+            ? count($rows) . ' order(s) are waiting for their votes. Nothing has been changed — press '
+              . 'Deliver to actually mint them.'
+            : $delivered . ' order(s) delivered, ' . number_format($votes) . ' vote(s) added.';
+
+        if ($apply && isset($blocked['CONFIRMED_TOO_LATE'])) {
+            $say .= ' ' . $blocked['CONFIRMED_TOO_LATE'] . ' could not be delivered because their cycle closed '
+                  . 'too long ago — a settled tally must not move. Those are refundable and the automatic '
+                  . 'refund path will return them.';
+        }
+        if ($apply && isset($blocked['ALREADY_REFUNDED'])) {
+            $say .= ' ' . $blocked['ALREADY_REFUNDED'] . ' had already been refunded, so there was nothing owed.';
+        }
+
+        return ['ok' => true, 'applied' => $apply, 'considered' => count($rows),
+                'delivered' => $delivered, 'votes' => $votes, 'blocked' => $blocked,
+                'items' => $items, 'say' => $say];
+    }
 }

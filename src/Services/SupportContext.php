@@ -192,6 +192,26 @@ final class SupportContext
                             . "when card payment stops, and how many nominees are in it. Use when the question "
                             . "is about a specific category rather than the whole platform.",
              'args' => ['category' => 'category name or slug']],
+            ['name' => 'delivery_health',
+             'description' => "Is the paid-vote delivery problem actually resolved RIGHT NOW, platform-wide? "
+                            . "Use when somebody asks whether the incident is fixed, says they were told it was "
+                            . "fixed, or doubts our word. It counts the real vote records rather than our own "
+                            . "counter, so it can and does contradict us. If it says orders are still "
+                            . "outstanding, SAY SO — claiming resolution while this reports otherwise is the "
+                            . "single fastest way to lose somebody for good.",
+             'args' => []],
+            ['name' => 'nominee_tally',
+             'description' => "A nominee's public support total and how much of it is organic versus paid. Use "
+                            . "for 'their count went down', 'why is X ahead of Y', 'did my vote count'. A total "
+                            . "CAN fall — fraudulent votes are removed and a refunded paid vote is taken back "
+                            . "with the money — and that is the integrity system working, not a fault.",
+             'args' => ['name' => 'the nominee']],
+            ['name' => 'when_did_i_vote',
+             'description' => "Whether a free vote exists for an email address in a category, and when. Use for "
+                            . "'I voted and it is not showing' where no payment is involved. Returns only "
+                            . "whether a vote exists and its time — never who it was for, because a free ballot "
+                            . "is secret and an assistant that reveals a choice has broken that.",
+             'args' => ['email' => 'the address they voted with', 'category' => 'category name (optional)']],
             ['name' => 'vote_proof',
              'description' => "PROOF for one order: what was charged, what votes are actually on the tally, and "
                             . "when each entry was written. Use whenever somebody doubts that their votes landed, "
@@ -279,6 +299,10 @@ final class SupportContext
                 'refund_status'    => RefundService::statusFor((string) ($args['reference'] ?? '')),
                 'voting_deadlines' => $this->votingDeadlines(),
                 'vote_proof'       => $this->voteProof((string) ($args['reference'] ?? '')),
+                'delivery_health'  => $this->deliveryHealth(),
+                'nominee_tally'    => $this->nomineeTally((string) ($args['name'] ?? '')),
+                'when_did_i_vote'  => $this->whenDidIVote((string) ($args['email'] ?? ''),
+                                                          (string) ($args['category'] ?? '')),
                 'gateway_status'   => $this->ext()->gatewayStatus(),
                 'check_email_domain' => $this->ext()->emailDomain((string) ($args['email'] ?? '')),
                 'convert_currency' => $this->ext()->convertCurrency(
@@ -995,6 +1019,178 @@ final class SupportContext
                     : 'Voting is still OPEN but card payment has already stopped for the closing window — '
                     . 'point them at the free ballot, which runs right up to the close. This is the state '
                     . 'people find most confusing, so say both halves explicitly.'),
+        ];
+    }
+
+    /**
+     * Is the incident actually over? Platform-wide, and honestly.
+     *
+     * ── WHY THE ASSISTANT NEEDS THIS AND NOT JUST A LINE IN ITS BRIEFING ─────
+     *
+     * Supporters were told the unminted-vote problem was resolved and started
+     * asking for proof. If the model answers that from its briefing it is
+     * repeating a claim written by whoever last edited the prompt — which is
+     * exactly the kind of assertion these people had already stopped believing,
+     * and it would be repeating it at the worst possible moment.
+     *
+     * This reads the live records. It is allowed to say no, and it is TOLD to say
+     * no: claiming resolution while the platform still owes somebody votes is not
+     * a small inaccuracy, it is the sentence that loses a supporter permanently.
+     *
+     * Aggregate only. No reference, no amount belonging to anybody — the headline
+     * plus a pointer to the page where a person can check their own order.
+     */
+    private function deliveryHealth(): array
+    {
+        try {
+            $t = VoteProof::tally(90);
+        } catch (\Throwable) {
+            return ['ok' => false,
+                    'say' => 'I could not check the delivery figures just now. Do not assert that the problem '
+                           . 'is resolved on the strength of not knowing.'];
+        }
+        if (empty($t['ok'])) {
+            return ['ok' => false, 'say' => 'The delivery report could not run. Do not claim resolution.'];
+        }
+
+        return [
+            'ok'            => true,
+            'window'        => $t['window'],
+            'paid_orders'   => $t['paid_orders'],
+            'outstanding'   => $t['broken'],
+            'all_delivered' => $t['clean'],
+            'verify_page'   => '/vote/verify',
+            'say' => $t['clean']
+                ? 'Checked live: every confirmed paid-vote order in the last 90 days has its votes on the '
+                . 'tally, counted from the vote records rather than our own counter. You may say that plainly. '
+                . 'Then give them /vote/verify — they can check their OWN order with their AFG- reference and '
+                . 'see each vote and the time it was written, which is worth more than being reassured by us.'
+                : $t['broken'] . ' order(s) are still paid without their votes. DO NOT say the problem is '
+                . 'resolved. Say honestly that some orders are still being fixed, run fix_payment on THEIR '
+                . 'reference immediately, and give them /vote/verify so they can watch their own change.',
+        ];
+    }
+
+    /**
+     * A nominee's public total, split organic versus paid.
+     *
+     * ── THE CONVERSATION THIS EXISTS FOR ────────────────────────────────────
+     *
+     * "Their count went down" and "why is X ahead of Y when Y has more votes"
+     * arrive constantly, and both have honest answers the assistant could not
+     * reach. A total CAN fall: fraudulent votes are removed and a refunded paid
+     * vote is taken back along with the money. And a nominee can show more visible
+     * support while ranking lower, because paid votes are excluded from the score.
+     *
+     * Both facts defend the integrity system. Without the numbers the model either
+     * refused the question or, worse, guessed at a mechanism.
+     */
+    private function nomineeTally(string $name): array
+    {
+        $q = trim($name);
+        if (mb_strlen($q) < 2) return ['found' => false, 'say' => 'Which nominee?'];
+
+        try {
+            $n = DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
+                ->whereNull('n.merged_into')
+                ->whereRaw('LOWER(n.name) LIKE ?', ['%' . mb_strtolower($q) . '%'])
+                ->orderByDesc('n.vote_count')
+                ->first(['n.id', 'n.name', 'n.vote_count', 'n.organic_vote_count', 'c.title as category']);
+        } catch (\Throwable) {
+            return ['found' => false, 'say' => 'I could not read the tallies just now.'];
+        }
+        if (!$n) return ['found' => false, 'say' => 'No approved nominee matches that name.'];
+
+        $total   = (int) $n->vote_count;
+        $organic = (int) $n->organic_vote_count;
+
+        return [
+            'found'    => true,
+            'nominee'  => (string) $n->name,
+            'category' => (string) $n->category,
+            'total_support' => $total,
+            'organic_votes' => $organic,
+            'paid_support'  => max(0, $total - $organic),
+            'url'      => \AfricaGates\Support\NomineeUrl::ballot((int) $n->id, ''),
+            'say' => 'Total visible support is ' . number_format($total) . ', of which '
+                   . number_format($organic) . ' are free verified votes. Only the free ones count towards the '
+                   . 'score that decides rank — so a nominee can show more support and still rank lower, and a '
+                   . 'total CAN fall when fraudulent votes are removed or a paid vote is refunded. Both of those '
+                   . 'are the integrity system working. Give them the nominee link so they see it live.',
+        ];
+    }
+
+    /**
+     * Does a free vote exist for this address, and when?
+     *
+     * ── WHAT THIS DELIBERATELY WILL NOT TELL YOU ─────────────────────────────
+     *
+     * Whether a vote exists, and its timestamp. NEVER who it was for.
+     *
+     * A free ballot on this platform is secret by design — the voter's email is
+     * stored as a one-way hash precisely so that nobody, including us, holds a list
+     * of who backed whom. An assistant that answered "you voted for Ada" would
+     * have broken that promise on behalf of the whole platform, and it would have
+     * done it to be helpful, which is how these things always happen.
+     *
+     * "A vote from your address exists, recorded at 14:02" answers the actual
+     * question — did it register — without answering one nobody asked.
+     *
+     * The hash is computed the same way the ballot computes it, so a mismatch here
+     * means genuinely no vote rather than a hashing difference.
+     */
+    private function whenDidIVote(string $email, string $category): array
+    {
+        $e = mb_strtolower(trim($email));
+        if ($e === '' || !filter_var($e, FILTER_VALIDATE_EMAIL)) {
+            return ['found' => false, 'say' => 'I need the email address they voted with.'];
+        }
+
+        try {
+            $hash = VoteService::voterHash($e);
+        } catch (\Throwable) {
+            // Never fall back to a different hashing scheme — a wrong hash returns
+            // "no vote" for somebody who definitely voted, which is worse than
+            // admitting the check could not run.
+            return ['found' => false, 'say' => 'I could not check that address just now.'];
+        }
+
+        try {
+            $qb = DB::table('gates_votes as v')
+                ->join('gates_award_categories as c', 'c.id', '=', 'v.category_id')
+                ->where('v.voter_email_hash', $hash)
+                ->where('v.vote_type', 'standard');
+            if (trim($category) !== '') {
+                $qb->whereRaw('LOWER(c.title) LIKE ?', ['%' . mb_strtolower(trim($category)) . '%']);
+            }
+            // Category and time only. The nominee column is not selected at all —
+            // not filtered out later, not selected. The safest way not to leak a
+            // value is never to load it.
+            $rows = $qb->orderByDesc('v.id')->limit(10)->get(['c.title as category', 'v.voted_at'])->all();
+        } catch (\Throwable) {
+            return ['found' => false, 'say' => 'I could not read the vote records just now.'];
+        }
+
+        if (!$rows) {
+            return ['found' => false,
+                    'say' => 'No free vote is recorded for that address' . (trim($category) !== '' ? ' in that category' : '')
+                           . '. The commonest reason by far is that the six-digit code was never entered — a vote '
+                           . 'only exists once the code is submitted, and leaving the page at that step feels '
+                           . 'exactly like having voted. Ask them to vote again and watch for the code.'];
+        }
+
+        return [
+            'found' => true,
+            'votes' => array_map(static fn($r) => [
+                'category' => (string) $r->category,
+                'at'       => (string) $r->voted_at,
+            ], $rows),
+            'say' => 'A verified free vote from that address IS recorded — the categories and times are above. '
+                   . 'Tell them it registered. Do NOT say who it was for: a free ballot here is secret, the '
+                   . 'address is stored only as a one-way hash, and that information is not available to you or '
+                   . 'to anybody else. If they believe it went to the wrong nominee, that needs a person.',
         ];
     }
 

@@ -6,6 +6,7 @@ namespace Tests\Unit;
 use AfricaGates\Services\SupportAgentService;
 use AfricaGates\Services\SupportContext;
 use AfricaGates\Services\SupportTools;
+use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
 
 /**
@@ -208,5 +209,107 @@ final class SupportResilienceTest extends TestCase
         $r = (new SupportContext(null, null, false, null))->run('refund_this_payment');
         $this->assertFalse($r['ok']);
         $this->assertStringContainsString('No such tool', $r['error']);
+    }
+
+    // ── the incident-era tools ───────────────────────────────────────────────
+
+    /**
+     * A FREE BALLOT IS SECRET, AND THE ASSISTANT MUST NOT BREAK THAT.
+     *
+     * The voter's email is stored as a one-way hash precisely so nobody — us
+     * included — holds a list of who backed whom. An assistant that answered "you
+     * voted for Ada" would break that promise on behalf of the whole platform, and
+     * it would do it while trying to be helpful, which is how these things always
+     * happen. So: whether a vote exists and when, never who for.
+     */
+    public function test_the_vote_lookup_never_reveals_who_was_voted_for(): void
+    {
+        DB::table('gates_votes')->delete();
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 960, 'title' => 'P', 'slug' => 'p-960']);
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 960, 'programme_id' => 960, 'year' => 2026, 'status' => 'voting']);
+        DB::table('gates_award_categories')->insertOrIgnore(['id' => 960, 'cycle_id' => 960, 'title' => 'Secret Cat', 'slug' => 'cat-960']);
+        $nid = (int) DB::table('gates_nominees')->insertGetId([
+            'category_id' => 960, 'name' => 'Chosen Nominee', 'status' => 'approved', 'vote_count' => 1,
+        ]);
+        DB::table('gates_votes')->insert([
+            'nominee_id' => $nid, 'category_id' => 960,
+            'voter_email_hash' => \AfricaGates\Services\VoteService::voterHash('ada@example.test'),
+            'vote_type' => 'standard', 'weight' => 1,
+            'voted_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $r = (new SupportContext(null, null, false, null))
+            ->run('when_did_i_vote', ['email' => 'ada@example.test'])['data'];
+
+        $this->assertTrue($r['found'], 'it must confirm the vote registered');
+        $this->assertSame('Secret Cat', $r['votes'][0]['category']);
+
+        $blob = json_encode($r) ?: '';
+        $this->assertStringNotContainsString('Chosen Nominee', $blob,
+            'the nominee column is never even selected — the safest way not to leak a value');
+    }
+
+    /** The hash it computes must be the one the ballot actually wrote. */
+    public function test_the_vote_lookup_uses_the_ballots_own_hash(): void
+    {
+        // Two copies of a hashing rule is how "no vote found" starts being
+        // returned to people who definitely voted.
+        $this->assertSame(
+            hash('sha256', 'ada@example.test'),
+            \AfricaGates\Services\VoteService::voterHash('  Ada@Example.TEST  '),
+            'trim + lowercase, exactly as castVote() does it'
+        );
+    }
+
+    /** No vote found routes to the real cause rather than to a shrug. */
+    public function test_no_vote_found_names_the_commonest_reason(): void
+    {
+        $r = (new SupportContext(null, null, false, null))
+            ->run('when_did_i_vote', ['email' => 'nobody@example.test'])['data'];
+
+        $this->assertFalse($r['found']);
+        $this->assertStringContainsString('code was never entered', $r['say']);
+    }
+
+    /**
+     * DELIVERY HEALTH MUST BE ABLE TO CONTRADICT US.
+     *
+     * If it cannot say no, the assistant is repeating a claim from its prompt at
+     * the exact moment somebody has stopped believing our claims.
+     */
+    public function test_delivery_health_refuses_to_claim_resolution_when_orders_are_owed(): void
+    {
+        DB::table('gates_votes')->delete();
+        DB::table('gates_donations')->delete();
+        DB::table('gates_award_programmes')->insertOrIgnore(['id' => 961, 'title' => 'P', 'slug' => 'p-961']);
+        DB::table('gates_award_cycles')->insertOrIgnore(['id' => 961, 'programme_id' => 961, 'year' => 2026, 'status' => 'voting']);
+        DB::table('gates_award_categories')->insertOrIgnore(['id' => 961, 'cycle_id' => 961, 'title' => 'C', 'slug' => 'cat-961']);
+        $nid = (int) DB::table('gates_nominees')->insertGetId([
+            'category_id' => 961, 'name' => 'Ada', 'status' => 'approved', 'vote_count' => 0]);
+        DB::table('gates_donations')->insert([
+            'donor_name' => 'K', 'donor_email' => 'k@example.test', 'amount_naira' => 5000,
+            'tier' => 'paid-vote', 'bonus_votes' => 20, 'votes_used' => 0,
+            'intent_nominee_id' => $nid, 'payment_ref' => 'AFG-PVOTE-OWE1', 'status' => 'confirmed',
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $r = (new SupportContext(null, null, false, null))->run('delivery_health')['data'];
+
+        $this->assertFalse($r['all_delivered']);
+        $this->assertSame(1, $r['outstanding']);
+        $this->assertStringContainsString('DO NOT say the problem is resolved', $r['say']);
+    }
+
+    /** And when it IS clean it says so, and hands over the checkable link. */
+    public function test_delivery_health_points_at_the_proof_page_when_clean(): void
+    {
+        DB::table('gates_votes')->delete();
+        DB::table('gates_donations')->delete();
+
+        $r = (new SupportContext(null, null, false, null))->run('delivery_health')['data'];
+
+        $this->assertTrue($r['all_delivered']);
+        $this->assertStringContainsString('/vote/verify', $r['say'],
+            'a supporter who can check is worth more than one who was reassured');
     }
 }

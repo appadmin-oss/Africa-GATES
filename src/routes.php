@@ -979,6 +979,12 @@ return function(App $app) {
         // EMAIL — so a reply from an inbox never reached the member's own thread,
         // nothing was ever closed, and `is_internal` existed with no way to write
         // to it. This moves the workflow to where the record already is.
+        // VOTE DELIVERY — the proof and the repair, in a browser. There is no SSH
+        // on this deployment, so `votes:proof` and `votes:remint` were unreachable
+        // by the only person who needed them. Same engine, same check-then-apply
+        // shape as reconciliation.
+        $a->get('/vote-delivery',          \AfricaGates\Admin\Controllers\VoteDeliveryController::class.':index');
+        $a->post('/vote-delivery/deliver', \AfricaGates\Admin\Controllers\VoteDeliveryController::class.':deliver');
         $a->get('/support',                          \AfricaGates\Admin\Controllers\SupportController::class.':index');
         $a->get('/support/{ref:[A-Za-z0-9\-]+}',     \AfricaGates\Admin\Controllers\SupportController::class.':show');
         $a->post('/support/{ref:[A-Za-z0-9\-]+}/reply', \AfricaGates\Admin\Controllers\SupportController::class.':reply');

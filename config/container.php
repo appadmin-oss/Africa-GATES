@@ -306,6 +306,12 @@ return [
         new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class)),
         $c->get(RateLimitService::class)
     ),
+    // Vote delivery. Audited, because delivering writes to a public tally and
+    // "who did this and when" has to be answerable months later.
+    \AfricaGates\Admin\Controllers\VoteDeliveryController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\VoteDeliveryController(
+        $c->get(Twig::class),
+        $c->get(AuditService::class)
+    ),
     // The support queue. Gets the ticket service so a staff reply travels the
     // same path as an automated one — mailed, and recorded on the member's thread.
     \AfricaGates\Admin\Controllers\SupportController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\SupportController(

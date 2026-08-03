@@ -26,8 +26,26 @@ class VoteService {
      * the supporters list. Only the paid ballot, where the name field is optional, reads
      * a filled-in name as consent. See {@see SupportersService}.
      */
+    /**
+     * The one definition of a voter's identity on the ballot.
+     *
+     * Extracted because a SECOND caller now needs it: the support assistant can
+     * tell somebody whether a free vote from their address registered, and it can
+     * only do that by computing the same hash the ballot wrote. Two copies of a
+     * hashing rule is how "no vote found" starts being returned to people who
+     * definitely voted — the hash differs by a `trim()` and nobody can see why.
+     *
+     * This is deliberately NOT reversible and deliberately not salted per-record:
+     * it has to be recomputable from an address alone, which is exactly what makes
+     * one-vote-per-person enforceable without us holding a list of who voted.
+     */
+    public static function voterHash(string $email): string
+    {
+        return hash('sha256', strtolower(trim($email)));
+    }
+
     public function castVote(string $email, string $otp, int $nomineeId, int $awardId, string $ip = '', ?string $deviceHash = null, ?string $idempotencyKey = null, ?string $voterName = null, ?string $voterPhone = null): array {
-        $eh = hash('sha256', strtolower(trim($email)));
+        $eh = self::voterHash($email);
         $th = hash('sha256', trim($otp));
         $ipHash = $ip !== '' ? hash('sha256', $ip) : null;
         // Voter identity captured alongside the (hashed) email — stored as-is for
