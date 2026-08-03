@@ -77,7 +77,7 @@ final class SupportAutoResolver
      */
     private const SAFE_TOOLS = ['fix_payment', 'resend_receipt', 'site_state',
                                 'pricing', 'platform_health', 'help_search',
-                                'voting_deadlines'];
+                                'voting_deadlines', 'help_article'];
 
     /** Tickets per sweep. A cron tick is not the place to answer two hundred. */
     private const PER_SWEEP = 12;

@@ -113,8 +113,16 @@ final class SupportContext
             ['name' => 'platform_health',
              'description' => 'Whether payments, email, database, cache and scheduled jobs are working right now. Use when someone reports something being broken or slow.',
              'args' => []],
+            ['name' => 'help_article',
+             'description' => "Search the WRITTEN Help Centre answers and read the matching one in full. Try this "
+                            . "FIRST for any 'how does X work' or 'why did Y happen' question — these are the "
+                            . "platform's own vetted answers, they are kept correct as settings change, and they "
+                            . "carry a URL you should give the reader so they can keep it. Quote the article rather "
+                            . "than rewording it from memory: if it disagrees with you, it is right and you are not.",
+             'args' => ['query' => 'the question, in the words the user used']],
             ['name' => 'help_search',
-             'description' => 'Search the site itself — pages, award categories, nominees, events, posts. Use to find the page that answers a question, and cite its URL.',
+             'description' => 'Search the site itself — pages, award categories, nominees, events, posts. Use to find a '
+                            . 'specific nominee, category or event page, or when help_article has no answer. Cite the URL.',
              'args' => ['query' => 'what to look for']],
             ['name' => 'pricing',
              'description' => 'What a vote costs, the bundle tiers, and which payment providers are live.',
@@ -218,6 +226,7 @@ final class SupportContext
             $data = match ($tool) {
                 'site_state'       => $this->siteState(),
                 'platform_health'  => $this->platformHealth(),
+                'help_article'     => $this->helpArticle((string) ($args['query'] ?? '')),
                 'help_search'      => $this->helpSearch((string) ($args['query'] ?? '')),
                 'pricing'          => $this->pricing(),
                 'my_transactions'  => $this->myTransactions(),
@@ -313,6 +322,55 @@ final class SupportContext
         } catch (\Throwable) { /* table absent on an old install */ }
 
         return $out;
+    }
+
+    /**
+     * The Help Centre's own written answers, in full.
+     *
+     * ── WHY THIS IS A SEPARATE TOOL FROM help_search ─────────────────────────
+     *
+     * `help_search` finds PAGES — a nominee, a category, an event. Useful, and
+     * completely different from what somebody asking "why did my payment close
+     * early" needs. That person wants the answer, and until now the model had two
+     * options: link them to a page and hope, or write the answer from whatever it
+     * had absorbed from the system prompt.
+     *
+     * The second is the dangerous one. The prompt says the cutoff exists; it does
+     * not say it in words fit to be read by an upset supporter, so the model
+     * paraphrases — and a paraphrase of a policy is a new policy nobody approved.
+     *
+     * This returns the vetted prose with its live numbers already substituted, and
+     * a URL. The model's job becomes quoting rather than composing, which is the
+     * job it is reliable at.
+     *
+     * Full body text for the best match, headlines for the rest — enough for the
+     * model to notice it picked the wrong one and say "you might have meant…".
+     */
+    private function helpArticle(string $query): array
+    {
+        $hits = HelpCentre::search($query, 4);
+        if (!$hits) {
+            return ['found' => false,
+                    'say'   => 'No written answer covers that. Answer from the tools and the briefing '
+                             . 'instead, and do not invent a Help Centre link.'];
+        }
+
+        $best = array_shift($hits);
+        return [
+            'found'   => true,
+            'article' => [
+                'title' => $best['title'],
+                'url'   => HelpCentre::url((string) $best['slug']),
+                // Plain text, not the markup: the model is going to speak these
+                // words, and an anchor tag read aloud in a chat bubble is noise.
+                'text'  => HelpCentre::plainText($best),
+            ],
+            'other_matches' => array_map(static fn(array $a) => [
+                'title' => $a['title'], 'url' => HelpCentre::url((string) $a['slug']),
+            ], $hits),
+            'how_to_use' => 'Answer in the article\'s own words and give the reader the URL. If it does not '
+                          . 'actually fit what they asked, say so and use another tool rather than bending it.',
+        ];
     }
 
     private function helpSearch(string $query): array

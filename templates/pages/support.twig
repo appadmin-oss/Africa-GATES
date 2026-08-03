@@ -1,72 +1,131 @@
 {% extends "layout/gates.twig" %}
 
+{#
+  SUPPORT & APPEALS.
+
+  ── THE LAYOUT PROBLEM THIS FIXES ───────────────────────────────────────────
+  The page had five cards in two visually identical rows, doing three different
+  things. Two navigated away (assistant, tickets), three silently set a hidden
+  form field and scrolled. Same size, same border, same hover — so the only way to
+  learn which was which was to click one and find out.
+
+  It also buried the thing that actually resolves problems. The assistant can
+  re-ask a bank and add missing votes on the spot; the appeal form opens your mail
+  client. Those were presented as peers.
+
+  Now the page is one honest triage, in the order that resolves fastest:
+
+    1  FIX IT NOW      — the assistant, and the Help Centre. Self-service that works.
+    2  A PERSON        — tickets (members, threaded) or the appeal form (anyone).
+    3  THE FORM        — only what the reason chips actually change.
+
+  The reason chips live INSIDE the form now, where they belong, instead of
+  masquerading as navigation above it.
+#}
+
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   body[data-page="support"]{ background:#eef0ec; color:var(--ag-ink); }
-  .sp{ max-width:1080px; margin:0 auto; padding:clamp(2rem,5vw,2.75rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+  .sp{ max-width:1040px; margin:0 auto; padding:clamp(1.75rem,5vw,2.75rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
 
-  .sp-hero{ text-align:center; max-width:600px; margin:0 auto; }
-  .sp-hero .sp-eyebrow{ margin:0 0 10px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
-  .sp-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4.4vw,2.625rem); letter-spacing:-.02em; }
-  .sp-hero p{ margin:14px 0 0; font-size:16px; line-height:1.6; color:#4a5256; }
+  .sp-hero{ text-align:center; max-width:38rem; margin:0 auto; }
+  .sp-eyebrow{ margin:0 0 10px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
+  .sp-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.8rem,4.4vw,2.5rem); letter-spacing:-.02em; }
+  .sp-hero p{ margin:13px 0 0; font-size:15.5px; line-height:1.62; color:#4a5256; }
 
-  .sp-routes{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:32px; }
-  .sp-route{ cursor:pointer; text-align:left; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:22px; text-decoration:none; display:block; transition:border-color .15s, transform .15s; }
-  .sp-route:hover{ border-color:rgba(16,41,44,.2); transform:translateY(-2px); }
-  .sp-route.is-active{ border-color:var(--ag-green); }
-  .sp-route__ico{ width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; }
-  .sp-route__t{ font-weight:600; font-size:15.5px; color:var(--ag-ink); margin-top:14px; }
-  .sp-route__d{ font-size:13px; color:var(--ag-ink-soft); margin-top:4px; line-height:1.5; }
+  /* Numbered steps. The number is the whole point: it says these are not peers,
+     and that trying the first one is usually the end of it. */
+  .sp-step{ margin-top:clamp(1.9rem,4vw,2.5rem); }
+  .sp-step__h{ display:flex; align-items:center; gap:11px; margin:0 0 14px; }
+  .sp-step__n{ flex:none; width:25px; height:25px; border-radius:50%; background:var(--ag-ink); color:#fff;
+    font-size:12.5px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .sp-step__h h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.2rem; }
+  .sp-step__h span{ font-size:13px; color:var(--ag-ink-soft); }
 
-  .sp-grid{ display:grid; grid-template-columns:1fr 320px; gap:28px; align-items:start; margin-top:28px; }
-  .sp-card{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(1.4rem,3vw,1.9rem); }
-  .sp-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; color:var(--ag-ink); }
-  .sp-card__sub{ margin:8px 0 22px; font-size:14px; color:var(--ag-ink-soft); }
+  .sp-two{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .sp-card{ display:flex; flex-direction:column; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08);
+    border-radius:18px; padding:20px 22px; text-decoration:none; transition:border-color .15s, transform .15s, box-shadow .15s; }
+  a.sp-card:hover{ border-color:rgba(16,41,44,.2); transform:translateY(-2px); box-shadow:0 14px 30px -20px rgba(16,41,44,.55); }
+  /* The one route that can actually repair something reads differently on
+     purpose — it is not decoration, it is the recommendation. */
+  .sp-card--lead{ border-color:#bfe0bd; background:linear-gradient(180deg,#f6fbf5,var(--ag-surface) 60%); }
+  .sp-card__ico{ width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; }
+  .sp-card__t{ font-weight:650; font-size:15.5px; color:var(--ag-ink); margin-top:13px; }
+  .sp-card__d{ font-size:13px; line-height:1.55; color:var(--ag-ink-soft); margin-top:5px; flex:1; }
+  .sp-card__go{ display:inline-flex; align-items:center; gap:6px; margin-top:13px; font-size:13.5px; font-weight:600; color:var(--ag-green-dark,#177015); }
+  .sp-card__meta{ margin-top:13px; font-size:12px; color:#5a6d6f; }
+
+  /* form */
+  .sp-grid{ display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:26px; align-items:start; margin-top:16px; }
+  .sp-form{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(1.3rem,3vw,1.9rem); }
+  .sp-form h3{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.2rem; }
+  .sp-form__sub{ margin:7px 0 20px; font-size:13.5px; line-height:1.55; color:var(--ag-ink-soft); }
 
   .sp-label{ display:block; font-size:12px; font-weight:600; color:#4a5256; margin-bottom:8px; }
   .sp-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; }
-  .sp-chip{ cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; padding:9px 15px; border-radius:999px; border:1px solid rgba(16,41,44,.14); background:var(--ag-surface); color:#4a5256; transition:background .15s, color .15s, border-color .15s; }
+  .sp-chip{ cursor:pointer; font-family:inherit; font-size:13px; font-weight:600; padding:9px 15px; border-radius:999px;
+    border:1px solid rgba(16,41,44,.14); background:var(--ag-surface); color:#4a5256; transition:background .15s, color .15s, border-color .15s; }
   .sp-chip.is-active{ background:var(--ag-ink); color:#fff; border-color:var(--ag-ink); }
   .sp-row{ display:flex; gap:14px; }
-  .sp-field{ flex:1; }
+  .sp-field{ flex:1; min-width:0; }
   .sp-mt{ margin-top:16px; }
-  .sp-input, .sp-textarea{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:14.5px; color:var(--ag-ink); outline:none; transition:border-color .15s; }
-  .sp-input:focus, .sp-textarea:focus{ border-color:var(--ag-green); }
-  .sp-textarea{ min-height:120px; resize:vertical; line-height:1.5; }
-  .sp-cta{ width:100%; margin-top:20px; cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:15px; border-radius:999px; transition:background .15s; }
+  .sp-input, .sp-textarea{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px;
+    font-family:inherit; font-size:14.5px; color:var(--ag-ink); outline:none; transition:border-color .15s, box-shadow .15s; background:var(--ag-surface); }
+  .sp-input:focus, .sp-textarea:focus{ border-color:var(--ag-green); box-shadow:0 0 0 3px rgba(127,200,124,.18); }
+  .sp-textarea{ min-height:118px; resize:vertical; line-height:1.55; }
+  .sp-cta{ width:100%; margin-top:20px; cursor:pointer; border:none; background:var(--ag-green); color:#fff;
+    font-family:inherit; font-weight:600; font-size:15px; padding:15px; border-radius:999px; transition:background .15s; }
   .sp-cta:hover{ background:var(--ag-green-dark); }
-  .sp-cta:disabled{ background:#dfe4e3; color:#5b6669; opacity:1; cursor:not-allowed; }
-  .sp-fine{ margin:14px 0 0; font-size:11.5px; line-height:1.55; color:#5a6d6f; text-align:center; }
+  .sp-cta:disabled{ background:#dfe4e3; color:#5b6669; cursor:not-allowed; }
+  .sp-fine{ margin:13px 0 0; font-size:11.5px; line-height:1.6; color:#5a6d6f; text-align:center; }
   .sp-fine strong{ color:#4a5256; }
-  .sp-fine a{ color:var(--ag-green); }
+  .sp-fine a{ color:var(--ag-green-dark,#177015); }
 
-  .sp-side{ display:flex; flex-direction:column; gap:18px; position:sticky; top:88px; }
-  .sp-human{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:20px; padding:24px; }
-  .sp-human__orb{ position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.2),transparent 68%); }
-  .sp-human h3{ position:relative; margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:18px; color:#fff; }
-  .sp-human p{ position:relative; margin:9px 0 0; font-size:13.5px; line-height:1.55; color:rgba(255,255,255,.78); }
-  .sp-human__links{ position:relative; display:flex; flex-direction:column; gap:9px; margin-top:16px; }
-  .sp-human__links a, .sp-human__links button{ display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:12px 14px; color:#fff; font-size:13.5px; font-weight:500; text-decoration:none; cursor:pointer; font-family:inherit; text-align:left; width:100%; }
-  .sp-human__links a:hover, .sp-human__links button:hover{ background:rgba(255,255,255,.14); }
+  /* A hint that changes with the chip. The three reasons genuinely need
+     different things from the writer, and saying so beats a generic placeholder
+     that produces "it is not working" three thousand times. */
+  .sp-hint{ display:flex; gap:9px; background:#f4f7f4; border:1px solid #d6e8d3; border-radius:12px;
+    padding:12px 14px; margin-bottom:18px; font-size:13px; line-height:1.55; color:#2d4a2c; }
+  .sp-hint svg{ flex:none; margin-top:1px }
 
-  .sp-before{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px; }
-  .sp-before h3{ margin:0 0 12px; font:600 12px/1 var(--ag-font-body); letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f; }
-  .sp-before__links{ display:flex; flex-direction:column; gap:13px; }
-  .sp-before__links a{ display:flex; align-items:center; gap:10px; color:var(--ag-ink); text-decoration:none; font-size:13.5px; font-weight:500; }
-  .sp-before__links a:hover{ color:var(--ag-green); }
+  .sp-side{ display:flex; flex-direction:column; gap:14px; position:sticky; top:88px; }
+  .sp-box{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:18px 20px; }
+  .sp-box h3{ margin:0 0 12px; font:600 11.5px/1 var(--ag-font-body); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; }
+  .sp-box__links{ display:flex; flex-direction:column; }
+  .sp-box__links a{ display:flex; align-items:center; gap:10px; padding:9px 0; color:#39464a; text-decoration:none; font-size:13.5px; }
+  .sp-box__links a + a{ border-top:1px solid rgba(16,41,44,.06); }
+  .sp-box__links a:hover{ color:var(--ag-green); }
+  .sp-box__links svg{ flex:none }
 
-  .sp-sla{ background:#f4f7f4; border:1px solid #d6e8d3; border-radius:16px; padding:18px; display:flex; align-items:center; gap:12px; }
+  .sp-human{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:18px; padding:20px; }
+  .sp-human__orb{ position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%;
+    background:radial-gradient(circle,rgba(127,200,124,.2),transparent 68%); }
+  .sp-human h3{ position:relative; margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:16px;
+    color:#fff; letter-spacing:0; text-transform:none; }
+  .sp-human p{ position:relative; margin:8px 0 0; font-size:13px; line-height:1.55; color:rgba(255,255,255,.78); }
+  .sp-human a{ position:relative; display:flex; align-items:center; gap:9px; margin-top:13px; background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.14); border-radius:11px; padding:11px 13px; color:#fff; font-size:13px; text-decoration:none; word-break:break-all; }
+  .sp-human a:hover{ background:rgba(255,255,255,.15); }
+
+  .sp-sla{ display:flex; align-items:center; gap:12px; background:#f4f7f4; border:1px solid #d6e8d3; border-radius:16px; padding:16px 18px; }
   .sp-sla__t{ font-size:13px; font-weight:600; color:var(--ag-ink); }
   .sp-sla__d{ font-size:12.5px; color:#1a6118; }
 
-  @media (max-width:860px){ .sp-grid{ grid-template-columns:1fr; } .sp-side{ position:static; top:auto; } }
-  @media (max-width:680px){ .sp-routes{ grid-template-columns:1fr; } .sp-row{ flex-direction:column; gap:16px; } }
+  @media (max-width:880px){ .sp-grid{ grid-template-columns:1fr; } .sp-side{ position:static; top:auto; } }
+  @media (max-width:620px){ .sp-two{ grid-template-columns:1fr; } .sp-row{ flex-direction:column; gap:16px; } }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="sp" x-data="{
   reason:'Dispute a result', name:'', email:'', ref:'', detail:'',
+  hints:{
+    'Dispute a result':'Name the nominee and category, and say what you expected to see. We replay the count from source.',
+    'Report a profile':'The profile link and what you saw is enough. You do not need to prove anything — that is our job.',
+    'Recover access':'Tell us the email address you expect the account to be on, even if you are not certain.',
+    'Payment or ticket issue':'Include your AFG- reference if you have it. If you do not, the assistant can often find it faster than we can.',
+    'Something else':'Say what happened and what outcome would resolve it for you.'
+  },
   get valid(){ return /.+@.+\..+/.test(this.email) && this.detail.trim().length > 3; },
   send(){
     if(!this.valid) return;
@@ -74,108 +133,134 @@
     window.location.href = 'mailto:appeals@afrovanguard.org.ng?subject='+encodeURIComponent('GATES appeal — '+this.reason)+'&body='+body;
   }
 }">
+
   <header class="sp-hero">
     <p class="sp-eyebrow">Support &amp; appeals</p>
     <h1>We’re here to help</h1>
-    <p>Dispute a result, report a profile, recover access, or raise a concern. Every appeal is reviewed by a real person — most within one business day.</p>
+    <p>Most problems are solved in the first step below without waiting for anyone. What needs a person gets one — usually within a business day.</p>
   </header>
 
-  {# The assistant and the ticket queue are the two routes that resolve something
-     rather than record it, so they lead. Real links, not form presets — they go
-     somewhere else. #}
-  <div class="sp-routes" style="margin-top:26px">
-    <a class="sp-route" href="/support/assistant">
-      <span class="sp-route__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg></span>
-      <div class="sp-route__t">Ask the assistant</div>
-      <div class="sp-route__d">Payments, votes and account questions — it can look up your own records and often fix the problem outright.</div>
-    </a>
-    <a class="sp-route" href="/support/tickets">
-      <span class="sp-route__ico" style="background:#e9efef;color:#2b373d"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4V6Z"/><path d="M12 6v12"/></svg></span>
-      <div class="sp-route__t">Your tickets</div>
-      <div class="sp-route__d">Raise a ticket and follow the replies. Members only, so we have somewhere to reply to.</div>
-    </a>
-  </div>
+  {# ── 1. self-service that actually resolves ─────────────────────────────── #}
+  <section class="sp-step">
+    <div class="sp-step__h">
+      <span class="sp-step__n">1</span>
+      <h2>Try this first</h2>
+      <span>No account needed, no waiting</span>
+    </div>
+    <div class="sp-two">
+      <a class="sp-card sp-card--lead" href="/support/assistant">
+        <span class="sp-card__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg></span>
+        <div class="sp-card__t">Ask the assistant</div>
+        <div class="sp-card__d">The only route that can <strong>fix</strong> something: it re-checks your payment with the bank and adds missing votes on the spot. It can also resend a receipt and tell you if a refund is already on its way.</div>
+        <span class="sp-card__go">Open the assistant
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
+      <a class="sp-card" href="/help">
+        <span class="sp-card__ico" style="background:#e8f1f7;color:#1c5a86"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg></span>
+        <div class="sp-card__t">Search the Help Centre</div>
+        <div class="sp-card__d">Written answers to the questions we get most — payments that have not landed, codes that never arrived, how scoring works, and what we do with your data.</div>
+        <span class="sp-card__go">Browse the answers
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      </a>
+    </div>
+  </section>
 
-  <div class="sp-routes">
-    <a class="sp-route" href="#sp-form" @click="reason='Dispute a result'" :class="reason==='Dispute a result' && 'is-active'">
-      <span class="sp-route__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6ZM4 7h16"/></svg></span>
-      <div class="sp-route__t">Dispute a result</div>
-      <div class="sp-route__d">Think a vote count or ranking is wrong? Ask for an audit.</div>
-    </a>
-    <a class="sp-route" href="#sp-form" @click="reason='Report a profile'" :class="reason==='Report a profile' && 'is-active'">
-      <span class="sp-route__ico" style="background:#fff8df;color:#7a5600"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="M12 8v4M12 16h.01"/></svg></span>
-      <div class="sp-route__t">Report a profile</div>
-      <div class="sp-route__d">Flag a profile that breaks our integrity rules.</div>
-    </a>
-    <a class="sp-route" href="#sp-form" @click="reason='Recover access'" :class="reason==='Recover access' && 'is-active'">
-      <span class="sp-route__ico" style="background:#e9efef;color:#2b373d"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg></span>
-      <div class="sp-route__t">Recover access</div>
-      <div class="sp-route__d">Can’t sign in or verify your email? We’ll help.</div>
-    </a>
-  </div>
+  {# ── 2. a person ────────────────────────────────────────────────────────── #}
+  <section class="sp-step">
+    <div class="sp-step__h">
+      <span class="sp-step__n">2</span>
+      <h2>Reach a person</h2>
+      <span>When it needs judgement, not a lookup</span>
+    </div>
+    <div class="sp-two">
+      <a class="sp-card" href="/support/tickets">
+        <span class="sp-card__ico" style="background:#e9efef;color:#2b373d"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4V6Z"/><path d="M12 6v12"/></svg></span>
+        <div class="sp-card__t">Open a ticket</div>
+        <div class="sp-card__d">A thread you can follow, with replies in one place rather than scattered through your inbox.</div>
+        <div class="sp-card__meta">Members only — a ticket is a promise to reply, and we need somewhere to reply to.</div>
+      </a>
+      <a class="sp-card" href="#sp-form">
+        <span class="sp-card__ico" style="background:#fff8df;color:#7a5600"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 7l-3 6a3 3 0 0 0 6 0L5 7Zm14 0-3 6a3 3 0 0 0 6 0l-3-6ZM4 7h16"/></svg></span>
+        <div class="sp-card__t">Appeal a decision</div>
+        <div class="sp-card__d">Dispute a result, report a profile, or challenge a moderation call. Read by someone independent of the original decision.</div>
+        <div class="sp-card__meta">Open to anyone, account or not.</div>
+      </a>
+    </div>
+  </section>
 
-  <div class="sp-grid">
-    <div class="sp-card" id="sp-form">
+  {# ── 3. the appeal form ─────────────────────────────────────────────────── #}
+  <section class="sp-step">
+    <div class="sp-step__h">
+      <span class="sp-step__n">3</span>
       <h2>Submit an appeal</h2>
-      <p class="sp-card__sub">Tell us what happened. The more detail you share, the faster we can resolve it.</p>
-
-      <label class="sp-label">What is this about?</label>
-      <div class="sp-chips">
-        {% for r in ['Dispute a result','Report a profile','Recover access','Payment or ticket issue','Something else'] %}
-          <button type="button" class="sp-chip" @click="reason='{{ r }}'" :class="reason==='{{ r }}' && 'is-active'" :aria-pressed="reason==='{{ r }}'">{{ r }}</button>
-        {% endfor %}
-      </div>
-
-      <div class="sp-row">
-        <div class="sp-field">
-          <label class="sp-label" for="sp-name">Your name</label>
-          <input class="sp-input" id="sp-name" x-model="name" placeholder="Amara Okonkwo">
-        </div>
-        <div class="sp-field">
-          <label class="sp-label" for="sp-email">Email</label>
-          <input class="sp-input" id="sp-email" x-model="email" type="email" placeholder="you@email.com">
-        </div>
-      </div>
-
-      <div class="sp-mt">
-        <label class="sp-label" for="sp-ref">Profile or reference (optional)</label>
-        <input class="sp-input" id="sp-ref" x-model="ref" placeholder="e.g. /registry/amara-okonkwo · or NOM-7F3K2">
-      </div>
-
-      <div class="sp-mt">
-        <label class="sp-label" for="sp-detail">Describe the issue</label>
-        <textarea class="sp-textarea" id="sp-detail" x-model="detail" placeholder="What happened, and what outcome are you hoping for?"></textarea>
-      </div>
-
-      <button type="button" class="sp-cta" :disabled="!valid" @click="send()">Email this appeal →</button>
-      <p class="sp-fine">This opens your email app with the details filled in, addressed to <strong>appeals@afrovanguard.org.ng</strong>. Appeals are confidential and handled under our <a href="/integrity">integrity policy</a>.</p>
     </div>
 
-    <aside class="sp-side">
-      <div class="sp-human">
-        <div class="sp-human__orb" aria-hidden="true"></div>
-        <h3>Talk to a human</h3>
-        <p>Prefer to reach out directly? The team is one message away.</p>
-        <div class="sp-human__links">
-          <a href="mailto:{{ support_email }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg>{{ support_email }}</a>
-          <button type="button" data-ag-do="open-gee"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20l1.1-3.5A8.4 8.4 0 1 1 21 11.5Z"/></svg>Ask Gee</button>
+    <div class="sp-grid">
+      <div class="sp-form" id="sp-form">
+        <h3>Tell us what happened</h3>
+        <p class="sp-form__sub">The more specific you are, the faster this resolves. A nominee name, a reference or a link is worth three paragraphs of description.</p>
+
+        <label class="sp-label" id="sp-reason-l">What is this about?</label>
+        <div class="sp-chips" role="group" aria-labelledby="sp-reason-l">
+          {% for r in ['Dispute a result','Report a profile','Recover access','Payment or ticket issue','Something else'] %}
+            <button type="button" class="sp-chip" @click="reason='{{ r }}'" :class="reason==='{{ r }}' && 'is-active'" :aria-pressed="reason==='{{ r }}'">{{ r }}</button>
+          {% endfor %}
         </div>
+
+        <div class="sp-hint">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <span x-text="hints[reason]"></span>
+        </div>
+
+        <div class="sp-row">
+          <div class="sp-field">
+            <label class="sp-label" for="sp-name">Your name</label>
+            <input class="sp-input" id="sp-name" x-model="name" placeholder="Amara Okonkwo">
+          </div>
+          <div class="sp-field">
+            <label class="sp-label" for="sp-email">Email</label>
+            <input class="sp-input" id="sp-email" x-model="email" type="email" placeholder="you@email.com">
+          </div>
+        </div>
+
+        <div class="sp-mt">
+          <label class="sp-label" for="sp-ref">Profile, nominee or reference <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
+          <input class="sp-input" id="sp-ref" x-model="ref" placeholder="e.g. /registry/amara-okonkwo · or AFG-PVOTE-7F3K2">
+        </div>
+
+        <div class="sp-mt">
+          <label class="sp-label" for="sp-detail">What happened?</label>
+          <textarea class="sp-textarea" id="sp-detail" x-model="detail" placeholder="What happened, and what outcome are you hoping for?"></textarea>
+        </div>
+
+        <button type="button" class="sp-cta" :disabled="!valid" @click="send()">Email this appeal →</button>
+        <p class="sp-fine">This opens your email app with the details filled in, addressed to <strong>appeals@afrovanguard.org.ng</strong>. Appeals are confidential and handled under our <a href="/integrity">integrity policy</a>.</p>
       </div>
 
-      <div class="sp-before">
-        <h3>Before you appeal</h3>
-        <div class="sp-before__links">
-          <a href="/integrity"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .3c0 1.7-2.5 2-2.5 3.7M12 17h.01"/></svg>How the CPI is scored</a>
-          <a href="/help"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Search the Help Center</a>
-          <a href="/terms"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>Integrity &amp; voting rules</a>
+      <aside class="sp-side">
+        <div class="sp-sla">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <div><div class="sp-sla__t">Average first response</div><div class="sp-sla__d">under 1 business day</div></div>
         </div>
-      </div>
 
-      <div class="sp-sla">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        <div><div class="sp-sla__t">Avg. first response</div><div class="sp-sla__d">under 1 business day</div></div>
-      </div>
-    </aside>
-  </div>
+        <div class="sp-box">
+          <h3>Worth reading first</h3>
+          <div class="sp-box__links">
+            <a href="/help/dispute-a-result"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>Why a count can go down</a>
+            <a href="/help/how-cpi-works"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .3c0 1.7-2.5 2-2.5 3.7M12 17h.01"/></svg>How the CPI is scored</a>
+            <a href="/help/what-paid-votes-do"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/></svg>What paid votes do and don’t do</a>
+            <a href="/help/nomination-rejected"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M8.2 12 7 22l5-3 5 3-1.2-10"/></svg>Why a nomination was rejected</a>
+          </div>
+        </div>
+
+        <div class="sp-human">
+          <div class="sp-human__orb" aria-hidden="true"></div>
+          <h3>Or just email us</h3>
+          <p>No form, no account. A person reads every message.</p>
+          <a href="mailto:{{ support_email }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7FC87C" stroke-width="1.9" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m3 6 9 7 9-7"/></svg>{{ support_email }}</a>
+        </div>
+      </aside>
+    </div>
+  </section>
 </div>
 {% endblock %}

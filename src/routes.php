@@ -3,7 +3,7 @@ declare(strict_types=1);
 use AfricaGates\Support\Env;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController};
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
     BallotController as JudgeBallotController
@@ -737,7 +737,14 @@ return function(App $app) {
         // endpoints refuse one, because a ticket is a promise to reply and a
         // reply needs a verified address.
         $g->get('/support/tickets',   SupportController::class.':tickets');
-        $g->get('/help',   fn($req,$res)=>$tv($req)->render($res,'pages/help.twig',['page_title'=>'Help Center — Africa GATES','meta_description'=>'Answers about voting, nominations, profiles, donations and privacy on Africa GATES — plus how to reach our support team.','gates_page'=>'help','has_hero'=>false]));
+        // The Help Centre. One URL per answer, so support can paste one into a
+        // reply, the assistant can cite one, a receipt email can point at the
+        // exact paragraph and a search engine can index it — none of which a
+        // single page of accordions could do. See HelpController.
+        $g->get('/help', HelpController::class . ':index');
+        // Registered after the index, and the pattern excludes slashes, so it can
+        // never shadow a deeper /help/... path added later.
+        $g->get('/help/{slug:[a-z0-9-]+}', HelpController::class . ':article');
 
         // SEO: robots.txt + sitemap.xml
         $g->get('/robots.txt', function($req, $res) {

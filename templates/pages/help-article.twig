@@ -1,0 +1,172 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  ONE ANSWER, ON ITS OWN PAGE.
+
+  Measured in one column of about 62 characters, because this is prose somebody
+  reads while upset and often one-handed on a phone. The rail is genuinely
+  secondary — it collapses BELOW the answer on narrow screens rather than above
+  it, so nothing stands between the reader and the first paragraph.
+
+  The "did this help?" control is deliberately not a rating widget. A star score
+  tells you a number; the two buttons here route — yes closes the loop, no hands
+  straight to the assistant carrying the article's own title as the question. A
+  help page that measures satisfaction without offering an exit measures the wrong
+  thing.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="help"]{ background:#eef0ec; color:var(--ag-ink); }
+  .ha{ max-width:1000px; margin:0 auto; padding:clamp(1.4rem,4vw,2.2rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+
+  .ha-crumb{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ag-ink-soft); margin-bottom:18px; flex-wrap:wrap; }
+  .ha-crumb a{ color:var(--ag-ink-soft); text-decoration:none; }
+  .ha-crumb a:hover{ color:var(--ag-green); }
+  .ha-crumb svg{ flex:none; opacity:.5 }
+
+  .ha-grid{ display:grid; grid-template-columns:minmax(0,1fr) 268px; gap:30px; align-items:start; }
+
+  .ha-main{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(1.5rem,3.5vw,2.4rem); }
+  .ha-tag{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:5px 11px; border-radius:999px; }
+  .ha-main h1{ margin:14px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.45rem,3.4vw,2rem); line-height:1.2; letter-spacing:-.015em; }
+  .ha-sum{ margin:12px 0 0; font-size:16px; line-height:1.6; color:#39464a; font-weight:500; }
+  .ha-rule{ border:none; border-top:1px solid rgba(16,41,44,.09); margin:22px 0; }
+
+  /* The prose. 62ch is the readable measure; everything below tunes to it. */
+  .ha-body{ max-width:62ch; }
+  .ha-body p{ margin:0 0 16px; font-size:15.5px; line-height:1.72; color:#39464a; }
+  .ha-body p:last-child{ margin-bottom:0; }
+  .ha-body a{ color:var(--ag-green-dark,#177015); text-decoration:underline; text-underline-offset:2px; }
+  .ha-body strong{ color:var(--ag-ink); font-weight:650; }
+  .ha-body code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.88em; background:#eef2ef;
+    border:1px solid rgba(16,41,44,.09); border-radius:5px; padding:1px 5px; white-space:nowrap; }
+
+  /* Numbered steps carry their own counter so the number survives a line wrap
+     without the text sliding under it — the default marker does not. */
+  .ha-steps{ counter-reset:s; list-style:none; margin:0 0 18px; padding:0; }
+  .ha-steps li{ counter-increment:s; position:relative; padding:0 0 0 40px; margin-bottom:14px; font-size:15.5px; line-height:1.65; color:#39464a; }
+  .ha-steps li:last-child{ margin-bottom:0; }
+  .ha-steps li::before{ content:counter(s); position:absolute; left:0; top:1px; width:26px; height:26px; border-radius:50%;
+    background:#eef7ee; color:#1a6118; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+
+  .ha-note{ display:flex; gap:11px; background:#f4f7f4; border:1px solid #d6e8d3; border-radius:14px;
+    padding:15px 17px; margin:0 0 16px; font-size:14.5px; line-height:1.62; color:#2d4a2c; }
+  .ha-note svg{ flex:none; margin-top:2px }
+  .ha-note a{ color:#177015 }
+
+  /* did this help */
+  .ha-fb{ margin-top:26px; padding-top:22px; border-top:1px solid rgba(16,41,44,.09); }
+  .ha-fb__q{ font-size:14px; font-weight:600; color:var(--ag-ink); }
+  .ha-fb__r{ display:flex; gap:9px; margin-top:12px; flex-wrap:wrap; }
+  .ha-fb__b{ cursor:pointer; font-family:inherit; font-size:13.5px; font-weight:600; padding:10px 18px; border-radius:999px;
+    border:1px solid rgba(16,41,44,.16); background:var(--ag-surface); color:#39464a; text-decoration:none; display:inline-block; }
+  .ha-fb__b:hover{ border-color:var(--ag-green); color:var(--ag-green-dark,#177015); }
+  .ha-fb__ok{ font-size:14px; color:#1a6118; font-weight:600; }
+
+  /* rail */
+  .ha-side{ display:flex; flex-direction:column; gap:14px; position:sticky; top:88px; }
+  .ha-box{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:18px 20px; }
+  /* line-height 1.4, not 1 — "MORE IN PAYMENTS & VOTES YOU PAID FOR" is a
+     two-line heading at this width, and a unit line-height collided its rows. */
+  .ha-box h2{ margin:0 0 12px; font:600 11.5px/1.4 var(--ag-font-body); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; }
+  .ha-box ul{ list-style:none; margin:0; padding:0; }
+  .ha-box li + li{ margin-top:2px; border-top:1px solid rgba(16,41,44,.06); }
+  .ha-box a{ display:block; padding:9px 0; font-size:13.5px; line-height:1.5; color:#39464a; text-decoration:none; }
+  .ha-box a:hover{ color:var(--ag-green); }
+
+  .ha-help{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:18px; padding:20px; }
+  .ha-help__orb{ position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%;
+    background:radial-gradient(circle,rgba(127,200,124,.2),transparent 68%); }
+  .ha-help h2{ position:relative; margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:16px; color:#fff; letter-spacing:0; text-transform:none; }
+  .ha-help p{ position:relative; margin:8px 0 0; font-size:13px; line-height:1.55; color:rgba(255,255,255,.78); }
+  .ha-help__a{ position:relative; display:block; margin-top:14px; text-align:center; background:var(--ag-green-light); color:var(--ag-ink);
+    font-weight:600; font-size:13.5px; padding:11px; border-radius:999px; text-decoration:none; }
+
+  @media (max-width:880px){
+    .ha-grid{ grid-template-columns:1fr; }
+    /* BELOW the answer, never above it. On a phone the rail is not context, it
+       is an obstacle between a worried reader and the first sentence. */
+    .ha-side{ position:static; top:auto; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ha">
+  <nav class="ha-crumb" aria-label="Breadcrumb">
+    <a href="/help">Help Centre</a>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+    <a href="/help?q={{ category.title|url_encode }}">{{ category.title }}</a>
+  </nav>
+
+  <div class="ha-grid">
+    <article class="ha-main">
+      <span class="ha-tag" style="background:{{ category.tint }};color:{{ category.fg }}">{{ category.title }}</span>
+      <h1>{{ article.title }}</h1>
+      <p class="ha-sum">{{ article.summary|raw }}</p>
+      <hr class="ha-rule">
+
+      <div class="ha-body">
+        {% for block in article.body %}
+          {% if block.p is defined %}
+            <p>{{ block.p|raw }}</p>
+          {% elseif block.steps is defined %}
+            <ol class="ha-steps">
+              {% for s in block.steps %}<li>{{ s|raw }}</li>{% endfor %}
+            </ol>
+          {% elseif block.note is defined %}
+            <div class="ha-note">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+              <div>{{ block.note|raw }}</div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      {# Not a rating. "No" is a route, not a score — the article's own title
+         becomes the assistant's opening question, so nobody retypes it. #}
+      <div class="ha-fb" x-data="{ said:'' }">
+        <template x-if="said===''">
+          <div>
+            <div class="ha-fb__q">Did this answer it?</div>
+            <div class="ha-fb__r">
+              <button type="button" class="ha-fb__b" @click="said='yes'">Yes, thanks</button>
+              <a class="ha-fb__b" href="/support/assistant?q={{ article.title|url_encode }}">No — ask the assistant</a>
+            </div>
+          </div>
+        </template>
+        <template x-if="said==='yes'">
+          <div class="ha-fb__ok">Good. Nothing else to do.</div>
+        </template>
+      </div>
+    </article>
+
+    <aside class="ha-side">
+      {% if related %}
+        <div class="ha-box">
+          <h2>Related</h2>
+          <ul>
+            {% for r in related %}<li><a href="/help/{{ r.slug }}">{{ r.title }}</a></li>{% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <div class="ha-help">
+        <div class="ha-help__orb" aria-hidden="true"></div>
+        <h2>This is a general answer</h2>
+        <p>The assistant can check <em>your</em> payment, re-ask the bank and add missing votes on the spot.</p>
+        <a class="ha-help__a" href="/support/assistant">Ask about my case →</a>
+      </div>
+
+      <div class="ha-box">
+        <h2>More in {{ category.title }}</h2>
+        <ul>
+          <li><a href="/help">All answers</a></li>
+          <li><a href="/support">Contact a person</a></li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

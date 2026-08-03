@@ -306,6 +306,11 @@ return [
         new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class)),
         $c->get(RateLimitService::class)
     ),
+    // The Help Centre reads a corpus of literals in HelpCentre, so it needs
+    // nothing but a renderer — no cache, no database, no gateway. That is also
+    // why /help keeps working on a database that is mid-migration, which is
+    // exactly when somebody is most likely to be looking for help.
+    \AfricaGates\Controllers\HelpController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\HelpController($c->get(Twig::class)),
     PulseController::class        => fn(ContainerInterface $c)=>new PulseController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class), $c->get(CommunityService::class), $c->get(RateLimitService::class), $c->get(OtpService::class), new \AfricaGates\Services\PulseFeedService(), new \AfricaGates\Services\PulseMediaService($c->get(UploadService::class), new \AfricaGates\Services\R2Service(null, $c->get(\Psr\Log\LoggerInterface::class)), new \AfricaGates\Services\MediaModerationService())),
     VoteController::class        => fn(ContainerInterface $c)=>new VoteController($c->get(Twig::class), $c->get(CacheService::class), $c->get(AwardService::class), $c->get(PaymentService::class)),
     CommunityController::class   => fn(ContainerInterface $c)=>new CommunityController($c->get(Twig::class), $c->get(CommunityService::class), $c->get(CacheService::class), $c->get(OtpService::class), $c->get(RateLimitService::class)),
