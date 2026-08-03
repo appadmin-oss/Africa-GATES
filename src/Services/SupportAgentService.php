@@ -329,16 +329,97 @@ final class SupportAgentService implements SupportAnswerer
         }
 
         if ($out === null || trim($out) === '') {
-            // Deliberately a template, not another model call. This is the path
-            // taken when the model cannot be trusted, and the correct response to
-            // that is to stop generating, not to generate more carefully.
-            return $facts
-                ? "I looked, but I could not put a reliable answer together. Rather than guess at "
-                . "your payment, let me pass this to the team — say “talk to a human” and I will."
-                : "I could not put an answer together just now. If this is urgent, say so and I "
-                . "will pass it to the team.";
+            // Deliberately not another model call. This is the path taken when the
+            // model cannot be trusted or cannot be reached, and the right response
+            // to that is to stop GENERATING — not to generate more carefully.
+            //
+            // Stopping generating is not the same as having nothing to say.
+            return self::fromFactsAlone($facts);
         }
         return trim($out);
+    }
+
+    /**
+     * The answer the TOOLS already wrote, when the model cannot write one.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS EXISTS: A GOOD ANSWER WAS BEING THROWN AWAY
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Observed in production, and it is the worst possible shape of failure:
+     *
+     *     User: "I paid and my votes never arrived"
+     *     Gee:  "I looked, but I could not put a reliable answer together…"
+     *           · re-checked the payment · checked the reference
+     *
+     * Read those two chips. The repair tools RAN. They asked the gateway, they
+     * resolved the reference, and each returned a `say` field — a sentence written
+     * by the system that did the work, in plain English, expressly so it could be
+     * relayed to a person. All of it was then discarded because a language model
+     * somewhere could not be reached, and the supporter was told to go find a
+     * human for a question that had already been answered.
+     *
+     * The model's job here was never to KNOW anything. It is a phrasing layer over
+     * work that has already happened. When the phrasing layer is down, the work is
+     * still done and the words already exist.
+     *
+     * ── WHY THIS IS SAFE — SAFER, IN FACT, THAN THE MODEL PATH ───────────────
+     *
+     * Nothing here is generated. Every sentence is a literal `say` string from a
+     * tool result, joined with fixed connectives. No temperature, no paraphrase,
+     * nothing to hallucinate: the grounding critic exists to catch a model
+     * inventing a reference, and this path cannot invent one because it cannot
+     * write. It is the most trustworthy answer the system produces. It is simply
+     * the least fluent, and fluency is the cheaper thing to lose.
+     *
+     * @param array<string,array<string,mixed>> $facts tool results, keyed tool:args
+     */
+    private static function fromFactsAlone(array $facts): string
+    {
+        $lines = [];
+        foreach ($facts as $f) {
+            $d = $f['data'] ?? null;
+            if (!is_array($d)) continue;
+
+            // `say` is the contract: every tool that can produce a human-facing
+            // outcome writes one. `message` is the older name the repair path
+            // uses, and it is already phrased for a buyer.
+            foreach (['say', 'message'] as $k) {
+                $s = trim((string) ($d[$k] ?? ''));
+                if ($s === '' || self::isDirection($s)) continue;
+                $lines[$s] = true;   // keyed, so two tools agreeing say it once
+                break;
+            }
+        }
+        $lines = array_keys($lines);
+
+        if (!$lines) {
+            return "I could not put an answer together just now. If this is urgent, say “talk to a "
+                 . "human” and I will pass it straight to the team.";
+        }
+
+        return "Here is what I found:\n\n" . implode("\n\n", array_slice($lines, 0, 4))
+             . "\n\nIf that does not cover it, say “talk to a human” and I will pass this to the team.";
+    }
+
+    /**
+     * Is this `say` written for the MODEL rather than for the person?
+     *
+     * Several tools coach the model on how to phrase an outcome — "Do not tell
+     * somebody in this position that they have missed it", "Say both halves
+     * explicitly". Excellent instructions to a writer; humiliating things to read
+     * in a support chat. The leading imperative is the tell, so the test is
+     * anchored at position 0 rather than searching the whole string: an article
+     * that happens to contain "tell them" mid-sentence is still a real answer.
+     */
+    private static function isDirection(string $s): bool
+    {
+        foreach (['do not ', 'say so', 'say plainly', 'say that', 'tell them', 'ask them',
+                  'move on to', 'answer from', 'use this', 'give them', 'point them',
+                  'quote the', 'always ', 'never '] as $tell) {
+            if (stripos($s, $tell) === 0) return true;
+        }
+        return false;
     }
 
     /** One writing attempt. Null when the gateway refused or returned nothing. */

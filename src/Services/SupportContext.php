@@ -161,6 +161,37 @@ final class SupportContext
                             . "already have money on its way back. ALWAYS check this before telling anybody a refund needs "
                             . "arranging. You cannot start one — only a person can.",
              'args' => ['reference' => 'the payment reference']],
+            // ── diagnostics: answer "is it me or you?" before anything else ──
+            ['name' => 'gateway_status',
+             'description' => "Are Paystack and Flutterwave actually up right now? Check this FIRST whenever "
+                            . "somebody says a payment failed, the checkout would not load, or they were "
+                            . "thrown out mid-payment. During a provider outage every buyer arrives at once "
+                            . "with the same problem, and asking each of them for a reference is the wrong "
+                            . "answer given a hundred times.",
+             'args' => []],
+            ['name' => 'check_email_domain',
+             'description' => "Can an email address actually receive mail? Use this whenever a voting code, "
+                            . "receipt or reset email 'never arrived'. It spots a domain with no mail server "
+                            . "and near-miss typos like gmial.com — which is far more often the cause than "
+                            . "spam, and the only one where 'check your spam folder' is useless advice.",
+             'args' => ['email' => 'the address they said they used']],
+            ['name' => 'convert_currency',
+             'description' => "What a naira amount is worth in another currency. Many supporters are outside "
+                            . "Nigeria and are deciding whether to buy votes in their own money. Indicative "
+                            . "only — always say their bank will use its own rate.",
+             'args' => ['naira' => 'amount in naira', 'to' => 'USD, GBP, EUR, CAD, ZAR, GHS, KES, XOF or AED']],
+            // ── in-built lookups over the platform's own data ────────────────
+            ['name' => 'find_nominee',
+             'description' => "Find a nominee by name and get their ballot link, category, and whether they "
+                            . "can be voted for right now. Use for 'how do I vote for X', 'is X still in', "
+                            . "'I cannot find X'. Always give the link — a name is not something somebody can "
+                            . "act on, and searching for it themselves is how they end up on the wrong page.",
+             'args' => ['name' => 'the nominee as the user spelled it']],
+            ['name' => 'category_state',
+             'description' => "The live state of ONE award category: whether voting is open, when it closes, "
+                            . "when card payment stops, and how many nominees are in it. Use when the question "
+                            . "is about a specific category rather than the whole platform.",
+             'args' => ['category' => 'category name or slug']],
             ['name' => 'voting_deadlines',
              'description' => "The three clocks that govern paid voting: when voting closes, the EARLIER moment card "
                             . "payment stops for that category, and how long after the close a payment already in "
@@ -238,6 +269,12 @@ final class SupportContext
                 'free_vote_help'   => $this->freeVoteHelp(),
                 'refund_status'    => RefundService::statusFor((string) ($args['reference'] ?? '')),
                 'voting_deadlines' => $this->votingDeadlines(),
+                'gateway_status'   => $this->ext()->gatewayStatus(),
+                'check_email_domain' => $this->ext()->emailDomain((string) ($args['email'] ?? '')),
+                'convert_currency' => $this->ext()->convertCurrency(
+                                          (int) ($args['naira'] ?? 0), (string) ($args['to'] ?? '')),
+                'find_nominee'     => $this->findNominee((string) ($args['name'] ?? '')),
+                'category_state'   => $this->categoryState((string) ($args['category'] ?? '')),
                 'my_tickets'       => $this->myTickets(),
                 'my_nominations'   => $this->myNominations(),
                 'ops_summary'      => $this->opsSummary(),
@@ -811,6 +848,144 @@ final class SupportContext
         } catch (\Throwable) {}
 
         return $out;
+    }
+
+    /**
+     * The outward-facing tools, built once per request.
+     *
+     * Named `ext()` rather than `tools()` because `tools()` already means "the
+     * list of tool DEFINITIONS this viewer may see" — two very different things
+     * one keystroke apart.
+     *
+     * No cache is injected. SupportTools caches through CacheService when it has
+     * one and runs plainly when it does not, and threading a cache down through
+     * this constructor would change the signature every caller and every test
+     * already uses, to save one lookup on a request that is about to make two
+     * model calls.
+     */
+    private ?SupportTools $ext = null;
+    private function ext(): SupportTools
+    {
+        return $this->ext ??= new SupportTools(new CacheService());
+    }
+
+    /**
+     * Find a nominee, and say whether they can be voted for RIGHT NOW.
+     *
+     * ── WHY A NAME IS NOT AN ANSWER ──────────────────────────────────────────
+     *
+     * "How do I vote for Amara?" used to end with the assistant describing the
+     * voting process in general and leaving the person to find Amara themselves.
+     * They then search a name across a registry of thousands, land on a profile in
+     * the wrong category or a merged duplicate, and either vote for the wrong
+     * person or give up.
+     *
+     * A link is the answer. This returns it, with the one fact that decides
+     * whether the link is any use: is that category actually open.
+     *
+     * Merged and unapproved nominees are excluded on the same allowlist the paid
+     * checkout uses, because pointing somebody at a ballot that will refuse them
+     * is worse than saying "I cannot find them".
+     */
+    private function findNominee(string $name): array
+    {
+        $q = trim($name);
+        if (mb_strlen($q) < 2) {
+            return ['found' => false, 'say' => 'I need a name to look for.'];
+        }
+
+        try {
+            $rows = DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
+                ->whereNull('n.merged_into')
+                ->whereRaw('LOWER(n.name) LIKE ?', ['%' . mb_strtolower($q) . '%'])
+                ->orderByDesc('n.vote_count')->limit(5)
+                ->get(['n.id', 'n.name', 'n.category_id', 'c.title as category']);
+        } catch (\Throwable) {
+            return ['found' => false, 'say' => 'I could not search the nominees just now.'];
+        }
+
+        if ($rows->isEmpty()) {
+            return ['found' => false,
+                    'say' => 'No approved nominee matches that name. They may be spelled differently, may '
+                           . 'still be awaiting approval, or may be in a programme that has not opened. Do '
+                           . 'not say they were rejected — you do not know that.'];
+        }
+
+        $out = [];
+        foreach ($rows as $r) {
+            $open = false;
+            try { $open = PaidVoteService::votingOpenFor((int) $r->category_id); } catch (\Throwable) {}
+            $out[] = [
+                'name'     => (string) $r->name,
+                'category' => (string) $r->category,
+                'url'      => \AfricaGates\Support\NomineeUrl::ballot((int) $r->id, ''),
+                'votable_now' => $open,
+            ];
+        }
+
+        return ['found' => true, 'nominees' => $out,
+                'say' => 'Give them the link, not just the name. If votable_now is false, say plainly that '
+                       . 'voting in that category has closed rather than sending them to a ballot that '
+                       . 'will refuse them.'];
+    }
+
+    /**
+     * One category's live state — the question behind most "is it too late?" asks.
+     *
+     * `site_state` answers for the whole platform, which is the wrong grain: a
+     * person cares about the ONE category their nominee is in, and a list of
+     * twelve cycles is something they have to interpret. This answers directly,
+     * including the checkout cutoff, which is a different and earlier moment than
+     * the close and the single most confusing thing about paid voting.
+     */
+    private function categoryState(string $needle): array
+    {
+        $q = trim($needle);
+        if ($q === '') return ['found' => false, 'say' => 'Which category?'];
+
+        try {
+            $c = DB::table('gates_award_categories as c')
+                ->join('gates_award_cycles as y', 'y.id', '=', 'c.cycle_id')
+                ->where(function ($w) use ($q) {
+                    $w->whereRaw('LOWER(c.title) LIKE ?', ['%' . mb_strtolower($q) . '%'])
+                      ->orWhere('c.slug', mb_strtolower($q));
+                })
+                ->orderByDesc('y.year')
+                ->first(['c.id', 'c.title', 'y.voting_close', 'y.status']);
+        } catch (\Throwable) {
+            return ['found' => false, 'say' => 'I could not read the categories just now.'];
+        }
+        if (!$c) return ['found' => false, 'say' => 'No category matches that name.'];
+
+        $open = false; $checkoutOpen = false;
+        try {
+            $open         = PaidVoteService::votingOpenFor((int) $c->id);
+            $checkoutOpen = PaidVoteService::checkoutOpenFor((int) $c->id);
+        } catch (\Throwable) {}
+
+        $close = (string) ($c->voting_close ?? '');
+        $nominees = 0;
+        try {
+            $nominees = (int) DB::table('gates_nominees')->where('category_id', (int) $c->id)
+                ->whereIn('status', ['approved', 'winner', 'runner_up'])->whereNull('merged_into')->count();
+        } catch (\Throwable) {}
+
+        return [
+            'found' => true, 'category' => (string) $c->title, 'nominees' => $nominees,
+            'voting_open' => $open, 'card_payment_open' => $checkoutOpen,
+            'voting_closes' => $close !== '' ? Carbon::parse($close)->format('Y-m-d H:i') : null,
+            // The state that reliably confuses people, named so the model does not
+            // have to infer it: the ballot is open and the card payment is not.
+            'say' => (!$open)
+                ? 'Voting in that category has closed. Free and paid voting are both over.'
+                : ($checkoutOpen
+                    ? 'Voting is open and card payment is available.'
+                    : 'Voting is still OPEN but card payment has already stopped for the closing window — '
+                    . 'point them at the free ballot, which runs right up to the close. This is the state '
+                    . 'people find most confusing, so say both halves explicitly.'),
+        ];
     }
 
     /**

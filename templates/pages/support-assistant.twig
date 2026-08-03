@@ -90,6 +90,19 @@
                  border:1px solid rgba(16,41,44,.09); border-radius:5px; padding:4px 7px; }
   .sa-used span.is-act{ color:#1c6b1c; background:#e9f5e9; border-color:#bfe3bf; }
 
+  /* Article previews under a reply. Deliberately quieter than the message
+     bubble — a suggestion that shouts louder than the answer is an advert. */
+  .sa-arts{ margin-top:11px; display:flex; flex-direction:column; gap:7px; }
+  .sa-arts__h{ font:600 10.5px/1 var(--ag-font-body); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; margin-bottom:1px; }
+  .sa-art{ display:block; background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.11);
+    border-radius:13px; padding:11px 13px; text-decoration:none; transition:border-color .15s, transform .12s; }
+  .sa-art:hover{ border-color:var(--ag-green,#3f9c3c); transform:translateY(-1px); }
+  .sa-art__c{ display:inline-block; font:700 9.5px/1 var(--ag-font-body); letter-spacing:.06em;
+    text-transform:uppercase; padding:4px 8px; border-radius:999px; }
+  .sa-art__t{ display:block; margin-top:7px; font-size:13.5px; font-weight:650; line-height:1.35; color:var(--ag-ink,#10292c); }
+  .sa-art__s{ display:block; margin-top:3px; font-size:12px; line-height:1.5; color:#5a6d6f; }
+  .sa-art__go{ display:inline-block; margin-top:7px; font-size:11.5px; font-weight:650; color:var(--ag-green-dark,#177015); }
+
   .sa-ticket{ margin-top:10px; display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700;
               color:#1c6b1c; background:#e6f4e6; border:1px solid #bfe3bf; border-radius:10px; padding:7px 11px;
               text-decoration:none; }
@@ -266,6 +279,27 @@
               </template>
             </div>
 
+            {#
+              SMART PREVIEW. A bare URL inside a paragraph is a blue string nobody
+              clicks: no title, no summary, nothing to weigh against leaving the
+              conversation. A card is a decision somebody can make at a glance.
+
+              `cited` separates "I used this" from "you might also want", which are
+              different claims and must not look identical — the first is part of
+              the answer, the second is a guess by a keyword search.
+            #}
+            <div class="sa-arts" x-show="!!(m.articles && m.articles.length)" x-cloak>
+              <div class="sa-arts__h" x-text="m.articles.some(a => a.cited) ? 'From the Help Centre' : 'You might also want'"></div>
+              <template x-for="a in m.articles" :key="a.slug">
+                <a class="sa-art" :href="a.url">
+                  <span class="sa-art__c" :style="'background:'+a.tint+';color:'+a.fg" x-text="a.category"></span>
+                  <span class="sa-art__t" x-text="a.title"></span>
+                  <span class="sa-art__s" x-text="a.summary"></span>
+                  <span class="sa-art__go" aria-hidden="true">Read this &rarr;</span>
+                </a>
+              </template>
+            </div>
+
             <a class="sa-ticket" x-show="!!m.ticket" x-cloak
                :href="'/support/tickets?ref=' + encodeURIComponent(m.ticket || '')">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -403,7 +437,7 @@ function supportDesk(){
           ref: this.ref,
           // Text, not HTML, and not the per-message UI flags.
           msgs: this.msgs.slice(-40).map(m => ({
-            role: m.role, text: m.text, used: m.used || [], ticket: m.ticket || null
+            role: m.role, text: m.text, used: m.used || [], articles: m.articles || [], ticket: m.ticket || null
           }))
         }));
       } catch (e) { /* private mode, or the quota — the conversation still works */ }
@@ -511,7 +545,7 @@ function supportDesk(){
 
     push(role, text, extra){
       this.msgs.push(Object.assign({ role: role, text: text, html: this.fmt(text),
-                                     used: [], ticket: null, retry: null, copied: false }, extra || {}));
+                                     used: [], articles: [], ticket: null, retry: null, copied: false }, extra || {}));
       this.noteRef(text);
       this.save();
       this.$nextTick(() => { var l = this.$refs.log; if (l) l.scrollTop = l.scrollHeight; });
@@ -575,7 +609,7 @@ function supportDesk(){
       })
         .then(r => r.json())
         .then(j => this.push('assistant', j.reply || 'I could not answer that just now.',
-                             { used: j.used || [], ticket: j.ticket || null, retry: text }))
+                             { used: j.used || [], articles: j.articles || [], ticket: j.ticket || null, retry: text }))
         .catch(() => this.push('assistant',
           'I lost the connection. Press “Talk to a human” and the team will pick this up.',
           { retry: text }))

@@ -3,37 +3,76 @@
 {#
   ONE ANSWER, ON ITS OWN PAGE.
 
-  Measured in one column of about 62 characters, because this is prose somebody
-  reads while upset and often one-handed on a phone. The rail is genuinely
-  secondary — it collapses BELOW the answer on narrow screens rather than above
-  it, so nothing stands between the reader and the first paragraph.
+  ── WHAT THE SECOND PASS ADDED, AND WHY EACH ONE EARNS ITS SPACE ────────────
 
-  The "did this help?" control is deliberately not a rating widget. A star score
-  tells you a number; the two buttons here route — yes closes the loop, no hands
-  straight to the assistant carrying the article's own title as the question. A
-  help page that measures satisfaction without offering an exit measures the wrong
-  thing.
+  READING PROGRESS   A hairline at the very top. On a phone the article is four
+                     or five screens and there is no other signal of how much is
+                     left — and "how much more of this is there" is exactly the
+                     question somebody asks before giving up and opening a ticket.
+
+  READ TIME          "1 min read" beside the category. Same job, before the scroll
+                     rather than during it.
+
+  COPY LINK          Because pasting an answer into a reply is a STATED workflow
+                     for this team — it is half the reason articles got URLs at
+                     all — and asking support staff to select a browser address
+                     bar on a phone is not a workflow, it is an obstacle.
+
+  PREV / NEXT        The rail used to offer "All answers" and "Contact a person":
+                     a dead end dressed as navigation. Somebody who has just read
+                     about a missing payment very often wants the next payment
+                     answer, and had to go back to the index and start again.
+
+  SIBLING LIST       The real contents of this category, with the current one
+                     marked, so the reader can see where they are rather than
+                     just what else exists.
+
+  NOT A STICKY ASK BAR. Tried, measured, removed. The site already pins a bottom
+  nav AND a floating assistant button on mobile; a third fixed element rendered
+  behind the nav entirely, and stacking three of them over a 390px screen costs
+  more reading area than the shortcut was worth. The FAB already carries that job.
+
+  The measure stays ~62 characters and the rail still collapses BELOW the answer,
+  never above it: on a phone the rail is not context, it is an obstacle between a
+  worried person and the first sentence.
 #}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   body[data-page="help"]{ background:#eef0ec; color:var(--ag-ink); }
-  .ha{ max-width:1000px; margin:0 auto; padding:clamp(1.4rem,4vw,2.2rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+  .ha{ max-width:1020px; margin:0 auto; padding:clamp(1.2rem,4vw,2.1rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
 
-  .ha-crumb{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ag-ink-soft); margin-bottom:18px; flex-wrap:wrap; }
+  /* Reading progress. Fixed, hairline, above everything but the site header. */
+  .ha-prog{ position:fixed; inset:0 auto auto 0; width:100%; height:3px; z-index:60; background:transparent; pointer-events:none; }
+  .ha-prog__b{ height:100%; width:0; background:linear-gradient(90deg,#7FC87C,#177015); transition:width .08s linear; }
+
+  .ha-crumb{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ag-ink-soft); margin-bottom:16px; flex-wrap:wrap; }
   .ha-crumb a{ color:var(--ag-ink-soft); text-decoration:none; }
   .ha-crumb a:hover{ color:var(--ag-green); }
   .ha-crumb svg{ flex:none; opacity:.5 }
 
-  .ha-grid{ display:grid; grid-template-columns:minmax(0,1fr) 268px; gap:30px; align-items:start; }
+  .ha-grid{ display:grid; grid-template-columns:minmax(0,1fr) 272px; gap:30px; align-items:start; }
+  /* The article and its prev/next are ONE column. Left as a sibling of the grid,
+     the strip spanned the full page and its "Next" card sat under the rail —
+     visually attached to the sidebar rather than to the answer it follows. */
+  .ha-col{ min-width:0; }
+  .ha-main{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(1.4rem,3.5vw,2.4rem); }
 
-  .ha-main{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(1.5rem,3.5vw,2.4rem); }
+  /* head */
+  .ha-meta{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .ha-tag{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:5px 11px; border-radius:999px; }
+  .ha-read{ font-size:12px; color:#5a6d6f; }
+  .ha-copy{ margin-left:auto; cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; display:inline-flex;
+    align-items:center; gap:6px; padding:7px 12px; border-radius:999px; border:1px solid rgba(16,41,44,.14);
+    background:var(--ag-surface); color:#4a5256; }
+  .ha-copy:hover{ border-color:var(--ag-green); color:var(--ag-green-dark,#177015); }
+  .ha-copy.is-done{ border-color:#bfe0bd; background:#eef7ee; color:#1a6118; }
+
   .ha-main h1{ margin:14px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.45rem,3.4vw,2rem); line-height:1.2; letter-spacing:-.015em; }
-  .ha-sum{ margin:12px 0 0; font-size:16px; line-height:1.6; color:#39464a; font-weight:500; }
+  .ha-sum{ margin:12px 0 0; font-size:16.5px; line-height:1.6; color:#39464a; font-weight:500; max-width:62ch; }
   .ha-rule{ border:none; border-top:1px solid rgba(16,41,44,.09); margin:22px 0; }
 
-  /* The prose. 62ch is the readable measure; everything below tunes to it. */
+  /* prose */
   .ha-body{ max-width:62ch; }
   .ha-body p{ margin:0 0 16px; font-size:15.5px; line-height:1.72; color:#39464a; }
   .ha-body p:last-child{ margin-bottom:0; }
@@ -42,8 +81,8 @@
   .ha-body code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.88em; background:#eef2ef;
     border:1px solid rgba(16,41,44,.09); border-radius:5px; padding:1px 5px; white-space:nowrap; }
 
-  /* Numbered steps carry their own counter so the number survives a line wrap
-     without the text sliding under it — the default marker does not. */
+  /* Own counter so the number survives a line wrap without the text sliding
+     underneath it — which is what the default list marker does. */
   .ha-steps{ counter-reset:s; list-style:none; margin:0 0 18px; padding:0; }
   .ha-steps li{ counter-increment:s; position:relative; padding:0 0 0 40px; margin-bottom:14px; font-size:15.5px; line-height:1.65; color:#39464a; }
   .ha-steps li:last-child{ margin-bottom:0; }
@@ -64,16 +103,26 @@
   .ha-fb__b:hover{ border-color:var(--ag-green); color:var(--ag-green-dark,#177015); }
   .ha-fb__ok{ font-size:14px; color:#1a6118; font-weight:600; }
 
+  /* prev / next */
+  .ha-pn{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:18px; }
+  .ha-pn a{ display:block; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px;
+    padding:14px 16px; text-decoration:none; transition:border-color .15s; }
+  .ha-pn a:hover{ border-color:var(--ag-green); }
+  .ha-pn__l{ display:block; font:600 10.5px/1 var(--ag-font-body); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; }
+  .ha-pn__t{ display:block; margin-top:6px; font-size:14px; font-weight:600; line-height:1.4; color:var(--ag-ink); }
+  .ha-pn__next{ text-align:right; }
+  /* When there is no previous, the next must not slide left into its place. */
+  .ha-pn__gap{ display:block }
+
   /* rail */
   .ha-side{ display:flex; flex-direction:column; gap:14px; position:sticky; top:88px; }
   .ha-box{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:18px 20px; }
-  /* line-height 1.4, not 1 — "MORE IN PAYMENTS & VOTES YOU PAID FOR" is a
-     two-line heading at this width, and a unit line-height collided its rows. */
   .ha-box h2{ margin:0 0 12px; font:600 11.5px/1.4 var(--ag-font-body); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; }
   .ha-box ul{ list-style:none; margin:0; padding:0; }
-  .ha-box li + li{ margin-top:2px; border-top:1px solid rgba(16,41,44,.06); }
+  .ha-box li + li{ border-top:1px solid rgba(16,41,44,.06); }
   .ha-box a{ display:block; padding:9px 0; font-size:13.5px; line-height:1.5; color:#39464a; text-decoration:none; }
   .ha-box a:hover{ color:var(--ag-green); }
+  .ha-box a[aria-current]{ color:var(--ag-green-dark,#177015); font-weight:650; }
 
   .ha-help{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:18px; padding:20px; }
   .ha-help__orb{ position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%;
@@ -85,15 +134,42 @@
 
   @media (max-width:880px){
     .ha-grid{ grid-template-columns:1fr; }
-    /* BELOW the answer, never above it. On a phone the rail is not context, it
-       is an obstacle between a worried reader and the first sentence. */
     .ha-side{ position:static; top:auto; }
+    /* Clear the site's own fixed bottom nav, or the last paragraph and the
+       feedback buttons sit permanently underneath it. */
+    .ha{ padding-bottom:104px; }
   }
+  @media (max-width:520px){ .ha-pn{ grid-template-columns:1fr; } .ha-pn__next{ text-align:left; } }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="ha">
+<div class="ha"
+     x-data="{
+       copied:false, said:'', pct:0,
+       track(){
+         var d = document.documentElement;
+         var max = d.scrollHeight - d.clientHeight;
+         this.pct = max > 0 ? Math.min(100, Math.max(0, (d.scrollTop / max) * 100)) : 0;
+       },
+       copy(){
+         var url = window.location.href;
+         var done = () => { this.copied = true; setTimeout(() => this.copied = false, 2000); };
+         // navigator.clipboard needs a secure context and is absent on some
+         // in-app browsers, which is a large share of this audience. The
+         // textarea fallback is not legacy cruft — it is the path that works.
+         if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(url).then(done, () => {}); return; }
+         var t = document.createElement('textarea');
+         t.value = url; t.setAttribute('readonly',''); t.style.position='fixed'; t.style.opacity='0';
+         document.body.appendChild(t); t.select();
+         try { document.execCommand('copy'); done(); } catch(e) {}
+         document.body.removeChild(t);
+       }
+     }"
+     x-init="track()" @scroll.window.passive="track()" @resize.window="track()">
+
+  <div class="ha-prog" aria-hidden="true"><div class="ha-prog__b" :style="'width:' + pct + '%'"></div></div>
+
   <nav class="ha-crumb" aria-label="Breadcrumb">
     <a href="/help">Help Centre</a>
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
@@ -101,8 +177,23 @@
   </nav>
 
   <div class="ha-grid">
+    <div class="ha-col">
     <article class="ha-main">
-      <span class="ha-tag" style="background:{{ category.tint }};color:{{ category.fg }}">{{ category.title }}</span>
+      <div class="ha-meta">
+        <span class="ha-tag" style="background:{{ category.tint }};color:{{ category.fg }}">{{ category.title }}</span>
+        <span class="ha-read">{{ read_minutes }} min read</span>
+        <button type="button" class="ha-copy" :class="copied && 'is-done'" @click="copy()"
+                :aria-label="copied ? 'Link copied' : 'Copy a link to this answer'">
+          <template x-if="!copied">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </template>
+          <template x-if="copied">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          </template>
+          <span x-text="copied ? 'Copied' : 'Copy link'"></span>
+        </button>
+      </div>
+
       <h1>{{ article.title }}</h1>
       <p class="ha-sum">{{ article.summary|raw }}</p>
       <hr class="ha-rule">
@@ -124,9 +215,9 @@
         {% endfor %}
       </div>
 
-      {# Not a rating. "No" is a route, not a score — the article's own title
-         becomes the assistant's opening question, so nobody retypes it. #}
-      <div class="ha-fb" x-data="{ said:'' }">
+      {# Routing, not rating. "No" opens the assistant with this article's own
+         title as the question, so nobody retypes it. #}
+      <div class="ha-fb">
         <template x-if="said===''">
           <div>
             <div class="ha-fb__q">Did this answer it?</div>
@@ -141,6 +232,26 @@
         </template>
       </div>
     </article>
+
+    {# Continuity. Inside the article column so it reads as "where next" for the
+       answer, not as part of the rail. #}
+    {% if prev or next %}
+      <nav class="ha-pn" aria-label="More in this category">
+        {% if prev %}
+          <a href="/help/{{ prev.slug }}">
+            <span class="ha-pn__l">&larr; Previous</span>
+            <span class="ha-pn__t">{{ prev.title }}</span>
+          </a>
+        {% else %}<span class="ha-pn__gap"></span>{% endif %}
+        {% if next %}
+          <a class="ha-pn__next" href="/help/{{ next.slug }}">
+            <span class="ha-pn__l">Next &rarr;</span>
+            <span class="ha-pn__t">{{ next.title }}</span>
+          </a>
+        {% endif %}
+      </nav>
+    {% endif %}
+    </div>
 
     <aside class="ha-side">
       {% if related %}
@@ -159,14 +270,18 @@
         <a class="ha-help__a" href="/support/assistant">Ask about my case →</a>
       </div>
 
+      {# The real contents of this category, with the current one marked. #}
       <div class="ha-box">
-        <h2>More in {{ category.title }}</h2>
+        <h2>All of {{ category.title }}</h2>
         <ul>
-          <li><a href="/help">All answers</a></li>
-          <li><a href="/support">Contact a person</a></li>
+          {% for s in siblings %}
+            <li><a href="/help/{{ s.slug }}"{% if s.slug == article.slug %} aria-current="page"{% endif %}>{{ s.title }}</a></li>
+          {% endfor %}
         </ul>
       </div>
     </aside>
   </div>
+
 </div>
+
 {% endblock %}

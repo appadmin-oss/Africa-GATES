@@ -188,6 +188,77 @@ Now one numbered triage, in resolution order:
 
 ---
 
+## 6b. The assistant's tools
+
+Grouped by what they are for. A tool that does not remove a whole class of ticket
+is not worth the surface it adds.
+
+**Diagnose — "is it me or you?"**
+
+| Tool | Answers | Notes |
+|---|---|---|
+| `gateway_status` | Is Paystack/Flutterwave actually down? | Free Statuspage JSON, no key. During an outage this turns a hundred identical tickets into one sentence. **An unreachable status page never reports all-clear.** |
+| `check_email_domain` | Can that address receive mail at all? | MX lookup + typo detection. `gmial.com` is a transposition, which plain Levenshtein scores as 2 — handled explicitly. Only the domain is read; the local part never leaves. |
+| `platform_health` | Are our own systems up? | Probed, not asserted. |
+
+**Look up — over our own data**
+
+| Tool | Answers |
+|---|---|
+| `find_nominee` | Ballot link, category, and whether they can be voted for *now* |
+| `category_state` | One category: open, closing, checkout cutoff, nominee count |
+| `voting_deadlines` | The three clocks — cutoff, bell, late-delivery grace |
+| `site_state`, `pricing` | Platform-wide phases and prices |
+| `help_article` | The written answers, quoted with a URL |
+| `convert_currency` | Naira → USD/GBP/EUR/CAD/ZAR/GHS/KES/XOF/AED. Free FX, no key, indicative only |
+
+**Repair — open to guests, because most buyers have no account**
+
+`fix_payment`, `resend_receipt`. Both idempotent, both decided by the gateway
+rather than by the model, both returning an outcome word and never an amount or
+an address.
+
+**Scoped to the signed-in member**
+
+`my_transactions`, `my_votes`, `my_tickets`, `my_nominations`, `lookup_reference`.
+
+### Rules for anything that leaves the server
+
+A support bot is a page a stranger can make the server call things from, so the
+two outbound tools are deliberately boring: **no keys** (both endpoints are free
+and unauthenticated), **no user input in a URL** (so it cannot be turned into a
+proxy), **no PII outward**, **6s timeout**, **cached hard** (status 2 min, rates 6
+h), and **fail soft** — never reporting "fine" because a check did not run.
+
+---
+
+## 6c. When the model is unavailable
+
+The reported malfunction:
+
+> **User:** I paid and my votes never arrived
+> **Gee:** I looked, but I could not put a reliable answer together…
+> *· re-checked the payment · checked the reference*
+
+Read the chips. **The tools ran.** They asked the gateway, resolved the reference,
+and each returned a `say` field written in plain English precisely so it could be
+relayed. All of it was then discarded because a language model could not be
+reached — and the supporter was sent to find a human for a question that had
+already been answered.
+
+The model here is a *phrasing layer over work that has already happened*. When it
+is down, the work is still done and the words already exist.
+`SupportAgentService::fromFactsAlone()` composes the reply from those `say` fields
+directly. Nothing is generated, so nothing can be hallucinated: it is the most
+trustworthy answer the system produces and simply the least fluent.
+
+Two details: `say` strings written **for the model** ("Do not tell them…", "Give
+them the link…") are filtered out — excellent instructions to a writer,
+humiliating to read in a support chat. And the article preview strip is populated
+server-side regardless, so even a failed turn carries something readable.
+
+---
+
 ## 7. What the assistant may and may not do
 
 Unchanged by this work, restated because it's the boundary everything else respects:

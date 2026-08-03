@@ -86,6 +86,66 @@ already exists, with a checklist rather than a conversation:
 Any one of these clears a held claim. **A person with no email, no document and a
 borrowed phone can still claim** — that is the floor, and it is deliberate.
 
+### The questionnaire — proving by knowing, not by owning
+
+Every route above proves you **own** something: an inbox, a phone, a social
+account, a face on a call. That is the wrong axis for a large part of this
+audience, and it is why so many identity systems quietly exclude exactly the
+people they most need to include. A nominee who shares a handset with a sibling,
+whose only address was created for them by a teacher, and who has no document
+spelling their name the same way twice, fails all four routes while being
+unambiguously the real person.
+
+So there is a fifth route, and it proves the one thing nobody can hand over:
+**knowing what only the nominee could know.**
+
+**Shape.** Six to eight questions, generated per claim, answered in one sitting,
+no retry after two failed sittings. Never the same set twice for one profile.
+
+**Where the questions come from.** Only from what the platform already holds about
+that nomination, and only facts a stranger cannot look up:
+
+| Source | Example |
+|---|---|
+| The nomination body | *"Your nomination describes a programme you ran. Roughly how many people did it reach — under 50, 50–200, 200–1,000, over 1,000?"* |
+| The nominator | *"Who put you forward?"* — five names, four of them decoys drawn from other categories |
+| Timeline | *"In which month did the work described begin?"* |
+| Place | *"Which local government area was it based in?"* |
+| Category | *"Which category were you entered in?"* |
+| Named third parties | *"The nomination names an organisation you worked with. Which one?"* |
+
+**The hard rule: never ask anything the public page already shows.** A
+questionnaire built from a published profile is a reading-comprehension test that
+an impersonator passes on their phone while filling it in. Every candidate
+question is checked against the rendered public profile and any fact that appears
+there is disqualified automatically — by code, not by an author remembering to.
+
+**Scoring is weighted, not a count.** Naming the nominator is worth several times
+a date, because the first is essentially unguessable and the second is a coin
+flip among four options. A real nominee can misremember a month; nobody forgets
+who put them forward.
+
+* **≥ 85%** — clears the hold on its own.
+* **60–84%** — clears it *with* one other assisted signal. This is the ordinary
+  score for somebody recalling something from two years ago, and treating it as
+  failure would fail the honest majority to stop a rare impostor.
+* **< 60%** — does not clear, and is still not a refusal: it routes to the video
+  call, which remains available and free.
+
+**What it never does.** The questionnaire clears a **claim**. It does not release
+money and it never will — the payout bar in §3 is unchanged and still requires
+name-matched bank details. Knowledge proves *who you are*; it says nothing about
+where money should go, and conflating those two is precisely how a
+knowledge-based check becomes an account-takeover vector.
+
+**Fresh questions every time,** because a fixed set is a set that leaks: the first
+person to fail publishes it, and the second arrives having read it.
+
+**And a person still decides.** The score is shown to a reviewer alongside the
+other signals. No claim is granted by the questionnaire alone — a model may
+grade, a person approves, which is the rule governing every identity decision on
+this platform.
+
 ---
 
 ## 3. The payout bar

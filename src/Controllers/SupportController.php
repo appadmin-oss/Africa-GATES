@@ -115,7 +115,102 @@ final class SupportController
             // Shown in the UI as "checked your payments" — a support bot that
             // says where its answer came from is one people can sanity-check.
             'used'      => $r['used'],
+            // Rendered as preview cards under the reply. See articlesFor().
+            'articles'  => $this->articlesFor($message, $r['results'] ?? []),
         ]);
+    }
+
+    /**
+     * The Help Centre answers worth showing beside this reply, as preview cards.
+     *
+     * ── WHY A URL INSIDE A SENTENCE IS NOT ENOUGH ────────────────────────────
+     *
+     * The assistant can already cite an article and writes the link into its
+     * prose. In a chat bubble that is a bare blue string mid-paragraph: no title,
+     * no sense of what is behind it, nothing to weigh against the effort of
+     * leaving the conversation. People do not click it, so the answer we vetted
+     * goes unread while they keep typing at the robot.
+     *
+     * A card with a title, a one-line summary and its category is a decision
+     * somebody can make at a glance. Same destination, several times the traffic.
+     *
+     * ── TWO SOURCES, AND THE ORDER MATTERS ───────────────────────────────────
+     *
+     *   CITED     articles the model actually read this turn via help_article.
+     *             These belong to the answer, so they lead.
+     *   SUGGESTED searched over the USER'S OWN WORDS, independently of the model.
+     *
+     * The second exists because the model does not always reach for the tool, and
+     * when it does not, a perfectly good written answer stays invisible. Searching
+     * the question directly costs nothing and does not depend on the model having
+     * made a good decision — which is the sort of thing a UI should never depend on.
+     *
+     * Deduplicated and capped at three. A wall of cards under every reply is
+     * indistinguishable from an advert and teaches people to ignore the strip.
+     *
+     * @param list<array<string,mixed>> $results the turn's tool results
+     * @return list<array<string,mixed>>
+     */
+    private function articlesFor(string $message, array $results): array
+    {
+        $picked = [];
+
+        // 1. What the answer was actually built from.
+        foreach ($results as $r) {
+            if (($r['tool'] ?? '') !== 'help_article') continue;
+            $d = $r['data'] ?? [];
+            if (!is_array($d) || empty($d['found'])) continue;
+
+            foreach (array_merge([$d['article'] ?? null], (array) ($d['other_matches'] ?? [])) as $a) {
+                if (!is_array($a) || empty($a['url'])) continue;
+                $picked[basename((string) $a['url'])] ??= true;
+            }
+        }
+        $cited = array_keys($picked);
+
+        // 2. The safety net: their own words, whether or not the model looked.
+        foreach (\AfricaGates\Services\HelpCentre::search($message, 3) as $hit) {
+            $picked[(string) $hit['slug']] ??= true;
+        }
+
+        // 3. LAST RESORT — never show an empty strip to somebody who is stuck.
+        //
+        // Observed: a user typed "send an article I can read" and got nothing at
+        // all. Nothing was wrong with the corpus; that sentence simply has no
+        // topic in it, so it matches no keyword, so the search correctly returns
+        // empty — and the person asking most explicitly for something to read got
+        // the least. The same happens on any reply where the model failed.
+        //
+        // These four are the commonest reasons anybody is here. Offering them to
+        // someone we have otherwise failed is strictly better than a blank space,
+        // and it is the same set the Help Centre front page leads with.
+        if (!$picked) {
+            foreach (['paid-but-no-votes', 'vote-not-showing', 'code-did-not-arrive'] as $s) {
+                $picked[$s] = true;
+            }
+        }
+
+        $out = [];
+        foreach (array_keys($picked) as $slug) {
+            $a = \AfricaGates\Services\HelpCentre::bySlug((string) $slug);
+            if ($a === null) continue;
+            $cat = \AfricaGates\Services\HelpCentre::CATEGORIES[$a['cat']]
+                ?? ['title' => '', 'tint' => '#eef2ef', 'fg' => '#39464a'];
+            $out[] = [
+                'slug'     => (string) $a['slug'],
+                'title'    => (string) $a['title'],
+                'summary'  => (string) $a['summary'],
+                'url'      => \AfricaGates\Services\HelpCentre::url((string) $a['slug']),
+                'category' => (string) $cat['title'],
+                'tint'     => (string) $cat['tint'],
+                'fg'       => (string) $cat['fg'],
+                // Lets the UI say "I used this" rather than "you might also want",
+                // which are different claims and should not look identical.
+                'cited'    => in_array((string) $a['slug'], $cited, true),
+            ];
+            if (count($out) >= 3) break;
+        }
+        return $out;
     }
 
     /**

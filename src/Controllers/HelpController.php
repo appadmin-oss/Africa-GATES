@@ -80,6 +80,15 @@ final class HelpController
 
         $cat = HelpCentre::CATEGORIES[$article['cat']] ?? null;
 
+        // Siblings, and this article's place among them. The rail used to offer
+        // two generic links ("All answers", "Contact a person"), which is a dead
+        // end dressed as navigation: somebody who has just read about a missing
+        // payment is very likely to want the next payment answer, and had no way
+        // to reach it without going back to the index and starting again.
+        $siblings = HelpCentre::inCategory((string) $article['cat']);
+        $slugs    = array_column($siblings, 'slug');
+        $i        = array_search($article['slug'], $slugs, true);
+
         return $this->view->render($res, 'pages/help-article.twig', [
             'page_title'       => $article['title'] . ' — Help Centre — Africa GATES',
             'meta_description' => (string) $article['summary'],
@@ -92,6 +101,13 @@ final class HelpController
                 static fn(string $s) => HelpCentre::bySlug($s),
                 (array) ($article['related'] ?? [])
             ))),
+            'siblings'         => $siblings,
+            'prev'             => $i !== false && $i > 0 ? $siblings[$i - 1] : null,
+            'next'             => $i !== false && $i < count($siblings) - 1 ? $siblings[$i + 1] : null,
+            // Rounded up, floor of one. "1 min read" on a four-paragraph answer is
+            // reassurance for somebody who is about to give up and open a ticket;
+            // an honest small number is worth more here than precision.
+            'read_minutes'     => max(1, (int) ceil(str_word_count(HelpCentre::plainText($article)) / 200)),
         ]);
     }
 
