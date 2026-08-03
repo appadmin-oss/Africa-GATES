@@ -119,6 +119,34 @@ final class RefundDecision
                 . 'again is how somebody gets paid back twice.', $base);
         }
 
+        // ── ALREADY DELIVERED? ASK THAT FIRST ────────────────────────────────
+        //
+        // The vote rows are on OUR tally. Nothing a gateway could say changes the
+        // fact that this supporter has what they paid for, so requiring a gateway
+        // answer first was simply wrong — and it failed in the most damaging
+        // direction available. Reproduced on MySQL: a fully delivered order with
+        // an unreachable provider came back UNVERIFIABLE, so the one screen a
+        // person checks before answering a complaint said "I cannot say either
+        // way" about an order that was demonstrably fine. That is the answer that
+        // dents trust, because it reads as a platform that cannot account for its
+        // own money.
+        //
+        // Safe in the direction that matters: this branch can only ever conclude
+        // NOTHING IS OWED. It cannot cause a payout, so moving it ahead of the
+        // gateway weakens no fraud guard — the guard exists to stop paying out on
+        // an unverified CLAIM, and this is a verified finding of the opposite.
+        // Deliberately `>= ordered`, so a partial delivery falls through to the
+        // gateway and is treated as still open.
+        $proof = VoteProof::forReference($ref);
+        if (!empty($proof['found']) && (int) $proof['delivered'] > 0
+            && (int) $proof['delivered'] >= (int) $proof['ordered']) {
+            return $this->verdict('DELIVERED', false,
+                'The votes are on the tally — ' . (int) $proof['delivered'] . ' of them. Nothing is owed. '
+                . 'Send them /vote/verify?ref=' . rawurlencode($ref) . ' so they can see the individual '
+                . 'records rather than taking our word for it.',
+                $base + ['delivered' => (int) $proof['delivered']]);
+        }
+
         // ── did money actually arrive? ───────────────────────────────────────
         //
         // Asked of the gateway even when our row already says confirmed, because
@@ -138,16 +166,6 @@ final class RefundDecision
             return $this->verdict('NEVER_PAID', false, $this->neverPaidScript($ev), $base);
         }
 
-        // ── money arrived. Was it delivered? ─────────────────────────────────
-        $proof = VoteProof::forReference($ref);
-        if (!empty($proof['found']) && (int) $proof['delivered'] > 0
-            && (int) $proof['delivered'] >= (int) $proof['ordered']) {
-            return $this->verdict('DELIVERED', false,
-                'The payment went through AND the votes are on the tally — ' . (int) $proof['delivered']
-                . ' of them. Nothing is owed. Send them /vote/verify?ref=' . rawurlencode($ref)
-                . ' so they can see the individual records rather than taking our word for it.',
-                $base + ['delivered' => (int) $proof['delivered']]);
-        }
 
         // Paid, votes missing. Can they still be minted? Minting beats refunding
         // every time — it is what the buyer actually paid for.

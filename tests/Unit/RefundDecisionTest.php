@@ -360,4 +360,66 @@ final class RefundDecisionTest extends TestCase
         $this->assertSame('NOT_FOUND', $v['outcome']);
         $this->assertStringContainsString('AFG-', $v['say']);
     }
+
+    /**
+     * A DELIVERED order does not need a gateway to be called delivered.
+     *
+     * Reproduced on MySQL: the gateway check ran BEFORE the delivered check, so a
+     * fully delivered order whose provider could not be reached came back
+     * UNVERIFIABLE. The one screen somebody checks before answering a complaint
+     * said "I cannot say either way" about an order that was demonstrably fine —
+     * the answer that costs the most trust, because it reads as a platform that
+     * cannot account for its own money.
+     *
+     * The vote rows are on OUR tally. Nothing a provider could say changes that.
+     */
+    public function test_a_delivered_order_is_delivered_even_with_no_gateway(): void
+    {
+        $this->minted('AFG-PVOTE-NOGW', ordered: 50, delivered: 50);
+
+        // gateway(null) is the unreachable provider — the condition that used to
+        // turn a fine order into "I cannot say either way".
+        foreach ([false, true] as $ask) {
+            $v = (new RefundDecision($this->gateway(null)))->for('AFG-PVOTE-NOGW', $ask);
+            $this->assertSame('DELIVERED', $v['outcome'],
+                'askGateway=' . var_export($ask, true) . ': the votes are on the tally, so the '
+                . 'question of whether a refund is owed is already answered.');
+            $this->assertFalse($v['owed']);
+        }
+    }
+
+    /**
+     * And a PARTIAL delivery must NOT be waved through as delivered.
+     *
+     * The guard is `delivered >= ordered`. Somebody who paid for fifty votes and
+     * has ten is still owed something, and that case has to keep falling through
+     * to the gateway rather than being closed early.
+     */
+    public function test_a_partial_delivery_is_not_treated_as_delivered(): void
+    {
+        $this->minted('AFG-PVOTE-PART', ordered: 50, delivered: 10);
+
+        $v = (new RefundDecision($this->gateway(null)))->for('AFG-PVOTE-PART', false);
+        $this->assertNotSame('DELIVERED', $v['outcome'],
+            'Ten votes out of fifty is not delivered.');
+    }
+
+    /**
+     * A confirmed order with `$delivered` weight already on the tally.
+     *
+     * Shaped like {@see test_a_delivered_order_owes_nothing} — same closed cycle, so
+     * the votes cannot be minted now and the only thing that can make this order
+     * DELIVERED is the vote rows themselves.
+     */
+    private function minted(string $ref, int $ordered, int $delivered): void
+    {
+        $id = $this->order($ref, ['bonus_votes' => $ordered, 'votes_used' => $delivered]);
+
+        if ($delivered > 0) {
+            DB::table('gates_votes')->insert([
+                'nominee_id' => $this->nomineeId, 'category_id' => $this->shutCat,
+                'voter_email_hash' => 'paid:' . $id, 'vote_type' => 'paid', 'weight' => $delivered,
+                'donation_id' => $id, 'voted_at' => Carbon::now()->toDateTimeString()]);
+        }
+    }
 }
