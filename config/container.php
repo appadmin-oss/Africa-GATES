@@ -306,6 +306,12 @@ return [
         new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class)),
         $c->get(RateLimitService::class)
     ),
+    // The support queue. Gets the ticket service so a staff reply travels the
+    // same path as an automated one — mailed, and recorded on the member's thread.
+    \AfricaGates\Admin\Controllers\SupportController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\SupportController(
+        $c->get(Twig::class),
+        new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
+    ),
     // The Help Centre reads a corpus of literals in HelpCentre, so it needs
     // nothing but a renderer — no cache, no database, no gateway. That is also
     // why /help keeps working on a database that is mid-migration, which is

@@ -192,6 +192,15 @@ final class SupportContext
                             . "when card payment stops, and how many nominees are in it. Use when the question "
                             . "is about a specific category rather than the whole platform.",
              'args' => ['category' => 'category name or slug']],
+            ['name' => 'vote_proof',
+             'description' => "PROOF for one order: what was charged, what votes are actually on the tally, and "
+                            . "when each entry was written. Use whenever somebody doubts that their votes landed, "
+                            . "asks for evidence, or says they were told it was fixed and wants to see it. It "
+                            . "reads the live vote ROWS, not the order's own counter, so it can disagree with us "
+                            . "— and it returns a URL the person can open themselves and show to somebody else. "
+                            . "Give them that link: a supporter who can check is worth more than one who was "
+                            . "reassured.",
+             'args' => ['reference' => 'the AFG- payment reference']],
             ['name' => 'voting_deadlines',
              'description' => "The three clocks that govern paid voting: when voting closes, the EARLIER moment card "
                             . "payment stops for that category, and how long after the close a payment already in "
@@ -269,6 +278,7 @@ final class SupportContext
                 'free_vote_help'   => $this->freeVoteHelp(),
                 'refund_status'    => RefundService::statusFor((string) ($args['reference'] ?? '')),
                 'voting_deadlines' => $this->votingDeadlines(),
+                'vote_proof'       => $this->voteProof((string) ($args['reference'] ?? '')),
                 'gateway_status'   => $this->ext()->gatewayStatus(),
                 'check_email_domain' => $this->ext()->emailDomain((string) ($args['email'] ?? '')),
                 'convert_currency' => $this->ext()->convertCurrency(
@@ -986,6 +996,59 @@ final class SupportContext
                     . 'point them at the free ballot, which runs right up to the close. This is the state '
                     . 'people find most confusing, so say both halves explicitly.'),
         ];
+    }
+
+    /**
+     * The evidence for one order, and the URL that proves it without us.
+     *
+     * ── WHY THE LINK MATTERS MORE THAN THE ANSWER ────────────────────────────
+     *
+     * Supporters told the incident was resolved asked for proof. An assistant
+     * saying "yes, your 20 votes are on the tally" is the same category of thing
+     * they had already stopped believing — another assertion from the platform
+     * that was wrong last time. `/vote/verify` reads the live records and shows
+     * the individual entries with timestamps, and they can open it themselves and
+     * send it to somebody else.
+     *
+     * So this returns the facts AND the link, and the tool description tells the
+     * model to hand over the link. A supporter who can check is worth more than a
+     * supporter who was reassured.
+     *
+     * ── IT IS ALLOWED TO CONTRADICT US ───────────────────────────────────────
+     *
+     * {@see VoteProof} counts vote ROWS, not the order's `votes_used` counter. When
+     * those disagree the mismatch is returned rather than smoothed away, and the
+     * model is told to say so. A verification tool that can only confirm is not a
+     * verification tool.
+     */
+    private function voteProof(string $reference): array
+    {
+        $ref = trim($reference);
+        if ($ref === '') {
+            return ['found' => false, 'say' => 'I need the AFG- reference to look up.'];
+        }
+
+        $p = VoteProof::forReference($ref);
+        if (empty($p['found'])) return $p;
+
+        $p['verify_url'] = '/vote/verify?ref=' . rawurlencode((string) $p['reference']);
+        $p['say'] = match ((string) $p['state']) {
+            'delivered' => 'Confirmed: ' . (int) $p['delivered'] . ' vote(s) are on the tally, with the times '
+                         . 'each entry was written. Give them ' . $p['verify_url'] . ' so they can see the '
+                         . 'records themselves rather than taking our word for it.',
+            'refunded'  => 'That payment was refunded, so its votes were correctly removed. The full record is '
+                         . 'at ' . $p['verify_url'] . '.',
+            'pending', 'not_paid' => 'No confirmed payment on that reference yet. Run fix_payment on it before '
+                         . 'saying anything is lost — it re-asks the bank directly.',
+            default     => 'This order is PAID and its votes are NOT on the tally. Do not defend it: say plainly '
+                         . 'that it is our fault and fixable, run fix_payment, and give them '
+                         . $p['verify_url'] . ' so they can watch it change.',
+        };
+        if (!empty($p['mismatch'])) {
+            $p['say'] .= ' NOTE: our counter and the tally disagree on this order. Tell them that honestly — '
+                       . 'it is a broken mint, not a display problem.';
+        }
+        return $p;
     }
 
     /**

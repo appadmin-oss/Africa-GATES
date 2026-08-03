@@ -615,6 +615,29 @@ return function(App $app) {
         $g->get('/vote/paid/redirect', PaidVoteController::class.':handoff');
         $g->get('/vote/paid/callback', PaidVoteController::class.':callback');
         $g->get('/vote/paid/success',  PaidVoteController::class.':success');
+        // PROOF. Supporters told the unminted-vote incident was resolved asked for
+        // evidence, which is the right response to being told something by a
+        // platform that had just been publicly wrong. An aggregate cannot answer
+        // "where are MY votes", so this answers exactly one order — reading the
+        // live vote ROWS rather than the counter that claims they exist.
+        //
+        // No auth. The reference is a bearer token and the page deliberately holds
+        // nothing about the payer, so requiring a login would only lock out the
+        // majority who never had an account while protecting nothing.
+        $g->get('/vote/verify', function($req, $res) use ($tv) {
+            $ref = trim((string) ($req->getQueryParams()['ref'] ?? ''));
+            return $tv($req)->render($res, 'pages/vote-verify.twig', [
+                'page_title'       => 'Verify a payment — Africa GATES',
+                'meta_description' => 'Check exactly what happened to a paid vote — what was charged, what was '
+                                    . 'delivered to the tally, and when.',
+                'gates_page'       => 'verify',
+                'has_hero'         => false,
+                'ref'              => $ref,
+                'proof'            => $ref !== ''
+                    ? \AfricaGates\Services\VoteProof::forReference($ref)
+                    : ['found' => false],
+            ]);
+        });
         $g->get('/vote',                  VoteController::class.':index');
         $g->get('/vote/{program}',        VoteController::class.':program');
         // Live tallies for the race page. BEFORE /vote/{program}/{slug} — that pattern
@@ -952,6 +975,14 @@ return function(App $app) {
         $a->post('/moderation/{type}/{id:[0-9]+}/{decision}',        AdminModerationController::class.':action');
         // Thread operator controls: lock/unlock (readable, no replies) + pin/unpin
         $a->post('/moderation/thread/{id:[0-9]+}/flag/{flag}/{on:[01]}', AdminModerationController::class.':threadFlag');
+        // SUPPORT QUEUE. Tickets have always been stored here and answered in
+        // EMAIL — so a reply from an inbox never reached the member's own thread,
+        // nothing was ever closed, and `is_internal` existed with no way to write
+        // to it. This moves the workflow to where the record already is.
+        $a->get('/support',                          \AfricaGates\Admin\Controllers\SupportController::class.':index');
+        $a->get('/support/{ref:[A-Za-z0-9\-]+}',     \AfricaGates\Admin\Controllers\SupportController::class.':show');
+        $a->post('/support/{ref:[A-Za-z0-9\-]+}/reply', \AfricaGates\Admin\Controllers\SupportController::class.':reply');
+        $a->post('/support/{ref:[A-Za-z0-9\-]+}/status/{to}', \AfricaGates\Admin\Controllers\SupportController::class.':status');
         // AI assistant — console copilot (all roles; superadmin unlimited)
         $a->get('/assistant',       \AfricaGates\Admin\Controllers\AssistantController::class.':index');
         $a->post('/assistant/chat', \AfricaGates\Admin\Controllers\AssistantController::class.':chat');

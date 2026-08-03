@@ -27,6 +27,30 @@
                      marked, so the reader can see where they are rather than
                      just what else exists.
 
+  HIGHLIGHT TO ASK   Select any sentence and a button appears at the selection,
+                     carrying that exact text into the assistant. A general
+                     article answers the general case; the moment somebody doubts
+                     it is always a SPECIFIC sentence. Their only route was to
+                     scroll to the bottom, open the assistant, and retype the bit
+                     they were unsure about from memory. Most people just left.
+
+                     grab() guards three ways, each earning its place: the
+                     selection must be non-trivial (a stray tap selects one word,
+                     and a single word is not a question), it must be inside the
+                     ANSWER rather than the rail or the nav, and it is capped at
+                     240 characters — the assistant gets a question, not a pasted
+                     essay. The button follows the SELECTION rather than the
+                     pointer, so it works from a keyboard and from a touch
+                     long-press, and it is fixed-positioned because the article
+                     scrolls underneath it.
+
+                     NOTE FOR ANYONE EDITING THE x-data BELOW: it is an HTML
+                     attribute delimited by double quotes. A double quote anywhere
+                     inside it — including inside a comment — terminates the
+                     attribute and silently breaks the ENTIRE component, taking
+                     copy-link and the progress bar down with it. That is exactly
+                     how this shipped broken the first time. Keep prose up here.
+
   NOT A STICKY ASK BAR. Tried, measured, removed. The site already pins a bottom
   nav AND a floating assistant button on mobile; a third fixed element rendered
   behind the nav entirely, and stacking three of them over a 390px screen costs
@@ -94,6 +118,27 @@
   .ha-note svg{ flex:none; margin-top:2px }
   .ha-note a{ color:#177015 }
 
+  /* ── HIGHLIGHT TO ASK ──────────────────────────────────────────────────
+     Select any sentence in the answer and a small button appears at the
+     selection, carrying that exact text into the assistant.
+
+     Why: a general article answers the general case, and the moment somebody
+     doubts it is a specific sentence — "up to 6 hours late", "one per category".
+     Their only route was to scroll to the bottom, open the assistant, and retype
+     the bit they were unsure about from memory. Most people just leave.
+
+     The button follows the SELECTION, not the pointer, so it works from a
+     keyboard and from a touch long-press. It is fixed-positioned because the
+     article scrolls under it and an absolutely-positioned one drifts. */
+  .ha-sel{ position:fixed; z-index:70; transform:translate(-50%,-100%); }
+  .ha-sel button{ cursor:pointer; border:none; font-family:inherit; font-weight:650; font-size:12.5px;
+    padding:9px 15px; border-radius:999px; background:#10292C; color:#fff; white-space:nowrap;
+    box-shadow:0 8px 22px -8px rgba(16,41,44,.6); display:inline-flex; align-items:center; gap:7px; }
+  .ha-sel button:hover{ background:#177015 }
+  /* A visible tint on the selection itself, so it is obvious WHAT the button
+     will carry — the browser default is easy to lose against a light card. */
+  .ha-body ::selection, .ha-sum::selection{ background:#cfeccd; color:#10292C; }
+
   /* did this help */
   .ha-fb{ margin-top:26px; padding-top:22px; border-top:1px solid rgba(16,41,44,.09); }
   .ha-fb__q{ font-size:14px; font-weight:600; color:var(--ag-ink); }
@@ -147,6 +192,22 @@
 <div class="ha"
      x-data="{
        copied:false, said:'', pct:0,
+       sel:'', selX:0, selY:0,
+       grab(){
+         var s = window.getSelection();
+         if (!s || s.isCollapsed) { this.sel = ''; return; }
+         var text = s.toString().trim().replace(/\s+/g, ' ');
+         if (text.length < 12) { this.sel = ''; return; }
+         var node = s.anchorNode;
+         var el = node && node.nodeType === 3 ? node.parentElement : node;
+         if (!el || !el.closest('.ha-body, .ha-sum')) { this.sel = ''; return; }
+         var r = s.getRangeAt(0).getBoundingClientRect();
+         if (!r || (!r.width && !r.height)) { this.sel = ''; return; }
+         this.sel  = text.slice(0, 240);
+         this.selX = r.left + r.width / 2;
+         /* 10px of clearance so the button never covers the words it refers to. */
+         this.selY = r.top - 10;
+       },
        track(){
          var d = document.documentElement;
          var max = d.scrollHeight - d.clientHeight;
@@ -166,9 +227,20 @@
          document.body.removeChild(t);
        }
      }"
-     x-init="track()" @scroll.window.passive="track()" @resize.window="track()">
+     x-init="track()" @scroll.window.passive="track()" @resize.window="track()"
+     @mouseup.window="grab()" @keyup.window="grab()" @selectionchange.document="grab()">
 
   <div class="ha-prog" aria-hidden="true"><div class="ha-prog__b" :style="'width:' + pct + '%'"></div></div>
+
+  {# Follows the selection. `x-cloak` so it never flashes on load, and the label
+     names the action rather than the tool: "Ask about this" reads as a shortcut,
+     "Open the assistant" reads as leaving the page. #}
+  <div class="ha-sel" x-show="sel !== ''" x-cloak :style="'left:' + selX + 'px; top:' + selY + 'px'">
+    <button type="button" @click="window.location.assign('/support/assistant?q=' + encodeURIComponent(sel))">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>
+      Ask about this
+    </button>
+  </div>
 
   <nav class="ha-crumb" aria-label="Breadcrumb">
     <a href="/help">Help Centre</a>

@@ -57,6 +57,12 @@
         <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V5l-8-3z"/><path d="m9 11 2 2 4-4"/></svg>
         Moderation Queue
       </a>
+      {# Tickets were stored here and answered in EMAIL — so a reply from an inbox
+         never reached the member's own thread and nothing was ever closed. #}
+      <a class="ad-side__link {% if admin_page == 'support' %}is-active{% endif %}" href="/admin/support">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>
+        Support Queue
+      </a>
     </nav>
 
     {% endif %}

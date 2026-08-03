@@ -36,7 +36,8 @@ use AfricaGates\Console\Commands\{
     PrivacyEraseUserCommand,
     RepairIndexesCommand,
     VotesRemintCommand,
-    SupportGapsCommand
+    SupportGapsCommand,
+    VotesProofCommand
 };
 
 $capsule = new DB();
@@ -73,4 +74,5 @@ $app->add(new PrivacyEraseUserCommand());
 $app->add(new RepairIndexesCommand());
 $app->add(new VotesRemintCommand());
 $app->add(new SupportGapsCommand());
+$app->add(new VotesProofCommand());
 $app->run();
