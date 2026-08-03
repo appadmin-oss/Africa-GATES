@@ -34,15 +34,38 @@
                      scroll to the bottom, open the assistant, and retype the bit
                      they were unsure about from memory. Most people just left.
 
-                     grab() guards three ways, each earning its place: the
-                     selection must be non-trivial (a stray tap selects one word,
-                     and a single word is not a question), it must be inside the
-                     ANSWER rather than the rail or the nav, and it is capped at
-                     240 characters — the assistant gets a question, not a pasted
-                     essay. The button follows the SELECTION rather than the
+                     grab() guards four ways, each one earning its place, and
+                     three of them are here because Chromium found the bug:
+
+                     1. NON-TRIVIAL. A stray tap selects one word, and a single
+                        word is not a question. Twelve characters minimum.
+
+                     2. BOTH ENDS INSIDE THE ANSWER. It used to test only the
+                        anchor — the end the drag STARTED at. So a fast drag that
+                        began in a paragraph and overshot past the end of the
+                        article was accepted, and the button then offered to ask
+                        about a passage whose tail was site furniture. Reproduced
+                        with a real mouse drag: the quoted text came back as
+                        "Nominations open — 2026 Cycle · live in …", which is the
+                        announcement bar. Anchor AND focus are checked now.
+
+                     3. ON SCREEN. The pill sat at r.top - 10 with no clamp, so a
+                        selection whose rect began above the fold put it at
+                        top:-95 — rendered, unclickable, and pointing at nothing.
+                        place() clamps into the viewport and flips the pill BELOW
+                        the selection when there is no room above it.
+
+                     4. STILL VISIBLE. It is fixed-positioned while the article
+                        scrolls underneath, and the position was computed once, so
+                        scrolling left the pill behind pointing at whatever text
+                        had moved into its place. place() re-runs on scroll and
+                        resize, and drops the pill once the selection leaves the
+                        viewport.
+
+                     Capped at 240 characters — the assistant gets a question, not
+                     a pasted essay. It follows the SELECTION rather than the
                      pointer, so it works from a keyboard and from a touch
-                     long-press, and it is fixed-positioned because the article
-                     scrolls underneath it.
+                     long-press.
 
                      NOTE FOR ANYONE EDITING THE x-data BELOW: it is an HTML
                      attribute delimited by double quotes. A double quote anywhere
@@ -131,6 +154,9 @@
      keyboard and from a touch long-press. It is fixed-positioned because the
      article scrolls under it and an absolutely-positioned one drifts. */
   .ha-sel{ position:fixed; z-index:70; transform:translate(-50%,-100%); }
+  /* Set by place() when the selection is too close to the top of the viewport to
+     hang the pill above it — otherwise it renders off-screen and unclickable. */
+  .ha-sel.is-below{ transform:translate(-50%,0); }
   .ha-sel button{ cursor:pointer; border:none; font-family:inherit; font-weight:650; font-size:12.5px;
     padding:9px 15px; border-radius:999px; background:#10292C; color:#fff; white-space:nowrap;
     box-shadow:0 8px 22px -8px rgba(16,41,44,.6); display:inline-flex; align-items:center; gap:7px; }
@@ -192,21 +218,39 @@
 <div class="ha"
      x-data="{
        copied:false, said:'', pct:0,
-       sel:'', selX:0, selY:0,
+       sel:'', selX:0, selY:0, below:false,
+       /* Half the pill, plus a margin. Keeps it off both edges on a 360px phone. */
+       PILL:86,
+       inProse(node){
+         var el = node && node.nodeType === 3 ? node.parentElement : node;
+         return !!(el && el.closest && el.closest('.ha-body, .ha-sum'));
+       },
        grab(){
          var s = window.getSelection();
          if (!s || s.isCollapsed) { this.sel = ''; return; }
          var text = s.toString().trim().replace(/\s+/g, ' ');
          if (text.length < 12) { this.sel = ''; return; }
-         var node = s.anchorNode;
-         var el = node && node.nodeType === 3 ? node.parentElement : node;
-         if (!el || !el.closest('.ha-body, .ha-sum')) { this.sel = ''; return; }
+         /* BOTH ends. Anchor alone accepted a drag that started in the answer and
+            overshot into the page furniture — see guard 2 in the note above. */
+         if (!this.inProse(s.anchorNode) || !this.inProse(s.focusNode)) { this.sel = ''; return; }
+         this.sel = text.slice(0, 240);
+         this.place();
+       },
+       place(){
+         if (this.sel === '') return;
+         var s = window.getSelection();
+         if (!s || s.isCollapsed || s.rangeCount === 0) { this.sel = ''; return; }
          var r = s.getRangeAt(0).getBoundingClientRect();
          if (!r || (!r.width && !r.height)) { this.sel = ''; return; }
-         this.sel  = text.slice(0, 240);
-         this.selX = r.left + r.width / 2;
-         /* 10px of clearance so the button never covers the words it refers to. */
-         this.selY = r.top - 10;
+         var vw = window.innerWidth, vh = window.innerHeight;
+         /* Scrolled out of sight: a pill pointing at text nobody can see is worse
+            than no pill, because it looks like it belongs to whatever is there now. */
+         if (r.bottom < 0 || r.top > vh) { this.sel = ''; return; }
+         /* 10px of clearance so the button never covers the words it refers to,
+            and a flip when the selection is too near the top to sit above it. */
+         this.below = (r.top - 44) < 8;
+         this.selY  = this.below ? Math.min(vh - 8, r.bottom + 10) : r.top - 10;
+         this.selX  = Math.min(vw - this.PILL, Math.max(this.PILL, r.left + r.width / 2));
        },
        track(){
          var d = document.documentElement;
@@ -227,7 +271,7 @@
          document.body.removeChild(t);
        }
      }"
-     x-init="track()" @scroll.window.passive="track()" @resize.window="track()"
+     x-init="track()" @scroll.window.passive="track(); place()" @resize.window="track(); place()"
      @mouseup.window="grab()" @keyup.window="grab()" @selectionchange.document="grab()">
 
   <div class="ha-prog" aria-hidden="true"><div class="ha-prog__b" :style="'width:' + pct + '%'"></div></div>
@@ -235,7 +279,8 @@
   {# Follows the selection. `x-cloak` so it never flashes on load, and the label
      names the action rather than the tool: "Ask about this" reads as a shortcut,
      "Open the assistant" reads as leaving the page. #}
-  <div class="ha-sel" x-show="sel !== ''" x-cloak :style="'left:' + selX + 'px; top:' + selY + 'px'">
+  <div class="ha-sel" x-show="sel !== ''" x-cloak :class="below && 'is-below'"
+       :style="'left:' + selX + 'px; top:' + selY + 'px'">
     <button type="button" @click="window.location.assign('/support/assistant?q=' + encodeURIComponent(sel))">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>
       Ask about this
