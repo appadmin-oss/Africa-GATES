@@ -478,20 +478,37 @@ function supportDesk(){
      * it lands in a message the assistant then acts on.
      */
     fromLink(){
-      var q = new URLSearchParams(location.search);
-      var ref = (q.get('ref') || '').trim().slice(0, 120);
+      var p = new URLSearchParams(location.search);
+      var ref = (p.get('ref') || '').trim().slice(0, 120);
       if (ref && !/^[A-Za-z0-9_\-]{6,120}$/.test(ref)) ref = '';
-      var topic = q.get('topic') || '';
-      if (!ref && topic !== 'payment' && topic !== 'votes') return;
+      var topic = p.get('topic') || '';
+
+      // `?q=` — a QUESTION carried over from another page.
+      //
+      // Four pages were already linking here with it and this function read only
+      // `ref` and `topic`, so every one of them landed the reader on an empty
+      // composer: the article highlight-to-ask, the "No — ask the assistant"
+      // button under each article, a Help Centre search that found nothing, and
+      // the repair button on /vote/verify. Nothing errored. The button simply did
+      // not do the thing it said, which is worse than a broken link because the
+      // reader concludes the assistant is useless rather than that a link is wrong.
+      //
+      // Free text, so it is only ever a DRAFT: it goes into the composer for the
+      // reader to send or edit. Bound through Alpine, so it is text and never
+      // markup, and capped because a pasted essay is not a question.
+      var q = (p.get('q') || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+
+      if (!ref && !q && topic !== 'payment' && topic !== 'votes') return;
 
       var text = ref
         ? 'I paid but nothing has come through. The reference is ' + ref
-        : (topic === 'votes' ? 'My votes have not arrived.' : 'I paid but nothing has come through.');
+        : (q !== '' ? q
+          : (topic === 'votes' ? 'My votes have not arrived.' : 'I paid but nothing has come through.'));
 
       // Auto-send only when we have something to act on. Firing off a vague
       // question on the reader's behalf spends a turn and teaches them the
       // assistant guesses — with a reference there is a real repair to attempt.
-      if (ref && q.get('ask') === '1') { this.send(text); return; }
+      if (ref && p.get('ask') === '1') { this.send(text); return; }
       this.draft = text;
       this.$nextTick(() => { this.grow(); if (this.$refs.ta) this.$refs.ta.focus(); });
     },

@@ -210,8 +210,16 @@ class AssetBundleTest extends TestCase
     {
         $layout = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/gates.twig');
 
-        preg_match_all('~<link rel="stylesheet" href="/(assets/css/[^"?]+)~', $layout, $m);
+        // The layout links stylesheets through `{{ asset('/path') }}` — a content
+        // hash per file, because the shared `?v=` token was the pinned
+        // ASSET_VERSION that nothing bumps on this host. See Support\Assets::url().
+        preg_match_all('~<link rel="stylesheet" href="\{\{ asset\(\'/(assets/css/[^\']+)\'\)~', $layout, $m);
         $inLayout = $m[1] ?? [];
+
+        $this->assertNotEmpty($inLayout,
+            'No stylesheet links were found in the layout at all. This test only means '
+            . 'something if it can see them, so the pattern above has drifted from the '
+            . 'markup — fix the pattern rather than relaxing the assertion below.');
 
         $this->assertSame(AssetBundle::STYLESHEETS, $inLayout,
             'the {% else %} fallback in the layout and AssetBundle::STYLESHEETS must be '

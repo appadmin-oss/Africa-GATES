@@ -44,6 +44,14 @@ return [
             'auto_reload' => true,
             'debug' => $isDev,
         ]);
+        // Where the content hasher looks, and what it falls back to when a path is
+        // not a file under public/. Told explicitly so the CLI, the tests and a web
+        // request cannot disagree about which public/ is being hashed.
+        \AfricaGates\Support\Assets::configure(
+            __DIR__ . '/../public',
+            (string) Env::get('ASSET_VERSION', 'v1')
+        );
+
         // Load runtime settings if available (overrides env defaults)
         $settings = [];
         try { $settings = $c->get(SettingsService::class)->all(); } catch (\Throwable $e) {}
@@ -59,6 +67,10 @@ return [
             // In debug/dev, bust the browser cache from the NEWEST mtime across
             // every css/js file (so editing ANY asset forces a fresh fetch); in
             // prod use the pinned ASSET_VERSION (set at deploy) for far-future caching.
+            // Still here, and still used for the handful of things that are not a
+            // file under public/ (and as the fallback inside asset()). Prefer
+            // `{{ asset('/path') }}`, which hashes the file itself — see the
+            // addFunction call below and Support\Assets.
             'asset_version'     => \AfricaGates\Support\Assets::version(
                 Env::bool('APP_DEBUG'),
                 Env::get('ASSET_VERSION'),
@@ -183,6 +195,16 @@ return [
         $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
             'media_url',
             [\AfricaGates\Support\Media::class, 'url']
+        ));
+        // `{{ asset('/assets/js/gee.js') }}` → the path with a CONTENT-HASH cache
+        // buster. Replaces `?v={{ asset_version }}`, which in production returned
+        // the pinned ASSET_VERSION — shipped as "v1", bumped by a deploy step this
+        // shell-less host does not have. Every asset was therefore `?v=v1` forever,
+        // so a returning visitor kept last month's JS against this month's HTML.
+        // See AfricaGates\Support\Assets::url().
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'asset',
+            [\AfricaGates\Support\Assets::class, 'url']
         ));
         // Consume one-shot flash
         unset($_SESSION['flash_ok'], $_SESSION['flash_error'], $_SESSION['flash_notice']);

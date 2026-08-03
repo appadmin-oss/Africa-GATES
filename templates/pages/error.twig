@@ -92,7 +92,7 @@
       </div>
     {% elseif hasIllo %}
       <div class="err__media">
-        <img src="/assets/img/illustrations/{{ _illo }}.jpg?v={{ asset_version }}" alt="" aria-hidden="true">
+        <img src="{{ asset('/assets/img/illustrations/' ~ _illo ~ '.jpg') }}" alt="" aria-hidden="true">
       </div>
     {% endif %}
 

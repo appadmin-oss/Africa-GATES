@@ -5,7 +5,7 @@
 
 <section class="r26-hero" style="padding-block:clamp(2.5rem,6vw,4.25rem) clamp(1.5rem,3vw,2.5rem);text-align:center">
   <div class="aurora aurora--soft" aria-hidden="true"></div>
-  <img class="r26-hero__wm" src="/assets/img/africa-watermark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+  <img class="r26-hero__wm" src="{{ asset('/assets/img/africa-watermark.svg') }}" alt="" aria-hidden="true">
   <div class="wrap">
     <div class="r26-hero__inner">
       <p class="r26-eyebrow r26-reveal r26-d1" style="justify-content:center;display:inline-flex">The legacy vault</p>
@@ -63,7 +63,7 @@
     </div>
     {% else %}
     <div class="r26-empty">
-      <img class="r26-empty__icon" src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true">
+      <img class="r26-empty__icon" src="{{ asset('/assets/img/africa-mark.svg') }}" alt="" aria-hidden="true">
       <h2>The vault opens after the first cycle</h2>
       <p>Once an edition closes, its winners, jury rationales and full attribution are archived here permanently.</p>
       <a class="btn btn--emerald" href="/events">See upcoming events</a>

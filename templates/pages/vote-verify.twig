@@ -222,7 +222,12 @@
 
       <div class="vv-do">
         {% if st != 'delivered' and st != 'refunded' %}
-          <a class="vv-btn vv-btn--p" href="/support/assistant?q={{ proof.reference|url_encode }}">Re-check &amp; fix this payment →</a>
+          {# `ref=` + `ask=1`, not `q=`. This button's whole job is to RUN the
+             repair, and the assistant's ref path builds the sentence and sends it
+             so fix_payment actually executes. It previously passed `?q=<reference>`,
+             which the assistant does not act on — so the one action on the proof
+             page did nothing but move the reader to an empty chat box. #}
+          <a class="vv-btn vv-btn--p" href="/support/assistant?ref={{ proof.reference|url_encode }}&amp;ask=1">Re-check &amp; fix this payment →</a>
         {% endif %}
         {% if proof.nominee %}
           <a class="vv-btn vv-btn--g" href="/vote">See the ballot</a>

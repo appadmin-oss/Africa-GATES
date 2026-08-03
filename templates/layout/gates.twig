@@ -184,25 +184,25 @@
   <link rel="stylesheet" href="{{ css_bundle }}">
   {% else %}
   {# Motion design tokens (Phase 2 seed — see resources/motion/motion.ts) #}
-  <link rel="stylesheet" href="/assets/css/tokens.motion.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/main.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/ui-overhaul.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/professional.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/redesign-2026.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/aurora.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/tokens.motion.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/main.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/ui-overhaul.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/professional.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/redesign-2026.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/aurora.css') }}">
 
   {# ── New modular design system (built alongside legacy; migrated per-page) ── #}
-  <link rel="stylesheet" href="/assets/css/base/tokens.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/base/reset.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/base/typography.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/components/loader.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/components/nav.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/components/footer.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/components/gee.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/components/community-modal.css?v={{ asset_version }}">
-  <link rel="stylesheet" href="/assets/css/components/site-search.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/base/tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/base/reset.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/base/typography.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/loader.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/nav.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/footer.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/gee.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/community-modal.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/site-search.css') }}">
   {# Accessibility layer — loaded LAST so its corrections win (WCAG 2.2 AA) #}
-  <link rel="stylesheet" href="/assets/css/a11y.css?v={{ asset_version }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/a11y.css') }}">
   {% endif %}
 
   {# Hide animated elements until JS prepares them (anti-FOUC) #}
@@ -390,20 +390,20 @@
    DOMContentLoaded — so anything loaded after it initialises components that
    call window.agSocial before it exists. Loading it second threw
    "Cannot read properties of undefined" on every card in the feed. #}
-<script defer src="/assets/js/ag-social.js?v={{ asset_version }}"></script>
+<script defer src="{{ asset('/assets/js/ag-social.js') }}"></script>
 {# Site-wide search overlay. Plain JS, no Alpine — it has to work on every page
    including the ones that never load Alpine, and it enhances a form that already
    submits without it. #}
-<script defer src="/assets/js/ag-search.js?v={{ asset_version }}"></script>
+<script defer src="{{ asset('/assets/js/ag-search.js') }}"></script>
 {# Alpine.js — reactive bindings on /vote, /community, /pulse, admin tables #}
-<script defer src="/assets/js/vendor/alpine-3.13.5.min.js?v={{ asset_version }}"></script>
+<script defer src="{{ asset('/assets/js/vendor/alpine-3.13.5.min.js') }}"></script>
 {# Community modal — self-contained; loaded site-wide (outside the lite_page gate) #}
-<script defer src="/assets/js/community-modal.js?v={{ asset_version }}"></script>
+<script defer src="{{ asset('/assets/js/community-modal.js') }}"></script>
 {% if not lite_page|default(false) %}
 {# GSAP + ScrollTrigger — cinematic scroll animations #}
 <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-<script defer src="/assets/js/vendor/split-type-0.3.4.min.js?v={{ asset_version }}"></script>
+<script defer src="{{ asset('/assets/js/vendor/split-type-0.3.4.min.js') }}"></script>
 {# Spline viewer is loaded lazily, desktop-only, from main.js (bindSpline) #}
 {# Tippy.js — micro-interactions for hover-tip UX polish #}
 {# Popper + Tippy are SELF-HOSTED. Both files have been committed under
@@ -417,8 +417,8 @@
    Unpinned CDN URLs too: `@popperjs/core@2` and `tippy.js@6` resolve to whatever
    those majors currently point at, which is a third party silently changing the code
    this site executes. The vendored copies are pinned to 2.11.8 and 6.3.7. #}
-<script defer src="/assets/js/vendor/popper-2.11.8.min.js?v={{ asset_version }}"></script>
-<script defer src="/assets/js/vendor/tippy-6.3.7.umd.min.js?v={{ asset_version }}"></script>
+<script defer src="{{ asset('/assets/js/vendor/popper-2.11.8.min.js') }}"></script>
+<script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}"></script>
 {# Leaflet — continental map #}
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -436,12 +436,12 @@
     });
   });
 </script>
-<script defer src="/assets/js/afg-features.js?v={{ asset_version }}"></script>
-<script defer src="/assets/js/main.js?v={{ asset_version }}"></script>
+<script defer src="{{ asset('/assets/js/afg-features.js') }}"></script>
+<script defer src="{{ asset('/assets/js/main.js') }}"></script>
 {# Gee — the page-aware guide (self-contained; no lite_page gating). Not
    loaded when the widget is suppressed (members on community pages). #}
 {% if not gee_suppressed|default(false) %}
-<script defer src="/assets/js/gee.js?v={{ asset_version }}"></script>
+<script defer src="{{ asset('/assets/js/gee.js') }}"></script>
 {% endif %}
 
 {# ── Aurora — the real Stripe WebGL liquid-mesh gradient ──────────── #}

@@ -107,7 +107,7 @@
     </div>
 
     <div class="rg-empty" id="rgEmpty" style="display:none">
-      <img src="/assets/img/illustrations/illo-search.jpg?v={{ asset_version }}" alt="" aria-hidden="true">
+      <img src="{{ asset('/assets/img/illustrations/illo-search.jpg') }}" alt="" aria-hidden="true">
       <h2>No profiles match</h2>
       <p>Try another name, clear the filters, or nominate someone who belongs on the record.</p>
       <div class="rg-btns">
@@ -117,7 +117,7 @@
     </div>
   {% else %}
     <div class="rg-empty" style="margin-top:24px">
-      <img src="/assets/img/africa-mark.svg?v={{ asset_version }}" alt="" aria-hidden="true" style="width:64px;opacity:.7">
+      <img src="{{ asset('/assets/img/africa-mark.svg') }}" alt="" aria-hidden="true" style="width:64px;opacity:.7">
       <h2>The registry is just getting started</h2>
       <p>No verified profiles yet. Be among the first names on the continental record — registration is free and OTP-verified.</p>
       <div class="rg-btns"><a class="rg-btn rg-btn--p" href="/account/register">Get on the board →</a></div>
