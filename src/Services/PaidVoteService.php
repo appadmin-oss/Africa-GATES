@@ -195,6 +195,93 @@ class PaidVoteService
         return $cutoff === null || $at->lt($cutoff);
     }
 
+    /**
+     * When THIS order's checkout dies — the earlier of our patience and the ballot.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A PER-ORDER DEADLINE AND NOT A GLOBAL WINDOW
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A checkout used to be live for a flat {@see PaymentService::IN_FLIGHT_MINUTES}
+     * from creation, with no knowledge of the ballot. So an order started twenty
+     * minutes before the bell stayed "in flight" for an hour and forty minutes AFTER
+     * voting had closed. Everything downstream believed it: the reconciler kept
+     * re-asking the gateway about it, the abandoned-cart mailer treated it as a live
+     * cart worth nudging, and a payment that landed in that stretch was confirmed —
+     * money taken for votes that could no longer be delivered.
+     *
+     * That is the shape of the whole incident. Every refund the platform has had to
+     * issue for "voting closed before the payment confirmed" began as a checkout the
+     * ballot had already finished with but nothing had told.
+     *
+     * So the deadline is a property of the ORDER, computed once from two facts, and
+     * `min()` is the entire policy:
+     *
+     *   created_at + IN_FLIGHT_MINUTES   how patient we are with a slow bank
+     *   voting close                     when the votes stop being deliverable
+     *
+     * ── WHY THE CLOSE AND NOT checkoutClosesAt() ─────────────────────────────
+     *
+     * {@see checkoutClosesAt()} is several minutes EARLIER, and it governs whether a
+     * checkout may START. Once somebody is already at the gateway with their card
+     * out, the honest deadline is the ballot's own — using the earlier one would kill
+     * a payment that was still perfectly deliverable and tell a buyer who did nothing
+     * wrong that they were too late. Refusing to sell and refusing to honour are
+     * different decisions and they are allowed different clocks.
+     *
+     * ── AND WHY THIS DOES NOT SHORTEN THE LATE-MINT GRACE ────────────────────
+     *
+     * {@see lateMintGraceHours()} still applies, and deliberately outlives this. This
+     * is about when a checkout stops being PAYABLE; the grace is about honouring a
+     * payment that was made in time and confirmed slowly. Clipping the grace to this
+     * would refuse the very people the grace exists to protect — somebody who paid at
+     * 23:58 whose webhook landed at 00:02.
+     *
+     * @return Carbon|null null when the cycle publishes no close time, i.e. there is
+     *                     nothing to clip against — an open-ended cycle must not have
+     *                     its checkouts silently killed by a missing date.
+     */
+    public static function checkoutDeadline(int $categoryId, Carbon $placedAt): ?Carbon
+    {
+        $ours  = $placedAt->copy()->addMinutes(PaymentService::IN_FLIGHT_MINUTES);
+        $close = BallotGuard::votingCloseFor($categoryId);
+
+        if ($close === null) return $ours;
+        return $close->lt($ours) ? $close->copy() : $ours;
+    }
+
+    /**
+     * Restrict a query to pending orders whose checkout is no longer payable.
+     *
+     * ONE predicate, because three places were each deriving this from the flat
+     * global window and they are supposed to agree: the abandoned-cart nudge ("you
+     * did not finish paying"), the reconciler's tombstone, and anything else that has
+     * to decide whether a buyer is still at the gateway or has gone.
+     *
+     * Reads the recorded deadline where there is one and falls back to the old global
+     * window where there is not. The fallback is load-bearing rather than tidy: rows
+     * predating the column, and open-ended cycles with no published close, both carry
+     * NULL — and treating NULL as "expired" would void every in-flight checkout on a
+     * database the migration had only just touched.
+     */
+    public static function whereCheckoutDead(mixed $q, ?Carbon $now = null): mixed
+    {
+        $now      = $now ?? Carbon::now();
+        $fallback = $now->copy()->subMinutes(PaymentService::IN_FLIGHT_MINUTES)->toDateTimeString();
+
+        if (!OptionalColumn::on('gates_donations', 'checkout_expires_at')) {
+            return $q->where('created_at', '<=', $fallback);
+        }
+
+        $stamp = $now->toDateTimeString();
+        return $q->where(function ($w) use ($stamp, $fallback) {
+            $w->where('checkout_expires_at', '<', $stamp)
+              ->orWhere(function ($o) use ($fallback) {
+                  $o->whereNull('checkout_expires_at')->where('created_at', '<=', $fallback);
+              });
+        });
+    }
+
     /** Master toggle — OFF by default. */
     public static function enabled(): bool
     {

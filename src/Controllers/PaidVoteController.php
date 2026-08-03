@@ -133,6 +133,11 @@ final class PaidVoteController
         // Price is ALWAYS computed server-side from the admin's settings.
         $amount    = PaidVoteService::price($qty);
         $reference = 'AFG-PVOTE-' . bin2hex(random_bytes(6));
+        // ONE timestamp for both `created_at` and the checkout deadline derived from
+        // it. Calling Carbon::now() twice can straddle a second boundary, and a
+        // deadline computed from a different instant than the row it lives on is a
+        // discrepancy that only ever shows up in the logs of a real incident.
+        $placedAt  = Carbon::now();
         try {
             // `show_name` is DROPPED when the database has not been migrated yet.
             //
@@ -164,8 +169,18 @@ final class PaidVoteController
                 // Stored on the ORDER, not applied yet: the vote does not exist until
                 // the gateway confirms, and PaidVoteService::mint() copies this onto it.
                 'show_name'         => $showName ? 1 : 0,
-                'created_at'        => Carbon::now()->toDateTimeString(),
-            ], ['show_name', 'provider']));
+                'created_at'        => $placedAt->toDateTimeString(),
+                // WHEN THIS CHECKOUT DIES — the earlier of our patience and the bell.
+                //
+                // Recorded rather than re-derived, because the close time is editable
+                // and every reader must get the same answer months later. Without it a
+                // checkout started near the bell stayed "in flight" for two hours past
+                // the ballot, and a payment landing in that stretch was confirmed for
+                // votes that could no longer be delivered — which is where the refunds
+                // come from. See PaidVoteService::checkoutDeadline().
+                'checkout_expires_at' => PaidVoteService::checkoutDeadline(
+                    (int) $nominee->category_id, $placedAt)?->toDateTimeString(),
+            ], ['show_name', 'provider', 'checkout_expires_at']));
         } catch (\Throwable $e) {
             $this->log?->error('[paid-vote] could not persist pending order', ['err' => $e->getMessage()]);
             return $bail('error');

@@ -360,14 +360,24 @@ final class CheckoutMailer
 
         try {
             $now    = Carbon::now();
-            $newest = $now->copy()->subMinutes(self::GRACE_MINUTES)->toDateTimeString();
+            // GRACE_MINUTES is no longer applied here: whereCheckoutDead() owns the
+            // "still at the gateway?" half, using the order's own deadline. The
+            // constant stays public because other readers still name it.
             $oldest = $now->copy()->subHours(self::WINDOW_HOURS)->toDateTimeString();
 
-            $rows = DB::table('gates_donations')
+            // "Not still at the gateway" is now asked of the ORDER'S OWN deadline
+            // rather than of a flat two hours from creation. It matters most exactly
+            // at the bell: a checkout started twenty minutes before voting closed used
+            // to count as live for an hour and forty minutes afterwards, so the person
+            // who walked away from it was nudged to go back and finish paying for
+            // votes that could no longer be delivered. See
+            // PaidVoteService::whereCheckoutDead().
+            $q = DB::table('gates_donations')
                 ->where('status', 'pending')
                 ->whereNull('abandoned_mail_at')
-                ->where('created_at', '<=', $newest)
-                ->where('created_at', '>=', $oldest)
+                ->where('created_at', '>=', $oldest);
+
+            $rows = PaidVoteService::whereCheckoutDead($q, $now)
                 ->orderBy('id')
                 ->limit(max(1, $limit))
                 ->get();
@@ -619,9 +629,12 @@ final class CheckoutMailer
             $out['receipts_owed'] = (int) DB::table('gates_donations')
                 ->where('tier', 'paid-vote')->where('status', 'confirmed')
                 ->whereNull('receipt_sent_at')->whereNull('refunded_at')->count();
-            $out['abandoned_awaiting_mail'] = (int) DB::table('gates_donations')
-                ->where('status', 'pending')->whereNull('abandoned_mail_at')
-                ->where('created_at', '<=', Carbon::now()->subMinutes(self::GRACE_MINUTES)->toDateTimeString())
+            // The SAME predicate the sender uses. A health count that answers a
+            // different question than the job it reports on is worse than no count:
+            // it reads as confirmation while describing a different set of rows.
+            $out['abandoned_awaiting_mail'] = (int) PaidVoteService::whereCheckoutDead(
+                DB::table('gates_donations')
+                    ->where('status', 'pending')->whereNull('abandoned_mail_at'))
                 ->where('created_at', '>=', Carbon::now()->subHours(self::WINDOW_HOURS)->toDateTimeString())
                 ->count();
         } catch (\Throwable) {
