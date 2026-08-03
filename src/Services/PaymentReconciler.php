@@ -355,7 +355,7 @@ final class PaymentReconciler
             // the gateway has just said it was paid. Still a conditional UPDATE, so
             // only one writer wins and a confirmed row is never touched.
             $changed = DB::table('gates_donations')->where('payment_ref', $ref)
-                ->whereIn('status', ['pending', 'failed'])->update(['status' => 'confirmed']);
+                ->whereIn('status', ['pending', 'failed'])->update($this->confirmPatch());
             if ($changed === 0) {
                 return ['ok' => true, 'code' => 'ALREADY', 'status' => 'confirmed',
                         'message' => 'That payment was confirmed a moment ago — your votes are on their way.'];
@@ -446,7 +446,7 @@ final class PaymentReconciler
                 }
                 if ($apply) {
                     $changed = DB::table('gates_donations')->where('payment_ref', $d->payment_ref)
-                        ->where('status', 'pending')->update(['status' => 'confirmed']);
+                        ->where('status', 'pending')->update($this->confirmPatch());
                     if ($changed > 0) {
                         $row['note'] = $this->afterConfirm($d);
                     } else {
@@ -488,6 +488,24 @@ final class PaymentReconciler
         $stored = strtolower(trim((string) ($d->provider ?? '')));
         if ($stored === '' || !in_array($stored, $enabled, true)) return $enabled;
         return array_merge([$stored], array_values(array_diff($enabled, [$stored])));
+    }
+
+    /**
+     * The pending→confirmed patch, identical to the one the live checkout paths
+     * write. `confirmed_at` is the moment money arrived — the refund grace window
+     * documents itself as measuring exactly that and, before this column, had only
+     * "when checkout started" to measure instead.
+     *
+     * A reconciled order is the case where the difference is largest: the buyer
+     * paid hours or days before the sweep noticed, so its `created_at` says almost
+     * nothing about when the money landed.
+     */
+    private function confirmPatch(): array
+    {
+        return OptionalColumn::filter('gates_donations', [
+            'status'       => 'confirmed',
+            'confirmed_at' => Carbon::now()->toDateTimeString(),
+        ], ['confirmed_at']);
     }
 
     /**

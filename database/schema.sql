@@ -481,6 +481,14 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   refund_ref VARCHAR(120) DEFAULT NULL,
   refund_reason VARCHAR(255) DEFAULT NULL,
   refund_requested_at TIMESTAMP NULL DEFAULT NULL,
+  -- Refusal pacing. A refused refund releases its claim (no money moved, so a
+  -- retry is safe) but must NOT be retried on the next 14-minute tick; these
+  -- two turn that loop into 1h -> 6h -> 24h and then a stop.
+  refund_attempts INT UNSIGNED NOT NULL DEFAULT 0,
+  refund_retry_after TIMESTAMP NULL DEFAULT NULL,
+  -- WHEN the money arrived, as distinct from when checkout started. The refund
+  -- grace window measures this; before the column it measured created_at.
+  confirmed_at TIMESTAMP NULL DEFAULT NULL,
   -- WHICH gateway took the money. Without it the reconciler asks every gateway
   -- about every reference, and a refund has to guess where to send cash back to.
   provider VARCHAR(24) DEFAULT NULL,
@@ -497,6 +505,7 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   KEY idx_donation_email(donor_email),
   KEY idx_donation_status(status),
   KEY idx_donations_pending_age(status, created_at),
+  KEY idx_donation_refund_retry(refund_state, refund_retry_after),
   KEY idx_donations_abandon(status, abandoned_mail_at, created_at),
   KEY idx_donation_refundable(status, tier, votes_used, refund_requested_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

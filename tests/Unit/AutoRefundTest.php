@@ -304,4 +304,219 @@ final class AutoRefundTest extends TestCase
         $this->assertFalse($s['found']);
         $this->assertStringNotContainsString('okun@', $s['say']);
     }
+
+    // ══ PACING ═══════════════════════════════════════════════════════════════
+    //
+    // The values were never the problem. The mechanics around them were, and
+    // three of the four faults are the same shape as the rest of this audit:
+    // a guard that documented one thing and measured another, and an alert that
+    // fired on a fourteen-minute loop until nobody read it.
+
+    /** A mailer that keeps its post instead of sending it, so alerts are countable. */
+    private function mailbox(): \AfricaGates\Services\OtpService
+    {
+        return new class ([]) extends \AfricaGates\Services\OtpService {
+            /** @var list<string> */
+            public array $sent = [];
+            public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
+                                        string $category = '', string $hero = ''): array
+            {
+                $this->sent[] = $subject;
+                return ['ok' => true];
+            }
+        };
+    }
+
+    /**
+     * THE GRACE MEASURED THE WRONG CLOCK.
+     *
+     * Its own docblock says "do not refund a payment that CONFIRMED within this
+     * window", and the query said `created_at` — when the buyer STARTED checkout —
+     * because that was the only timestamp the schema had. An order created at
+     * 23:00 and confirmed at 23:59 therefore got one minute of grace, not sixty.
+     */
+    public function test_the_grace_window_runs_from_when_the_money_arrived(): void
+    {
+        $id = $this->order([
+            'created_at'   => date('Y-m-d H:i:s', strtotime('-3 hours')),   // long past the old bound
+            'confirmed_at' => date('Y-m-d H:i:s', strtotime('-5 minutes')), // but it only just paid
+        ]);
+        $gw = $this->gateway();
+        (new RefundService($gw))->sweep();
+
+        $this->assertCount(0, $gw->refunds, 'five minutes old — the mint may still be on its way');
+        $this->assertNull($this->row($id)->refund_requested_at);
+    }
+
+    /** And once the money has genuinely been sitting there an hour, it goes back. */
+    public function test_an_order_confirmed_over_an_hour_ago_is_refunded(): void
+    {
+        $this->order([
+            'created_at'   => date('Y-m-d H:i:s', strtotime('-5 hours')),
+            'confirmed_at' => date('Y-m-d H:i:s', strtotime('-4 hours')),
+        ]);
+        $gw = $this->gateway();
+        (new RefundService($gw))->sweep();
+
+        $this->assertCount(1, $gw->refunds);
+    }
+
+    /**
+     * A REFUSAL USED TO MEAN A HUNDRED REFUSALS.
+     *
+     * Releasing the claim is right — a definite refusal is the one outcome where
+     * we know no money moved. But `owed()` re-selects an unclaimed row immediately
+     * and maintenance ticks every fourteen minutes, so one refusal became roughly
+     * a hundred gateway calls and a hundred identical admin emails a day, each
+     * saying the refund would not be retried automatically.
+     */
+    public function test_a_refused_refund_waits_before_it_is_tried_again(): void
+    {
+        $id  = $this->order();
+        $gw  = $this->gateway(['ok' => false, 'status' => 'failed']);
+        $svc = new RefundService($gw);
+
+        $svc->sweep();
+        $svc->sweep();
+        $svc->sweep();
+
+        $this->assertCount(1, $gw->refunds, 'three sweeps, one attempt — the rest are inside the backoff');
+        $d = $this->row($id);
+        $this->assertSame('failed', $d->refund_state);
+        $this->assertNull($d->refund_requested_at, 'the claim is still released — nothing was sent');
+        $this->assertSame(1, (int) $d->refund_attempts);
+        $this->assertNotNull($d->refund_retry_after);
+    }
+
+    /** When the wait is over it tries again — an insufficient balance clears by itself. */
+    public function test_the_retry_happens_once_the_backoff_has_passed(): void
+    {
+        $id = $this->order();
+        (new RefundService($this->gateway(['ok' => false, 'status' => 'failed'])))->sweep();
+
+        // The settlement landed; the gateway will take it now.
+        DB::table('gates_donations')->where('id', $id)
+            ->update(['refund_retry_after' => date('Y-m-d H:i:s', strtotime('-1 minute'))]);
+
+        $gw = $this->gateway();
+        (new RefundService($gw))->sweep();
+
+        $this->assertCount(1, $gw->refunds);
+        $d = $this->row($id);
+        $this->assertSame('refunded', $d->refund_state);
+        $this->assertNull($d->refund_retry_after, 'a settled refund must not still look like it is waiting');
+    }
+
+    /** And it stops rather than trying forever. Three refusals over a day is enough. */
+    public function test_it_gives_up_after_the_last_attempt_and_says_so(): void
+    {
+        $id   = $this->order();
+        $post = $this->mailbox();
+
+        for ($i = 0; $i < 5; $i++) {
+            (new RefundService($this->gateway(['ok' => false, 'status' => 'failed']), $post))->sweep();
+            DB::table('gates_donations')->where('id', $id)
+                ->update(['refund_retry_after' => date('Y-m-d H:i:s', strtotime('-1 minute'))]);
+        }
+
+        $d = $this->row($id);
+        $this->assertSame('exhausted', $d->refund_state);
+        // Four attempts spread over 31 hours. The SPAN is the point, not the
+        // count: Nigerian card settlement is T+1, so a schedule that finished
+        // inside a working day would give up before the likeliest cause cleared.
+        $this->assertSame(4, (int) $d->refund_attempts);
+
+        // Told at both ends and never in between: a hundred copies of the same
+        // paragraph is how an alert becomes a mail filter.
+        $this->assertCount(2, $post->sent);
+        $this->assertStringContainsString('refused', $post->sent[0]);
+        $this->assertStringContainsString('GAVE UP', $post->sent[1]);
+    }
+
+    /** An exhausted order is a person's problem now, so the sweep leaves it alone. */
+    public function test_an_exhausted_order_is_not_picked_up_again(): void
+    {
+        $this->order(['refund_state' => 'exhausted', 'refund_attempts' => 3]);
+        $gw = $this->gateway();
+        (new RefundService($gw))->sweep();
+
+        $this->assertCount(0, $gw->refunds);
+    }
+
+    /**
+     * "LEFT FOR A HUMAN" MEANT LEFT FOR A HUMAN WHO WAS NEVER TOLD.
+     *
+     * An over-ceiling order was written to error_log on every one of the day's
+     * hundred sweeps and surfaced nowhere anybody looks. It now gets a state, so
+     * it appears on the finance page beside every other refund state, leaves this
+     * queue, and produces exactly one email.
+     */
+    public function test_an_over_ceiling_order_is_parked_visibly_and_alerts_once(): void
+    {
+        $id   = $this->order(['amount_naira' => 450000]);
+        $post = $this->mailbox();
+        $svc  = new RefundService($this->gateway(), $post);
+
+        $svc->sweep();
+        $svc->sweep();
+        $svc->sweep();
+
+        $d = $this->row($id);
+        $this->assertSame('manual', $d->refund_state);
+        $this->assertStringContainsString('ceiling', (string) $d->refund_reason);
+        $this->assertNull($d->refund_requested_at, 'nothing was asked of any gateway, so the claim stays free');
+        $this->assertCount(1, $post->sent, 'one email, not one per sweep');
+    }
+
+    /** The ceilings are dials now, so an incident does not need a deploy. */
+    public function test_the_per_order_ceiling_can_be_raised_deliberately(): void
+    {
+        DB::table('gates_settings')->updateOrInsert(
+            ['key_name' => 'refund_max_order_naira'], ['value' => '500000']);
+
+        $this->order(['amount_naira' => 450000]);
+        $gw = $this->gateway();
+        (new RefundService($gw))->sweep();
+
+        $this->assertCount(1, $gw->refunds);
+        $this->assertSame(450000, $gw->refunds[0]['amount']);
+    }
+
+    /** But not without limit. A ceiling that can be raised to anything is not a ceiling. */
+    public function test_a_silly_ceiling_setting_falls_back_to_something_sane(): void
+    {
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'refund_max_daily_naira'], ['value' => '0']);
+        $this->assertSame(1_000_000, RefundService::maxDailyNaira(), 'zero reads as broken, not as a policy');
+
+        DB::table('gates_settings')->updateOrInsert(['key_name' => 'refund_max_daily_naira'], ['value' => '999999999']);
+        $this->assertSame(20_000_000, RefundService::maxDailyNaira(), 'capped in code');
+    }
+
+    // ── what support is allowed to say about all this ────────────────────────
+
+    /**
+     * "Failed" no longer means finished. Telling somebody their refund failed when
+     * it is being retried over the next day is how one complaint becomes two.
+     */
+    public function test_a_retrying_refund_does_not_read_as_a_dead_end(): void
+    {
+        $this->order();
+        (new RefundService($this->gateway(['ok' => false, 'status' => 'failed'])))->sweep();
+
+        $s = RefundService::statusFor(self::REF);
+        $this->assertSame('retrying', $s['state']);
+        $this->assertFalse($s['settled']);
+        $this->assertStringContainsString('retried', $s['say']);
+    }
+
+    /** And a parked order is honestly described as a person's job, not as nothing. */
+    public function test_a_parked_refund_reads_as_being_handled_by_a_person(): void
+    {
+        $this->order(['refund_state' => 'manual', 'amount_naira' => 450000]);
+
+        $s = RefundService::statusFor(self::REF);
+        $this->assertSame('manual', $s['state']);
+        $this->assertStringContainsString('person', $s['say']);
+        $this->assertStringNotContainsString('No refund has been started', $s['say']);
+    }
 }

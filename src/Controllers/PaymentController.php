@@ -461,7 +461,16 @@ final class PaymentController
         $changed = DB::table('gates_donations')
             ->where('payment_ref', $reference)
             ->where('status', 'pending')
-            ->update(['status' => 'confirmed']);
+            ->update(\AfricaGates\Support\OptionalColumn::filter('gates_donations', [
+                'status' => 'confirmed',
+                // WHEN the money arrived. The platform recorded only when checkout
+                // STARTED, so every question about confirmation — including the
+                // refund grace window, which documents itself as measuring this —
+                // was answered with the wrong timestamp. Dropped on an unmigrated
+                // database rather than throwing: losing the moment costs accuracy,
+                // losing this UPDATE costs the buyer their votes.
+                'confirmed_at' => Carbon::now()->toDateTimeString(),
+            ], ['confirmed_at']));
 
         if ($changed > 0) {
             $this->log?->info('[payment] confirmed', ['src' => $source, 'ref' => $reference, 'amount' => $v['amount']]);

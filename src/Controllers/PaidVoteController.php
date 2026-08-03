@@ -364,7 +364,13 @@ final class PaidVoteController
             $this->log?->warning('[paid-vote] OVERPAID — confirming anyway',
                 ['ref' => $reference, 'expected' => $owed, 'paid' => $paid, 'surplus' => $paid - $owed]);
         }
-        $changed = DB::table('gates_donations')->where('payment_ref', $reference)->where('status', 'pending')->update(['status' => 'confirmed']);
+        // `confirmed_at` — the moment money arrived, which nothing recorded before.
+        // Dropped on an unmigrated database, like `show_name` and `provider`.
+        $changed = DB::table('gates_donations')->where('payment_ref', $reference)->where('status', 'pending')
+            ->update(OptionalColumn::filter('gates_donations', [
+                'status'       => 'confirmed',
+                'confirmed_at' => Carbon::now()->toDateTimeString(),
+            ], ['confirmed_at']));
         return $changed > 0 ? 'confirmed' : 'already';
     }
 
