@@ -286,3 +286,18 @@
   .gee[data-open="1"] .gee-panel{ animation:none; }
   .gee-fab, .gee-send, .gee-chip{ transition:none; }
 }
+
+/* ── Pulse, on a phone: the launcher and the action rail want the same pixels ──
+   The feed card's action rail (heart, reply, repost, share, save — each with a
+   count) runs down the RIGHT edge of every card, and the launcher is fixed to the
+   bottom right. Measured on a 390px screen: the fab sat directly on top of a
+   card's repost count.
+
+   The rail cannot move — it is the card's primary interaction and its position is
+   the convention every feed uses. So the launcher steps aside, on phones only,
+   exactly as it already does for members on the community pages. Nothing is lost:
+   the feed is a browsing surface, and /help and /support are one tap away in the
+   bottom nav's Menu. Desktop keeps it — there is a whole margin of room there. */
+@media (max-width:560px){
+  body[data-page="pulse"] .gee{ display:none; }
+}
