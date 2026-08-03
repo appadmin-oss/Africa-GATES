@@ -73,6 +73,10 @@ final class AssetBundle
         'assets/css/components/gee.css',
         'assets/css/components/community-modal.css',
         'assets/css/components/site-search.css',
+        // The immersive mobile Pulse feed. After site-search so its
+        // body[data-page="pulse"] overrides win over the generic components, and
+        // before a11y.css, which must stay last.
+        'assets/css/components/pulse-immersive.css',
         // LAST, and it must stay last — its corrections are meant to win.
         'assets/css/a11y.css',
     ];

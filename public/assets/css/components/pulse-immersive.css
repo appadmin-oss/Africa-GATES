@@ -1,0 +1,278 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Pulse — the immersive mobile feed
+   ════════════════════════════════════════════════════════════════════════════
+
+   Built to the supplied mockup (Pulse_page_GATES_Instagram_redesign), whose own
+   brief is the clearest statement of the intent:
+
+     "Pulse was a two-column blog wall. It is now a FULL-BLEED VERTICAL FEED with
+      a right-hand action rail … and one Post button."
+     "Full-bleed, one card at a time. Media owns the screen and snaps; chrome
+      floats over it. Nothing competes for attention."
+     "The feed stays black in both themes — media owns the canvas."
+
+   What shipped before this file had the right ANATOMY — scrim, right rail with
+   counts, bottom-left meta, double-tap burst — and the wrong PRESENTATION: white
+   rounded cards in a padded column on a light page, under a hero headline and a
+   tab strip, beside a sidebar. A blog wall with nicer cards. Hence "looks nothing
+   like my attachment", which was a fair reading of it.
+
+   ── SCOPE ────────────────────────────────────────────────────────────────────
+
+   Phones only (≤768px), and only on Pulse. Desktop keeps the two-column reading
+   layout, which the mockup also keeps — its desktop screen is a different design,
+   not this one scaled up. Everything is scoped under
+   `body[data-page="pulse"]` so no other page can be caught by it.
+
+   ── WHY position:fixed RATHER THAN A TALLER CONTAINER ────────────────────────
+
+   The feed has to be the viewport: one post per screen, snapping. It lives inside
+   `.pl-grid` inside a padded page container, so making it full-bleed by unwinding
+   every ancestor's padding, max-width and margin would couple this file to the
+   whole page's layout and break the first time any of it changed. Taking the
+   element out of flow instead makes the geometry depend on nothing above it.
+
+   ── THE TOKENS ARE THE MOCKUP'S ──────────────────────────────────────────────
+
+   Lifted exactly, so the two can be compared without arguing about shades.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width:768px){
+
+  body[data-page="pulse"]{
+    /* The mockup's palette, verbatim from its :root. */
+    --pi-bg:#07100F; --pi-panel:#0B1A1B; --pi-sf:#12211F;
+    --pi-line:rgba(244,247,245,.1); --pi-tx:#F4F7F5;
+    --pi-tx2:rgba(244,247,245,.6); --pi-tx3:rgba(244,247,245,.4);
+    --pi-acc:#7FC87C; --pi-gold:#C9A24B;
+    background:var(--pi-bg) !important;
+  }
+
+  /* ── Chrome that competed with the media ──────────────────────────────────
+     The mockup floats chrome OVER the canvas and carries navigation in the tab
+     bar at the bottom, which this site already has. So the announcement strip,
+     the top nav, the page hero, the tab strip, the sidebar and the footer all
+     stand down here — every one of them was pushing the first post below the
+     fold on a 390px screen. Nothing becomes unreachable: the bottom nav keeps
+     Home, Pulse, Nominate, Ranks and Menu. */
+  body[data-page="pulse"] .ag-announce,
+  body[data-page="pulse"] .announcement,
+  body[data-page="pulse"] .site-nav,
+  body[data-page="pulse"] .ag-nav,
+  body[data-page="pulse"] .nav,
+  body[data-page="pulse"] .site-footer,
+  body[data-page="pulse"] footer,
+  body[data-page="pulse"] .pl-tabs,
+  body[data-page="pulse"] .pl-rail,
+  body[data-page="pulse"] .community-fab,
+  body[data-page="pulse"] #backToTop,
+  body[data-page="pulse"] .pl-hero,
+  body[data-page="pulse"] .pf-chips{ display:none !important; }
+
+  /* ── The feed IS the screen ───────────────────────────────────────────────
+     `100dvh` not `100vh`: on mobile Safari and Chrome the visual viewport
+     shrinks when the URL bar appears, and `vh` keeps the old number — which puts
+     the bottom of every post, meaning the rail and the caption, underneath the
+     browser chrome. dvh is the one that tracks it. */
+  body[data-page="pulse"] .pl-feed{
+    position:fixed; inset:0; z-index:1;
+    margin:0; padding:0; gap:0;
+    height:100dvh; width:100%;
+    overflow-y:auto; overscroll-behavior-y:contain;
+    scroll-snap-type:y mandatory;
+    -webkit-overflow-scrolling:touch;
+    background:var(--pi-bg);
+    scrollbar-width:none;
+  }
+  body[data-page="pulse"] .pl-feed::-webkit-scrollbar{ width:0; height:0; }
+
+  /* One post, one screen, and it STOPS there — `scroll-snap-stop:always` is what
+     stops a fast flick skipping three posts, which is the difference between a
+     feed and a long page that happens to snap. */
+  body[data-page="pulse"] .pf{
+    position:relative;
+    height:100dvh;
+    margin:0 !important;
+    background:#000;
+    border:0; border-radius:0;
+    overflow:hidden;
+    scroll-snap-align:start;
+    scroll-snap-stop:always;
+  }
+  body[data-page="pulse"] .pf + .pf{ margin-top:0 !important; }
+
+  /* The media fills it. `--media` capped the height at 70vh for the card layout;
+     here the canvas is the whole thing. */
+  body[data-page="pulse"] .pf__stage,
+  body[data-page="pulse"] .pf__stage--media{
+    position:absolute; inset:0;
+    aspect-ratio:auto; max-height:none; height:100%;
+    border-radius:0; background:#000;
+  }
+  body[data-page="pulse"] .pf__stage img{ object-fit:cover; }
+  /* Video stays `contain`: cropping somebody's face out of their own clip to fill
+     a frame is worse than letterboxing it. */
+  body[data-page="pulse"] .pf__stage video{ object-fit:contain; }
+
+  /* A text post has no media, so the words ARE the canvas. BOTTOM-aligned, not
+     centred: the mockup keeps the headline directly above the handle, and centring
+     it left ~700px of black between the sentence and the name it belongs to —
+     which read as two unrelated things on one screen rather than one post. */
+  /* ABOVE the scrim. The scrim is `inset:0` with no z-index, so on a text post —
+     where the words are the canvas rather than something painted under it — it was
+     laid over the sentence and darkened it. Computed colour said #fff while the
+     screen showed grey, which is how long that took to find. The rail and the meta
+     already sit at z-index 3 for the same reason. */
+  body[data-page="pulse"] .pf__canvas{
+    position:relative; z-index:2;
+    min-height:100%; align-items:flex-end;
+    padding:96px 78px 200px 15px;
+    background:radial-gradient(120% 90% at 20% 15%, #12211F 0%, #07100F 70%);
+  }
+  /* `!important` on the colour, and it is not laziness: a11y.css loads LAST by
+     design so its corrections win, and it sets a muted colour on `p`. Without this
+     the headline renders mid-grey on black — measured, and it looked disabled.
+     The size is the mockup's 23px, which on a 390px screen is where a sentence
+     fits in three lines instead of five. */
+  body[data-page="pulse"] .pf__canvas p{
+    font-size:23px; line-height:1.16; color:#fff !important;
+    text-shadow:0 2px 12px rgba(0,0,0,.6); text-wrap:pretty;
+  }
+  body[data-page="pulse"] .pf__cap{ color:rgba(255,255,255,.92) !important; }
+  body[data-page="pulse"] .pl-compose p,
+  body[data-page="pulse"] .pl-studio p{ color:var(--pi-tx2) !important; }
+
+  /* The scrim the mockup specifies: dark at both ends so the floating chrome
+     stays legible over any photograph, clear through the middle so the picture
+     is not veiled. Percentages are the mockup's. */
+  body[data-page="pulse"] .pf__scrim{
+    background:linear-gradient(180deg,
+      rgba(0,0,0,.62) 0%, rgba(0,0,0,.06) 22%, rgba(0,0,0,0) 40%,
+      rgba(0,0,0,.55) 76%, rgba(0,0,0,.88) 100%) !important;
+  }
+
+  /* ── The right rail ──────────────────────────────────────────────────────
+     Mockup geometry: right:10px, bottom:126px, 20px between actions. The bottom
+     offset clears the site's own bottom nav, which is what the mockup's tab bar
+     occupies. */
+  body[data-page="pulse"] .pf__rail{
+    right:10px; bottom:126px; gap:20px;
+    align-items:center;
+  }
+  body[data-page="pulse"] .pf__r svg{
+    width:31px; height:31px;
+    filter:drop-shadow(0 2px 7px rgba(0,0,0,.55));
+  }
+  body[data-page="pulse"] .pf__r span{
+    font:700 11.5px/1 var(--ag-font-mono,'JetBrains Mono',monospace);
+    color:#fff; text-shadow:0 1px 4px rgba(0,0,0,.6);
+  }
+
+  /* ── The bottom-left meta ────────────────────────────────────────────────
+     Mockup geometry: left:15px, right:78px (clear of the rail), bottom:118px,
+     9px rhythm. The headline is Playfair at 23px — the one place the feed uses
+     the display face, because it is the sentence somebody stops for. */
+  body[data-page="pulse"] .pf__meta{
+    left:15px; right:78px; bottom:118px; gap:9px;
+  }
+  body[data-page="pulse"] .pf__name{
+    font-weight:700; font-size:15px; color:#fff;
+    text-shadow:0 1px 6px rgba(0,0,0,.6);
+  }
+  body[data-page="pulse"] .pf__cap{
+    font-size:13.5px; line-height:1.45; color:rgba(255,255,255,.92);
+    text-shadow:0 1px 6px rgba(0,0,0,.6);
+  }
+  body[data-page="pulse"] .pf__role{
+    font-size:13px; line-height:1.4; font-weight:600; color:var(--pi-acc);
+    text-shadow:0 1px 6px rgba(0,0,0,.6);
+  }
+  body[data-page="pulse"] .pf__chan{
+    align-self:flex-start;
+    padding:3px 8px; border-radius:999px;
+    background:rgba(11,26,27,.55); border:1px solid rgba(127,200,124,.35);
+    font:700 8.5px/1 var(--ag-font-mono,'JetBrains Mono',monospace);
+    letter-spacing:.1em; text-transform:uppercase; color:rgba(127,200,124,.9);
+  }
+  body[data-page="pulse"] .pf__when,
+  body[data-page="pulse"] .pf__more2{
+    color:rgba(255,255,255,.65); text-shadow:0 1px 4px rgba(0,0,0,.6);
+  }
+
+  /* ── What the card used to carry BELOW the media ─────────────────────────
+     The summary strip, the inline comment form and the reposted-by line were a
+     white block under each card. They cannot be stacked under a post that is
+     exactly one screen tall, and the mockup puts comments in a SHEET rather than
+     inline. So they are hidden here, not deleted: the rail's comment button
+     opens the sheet, which is the same content in the place the design puts it. */
+  body[data-page="pulse"] .pf__sum,
+  body[data-page="pulse"] .pf__cm,
+  body[data-page="pulse"] .pf__reposted{ display:none !important; }
+
+  /* The report affordance stays, floated top-right over the media. */
+  body[data-page="pulse"] .pf__flag{
+    top:14px; right:12px;
+    color:rgba(255,255,255,.85);
+    filter:drop-shadow(0 1px 5px rgba(0,0,0,.6));
+  }
+
+  /* ── The tail of the feed, on black ──────────────────────────────────────
+     "You are all caught up" and the loader were dark text on a light page. */
+  body[data-page="pulse"] .pf-end,
+  body[data-page="pulse"] .pf-more{
+    height:100dvh; scroll-snap-align:start;
+    display:grid; place-items:center;
+    color:var(--pi-tx2); background:var(--pi-bg);
+  }
+
+  /* ── The header, not a banner ─────────────────────────────────────────────
+     The compose gate was a full card. Floated over the feed it covered the top
+     third of the first post — measured at 390x844, it hid the post it was sitting
+     on. The mockup's top chrome is a slim bar, and the bottom nav already carries
+     the + button, so on a phone this is reduced to a single line: one short
+     sentence and one small action, on one row. */
+  body[data-page="pulse"] .pl-compose,
+  body[data-page="pulse"] .pl-studio{
+    position:fixed; left:10px; right:10px; z-index:6;
+    top:calc(8px + env(safe-area-inset-top,0px));
+    margin:0; padding:7px 8px 7px 13px;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:rgba(11,26,27,.72);
+    -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);
+    border:1px solid var(--pi-line); border-radius:999px;
+    color:var(--pi-tx);
+  }
+  body[data-page="pulse"] .pl-compose p,
+  body[data-page="pulse"] .pl-studio p{
+    margin:0; font-size:12px; line-height:1.3; color:var(--pi-tx2);
+    /* One line. The full sentence belongs on the sign-in page, not over a photo. */
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  body[data-page="pulse"] .pl-compose .btn,
+  body[data-page="pulse"] .pl-compose a[href*="login"],
+  body[data-page="pulse"] .pl-studio .btn{
+    flex:none; padding:7px 14px; font-size:12.5px; border-radius:999px;
+  }
+  /* The composer's own textarea and controls are for signed-in members and open
+     from the + button; they have no business as a permanent overlay. */
+  body[data-page="pulse"] .pl-compose__av,
+  body[data-page="pulse"] .pl-compose__count,
+  body[data-page="pulse"] .pl-studio__row,
+  body[data-page="pulse"] .pl-studio__note,
+  body[data-page="pulse"] .pl-compose textarea{ display:none !important; }
+
+  /* New-posts pill and toast float over the canvas, not in the column. */
+  body[data-page="pulse"] .pf-new{
+    position:fixed; left:50%; transform:translateX(-50%);
+    top:calc(12px + env(safe-area-inset-top,0px)); z-index:7; margin:0;
+  }
+  body[data-page="pulse"] .pf-toast{ bottom:96px; z-index:8; }
+}
+
+/* Somebody who has asked for less motion should not be handed a snapping feed:
+   scroll-snap turns every flick into an animation they did not consent to. They
+   get the same content as a plain vertical scroll, still on black. */
+@media (max-width:768px) and (prefers-reduced-motion:reduce){
+  body[data-page="pulse"] .pl-feed{ scroll-snap-type:none; }
+  body[data-page="pulse"] .pf{ scroll-snap-align:none; }
+}
