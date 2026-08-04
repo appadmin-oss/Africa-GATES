@@ -34,6 +34,13 @@ final class LegalServiceTest extends TestCase
 
     public function test_published_list_is_ordered_and_filtered(): void
     {
+        // This assertion is EXHAUSTIVE — it names every slug allowed back — so it owns
+        // the table for the duration. 2026_07_05_legal_docs seeds real published defaults
+        // (privacy, terms, cookies …), which a migrated database genuinely has; asserting
+        // "exactly these two" against them would be testing the seed list, and would
+        // break again the next time a policy document is added.
+        DB::table('gates_legal_docs')->delete();
+
         LegalService::save('cookies', ['title' => 'Cookies', 'is_published' => 1, 'sort_order' => 2, 'body_html' => '<p>c</p>'], 7);
         LegalService::save('privacy', ['title' => 'Privacy', 'is_published' => 1, 'sort_order' => 0, 'body_html' => '<p>p</p>'], 7);
         LegalService::save('hidden',  ['title' => 'Hidden', 'is_published' => 0, 'sort_order' => 1, 'body_html' => '<p>h</p>'], 7);

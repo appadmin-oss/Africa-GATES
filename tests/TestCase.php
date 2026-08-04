@@ -326,7 +326,68 @@ abstract class TestCase extends BaseTestCase
     }
 
 
+    /**
+     * A fully-migrated SQLite schema as replayable statements, built once per process.
+     *
+     * @var list<string>|null
+     */
+    private static ?array $sqliteTemplate = null;
+
+    /**
+     * Build the test schema — base files AND every dated migration.
+     *
+     * ── THE DEFECT THIS CLOSES ───────────────────────────────────────────────
+     *
+     * This method used to load the three `sqlite-*.sql` files and stop, while
+     * {@see loadMysqlSchema()} loaded its files and then ran `MigrationRunner`. So the
+     * two harnesses described different databases, and the DEFAULT one — the one
+     * everybody runs, the one CI runs — described a database that no longer existed:
+     * it was missing every table and column added by a dated migration.
+     *
+     * The consequence was not a subtle skew. Three consecutive commits shipped tests
+     * that could only pass under the opt-in MySQL run, and the default suite went red
+     * with 31 errors reading `no such table: gates_ticket_links` /
+     * `gates_nominee_claims` — failures that say nothing about the code under test and
+     * train everyone to read a red suite as normal. The MySQL note above this class
+     * argues that SQLite is not production and must not be the only thing tested; the
+     * inverse was quietly true as well, and cost more.
+     *
+     * ── WHY THE RESULT IS CACHED AND REPLAYED ────────────────────────────────
+     *
+     * The SQLite harness builds a fresh `:memory:` database for EVERY test, which is
+     * what makes it fast and perfectly isolated. Running ~70 migration files inside all
+     * ~1,850 of those boots would mean well over a hundred thousand file includes.
+     *
+     * So the expensive build happens once, and what it produced is snapshotted from
+     * `sqlite_master` (plus any rows a migration left behind) into plain statements
+     * that later boots replay. Identical schema, one build.
+     */
     private function loadSchema(): void
+    {
+        if (self::$sqliteTemplate !== null) {
+            $this->replaySqliteTemplate(self::$sqliteTemplate);
+            return;
+        }
+
+        $this->applySchemaFiles();
+
+        // Then the dated migrations, so the test schema matches a MIGRATED production
+        // database rather than the base files alone — the same reason loadMysqlSchema()
+        // does it. Output is captured because migrations echo their progress and
+        // phpunit.xml sets failOnRisky: a test that prints is a risky test.
+        ob_start();
+        try {
+            $this->runPendingMigrations();
+        } finally {
+            ob_end_clean();
+        }
+
+        self::$sqliteTemplate = $this->snapshotSqlite();
+        Capsule::connection()->getPdo()->exec('PRAGMA foreign_keys = OFF');
+    }
+
+    /** The three base .sql files, into the current connection. */
+    private function applySchemaFiles(): void
     {
         $pdo = Capsule::connection()->getPdo();
         foreach (self::SCHEMA_FILES as $file) {
@@ -353,5 +414,92 @@ abstract class TestCase extends BaseTestCase
         // OFF *after* loading so unit seeds can stay minimal. Done outside any
         // transaction so it persists for the test body.
         $pdo->exec('PRAGMA foreign_keys = OFF');
+    }
+
+    /**
+     * Apply every pending migration, and be LOUD if any is left over.
+     *
+     * MigrationRunner batches deliberately — it caps steps per call and stops at an
+     * internal wall-clock deadline, because on a shared host each call is one web
+     * request that must not time out. Calling it once and assuming it finished is
+     * exactly how a harness ends up with a half-built schema and a suite full of
+     * errors about missing tables, which is the failure this whole method exists to
+     * end. So it is driven to completion and an exception is thrown if it stalls: a
+     * schema that is quietly incomplete is worse than a harness that refuses to start.
+     */
+    private function runPendingMigrations(): void
+    {
+        $lastPending = PHP_INT_MAX;
+
+        for ($pass = 0; $pass < 40; $pass++) {
+            $result  = \AfricaGates\Services\MigrationRunner::run(1000);
+            if (!($result['ok'] ?? false)) {
+                throw new \RuntimeException('Test schema migration failed: ' . ($result['error'] ?? 'unknown'));
+            }
+
+            $pending = count(\AfricaGates\Services\MigrationRunner::status()['pending']);
+            if ($pending === 0) return;
+            if ($pending >= $lastPending) {
+                throw new \RuntimeException("Test schema migration stalled with {$pending} step(s) pending.");
+            }
+            $lastPending = $pending;
+        }
+
+        throw new \RuntimeException('Test schema migration did not converge.');
+    }
+
+    /**
+     * Everything needed to rebuild this database, as statements.
+     *
+     * DDL comes from `sqlite_master` in creation order, which is already a valid replay
+     * order — a table always precedes its own indexes and triggers there.
+     *
+     * Rows are included as well, and not for tidiness. A migration that backfills or
+     * seeds is part of the schema a migrated production database has; capturing only
+     * DDL would reintroduce, in a subtler form, the exact divergence this change
+     * removes. In practice that is the `gates_migrations` ledger and a handful of
+     * defaults, so the cost is negligible.
+     *
+     * @return list<string>
+     */
+    private function snapshotSqlite(): array
+    {
+        $pdo = Capsule::connection()->getPdo();
+
+        $ddl = [];
+        $tables = [];
+        $rows = $pdo->query("SELECT type, name, sql FROM sqlite_master
+                              WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'")
+                    ->fetchAll(\PDO::FETCH_ASSOC);
+        foreach ($rows as $r) {
+            $ddl[] = (string) $r['sql'];
+            if ($r['type'] === 'table') $tables[] = (string) $r['name'];
+        }
+
+        $inserts = [];
+        foreach ($tables as $table) {
+            $data = $pdo->query('SELECT * FROM "' . $table . '"')->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($data as $row) {
+                $cols = array_map(static fn(string $c): string => '"' . $c . '"', array_keys($row));
+                $vals = array_map(
+                    static fn($v): string => $v === null ? 'NULL' : $pdo->quote((string) $v),
+                    array_values($row),
+                );
+                $inserts[] = 'INSERT INTO "' . $table . '" (' . implode(',', $cols) . ') VALUES ('
+                           . implode(',', $vals) . ')';
+            }
+        }
+
+        return array_merge($ddl, $inserts);
+    }
+
+    /** @param list<string> $template */
+    private function replaySqliteTemplate(array $template): void
+    {
+        $pdo = Capsule::connection()->getPdo();
+        $pdo->exec('PRAGMA foreign_keys = OFF');
+        foreach ($template as $stmt) {
+            $pdo->exec($stmt);
+        }
     }
 }
