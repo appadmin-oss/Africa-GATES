@@ -246,7 +246,80 @@ final class MergeService
         self::reassignPlain('gates_form_tokens', 'subject_id',     $from, $to, $batch, $log, ['purpose', 'nominee']);
         self::reassignPlain('gates_events',      'subject_id',     $from, $to, $batch, $log, ['subject_type', 'nominee']);
         self::reassignPlain('gates_activity',    'target_id',      $from, $to, $batch, $log, ['target_type', 'nominee']);
+
+        // Claims need their own rule: active_nominee_id is UNIQUE, so it cannot be moved
+        // by a plain UPDATE. See reassignClaims().
+        self::reassignClaims($from, $to, $batch, $log);
+
         // Deliberately untouched: gates_vote_snapshots (hash chain), gates_audit_log (history), gates_nominations (decoupled).
+    }
+
+    /**
+     * Move nominee claims to the survivor, respecting "one owner per page".
+     *
+     * ── WHY THIS IS NOT A reassignPlain CALL ─────────────────────────────────
+     *
+     * `gates_nominee_claims` carries the invariant `active_nominee_id = nominee_id while
+     * active, NULL otherwise`, UNIQUE. Two consequences a plain UPDATE gets wrong:
+     *
+     *   • Updating `nominee_id` alone leaves an ACTIVE claim pointing its unique slot at
+     *     the merged-away id. The survivor's page then reads as UNCLAIMED — so a stranger
+     *     can start a fresh claim on it — while the real owner's proof sits on a row no
+     *     page looks at, and the slot they need can never be freed.
+     *   • Updating both blindly collides the moment the survivor already has an owner.
+     *
+     * ── AND WHY A COLLISION IS A HOLD, NOT A DELETE ──────────────────────────
+     *
+     * When both pages were claimed, the merge has just discovered that two people own what
+     * is now one page. docs/CLAIM-FAIRNESS-AND-FRAUD.md §10 refuses to auto-transfer:
+     * "a second claim on an active page goes to a human, always." So the incoming claim is
+     * HELD with a reason rather than dropped — held is not a refusal, the row stays
+     * queryable, and somebody decides. Dropping it would silently erase one of the two
+     * people's evidence, and which one would depend on merge direction.
+     *
+     * Journaled like every other move, so `unmerge()` can put it back.
+     */
+    private static function reassignClaims(int $from, int $to, string $batch, array &$log): void
+    {
+        if (!self::hasTable('gates_nominee_claims') || !self::hasCol('gates_nominee_claims', 'nominee_id')) return;
+
+        $hasActive = self::hasCol('gates_nominee_claims', 'active_nominee_id');
+
+        try {
+            $survivorOwned = $hasActive && DB::table('gates_nominee_claims')
+                ->where('active_nominee_id', $to)->exists();
+
+            foreach (DB::table('gates_nominee_claims')->where('nominee_id', $from)->get() as $r) {
+                $row  = (array) $r;
+                $id   = (int) ($row['id'] ?? 0);
+                $wasActive = $hasActive && ($row['active_nominee_id'] ?? null) !== null;
+
+                $set = ['nominee_id' => $to];
+
+                if ($wasActive && !$survivorOwned) {
+                    $set['active_nominee_id'] = $to;
+                    $survivorOwned = true;               // this claim is now the owner
+                } elseif ($wasActive) {
+                    // Two owners for one page. A person decides which.
+                    $set['active_nominee_id'] = null;
+                    $set['status']            = 'held';
+                    if (self::hasCol('gates_nominee_claims', 'hold_reason')) {
+                        $set['hold_reason'] = 'This page was merged with another that already had '
+                            . 'an owner, so a person needs to confirm which claim stands. There is '
+                            . 'nothing to pay.';
+                    }
+                }
+
+                // The FULL row is snapshotted, not just the old nominee_id: this move can
+                // also change `status` and `active_nominee_id`, and an unmerge that restored
+                // only the id would leave a claim held forever for a merge that was undone.
+                $log[] = self::entry($batch, $to, $from, 'reassign', 'gates_nominee_claims',
+                                     $id, 'nominee_id', (string) $from, json_encode($row));
+                DB::table('gates_nominee_claims')->where('id', $id)->update($set);
+            }
+        } catch (\Throwable $e) {
+            error_log('[merge] could not move claims ' . $from . '→' . $to . ': ' . $e->getMessage());
+        }
     }
 
     /** UPDATE $col $from→$to (scoped to a polymorphic [typeCol,typeVal] if given), journaling each moved row's id + old value. */

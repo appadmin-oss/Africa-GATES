@@ -420,20 +420,72 @@ final class NomineeClaimServiceTest extends TestCase
         $this->assertSame('active', $good['status'], 'the right code must still work');
     }
 
-    /** But a code cannot be walked. */
-    public function test_a_code_dies_after_too_many_wrong_guesses(): void
+    /**
+     * A guesser runs out of tries — and it is the GUESSER's budget that runs out.
+     *
+     * §4 attacker 5. Five wrong guesses at one claim from one client is generous for
+     * somebody mistyping a code they were sent, and hopeless against a million-value space
+     * that lives ten minutes.
+     */
+    public function test_a_client_runs_out_of_guesses(): void
     {
         $this->nomination();
         $mailer = new ClaimFlowMailer();
-        $svc    = $this->service($mailer);
-        $start  = $svc->start($this->nomineeId, $this->channel($svc, 'email')['key']);
-        $real   = $mailer->lastCode();
+        $svc    = $this->service($mailer, null, new RateLimitService());
+        $start  = $svc->start($this->nomineeId, $this->channel($svc, 'email')['key'],
+                              clientKey: hash('sha256', 'guesser'));
 
-        for ($i = 0; $i < 6; $i++) $svc->confirm($start['claim_id'], '000001');
+        $last = ['ok' => true, 'code' => ''];
+        for ($i = 0; $i < 8 && $last['code'] !== 'TOO_MANY_ATTEMPTS'; $i++) {
+            $last = $svc->confirm($start['claim_id'], '00000' . ($i % 10),
+                                  clientKey: hash('sha256', 'guesser'));
+        }
 
-        $out = $svc->confirm($start['claim_id'], $real);
-        $this->assertFalse($out['ok']);
-        $this->assertContains($out['code'], ['TOO_MANY_ATTEMPTS', 'INVALID_CODE']);
+        $this->assertSame('TOO_MANY_ATTEMPTS', $last['code']);
+        // Still a way out, not a dead end.
+        $this->assertStringContainsString('@', $last['message']);
+    }
+
+    /**
+     * A STRANGER'S WRONG GUESSES MUST NOT DESTROY THE REAL CLAIMANT'S CODE.
+     *
+     * ── THE ATTACK THIS CLOSES ───────────────────────────────────────────────
+     *
+     * `claim_id` is an auto-increment integer handed straight back by start(), and confirm()
+     * takes no session — it is open to guests, as claiming has to be. So a stranger can
+     * count upwards through other people's in-flight claims.
+     *
+     * The attempt budget used to live on the TOKEN: six wrong guesses marked it used. That
+     * made a victim's code something anybody could destroy for the price of six requests —
+     * and the victim's way back was another code, rationed to four an hour per browser and
+     * six a day for the whole page. Roughly thirty requests locked a real nominee out of
+     * claiming their own name until the next day, from anywhere, with no account. No money
+     * moved and nothing looked broken, which is what made it worth finding.
+     *
+     * The budget is now spent by whoever does the guessing, so an attacker exhausts their
+     * own and the person holding the real code walks straight through.
+     */
+    public function test_a_stranger_cannot_burn_out_somebody_elses_claim_code(): void
+    {
+        $this->nomination();
+        $mailer = new ClaimFlowMailer();
+        $svc    = $this->service($mailer, null, new RateLimitService());
+
+        // The real nominee asks for a code.
+        $mine = $svc->start($this->nomineeId, $this->channel($svc, 'email')['key'],
+                            clientKey: hash('sha256', 'the-nominee'));
+        $myCode = $mailer->lastCode();
+
+        // An attacker who guessed the claim id hammers it from their own browser.
+        for ($i = 0; $i < 30; $i++) {
+            $svc->confirm($mine['claim_id'], str_pad((string) $i, 6, '0', STR_PAD_LEFT),
+                          clientKey: hash('sha256', 'the-attacker'));
+        }
+
+        // The code still works for the person it was sent to.
+        $done = $svc->confirm($mine['claim_id'], $myCode, clientKey: hash('sha256', 'the-nominee'));
+        $this->assertSame('active', $done['status'],
+            'a stranger must not be able to spend the claimant\'s attempts');
     }
 
     /**

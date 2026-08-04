@@ -196,4 +196,86 @@ class MergeServiceTest extends TestCase
         $r = MergeService::mergeNominees(2, [1]);       // try to keep the tombstone
         $this->assertFalse($r['ok']);
     }
+
+    // ══ claims follow the page they are a claim on ═══════════════════════════
+
+    /** A claim on nominee $nomineeId, active unless told otherwise. */
+    private function claim(int $nomineeId, bool $active = true): int
+    {
+        return (int) DB::table('gates_nominee_claims')->insertGetId([
+            'nominee_id'        => $nomineeId,
+            'status'            => $active ? 'active' : 'held',
+            'method'            => 'otp',
+            'channel'           => 'email',
+            'channel_hint'      => 'x••••@example.test',
+            'active_nominee_id' => $active ? $nomineeId : null,
+            'created_at'        => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * A claimed nominee merged away must not leave its owner behind.
+     *
+     * ── WHAT WENT WRONG BEFORE ───────────────────────────────────────────────
+     *
+     * `gates_nominee_claims` arrived after the merge logic and was never added to it, so
+     * merging a claimed nominee left the claim pointing at the merged-away id. Two things
+     * followed, both silent: the SURVIVING page read as unclaimed — so anybody at all could
+     * start a fresh claim on somebody else's name — and the real owner's `active_nominee_id`
+     * sat on a tombstone, spending the one unique slot on a row no page ever reads.
+     */
+    public function test_a_claim_moves_to_the_surviving_page(): void
+    {
+        $claimId = $this->claim(2);                     // B is claimed
+        $r = MergeService::mergeNominees(1, [2]);       // B merges into A
+        $this->assertTrue($r['ok'], $r['error'] ?? '');
+
+        $claim = DB::table('gates_nominee_claims')->where('id', $claimId)->first();
+        $this->assertSame(1, (int) $claim->nominee_id, 'the claim follows the page');
+        $this->assertSame(1, (int) $claim->active_nominee_id, 'and still owns it');
+        $this->assertSame('active', $claim->status);
+    }
+
+    /**
+     * Two owners for one page goes to a person — §10 refuses to auto-transfer.
+     *
+     * Held, not deleted: dropping one would silently erase somebody's evidence, and which
+     * one it erased would depend on the direction the admin happened to merge in.
+     */
+    public function test_two_claimed_pages_merging_holds_the_incoming_claim(): void
+    {
+        $keepClaim  = $this->claim(1);
+        $mergeClaim = $this->claim(2);
+
+        $this->assertTrue(MergeService::mergeNominees(1, [2])['ok']);
+
+        // Exactly one owner, and it is the survivor's own claim.
+        $this->assertSame(1, (int) DB::table('gates_nominee_claims')
+            ->whereNotNull('active_nominee_id')->count());
+        $this->assertSame(1, (int) DB::table('gates_nominee_claims')
+            ->where('id', $keepClaim)->value('active_nominee_id'));
+
+        $moved = DB::table('gates_nominee_claims')->where('id', $mergeClaim)->first();
+        $this->assertSame('held', $moved->status);
+        $this->assertSame(1, (int) $moved->nominee_id);
+        $this->assertNull($moved->active_nominee_id);
+        // §7.2 — a hold explains itself and never reads as a refusal.
+        $this->assertStringContainsString('nothing to pay', (string) $moved->hold_reason);
+        foreach (['denied', 'refused', 'rejected', 'fraud'] as $word) {
+            $this->assertStringNotContainsString($word, strtolower((string) $moved->hold_reason));
+        }
+    }
+
+    /** And the move is journaled, so an unmerge can put the claim back. */
+    public function test_the_claim_move_is_journaled(): void
+    {
+        $claimId = $this->claim(2);
+        MergeService::mergeNominees(1, [2]);
+
+        $this->assertTrue(
+            DB::table('gates_merge_log')
+                ->where('tbl', 'gates_nominee_claims')->where('row_pk', $claimId)->exists(),
+            'an unrecorded move cannot be undone'
+        );
+    }
 }

@@ -317,9 +317,17 @@ abstract class TestCase extends BaseTestCase
             if ($sql === false) throw new \RuntimeException("Missing schema file: {$file}");
             $pdo->exec($sql);
         }
-        // Then the dated migrations, so the test schema matches a migrated
-        // production database rather than the base files alone.
-        \AfricaGates\Services\MigrationRunner::run(1000);
+        // Then the dated migrations, so the test schema matches a migrated production
+        // database rather than the base files alone. Driven to completion and output
+        // captured, exactly as the SQLite path does it — MigrationRunner batches and stops
+        // at a wall-clock deadline, so one call is not a guarantee that it finished, and
+        // migrations echo their progress into a suite that fails on risky output.
+        ob_start();
+        try {
+            $this->runPendingMigrations();
+        } finally {
+            ob_end_clean();
+        }
         self::$expectedTables = (int) Capsule::connection()->selectOne(
             'SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE()'
         )->n;

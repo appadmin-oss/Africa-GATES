@@ -70,8 +70,35 @@ final class NomineeClaimService
     /** How long a claim code lives. Matches the voting OTP — one habit, not two. */
     public const CODE_TTL_MINUTES = 10;
 
-    /** Wrong guesses per code before it dies. */
-    private const MAX_ATTEMPTS = 5;
+    /**
+     * Wrong guesses per code before the code itself dies — a BACKSTOP, not the control.
+     *
+     * ── WHY THIS IS NOT 5 ────────────────────────────────────────────────────
+     *
+     * It was, and that made a victim's code something a stranger could destroy. `claim_id`
+     * is an auto-increment integer handed back by start(), so it is guessable by counting;
+     * confirm() takes no session and is open to guests. Six wrong guesses against somebody
+     * else's claim id used to mark their token used, and they then had to ask for another
+     * — against a limit of {@see CODES_PER_HOUR} an hour and {@see CLAIMS_PER_DAY} a day
+     * for the whole page. Roughly thirty requests could therefore lock a real nominee out
+     * of claiming their own page until tomorrow, from anywhere, with no account.
+     *
+     * The budget that stops brute force now lives PER CLIENT (below), so one attacker
+     * cannot spend another person's. This remains as the last line, and is still nowhere
+     * near walkable: a 6-digit code lives ten minutes in a space of a million, so sixty
+     * guesses is a 0.006% chance. Small enough to ignore, large enough not to be a weapon.
+     */
+    private const MAX_TOKEN_ATTEMPTS = 60;
+
+    /**
+     * Wrong guesses one CLIENT may make against one claim, and across all claims.
+     *
+     * Two dimensions for the same reason start() has two: the per-claim budget is the one
+     * a real person mistyping their own code will feel (five tries is generous), and the
+     * per-client one is what makes sweeping claim ids expensive rather than free.
+     */
+    private const CONFIRMS_PER_CLAIM = 5;
+    private const CONFIRMS_PER_HOUR  = 20;
 
     /**
      * Codes one browser may request per hour, and claims one PAGE may collect per day.
@@ -222,6 +249,16 @@ final class NomineeClaimService
         if ($claim === null) {
             return $this->no('NOT_PENDING',
                 'That claim is no longer open. Please start again from the page.');
+        }
+
+        // The guessing budget is spent BEFORE the code is checked, and it is spent by the
+        // CLIENT doing the guessing. Checking first and counting afterwards would put the
+        // cost of a stranger's guesses on the claimant's code — which is the defect this
+        // replaced. See MAX_TOKEN_ATTEMPTS.
+        if (!$this->withinConfirmLimits($claimId, $clientKey)) {
+            return $this->no('TOO_MANY_ATTEMPTS',
+                'That is too many tries. Please wait an hour and ask for a new code, or write to '
+                . Notifier::supportEmail() . ' and a person will help. There is nothing to pay.');
         }
 
         $nomineeId = (int) $claim->nominee_id;
@@ -490,7 +527,7 @@ final class NomineeClaimService
             }
 
             DB::table('gates_otp_tokens')->where('id', $token->id)->increment('attempts');
-            if (((int) $token->attempts + 1) > self::MAX_ATTEMPTS) {
+            if (((int) $token->attempts + 1) > self::MAX_TOKEN_ATTEMPTS) {
                 DB::table('gates_otp_tokens')->where('id', $token->id)->update(['is_used' => 1]);
                 return ['ok' => false, 'code' => 'TOO_MANY_ATTEMPTS',
                         'message' => 'That is too many tries on one code. Please ask for a new one.'];
@@ -733,6 +770,26 @@ HTML;
         }
         if ($clientKey === '') return true;
         return $this->limits->check($clientKey, 'claim_code', self::CODES_PER_HOUR, 3600);
+    }
+
+    /**
+     * May this client make another guess — at this claim, and at all?
+     *
+     * Keyed on (claim, client) as well as on the client alone, so that exhausting a budget
+     * harms only whoever spent it. With no limiter configured (the CLI, and tests that do
+     * not inject one) the token backstop in {@see MAX_TOKEN_ATTEMPTS} carries the whole
+     * policy, which is why that number is set to something still unwalkable.
+     */
+    private function withinConfirmLimits(int $claimId, string $clientKey): bool
+    {
+        if ($this->limits === null || $clientKey === '') return true;
+
+        // sha256 because gates_rate_limits.fingerprint is exactly 64 characters.
+        $perClaim = hash('sha256', 'claim-confirm:' . $claimId . ':' . $clientKey);
+        if (!$this->limits->check($perClaim, 'claim_confirm', self::CONFIRMS_PER_CLAIM, 3600)) {
+            return false;
+        }
+        return $this->limits->check($clientKey, 'claim_confirm_any', self::CONFIRMS_PER_HOUR, 3600);
     }
 
     // ══ helpers ══════════════════════════════════════════════════════════════

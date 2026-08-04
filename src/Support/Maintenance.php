@@ -139,6 +139,12 @@ final class Maintenance
                 $ran[] = ['magic',      $this->task('magic',      fn() => $this->purgeExpiredMagic())];
                 $ran[] = ['ratelimit',  $this->task('ratelimit',  fn() => $this->pruneRateLimits())];
                 $ran[] = ['sharelinks', $this->task('sharelinks', fn() => $this->pruneShareLinks())];
+                // Ticket links, alongside the other expiring-token tables above. The
+                // service shipped with prune() written, documented and tested — and with
+                // no caller anywhere, so nothing had ever run it and every dead link was
+                // permanent. A pruner nobody calls is not a retention policy.
+                $ran[] = ['ticketlinks', $this->task('ticketlinks',
+                    fn() => \AfricaGates\Services\TicketLinkService::prune())];
                 $ran[] = ['triage-backfill', $this->task('triage-backfill', fn() => NominationTriageService::backfill(100))];
                 $ran[] = ['maillog', $this->task('maillog', fn() => (int) DB::table('gates_mail_log')->where('created_at', '<', Carbon::now()->subDays(30))->delete())];
             }
