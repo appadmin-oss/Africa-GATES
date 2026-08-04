@@ -150,10 +150,61 @@ final class ClaimIndependence
      */
     public static function channelsFor(int $nomineeId, string $deviceFp = '', string $ipHash = ''): array
     {
+        $out = [];
+
+        foreach (self::contactsFor($nomineeId) as $c) {
+            $verdict = self::check(
+                $nomineeId,
+                email:    $c['channel'] === 'email' ? $c['value'] : '',
+                phone:    $c['channel'] === 'phone' ? $c['value'] : '',
+                deviceFp: $deviceFp,
+                ipHash:   $ipHash,
+            );
+
+            $out[] = [
+                'channel'     => $c['channel'],
+                'hint'        => $c['hint'],
+                'value'       => $c['value'],
+                'independent' => $verdict['independent'],
+            ];
+        }
+
+        // Independent channels first, so the fast path is the default and the held
+        // path is a deliberate second choice rather than an accident of ordering.
+        usort($out, static fn($a, $b) => ($b['independent'] <=> $a['independent']));
+        return $out;
+    }
+
+    /**
+     * Every channel on file for this nominee — no verdict, no filtering.
+     *
+     * Separate from {@see channelsFor()} because the two callers want opposite things
+     * from the same list. A claimant is offered the channels that will PASS, sorted so
+     * the fast path is the default. The notification fan-out in
+     * {@see \AfricaGates\Services\ClaimNotifier} must reach every channel there is,
+     * *especially* the ones the claimant did not use and could not control — which is
+     * the whole mechanism by which a stolen claim becomes loud.
+     *
+     * So independence is deliberately not computed here. A fan-out that skipped
+     * non-independent channels would go quiet in exactly the case §1 is about: the
+     * nominator claiming through the address they typed. Their victim's other number
+     * is the one that has to ring.
+     *
+     * `country` rides along because a phone is stored as the nominator typed it
+     * (08031234567) and every messaging provider needs E.164. Resolving that needs the
+     * nomination's country, so it is carried with the number rather than guessed
+     * downstream.
+     *
+     * @return list<array{channel:string, hint:string, value:string, country:string}>
+     */
+    public static function contactsFor(int $nomineeId): array
+    {
         $out  = [];
         $seen = [];
 
         foreach (self::nominationsFor($nomineeId) as $r) {
+            $country = strtoupper(trim((string) ($r->country_code ?? ''))) ?: 'NG';
+
             foreach ([
                 ['email', self::normEmail((string) ($r->nominee_email ?? ''))],
                 ['phone', self::normPhone((string) ($r->nominee_phone ?? ''))],
@@ -161,26 +212,15 @@ final class ClaimIndependence
                 if ($value === '' || isset($seen[$kind . ':' . $value])) continue;
                 $seen[$kind . ':' . $value] = true;
 
-                $verdict = self::check(
-                    $nomineeId,
-                    email:    $kind === 'email' ? $value : '',
-                    phone:    $kind === 'phone' ? $value : '',
-                    deviceFp: $deviceFp,
-                    ipHash:   $ipHash,
-                );
-
                 $out[] = [
-                    'channel'     => $kind,
-                    'hint'        => $kind === 'email' ? self::maskEmail($value) : self::maskPhone($value),
-                    'value'       => $value,
-                    'independent' => $verdict['independent'],
+                    'channel' => $kind,
+                    'hint'    => $kind === 'email' ? self::maskEmail($value) : self::maskPhone($value),
+                    'value'   => $value,
+                    'country' => $country,
                 ];
             }
         }
 
-        // Independent channels first, so the fast path is the default and the held
-        // path is a deliberate second choice rather than an accident of ordering.
-        usort($out, static fn($a, $b) => ($b['independent'] <=> $a['independent']));
         return $out;
     }
 

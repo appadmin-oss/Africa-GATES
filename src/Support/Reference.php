@@ -35,6 +35,43 @@ final class Reference
         return sprintf('AGN-%04d-%s-%s', $year, self::base32($enc, 6), self::CHECK[$enc % 37]);
     }
 
+    /**
+     * A claim reference: AGC-XXXXXX-C.
+     *
+     * Same machinery as a nomination reference, minus the year. A nomination belongs to
+     * exactly one cycle, so the year is useful context; a claim is on a PERSON's page and
+     * may outlive several cycles, so a year in it would actively mislead — somebody would
+     * read AGC-2026 on a claim still open in 2028 and file it under the wrong cycle.
+     *
+     * Shorter matters here beyond tidiness. This is the string a nominee reads out of an
+     * SMS, over a bad line, from a handset that may not be theirs, to say that somebody
+     * has taken their page. Every character dropped is a character that cannot be
+     * misheard.
+     */
+    public static function claim(int $id): string
+    {
+        if ($id < 1 || $id >= self::MOD) {
+            throw new \InvalidArgumentException('Claim id out of reference range.');
+        }
+        $enc = self::mix($id);
+        return sprintf('AGC-%s-%s', self::base32($enc, 6), self::CHECK[$enc % 37]);
+    }
+
+    /** Resolve a claim reference back to a claim id, checksum-verified. Null when invalid. */
+    public static function parseClaimId(string $ref): ?int
+    {
+        if (!preg_match('/^AGC-([0-9A-HJKMNP-TV-Z]{6})-([0-9A-HJKMNP-TV-Z*~$=U])$/', strtoupper(trim($ref)), $m)) {
+            return null;
+        }
+        $enc = 0;
+        foreach (str_split($m[1]) as $ch) {
+            $enc = ($enc << 5) | strpos(self::ALPHABET, $ch);
+        }
+        if (self::CHECK[$enc % 37] !== $m[2]) return null;
+        $id = self::unmix($enc);
+        return ($id >= 1 && $id < self::MOD) ? $id : null;
+    }
+
     /** Format + checksum validation (does not hit the database). */
     public static function isValid(string $ref): bool
     {
