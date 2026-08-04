@@ -371,6 +371,21 @@ return [
         $c->get(Twig::class),
         new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
     ),
+    // Nominee page claiming. Gets the mailer AND the SMS gateway, because §5 of
+    // docs/CLAIM-FAIRNESS-AND-FRAUD.md turns on reaching a channel the claimant could
+    // not control — with email alone the fan-out cannot do the one job it exists for.
+    // The ticket service so a HELD claim lands in front of a person rather than
+    // stopping at a message on a page, and RateLimitService so a farmer cannot walk a
+    // whole category (§4, attacker 5).
+    \AfricaGates\Controllers\ClaimController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\ClaimController(
+        $c->get(Twig::class),
+        new \AfricaGates\Services\NomineeClaimService(
+            $c->get(OtpService::class),
+            \AfricaGates\Services\SmsService::boot(),
+            new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class)),
+            $c->get(RateLimitService::class),
+        )
+    ),
     // The Help Centre reads a corpus of literals in HelpCentre, so it needs
     // nothing but a renderer — no cache, no database, no gateway. That is also
     // why /help keeps working on a database that is mid-migration, which is

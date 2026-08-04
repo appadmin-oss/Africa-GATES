@@ -137,6 +137,9 @@
   .vn-share button:hover, .vn-share a:hover{ border-color:var(--ag-green); color:var(--ag-green); }
   .vn-closed{ background:#fff8df; border:1px solid #f0e0b0; border-radius:14px; padding:14px 16px; font-size:13.5px; line-height:1.55; color:#7a5600; }
   .vn-toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); z-index:90; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:13px 22px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); }
+  .vn-claimline{ margin:34px 0 8px; padding-top:20px; border-top:1px solid rgba(16,41,44,.09); font-size:13px; color:#5a6d6f; text-align:center; }
+  .vn-claimline a{ color:#237b22; font-weight:600; text-decoration:none; }
+  .vn-claimline a:hover{ text-decoration:underline; }
 
   @media (max-width:880px){
     .vn-grid{ grid-template-columns:1fr; gap:18px; }
@@ -618,6 +621,16 @@
       </div>
     </aside>
   </div>
+
+  {# The claim entry point. Deliberately quiet, and at the foot: this page is built for
+     VOTERS, and a loud "claim this page" button above the fold reads as an instruction
+     to everybody rather than a note to one person. The nominee arrives here having been
+     sent the link and looks for exactly this sentence.
+     See docs/CLAIM-FAIRNESS-AND-FRAUD.md §2 and ClaimController. #}
+  <p class="vn-claimline">
+    Is this you, or someone you manage?
+    <a href="/claim/{{ n.id }}" rel="nofollow">Claim this page</a> — it is free and takes a minute.
+  </p>
 
   <div class="vn-toast" x-show="toast" x-transition x-cloak x-text="toast"></div>
 </div>

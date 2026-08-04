@@ -3,7 +3,7 @@ declare(strict_types=1);
 use AfricaGates\Support\Env;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController};
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
     BallotController as JudgeBallotController
@@ -783,6 +783,17 @@ return function(App $app) {
         // /support/… path, so registration order here is not load-bearing.
         $g->get('/support/t/{token:[a-f0-9]{64}}',        SupportController::class.':linkedThread');
         $g->post('/support/t/{token:[a-f0-9]{64}}/reply', SupportController::class.':linkedReply');
+
+        // Nominee page claiming. GUESTS, deliberately: the population is nominees who
+        // have never had an account here, so a login wall would gate a page on having
+        // the very thing the page exists to give you. Neither POST accepts a
+        // destination — only an opaque channel key that must resolve to a contact
+        // already on an approved nomination. See ClaimController and
+        // docs/CLAIM-FAIRNESS-AND-FRAUD.md §2.
+        $g->get('/claim/{id:[0-9]+}',          ClaimController::class.':page');
+        $g->post('/claim/{id:[0-9]+}/code',    ClaimController::class.':send');
+        $g->post('/claim/{id:[0-9]+}/confirm', ClaimController::class.':confirm');
+
         // The Help Centre. One URL per answer, so support can paste one into a
         // reply, the assistant can cite one, a receipt email can point at the
         // exact paragraph and a search engine can index it — none of which a
