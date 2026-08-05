@@ -178,12 +178,31 @@ final class SupportController
             if (!empty($p['found'])) $proof = $p;
         }
 
+        // ── THE OUTCOME BANNER, WHICH HAD NEVER ONCE RENDERED ────────────────
+        //
+        // The template read `app.request.queryParams.ok`. There is no `app` global in
+        // this project's Twig — this was the only template in the tree that assumed
+        // one — so with strict_variables off it silently evaluated to '' on every
+        // request, and the entire flash block was dead markup.
+        //
+        // The effect on the desk is the whole bug report. You write a reply, press
+        // send, and the page comes back looking exactly as it did: no confirmation,
+        // no error, and (until the fix in reply() below) your message filed under
+        // "Support assistant" rather than your own name, so you cannot even find it
+        // in the thread. There is no way to tell a delivered reply from a dropped one
+        // from a page that never submitted. It reads as "the button does nothing".
+        //
+        // Passed explicitly, like every other admin screen does it.
+        $q = $req->getQueryParams();
+
         return $this->view->render($res, 'admin/support/show.twig', [
             'page_title' => 'Ticket ' . $t->reference,
             'admin_page' => 'support',
             't'          => $t,
             'messages'   => $messages,
             'proof'      => $proof,
+            'ok'         => (string) ($q['ok'] ?? ''),
+            'err'        => (string) ($q['e'] ?? ''),
         ]);
     }
 
@@ -242,14 +261,34 @@ final class SupportController
             return $res->withHeader('Location', $back . '?ok=note')->withStatus(302);
         }
 
-        // A visible reply goes through the service, which mails the member and
-        // records the delivery — the same path the auto-resolver uses, so a
-        // hand-written answer and a machine one are recorded identically.
+        // ── A PERSON'S REPLY IS FILED AS A PERSON'S ──────────────────────────
+        //
+        // This called agentReply(), which stamps every message `agent` /
+        // "Support assistant" and signs the outgoing email as the bot. $actor was
+        // computed a few lines up and then discarded, so an admin who spent their
+        // afternoon answering tickets by hand appeared to the member as a machine —
+        // on a platform whose support complaints began with people feeling talked at
+        // by one.
+        //
+        // The old call also returned a bare bool that was true whenever the ROW was
+        // written. No mailer, no address on the ticket, or a send that threw all
+        // ended at "Reply sent and added to the member's thread." The desk could not
+        // tell a working support channel from a silently broken one, which is the
+        // distinction that matters most while somebody is waiting for an answer.
         $resolve = !empty($b['resolve']);
-        $ok = $this->tickets->agentReply((int) $t->id, $body, $resolve);
+        $r = $this->tickets->staffReply(
+            (int) $t->id, $body, $actor, ((int) ($_SESSION['admin_id'] ?? 0)) ?: null, $resolve);
 
-        return $res->withHeader('Location', $back . ($ok ? '?ok=' . ($resolve ? 'resolved' : 'sent') : '?e=send'))
-                   ->withStatus(302);
+        if (!$r['ok']) {
+            return $res->withHeader('Location', $back . '?e=send')->withStatus(302);
+        }
+        // Recorded either way. The flash separates recorded-and-delivered from
+        // recorded-but-nobody-was-told, and names which of the two it was.
+        $flag = $r['emailed']
+            ? ($resolve ? 'resolved' : 'sent')
+            : 'saved-' . ($r['reason'] ?? 'unsent');
+
+        return $res->withHeader('Location', $back . '?ok=' . $flag)->withStatus(302);
     }
 
     /** Move a ticket's status without writing anything. */

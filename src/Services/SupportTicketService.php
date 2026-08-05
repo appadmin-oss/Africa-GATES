@@ -503,71 +503,174 @@ final class SupportTicketService
      */
     public function agentReply(int $ticketId, string $body, bool $resolve = false): bool
     {
+        return $this->postReply($ticketId, $body, $resolve, [
+            'type'    => 'agent',
+            'name'    => 'Support assistant',
+            'id'      => null,
+            'signoff' => 'This reply was written by the Africa GATES support assistant. If it did not '
+                       . 'solve it, reply on the ticket and a person will pick it up.',
+        ])['ok'];
+    }
+
+    /**
+     * A reply written by a NAMED PERSON on the support desk.
+     *
+     * ── WHAT WAS WRONG ───────────────────────────────────────────────────────
+     *
+     * The admin desk had no such method, so a staff reply was pushed through
+     * agentReply() — which stamps every message `agent` / "Support assistant" and
+     * signs the outgoing email "written by the Africa GATES support assistant".
+     * The controller computed the admin's actual name and then discarded it.
+     *
+     * So a person answering a ticket by hand was published to the member as a bot.
+     * On a platform whose support complaints began with people feeling talked at by
+     * a machine, that is not a labelling nit: it means a human never appears to
+     * arrive, however much of their day they spend replying.
+     *
+     * ── AND IT REPORTED SUCCESS IT HAD NOT ACHIEVED ──────────────────────────
+     *
+     * agentReply() returns a single bool that is true as long as the row was
+     * WRITTEN. No mailer configured, no address on the ticket, or a send that threw
+     * — all three end with the admin being told "Reply sent and added to the
+     * member's thread." while nothing left the building. That is the difference
+     * between a slow support desk and one that is silently broken, and the admin
+     * had no way to tell which one they were operating.
+     *
+     * This returns what actually happened, so the caller can say so.
+     *
+     * @return array{ok:bool, emailed:bool, reason:?string, to:?string}
+     */
+    public function staffReply(int $ticketId, string $body, string $actorName,
+                               ?int $actorId = null, bool $resolve = false): array
+    {
+        return $this->postReply($ticketId, $body, $resolve, [
+            'type'    => 'staff',
+            'name'    => mb_substr(trim($actorName) !== '' ? trim($actorName) : 'Support team', 0, 120),
+            'id'      => $actorId,
+            'signoff' => 'Reply on this ticket and it comes straight back to the team.',
+        ]);
+    }
+
+    /**
+     * The one path both a person and the assistant travel, so the two are recorded
+     * identically and neither can quietly acquire behaviour the other lacks.
+     *
+     * @param array{type:string,name:string,id:?int,signoff:string} $author
+     * @return array{ok:bool, emailed:bool, reason:?string, to:?string}
+     */
+    private function postReply(int $ticketId, string $body, bool $resolve, array $author): array
+    {
+        $out = ['ok' => false, 'emailed' => false, 'reason' => null, 'to' => null];
+
         $body = trim($body);
-        if ($ticketId < 1 || $body === '') return false;
+        // Explicit, not a `+` union — see the note on the no_mailer return below.
+        if ($ticketId < 1 || $body === '') {
+            return ['ok' => false, 'emailed' => false, 'reason' => 'empty', 'to' => null];
+        }
         $body = mb_substr($body, 0, 5000);
         $now  = date('Y-m-d H:i:s');
 
         try {
             $t = DB::table('gates_support_tickets')->where('id', $ticketId)
-                ->first(['id', 'reference', 'subject', 'email', 'name', 'status']);
-            if (!$t) return false;
+                ->first(['id', 'reference', 'subject', 'email', 'name', 'status', 'user_id']);
+            if (!$t) return ['ok' => false, 'emailed' => false, 'reason' => 'no_ticket', 'to' => null];
 
-            DB::table('gates_support_messages')->insert([
-                'ticket_id' => $ticketId, 'author_type' => 'agent', 'author_id' => null,
-                'author_name' => 'Support assistant', 'body' => $body,
+            DB::table('gates_support_messages')->insert(OptionalColumn::filter('gates_support_messages', [
+                'ticket_id' => $ticketId, 'author_type' => $author['type'], 'author_id' => $author['id'],
+                'author_name' => $author['name'], 'body' => $body,
                 'is_internal' => 0, 'emailed' => 0, 'created_at' => $now,
-            ]);
+            ], ['author_id']));
 
             $patch = ['last_activity' => $now];
             if ($resolve) { $patch['status'] = 'resolved'; $patch['resolved_at'] = $now; }
             DB::table('gates_support_tickets')->where('id', $ticketId)->update(
                 OptionalColumn::filter('gates_support_tickets', $patch, ['last_activity', 'resolved_at']));
         } catch (\Throwable $e) {
-            error_log('[support] agent reply not stored on ticket ' . $ticketId . ': ' . $e->getMessage());
+            error_log('[support] reply not stored on ticket ' . $ticketId . ': ' . $e->getMessage());
+            return ['ok' => false, 'emailed' => false, 'reason' => 'save_failed', 'to' => null];
+        }
+
+        $out['ok'] = true;
+
+        // ── FIND AN ADDRESS BEFORE GIVING UP ─────────────────────────────────
+        //
+        // A ticket opened from a signed-in session can carry a user_id and no email
+        // of its own, and the reply then went nowhere at all. The address is on the
+        // account; look there before concluding there isn't one.
+        $to = trim((string) ($t->email ?? ''));
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL) && (int) ($t->user_id ?? 0) > 0) {
+            try {
+                $to = trim((string) DB::table('gates_users')->where('id', (int) $t->user_id)->value('email'));
+            } catch (\Throwable) { $to = ''; }
+        }
+        $out['to'] = $to !== '' ? $to : null;
+
+        if ($this->mailer === null) {
+            error_log('[support] no mailer available; reply on ' . $t->reference . ' was NOT emailed');
+            // Built explicitly, not `$out + [...]`: array union keeps the LEFT side's
+            // key, and $out already carries reason => null, so the union silently
+            // discarded the reason and reported an unexplained non-delivery.
+            return ['ok' => true, 'emailed' => false, 'reason' => 'no_mailer', 'to' => $out['to']];
+        }
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            error_log('[support] no address on ticket ' . $t->reference . '; reply was NOT emailed');
+            return ['ok' => true, 'emailed' => false, 'reason' => 'no_address', 'to' => null];
+        }
+
+        $sent = $this->deliver($t, $body, $to, $author['signoff']);
+        return ['ok' => true, 'emailed' => $sent, 'reason' => $sent ? null : 'send_failed', 'to' => $to];
+    }
+
+    /**
+     * Put the reply in the member's inbox. Returns whether it ACTUALLY went.
+     *
+     * The return value is the whole reason this is a separate method. It used to be
+     * inline, wrapped in a try/catch that logged and carried on, inside a function
+     * that returned an unconditional `true` — so a failed send and a delivered one
+     * were the same outcome to every caller, and the desk was told "sent" either way.
+     */
+    private function deliver(object $t, string $body, string $to, string $signoff): bool
+    {
+        // ── THE LINK HAS TO WORK FOR SOMEBODY WITH NO ACCOUNT ────────────────
+        //
+        // This pointed at /support/tickets?ref=…, which redirects a guest straight
+        // to sign-in. Paid voting takes an email and a card and creates no account,
+        // so the entire unminted-vote population got a reply whose only "reply here"
+        // link bounced them to a login they could never complete. From their side
+        // the conversation was a monologue, which is exactly the complaint that
+        // started all this.
+        //
+        // A scoped link works for everyone: it opens this one thread and nothing
+        // else, and it goes to the address already on the ticket. Falls back to the
+        // member desk when one cannot be minted, because an email with a worse link
+        // still beats a reply that never goes out.
+        $link = TicketLinkService::urlFor((int) $t->id, $to);
+        if ($link === '') {
+            $link = SiteUrl::base() . '/support/tickets?ref=' . rawurlencode((string) $t->reference);
+        }
+
+        $text = "Hi " . (trim((string) ($t->name ?? '')) ?: 'there') . ",\n\n" . $body
+              . "\n\n— — —\nTicket {$t->reference}: {$t->subject}\n"
+              . "Reply to this ticket at " . $link . "\n"
+              . "No account needed — the link opens your conversation.\n"
+              . $signoff;
+
+        try {
+            $this->mailer->sendBranded($to, "Re: [{$t->reference}] {$t->subject}",
+                nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8')), $text, 'Support');
+        } catch (\Throwable $e) {
+            error_log('[support] reply email failed on ' . $t->reference . ': ' . $e->getMessage());
             return false;
         }
 
-        $to = trim((string) ($t->email ?? ''));
-        if ($this->mailer !== null && filter_var($to, FILTER_VALIDATE_EMAIL)) {
-            // ── THE LINK HAS TO WORK FOR SOMEBODY WITH NO ACCOUNT ────────────
-            //
-            // This pointed at /support/tickets?ref=…, which redirects a guest
-            // straight to sign-in. Paid voting takes an email and a card and
-            // creates no account, so the entire unminted-vote population got a
-            // reply whose only "reply here" link bounced them to a login they
-            // could never complete. From their side the conversation was a
-            // monologue, which is exactly the complaint that started all this.
-            //
-            // A scoped link works for everyone: it opens this one thread and
-            // nothing else, and it goes to the address already on the ticket.
-            // Falls back to the member desk when one cannot be minted, because an
-            // email with a worse link still beats a reply that never goes out.
-            $link = TicketLinkService::urlFor((int) $t->id, $to);
-            if ($link === '') {
-                $link = SiteUrl::base() . '/support/tickets?ref=' . rawurlencode((string) $t->reference);
-            }
-
-            $text = "Hi " . (trim((string) ($t->name ?? '')) ?: 'there') . ",\n\n" . $body
-                  . "\n\n— — —\nTicket {$t->reference}: {$t->subject}\n"
-                  . "Reply to this ticket at " . $link . "\n"
-                  . "No account needed — the link opens your conversation.\n"
-                  . "This reply was written by the Africa GATES support assistant. If it did not solve it, "
-                  . "reply on the ticket and a person will pick it up.";
-            try {
-                $this->mailer->sendBranded($to, "Re: [{$t->reference}] {$t->subject}",
-                    nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8')), $text, 'Support');
-                DB::table('gates_support_messages')->where('ticket_id', $ticketId)
-                    ->orderByDesc('id')->limit(1)->update(['emailed' => 1]);
-            } catch (\Throwable $e) {
-                error_log('[support] agent reply email failed on ' . $t->reference . ': ' . $e->getMessage());
-            }
-        }
+        try {
+            DB::table('gates_support_messages')->where('ticket_id', (int) $t->id)
+                ->orderByDesc('id')->limit(1)->update(['emailed' => 1]);
+        } catch (\Throwable) { /* it went out; the flag is bookkeeping */ }
 
         try {
             WebhookService::dispatch('support.ticket_replied',
-                ['reference' => (string) $t->reference, 'from' => 'assistant',
-                 'resolved' => $resolve, 'at' => date('c')]);
+                ['reference' => (string) $t->reference, 'at' => date('c')]);
         } catch (\Throwable) {}
 
         return true;

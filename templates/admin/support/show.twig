@@ -113,6 +113,10 @@
   .tk-flash{ border-radius:11px; padding:12px 15px; font-size:13.5px; margin-bottom:16px; }
   .tk-flash--ok{ background:#eef7ee; border:1px solid #bfe0bd; color:#1a4d18 }
   .tk-flash--err{ background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020 }
+  /* Written but not delivered is a third outcome, and it needs its own colour —
+     shown green it reads as done, shown red it reads as lost. It is neither. */
+  .tk-flash--warn{ background:#fff8df; border:1px solid #ecd9a0; color:#6b4a00 }
+  .tk-flash code{ font-family:var(--ag-font-mono,monospace); font-size:12.5px }
 
   @media (max-width:960px){ .tk{ grid-template-columns:1fr } .tk-side{ position:static } }
 </style>
@@ -120,13 +124,28 @@
 
 {% block content %}
 
-{% set ok = app.request.queryParams.ok ?? '' %}
-{% set err = app.request.queryParams.e ?? '' %}
+{# `ok` and `err` come from the controller. They used to be read off an `app` global
+   that does not exist in this project's Twig, so both were always '' and this whole
+   block was dead markup — see the note in SupportController::show(). #}
+{% set ok = ok|default('') %}
+{% set err = err|default('') %}
 {% if ok %}
-  <div class="tk-flash tk-flash--ok">
+  {# saved-* means the reply IS on the record but no email went out. That is a third
+     outcome, not a variant of the first: shown green it reads as done, and a desk
+     that believes it answered somebody it never reached stops chasing them. #}
+  <div class="tk-flash tk-flash--{{ ok starts with 'saved-' ? 'warn' : 'ok' }}">
     {% if ok == 'sent' %}Reply sent and added to the member's thread.
     {% elseif ok == 'resolved' %}Reply sent and the ticket is resolved.
     {% elseif ok == 'note' %}Internal note saved. The member cannot see it.
+    {% elseif ok == 'saved-no_address' %}Reply saved to the thread — but this ticket carries
+      <strong>no email address</strong>, so nothing was sent. They will only see it if they open
+      their own ticket link. Add an address to the ticket or reach them another way.
+    {% elseif ok == 'saved-no_mailer' %}Reply saved to the thread — but <strong>outgoing mail is not
+      configured on this installation</strong>, so nothing was sent, and the same is true of every
+      reply written until it is fixed. Set SMTP_USER and SMTP_PASS, then run <code>bin/console doctor</code>.
+    {% elseif ok == 'saved-send_failed' %}Reply saved to the thread — but <strong>the email failed to
+      send</strong>. The member has not been told. Check <code>var/logs/</code> and the mail settings.
+    {% elseif ok starts with 'saved-' %}Reply saved to the thread, but it was not emailed.
     {% else %}Done.{% endif %}
   </div>
 {% endif %}
@@ -184,12 +203,19 @@
             <div class="tk-entry__body">{{ m.body }}</div>
           </div>
         {% else %}
-          {% set cap = m.author_type == 'member' ? 'member' : (m.author_type == 'assistant' ? 'assistant' : 'staff') %}
+          {# The service writes 'agent' for the bot; this only tested for 'assistant',
+             so every automated reply was captioned as staff. Harmless while nothing
+             else wrote to the thread — actively wrong now that a person's reply is
+             filed as 'staff' and the two must be told apart at a glance. #}
+          {% set cap = m.author_type == 'member' ? 'member'
+                     : (m.author_type in ['assistant', 'agent'] ? 'assistant' : 'staff') %}
           <div class="tk-entry">
             <div class="tk-entry__hd">
               <span class="tk-entry__who">{{ m.author_name ?: (cap == 'member' ? 'Member' : 'Support team') }}</span>
               <span class="tk-entry__cap tk-cap--{{ cap }}">{{ cap == 'assistant' ? 'support assistant' : cap }}</span>
-              <span class="tk-entry__when">{{ m.created_at }}{% if m.emailed %} · emailed{% endif %}</span>
+              {# "not emailed" is stated, not left as the absence of a word — a reply
+                 that reached nobody is the thing somebody scanning this needs to see. #}
+              <span class="tk-entry__when">{{ m.created_at }}{% if cap != 'member' %} · {{ m.emailed ? 'emailed' : 'NOT emailed' }}{% endif %}</span>
             </div>
             <div class="tk-entry__body">{{ m.body }}</div>
           </div>
