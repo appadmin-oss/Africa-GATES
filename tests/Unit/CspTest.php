@@ -63,8 +63,19 @@ class CspTest extends TestCase
     {
         // Each is a supply-chain dependency. Listing them makes the exposure
         // countable, which `https:` did not.
-        foreach (['cdn.jsdelivr.net', 'unpkg.com', 'code.jquery.com', 'challenges.cloudflare.com'] as $host) {
+        foreach (['unpkg.com', 'code.jquery.com', 'challenges.cloudflare.com'] as $host) {
             $this->assertStringContainsString($host, Csp::policy(), "{$host} is loaded by a template");
+        }
+
+        // And the list got SHORTER, which is the direction it should move in. Everything
+        // jsdelivr and plyr.io used to serve is vendored under public/assets now, so
+        // neither may execute script here any more. Asserted rather than assumed, because
+        // one library added back "temporarily" from a CDN would put that whole origin's
+        // output back in scope, and the policy is the only place that would show it.
+        preg_match('/script-src ([^;]+);/', Csp::policy(), $ss);
+        foreach (['cdn.jsdelivr.net', 'cdn.plyr.io'] as $retired) {
+            $this->assertStringNotContainsString($retired, $ss[1] ?? '',
+                "{$retired} can execute script again — its assets are supposed to be vendored");
         }
     }
 

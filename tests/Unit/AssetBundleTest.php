@@ -213,8 +213,20 @@ class AssetBundleTest extends TestCase
         // The layout links stylesheets through `{{ asset('/path') }}` — a content
         // hash per file, because the shared `?v=` token was the pinned
         // ASSET_VERSION that nothing bumps on this host. See Support\Assets::url().
-        preg_match_all('~<link rel="stylesheet" href="\{\{ asset\(\'/(assets/css/[^\']+)\'\)~', $layout, $m);
-        $inLayout = $m[1] ?? [];
+        preg_match_all('~<link rel="stylesheet" href="\{\{ asset\(\'/(assets/css/[^\']+)\'\)[^>]*>~',
+                       $layout, $m, PREG_SET_ORDER);
+
+        // `data-lazy-css` links are NOT part of the critical bundle. They carry
+        // media="print" and are promoted by JS after first paint, which is the whole
+        // reason they are separate — bundling them would put Swiper, Splide and Plyr's
+        // stylesheets into the render-blocking payload of every page that uses none of
+        // them. They only started matching this pattern when those files were vendored
+        // off their CDNs, so the exclusion is new; the intent is not.
+        $inLayout = [];
+        foreach ($m as $hit) {
+            if (str_contains($hit[0], 'data-lazy-css')) continue;
+            $inLayout[] = $hit[1];
+        }
 
         $this->assertNotEmpty($inLayout,
             'No stylesheet links were found in the layout at all. This test only means '

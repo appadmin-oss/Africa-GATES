@@ -388,6 +388,26 @@ final class DoctorCommand extends Command
      * `curl -I` returns from the running site. If they differ, the web SAPI and the
      * CLI are running different code — which is itself the answer.
      */
+    /**
+     * Does the live policy's script-src actually carry every host the class declares?
+     *
+     * Compares against Csp::SCRIPT_HOSTS rather than a literal, so vendoring a library
+     * (which correctly SHRINKS the list) cannot make this report a fault. What it still
+     * catches is the thing it was written for: a deployed policy whose script-src lost
+     * hosts the code says it needs — a stale .htaccess, a proxy rewriting the header, a
+     * half-finished edit.
+     */
+    private static function scriptHostsPresent(string $policy): string
+    {
+        if (preg_match('/script-src ([^;]+);/', $policy, $m) !== 1) return 'NO';
+
+        foreach (preg_split('/\s+/', trim(Csp::SCRIPT_HOSTS)) ?: [] as $host) {
+            if ($host === '') continue;
+            if (!str_contains($m[1], $host)) return 'NO';
+        }
+        return 'yes';
+    }
+
     private function csp(): array
     {
         if (!class_exists(Csp::class)) {
@@ -398,7 +418,12 @@ final class DoctorCommand extends Command
 
         return [
             'script_src_has_nonce'   => str_contains($policy, "script-src 'self' 'nonce-") ? 'yes' : 'NO',
-            'script_src_has_cdns'    => $has('https://cdn.jsdelivr.net'),
+            // Derived from Csp::SCRIPT_HOSTS, not a hardcoded host. It named
+            // cdn.jsdelivr.net, which was correct until those assets were vendored — after
+            // which this reported "NO" and printed "every third-party script is refused" at
+            // an operator whose policy was in fact complete. A diagnostic that cries wolf
+            // is worse than no diagnostic, because the next real alarm gets ignored too.
+            'script_src_has_cdns'    => self::scriptHostsPresent($policy),
             'style_src_elem_present' => $has('style-src-elem'),
             'form_action_has_gateways' => $has('paystack'),
             'policy'                 => $policy,
@@ -614,7 +639,8 @@ final class DoctorCommand extends Command
                  . 'previews will show nothing.';
         }
         if (($r['csp']['script_src_has_cdns'] ?? '') === 'NO') {
-            $p[] = 'script-src lists no CDN hosts, so every third-party script on the page is refused.';
+            $p[] = 'script-src is missing hosts that Csp::SCRIPT_HOSTS declares, so some '
+                 . 'third-party script on the page is refused.';
         }
         if (str_contains((string) ($r['config']['DB_NAME'] ?? ''), 'NOT SET')
             && ($r['config']['dotenv_present'] ?? 'no') === 'no') {

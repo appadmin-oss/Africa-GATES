@@ -151,9 +151,12 @@ class DeployFingerprintTest extends TestCase
     {
         $policy = Csp::policy();
 
-        // Scripts.
-        foreach (['https://code.jquery.com', 'https://cdn.jsdelivr.net',
-                  'https://unpkg.com', 'https://cdn.plyr.io',
+        // Scripts that are STILL fetched from a third party. jsdelivr and plyr.io were in
+        // this list and are gone on purpose: the resources the production report named are
+        // served out of public/assets now, so the fix for those particular refusals is
+        // that the request no longer happens at all — strictly better than permitting the
+        // host. Their actual disappearance is asserted in CspHostCoverageTest.
+        foreach (['https://code.jquery.com', 'https://unpkg.com',
                   'https://challenges.cloudflare.com'] as $host) {
             $this->assertStringContainsString($host, $policy, "script host {$host}");
         }

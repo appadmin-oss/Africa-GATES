@@ -60,19 +60,32 @@ final class Csp
 
     /**
      * Hosts that serve executable script. Every one of these is a supply-chain
-     * dependency: a compromise there is a compromise here, and `unpkg`/`jsdelivr`
-     * serve whatever the named package currently resolves to. Listing them
-     * explicitly at least makes the exposure visible and countable, which
-     * `https:` did not.
+     * dependency: a compromise there is a compromise here, and `unpkg` serves whatever
+     * the named package currently resolves to. Listing them explicitly at least makes
+     * the exposure visible and countable, which `https:` did not.
+     *
+     * ── AND THE LIST IS NOW THREE SHORTER ────────────────────────────────────
+     *
+     * `cdn.jsdelivr.net` and `cdn.plyr.io` are gone because nothing is fetched from them
+     * any more: GSAP, ScrollTrigger, Swiper, Splide, Plyr, NProgress, Lucide, Lottie and
+     * stripe-gradient are all served from public/assets/js/vendor now.
+     *
+     * That matters more than tidiness. A permitted host is not a list of what we load, it
+     * is the set of origins the browser will execute ANYTHING from — so leaving a name
+     * here after the last real use is removed keeps the entire attack surface while
+     * retaining none of the benefit. jsdelivr in particular was serving code it had
+     * generated itself (a `+esm` transform, and an on-the-fly minification of a file the
+     * package does not even ship), which no SRI hash could have pinned.
+     *
+     * `unpkg` stays for Leaflet, which is still remote — but pinned with integrity.
      */
-    public const SCRIPT_HOSTS = 'https://cdn.jsdelivr.net https://unpkg.com '
-        . 'https://code.jquery.com https://cdn.plyr.io '
+    public const SCRIPT_HOSTS = 'https://unpkg.com '
+        . 'https://code.jquery.com '
         . 'https://challenges.cloudflare.com '
         . 'https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net '
         . 'https://tpc.googlesyndication.com';
 
-    public const STYLE_HOSTS = 'https://cdn.jsdelivr.net https://unpkg.com '
-        . 'https://cdn.plyr.io https://fonts.googleapis.com';
+    public const STYLE_HOSTS = 'https://unpkg.com https://fonts.googleapis.com';
 
     public const FONT_HOSTS = 'https://fonts.gstatic.com https://fonts.googleapis.com';
 
@@ -93,8 +106,21 @@ final class Csp
      * fetch target from our own code.
      */
     public const CONNECT_HOSTS = 'https://challenges.cloudflare.com ' . self::PAY_HOSTS
-        . ' https://cdn.jsdelivr.net https://unpkg.com https://cdn.plyr.io';
+        . ' https://unpkg.com';
 
+    /**
+     * `cdn.plyr.io` stays HERE and only here.
+     *
+     * Plyr's bundled default is `blankVideo: 'https://cdn.plyr.io/static/blank.mp4'` — a
+     * one-frame file it loads as a source-swap workaround on iOS and for YouTube embeds.
+     * Vendoring the library did not change that default, so the host is still a genuine
+     * media dependency and dropping it here would break playback in exactly the cases the
+     * workaround exists for.
+     *
+     * It is out of `script-src`, `style-src` and `connect-src`, which is the part that
+     * matters: nothing from that origin can execute or receive data any more. A media
+     * response is decoded by the browser's media pipeline, not run as code.
+     */
     public const MEDIA_HOSTS = 'https://r2.vidzflow.com https://cdn.plyr.io';
 
     public const FRAME_HOSTS = 'https://challenges.cloudflare.com '

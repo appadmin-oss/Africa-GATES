@@ -12,8 +12,8 @@
 <link rel="stylesheet" href="{{ asset('/assets/css/main.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/judge.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/aurora.css') }}">
-<link rel="stylesheet" href="https://unpkg.com/tippy.js@6.3.7/dist/tippy.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.css">
+<link rel="stylesheet" href="{{ asset('/assets/css/vendor/tippy.css') }}">
+<link rel="stylesheet" href="{{ asset('/assets/css/vendor/nprogress-0.2.0.css') }}">
 </head>
 <body class="jd-body">
 
@@ -45,10 +45,10 @@
   {% block content %}{% endblock %}
 </main>
 
-<script defer src="https://unpkg.com/lucide@1.28.0"></script>
+<script defer src="{{ asset('/assets/js/vendor/lucide-1.28.0.min.js') }}"></script>
 <script defer src="/assets/js/vendor/popper-2.11.8.min.js"></script>
 <script defer src="/assets/js/vendor/tippy-6.3.7.umd.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js"></script>
+<script defer src="{{ asset('/assets/js/vendor/nprogress-0.2.0.js') }}"></script>
 {# Alpine.js — the ballot's reactive scoring app (x-data/x-show/@click) needs it.
    THE LOCAL COPY, which is the same one the public layout already uses. This used to
    fetch 3.13.5 from cdn.jsdelivr.net with no integrity attribute, while the identical

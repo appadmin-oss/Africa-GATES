@@ -44,20 +44,37 @@ class CspHostCoverageTest extends TestCase
      */
     private const REFUSED_IN_PRODUCTION = [
         ['https://code.jquery.com/jquery-3.7.1.slim.min.js', 'script-src'],
+        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'script-src'],
+        ['https://challenges.cloudflare.com/turnstile/v0/api.js', 'script-src'],
+        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'style-src-elem'],
+    ];
+
+    /**
+     * Resources from the same incident that the platform NO LONGER LOADS AT ALL.
+     *
+     * They were refused in production, then permitted, and have now been vendored into
+     * public/assets — so the right assertion flipped. "Is this host permitted?" stopped
+     * being the useful question the moment nothing requested it; the useful question is
+     * whether the dependency is really gone, because a host left in the policy after its
+     * last use keeps the whole attack surface and buys nothing.
+     *
+     * Kept rather than deleted because the incident is the reason this file exists, and a
+     * fixture that quietly loses entries stops being a record of what happened.
+     *
+     * @var list<array{0:string,1:string}>
+     */
+    private const RETIRED_SINCE = [
         ['https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js', 'script-src'],
         ['https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js', 'script-src'],
         ['https://cdn.jsdelivr.net/gh/timothydesign/script/split-type.js', 'script-src'],
         ['https://unpkg.com/@popperjs/core@2', 'script-src'],
         ['https://unpkg.com/tippy.js@6', 'script-src'],
-        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', 'script-src'],
         ['https://unpkg.com/swiper@8/swiper-bundle.min.js', 'script-src'],
         ['https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/js/splide.min.js', 'script-src'],
         ['https://cdn.plyr.io/3.7.8/plyr.polyfilled.js', 'script-src'],
-        ['https://challenges.cloudflare.com/turnstile/v0/api.js', 'script-src'],
         ['https://unpkg.com/swiper@8/swiper-bundle.min.css', 'style-src-elem'],
         ['https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/css/splide.min.css', 'style-src-elem'],
         ['https://cdn.plyr.io/3.7.8/plyr.css', 'style-src-elem'],
-        ['https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', 'style-src-elem'],
     ];
 
     /** Directive value as a list of sources, following CSP's fallback chain. */
@@ -90,6 +107,48 @@ class CspHostCoverageTest extends TestCase
             if ($srcHost === '') continue;
             if ($srcHost === $host) return true;
             if (str_starts_with($srcHost, '*.') && str_ends_with($host, substr($srcHost, 1))) return true;
+        }
+        return false;
+    }
+
+    /**
+     * A resource we retired must be gone from the templates, not merely allowed.
+     *
+     * The stronger half of the pair. Permitting a host is cheap and reversible; removing
+     * the last reference to it is what actually shrinks the attack surface, and this is
+     * what catches a CDN dependency creeping back under an old URL.
+     */
+    public function test_every_retired_resource_is_no_longer_referenced(): void
+    {
+        $referenced = array_merge(
+            array_keys($this->referencedHosts('script')),
+            array_keys($this->referencedHosts('style')),
+        );
+
+        $back = [];
+        foreach (self::RETIRED_SINCE as [$url, $directive]) {
+            $host = (string) parse_url($url, PHP_URL_HOST);
+            // unpkg is still used by Leaflet, so a host-level check would false-positive.
+            // Compare the whole URL's presence in the templates instead.
+            if (in_array($host, $referenced, true) && $this->templatesMention($url)) {
+                $back[] = $url;
+            }
+        }
+
+        $this->assertSame([], $back,
+            "These were vendored into public/assets — a template is fetching them from a "
+            . "third party again:\n  " . implode("\n  ", $back));
+    }
+
+    /** Does any template still name this exact URL? */
+    private function templatesMention(string $url): bool
+    {
+        $root = dirname(__DIR__, 2) . '/templates';
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
+        foreach ($it as $file) {
+            if (!$file->isFile() || $file->getExtension() !== 'twig') continue;
+            if (str_contains((string) file_get_contents($file->getPathname()), $url)) return true;
         }
         return false;
     }
@@ -168,11 +227,16 @@ class CspHostCoverageTest extends TestCase
         $styles  = $this->referencedHosts('style');
 
         $this->assertArrayHasKey('unpkg.com', $scripts);
-        $this->assertArrayHasKey('cdn.jsdelivr.net', $scripts);
+        $this->assertArrayHasKey('code.jquery.com', $scripts);
         $this->assertArrayHasKey('challenges.cloudflare.com', $scripts);
+        // cdn.jsdelivr.net used to be asserted here. It is deliberately gone: every
+        // script it served is vendored now, so a scan that still found it would mean
+        // a CDN dependency had crept back in.
+        $this->assertArrayNotHasKey('cdn.jsdelivr.net', $scripts);
+        $this->assertArrayNotHasKey('cdn.plyr.io', $scripts);
         $this->assertArrayHasKey('fonts.googleapis.com', $styles);
-        $this->assertGreaterThanOrEqual(4, count($scripts));
-        $this->assertGreaterThanOrEqual(3, count($styles));
+        $this->assertGreaterThanOrEqual(3, count($scripts));
+        $this->assertGreaterThanOrEqual(2, count($styles));
     }
 
     public function test_a_host_not_in_the_allowlist_is_actually_refused(): void

@@ -47,7 +47,7 @@ if (!window.agLottieBoot) {
     }
     if (typeof lottie !== 'undefined') { init(); return; }
     var s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/lottie-web@5.12.2/build/player/lottie_light.min.js';
+    s.src = '/assets/js/vendor/lottie-web-5.12.2.light.min.js';
     s.defer = true;
     s.onload = init;
     document.head.appendChild(s);

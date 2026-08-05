@@ -65,23 +65,18 @@ final class ThirdPartyScriptIntegrityTest extends TestCase
     /**
      * Fixed-version third-party scripts still shipping WITHOUT integrity.
      *
-     * Every line here is a real exposure, listed so it is visible rather than forgotten.
-     * To clear one: fetch the file, compute `openssl dgst -sha384 -binary FILE | openssl
-     * base64 -A`, add `integrity="sha384-…" crossorigin="anonymous"` to the tag, and
-     * delete the line. Better still, vendor the file under public/assets/js/vendor and
-     * drop the third party altogether — which is what the judge panel's Alpine now does.
+     * EMPTY, and it should stay that way. It briefly held seven entries, each a real
+     * exposure listed so it could not be forgotten; all seven were then vendored out of
+     * existence rather than pinned, which is the better fix — an SRI hash makes a
+     * compromised file fail closed, but a local file cannot be compromised remotely at
+     * all, and cannot go down either.
+     *
+     * If a genuinely unavoidable one ever appears: pin it (`curl -s URL | openssl dgst
+     * -sha384 -binary | openssl base64 -A`) rather than adding a line here.
      *
      * @var list<string>
      */
-    private const KNOWN_BARE = [
-        'templates/judge/layout.twig|https://unpkg.com/lucide@1.28.0',
-        'templates/judge/layout.twig|https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js',
-        'templates/layout/gates.twig|https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js',
-        'templates/layout/gates.twig|https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js',
-        'templates/layout/gates.twig|https://unpkg.com/swiper@8.4.7/swiper-bundle.min.js',
-        'templates/layout/gates.twig|https://cdn.jsdelivr.net/npm/@splidejs/splide@4.1.4/dist/js/splide.min.js',
-        'templates/layout/gates.twig|https://cdn.plyr.io/3.7.8/plyr.polyfilled.js',
-    ];
+    private const KNOWN_BARE = [];
 
     /**
      * Every external script tag in templates/, as "relative/path.twig|url".
@@ -112,6 +107,30 @@ final class ThirdPartyScriptIntegrityTest extends TestCase
                     'crossorigin' => str_contains($tag, 'crossorigin'),
                 ];
             }
+
+            // SCRIPT THAT IS NOT A <script src> TAG.
+            //
+            // The tag scan above missed three real ones, and the miss is the interesting
+            // part: a `<script src>` sweep looks exhaustive and is not. What it skipped
+            // was `document.createElement('script'); s.src = 'https://…'` in TWO places
+            // (one of them a duplicate of the other, so fixing the partial left the copy
+            // in home.twig still calling out) and `await import('https://…/+esm')`.
+            //
+            // Neither form can carry SRI at all — there is no integrity attribute on an
+            // assignment, and dynamic import() has no integrity option — so for these the
+            // only fix available is to not use a third party. They are therefore reported
+            // as unpinnable-and-unpinned, which is exactly what they are.
+            preg_match_all('~\.src\s*=\s*[\'"](https?://[^\'"]+)[\'"]~', $body, $dyn, PREG_SET_ORDER);
+            preg_match_all('~\bimport\s*\(\s*[\'"](https?://[^\'"]+)[\'"]~', $body, $imp, PREG_SET_ORDER);
+            foreach ([...$dyn, ...$imp] as $hit) {
+                $out[] = [
+                    'key'         => $rel . '|' . $hit[1],
+                    'file'        => $rel,
+                    'url'         => $hit[1],
+                    'integrity'   => false,   // impossible in this form, by construction
+                    'crossorigin' => false,
+                ];
+            }
         }
 
         usort($out, static fn(array $a, array $b): int => strcmp($a['key'], $b['key']));
@@ -126,13 +145,30 @@ final class ThirdPartyScriptIntegrityTest extends TestCase
         return false;
     }
 
-    /** Sanity: the scanner finds tags at all, so a broken regex cannot pass this file. */
-    public function test_the_scanner_actually_finds_external_scripts(): void
+    /**
+     * Sanity: the scanner still sees the externals we know are there.
+     *
+     * By NAME rather than by count. A count is the wrong guard for a shrinking list — it
+     * started at "at least 8", the vendoring took the real number to 4, and a threshold
+     * that has to be edited every time the thing it measures improves is a threshold that
+     * gets edited without being thought about. Naming the survivors means a broken regex
+     * fails loudly while legitimate removals just require deleting a line.
+     */
+    public function test_the_scanner_still_sees_the_known_remaining_externals(): void
     {
-        $found = $this->externalScripts();
-        $this->assertGreaterThanOrEqual(8, count($found),
-            'The scanner found almost nothing — the regex or the templates path is wrong, '
-            . 'and every assertion below would pass vacuously.');
+        $urls = array_column($this->externalScripts(), 'url');
+
+        foreach ([
+            'https://code.jquery.com/',            // jQuery, pinned
+            'https://unpkg.com/leaflet@',          // Leaflet, pinned
+            'https://challenges.cloudflare.com/',  // Turnstile, unpinnable
+            'https://pagead2.googlesyndication.com/', // AdSense, unpinnable
+        ] as $expected) {
+            $this->assertNotEmpty(
+                array_filter($urls, static fn(string $u): bool => str_starts_with($u, $expected)),
+                "The scanner no longer sees {$expected} — either it was removed (delete this "
+                . 'line) or the regex is broken and every assertion below passes vacuously.');
+        }
     }
 
     /**
