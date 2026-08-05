@@ -162,7 +162,12 @@ CREATE TABLE IF NOT EXISTS gates_vote_snapshots (
   cpi_score INT UNSIGNED NOT NULL DEFAULT 0,
   snapshot_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   prev_hash VARCHAR(64) DEFAULT NULL, hash VARCHAR(64) DEFAULT NULL,
-  PRIMARY KEY (id), KEY idx_snap_cycle (cycle_id), KEY idx_snap_nominee (nominee_id)
+  PRIMARY KEY (id), KEY idx_snap_cycle (cycle_id), KEY idx_snap_nominee (nominee_id),
+  -- A link may be extended exactly once. Two concurrent captures reading the same
+  -- tail would otherwise fork the chain, and a forked chain reports itself as
+  -- tampered with, permanently and unclearably. NULLs are distinct in a unique
+  -- index, so rows predating prev_hash are unaffected.
+  UNIQUE KEY uq_snap_prev (prev_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS gates_cycle_transitions (

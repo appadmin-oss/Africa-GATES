@@ -696,6 +696,10 @@ CREATE TABLE IF NOT EXISTS gates_vote_snapshots (
 );
 CREATE INDEX IF NOT EXISTS idx_snap_cycle   ON gates_vote_snapshots(cycle_id);
 CREATE INDEX IF NOT EXISTS idx_snap_nominee ON gates_vote_snapshots(nominee_id);
+-- A link may be extended exactly once. Two concurrent captures reading the same
+-- tail would otherwise fork the chain, and a forked chain reports itself as
+-- tampered with, permanently and unclearably. See the 2026_08_16 migration.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_snap_prev ON gates_vote_snapshots(prev_hash);
 
 -- Auditable cycle lifecycle transitions (who/when moved a cycle between phases).
 CREATE TABLE IF NOT EXISTS gates_cycle_transitions (

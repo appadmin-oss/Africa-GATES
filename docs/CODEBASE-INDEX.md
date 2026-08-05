@@ -258,7 +258,14 @@ specific (nominee, award); idempotency keys are **scoped per voter**; one vote p
 category) is enforced by a UNIQUE constraint *and* a code check; the OTP is consumed **only on
 success**. `FraudService` pre-scores each attempt; `CollusionService` finds rings post-hoc
 (advisory, never auto-voids). `SnapshotService` hash-chains standings so any later tampering breaks
-the chain.
+the chain — a `UNIQUE (prev_hash)` makes a link extendable exactly once, so two concurrent captures
+cannot fork the chain into something that reports itself as tampered with forever. The chain is
+**read**: `bin/console standings:verify` walks it (chunked, non-zero exit on a break), and the
+06:00 maintenance task `chain` runs the same walk and fails the cron run when it does not hold.
+
+Winner promotion breaks a CPI tie on **`organic_vote_count`**, never `vote_count` — the tiebreak is
+the last place money could otherwise decide an award, and a true dead heat is logged for a human
+rather than settled quietly by row id (`CycleMaterialiser::promoteWinners`).
 
 ### Payments (server-authoritative)
 Three flows share an idempotent confirm pattern (`WHERE status='pending'` single-row UPDATE,

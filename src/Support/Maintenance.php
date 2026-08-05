@@ -22,7 +22,8 @@ use Symfony\Component\Console\Output\NullOutput;
  * run('auto') selects work by the clock exactly as before: every run drains the
  * job queue + advances cycles + prunes cache; hourly purges expired tokens;
  * every 6h recomputes CPI + writes tamper-evident snapshots; 06:00 daily runs
- * the collusion scan, reminders, acknowledgements and digest. Named tasks
+ * the collusion scan, reminders, acknowledgements, digest and the standings-chain
+ * verification (the one task that exists to FAIL — see verifyChain). Named tasks
  * ('cpi', 'queue', …) run one thing. CPI recompute runs the console command
  * IN-PROCESS (no exec) so it works where shell execution is disabled.
  */
@@ -160,6 +161,7 @@ final class Maintenance
                 $ran[] = ['nom-ack',   $this->task('nom-ack',   fn() => $this->sendPendingAcknowledgements())];
                 $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())];
                 $ran[] = ['cronlog',   $this->task('cronlog',   fn() => $this->trimCronLog())];
+                $ran[] = ['chain',     $this->task('chain',     fn() => $this->verifyChain())];
             }
         } else {
             match ($task) {
@@ -175,6 +177,7 @@ final class Maintenance
                 'support'   => $ran[] = ['support', $this->task('support', fn() => $this->answerTickets())],
                 'refunds'   => $ran[] = ['refunds', $this->task('refunds', fn() => $this->refundUnminted())],
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
+                'chain'     => $ran[] = ['chain', $this->task('chain', fn() => $this->verifyChain())],
                 'all'       => (function () use (&$ran) {
                     $ran[] = ['queue', $this->task('queue', fn() => $this->drainJobs())];
                     $ran[] = ['cycles', $this->task('cycles', fn() => $this->advanceCycles())];
@@ -190,6 +193,7 @@ final class Maintenance
                     $ran[] = ['reminder', $this->task('reminder', fn() => $this->sendVotingReminders())];
                     $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())];
                     $ran[] = ['cronlog', $this->task('cronlog', fn() => $this->trimCronLog())];
+                    $ran[] = ['chain', $this->task('chain', fn() => $this->verifyChain())];
                 })(),
                 default     => $this->log("Unknown task: $task"),
             };
@@ -537,6 +541,48 @@ final class Maintenance
             $this->log('Snapshot error: ' . $e->getMessage());
             return 0;
         }
+    }
+
+    /**
+     * Re-walk the standings hash chain and FAIL THE RUN if it no longer holds.
+     *
+     * ── WHY THIS IS A CRON TASK AND NOT A REPORT ─────────────────────────────────
+     *
+     * The chain has been written on every capture since it was built, and until now
+     * nothing ever read it back: SnapshotService::verify() had no caller outside the
+     * unit tests. Tamper evidence nobody collects is not evidence — the record could
+     * have been edited, the hashes would have registered it exactly as designed, and
+     * the finding would have sat in a column no query selected.
+     *
+     * It throws rather than returning a number, deliberately. A task that throws is
+     * recorded in $this->failures, written to gates_cron_log, and returned in the
+     * webcron response body — the operator surface that already exists. A task that
+     * quietly returns 0 looks identical to a healthy run with nothing to do, which is
+     * precisely how the original silence happened.
+     *
+     * Daily, not six-hourly: it is a full walk of the archive, and a break does not
+     * heal, so finding it four times a day tells nobody anything extra.
+     */
+    private function verifyChain(): int
+    {
+        $r = (new SnapshotService())->verify();
+
+        if (!$r['ok']) {
+            // Not phrased as "tampering". The overwhelmingly likelier cause is two
+            // captures forking the chain, which UNIQUE(prev_hash) now forbids —
+            // accusing somebody in a cron log would be both alarming and usually wrong.
+            throw new \RuntimeException(sprintf(
+                'THE STANDINGS CHAIN IS BROKEN at snapshot row #%d (%d row(s) before it verify). '
+                . 'The record of how standings moved no longer follows from itself past that point. '
+                . 'Run `bin/console standings:verify` for the full reading.',
+                (int) $r['broken_at'], (int) $r['checked']));
+        }
+
+        $this->log(sprintf('Standings chain: %d row(s) verified%s',
+            (int) $r['checked'],
+            $r['unchained'] > 0 ? ', ' . (int) $r['unchained'] . ' pre-chain row(s) unverifiable' : ''));
+
+        return (int) $r['checked'];
     }
 
     private function scanCollusion(): int

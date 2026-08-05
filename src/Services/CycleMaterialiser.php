@@ -255,6 +255,29 @@ final class CycleMaterialiser
      * and under-quorum nominees are excluded from the ranking entirely rather
      * than scored 0 and pushed to loser. Idempotent.
      *
+     * ── THE TIEBREAK IS PART OF THE METHODOLOGY, NOT AN IMPLEMENTATION DETAIL ──
+     *
+     * The whole platform is built around one promise, printed in the README: money
+     * can make a nominee look popular, it can never buy their Cultural Power Index.
+     * Paid and bonus votes bump `vote_count` and are deliberately kept out of
+     * `organic_vote_count`, which is the only thing the community 45% is normalised
+     * over — PaidVoteService, BonusVoteService and PointsService each take care to
+     * write one and not the other.
+     *
+     * And then this method, at the single moment where all of that becomes an award,
+     * broke the tie on `vote_count`. CPI is an integer 0..1000, so ties are ordinary
+     * rather than exotic in a small category: two nominees on equal organic support
+     * with equal judge averages land on the same number. Whoever had bought votes
+     * then won the award, and every guard upstream was decoration.
+     *
+     * So the tiebreak is organic too, and the eligibility filter with it: purchased
+     * votes must not make a nominee promotable either.
+     *
+     * A REAL dead heat — same CPI, same organic votes — is resolved by lowest id so
+     * the promotion stays deterministic and idempotent, and is logged as the
+     * arbitrary decision it is. An award decided by an id is a thing an operator
+     * should be told about, not something to discover from the cron log's silence.
+     *
      * $announce=false promotes silently (stale backlog — see ANNOUNCE_GRACE_DAYS).
      */
     private function promoteWinners(int $cycleId, bool $announce = true): int
@@ -281,16 +304,28 @@ final class CycleMaterialiser
 
             $ranked = DB::table('gates_nominees')->whereIn('id', $eligibleIds)->get()
                 ->map(function ($n) use ($scores) {
-                    $n->cpi = (int) ($scores[$n->id]['cpi_score'] ?? 0);
+                    $n->cpi     = (int) ($scores[$n->id]['cpi_score'] ?? 0);
+                    $n->organic = (int) ($n->organic_vote_count ?? 0);
                     return $n;
                 })
-                ->filter(fn ($n) => $n->cpi > 0 || (int) $n->vote_count > 0)
-                ->sort(fn ($a, $b) => [$b->cpi, $b->vote_count, $a->id] <=> [$a->cpi, $a->vote_count, $b->id])
+                // ORGANIC, not vote_count — see the note above. A nominee with nothing
+                // but purchased votes is not promotable.
+                ->filter(fn ($n) => $n->cpi > 0 || $n->organic > 0)
+                ->sort(fn ($a, $b) => [$b->cpi, $b->organic, $a->id] <=> [$a->cpi, $a->organic, $b->id])
                 ->values();
             if ($ranked->isEmpty()) continue;
 
             $winner   = $ranked->shift();
             $runnerUp = $ranked->shift();
+
+            if ($runnerUp && $winner->cpi === $runnerUp->cpi && $winner->organic === $runnerUp->organic) {
+                $this->log(sprintf(
+                    '    ! category %d: DEAD HEAT for first place — %s and %s both on CPI %d with %d organic '
+                    . 'vote(s). The methodology cannot separate them, so the award went to the lower nominee '
+                    . 'id (#%d) to keep the promotion deterministic. This one needs a human.',
+                    (int) $catId, (string) $winner->name, (string) $runnerUp->name,
+                    (int) $winner->cpi, (int) $winner->organic, (int) $winner->id));
+            }
 
             // Demote any prior winners/runners in this category that aren't the new picks.
             DB::table('gates_nominees')->where('category_id', (int) $catId)
@@ -302,9 +337,12 @@ final class CycleMaterialiser
                 if (!$nom || $nom->status === $kind) continue;
                 DB::table('gates_nominees')->where('id', $nom->id)->update(['status' => $kind]);
                 CycleAnnouncer::record((int) $nom->id, $kind, $announce);
-                $this->log(sprintf('    %s %s: %s (cat %d, CPI %d, %d votes)%s',
+                // Both numbers, because they are different claims: `organic` is what
+                // decided this, `vote_count` is what the public page shows.
+                $this->log(sprintf('    %s %s: %s (cat %d, CPI %d, %d organic of %d shown)%s',
                     $glyph, $kind, (string) $nom->name, (int) $catId,
-                    (int) $nom->cpi, (int) $nom->vote_count, $announce ? '' : ' [silent]'));
+                    (int) $nom->cpi, (int) $nom->organic, (int) $nom->vote_count,
+                    $announce ? '' : ' [silent]'));
                 $promoted++;
             }
         }
