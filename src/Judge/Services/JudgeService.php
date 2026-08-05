@@ -123,7 +123,25 @@ class JudgeService
         $nq = DB::table('gates_nominees')->whereIn('category_id', $catIds)
             ->whereIn('status', ['approved','winner','runner_up']);
         \AfricaGates\Services\MergeService::notMerged($nq);       // tombstones drop off the ballot
-        $nominees = $nq->orderByDesc('vote_count')->get()->map(fn($r) => (array)$r)->all();
+        // NOT orderByDesc('vote_count'), which is what this used to be.
+        //
+        // The ballot prints "judge on documented impact, not popularity" and then walked
+        // the panel through the nominees in exactly popularity order, most-voted first.
+        // The number itself was never rendered, so it looked clean; the ordering carried
+        // it anyway, and position is one of the better-evidenced anchors there is. Every
+        // judge saw the SAME order, so the bias pointed the same way for the whole panel
+        // and landed on the 55% that exists to be independent of the 45%.
+        //
+        // Shuffled per judge instead, and deterministically: one judge gets the same
+        // order every time they open the ballot — a list that reshuffles between page
+        // loads is how somebody scores the wrong nominee — while different judges get
+        // different orders, so position bias cancels across a panel instead of
+        // accumulating. Seeded on judge + cycle, so it is reproducible months later if a
+        // result is ever questioned.
+        $nominees = $nq->get()->map(fn($r) => (array)$r)->all();
+        $seat = static fn(array $n): string =>
+            hash('sha256', $judgeId . ':' . $cycle->id . ':' . ($n['id'] ?? 0));
+        usort($nominees, static fn(array $a, array $b): int => $seat($a) <=> $seat($b));
 
         $criteria = $this->criteria($programmeId);
         $criteriaIds = array_column($criteria, 'id');
@@ -144,11 +162,27 @@ class JudgeService
         foreach ($cats as $c) {
             $byCategory[$c['id']] = ['category' => $c, 'nominees' => []];
         }
+        // The dossier, in one query for the whole ballot rather than one per nominee on
+        // the screen a judge keeps open for hours. See EvidenceService.
+        $dossiers = (new \AfricaGates\Services\EvidenceService())
+            ->forBallot(array_column($nominees, 'id'));
+
         foreach ($nominees as $n) {
+            // Popularity is stripped at the boundary, not merely left unrendered. The row
+            // arrives from `select *` carrying vote_count and organic_vote_count, and the
+            // template not using them today is a property of today's template — one
+            // `{{ n.vote_count }}` added in good faith by somebody building a nicer card
+            // would put the community signal back inside the expert one. It cannot be
+            // printed if it is not there.
+            foreach (\AfricaGates\Services\EvidenceService::FORBIDDEN_FIELDS as $banned) {
+                unset($n[$banned]);
+            }
+
             $n['scores'] = $byNominee[$n['id']] ?? [];
             $n['notes']  = isset($notes[$n['id']]) ? (string)$notes[$n['id']]->notes : '';
             $n['avg']    = $this->avgFromScores($n['scores'], $criteria);
             $n['complete'] = count($n['scores']) === count($criteria);
+            $n['evidence'] = $dossiers[(int) $n['id']] ?? ['items' => [], 'interviews' => [], 'coverage' => null];
             $byCategory[$n['category_id']]['nominees'][] = $n;
         }
 

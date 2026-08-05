@@ -124,9 +124,64 @@
             </div>
           </div>
 
-          <div class="jc-dossier" x-show="cur?.tagline">
-            <p class="jc-klabel">Submission dossier</p>
-            <p class="jc-dossier__txt" x-text="cur?.tagline"></p>
+          {#
+            THE DOSSIER. Four criteria out of ten used to be scored against a name and a
+            one-line tagline; this is the evidence the platform actually holds.
+
+            Two rules the markup has to keep, both of them EvidenceService's:
+              • every item states WHO is asserting it — a nominator's case is advocacy and
+                is usually the best-written thing here, so it must not read like a checked
+                record;
+              • what is MISSING is printed as plainly as what is present, because a thin
+                dossier reflects our reach and the nominee's access to a camera, not the
+                quality of their work.
+          #}
+          <div class="jc-dossier" x-show="cur?.tagline || cur?.evidence">
+            <p class="jc-klabel">Evidence dossier</p>
+            <p class="jc-dossier__txt" x-show="cur?.tagline" x-text="cur?.tagline"></p>
+
+            <p class="jc-cover" x-show="cur?.evidence?.coverage?.missing?.length"
+               x-text="cur?.evidence?.coverage?.note"></p>
+
+            <template x-for="(it, i) in (cur?.evidence?.items || [])" :key="'ev'+i">
+              <div class="jc-ev">
+                <div class="jc-ev__top">
+                  <span class="jc-ev__title" x-text="it.title"></span>
+                  <span class="jc-prov"
+                        :class="it.provenance === 'platform_verified' ? 'jc-prov--ok'
+                              : (it.provenance === 'nominator_claim' ? 'jc-prov--claim' : '')"
+                        x-text="it.provenance_label"></span>
+                </div>
+                <p class="jc-ev__body" x-show="it.body" x-text="it.body"></p>
+                <a class="jc-ev__src" x-show="it.source_url" :href="it.source_url"
+                   target="_blank" rel="noopener noreferrer nofollow"
+                   x-text="it.source_label || 'Source'"></a>
+                <span class="jc-ev__src" x-show="!it.source_url && it.source_label"
+                      x-text="it.source_label"></span>
+              </div>
+            </template>
+
+            <template x-for="(iv, i) in (cur?.evidence?.interviews || [])" :key="'iv'+i">
+              <div class="jc-ev jc-ev--iv">
+                <div class="jc-ev__top">
+                  <span class="jc-ev__title">Interview — the nominee's own words</span>
+                  <span class="jc-prov" x-text="iv.medium + ' · ' + iv.language"></span>
+                </div>
+                {# The caveat sits ABOVE the transcript deliberately: a judge who reads the
+                   words first has already formed the impression it is meant to qualify. #}
+                <p class="jc-cover" x-text="iv.caveat"></p>
+                <p class="jc-ev__body jc-ev__tx" x-text="iv.transcript"></p>
+                <span class="jc-ev__src"
+                      x-text="(iv.interviewer ? iv.interviewer : 'Programme team')
+                            + (iv.interviewed_at ? ' · ' + iv.interviewed_at.slice(0,10) : '')"></span>
+              </div>
+            </template>
+
+            <p class="jc-ev__none"
+               x-show="!(cur?.evidence?.items||[]).length && !(cur?.evidence?.interviews||[]).length">
+              Nothing has been gathered for this nominee yet. Score only what you can see,
+              and say so in your notes.
+            </p>
           </div>
 
           <div class="jc-crits">
@@ -212,6 +267,23 @@
   .jc-klabel{ margin:0; font:600 11px/1 var(--font-body,sans-serif); letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f; }
   .jc-dossier{ padding:22px 28px; border-bottom:1px solid rgba(16,41,44,.07); }
   .jc-dossier__txt{ margin:10px 0 0; font-size:14.5px; line-height:1.65; color:#3a4448; }
+  /* Evidence dossier. Provenance is a chip rather than body text so a judge can see
+     at a glance which lines are checked and which are somebody's case. */
+  .jc-cover{ margin:12px 0 0; padding:10px 13px; border-left:3px solid #d49a0e; background:#fffaf0;
+             border-radius:0 8px 8px 0; font-size:13px; line-height:1.6; color:#7a5605; }
+  .jc-ev{ margin:14px 0 0; padding:14px 16px; border:1px solid rgba(16,41,44,.1); border-radius:12px; background:#fbfcfb; }
+  .jc-ev--iv{ background:#f6faf6; border-color:rgba(35,123,34,.22); }
+  .jc-ev__top{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .jc-ev__title{ font-weight:650; font-size:14px; color:var(--ag-ink,#10292C); }
+  .jc-prov{ font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px;
+            background:#eceeed; color:#5a6d6f; }
+  .jc-prov--ok{ background:#e3f1e3; color:#155a13; }
+  .jc-prov--claim{ background:#fff2d9; color:#8a6005; }
+  .jc-ev__body{ margin:9px 0 0; font-size:14px; line-height:1.7; color:#3a4448; white-space:pre-line; }
+  .jc-ev__tx{ max-height:340px; overflow:auto; padding-right:6px; }
+  .jc-ev__src{ display:inline-block; margin:9px 0 0; font-size:12px; color:#5a6d6f; }
+  a.jc-ev__src{ color:#237b22; text-decoration:underline; }
+  .jc-ev__none{ margin:12px 0 0; font-size:13.5px; line-height:1.6; color:#6a767a; }
 
   .jc-crits{ padding:22px 28px; }
   .jc-crits .jc-klabel{ margin-bottom:18px; }
