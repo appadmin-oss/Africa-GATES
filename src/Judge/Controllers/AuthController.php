@@ -124,9 +124,28 @@ class AuthController
             $_SESSION['flash_error'] = 'Invalid or expired code. Try again or request a new one.';
             return $res->withHeader('Location', '/judge/login?sent=1')->withStatus(302);
         }
-        // Count the attempt; invalidate the code after too many guesses.
-        DB::table('gates_otp_tokens')->where('id', $tok->id)->increment('attempts');
-        if (((int)$tok->attempts + 1) > self::MAX_OTP_ATTEMPTS) {
+        // Count the attempt and cap it IN ONE STATEMENT.
+        //
+        // This used to read `attempts`, increment, then compare the value it had read
+        // — and nothing serialised the gap. Fire the guesses in parallel and every one
+        // of them sees attempts = 0, so the five-guess cap simply does not apply and
+        // the panel's sign-in code is brute-forceable at whatever concurrency the
+        // attacker can manage. The per-IP rate limit still holds (RateLimitService
+        // does its own bump the same guarded way), so it is the primary defence that
+        // was missing rather than every defence — but this is the door to the ballot
+        // that carries 55% of a nominee's score, and an attacker can make a judge's
+        // code exist just by submitting their address to the sign-in form.
+        //
+        // The predicate and the increment now travel together: the database evaluates
+        // `attempts < MAX` and adds one atomically, so exactly MAX guesses can ever
+        // succeed in claiming an attempt, however many arrive at once. Affected-rows 0
+        // means the cap is spent. Same primitive VoteService gets from lockForUpdate()
+        // and RateLimitService from its conditional update.
+        $claimed = DB::table('gates_otp_tokens')
+            ->where('id', $tok->id)
+            ->where('attempts', '<', self::MAX_OTP_ATTEMPTS)
+            ->update(['attempts' => DB::raw('attempts + 1')]);
+        if ($claimed === 0) {
             DB::table('gates_otp_tokens')->where('id', $tok->id)->update(['is_used' => 1]);
             $_SESSION['flash_error'] = 'Too many attempts. Request a new code.';
             return $res->withHeader('Location', '/judge/login?sent=1')->withStatus(302);

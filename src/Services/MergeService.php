@@ -36,6 +36,16 @@ use Illuminate\Database\Capsule\Manager as DB;
 final class MergeService
 {
     /**
+     * The gates_otp_tokens purposes whose `nominee_id` really holds a nominee id.
+     *
+     * The column is shared: `judge_login` stores a gates_judges id in it and
+     * `user_login` a gates_users id, because those flows reused the voting token's
+     * row shape. Only the purposes listed here may be reassigned when a nominee is
+     * merged away. See the note at the call site in reassignAll().
+     */
+    private const NOMINEE_OTP_PURPOSES = ['vote', 'claim', 'preflight', 'paid-vote'];
+
+    /**
      * @param int[] $mergeIds nominees to fold in (the survivor id, if included, and non-existent ids are ignored)
      * @return array{ok:bool,error?:string,merged:int,votes:int,keep_id:int}
      */
@@ -236,7 +246,25 @@ final class MergeService
 
         // Plain soft references (no UNIQUE key involving the nominee).
         self::reassignPlain('gates_funnel_events', 'nominee_id', $from, $to, $batch, $log);
-        self::reassignPlain('gates_otp_tokens',    'nominee_id', $from, $to, $batch, $log);
+        // gates_otp_tokens.nominee_id DOES NOT ALWAYS HOLD A NOMINEE ID.
+        //
+        // Voting got to this table first and the columns were named for it, but later
+        // flows reused the row shape and put their own subject in the same column:
+        // judge sign-in stores a gates_judges id there, account sign-in stores a
+        // gates_users id. Those are three independent auto-increment sequences of small
+        // integers, so "judge 7" and "nominee 7" collide as a matter of course rather
+        // than as an edge case — and an unscoped reassign silently rewrote a judge's or
+        // a member's live sign-in token every time a nominee with a matching id was
+        // merged away, then journalled the move as though it had touched that nominee's
+        // data. Neither login path reads the column back, so nothing broke; what it
+        // corrupted was the merge journal, which is the record used to review and undo
+        // a merge.
+        //
+        // ALLOWLIST, not a denylist: a purpose whose subject really is a nominee has to
+        // be named here, so adding one forces the decision instead of inheriting a
+        // rewrite by default.
+        self::reassignPlain('gates_otp_tokens', 'nominee_id', $from, $to, $batch, $log,
+                            ['purpose', self::NOMINEE_OTP_PURPOSES]);
         self::reassignPlain('gates_donations',     'intent_nominee_id', $from, $to, $batch, $log);
 
         // Polymorphic references (type column = 'nominee').
@@ -322,14 +350,23 @@ final class MergeService
         }
     }
 
-    /** UPDATE $col $from→$to (scoped to a polymorphic [typeCol,typeVal] if given), journaling each moved row's id + old value. */
+    /**
+     * UPDATE $col $from→$to, journaling each moved row's id + old value.
+     *
+     * $scope narrows the rows to a discriminator column: `[col, value]` for a
+     * single value, or `[col, [a, b, …]]` for a set. The set form exists because
+     * one table can use the same column to mean different things per row — see
+     * the gates_otp_tokens note in reassignAll().
+     */
     private static function reassignPlain(string $table, string $col, int $from, int $to, string $batch, array &$log, ?array $scope = null): void
     {
         if (!self::hasCol($table, $col)) return;
         $hasId = self::hasCol($table, 'id');
         try {
             $q = DB::table($table)->where($col, $from);
-            if ($scope) $q->where($scope[0], $scope[1]);
+            if ($scope) {
+                is_array($scope[1]) ? $q->whereIn($scope[0], $scope[1]) : $q->where($scope[0], $scope[1]);
+            }
 
             if ($hasId) {
                 foreach ($q->pluck('id') as $pk) {

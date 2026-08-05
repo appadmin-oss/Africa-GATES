@@ -40,9 +40,17 @@ final class CycleAnnouncer
                 'meta'         => json_encode([
                     'kind'      => $kind,
                     'category'  => $n->category,
+                    'cycle'     => (int) ($n->cycle_year ?? 0),
                     'announced' => $announce,
                 ]),
-                'is_public'    => 1,
+                // The suppression has to cover this row too. is_public = 1 drops the
+                // result straight into the site's activity feed
+                // (CommunityService::activityFeed), which is a broadcast — so a cycle
+                // that ended months ago would have announced itself to every visitor
+                // today while carefully not sending an email. Same mistake, different
+                // delivery. The row is written either way: recording the result is
+                // correctness, publishing it is the announcement.
+                'is_public'    => $announce ? 1 : 0,
                 'created_at'   => Carbon::now()->toDateTimeString(),
             ]);
         } catch (\Throwable) { /* best-effort */ }
@@ -54,11 +62,19 @@ final class CycleAnnouncer
     private static function nominee(int $nomineeId): ?object
     {
         try {
+            // cy.year, because the congratulations mail used to print date('Y') — the
+            // year the CRON RAN, not the year of the award. A cycle that closes on the
+            // 30th of December and promotes on the 2nd of January is three days late,
+            // well inside the announcement grace window, and told its winner they had
+            // won an edition that did not exist. It is one line on the single most
+            // important email this platform ever sends.
             return DB::table('gates_nominees as n')
                 ->leftJoin('gates_profiles as p', 'p.id', '=', 'n.profile_id')
                 ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
                 ->where('n.id', $nomineeId)
                 ->select(['n.name', 'n.category_id', 'c.title as category',
+                          'cy.year as cycle_year', 'cy.edition_label',
                           'p.email as profile_email', 'p.display_name as profile_name'])
                 ->first();
         } catch (\Throwable) {
@@ -84,7 +100,13 @@ final class CycleAnnouncer
             $headline = $kind === 'winner' ? 'Congratulations — you won.' : 'Congratulations — you are a runner-up.';
             $nm       = htmlspecialchars((string) $n->profile_name, ENT_QUOTES, 'UTF-8');
             $catN     = htmlspecialchars((string) $n->category, ENT_QUOTES, 'UTF-8');
-            $year     = date('Y');
+            // The cycle's own edition, never the wall clock. Falls back to the current
+            // year only when the join found nothing, which means the category has no
+            // cycle and the result should not have existed in the first place.
+            $edition  = trim((string) ($n->edition_label ?? '')) !== ''
+                ? (string) $n->edition_label
+                : (string) ((int) ($n->cycle_year ?? 0) ?: date('Y'));
+            $year     = htmlspecialchars($edition, ENT_QUOTES, 'UTF-8');
 
             $html = "<p>Hi <strong>{$nm}</strong>,</p>"
                 . "<p style=\"font-size:17px;font-weight:700;color:#10292C\">{$headline}</p>"
@@ -92,7 +114,7 @@ final class CycleAnnouncer
                 . "<tr><td style=\"font-size:14px;color:#166534;line-height:1.7\">Category: <strong>{$catN}</strong><br>Cycle: <strong>{$year}</strong></td></tr></table>"
                 . "<p>The full results are now live — and your profile carries a permanent record on the leaderboard.</p>"
                 . "<p style=\"text-align:center;margin:22px 0\"><a href=\"{$base}/leaderboard\" style=\"display:inline-block;padding:12px 28px;background:#10292C;color:#fff;border-radius:999px;font-weight:600;text-decoration:none;font-size:15px\">See the results &rarr;</a></p>";
-            $plain = "Hi {$n->profile_name},\n\n{$headline}\n\nCategory: {$n->category}\nCycle: {$year}\n\n"
+            $plain = "Hi {$n->profile_name},\n\n{$headline}\n\nCategory: {$n->category}\nCycle: {$edition}\n\n"
                 . "The full results are now on {$base}/leaderboard — and your profile carries a permanent record.\n\n— Africa GATES";
 
             $mailer->sendBranded((string) $n->profile_email, $headline . ' — Africa GATES', $html, $plain,
