@@ -49,9 +49,17 @@
 <script defer src="/assets/js/vendor/popper-2.11.8.min.js"></script>
 <script defer src="/assets/js/vendor/tippy-6.3.7.umd.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js"></script>
-{# Alpine.js — the ballot's reactive scoring app (x-data/x-show/@click) needs it;
-   the public layout loads it separately, so the judge layout must too. #}
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js"></script>
+{# Alpine.js — the ballot's reactive scoring app (x-data/x-show/@click) needs it.
+   THE LOCAL COPY, which is the same one the public layout already uses. This used to
+   fetch 3.13.5 from cdn.jsdelivr.net with no integrity attribute, while the identical
+   file sat in /assets/js/vendor and popper and tippy two lines above were already
+   being served from there.
+   It mattered more here than anywhere else on the platform: this is the panel where
+   judges enter the scores that make up 55% of every nominee's CPI. An unreachable CDN
+   meant a judge could not score at all, and a compromised one would have been running
+   arbitrary code on the page that decides the awards. Neither risk bought anything —
+   the file was already on our own disk. #}
+<script defer src="{{ asset('/assets/js/vendor/alpine-3.13.5.min.js') }}"></script>
 <script nonce="{{ csp_nonce }}">window.addEventListener('load',function(){if(window.lucide&&lucide.createIcons)lucide.createIcons();});</script>
 <script defer src="{{ asset('/assets/js/main.js') }}"></script>
 {% block foot_scripts %}{% endblock %}
