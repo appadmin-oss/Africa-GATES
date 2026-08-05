@@ -138,6 +138,11 @@ CREATE TABLE IF NOT EXISTS gates_votes (
   -- and reported success, crediting 65,535 votes for an order of 100,000. Matches
   -- gates_nominees.vote_count and gates_donations.bonus_votes, which were already INT.
   weight INT UNSIGNED NOT NULL DEFAULT 1,
+  -- Which recovery batch put this vote here, if any. NULL on every vote cast the
+  -- normal way, so "which votes did we place ourselves" is a one-column question.
+  -- A column rather than a new vote_type: a recovered vote IS an ordinary organic
+  -- vote, and inventing a type would make every existing query learn about it.
+  recovery_batch_id BIGINT UNSIGNED DEFAULT NULL,
   donation_id BIGINT UNSIGNED DEFAULT NULL,
   risk_score TINYINT UNSIGNED NOT NULL DEFAULT 0,
   fraud_flag TINYINT(1) NOT NULL DEFAULT 0,
@@ -265,8 +270,15 @@ CREATE TABLE IF NOT EXISTS gates_otp_tokens (
   token_hash VARCHAR(64) NOT NULL, purpose VARCHAR(30) NOT NULL DEFAULT 'vote',
   nominee_id BIGINT UNSIGNED DEFAULT NULL, award_id TINYINT UNSIGNED DEFAULT NULL,
   attempts TINYINT UNSIGNED NOT NULL DEFAULT 0, is_used TINYINT(1) NOT NULL DEFAULT 0,
+  -- Did the code actually leave the building? 'failed' is the platform's own record
+  -- that it let this person down, and the only basis on which their dropped vote may
+  -- later be recovered. 'unknown' predates the column and is never recoverable.
+  delivery_state ENUM('unknown','sent','failed') NOT NULL DEFAULT 'unknown',
+  delivery_error VARCHAR(300) NULL,
+  delivery_at TIMESTAMP NULL DEFAULT NULL,
   expires_at DATETIME NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY(id), KEY idx_email_purpose(email_hash,purpose), KEY idx_expires(expires_at)
+  PRIMARY KEY(id), KEY idx_email_purpose(email_hash,purpose), KEY idx_expires(expires_at),
+  KEY idx_otp_delivery(purpose, delivery_state, is_used)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS gates_nominations (

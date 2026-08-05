@@ -247,7 +247,7 @@ class OtpService
             ->where('email_hash', $eh)->where('purpose', $purpose)->where('is_used', 0)
             ->update(['is_used' => 1]);
 
-        DB::table('gates_otp_tokens')->insert([
+        $tokenId = (int) DB::table('gates_otp_tokens')->insertGetId([
             'email_hash' => $eh,
             'token_hash' => hash('sha256', $code),
             'purpose'    => $purpose,
@@ -260,6 +260,27 @@ class OtpService
         ]);
 
         $sent = $this->sendOtpEmail($email, $code);
+
+        // ── RECORD WHETHER THE CODE ACTUALLY LEFT THE BUILDING ───────────────
+        //
+        // This function has always known. It checked $sent, told the visitor we
+        // could not send it, and discarded the fact — leaving a token row that is
+        // indistinguishable from one belonging to somebody who got their code and
+        // decided not to bother.
+        //
+        // That distinction is the entire basis on which a dropped vote may later be
+        // repaired. "We failed to deliver this person's code" is a statement the
+        // platform can make about itself, from its own records, written before
+        // anybody knew it would matter — which is what makes
+        // {@see \AfricaGates\Services\VoteRecoveryService} a repair mechanism rather
+        // than a way to add votes. Without it, the only available evidence would be
+        // somebody's later say-so, and there is no safe way to build on that.
+        //
+        // Best-effort: a failure to write the delivery state must never turn a
+        // working OTP send into a broken one. The cost of it going unrecorded is
+        // that the vote is not recoverable, which is the safe direction to fail in.
+        self::recordDelivery($tokenId, (bool) $sent['success'], (string) ($sent['error'] ?? ''));
+
         if (!$sent['success']) {
             $this->log?->error('[otp] delivery failed', ['error' => $sent['error'] ?? 'unknown']);
             return ['success' => false, 'message' => 'We could not send your verification email. Please try again.'];
@@ -267,6 +288,20 @@ class OtpService
 
         $this->log?->info('[otp] issued', ['purpose' => $purpose, 'fallback' => $sent['fallback'] ?? null]);
         return ['success' => true];
+    }
+
+    /** Stamp a token with what happened to its code. Never throws. */
+    public static function recordDelivery(int $tokenId, bool $ok, string $error = ''): void
+    {
+        if ($tokenId < 1) return;
+        try {
+            DB::table('gates_otp_tokens')->where('id', $tokenId)->update(
+                \AfricaGates\Support\OptionalColumn::filter('gates_otp_tokens', [
+                    'delivery_state' => $ok ? 'sent' : 'failed',
+                    'delivery_error' => $ok ? null : (mb_substr($error, 0, 300) ?: 'unknown'),
+                    'delivery_at'    => Carbon::now()->toDateTimeString(),
+                ], ['delivery_state', 'delivery_error', 'delivery_at']));
+        } catch (\Throwable) { /* see the note above: silence here only costs recoverability */ }
     }
 
     private function sendOtpEmail(string $to, string $code): array

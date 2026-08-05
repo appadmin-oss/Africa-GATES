@@ -263,6 +263,15 @@ cannot fork the chain into something that reports itself as tampered with foreve
 **read**: `bin/console standings:verify` walks it (chunked, non-zero exit on a break), and the
 06:00 maintenance task `chain` runs the same walk and fails the cron run when it does not hold.
 
+**Recovering votes the platform dropped.** When a vote code fails to send, the token records it
+(`gates_otp_tokens.delivery_state = 'failed'`) — the platform's own admission that it let that person
+down. `VoteRecoveryService` derives candidates from those records ONLY; no operator can name a person.
+While voting is open it refuses and tells you to re-send instead. After the close a batch needs a
+second admin's approval, passes a fraud/IP-cluster screen and a cap (25% of a nominee's verified
+votes), lands as ordinary organic votes carrying `recovery_batch_id` + `otp_token_id`, is disclosed
+publicly per nominee, and can be voided. `bin/console votes:recover health` reports the delivery
+failure rate — the number this feature exists to serve, and the one that should be falling.
+
 Winner promotion breaks a CPI tie on **`organic_vote_count`**, never `vote_count` — the tiebreak is
 the last place money could otherwise decide an award, and a true dead heat is logged for a human
 rather than settled quietly by row id (`CycleMaterialiser::promoteWinners`).

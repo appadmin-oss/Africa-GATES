@@ -156,6 +156,11 @@ CREATE TABLE IF NOT EXISTS gates_votes (
   -- box, so a name collected for a receipt is never published by default.
   show_name INTEGER NOT NULL DEFAULT 0,
   vote_type TEXT NOT NULL DEFAULT 'standard' CHECK(vote_type IN ('standard','bonus','paid')),
+  -- Which recovery batch put this vote here, if any. NULL on every vote cast the
+  -- normal way, so "which votes did we place ourselves" is a one-column question.
+  -- A column rather than a new vote_type: a recovered vote IS an ordinary organic
+  -- vote, and inventing a type would make every existing query learn about it.
+  recovery_batch_id INTEGER NULL,
   weight INTEGER NOT NULL DEFAULT 1,
   donation_id INTEGER,
   risk_score INTEGER NOT NULL DEFAULT 0,
@@ -183,11 +188,18 @@ CREATE TABLE IF NOT EXISTS gates_otp_tokens (
   award_id INTEGER,
   attempts INTEGER NOT NULL DEFAULT 0,
   is_used INTEGER NOT NULL DEFAULT 0,
+  -- Did the code actually leave the building? 'failed' is the platform's own record
+  -- that it let this person down, and the only basis on which their dropped vote may
+  -- later be recovered. 'unknown' predates the column and is never recoverable.
+  delivery_state TEXT NOT NULL DEFAULT 'unknown',
+  delivery_error TEXT NULL,
+  delivery_at TEXT NULL,
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_otp_email ON gates_otp_tokens(email_hash, purpose);
 CREATE INDEX IF NOT EXISTS idx_otp_expires ON gates_otp_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_otp_delivery ON gates_otp_tokens(purpose, delivery_state, is_used);
 
 CREATE TABLE IF NOT EXISTS gates_nominations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -57,6 +57,38 @@ final class Reference
         return sprintf('AGC-%s-%s', self::base32($enc, 6), self::CHECK[$enc % 37]);
     }
 
+    /**
+     * A vote-recovery batch: AGR-XXXXXX-C.
+     *
+     * Meant to be QUOTED. It is printed on the public disclosure beside any votes the
+     * platform put on a tally itself, so that "where did these come from" has an
+     * answer somebody can look up and argue with, rather than being a number that
+     * simply appeared.
+     */
+    public static function recovery(int $id): string
+    {
+        if ($id < 1 || $id >= self::MOD) {
+            throw new \InvalidArgumentException('Recovery batch id out of reference range.');
+        }
+        $enc = self::mix($id);
+        return sprintf('AGR-%s-%s', self::base32($enc, 6), self::CHECK[$enc % 37]);
+    }
+
+    /** Resolve a recovery reference back to a batch id, checksum-verified. */
+    public static function parseRecoveryId(string $ref): ?int
+    {
+        if (!preg_match('/^AGR-([0-9A-HJKMNP-TV-Z]{6})-([0-9A-HJKMNP-TV-Z*~$=U])$/', strtoupper(trim($ref)), $m)) {
+            return null;
+        }
+        $enc = 0;
+        foreach (str_split($m[1]) as $ch) {
+            $enc = ($enc << 5) | strpos(self::ALPHABET, $ch);
+        }
+        if (self::CHECK[$enc % 37] !== $m[2]) return null;
+        $id = self::unmix($enc);
+        return ($id >= 1 && $id < self::MOD) ? $id : null;
+    }
+
     /** Resolve a claim reference back to a claim id, checksum-verified. Null when invalid. */
     public static function parseClaimId(string $ref): ?int
     {
