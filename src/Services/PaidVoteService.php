@@ -467,6 +467,39 @@ class PaidVoteService
         $nominee = DB::table('gates_nominees')->where('id', $nomineeId)->first();
         if (!$nominee)                                    return ['ok' => false, 'message' => 'Nominee not found.'];
 
+        // ── STILL A NOMINEE WHEN THE MONEY LANDED? ───────────────────────────
+        //
+        // The checkout enforces this allowlist; this did not, and the two are separated
+        // by however long the gateway takes — minutes usually, and the webhook can arrive
+        // later still. In that gap a moderator can DISQUALIFY somebody: fraud, a
+        // withdrawn nomination, a rule breach found after the fact.
+        //
+        // Without this the votes were credited anyway. A disqualified nominee's public
+        // tally moved, the site-wide "votes cast" total counted it, and the buyer was
+        // told their votes had landed on a page the platform had already decided did not
+        // belong on the ballot. Nothing failed loudly, which is why it survived the
+        // careful work done on every OTHER way this mint can go wrong.
+        //
+        // Deliberately NOT the same answer as a late confirmation. That case reasons "we
+        // sold them a vote; we owe them the vote", and it is right, because the ballot was
+        // open when we took the money and the lag is our infrastructure's. Disqualification
+        // is a different fact: there is no longer anything to credit, and crediting it
+        // anyway would put the platform's own integrity decision behind a payment. So this
+        // refuses and leaves votes_used = 0 — the queryable "paid but delivered nothing"
+        // signal RefundService already sweeps — which sends the money back rather than
+        // keeping it for votes nobody can honour.
+        //
+        // Merged nominees are covered too: a merge repoints intent_nominee_id to the
+        // survivor, so reaching this with a tombstone means the repoint did not happen,
+        // and minting into a row no page reads is never the right answer.
+        $eligible = in_array((string) ($nominee->status ?? ''), ['approved', 'winner', 'runner_up'], true)
+                 && empty($nominee->merged_into ?? null);
+        if (!$eligible) {
+            return ['ok' => false, 'code' => 'NOMINEE_NOT_ELIGIBLE',
+                    'message' => 'This nominee is no longer on the ballot, so the votes could not be '
+                               . 'added. No votes were counted and this order is refundable.'];
+        }
+
         // STORAGE GUARD, and it is not redundant with the checkout's cap.
         //
         // The quantity was validated when the order was created; this runs when the

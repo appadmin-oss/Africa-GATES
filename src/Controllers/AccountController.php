@@ -60,7 +60,7 @@ class AccountController
      * the member what they can actually do (vote, nominate, community, points)
      * instead of leaving them at a dead end. Best-effort, never blocks login.
      */
-    private function sendWelcome(object $user): void
+    private function sendWelcome(Request $req, object $user): void
     {
         if (!$this->otp) return;
         $base = \AfricaGates\Support\SiteUrl::base($req);
@@ -101,7 +101,7 @@ class AccountController
         // Email verification: do NOT auto-login. Send a confirmation link and park
         // the visitor on the "check your email" notice until they verify.
         $email = strtolower(trim((string) ($b['email'] ?? '')));
-        $delivered = $this->sendVerification((int) $r['id'], $email, (string) ($b['name'] ?? ''));
+        $delivered = $this->sendVerification($req, (int) $r['id'], $email, (string) ($b['name'] ?? ''));
         $_SESSION['pending_verify_email'] = $email;
         $_SESSION['flash_notice'] = $delivered
             ? 'Almost there — check your inbox to confirm your email.'
@@ -127,7 +127,7 @@ class AccountController
                     'member_id'  => (int) $user->id,
                     'email_hash' => hash('sha256', strtolower((string) $user->email)),
                 ]);
-                $this->sendWelcome($user);
+                $this->sendWelcome($req, $user);
                 return $res->withHeader('Location', $this->nextTarget())->withStatus(302);
             }
             $_SESSION['flash_error'] = 'That verification link is invalid or has expired — request a fresh one below.';
@@ -151,7 +151,7 @@ class AccountController
         $user = $email !== '' ? $this->accounts->findByEmail($email) : null;
         $failed = false;
         if ($user && !$this->accounts->isVerified($user)) {
-            $failed = !$this->sendVerification((int) $user->id, $email, (string) $user->name);
+            $failed = !$this->sendVerification($req, (int) $user->id, $email, (string) $user->name);
         }
         $_SESSION['pending_verify_email'] = $email;
         // Keep the enumeration-safe phrasing, but never fake success when the
@@ -167,7 +167,7 @@ class AccountController
      * callers can tell the user the truth instead of "check your inbox" for a
      * message that never left the building.
      */
-    private function sendVerification(int $userId, string $email, string $name): bool
+    private function sendVerification(Request $req, int $userId, string $email, string $name): bool
     {
         if (!$this->otp || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
         $raw = $this->accounts->issueEmailVerification($userId, $email);
@@ -221,7 +221,7 @@ class AccountController
         // Unverified accounts must confirm their email first. (A one-time sign-in
         // code — /account/login/otp — proves email ownership and verifies them.)
         if (!$this->accounts->isVerified($user)) {
-            $delivered = $this->sendVerification((int) $user->id, (string) $user->email, (string) $user->name);
+            $delivered = $this->sendVerification($req, (int) $user->id, (string) $user->email, (string) $user->name);
             $_SESSION['pending_verify_email'] = (string) $user->email;
             $_SESSION['flash_notice'] = $delivered
                 ? 'Please confirm your email first — we just sent you a fresh link.'
@@ -323,7 +323,7 @@ class AccountController
                 'member_id'  => (int) $user->id,
                 'email_hash' => hash('sha256', strtolower((string) $user->email)),
             ]);
-            $this->sendWelcome($user);
+            $this->sendWelcome($req, $user);
         }
         unset($_SESSION['user_login_email']);
         $this->accounts->startSession($user, $this->ip($req));

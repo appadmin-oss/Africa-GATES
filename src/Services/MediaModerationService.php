@@ -126,7 +126,14 @@ final class MediaModerationService
 
         try {
             $client = $this->http ?? new Client(['timeout' => self::TIMEOUT]);
-            $res = $client->post(
+            // request('POST', …), not post(): the constructor accepts a ClientInterface,
+            // and post() is a convenience method on the concrete Client rather than on the
+            // interface. So any double implementing the DECLARED type — which is the only
+            // reason the seam exists — died with "call to undefined method". It looked
+            // fine because production passes null and gets a real Client on the line above,
+            // meaning the injection point could never have been exercised.
+            $res = $client->request(
+                'POST',
                 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode(self::model())
                 . ':generateContent?key=' . urlencode($key),
                 [

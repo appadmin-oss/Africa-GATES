@@ -208,4 +208,72 @@ final class PaidVoteServiceTest extends TestCase
 
         $this->assertSame(0, DB::table('gates_votes')->count());
     }
+
+    /**
+     * A nominee DISQUALIFIED between payment and confirmation gets no votes.
+     *
+     * ── THE GAP THIS CLOSES ──────────────────────────────────────────────────
+     *
+     * The checkout enforces the status allowlist; mint() did not, and the two are
+     * separated by however long the gateway takes — longer still when the webhook
+     * retries. A moderator who disqualified somebody in that window (fraud, a withdrawn
+     * nomination, a rule breach found late) watched the votes land anyway: the tally on a
+     * rejected page moved, the site-wide total counted it, and the buyer was told their
+     * votes were in.
+     *
+     * This is NOT the late-confirmation case, which deliberately DOES mint, because the
+     * ballot was open when we took the money and the lag is ours. Disqualification means
+     * there is nothing left to credit, and crediting it anyway would put the platform's
+     * own integrity decision behind a payment.
+     *
+     * `pending` is the status the platform actually uses for this: the admin action is
+     * literally named "remove" and it sets exactly that
+     * ({@see \AfricaGates\Admin\Controllers\NomineesController::action}). The schema's
+     * CHECK constraint permits only pending/approved/winner/runner_up, so this — plus a
+     * merge, covered below — is the whole reachable set.
+     */
+    public function test_mint_refuses_a_nominee_disqualified_after_payment(): void
+    {
+        // Exactly what /admin/nominees/{id}/remove does after the money was taken.
+        DB::table('gates_nominees')->where('id', 5)->update(['status' => 'pending']);
+        $id = $this->order(['payment_ref' => 'AFG-PVOTE-dq1']);
+
+        $r = PaidVoteService::mint($id);
+
+        $this->assertFalse($r['ok'], 'a nominee taken off the ballot must not be credited');
+        $this->assertSame('NOMINEE_NOT_ELIGIBLE', $r['code']);
+        // The buyer is told plainly, and the money is not kept.
+        $this->assertStringContainsString('refundable', $r['message']);
+        // votes_used stays 0 — the signal RefundService sweeps to send the money back.
+        $this->assertSame(0, (int) DB::table('gates_donations')->where('id', $id)->value('votes_used'));
+        $this->assertSame(0, DB::table('gates_votes')->count());
+        $this->assertSame(3, (int) DB::table('gates_nominees')->where('id', 5)->value('vote_count'),
+            'the public tally must not move for a nominee off the ballot');
+    }
+
+    /** A winner or runner-up, on the other hand, is still a legitimate target. */
+    public function test_mint_still_works_for_a_crowned_nominee(): void
+    {
+        DB::table('gates_nominees')->where('id', 5)->update(['status' => 'winner']);
+
+        $r = PaidVoteService::mint($this->order(['payment_ref' => 'AFG-PVOTE-win1']));
+
+        $this->assertTrue($r['ok'], $r['message'] ?? '');
+        $this->assertSame(10, $r['minted']);
+    }
+
+    /** And a merged-away nominee is never minted into either. */
+    public function test_mint_refuses_a_merged_nominee(): void
+    {
+        if (!DB::schema()->hasColumn('gates_nominees', 'merged_into')) {
+            $this->markTestSkipped('merged_into not present on this schema');
+        }
+        DB::table('gates_nominees')->where('id', 5)->update(['merged_into' => 6]);
+
+        $r = PaidVoteService::mint($this->order(['payment_ref' => 'AFG-PVOTE-mg1']));
+
+        $this->assertFalse($r['ok']);
+        $this->assertSame('NOMINEE_NOT_ELIGIBLE', $r['code']);
+        $this->assertSame(0, DB::table('gates_votes')->count());
+    }
 }
