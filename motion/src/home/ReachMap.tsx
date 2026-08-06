@@ -45,20 +45,21 @@ const ORIGIN_ID = 'NGA';
 const ARC_TARGETS = ['MAR', 'EGY', 'ETH', 'KEN', 'ZAF', 'SEN'] as const;
 
 /** Attack is fast and release is slow — a strike, not a throb. */
-const bump = (x: number): number => {
+export const bump = (x: number): number => {
   if (x <= 0 || x >= 1) return 0;
   return x < 0.16
     ? interpolate(x, [0, 0.16], [0, 1], {easing: Easing.out(Easing.cubic)})
     : interpolate(x, [0.16, 1], [1, 0], {easing: Easing.in(Easing.quad)});
 };
 
-const origin = BY_ID[ORIGIN_ID];
+export const ORIGIN = BY_ID[ORIGIN_ID];
+const origin = ORIGIN;
 
 /**
  * Distances precomputed at module scope: this runs once, not 150 times, and the
  * normalisation has to be over the whole set anyway.
  */
-const GEO = (() => {
+export const GEO = (() => {
   const withDist = AFRICA.map((c) => ({
     ...c,
     dist: Math.hypot(c.cx - origin.cx, c.cy - origin.cy),
@@ -68,7 +69,7 @@ const GEO = (() => {
 })();
 
 /** Quadratic arc bowed away from the straight line, so two arcs never overlap. */
-const arcPath = (x1: number, y1: number, x2: number, y2: number): string => {
+export const arcPath = (x1: number, y1: number, x2: number, y2: number): string => {
   const mx = (x1 + x2) / 2;
   const my = (y1 + y2) / 2;
   const dx = x2 - x1;
@@ -80,7 +81,7 @@ const arcPath = (x1: number, y1: number, x2: number, y2: number): string => {
   return `M${x1},${y1}Q${mx - (dy / len) * lift},${my + (dx / len) * lift} ${x2},${y2}`;
 };
 
-const ARCS = ARC_TARGETS.map((id) => {
+export const ARCS = ARC_TARGETS.map((id) => {
   const c = BY_ID[id];
   const d = arcPath(origin.cx, origin.cy, c.cx, c.cy);
   return {

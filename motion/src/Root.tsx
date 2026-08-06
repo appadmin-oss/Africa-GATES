@@ -7,6 +7,7 @@ import {SealedChain} from './SealedChain';
 import {HowVotingWorks} from './HowVotingWorks';
 import {WinnerSting, winnerStingSchema} from './WinnerSting';
 import {ReachMap} from './home/ReachMap';
+import {ReachStory} from './home/ReachStory';
 
 /**
  * The three faces the site already loads — SELF-HOSTED, not fetched.
@@ -77,8 +78,19 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={winnerStingSchema}
       />
 
+      {/* The same opening, allowed to finish: sweep → push into Nigeria → the
+          cards land on pins → one line of type. 340 frames = 11.3s. */}
+      <Composition
+        id="HomeReachStory"
+        component={ReachStory}
+        durationInFrames={340}
+        fps={30}
+        width={1100}
+        height={800}
+      />
+
       {/* 150 frames at 30fps = exactly 5s, and the loop is seamless — see the
-          note in ReachMap. Sized for the home page's feature slot; the piece is
+          note in ReachMap. Sized for the home page's ambient slot; the piece is
           resolution-independent, so a bigger render is a number change here. */}
       <Composition
         id="HomeReachMap"
