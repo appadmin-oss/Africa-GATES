@@ -1,0 +1,219 @@
+{% extends 'admin/layout.twig' %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .gl-lede{ margin:0 0 16px; font-size:13px; line-height:1.65; color:#4a5256; max-width:84ch }
+  .gl-card{ background:#fff; border:1px solid rgba(16,41,44,.10); border-radius:14px; padding:18px 20px; margin-bottom:18px }
+  .gl-card h2{ margin:0 0 3px; font-size:15px; color:#10292C }
+  .gl-card h2 .gl-n{ font-family:var(--ag-font-mono,monospace); font-weight:700 }
+  .gl-card__note{ margin:0 0 12px; font-size:12.5px; line-height:1.6; color:#5a6d6f; max-width:84ch }
+  .gl-card--bad{ border-color:#f0c9c9; background:#fdf3f3 }
+  .gl-card--warn{ border-color:#ecd9a0; background:#fff8df }
+  .gl-card--ok{ border-color:#bfe0bd; background:#f7fbf6 }
+  .gl-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:20px }
+  .gl-stat{ background:#fff; border:1px solid rgba(16,41,44,.10); border-radius:13px; padding:14px 16px }
+  .gl-stat--bad{ border-color:#f0c9c9; background:#fdf3f3 }
+  .gl-stat--warn{ border-color:#ecd9a0; background:#fff8df }
+  .gl-stat--ok{ border-color:#bfe0bd; background:#f2f9f1 }
+  .gl-stat__k{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f }
+  .gl-stat__n{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:26px; color:#10292C; margin:8px 0 3px }
+  .gl-stat__s{ font-size:12px; color:#5a6d6f }
+  .gl-table{ width:100%; border-collapse:collapse; font-size:12.5px; margin-top:6px }
+  .gl-table th{ text-align:left; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; padding:8px 10px; border-bottom:1px solid rgba(16,41,44,.12) }
+  .gl-table td{ padding:9px 10px; border-bottom:1px solid rgba(16,41,44,.06); vertical-align:top }
+  .gl-mono{ font-family:var(--ag-font-mono,monospace) }
+  .gl-why{ margin:0; padding-left:15px; font-size:12px; line-height:1.55; color:#8a2020 }
+  .gl-tag{ display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .gl-btn{ cursor:pointer; font-family:inherit; font-size:13px; font-weight:650; border:none;
+    padding:10px 18px; border-radius:999px; background:#10292C; color:#fff }
+  .gl-btn--go{ background:#177015 }
+  .gl-in{ font-family:inherit; font-size:13px; padding:9px 13px; border:1px solid rgba(16,41,44,.16); border-radius:9px; width:88px }
+  .gl-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+  .gl-warnbar{ background:#fff8df; border:1px solid #ecd9a0; color:#6b4a00; border-radius:11px;
+    padding:12px 15px; font-size:13px; line-height:1.6; margin:0 0 16px }
+  .gl-empty{ font-size:13px; color:#5a6d6f; margin:6px 0 0 }
+  .gl-scroll{ overflow-x:auto }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<h1 style="margin:0 0 4px;font-size:20px">Gateway ledger</h1>
+<p class="gl-lede">
+  Every other money screen here starts from a row in our database and asks Paystack about it.
+  That can only ever find orders we already know we have. This page reads Paystack's own list of
+  successful charges first, then looks each one up on our side — which is the only way a payment
+  that was collected with <strong>no record on this platform at all</strong> can appear anywhere.
+  Nothing on this page changes anything; it reads both books and shows where they differ.
+</p>
+
+{% if not providers %}
+  <div class="gl-warnbar">
+    No payment gateway is configured in this environment, so there is nothing to read. Set
+    <code>PAYSTACK_SECRET_KEY</code> and reload.
+  </div>
+{% endif %}
+
+<div class="gl-card">
+  <h2>Pull a window</h2>
+  <p class="gl-card__note">
+    Reads up to {{ max_days }} days, in pages of 100. A month of a busy cycle is a handful of calls
+    to Paystack and takes a few seconds; it is a POST because refreshing a page should not make
+    twenty outbound requests.
+  </p>
+  <form method="post" action="/admin/payments/ledger" class="gl-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label for="gl-days" style="font-size:13px">Last</label>
+    <input class="gl-in" id="gl-days" type="number" name="days" min="1" max="{{ max_days }}" value="{{ days }}">
+    <span style="font-size:13px">days</span>
+    <button class="gl-btn gl-btn--go" type="submit" {{ providers ? '' : 'disabled' }}>Read Paystack</button>
+  </form>
+</div>
+
+{% if result %}
+  {% set c = result.counts %}
+  {% set n = result.naira %}
+
+  <p class="gl-card__note" style="margin:0 0 10px">
+    Read {{ result.at }} — {{ result.from }} to {{ result.to }} ({{ result.days }} days).
+  </p>
+
+  {% if result.truncated %}
+    <div class="gl-warnbar">
+      <strong>This window was not read to the end.</strong> The walk stopped at the page limit, so
+      anything after that is neither matched nor reported here. Narrow the window and pull again
+      before treating an empty column as a clean result.
+      {% if result.message %}<br>{{ result.message }}{% endif %}
+    </div>
+  {% endif %}
+
+  <div class="gl-grid">
+    <div class="gl-stat">
+      <div class="gl-stat__k">Successful at Paystack</div>
+      <div class="gl-stat__n">{{ c.gateway }}</div>
+      <div class="gl-stat__s">₦{{ n.gateway|number_format }} collected</div>
+    </div>
+    <div class="gl-stat {{ c.agreed ? 'gl-stat--ok' : '' }}">
+      <div class="gl-stat__k">Both books agree</div>
+      <div class="gl-stat__n">{{ c.agreed }}</div>
+      <div class="gl-stat__s">₦{{ n.agreed|number_format }}</div>
+    </div>
+    <div class="gl-stat {{ c.mismatch ? 'gl-stat--warn' : '' }}">
+      <div class="gl-stat__k">Books disagree</div>
+      <div class="gl-stat__n">{{ c.mismatch }}</div>
+      <div class="gl-stat__s">₦{{ n.mismatch|number_format }}</div>
+    </div>
+    <div class="gl-stat {{ c.theirs ? 'gl-stat--bad' : '' }}">
+      <div class="gl-stat__k">Theirs only</div>
+      <div class="gl-stat__n">{{ c.theirs }}</div>
+      <div class="gl-stat__s">₦{{ n.theirs|number_format }} with no row here</div>
+    </div>
+    <div class="gl-stat {{ c.ours ? 'gl-stat--warn' : '' }}">
+      <div class="gl-stat__k">Ours only</div>
+      <div class="gl-stat__n">{{ c.ours }}</div>
+      <div class="gl-stat__s">₦{{ n.ours|number_format }}</div>
+    </div>
+  </div>
+
+  {# ── Theirs only: the bucket that had no query ────────────────────────── #}
+  <div class="gl-card {{ result.groups.theirs ? 'gl-card--bad' : '' }}">
+    <h2>Money at Paystack with nothing here <span class="gl-n">({{ c.theirs }})</span></h2>
+    <p class="gl-card__note">
+      Paystack says these succeeded and no table on this platform has the reference — not votes,
+      not the shop, not event registrations. Somebody paid and there is no order, no receipt and
+      no votes, because there is nothing here to attach any of that to. Each of these is a person
+      to find by their email and either deliver to or refund. They cannot be repaired from a
+      button: there is no order to confirm.
+    </p>
+    {% if result.groups.theirs %}
+      <div class="gl-scroll"><table class="gl-table">
+        <thead><tr><th>Reference</th><th>Amount</th><th>Email</th><th>Channel</th><th>Paid at</th></tr></thead>
+        <tbody>
+        {% for r in result.groups.theirs %}
+          <tr>
+            <td class="gl-mono">{{ r.gateway.reference }}</td>
+            <td class="gl-mono">₦{{ r.gateway.amount|number_format }}</td>
+            <td>{{ r.gateway.email }}{% if r.gateway.name %}<br><span style="color:#5a6d6f">{{ r.gateway.name }}</span>{% endif %}</td>
+            <td>{{ r.gateway.channel }}</td>
+            <td class="gl-mono">{{ r.gateway.paid_at }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}
+      <p class="gl-empty">None. Every successful charge in this window is accounted for on our side.</p>
+    {% endif %}
+  </div>
+
+  {# ── Disagreements ────────────────────────────────────────────────────── #}
+  <div class="gl-card {{ result.groups.mismatch ? 'gl-card--warn' : '' }}">
+    <h2>Both books have it, and they disagree <span class="gl-n">({{ c.mismatch }})</span></h2>
+    <p class="gl-card__note">
+      The reference exists on both sides but the amount or the status does not line up. A row still
+      reading “pending” against a successful charge is repairable on the
+      <a href="/admin/payments">triage page</a>; a short or over payment is a decision for a person,
+      because minting the full order against a part payment inflates a tally.
+    </p>
+    {% if result.groups.mismatch %}
+      <div class="gl-scroll"><table class="gl-table">
+        <thead><tr><th>Reference</th><th>Ledger</th><th>Paystack</th><th>Ours</th><th>What differs</th></tr></thead>
+        <tbody>
+        {% for r in result.groups.mismatch %}
+          <tr>
+            <td class="gl-mono">{{ r.gateway.reference }}</td>
+            <td><span class="gl-tag">{{ r.local.ledger }}</span></td>
+            <td class="gl-mono">₦{{ r.gateway.amount|number_format }}<br><span style="color:#5a6d6f">{{ r.gateway.status }}</span></td>
+            <td class="gl-mono">₦{{ r.local.amount|number_format }}<br><span style="color:#5a6d6f">{{ r.local.status }}</span></td>
+            <td><ul class="gl-why">{% for w in r.why %}<li>{{ w }}</li>{% endfor %}</ul></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}
+      <p class="gl-empty">None. Every matched charge agrees on amount and status.</p>
+    {% endif %}
+  </div>
+
+  {# ── Ours only ────────────────────────────────────────────────────────── #}
+  <div class="gl-card {{ result.groups.ours ? 'gl-card--warn' : '' }}">
+    <h2>Settled here, absent from Paystack's list <span class="gl-n">({{ c.ours }})</span></h2>
+    <p class="gl-card__note">
+      Our books call these paid, but Paystack's successful transactions for the same window do not
+      contain the reference. Usually one of three things: it was recorded by hand, it was paid
+      through a gateway other than Paystack, or it was confirmed on evidence Paystack no longer
+      stands behind. The last one is the one to care about.
+    </p>
+    {% if result.groups.ours %}
+      <div class="gl-scroll"><table class="gl-table">
+        <thead><tr><th>Reference</th><th>Ledger</th><th>Amount</th><th>Email</th><th>Recorded</th></tr></thead>
+        <tbody>
+        {% for r in result.groups.ours %}
+          <tr>
+            <td class="gl-mono">{{ r.local.reference ?: '— none stored —' }}</td>
+            <td><span class="gl-tag">{{ r.local.ledger }}</span></td>
+            <td class="gl-mono">₦{{ r.local.amount|number_format }}</td>
+            <td>{{ r.local.email }}</td>
+            <td class="gl-mono">{{ r.local.created_at }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}
+      <p class="gl-empty">None. Everything we call settled is in Paystack's list.</p>
+    {% endif %}
+  </div>
+
+  {% if c.agreed %}
+    <div class="gl-card gl-card--ok">
+      <h2>Both books agree <span class="gl-n">({{ c.agreed }})</span></h2>
+      <p class="gl-card__note" style="margin:0">
+        ₦{{ n.agreed|number_format }} across {{ c.agreed }} charge(s), matched by reference with the
+        same amount and a settled status on our side. Nothing to do.
+      </p>
+    </div>
+  {% endif %}
+{% endif %}
+
+{% endblock %}

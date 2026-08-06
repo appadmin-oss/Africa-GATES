@@ -1,6 +1,6 @@
 {% extends 'admin/layout.twig' %}
 
-{% block head %}
+{% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   .pt-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; margin-bottom:20px }
   .pt-stat{ background:#fff; border:1px solid rgba(16,41,44,.10); border-radius:13px; padding:14px 16px }
@@ -41,6 +41,12 @@
   sweep and the receipt all do. An order whose card was charged at the gateway but whose row never
   flipped is invisible to all three at once: no votes, no refund, no receipt, and no mention in any
   other report. This is the only page that shows those.
+</p>
+<p class="pt-lede">
+  Everything here begins with an order of ours and asks Paystack about it, so it can only find
+  payments we already know we started. For the opposite direction — Paystack's own list of
+  successful charges, including any with no record on this platform at all — use the
+  <a href="/admin/payments/ledger?days={{ days }}">gateway ledger</a>.
 </p>
 
 <form method="get" action="/admin/payments" class="pt-row" style="margin-bottom:18px">
@@ -298,11 +304,15 @@
 </div>
 {% endif %}
 
-{% endblock %}
-
+{# Inside the block, and it has to be. Twig refuses any content outside a block in
+   a child template, so while this sat below {% endblock %} the whole page was a
+   SyntaxError — /admin/payments rendered a 500, not a triage screen. The
+   confirmation it holds was dead for the same reason. #}
 <script nonce="{{ csp_nonce }}">
   // Confirming orders moves money. One deliberate pause before it happens.
   document.getElementById('pt-repair')?.addEventListener('submit', function (e) {
     if (!window.confirm('Confirm these orders and deliver what is owed?')) e.preventDefault();
   });
 </script>
+
+{% endblock %}

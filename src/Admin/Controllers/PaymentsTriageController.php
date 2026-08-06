@@ -196,13 +196,80 @@ final class PaymentsTriageController
         return $res->withHeader('Location', '/admin/payments?days=' . $days)->withStatus(302);
     }
 
+    /**
+     * The gateway's own list, compared with ours.
+     *
+     * Separate page from triage on purpose. Triage answers "which of our orders
+     * broke", which is a repair queue with buttons. This answers "does the money
+     * Paystack has match the money we think we have", which is an audit and has
+     * none — see {@see \AfricaGates\Services\GatewayLedger} on why nothing here
+     * writes.
+     *
+     * GET renders the form only. Walking a month of transactions is up to twenty
+     * paginated calls to Paystack, and a page that did that on load would fire
+     * them again on every refresh, every back-button and every prefetch.
+     */
+    public function ledger(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $days = isset($req->getQueryParams()['days']) ? max(1, (int) $req->getQueryParams()['days']) : 30;
+
+        return $this->view->render($res, 'admin/payments-ledger.twig', [
+            'page_title' => 'Gateway ledger',
+            'admin_page' => 'payments-ledger',
+            'days'       => min($days, \AfricaGates\Services\GatewayLedger::MAX_DAYS),
+            'max_days'   => \AfricaGates\Services\GatewayLedger::MAX_DAYS,
+            'providers'  => (new PaymentTriage())->enabledProviders(),
+            'result'     => $_SESSION['gateway_ledger'] ?? null,
+        ]);
+    }
+
+    /** Do the pull. POST because it makes up to twenty outbound calls. */
+    public function pullLedger(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $days = max(1, (int) (((array) $req->getParsedBody())['days'] ?? 30));
+        $days = min($days, \AfricaGates\Services\GatewayLedger::MAX_DAYS);
+
+        $r = (new \AfricaGates\Services\GatewayLedger())->pull($days);
+
+        if (!$r['ok']) {
+            $_SESSION['flash_error'] = 'Paystack could not be read: ' . $r['message'];
+            return $res->withHeader('Location', '/admin/payments/ledger?days=' . $days)->withStatus(302);
+        }
+
+        // Rows are capped for the SCREEN, not for the counts — the totals above
+        // each table are computed over everything pulled. A capped table that
+        // silently shrank its own total would report a clean window.
+        foreach (['agreed', 'mismatch', 'theirs', 'ours'] as $g) {
+            $r['groups'][$g] = array_slice($r['groups'][$g], 0, 100);
+        }
+        $r['at'] = date('Y-m-d H:i:s');
+        $_SESSION['gateway_ledger'] = $r;
+
+        try {
+            $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'payments.gateway_ledger', 'donation', null,
+                ['days' => $days, 'counts' => $r['counts']]);
+        } catch (\Throwable) {}
+
+        if ($r['counts']['theirs'] > 0) {
+            $_SESSION['flash_error'] = $r['counts']['theirs'] . ' successful charge(s) at Paystack have no record '
+                . 'on this platform at all — ₦' . number_format($r['naira']['theirs']) . ' collected from people '
+                . 'nothing here knows about.';
+        }
+
+        return $res->withHeader('Location', '/admin/payments/ledger?days=' . $days)->withStatus(302);
+    }
+
     private function render(Response $res, int $days, array $extra): Response
     {
         $data = PaymentTriage::buckets($days);
 
         return $this->view->render($res, 'admin/payments-triage.twig', array_merge([
             'page_title' => 'Payment triage',
-            'admin_page' => 'finance',
+            'admin_page' => 'payments',
             'days'       => $days,
             'counts'     => $data['counts'],
             'naira'      => $data['naira'],

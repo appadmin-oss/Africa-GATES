@@ -1196,6 +1196,11 @@ return function(App $app) {
         $a->post('/payments/verify',             \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':verify');
         $a->post('/payments/repair',             \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':repair');
         $a->post('/payments/deliver',            \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':deliver');
+        // The same money read from the other side. Everything above starts from a
+        // row of ours; this starts from Paystack's list, which is the only way a
+        // charge with NO row here can ever appear on a screen.
+        $a->get('/payments/ledger',              \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':ledger');
+        $a->post('/payments/ledger',             \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':pullLedger');
 
 
         // Member account actions (manual points adjustment — audited, admin+ gated in-controller).

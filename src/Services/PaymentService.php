@@ -184,6 +184,154 @@ class PaymentService
     }
 
     /**
+     * Every transaction the GATEWAY has, for a window — not every one we have.
+     *
+     * ── WHY THIS EXISTS: EVERY OTHER CALL STARTS FROM A ROW OF OURS ──────────
+     *
+     * `initialize()`, `verify()` and `refund()` all take a reference we minted,
+     * which means the entire money picture in this codebase is drawn from
+     * `gates_donations`. That is fine for a payment we started and mis-handled —
+     * {@see PaymentTriage} finds those. It is structurally blind to the worse
+     * case: a charge that exists at Paystack with NO row here at all. A person
+     * paid, our insert failed or never ran, and there is nothing on this side to
+     * start a query from. Nobody is looking for them because nothing knows they
+     * exist.
+     *
+     * This is the only call that starts on the other side, so it is the only way
+     * that bucket can ever be seen. {@see GatewayLedger} does the comparison.
+     *
+     * ── PAGINATION, AND WHY IT IS NOT CURSOR-BASED HERE ──────────────────────
+     *
+     * `GET /transaction` supports two pagers. Passing `use_cursor=true` returns a
+     * `meta.next` cursor; without it you get classic offset paging with
+     * `meta.pageCount`. We use the classic one deliberately: a cursor is only
+     * worth its complexity when the set is being written to while you page it,
+     * and this walks a CLOSED window (`from`/`to` are both in the past), so the
+     * page numbering cannot shift under us. `meta.pageCount` is honoured when the
+     * account returns it, and a short page ends the walk when it does not — both
+     * shapes are in the wild.
+     *
+     * ── IT REFUSES TO WALK FOREVER, AND SAYS SO ──────────────────────────────
+     *
+     * `truncated` is returned rather than logged, because a reconciliation screen
+     * that quietly stopped at page 20 would render "nothing unmatched" over a
+     * window it never finished reading. A partial answer must know it is partial.
+     *
+     * Paystack only. Flutterwave's equivalent is a different endpoint with a
+     * different envelope, and guessing it from the shape of this one would produce
+     * a page that silently reconciles against nothing.
+     *
+     * @param array{status?:string,from?:string,to?:string,perPage?:int,maxPages?:int} $filter
+     * @return array{ok:bool,message:string,transactions:list<array>,truncated:bool,pages:int}
+     */
+    public function listTransactions(string $provider, array $filter = []): array
+    {
+        $fail = static fn (string $m): array =>
+            ['ok' => false, 'message' => $m, 'transactions' => [], 'truncated' => false, 'pages' => 0];
+
+        if ($provider !== 'paystack') {
+            return $fail('Listing transactions is only implemented for Paystack. '
+                       . 'Flutterwave exposes a different endpoint and is not read here.');
+        }
+        if (!$this->isEnabled($provider)) return $fail('Paystack is not configured in this environment.');
+
+        $perPage  = max(1, min(100, (int) ($filter['perPage'] ?? 100)));
+        $maxPages = max(1, min(200, (int) ($filter['maxPages'] ?? 20)));
+
+        $query = ['perPage' => $perPage];
+        foreach (['status', 'from', 'to'] as $k) {
+            if (isset($filter[$k]) && (string) $filter[$k] !== '') $query[$k] = (string) $filter[$k];
+        }
+
+        $out   = [];
+        $page  = 1;
+        $seen  = [];
+
+        try {
+            while ($page <= $maxPages) {
+                $res = $this->request(
+                    'GET',
+                    'https://api.paystack.co/transaction?' . http_build_query($query + ['page' => $page]),
+                    null,
+                    ['Authorization: Bearer ' . $this->secret('paystack')]
+                );
+                $body = $res['json'];
+
+                if (!$res['ok'] || ($body['status'] ?? false) !== true || !is_array($body['data'] ?? null)) {
+                    // A failure MID-WALK still returns what we already read, flagged
+                    // truncated. Throwing away four good pages because the fifth
+                    // timed out would hide four pages of real charges.
+                    $msg = (string) ($body['message'] ?? 'Paystack would not list transactions.');
+                    if ($out === []) return $fail($msg);
+                    return ['ok' => true, 'message' => 'Stopped early: ' . $msg,
+                            'transactions' => $out, 'truncated' => true, 'pages' => $page - 1];
+                }
+
+                $rows = $body['data'];
+                foreach ($rows as $r) {
+                    if (!is_array($r)) continue;
+                    $t = self::normalisePaystackTransaction($r);
+                    // Paging a window can repeat a row at a boundary; a duplicate
+                    // charge in a reconciliation total is a fictional charge.
+                    $key = $t['reference'] !== '' ? 'r:' . $t['reference'] : 'i:' . $t['id'];
+                    if (isset($seen[$key])) continue;
+                    $seen[$key] = true;
+                    $out[] = $t;
+                }
+
+                $meta      = is_array($body['meta'] ?? null) ? $body['meta'] : [];
+                $pageCount = isset($meta['pageCount']) ? (int) $meta['pageCount'] : null;
+
+                $more = $pageCount !== null ? ($page < $pageCount) : (count($rows) >= $perPage);
+                if (!$more) {
+                    return ['ok' => true, 'message' => 'ok', 'transactions' => $out,
+                            'truncated' => false, 'pages' => $page];
+                }
+                $page++;
+            }
+        } catch (\Throwable $e) {
+            $this->log?->error('[payment] paystack list error', ['err' => $e->getMessage()]);
+            if ($out === []) return $fail('Could not reach Paystack to list transactions.');
+            return ['ok' => true, 'message' => 'Stopped early: could not reach Paystack.',
+                    'transactions' => $out, 'truncated' => true, 'pages' => $page - 1];
+        }
+
+        return ['ok' => true, 'message' => 'ok', 'transactions' => $out,
+                'truncated' => true, 'pages' => $maxPages];
+    }
+
+    /**
+     * One Paystack transaction object → the shape the rest of this codebase uses.
+     *
+     * Amounts land in WHOLE NAIRA here, exactly as {@see verifyPaystack} does it,
+     * so that a figure from the list and a figure from a verify can be compared
+     * without either caller remembering which one is in kobo.
+     */
+    private static function normalisePaystackTransaction(array $r): array
+    {
+        $raw = strtolower((string) ($r['status'] ?? ''));
+
+        return [
+            'provider'   => 'paystack',
+            'id'         => (int) ($r['id'] ?? 0),
+            'reference'  => (string) ($r['reference'] ?? ''),
+            // 'success' | 'failed' | 'abandoned' | 'reversed' | 'ongoing' | 'pending'
+            'status'     => $raw !== '' ? $raw : 'unknown',
+            'paid'       => $raw === 'success',
+            'amount'     => (int) round(((int) ($r['amount'] ?? 0)) / 100),
+            'fees'       => (int) round(((int) ($r['fees'] ?? 0)) / 100),
+            'currency'   => (string) ($r['currency'] ?? 'NGN'),
+            'channel'    => (string) ($r['channel'] ?? ''),
+            'email'      => (string) ($r['customer']['email'] ?? ''),
+            'name'       => trim((string) ($r['customer']['first_name'] ?? '') . ' '
+                               . (string) ($r['customer']['last_name'] ?? '')),
+            'paid_at'    => (string) ($r['paid_at'] ?? $r['paidAt'] ?? ''),
+            'created_at' => (string) ($r['created_at'] ?? $r['createdAt'] ?? ''),
+            'gateway_response' => (string) ($r['gateway_response'] ?? ''),
+        ];
+    }
+
+    /**
      * Give the money back.
      *
      * ── THE ONLY OUTBOUND MONEY MOVEMENT IN THIS CODEBASE ────────────────────

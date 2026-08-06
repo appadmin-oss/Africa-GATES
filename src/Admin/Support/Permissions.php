@@ -59,7 +59,19 @@ final class Permissions
         'data' => 'data', 'votes' => 'data', 'donations' => 'data', 'orders' => 'data', 'users' => 'data',
         'registrations' => 'data', 'points' => 'data', 'comments' => 'data', 'activity' => 'data', 'reports' => 'data',
         // finance (superadmin + admin)
-        'finance' => 'finance',
+        //
+        // `refunds`, `vote-delivery` and `payments` were missing here, and the
+        // consequence was not that they were open — unmapped fails CLOSED, to
+        // superadmin — but that the SIDEBAR and the GUARD disagreed. The Finance
+        // group renders for anyone holding the `finance` section, which includes
+        // `admin`, so an admin was shown "Refunds" and "Vote Delivery", clicked
+        // them, and was bounced to the dashboard told their role has no access to
+        // a section their sidebar had just offered. Mapping them puts both sides
+        // back on one answer: these are finance, and finance is superadmin+admin.
+        //
+        // `payments` covers the triage screen and the gateway ledger under it.
+        'finance' => 'finance', 'refunds' => 'finance', 'vote-delivery' => 'finance',
+        'payments' => 'finance',
         // configuration (superadmin)
         'admins' => 'configuration', 'settings' => 'configuration', 'webhooks' => 'configuration', 'judges' => 'configuration',
         // overview — the dashboard and the AI console copilot (every role may use
