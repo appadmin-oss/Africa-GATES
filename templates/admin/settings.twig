@@ -281,6 +281,48 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Buyers appear on the nominee's public <strong>supporters list</strong> when they fill in the optional name field; leaving it blank gives anonymously. Free OTP votes are never listed (that path requires a name, so giving one is not a choice). Orders placed before the field said this are treated as not consented and stay private. See <a href="/privacy#supporters" style="color:var(--ad-accent,#237b22)">the supporter-names policy</a>.</p>
     </div>
   </div></div>
+  {# ── COMMUNITY RETURN ──────────────────────────────────────────────────────
+     The share a nominee keeps of what supporters raised in their name. Lives in
+     gates_rule_sets rather than gates_settings because it is a scoring rule and
+     has to be overridable per cycle — and because the accrual reads it from
+     RuleEngine, so the form and the ledger cannot disagree.
+
+     Everything visible here is also published on /integrity, verbatim. That is
+     deliberate: an admin changing the share should be able to see, in the same
+     sentence, exactly what the public page will start saying. #}
+  <div class="ad-card" data-sec="money" data-keys="community return share nominee earnings payout revenue split qualifying support threshold cap supporters percentage" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Community return<small>The share a nominee keeps of contributions made in their name — win or lose.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="community_return_settings" value="1">
+    <div class="ad-form">
+      <div class="row">
+        <div>
+          <label for="f-community_return_pct">Share of each contribution (%)</label>
+          <input type="number" name="community_return_pct" id="f-community_return_pct" min="0" max="100" step="0.5" value="{{ community_return.pct|default('30') }}">
+        </div>
+        <div>
+          <label for="f-community_return_vote_threshold">Qualifying support needed (votes)</label>
+          <input type="number" name="community_return_vote_threshold" id="f-community_return_vote_threshold" min="1" step="1" value="{{ community_return.threshold|default(250) }}">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="f-community_return_supporter_cap_pct">Most one supporter may supply (%)</label>
+          <input type="number" name="community_return_supporter_cap_pct" id="f-community_return_supporter_cap_pct" min="1" max="100" step="1" value="{{ community_return.cap_pct|default(10) }}">
+        </div>
+        <div>
+          <label>What that works out as</label>
+          <p style="margin:9px 0 0;font-size:13px;line-height:1.55;color:var(--ad-text-mute,#5a6d6f)">
+            One supporter counts for at most <strong>{{ community_return.cap_votes|default(25)|number_format }} votes</strong>,
+            so qualifying takes at least <strong>{{ community_return.min_supporters|default(10) }} different people</strong>.
+          </p>
+        </div>
+      </div>
+
+      <p style="margin:12px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><strong>How qualifying support is counted.</strong> Votes, not heads — somebody who bought twenty-five votes did more than somebody who cast one. But no single supporter's votes count for more than the ceiling above, so a raw threshold cannot be bought by one person in one order. The minimum number of people is <em>derived</em> from that ceiling, never set separately: two knobs describing one rule is how a page publishes one number while the engine enforces another.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Free votes and contributions are added together per person, so splitting an order cannot buy a second allowance. Refunded and undelivered orders count for nothing.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Earning is <strong>prospective</strong>: crossing the line changes what happens next, never what already happened. Contributions made before a nominee qualified stay unshared however many times accrual is re-run over them.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Nothing is payable until a cycle reaches its results, and <strong>no payout path exists yet</strong> — the ledger accrues and displays. Set the share to <strong>0%</strong> to stop accruing entirely for new contributions; entries already written are unaffected, because the ledger is append-only. These figures are published on the <a href="/integrity#return" style="color:var(--ad-accent,#237b22)">integrity page</a> exactly as set here.</p>
+    </div>
+  </div></div>
   <div class="ad-card" data-sec="site" data-keys="display values nations count cpi recompute interval review sla nomination seconds otp expiry processing fee" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Display values<small>Numbers shown in site copy — edit here instead of hardcoding them in templates.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="display_settings" value="1">
     <div class="ad-form">

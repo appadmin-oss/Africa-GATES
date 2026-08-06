@@ -661,6 +661,24 @@ class PaidVoteService
                 error_log('[paid-vote] community return not accrued on order ' . (int) $don->id . ': ' . $e->getMessage());
             }
 
+            // ── AND TELL THEM WHAT IT DID ────────────────────────────────────
+            //
+            // Not a receipt — CheckoutMailer already sends one, and their bank has
+            // already told them the amount. This says where the nominee now stands
+            // and how many people are behind them, which is the thing they actually
+            // wanted to know and cannot see anywhere else.
+            //
+            // OUTSIDE the accrual's concerns but inside the same transaction, and
+            // claimed against gates_supporter_honours before it composes anything —
+            // a retried mint or a replayed webhook must not thank the same person
+            // twice. Best-effort to the point of silence: a mail failure has no
+            // business rolling back votes somebody has paid for.
+            try {
+                SupporterHonours::thank((int) $don->id);
+            } catch (\Throwable $e) {
+                error_log('[paid-vote] supporter not thanked on order ' . (int) $don->id . ': ' . $e->getMessage());
+            }
+
             return ['ok' => true, 'minted' => $qty];
         });
     }

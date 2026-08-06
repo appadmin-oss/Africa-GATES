@@ -768,14 +768,25 @@ final class HelpCentre
                       . 'aside <strong>for the nominee</strong>. It is not a prize and it does not depend '
                       . 'on winning — they raised it either way, and a nominee who mobilised a community '
                       . 'and came second mobilised a community.'],
-                ['p' => 'Two conditions shape it. A nominee starts earning only once they have reached '
-                      . '<strong>{return_supporters} distinct supporters</strong>, and from that point '
-                      . 'the share is <strong>{return_pct}%</strong> of what is contributed in their name '
-                      . 'afterwards. Crossing that line does not reach backwards: earlier contributions '
-                      . 'stay unshared.'],
-                ['p' => 'The threshold counts <em>people</em>, not votes, and that distinction is the '
-                      . 'whole safeguard. One person can buy fifty votes in a single order; one person '
-                      . 'cannot be fifty verified supporters.'],
+                ['p' => 'A nominee starts earning once they have gathered '
+                      . '<strong>{return_threshold} votes of qualifying support</strong>, and from that '
+                      . 'point the share is <strong>{return_pct}%</strong> of what is contributed in their '
+                      . 'name afterwards. Crossing the line does not reach backwards: earlier '
+                      . 'contributions stay unshared.'],
+                ['p' => '<strong>Qualifying support</strong> is where the care went. Votes are counted, '
+                      . 'not heads — somebody who bought twenty-five votes did more for a nominee than '
+                      . 'somebody who cast one, and pretending otherwise would tell generous supporters '
+                      . 'their generosity was noise. But no single supporter\'s votes count for more than '
+                      . '<strong>{return_cap_votes}</strong> toward the threshold, however many they '
+                      . 'bought — that is {return_cap_pct}% of it.'],
+                ['p' => 'The arithmetic does the arguing. One person can carry a nominee at most '
+                      . '{return_cap_pct}% of the way, so qualifying takes at least '
+                      . '<strong>{return_people} different verified people</strong> whatever anybody is '
+                      . 'willing to spend. Inside that ceiling, paying more still counts for more.'],
+                ['note' => 'Free votes and contributions are added together per person, so somebody who '
+                         . 'voted free and then contributed is one supporter with the sum of both — not '
+                         . 'two supporters, which would have made splitting an order a way to buy a '
+                         . 'second allowance.'],
                 ['steps' => [
                     'Every entry is written to a ledger that only ever grows. Nothing is overwritten, so '
                         . 'any figure can be explained line by line.',
@@ -783,9 +794,9 @@ final class HelpCentre
                         . 'and the reversal stays on the record beside the original.',
                     'Nothing is payable until that cycle has ended and its results have been announced.',
                 ]],
-                ['note' => 'The share is a per-cycle setting and can be zero. When it is set to '
-                         . '{return_pct}%, as it is now, that is exactly what accrues — the ledger simply '
-                         . 'stays empty rather than quietly promising something.'],
+                ['note' => 'The share, the threshold and the per-supporter ceiling are all per-cycle '
+                         . 'settings, and this page always states the ones currently in force. It is '
+                         . '{return_pct}% today.'],
             ],
             'related' => ['what-paid-votes-do', 'refund-when-votes-cannot-count', 'how-cpi-works'],
         ],
@@ -1236,7 +1247,7 @@ final class HelpCentre
         // The articles that page links out to have to read the same source, or the
         // deep dive quietly contradicts the summary that sent the reader to it.
         $communityPct = '45'; $judgePct = '55'; $paidCapPct = '50'; $minJudges = '2';
-        $returnPct = '0'; $returnSupporters = '25';
+        $ret = CommunityReturnService::displayRules([]);
         try {
             $rules = new RuleEngine();
             $w     = $rules->weights();
@@ -1247,14 +1258,9 @@ final class HelpCentre
             $paidCapPct   = (string) (int) ($eff['max_paid_weight_pct'] ?? 50);
             $minJudges    = (string) (int) ($eff['min_judges_per_nominee'] ?? 2);
 
-            // Basis points to a percentage a person can read: 3000 → "30",
-            // 1250 → "12.5". Never a trailing ".0", because "30.0%" in a sentence
-            // reads like a measurement rather than a rule.
-            $bps = (int) ($eff['community_return_bps'] ?? 0);
-            $returnPct = rtrim(rtrim(number_format($bps / 100, 2, '.', ''), '0'), '.');
-            if ($returnPct === '') $returnPct = '0';
-
-            $returnSupporters = (string) (int) ($eff['community_return_min_supporters'] ?? 25);
+            // One conversion, shared with /integrity, so the page and the article it
+            // links to cannot format the same setting two different ways.
+            $ret = CommunityReturnService::displayRules($eff);
         } catch (\Throwable) {}
 
         return [
@@ -1267,8 +1273,12 @@ final class HelpCentre
             '{judge_pct}'         => $judgePct,
             '{paid_cap_pct}'      => $paidCapPct,
             '{min_judges}'        => $minJudges,
-            '{return_pct}'        => $returnPct,
-            '{return_supporters}' => $returnSupporters,
+
+            '{return_pct}'        => $ret['pct'],
+            '{return_threshold}'  => number_format($ret['threshold']),
+            '{return_cap_pct}'    => (string) $ret['cap_pct'],
+            '{return_cap_votes}'  => number_format($ret['cap_votes']),
+            '{return_people}'     => (string) $ret['min_supporters'],
         ];
     }
 }

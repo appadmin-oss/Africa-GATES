@@ -57,6 +57,21 @@ final class CycleAnnouncer
 
         if (!$announce) return;
         self::email($n, $kind);
+
+        // ── AND THE PEOPLE WHO PUT THEM THERE ────────────────────────────────
+        //
+        // The nominee has just been congratulated. Until now the supporters who
+        // decided the community half of that result heard nothing at all — a strange
+        // silence for a platform about communal recognition, and the one moment when
+        // a message is certain to be welcome.
+        //
+        // Behind the same $announce gate as the nominee's own mail, for the same
+        // reason: a backlog of cycles all reaching 'results' at once must correct the
+        // standings without writing to anybody about a competition that ended months
+        // ago. Best-effort — a failed fan-out may never leave a winner un-promoted.
+        try {
+            SupporterHonours::celebrate($nomineeId, $kind);
+        } catch (\Throwable) { /* best-effort */ }
     }
 
     private static function nominee(int $nomineeId): ?object

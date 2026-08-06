@@ -84,6 +84,17 @@ class SettingsController
             // Email delivery health — recent sends with status/error so "links
             // aren't arriving" is diagnosable at a glance.
             'mail_health'    => $this->mailHealth(),
+
+            // ── Community return ─────────────────────────────────────────────
+            //
+            // Resolved through the same helper the public pages use, so the form
+            // shows literally what /integrity is publishing. This card is the ONLY
+            // place the share is decided; every reader in the codebase goes through
+            // RuleEngine to find out what it is.
+            'community_return' => \AfricaGates\Services\CommunityReturnService::displayRules(
+                (new \AfricaGates\Services\RuleEngine())->effective()
+            ),
+
             // Automation / webcron status for the no-SSH setup card.
             'app_url'        => rtrim((string) Env::get('APP_URL', ''), '/'),
             'cron_last'      => (function () {
@@ -269,6 +280,44 @@ class SettingsController
             $r = (float) ($b['mod_threshold_reject'] ?? 0.65);
             $this->settings->set('mod_threshold_quarantine', (string) max(0.05, min(0.90, $q)), $adminId);
             $this->settings->set('mod_threshold_reject', (string) max($q + 0.05, min(0.99, $r)), $adminId);
+        }
+
+        // ── Community return ─────────────────────────────────────────────────
+        //
+        // Unlike everything above it, this does NOT live in gates_settings. The
+        // share is a scoring rule: it has to be overridable per programme and per
+        // cycle, and it has to be readable by the same RuleEngine the accrual
+        // consults — otherwise the admin edits one number and the ledger uses
+        // another. So it is written as a GLOBAL rule set.
+        //
+        // MERGED, never replaced. RuleEngine::set() writes the whole JSON document
+        // for a scope, and the global scope also carries the CPI weights, the fraud
+        // bands and the judge quorum. Writing only these three keys would erase the
+        // rest — the entire scoring configuration, silently, from a form about
+        // revenue sharing.
+        if (array_key_exists('community_return_settings', $b)) {
+            $engine  = new \AfricaGates\Services\RuleEngine();
+            $current = [];
+            try {
+                $row = \Illuminate\Database\Capsule\Manager::table('gates_rule_sets')
+                    ->where('scope', 'global')->whereNull('scope_id')->value('rules');
+                $decoded = json_decode((string) $row, true);
+                if (is_array($decoded)) $current = $decoded;
+            } catch (\Throwable) {}
+
+            // Percent in the form, basis points in the store. An admin thinks in
+            // "30%"; the accrual needs an integer it can multiply without a float
+            // ever touching money. Two decimal places, so 12.5% is expressible.
+            $pct = max(0.0, min(100.0, (float) ($b['community_return_pct'] ?? 30)));
+
+            $engine->set('global', null, array_merge($current, [
+                'community_return_bps'               => (int) round($pct * 100),
+                'community_return_vote_threshold'    => max(1, (int) ($b['community_return_vote_threshold'] ?? 250)),
+                // Clamped here AND in the service, because a settings row is not a
+                // trusted input just because an admin typed it: 0 would lock every
+                // nominee out of qualifying forever, and >100 would stop being a cap.
+                'community_return_supporter_cap_pct' => max(1, min(100, (int) ($b['community_return_supporter_cap_pct'] ?? 10))),
+            ]));
         }
 
         // Nomination eligibility — admin-toggleable "considered" threshold + min distinct locations.

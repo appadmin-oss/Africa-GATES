@@ -9,6 +9,21 @@ use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Services\{CacheService, AwardService, PointsService, PaidVoteService, PaymentService};
 
 class VoteController {
+
+    /**
+     * Nominee states that have a public page.
+     *
+     * 'approved' is the state a nominee is in only while the cycle is unfinished.
+     * The moment {@see \AfricaGates\Services\CycleMaterialiser} seals the standings
+     * it writes 'winner' or 'runner_up' onto the row — so filtering on 'approved'
+     * alone means WINNING DELETES A NOMINEE'S PAGE, and every link shared during the
+     * whole campaign breaks at the exact moment it starts to mean something.
+     *
+     * The filter exists to hide pending, rejected and archived entries. A winner is
+     * none of those.
+     */
+    private const PUBLIC_STATUSES = ['approved', 'winner', 'runner_up'];
+
     public function __construct(
         private readonly Twig            $view,
         private readonly CacheService    $cache,
@@ -212,7 +227,7 @@ class VoteController {
             ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
             ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
             ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
-            ->where('n.id', $id)->where('n.status', 'approved')
+            ->where('n.id', $id)->whereIn('n.status', self::PUBLIC_STATUSES)
             ->where(fn($q) => \AfricaGates\Services\MergeService::notMerged($q, 'n.merged_into'))
             ->select(['n.id', 'n.name', 'p.slug as programme_slug'])->first();
         if (!$row) return $res->withHeader('Location', '/vote')->withStatus(302);
@@ -284,7 +299,20 @@ class VoteController {
             ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
             ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
             ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
-            ->where('n.id', $id)->where('n.status', 'approved')
+            // ── A WINNER STILL HAS A PAGE ────────────────────────────────────
+            //
+            // This read `status = 'approved'`, which is the state a nominee is in
+            // for exactly as long as the cycle is unfinished. CycleMaterialiser
+            // writes 'winner' and 'runner_up' onto the nominee row the moment the
+            // standings are sealed — so the promotion that is supposed to be the
+            // high point of a nominee's cycle DELETED THEIR PUBLIC PAGE.
+            //
+            // Every link anybody had shared for the whole campaign 404s at the
+            // moment it finally means something, and the supporters being told
+            // "see the roll of honour" would have arrived at a not-found. The
+            // filter is there to hide pending and rejected entries; a winner is
+            // neither.
+            ->where('n.id', $id)->whereIn('n.status', self::PUBLIC_STATUSES)
             ->where(fn($q) => \AfricaGates\Services\MergeService::notMerged($q, 'n.merged_into'))
             // `organisation` joins the SELECT only when the column exists.
             //
@@ -294,7 +322,10 @@ class VoteController {
             // `show_name` caused on the paid path; a new column is optional until every
             // deployment actually has it.
             ->select(array_merge([
-                'n.id', 'n.name', 'n.tagline', 'n.photo_path', 'n.vote_count', 'n.country_code', 'n.profile_id',
+                // `status` is SELECTED, not just filtered on. The celebration block
+                // keys off it, and a column that is only in the WHERE clause reads
+                // back as null — so the section silently never rendered for anybody.
+                'n.id', 'n.name', 'n.status', 'n.tagline', 'n.photo_path', 'n.vote_count', 'n.country_code', 'n.profile_id',
                 'c.id as category_id', 'c.title as category',
                 'cy.id as cycle_id', 'cy.status as cycle_status', 'cy.year as year',
                 'p.id as programme_id', 'p.title as programme_title', 'p.slug as programme_slug',
@@ -415,6 +446,23 @@ class VoteController {
             // is just a big number that changes on every reload.
             'supporters_more'    => \AfricaGates\Services\SupportersService::overflowLabel(
                                         max(0, $supporterCount - count($supporters))),
+            // ── The celebration ──────────────────────────────────────────────
+            //
+            // Set only once this nominee has actually been promoted, so the whole
+            // block is absent for everybody else rather than sitting there empty.
+            // 'winner' and 'runner_up' are written by CycleMaterialiser at the moment
+            // the standings are sealed — this READS that decision, it does not make
+            // one of its own.
+            'award_kind'         => in_array((string) ($nom->status ?? ''), ['winner', 'runner_up'], true)
+                                        ? (string) $nom->status : '',
+            // The named supporters again, but more of them. The wall further down is
+            // a taste; on the day somebody wins, the roll of honour is the page.
+            'roll_of_honour'     => in_array((string) ($nom->status ?? ''), ['winner', 'runner_up'], true)
+                                        ? \AfricaGates\Services\SupporterHonours::rollOfHonour((int) $nom->id)
+                                        : [],
+            // Everybody behind them, named or not — the honest size of the crowd,
+            // which the consented list always understates.
+            'backer_count'       => \AfricaGates\Services\CommunityReturnService::supporterCount((int) $nom->id),
         ] + array_filter([
             // Social card: the nominee's own photo when they have one.
             /**

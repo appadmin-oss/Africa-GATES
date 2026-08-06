@@ -6,6 +6,7 @@ namespace Tests\Unit;
 use Tests\TestCase;
 use AfricaGates\Services\CommunityReturnService as Ret;
 use AfricaGates\Services\PaidVoteService;
+use AfricaGates\Services\RuleEngine;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 
@@ -31,36 +32,60 @@ class CommunityReturnTest extends TestCase
         DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'Ada', 'status' => 'approved']);
     }
 
-    /** 30% share, qualifying at 3 distinct supporters, so the fixtures stay readable. */
-    private function enable(int $bps = 3000, int $minSupporters = 3): void
+    /**
+     * 30% share, qualifying at 3 votes of support with a 40% per-supporter cap.
+     *
+     * Small on purpose. cap = ceil(3 × 40 / 100) = 2 votes, so the derived minimum
+     * is ceil(100/40) = 3 different people — which keeps `supporters(3)` meaning
+     * "just qualified" throughout the file while still exercising a real ceiling.
+     */
+    private function enable(int $bps = 3000, int $threshold = 3, int $capPct = 40): void
     {
         DB::table('gates_rule_sets')->insert([
             'scope' => 'cycle', 'scope_id' => 1,
-            'rules' => json_encode(['community_return_bps' => $bps,
-                                    'community_return_min_supporters' => $minSupporters]),
+            'rules' => json_encode([
+                'community_return_bps'                => $bps,
+                'community_return_vote_threshold'     => $threshold,
+                'community_return_supporter_cap_pct'  => $capPct,
+            ]),
         ]);
     }
 
-    /** N distinct people who voted free for the nominee. */
-    private function supporters(int $n): void
+    /** N distinct people who each cast one free vote for the nominee. */
+    private function supporters(int $n, ?string $at = null): void
     {
         for ($i = 0; $i < $n; $i++) {
             DB::table('gates_votes')->insert([
                 'nominee_id' => 1, 'category_id' => 1,
                 'voter_email_hash' => hash('sha256', "s$i@x.io"),
-                'voted_at' => Carbon::now()->toDateTimeString(),
+                'voted_at' => $at ?? Carbon::now()->toDateTimeString(),
             ]);
         }
     }
 
+    /**
+     * A confirmed contribution.
+     *
+     * `votes_used` matters as much as the amount now: it is the quantity the support
+     * ledger reads, and an order whose votes never minted must not qualify anybody
+     * on votes that are not on the board. Defaults to the naira amount at the
+     * historical ₦1,000 a vote so the fixtures read as "₦5,000 = 5 votes".
+     */
     private function contribution(int $naira = 5000, string $ref = 'AFG-C1', array $over = []): int
     {
         return (int) DB::table('gates_donations')->insertGetId(array_merge([
             'donor_name' => 'Chidi', 'donor_email' => 'chidi@example.com',
             'amount_naira' => $naira, 'tier' => 'paid-vote', 'bonus_votes' => 5,
-            'votes_used' => 0, 'intent_nominee_id' => 1, 'payment_ref' => $ref,
+            'votes_used' => intdiv($naira, 1000), 'intent_nominee_id' => 1, 'payment_ref' => $ref,
             'status' => 'confirmed', 'created_at' => Carbon::now()->toDateTimeString(),
         ], $over));
+    }
+
+    /** One buyer, identified by their own email, who bought $votes votes. */
+    private function buyer(string $email, int $votes, array $over = []): int
+    {
+        return $this->contribution($votes * 1000, 'AFG-' . strtoupper(substr(md5($email), 0, 6)),
+            array_merge(['donor_email' => $email, 'votes_used' => $votes], $over));
     }
 
     // ── Earning ──────────────────────────────────────────────────────────────
@@ -80,10 +105,32 @@ class CommunityReturnTest extends TestCase
         $this->assertSame(150000, $b['share_kobo'], 'what is theirs');
     }
 
-    /** OFF by default. Sharing revenue is a decision, not a default. */
-    public function test_nothing_accrues_until_a_rate_is_configured(): void
+    /**
+     * The rate is ADMIN-DEFINED, and its unset value is 30% rather than nothing.
+     *
+     * An earlier version defaulted to zero on the reasoning that revenue-sharing
+     * should be a deliberate decision. It was the wrong call in practice: the rule
+     * shipped switched off, every public page correctly published "0%", and the
+     * programme was quietly promising a share it was not accruing. A default nobody
+     * notices is worse than one somebody has to change.
+     */
+    public function test_the_default_share_is_thirty_percent_and_comes_from_the_rules(): void
     {
+        $this->assertSame(3000, RuleEngine::DEFAULTS['community_return_bps']);
+        $this->assertSame(3000, Ret::rateBps(1), 'with no override at all');
+
+        // 250 votes at a 10% ceiling — the shipped defaults, derived not typed.
+        $this->assertSame(250, Ret::voteThreshold(1));
+        $this->assertSame(25,  Ret::supporterCapVotes(1));
+        $this->assertSame(10,  Ret::minSupporters(1));
+    }
+
+    /** And an explicit zero still turns it off, for a cycle that should not share. */
+    public function test_a_rate_of_zero_accrues_nothing(): void
+    {
+        $this->enable(0, 3);
         $this->supporters(30);
+
         $r = Ret::accrue($this->contribution());
 
         $this->assertFalse($r['ok']);
@@ -91,25 +138,150 @@ class CommunityReturnTest extends TestCase
         $this->assertSame(0, Ret::balance(1)['share_kobo']);
     }
 
-    /**
-     * THE QUALIFICATION IS PEOPLE, NOT VOTES — and this is the test that matters.
-     *
-     * One buyer purchasing fifty votes in one order is one supporter. If the
-     * threshold counted votes, a nominee could cross it alone in a single
-     * transaction and every genuine contribution afterwards would earn. Counting
-     * distinct humans is what makes the rule mean what it says.
-     */
-    public function test_one_person_buying_many_votes_is_still_one_supporter(): void
-    {
-        $this->enable(3000, 3);
+    // ── Qualifying support: votes, capped per supporter ──────────────────────
 
-        // One buyer, fifty votes' worth, in one order.
-        $big = $this->contribution(50000, 'AFG-BULK', ['bonus_votes' => 50]);
+    /**
+     * THE TEST THIS RULE EXISTS FOR: one person cannot buy the threshold.
+     *
+     * A raw vote threshold is not a rule, it is a price — one order crosses it and
+     * everything genuine afterwards earns. The cap makes that arithmetically
+     * impossible: however many votes one buyer takes, only `cap` of them count.
+     */
+    public function test_one_person_cannot_buy_their_way_over_the_line_at_any_price(): void
+    {
+        $this->enable(3000, 100, 10);          // 100 votes needed, cap = 10 per person
+
+        $big = $this->buyer('whale@example.com', 5000);   // fifty times the threshold
 
         $q = Ret::qualification(1);
-        $this->assertSame(1, $q['supporters'], 'fifty votes from one person is one supporter');
+        $this->assertSame(5000, $q['raw'],  'they really did buy five thousand votes');
+        $this->assertSame(10,   $q['counted'], 'and exactly ten of them counted');
+        $this->assertSame(1,    $q['capped'], 'one supporter hit the ceiling');
         $this->assertFalse($q['qualified']);
         $this->assertSame('NOT_QUALIFIED', Ret::accrue($big)['code']);
+
+        // And no amount of buying more changes it — the ceiling is per person.
+        $this->buyer('whale@example.com', 5000, ['payment_ref' => 'AFG-WHALE2']);
+        $this->assertSame(10, Ret::qualification(1)['counted']);
+        $this->assertFalse(Ret::qualification(1)['qualified']);
+    }
+
+    /**
+     * …AND THE OTHER HALF, WHICH A HEADCOUNT RULE GOT WRONG.
+     *
+     * Paying more still counts for more. Twenty people who bought five votes each
+     * qualify; twenty people who cast one free vote each do not. Same headcount,
+     * different support, different answer — which is the whole reason this counts
+     * votes instead of humans.
+     */
+    public function test_supporters_who_gave_more_count_for_more(): void
+    {
+        $this->enable(3000, 100, 10);          // 100 votes needed, cap = 10 per person
+
+        for ($i = 0; $i < 20; $i++) $this->buyer("backer$i@example.com", 5);
+
+        $q = Ret::qualification(1);
+        $this->assertSame(20,  $q['supporters']);
+        $this->assertSame(100, $q['counted'], 'twenty × five votes, none of them capped');
+        $this->assertSame(0,   $q['capped']);
+        $this->assertTrue($q['qualified']);
+    }
+
+    /** The same twenty people, one vote each, do not reach it. */
+    public function test_the_same_headcount_with_less_support_does_not_qualify(): void
+    {
+        $this->enable(3000, 100, 10);
+        $this->supporters(20);
+
+        $q = Ret::qualification(1);
+        $this->assertSame(20, $q['supporters']);
+        $this->assertSame(20, $q['counted']);
+        $this->assertFalse($q['qualified']);
+    }
+
+    /**
+     * The minimum number of people is DERIVED from the cap, never configured beside
+     * it. Two knobs describing one rule is how a page publishes one number while the
+     * engine enforces another.
+     */
+    public function test_the_people_floor_falls_out_of_the_ceiling(): void
+    {
+        $this->enable(3000, 100, 10);
+        $this->assertSame(10, Ret::minSupporters(1), '10% each → at least ten people');
+        $this->assertSame(10, Ret::supporterCapVotes(1));
+
+        DB::table('gates_rule_sets')->where('scope_id', 1)->update([
+            'rules' => json_encode(['community_return_bps' => 3000,
+                                    'community_return_vote_threshold' => 100,
+                                    'community_return_supporter_cap_pct' => 25]),
+        ]);
+        $this->assertSame(4,  Ret::minSupporters(1), '25% each → at least four people');
+        $this->assertSame(25, Ret::supporterCapVotes(1));
+    }
+
+    /**
+     * A misconfigured cap must not silently change what the platform enforces.
+     *
+     * At 0 the ceiling would be zero votes and nobody could ever qualify however
+     * many people backed them; above 100 it stops being a ceiling and one person can
+     * buy the line outright. Both are one keystroke away in a settings form.
+     */
+    public function test_an_impossible_cap_is_clamped_rather_than_obeyed(): void
+    {
+        $this->enable(3000, 100, 0);
+        $this->assertSame(1, Ret::supporterCapPct(1), 'zero would lock everybody out forever');
+
+        DB::table('gates_rule_sets')->where('scope_id', 1)->update([
+            'rules' => json_encode(['community_return_supporter_cap_pct' => 900]),
+        ]);
+        $this->assertSame(100, Ret::supporterCapPct(1), 'above 100 is not a cap at all');
+    }
+
+    /**
+     * One person is one supporter however they showed up.
+     *
+     * Free votes are keyed by hashed email on the vote row; purchased votes carry a
+     * SYNTHETIC hash and are identified by the buyer's email on the ORDER. If those
+     * two were not folded together, splitting a purchase across "free vote + order"
+     * — or across two orders — would buy a second allowance.
+     */
+    public function test_free_votes_and_orders_from_one_person_share_one_ceiling(): void
+    {
+        $this->enable(3000, 100, 10);
+
+        // Same human: one free vote, then two separate orders.
+        DB::table('gates_votes')->insert([
+            'nominee_id' => 1, 'category_id' => 1,
+            'voter_email_hash' => hash('sha256', 'split@example.com'),
+            'voted_at' => Carbon::now()->toDateTimeString(),
+        ]);
+        $this->buyer('split@example.com', 8);
+        $this->buyer('SPLIT@Example.com ', 8, ['payment_ref' => 'AFG-SPLIT2']);
+
+        $q = Ret::qualification(1);
+        $this->assertSame(1,  $q['supporters'], 'case and whitespace do not make a second person');
+        $this->assertSame(17, $q['raw']);
+        $this->assertSame(10, $q['counted'], 'still one allowance between all three');
+    }
+
+    /** A refunded order raised nothing, so it qualifies nobody. */
+    public function test_a_refunded_order_does_not_count_toward_qualifying(): void
+    {
+        $this->enable(3000, 20, 50);
+        $this->buyer('gone@example.com', 10, ['refunded_at' => Carbon::now()->toDateTimeString()]);
+        $this->buyer('here@example.com', 10);
+
+        $this->assertSame(10, Ret::qualification(1)['counted'], 'only the money that stayed');
+        $this->assertFalse(Ret::qualification(1)['qualified']);
+    }
+
+    /** An order charged but never minted has no votes on the board to count. */
+    public function test_an_undelivered_order_does_not_count_toward_qualifying(): void
+    {
+        $this->enable(3000, 20, 50);
+        $this->buyer('stuck@example.com', 10, ['votes_used' => 0]);
+
+        $this->assertSame(0, Ret::qualification(1)['counted']);
     }
 
     /** Earning is prospective: crossing the line changes the future, not the past. */
@@ -345,7 +517,9 @@ class CommunityReturnTest extends TestCase
     {
         $this->enable();
         $this->supporters(3);
-        $id = $this->contribution(5000);
+        // votes_used = 0 is the real pre-mint state; mint() claims the order by
+        // flipping it, and refuses an order that already carries a quantity.
+        $id = $this->contribution(5000, 'AFG-C1', ['votes_used' => 0]);
 
         $r = PaidVoteService::mint($id);
         $this->assertTrue($r['ok'], (string) ($r['message'] ?? ''));

@@ -749,16 +749,35 @@ return function(App $app) {
             $w       = $rules->weights();
             $eff     = $rules->effective();
 
-            // The community return share, as a percentage a person can read. Stored
-            // in basis points because money arithmetic is done in integers; shown
-            // without a trailing ".0" because "30.0%" in a sentence reads like a
-            // measurement rather than a rule.
-            $bps       = (int) ($eff['community_return_bps'] ?? 0);
-            $returnPct = rtrim(rtrim(number_format($bps / 100, 2, '.', ''), '0'), '.');
+            // The community-return figures, shaped for publishing by the service that
+            // enforces them — the same call the Help Centre articles make, so the
+            // summary here and the deep dive there cannot format one setting two ways.
+            $ret = \AfricaGates\Services\CommunityReturnService::displayRules($eff);
+
+            $cPct = (int) round($w['community'] * 100);
+            $jPct = (int) round($w['judge'] * 100);
 
             return $tv($req)->render($res, 'pages/integrity.twig', [
-                'page_title'       => 'Awards Integrity & Methodology — Africa GATES',
-                'meta_description' => 'How Africa GATES safeguards fair results — the methodology behind community votes, expert judging and the Cultural Power Index that ranks African excellence.',
+                // ── SEO ──────────────────────────────────────────────────────
+                // The title leads with the QUESTION people search, not with the
+                // internal name of the page. Nobody types "awards integrity and
+                // methodology"; they type "how is the winner decided". The old title
+                // described the filing cabinet the document lives in.
+                'page_title'       => 'How the Cultural Power Index is scored — Africa GATES',
+                // Under 155 characters, and it states the two figures rather than
+                // promising them — a description that answers gets the click that a
+                // description that teases does not.
+                'meta_description' => sprintf(
+                    'How Africa GATES decides a winner: %d%% verified community votes, %d%% independent judges, '
+                    . 'and why contributions move a public tally but never the score.',
+                    $cPct, $jPct
+                ),
+                'og_type'          => 'article',
+                'og_title'         => 'How a winner is decided — and what money cannot do about it',
+                'breadcrumbs'      => [
+                    ['label' => 'Home', 'url' => '/'],
+                    ['label' => 'Integrity Centre'],
+                ],
                 'gates_page'       => 'integrity',
                 'has_hero'         => false,
                 'current_section'  => 'projects',
@@ -769,8 +788,12 @@ return function(App $app) {
                 'fraud_block'      => (int) ($eff['fraud_block'] ?? 80),
                 'fraud_flag'       => (int) ($eff['fraud_flag'] ?? 60),
                 'fraud_monitor'    => (int) ($eff['fraud_monitor'] ?? 30),
-                'return_pct'       => $returnPct === '' ? '0' : $returnPct,
-                'return_supporters'=> (int) ($eff['community_return_min_supporters'] ?? 25),
+                'return_pct'       => $ret['pct'],
+                'return_on'        => $ret['on'],
+                'return_threshold' => $ret['threshold'],
+                'return_cap_pct'   => $ret['cap_pct'],
+                'return_cap_votes' => $ret['cap_votes'],
+                'return_people'    => $ret['min_supporters'],
             ]);
         });
         $g->get('/support', fn($req,$res)=>$tv($req)->render($res,'pages/support.twig',['page_title'=>'Support & Appeals — Africa GATES','meta_description'=>'Get help with Africa GATES — the CPI, voting, nominations and your profile — and appeal any moderation decision through an independent review.','gates_page'=>'support','has_hero'=>false]));

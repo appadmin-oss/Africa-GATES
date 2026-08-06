@@ -27,14 +27,27 @@ class RuleEngine
         'min_judges_per_nominee' => 2, // COMPLETE judge scorecards required to be winner-eligible
 
         // ── Community return ─────────────────────────────────────────────────
+        //
         // A nominee's share of what supporters contributed in their name, in basis
-        // points (3000 = 30%). ZERO by default: sharing revenue is a decision
-        // somebody makes deliberately, per cycle, not a behaviour that arrives with
-        // a deploy. Qualification counts DISTINCT SUPPORTERS rather than votes,
-        // because one person can buy fifty votes in one order and cannot be fifty
-        // different verified people.
-        'community_return_bps' => 0,
-        'community_return_min_supporters' => 25,
+        // points (3000 = 30%). Editable per cycle from Settings → Community return;
+        // this is only what applies when nobody has set one.
+        'community_return_bps' => 3000,
+
+        // Qualification: how much QUALIFYING SUPPORT, counted in votes, a nominee
+        // must gather before they begin earning.
+        'community_return_vote_threshold' => 250,
+
+        // …and the reason a threshold in votes is not a formality. NO SINGLE
+        // SUPPORTER MAY SUPPLY MORE THAN THIS PERCENTAGE OF IT. At 10, one person's
+        // votes count toward qualification only up to a tenth of the threshold, no
+        // matter how many they bought — so crossing the line needs at least ten
+        // different verified people and cannot be arranged by one person with a card.
+        //
+        // Within that ceiling, paying more still counts for more: somebody who bought
+        // twenty-five votes carries twenty-five of them, not one. That is the point of
+        // capping rather than counting heads — generosity is rewarded, concentration
+        // is not.
+        'community_return_supporter_cap_pct' => 10,
     ];
 
     /** @return array<string,mixed> merged ruleset */

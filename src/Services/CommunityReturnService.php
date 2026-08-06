@@ -23,21 +23,42 @@ use Illuminate\Support\Carbon;
  * popularity and no revenue behind it. Every entry in this ledger traces to one
  * confirmed contribution and records the amount and rate it came from.
  *
- * ── THE QUALIFICATION IS PEOPLE, NOT VOTES ───────────────────────────────────
+ * ── QUALIFYING SUPPORT: VOTES, BUT NOT FROM ONE POCKET ───────────────────────
  *
- * A nominee starts earning once enough DISTINCT supporters have backed them, and
- * only from that moment forward — nothing before the line is earned retroactively.
+ * A nominee starts earning once they have gathered enough support, counted in
+ * votes, and only from that moment forward — nothing below the line is earned
+ * retroactively.
  *
- * Counting distinct supporters rather than votes is deliberate, and it is the
- * difference between a rule and a formality. One person can buy fifty votes in a
- * single order; if the threshold were fifty VOTES, a nominee could cross it alone,
- * in one transaction, for the price of the threshold, and every genuine
- * contribution afterwards would earn. Fifty different verified people is not
- * something one person can arrange on a Tuesday afternoon.
+ * Counting VOTES is the honest unit: somebody who bought twenty-five votes did
+ * more for this nominee than somebody who cast one, and a rule that scored them
+ * identically would be telling generous supporters their generosity was noise.
+ *
+ * But a raw vote threshold is not a rule, it is a price. One person can buy the
+ * whole thing in a single order, cross the line alone on a Tuesday afternoon, and
+ * every genuine contribution afterwards earns. So each supporter's votes count
+ * toward qualification only up to a CAP — a fixed percentage of the threshold.
+ *
+ *      counted = Σ over distinct supporters of min(their votes, cap)
+ *      cap     = threshold × cap_pct / 100
+ *
+ * At a 10% cap the arithmetic does the arguing: one person can carry at most a
+ * tenth of the way, so it takes at least ten different verified people, whatever
+ * anybody is willing to spend. Inside that ceiling paying more still counts for
+ * more, which is the difference between this and counting heads.
+ *
+ * The cap is not a second knob to keep in step with a supporter minimum — it IS
+ * the supporter minimum, expressed once. ceil(100 / cap_pct) people, derived, so
+ * the two can never be configured into contradicting each other.
  *
  * Prospective-only earning does the rest of the work: crossing the line is worth
- * exactly one vote's worth of future earnings, not a jackpot on everything below
- * it, so there is nothing to run at.
+ * the future, not a jackpot on everything below it, so there is nothing to run at.
+ *
+ * ── ONE PERSON IS ONE SUPPORTER, HOWEVER THEY SHOWED UP ──────────────────────
+ *
+ * Free votes and contributions are folded into one tally keyed by hashed email, so
+ * somebody who voted free and then contributed is one supporter with the sum of
+ * both — not two supporters, which would have made splitting a purchase across
+ * "free vote + order" a way to buy a second cap.
  *
  * ── MONEY RUNS BACKWARDS TOO ─────────────────────────────────────────────────
  *
@@ -60,27 +81,105 @@ final class CommunityReturnService
     /** Entry types that are money owed to the member (positive) or taken back. */
     public const TYPES = ['accrual', 'reversal', 'adjustment', 'hold', 'release', 'forfeit', 'payout'];
 
-    /** Rate is OFF unless deliberately configured. A revenue share must be a decision. */
-    public const DEFAULT_RATE_BPS = 0;
-
-    /** Distinct verified supporters before a nominee starts earning. */
-    public const DEFAULT_MIN_SUPPORTERS = 25;
+    /**
+     * Fallbacks of last resort — used ONLY when RuleEngine itself cannot be read.
+     *
+     * These are not the policy. The policy is {@see RuleEngine::DEFAULTS}, overridden
+     * per programme and per cycle from Settings → Community return, and every reader
+     * on this class goes through {@see rulesFor()} to get it. They exist so a share
+     * still resolves to something sane on a database that is mid-migration rather
+     * than throwing on a nominee page.
+     */
+    public const FALLBACK_RATE_BPS       = 3000;   // 30%
+    public const FALLBACK_VOTE_THRESHOLD = 250;
+    public const FALLBACK_CAP_PCT        = 10;
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Configuration
+    // Configuration — all of it read, none of it decided here
     // ─────────────────────────────────────────────────────────────────────────
 
     /** The share, in basis points (3000 = 30%), for this nominee's cycle. */
     public static function rateBps(int $nomineeId): int
     {
         $r = self::rulesFor($nomineeId);
-        return max(0, min(10000, (int) ($r['community_return_bps'] ?? self::DEFAULT_RATE_BPS)));
+        return max(0, min(10000, (int) ($r['community_return_bps'] ?? self::FALLBACK_RATE_BPS)));
     }
 
-    public static function minSupporters(int $nomineeId): int
+    /** Qualifying support, in votes, before a nominee starts earning. */
+    public static function voteThreshold(int $nomineeId): int
     {
         $r = self::rulesFor($nomineeId);
-        return max(1, (int) ($r['community_return_min_supporters'] ?? self::DEFAULT_MIN_SUPPORTERS));
+        return max(1, (int) ($r['community_return_vote_threshold'] ?? self::FALLBACK_VOTE_THRESHOLD));
+    }
+
+    /**
+     * Most of the threshold any ONE supporter may supply, as a percentage.
+     *
+     * Clamped to 1–100 rather than trusted. At 0 the cap would be zero votes and no
+     * nominee could ever qualify however many people backed them; above 100 it stops
+     * being a cap at all and one person can buy the line outright. Both are one
+     * keystroke away in a settings form, and both are silent — the page would simply
+     * behave differently forever with nothing to notice.
+     */
+    public static function supporterCapPct(int $nomineeId): int
+    {
+        $r = self::rulesFor($nomineeId);
+        return max(1, min(100, (int) ($r['community_return_supporter_cap_pct'] ?? self::FALLBACK_CAP_PCT)));
+    }
+
+    /** Votes any one supporter can contribute toward the threshold. At least one. */
+    public static function supporterCapVotes(int $nomineeId): int
+    {
+        return max(1, (int) ceil(self::voteThreshold($nomineeId) * self::supporterCapPct($nomineeId) / 100));
+    }
+
+    /**
+     * The fewest different people who could possibly qualify a nominee.
+     *
+     * DERIVED, never configured. A separate "minimum supporters" setting beside the
+     * cap is two knobs describing one rule, and the moment they disagree the page
+     * publishes one number while the engine enforces the other.
+     */
+    public static function minSupporters(int $nomineeId): int
+    {
+        return (int) ceil(100 / self::supporterCapPct($nomineeId));
+    }
+
+    /**
+     * The same rules, shaped for PUBLISHING rather than for arithmetic.
+     *
+     * /integrity and the Help Centre both state these numbers, and both were
+     * deriving them from a raw ruleset with their own copy of the basis-points
+     * formatting. Two copies of one conversion is how a page ends up saying "30%"
+     * while an article says "30.00%" about the same setting — trivially wrong, and
+     * exactly the kind of wrong that makes a reader stop believing the rest.
+     *
+     * Takes an effective ruleset rather than a nominee, because the public pages are
+     * describing the programme's rule in general and have no nominee in hand.
+     *
+     * @param  array<string,mixed> $eff a RuleEngine::effective() result
+     * @return array{pct:string, bps:int, threshold:int, cap_pct:int, cap_votes:int, min_supporters:int, on:bool}
+     */
+    public static function displayRules(array $eff): array
+    {
+        $bps       = max(0, min(10000, (int) ($eff['community_return_bps'] ?? self::FALLBACK_RATE_BPS)));
+        $threshold = max(1, (int) ($eff['community_return_vote_threshold'] ?? self::FALLBACK_VOTE_THRESHOLD));
+        $capPct    = max(1, min(100, (int) ($eff['community_return_supporter_cap_pct'] ?? self::FALLBACK_CAP_PCT)));
+
+        // Basis points → a percentage somebody can read: 3000 → "30", 1250 → "12.5".
+        // Never a trailing ".0", because "30.0%" in a sentence reads like a
+        // measurement taken rather than a rule decided.
+        $pct = rtrim(rtrim(number_format($bps / 100, 2, '.', ''), '0'), '.');
+
+        return [
+            'pct'            => $pct === '' ? '0' : $pct,
+            'bps'            => $bps,
+            'threshold'      => $threshold,
+            'cap_pct'        => $capPct,
+            'cap_votes'      => max(1, (int) ceil($threshold * $capPct / 100)),
+            'min_supporters' => (int) ceil(100 / $capPct),
+            'on'             => $bps > 0,
+        ];
     }
 
     /** @return array<string,mixed> */
@@ -100,30 +199,79 @@ final class CommunityReturnService
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * How many DISTINCT people have backed this nominee.
+     * Every distinct supporter of this nominee, and how many votes each brought.
      *
-     * Voters and contributors are counted in one set by their hashed identity, so
-     * somebody who voted free and then contributed is one supporter, not two.
+     * ── WHY THE TWO HALVES ARE FETCHED DIFFERENTLY ───────────────────────────
+     *
+     * Free votes carry the voter's identity on the vote row: `voter_email_hash` is
+     * sha256(lower(trim(email))), one row per person per category.
+     *
+     * Purchased votes DO NOT. {@see PaidVoteService::mint()} writes a single vote row
+     * per order with a SYNTHETIC hash — 'paidvote:<order>:<random>' — precisely so a
+     * buyer cannot collide with the one-vote-per-category unique key. Grouping
+     * gates_votes by hash would therefore read every order as a separate stranger,
+     * which is exactly the concentration this cap exists to catch. The buyer's real
+     * identity lives on the ORDER, so the paid half is tallied from gates_donations
+     * and hashed with the same recipe to land in the same bucket.
+     *
+     * Refunded and charge-backed orders are excluded: money that went back did not
+     * raise anything, and letting it qualify somebody would make a card that is
+     * charged and reversed a free ticket over the line.
+     *
+     * @param  string|null $asOf ISO timestamp — count only support at or before it
+     * @return array<string,int> hashed identity => votes
      */
-    public static function supporterCount(int $nomineeId, ?string $asOf = null): int
+    public static function supportLedger(int $nomineeId, ?string $asOf = null): array
     {
-        $seen = [];
+        $byPerson = [];
+
+        // Free, code-verified votes. One row is one vote by one person.
         try {
             $q = DB::table('gates_votes')->where('nominee_id', $nomineeId)->whereNull('donation_id');
             if ($asOf !== null) $q->where('voted_at', '<=', $asOf);
-            foreach ($q->pluck('voter_email_hash') as $h) $seen[(string) $h] = true;
-        } catch (\Throwable) {}
-
-        try {
-            $q = DB::table('gates_donations')->where('intent_nominee_id', $nomineeId)
-                ->where('status', 'confirmed')->whereNotNull('donor_email');
-            if ($asOf !== null) $q->where('created_at', '<=', $asOf);
-            foreach ($q->pluck('donor_email') as $e) {
-                $seen[hash('sha256', strtolower(trim((string) $e)))] = true;
+            foreach ($q->pluck('voter_email_hash') as $h) {
+                $key = (string) $h;
+                if ($key === '') continue;
+                $byPerson[$key] = ($byPerson[$key] ?? 0) + 1;
             }
         } catch (\Throwable) {}
 
-        return count($seen);
+        // Purchased votes, folded in under the buyer's real hashed identity.
+        try {
+            $q = DB::table('gates_donations')
+                ->where('intent_nominee_id', $nomineeId)
+                ->where('status', 'confirmed')
+                ->whereNull('refunded_at')
+                ->whereNotNull('donor_email');
+            if ($asOf !== null) $q->where('created_at', '<=', $asOf);
+
+            foreach ($q->get(['donor_email', 'votes_used']) as $d) {
+                $email = strtolower(trim((string) $d->donor_email));
+                if ($email === '') continue;
+                $key   = hash('sha256', $email);
+                // votes_used is what actually minted. An order that was charged but
+                // never delivered has raised money and delivered nothing; counting a
+                // quantity it never got would qualify a nominee on votes that are not
+                // on the board. It counts once the votes exist.
+                $votes = max(0, (int) ($d->votes_used ?? 0));
+                if ($votes === 0) continue;
+                $byPerson[$key] = ($byPerson[$key] ?? 0) + $votes;
+            }
+        } catch (\Throwable) {}
+
+        return $byPerson;
+    }
+
+    /**
+     * How many DISTINCT people have backed this nominee, however they showed up.
+     *
+     * Kept as its own method because it is the figure worth SHOWING — "180 people"
+     * is a sentence about a community, where "1,240 qualifying votes" is a sentence
+     * about a rule.
+     */
+    public static function supporterCount(int $nomineeId, ?string $asOf = null): int
+    {
+        return count(self::supportLedger($nomineeId, $asOf));
     }
 
     /**
@@ -144,13 +292,43 @@ final class CommunityReturnService
      * question as of the contribution's own timestamp makes the answer stable
      * forever: a contribution that did not earn when it arrived never earns.
      *
-     * @return array{qualified:bool, supporters:int, needed:int}
+     * @return array{qualified:bool, counted:int, raw:int, threshold:int, remaining:int,
+     *                cap:int, cap_pct:int, supporters:int, min_supporters:int, capped:int}
      */
     public static function qualification(int $nomineeId, ?string $asOf = null): array
     {
-        $have = self::supporterCount($nomineeId, $asOf);
-        $need = self::minSupporters($nomineeId);
-        return ['qualified' => $have >= $need, 'supporters' => $have, 'needed' => $need];
+        $threshold = self::voteThreshold($nomineeId);
+        $capVotes  = self::supporterCapVotes($nomineeId);
+
+        // Fetched ONCE. This runs inside the mint transaction on every paid vote, and
+        // it is two queries; asking twice in one call to also count the keys would
+        // double that on the hottest path the platform has.
+        $ledger = self::supportLedger($nomineeId, $asOf);
+
+        $counted = 0; $raw = 0; $capped = 0;
+        foreach ($ledger as $votes) {
+            $raw += $votes;
+            if ($votes > $capVotes) { $capped++; $counted += $capVotes; }
+            else                    { $counted += $votes; }
+        }
+
+        return [
+            'qualified'      => $counted >= $threshold,
+            // What the rule counted, after each supporter was capped.
+            'counted'        => $counted,
+            // …and what they actually gave. Published beside it deliberately: a
+            // nominee whose two numbers are far apart is being told, without anybody
+            // having to accuse them, that their support is concentrated in very few
+            // hands and more of the same will not move the line.
+            'raw'            => $raw,
+            'threshold'      => $threshold,
+            'remaining'      => max(0, $threshold - $counted),
+            'cap'            => $capVotes,
+            'cap_pct'        => self::supporterCapPct($nomineeId),
+            'supporters'     => count($ledger),
+            'min_supporters' => self::minSupporters($nomineeId),
+            'capped'         => $capped,
+        ];
     }
 
     // ─────────────────────────────────────────────────────────────────────────

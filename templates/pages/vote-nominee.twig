@@ -41,6 +41,37 @@
   .vn-col{ display:flex; flex-direction:column; gap:24px; min-width:0; }
   .vn-side{ display:flex; flex-direction:column; gap:20px; position:sticky; top:88px; }
   .vn-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(20px,3vw,26px); }
+
+  /* ── The celebration ──────────────────────────────────────────────────────
+     Dark, so it reads as an occasion rather than as one more card in the stack,
+     and gold rather than the site's green because this is the one moment on the
+     platform that is not about process. It appears at most twice per category
+     per cycle; it is allowed to be loud. */
+  .vn-laurel{ position:relative; overflow:hidden; background:#10292C; border-color:rgba(201,162,75,.35); color:#fff; }
+  .vn-laurel__glow{ position:absolute; inset:-40% 30% auto -10%; height:280px; border-radius:50%;
+                    background:radial-gradient(circle,rgba(201,162,75,.28),transparent 68%); pointer-events:none; }
+  .vn-laurel__head{ position:relative; }
+  .vn-laurel__badge{ display:inline-flex; align-items:center; gap:8px; background:rgba(201,162,75,.16);
+                     border:1px solid rgba(201,162,75,.42); color:#e8cf95; border-radius:999px;
+                     padding:6px 14px; font-size:12px; font-weight:600; letter-spacing:.03em; }
+  /* Two class names deep, deliberately. `.vn-card h2` is declared later in this
+     same stylesheet at equal specificity, so a plain `.vn-laurel h2` LOSES on
+     source order and the headline renders near-black on the dark card — invisible,
+     and only on the one screen that exists to be looked at. */
+  .vn-laurel .vn-laurel__head h2{ margin:14px 0 0; font-family:var(--ag-font-display); font-weight:700;
+                 color:#fff; font-size:clamp(1.5rem,4vw,2rem); letter-spacing:-.02em; line-height:1.15; }
+  .vn-laurel .vn-laurel__roll h3{ color:#e8cf95; }
+  .vn-laurel__lede{ margin:10px 0 0; font-size:15px; line-height:1.7; color:rgba(255,255,255,.78); max-width:56ch; }
+  .vn-laurel__lede strong{ color:#e8cf95; }
+  .vn-laurel__lede em{ color:#fff; font-style:italic; }
+  .vn-laurel__lede a{ color:#e8cf95; }
+  .vn-laurel__roll{ position:relative; margin-top:22px; padding-top:20px; border-top:1px solid rgba(255,255,255,.14); }
+  .vn-laurel__roll h3{ margin:0; font-size:13px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#e8cf95; }
+  .vn-laurel__roll p{ margin:7px 0 0; font-size:13px; line-height:1.6; color:rgba(255,255,255,.6); max-width:60ch; }
+  .vn-laurel__names{ display:flex; flex-wrap:wrap; gap:8px; margin-top:15px; }
+  .vn-laurel__name{ display:inline-flex; align-items:center; background:rgba(255,255,255,.07);
+                    border:1px solid rgba(255,255,255,.14); border-radius:999px; padding:6px 14px;
+                    font-size:13.5px; font-weight:500; color:#fff; }
   .vn-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:20px; color:var(--ag-ink); }
   /* `overflow-wrap:anywhere` rather than `break-word`: break-word only breaks a
      word that is alone on its line, so "see https://very-long-url…" still pushes
@@ -306,6 +337,50 @@
         {% if _brief and _brief != _bio %}<p class="body vn-lede">{{ _brief }}</p>{% endif %}
         {% if _bio %}<p class="body">{{ _bio }}</p>{% endif %}
         {% if profile and profile.slug %}<a class="vn-full" href="/registry/{{ profile.slug }}">View full profile <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>{% endif %}
+      </section>
+      {% endif %}
+
+      {# ── The celebration ────────────────────────────────────────────────────
+         Present only for a nominee the standings actually promoted. It leads with
+         the SUPPORTERS rather than with the trophy on purpose: the winner already
+         has a congratulations email and a leaderboard entry, and the several
+         hundred people who decided the community half of that result had, until
+         this block existed, nothing anywhere with their names on it.
+
+         `roll_of_honour` is the same consented list the wall below uses — one
+         reader, one consent rule — just more of it. Nobody appears here who did
+         not tick the box. #}
+      {% if award_kind|default('') %}
+      <section class="vn-card vn-laurel">
+        <div class="vn-laurel__glow" aria-hidden="true"></div>
+        <div class="vn-laurel__head">
+          <span class="vn-laurel__badge">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v5a6 6 0 0 1-12 0z"/><path d="M6 5H4a2 2 0 0 0 2 2M18 5h2a2 2 0 0 1-2 2"/><path d="M12 14v4M9 21h6"/></svg>
+            {{ award_kind == 'winner' ? 'Winner' : 'Runner-up' }} · {{ n.category }}
+          </span>
+          <h2>{{ award_kind == 'winner' ? n.name ~ ' won.' : n.name ~ ' placed.' }}</h2>
+          {% if backer_count|default(0) > 0 %}
+            <p class="vn-laurel__lede">And <strong>{{ backer_count|number_format }}</strong>
+               {{ backer_count == 1 ? 'person' : 'people' }} put {{ firstName }} there. The community half of
+               the score is the part they decided — that is not a footnote to the result, it <em>is</em> the
+               result.</p>
+          {% else %}
+            <p class="vn-laurel__lede">The full standings, and the working behind them, are on the
+               <a href="/leaderboard">leaderboard</a>.</p>
+          {% endif %}
+        </div>
+
+        {% if roll_of_honour|default([])|length %}
+          <div class="vn-laurel__roll">
+            <h3>Roll of honour</h3>
+            <p>The supporters who asked to be named. Everyone else counted exactly the same and stays private.</p>
+            <div class="vn-laurel__names">
+              {% for s in roll_of_honour %}
+                <span class="vn-laurel__name">{{ s.name }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
       </section>
       {% endif %}
 

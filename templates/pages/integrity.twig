@@ -28,6 +28,53 @@
   the summary and the deep dive cannot drift apart.
 #}
 
+{#
+  ── STRUCTURED DATA ──────────────────────────────────────────────────────────
+
+  A FAQPage, built from questions this page VISIBLY ANSWERS. That constraint is
+  the whole discipline: marking up an answer the reader cannot find on the page is
+  the thing search engines penalise, and it is also just a lie told in a format
+  nobody reads. Each entry below corresponds to a section above the fold of its
+  own heading.
+
+  The figures interpolate from the same route variables the visible copy uses, so
+  the machine-readable answer and the human one cannot drift — and a cycle
+  override changes both at once.
+
+  BreadcrumbList comes from the layout, driven by the `breadcrumbs` route variable.
+#}
+{% block structured_data %}
+<script nonce="{{ csp_nonce }}" type="application/ld+json">
+{% set faq = [
+  {
+    q: 'How is the Cultural Power Index calculated?',
+    a: 'The CPI is ' ~ community_pct|default(45) ~ '% verified community votes and ' ~ judge_pct|default(55) ~ '% independent judge panel. The community share is normalised within each category, so a nominee in a small category is measured against their own field rather than against the whole platform.'
+  },
+  {
+    q: 'Can you buy votes to win an Africa GATES award?',
+    a: 'No. Contributions add to a nominee’s public tally but are held in a separate column the scorer never reads, they cannot break a tie, and they are capped at ' ~ paid_cap_pct|default(50) ~ '% of the organic support a nominee has earned. Money can make a nominee look more popular; it cannot make them win.'
+  },
+  {
+    q: 'Why might the nominee with the most votes not win?',
+    a: 'Winning also requires at least ' ~ min_judges|default(2) ~ ' complete judge scorecards. A partial scorecard counts as nothing, judges recuse themselves from nominees they are connected to, and if nobody in a category reaches the quorum the award is not given.'
+  },
+  {
+    q: 'What happens if two nominees tie?',
+    a: 'The tiebreak is organic votes — the free, code-verified ones. Contributions are not consulted, so the closest possible race is decided by people rather than by spending. A tie on both the index and organic votes is recorded as a dead heat and escalated to the integrity team.'
+  },
+  {
+    q: 'How do you know the results were not edited afterwards?',
+    a: 'Every computed standing is sealed with a fingerprint of itself and of the record before it, so editing an old result breaks every record after it. The chain is re-verified automatically every day, and the database refuses to record two standings claiming the same predecessor.'
+  },
+  {
+    q: 'What is the Africa GATES community return?',
+    a: 'A nominee keeps ' ~ return_pct|default('30') ~ '% of what supporters contribute in their name, win or lose, once they have gathered ' ~ return_threshold|default(250) ~ ' votes of qualifying support. No single supporter can supply more than ' ~ return_cap_pct|default(10) ~ '% of that threshold, so qualifying takes at least ' ~ return_people|default(10) ~ ' different verified people.'
+  }
+] %}
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in faq %}{"@type":"Question","name":{{ f.q|json_encode|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
+</script>
+{% endblock %}
+
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   body[data-page="integrity"]{ background:#eef0ec; color:var(--ag-ink); }
@@ -413,34 +460,45 @@
 
     <div class="mth-grid mth-grid--3">
       <div class="mth-cell">
-        <div class="mth-cell__top"><h3>Qualifying</h3><span class="mth-cell__pct">{{ return_supporters|default(25) }}</span></div>
-        <p>A nominee begins earning once <strong>{{ return_supporters|default(25) }} distinct supporters</strong>
-           have contributed in their name. It counts people, not votes — one person can buy fifty votes in
-           one order, and cannot be fifty verified supporters.</p>
+        <div class="mth-cell__top"><h3>Qualifying support</h3><span class="mth-cell__pct">{{ return_threshold|default(250)|number_format }}</span></div>
+        <p>A nominee begins earning once they have gathered
+           <strong>{{ return_threshold|default(250)|number_format }} votes of qualifying support</strong>.
+           Votes are counted, not heads — somebody who bought twenty-five votes did more than somebody who
+           cast one, and a rule that scored them the same would call generosity noise.</p>
       </div>
       <div class="mth-cell">
-        <div class="mth-cell__top"><h3>The share</h3><span class="mth-cell__pct">{{ return_pct|default('0') }}%</span></div>
-        <p>From that point on, {{ return_pct|default('0') }}% of each further contribution is set aside for
-           the nominee. Crossing the line does not reach backwards — earlier contributions stay unshared,
-           so nobody is rewarded retroactively by a threshold moving.</p>
+        <div class="mth-cell__top"><h3>No single pocket</h3><span class="mth-cell__pct">{{ return_cap_pct|default(10) }}%</span></div>
+        <p>But one supporter's votes count for at most
+           <strong>{{ return_cap_votes|default(25)|number_format }}</strong> toward that threshold, however
+           many they bought. So it takes at least <strong>{{ return_people|default(10) }} different verified
+           people</strong> — whatever anybody is willing to spend.</p>
       </div>
       <div class="mth-cell">
-        <div class="mth-cell__top"><h3>When it is payable</h3></div>
-        <p>Not until that cycle has ended and its results have been announced. Before then it is a running
-           figure on the nominee’s profile and is described as one.</p>
+        <div class="mth-cell__top"><h3>The share</h3><span class="mth-cell__pct">{{ return_pct|default('30') }}%</span></div>
+        <p>From that point on, {{ return_pct|default('30') }}% of each further contribution is set aside for
+           the nominee. Crossing the line does not reach backwards — earlier contributions stay unshared, so
+           nobody is rewarded retroactively by a threshold moving.</p>
       </div>
     </div>
+
+    <p class="mth-note">The ceiling is the safeguard, and it is deliberately not a headcount rule. A
+       threshold in raw votes is not a rule at all, it is a <em>price</em>: one person could buy the whole
+       thing in a single order and everything genuine afterwards would earn. Capping each supporter's
+       contribution to the threshold keeps that impossible while still letting the people who gave most
+       count for most. Free votes and contributions are added together per person, so splitting an order
+       cannot buy a second allowance.</p>
 
     <p class="mth-note">It is held as an <em>append-only ledger</em>, not a balance we can quietly edit.
        Every entry records what it was computed from and at what rate; if a contribution is refunded or
        charged back, the share accrued on it is reversed and the reversal stays on the record beside the
-       original. That is what makes any figure explainable line by line rather than merely asserted —
-       {% if return_pct|default('0') == '0' %}and it is why a share of 0%, as it is set now, simply
-       accrues nothing rather than quietly promising something.{% else %}and it is why a disputed figure
-       can be walked through rather than defended.{% endif %}</p>
+       original. Nothing is payable until that cycle has ended and its results have been announced — a
+       nominee cannot cash out mid-race, and the platform is not paying out money an integrity finding
+       might still reverse.
+       {% if not return_on|default(true) %}The share is currently set to 0%, so nothing is accruing at
+       all.{% endif %}</p>
 
     {{ ui.more([
-      {slug:'the-community-return', t:'The community return, in full', s:'Thresholds, the ledger, reversals and payout.'}
+      {slug:'the-community-return', t:'The community return, in full', s:'Qualifying support, the ceiling, the ledger and payout.'}
     ]) }}
   </section>
 

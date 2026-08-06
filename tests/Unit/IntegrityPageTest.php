@@ -161,15 +161,20 @@ final class IntegrityPageTest extends TestCase
     public function test_the_community_return_share_is_published_from_basis_points(): void
     {
         (new RuleEngine())->set('global', null, [
-            'community_return_bps'            => 1250,
-            'community_return_min_supporters' => 40,
+            'community_return_bps'               => 1250,
+            'community_return_vote_threshold'    => 400,
+            'community_return_supporter_cap_pct' => 20,
         ]);
 
         $html = $this->page();
 
         $this->assertStringContainsString('12.5%', $html);
         $this->assertStringNotContainsString('12.50%', $html, 'a rule is not a measurement');
-        $this->assertStringContainsString('40 distinct supporters', $html);
+        $this->assertStringContainsString('400 votes of qualifying support', $html);
+        // 20% of 400, and the people floor DERIVED from that ceiling rather than
+        // configured beside it — 100/20 = 5.
+        $this->assertStringContainsString('80', $html, 'the per-supporter ceiling in votes');
+        $this->assertStringContainsString('5 different verified', $html);
     }
 
     /** A whole-number share must not arrive as "30.0%". */
@@ -200,8 +205,9 @@ final class IntegrityPageTest extends TestCase
             'judge_weight'                    => 0.70,
             'max_paid_weight_pct'             => 25,
             'min_judges_per_nominee'          => 4,
-            'community_return_bps'            => 1250,
-            'community_return_min_supporters' => 40,
+            'community_return_bps'               => 1250,
+            'community_return_vote_threshold'    => 400,
+            'community_return_supporter_cap_pct' => 20,
         ]);
 
         $quorum = HelpCentre::bySlug('why-the-leader-may-not-be-eligible-to-win');
@@ -219,8 +225,10 @@ final class IntegrityPageTest extends TestCase
         $return = HelpCentre::bySlug('the-community-return');
         $this->assertNotNull($return);
         $text = HelpCentre::plainText($return);
-        $this->assertStringContainsString('40 distinct supporters', $text);
         $this->assertStringContainsString('12.5%', $text);
+        $this->assertStringContainsString('400 votes of qualifying support', $text);
+        $this->assertStringContainsString('80', $text, '20% of 400, the per-supporter ceiling');
+        $this->assertStringContainsString('5 different verified people', $text);
     }
 
     /**
