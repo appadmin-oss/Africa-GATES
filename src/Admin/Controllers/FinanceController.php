@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Admin\Controllers;
 
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Admin\Services\FinanceInsights;
 use AfricaGates\Admin\Services\FinanceService;
 use AfricaGates\Services\PaymentReconciler;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -112,6 +113,19 @@ class FinanceController
             // thing this page must never get wrong.
             'recon'       => $this->takeReconResult(),
             'recon_log'   => PaymentReconciler::history(12),
+
+            // ── The wider read. Each of these answers something the ledger
+            // above cannot: how this period compares, who the money came from
+            // rather than how much, which programme carried it, when it
+            // arrives, and — the one that matters most — what nearly arrived
+            // and did not. See {@see FinanceInsights} on why they are a
+            // separate class.
+            'compare'     => FinanceInsights::comparison($from, $to),
+            'people'      => FinanceInsights::supporters($from, $to),
+            'programmes'  => FinanceInsights::byProgramme($from, $to),
+            'rhythm'      => FinanceInsights::rhythm($range === '0' ? 90 : max(14, (int) $range)),
+            'leak'        => FinanceInsights::leakage($from, $to),
+            'cumulative'  => FinanceInsights::cumulative($range === '0' ? 90 : max(7, (int) $range)),
         ]);
     }
 

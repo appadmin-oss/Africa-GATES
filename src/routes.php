@@ -1208,6 +1208,9 @@ return function(App $app) {
 
         // Generic data explorer — every collected dataset (paginated + detail pages + CSV).
         $a->get('/data',                         AdminDataController::class.':index');
+        // Rates, ratios and funnels. The data explorer above shows rows; this shows
+        // what the rows are doing over time, which is a different question.
+        $a->get('/analytics',                    \AfricaGates\Admin\Controllers\AnalyticsController::class.':index');
         $a->get('/data/{dataset}/export',        AdminDataController::class.':export');
         $a->get('/data/{dataset}/{id:[0-9]+}',   AdminDataController::class.':detail');
         $a->get('/data/{dataset}',               AdminDataController::class.':browse');

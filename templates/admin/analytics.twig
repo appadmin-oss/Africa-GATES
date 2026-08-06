@@ -1,0 +1,482 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  Charts are inline SVG, drawn from figures the controller already computed.
+
+  No charting library. The CSP on this console forbids remote script and every
+  chart library worth using wants a CDN tag or a build step; more to the point,
+  none of these shapes needs one. A sparkline is a polyline, a bar is a rect and
+  a heatmap is a nested loop, and doing it in Twig keeps the numbers on the page
+  identical to the numbers in the test that asserts them.
+#}
+
+{% macro spark(series, colour, h, fillOpacity) %}
+  {% set h = h|default(46) %}
+  {% set peak = 1 %}
+  {% for p in series %}{% if p.value > peak %}{% set peak = p.value %}{% endif %}{% endfor %}
+  {% set n = series|length %}
+  {% if n > 1 %}
+    {% set pts = [] %}
+    {% for i, p in series %}
+      {% set x = (i / (n - 1) * 100)|round(2) %}
+      {% set y = (h - (p.value / peak) * (h - 2))|round(2) %}
+      {% set pts = pts|merge([x ~ ',' ~ y]) %}
+    {% endfor %}
+    <svg class="an-spark" viewBox="0 0 100 {{ h }}" preserveAspectRatio="none" role="img"
+         aria-label="Trend over {{ n }} days, peak {{ peak }}">
+      <polygon points="0,{{ h }} {{ pts|join(' ') }} 100,{{ h }}"
+               fill="{{ colour }}" opacity="{{ fillOpacity|default(0.13) }}"/>
+      <polyline points="{{ pts|join(' ') }}" fill="none" stroke="{{ colour }}"
+                stroke-width="1.6" vector-effect="non-scaling-stroke"
+                stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+  {% endif %}
+{% endmacro %}
+
+{% import _self as ch %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .an-lede{ margin:0 0 18px; font-size:13px; line-height:1.65; color:#4a5256; max-width:86ch }
+  .an-tabs{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px }
+  .an-tab{ font-size:12.5px; font-weight:600; padding:7px 14px; border-radius:999px; text-decoration:none;
+    border:1px solid rgba(16,41,44,.14); color:#3d4b4d; background:#fff }
+  .an-tab.is-on{ background:#10292C; border-color:#10292C; color:#fff }
+
+  .an-sec{ margin:0 0 26px }
+  .an-sec__h{ display:flex; align-items:baseline; gap:12px; margin:0 0 4px }
+  .an-sec__h h2{ margin:0; font-size:15px; color:#10292C }
+  .an-sec__h span{ font-size:11.5px; color:#7a8a8c }
+  .an-sec__note{ margin:0 0 12px; font-size:12.5px; line-height:1.6; color:#5a6d6f; max-width:86ch }
+
+  .an-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px }
+  .an-card{ background:#fff; border:1px solid rgba(16,41,44,.10); border-radius:13px; padding:14px 16px }
+  .an-card__k{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f }
+  .an-card__n{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:25px; color:#10292C; margin:8px 0 2px }
+  .an-card__s{ font-size:11.5px; color:#5a6d6f; line-height:1.5 }
+  .an-up{ color:#177015; font-weight:700 } .an-down{ color:#8a2020; font-weight:700 }
+  .an-flat{ color:#7a8a8c; font-weight:700 }
+
+  .an-spark{ display:block; width:100%; height:46px; margin-top:10px }
+
+  .an-panel{ background:#fff; border:1px solid rgba(16,41,44,.10); border-radius:14px; padding:16px 18px }
+  .an-panel + .an-panel{ margin-top:12px }
+  .an-two{ display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:12px }
+
+  .an-tbl{ width:100%; border-collapse:collapse; font-size:12.5px }
+  .an-tbl th{ text-align:left; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; padding:7px 9px; border-bottom:1px solid rgba(16,41,44,.12) }
+  .an-tbl td{ padding:8px 9px; border-bottom:1px solid rgba(16,41,44,.05) }
+  .an-tbl td.n{ font-family:var(--ag-font-mono,monospace); text-align:right; white-space:nowrap }
+
+  /* Funnel: width is the share, so the drop between stages is the visual. */
+  .an-fun{ margin-top:6px }
+  .an-fun__row{ margin-bottom:11px }
+  .an-fun__top{ display:flex; justify-content:space-between; gap:10px; font-size:12.5px; margin-bottom:5px }
+  .an-fun__n{ font-family:var(--ag-font-mono,monospace); font-weight:700; color:#10292C }
+  .an-fun__bar{ height:9px; border-radius:99px; background:rgba(16,41,44,.07); overflow:hidden }
+  .an-fun__fill{ height:100%; border-radius:99px; background:#237B22 }
+  .an-fun__note{ font-size:11.5px; color:#7a8a8c; margin-top:4px }
+
+  /* Retention grid */
+  .an-ret{ border-collapse:separate; border-spacing:3px; font-size:11px }
+  .an-ret th{ font:700 9.5px/1 var(--ag-font-body,inherit); letter-spacing:.06em; text-transform:uppercase;
+    color:#7a8a8c; padding:3px 4px; text-align:center }
+  .an-ret td{ text-align:center; padding:6px 5px; border-radius:5px; font-family:var(--ag-font-mono,monospace);
+    min-width:38px; color:#10292C }
+  .an-ret td.void{ background:transparent; color:#c3cccd }
+  .an-ret th.lbl, .an-ret td.lbl{ text-align:left; font-family:var(--ag-font-mono,monospace);
+    color:#5a6d6f; white-space:nowrap; padding-right:10px }
+
+  /* Hour histogram */
+  .an-hours{ display:flex; align-items:flex-end; gap:2px; height:70px; margin-top:8px }
+  .an-hours__b{ flex:1; background:#237B22; border-radius:2px 2px 0 0; min-height:1px; opacity:.85 }
+  .an-hours__x{ display:flex; justify-content:space-between; font-size:10px; color:#7a8a8c; margin-top:4px;
+    font-family:var(--ag-font-mono,monospace) }
+
+  .an-split{ display:flex; height:11px; border-radius:99px; overflow:hidden; margin:10px 0 8px;
+    background:rgba(16,41,44,.07) }
+  .an-split__a{ background:#237B22 } .an-split__b{ background:#C9A24B } .an-split__c{ background:#5A6D6F }
+  .an-key{ display:flex; gap:16px; font-size:11.5px; color:#5a6d6f; flex-wrap:wrap }
+  .an-key i{ display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:5px }
+
+  .an-empty{ font-size:12.5px; color:#7a8a8c; margin:8px 0 0 }
+  .an-warn{ background:#fff8df; border:1px solid #ecd9a0; color:#6b4a00; border-radius:10px;
+    padding:10px 13px; font-size:12.5px; line-height:1.6; margin-top:10px }
+  .an-bad{ background:#fdf3f3; border:1px solid #f0c9c9; color:#8a2020; border-radius:10px;
+    padding:10px 13px; font-size:12.5px; line-height:1.6; margin-top:10px }
+  .an-scroll{ overflow-x:auto }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<h1 style="margin:0 0 4px;font-size:20px">Analytics</h1>
+<p class="an-lede">
+  The dashboard counts what exists right now. This page is the other half: rates, ratios and
+  funnels — whether voting is growing, how many nominations survive to a ballot, whether voters
+  come back, and where the drop-offs are. Nothing here is a naira figure; the money lives in
+  <a href="/admin/finance">Finance</a>. Nothing here reads a name, an address or a phone number
+  either — voters are counted through the hash the votes table already stores.
+</p>
+
+<div class="an-tabs">
+  {% for k, label in ranges %}
+    <a class="an-tab {{ range == k ? 'is-on' : '' }}" href="/admin/analytics?range={{ k }}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+{# ══ AUDIENCE ═══════════════════════════════════════════════════════════════ #}
+<section class="an-sec">
+  <div class="an-sec__h"><h2>Audience</h2><span>accounts on the platform</span></div>
+  <p class="an-sec__note">
+    A headline user count is nearly content-free on its own: if most accounts never confirmed an
+    email address, every per-user average computed from the headline is wrong. The shares are the
+    honest figures.
+  </p>
+  <div class="an-grid">
+    <div class="an-card">
+      <div class="an-card__k">Accounts</div>
+      <div class="an-card__n">{{ audience.total|number_format }}</div>
+      <div class="an-card__s">All time</div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">Email verified</div>
+      <div class="an-card__n">{{ audience.verified_pct }}%</div>
+      <div class="an-card__s">{{ audience.verified|number_format }} of {{ audience.total|number_format }}</div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">Signed in ≤ 30 days</div>
+      <div class="an-card__n">{{ audience.active_pct }}%</div>
+      <div class="an-card__s">{{ audience.active_30d|number_format }} accounts</div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">New this period</div>
+      <div class="an-card__n">{{ audience.new_in_window|number_format }}</div>
+      <div class="an-card__s">
+        {% if audience.growth_pct is null %}
+          <span class="an-flat">no prior activity</span> to compare against
+        {% elseif audience.growth_pct >= 0 %}
+          <span class="an-up">+{{ audience.growth_pct }}%</span> on the {{ days }} days before
+        {% else %}
+          <span class="an-down">{{ audience.growth_pct }}%</span> on the {{ days }} days before
+        {% endif %}
+      </div>
+      {{ ch.spark(audience.new_series, '#237B22') }}
+    </div>
+  </div>
+</section>
+
+{# ══ VOTING ═════════════════════════════════════════════════════════════════ #}
+<section class="an-sec">
+  <div class="an-sec__h"><h2>Voting</h2><span>last {{ days }} days</span></div>
+  <p class="an-sec__note">
+    Split three ways, because the vote table has three kinds and they mean different things.
+    <strong>Organic</strong> is somebody choosing to vote — the only kind the index counts as
+    support. <strong>Points</strong> are votes minted when a member redeems loyalty points; nobody
+    paid money, but nobody freely chose them either, and they are excluded from the index.
+    <strong>Paid</strong> was bought. Folding points into “free” would report a loyalty payout as
+    organic support, which is exactly the claim the integrity page promises we do not make.
+  </p>
+
+  <div class="an-grid" style="margin-bottom:12px">
+    <div class="an-card">
+      <div class="an-card__k">Votes cast</div>
+      <div class="an-card__n">{{ voting.total|number_format }}</div>
+      <div class="an-card__s">{{ voting.voters|number_format }} distinct voters</div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">Votes per voter</div>
+      <div class="an-card__n">{{ voting.per_voter }}</div>
+      <div class="an-card__s">Higher means fewer people, more each</div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">Organic share</div>
+      <div class="an-card__n">{{ voting.organic_pct }}%</div>
+      <div class="an-card__s">
+        {{ voting.paid_pct }}% paid · {{ voting.bonus_pct }}% points
+      </div>
+    </div>
+    <div class="an-card">
+      <div class="an-card__k">Flagged by fraud checks</div>
+      <div class="an-card__n">{{ voting.flagged_pct }}%</div>
+      <div class="an-card__s">{{ voting.flagged|number_format }} of {{ voting.total|number_format }} votes</div>
+    </div>
+  </div>
+
+  <div class="an-two">
+    <div class="an-panel">
+      <strong style="font-size:13.5px">Where the votes came from</strong>
+      <div class="an-split">
+        <div class="an-split__a" style="width:{{ voting.organic_pct }}%"></div>
+        <div class="an-split__c" style="width:{{ voting.bonus_pct }}%"></div>
+        <div class="an-split__b" style="width:{{ voting.paid_pct }}%"></div>
+      </div>
+      <div class="an-key">
+        <span><i style="background:#237B22"></i>Organic — {{ voting.standard|number_format }}</span>
+        <span><i style="background:#5A6D6F"></i>Points — {{ voting.bonus|number_format }}</span>
+        <span><i style="background:#C9A24B"></i>Paid — {{ voting.paid|number_format }}</span>
+      </div>
+      {{ ch.spark(voting.standard_series, '#237B22') }}
+      {{ ch.spark(voting.paid_series, '#C9A24B') }}
+    </div>
+
+    <div class="an-panel">
+      <strong style="font-size:13.5px">When people vote</strong>
+      <p class="an-sec__note" style="margin:4px 0 0">
+        Hour of day, platform clock. This is what a closing time should be chosen against.
+      </p>
+      {% set hpeak = 1 %}
+      {% for v in voting.by_hour %}{% if v > hpeak %}{% set hpeak = v %}{% endif %}{% endfor %}
+      <div class="an-hours">
+        {% for h in 0..23 %}
+          <div class="an-hours__b" style="height:{{ (voting.by_hour[h] / hpeak * 100)|round }}%"
+               title="{{ h }}:00 — {{ voting.by_hour[h] }} votes"></div>
+        {% endfor %}
+      </div>
+      <div class="an-hours__x"><span>00</span><span>06</span><span>12</span><span>18</span><span>23</span></div>
+    </div>
+  </div>
+</section>
+
+{# ══ RETENTION ══════════════════════════════════════════════════════════════ #}
+<section class="an-sec">
+  <div class="an-sec__h"><h2>Do voters come back?</h2><span>weekly cohorts</span></div>
+  <p class="an-sec__note">
+    Each row is the group of voters who first appeared that week, followed forward. One averaged
+    retention figure would blend a launch week with a dead one and describe neither; what matters
+    is whether the people who arrived in week 3 behave like the people who arrived in week 1.
+  </p>
+  {% if retention.rows|length %}
+    <div class="an-panel an-scroll">
+      <table class="an-ret">
+        <thead>
+          <tr>
+            <th class="lbl">Cohort</th><th class="lbl">Voters</th>
+            {% for i in 0..(retention.weeks|length - 1) %}<th>W{{ i }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in retention.rows %}
+          <tr>
+            <td class="lbl">{{ row.cohort }}</td>
+            <td class="lbl">{{ row.size }}</td>
+            {% for v in row.retained %}
+              {% if v is null or row.size == 0 %}
+                <td class="void">—</td>
+              {% else %}
+                <td style="background:rgba(35,123,34,{{ (v / 100 * 0.72 + 0.05)|round(3) }});
+                           color:{{ v > 55 ? '#fff' : '#10292C' }}">{{ v }}%</td>
+              {% endif %}
+            {% endfor %}
+            {% for _ in 1..(retention.weeks|length - row.retained|length) %}<td class="void"></td>{% endfor %}
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="an-empty">No votes carry a voter hash yet, so cohorts cannot be formed.</p>
+  {% endif %}
+</section>
+
+{# ══ FUNNELS ════════════════════════════════════════════════════════════════ #}
+<section class="an-sec">
+  <div class="an-sec__h"><h2>Funnels</h2><span>where things stop</span></div>
+  <p class="an-sec__note">
+    The drop between two stages is the only actionable number in a funnel — “1,400 nominations” is
+    a vanity figure, “1,400 in, 300 approved, 40 claimed” says where the next week goes.
+  </p>
+
+  <div class="an-two">
+    <div class="an-panel">
+      <strong style="font-size:13.5px">Nomination to ballot</strong>
+      {% if noms.stages|length %}
+        <div class="an-fun">
+          {% for s in noms.stages %}
+            <div class="an-fun__row">
+              <div class="an-fun__top">
+                <span>{{ s.label }}</span>
+                <span class="an-fun__n">{{ s.n|number_format }}{% if s.pct is not null %} · {{ s.pct }}%{% endif %}</span>
+              </div>
+              <div class="an-fun__bar"><div class="an-fun__fill" style="width:{{ s.pct ?? 0 }}%"></div></div>
+              <div class="an-fun__note">{{ s.note }}</div>
+            </div>
+          {% endfor %}
+        </div>
+        {% if noms.pending > 0 %}
+          <div class="an-warn">
+            {{ noms.pending|number_format }} nomination(s) are still waiting on a decision. Every one is
+            somebody who put a name forward and has heard nothing.
+          </div>
+        {% endif %}
+      {% else %}
+        <p class="an-empty">No nominations recorded yet.</p>
+      {% endif %}
+    </div>
+
+    <div class="an-panel">
+      <strong style="font-size:13.5px">Ballot flow</strong>
+      <p class="an-sec__note" style="margin:4px 0 8px">
+        Distinct sessions per recorded step, biggest first. Sessions rather than events, so one
+        person refreshing the ballot six times counts once.
+      </p>
+      {% if ballot.steps|length %}
+        <table class="an-tbl">
+          <thead><tr><th>Step</th><th class="n">Sessions</th><th class="n">Share</th></tr></thead>
+          <tbody>
+          {% for s in ballot.steps %}
+            <tr><td>{{ s.step }}</td><td class="n">{{ s.sessions|number_format }}</td><td class="n">{{ s.pct }}%</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="an-empty">
+          Nothing has been recorded to <code>gates_funnel_events</code> in this window, so the ballot
+          flow cannot be drawn. That is an instrumentation gap, not a traffic reading.
+        </p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{# ══ GEOGRAPHY ══════════════════════════════════════════════════════════════ #}
+<section class="an-sec">
+  <div class="an-sec__h"><h2>Geography</h2><span>reach, and the gaps in it</span></div>
+  <p class="an-sec__note">
+    A top-ten list shows where the platform already is. The number that decides outreach is the
+    one a list cannot show — the states with nothing at all.
+  </p>
+  <div class="an-two">
+    <div class="an-panel">
+      <strong style="font-size:13.5px">Votes by nominee country</strong>
+      {% if geo.vote_countries|length %}
+        <table class="an-tbl">
+          <thead><tr><th>Country</th><th class="n">Votes</th><th class="n">Share</th></tr></thead>
+          <tbody>
+          {% for c in geo.vote_countries %}
+            <tr><td>{{ c.code }}</td><td class="n">{{ c.votes|number_format }}</td><td class="n">{{ c.pct }}%</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}<p class="an-empty">No country is recorded against any vote yet.</p>{% endif %}
+    </div>
+
+    <div class="an-panel">
+      <strong style="font-size:13.5px">Nominations by state</strong>
+      {% if geo.nomination_states|length %}
+        <p class="an-sec__note" style="margin:4px 0 8px">
+          {{ geo.states_covered }} of 37 states and the FCT have sent at least one nomination.
+          <strong>{{ geo.states_silent }} have sent none.</strong>
+        </p>
+        <table class="an-tbl">
+          <thead><tr><th>State</th><th class="n">Nominations</th></tr></thead>
+          <tbody>
+          {% for s in geo.nomination_states %}
+            <tr><td>{{ s.state }}</td><td class="n">{{ s.n|number_format }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% else %}<p class="an-empty">No nomination carries a state yet.</p>{% endif %}
+    </div>
+  </div>
+</section>
+
+{# ══ COMMUNITY + SUPPORT + MAIL ═════════════════════════════════════════════ #}
+<section class="an-sec">
+  <div class="an-sec__h"><h2>Community, support and delivery</h2><span>last {{ days }} days</span></div>
+
+  <div class="an-two">
+    <div class="an-panel">
+      <strong style="font-size:13.5px">The feed</strong>
+      <p class="an-sec__note" style="margin:4px 0 6px">
+        A thousand posts from four accounts is not a community. The author count and the top
+        author's share are next to the volume so that shape is visible immediately.
+      </p>
+      <table class="an-tbl">
+        <tbody>
+          <tr><td>Posts</td><td class="n">{{ community.posts|number_format }}</td></tr>
+          <tr><td>Distinct authors</td><td class="n">{{ community.authors|number_format }}</td></tr>
+          <tr><td>Busiest author's share</td><td class="n">{{ community.top_author_pct }}%</td></tr>
+          <tr><td>Replies</td><td class="n">{{ community.replies|number_format }}</td></tr>
+          <tr><td>Cheers</td><td class="n">{{ community.cheers|number_format }}</td></tr>
+        </tbody>
+      </table>
+      {{ ch.spark(community.series, '#237B22') }}
+      {% if community.pending_moderation > 0 %}
+        <div class="an-warn">{{ community.pending_moderation }} comment(s) waiting on moderation.</div>
+      {% endif %}
+    </div>
+
+    <div class="an-panel">
+      <strong style="font-size:13.5px">Support desk</strong>
+      <p class="an-sec__note" style="margin:4px 0 6px">
+        Open tickets alone is ambiguous — forty is fine on a results day. Opened minus resolved
+        says whether the queue is growing, and the median is what a person writing in experiences.
+      </p>
+      <table class="an-tbl">
+        <tbody>
+          <tr><td>Opened</td><td class="n">{{ support.opened|number_format }}</td></tr>
+          <tr><td>Resolved</td><td class="n">{{ support.resolved|number_format }}</td></tr>
+          <tr><td>Open right now</td><td class="n">{{ support.open_now|number_format }}</td></tr>
+          <tr>
+            <td>Median first reply</td>
+            <td class="n">
+              {% if support.median_first_reply_mins is null %}—
+              {% elseif support.median_first_reply_mins < 90 %}{{ support.median_first_reply_mins }} min
+              {% else %}{{ (support.median_first_reply_mins / 60)|round(1) }} h{% endif %}
+            </td>
+          </tr>
+          <tr><td>Never answered</td><td class="n">{{ support.unanswered|number_format }}</td></tr>
+        </tbody>
+      </table>
+      {% if support.backlog_delta > 0 %}
+        <div class="an-bad">
+          The queue grew by {{ support.backlog_delta }} this period — more came in than went out.
+        </div>
+      {% elseif support.opened > 0 %}
+        <div class="an-warn" style="background:#f2f9f1;border-color:#bfe0bd;color:#1a4d18">
+          The queue shrank by {{ support.backlog_delta|abs }} this period.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="an-panel" style="margin-top:12px">
+    <strong style="font-size:13.5px">Email delivery</strong>
+    <p class="an-sec__note" style="margin:4px 0 8px">
+      Not a nicety here: a vote code that does not arrive is a vote that does not happen, and the
+      failure is invisible on every other screen — it just looks like a quiet day.
+    </p>
+    {% if mail.sent + mail.failed > 0 %}
+      <div class="an-grid" style="margin-bottom:10px">
+        <div class="an-card"><div class="an-card__k">Sent</div><div class="an-card__n">{{ mail.sent|number_format }}</div></div>
+        <div class="an-card"><div class="an-card__k">Failed</div><div class="an-card__n">{{ mail.failed|number_format }}</div></div>
+        <div class="an-card"><div class="an-card__k">Failure rate</div><div class="an-card__n">{{ mail.failure_pct }}%</div></div>
+      </div>
+      {% if mail.failure_pct >= 5 %}
+        <div class="an-bad">
+          {{ mail.failure_pct }}% of mail did not go out. Vote codes, receipts and sign-in links all
+          travel this path.
+        </div>
+      {% endif %}
+      <table class="an-tbl">
+        <thead><tr><th>Category</th><th class="n">Sent</th><th class="n">Failed</th><th class="n">Failure</th></tr></thead>
+        <tbody>
+        {% for c in mail.by_category %}
+          <tr>
+            <td>{{ c.category }}</td>
+            <td class="n">{{ c.sent|number_format }}</td>
+            <td class="n">{{ c.failed|number_format }}</td>
+            <td class="n">{{ c.failure_pct }}%</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="an-empty">No mail has been attempted in this window.</p>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

@@ -58,6 +58,11 @@ final class Permissions
         // data / reports (operational + financial datasets — surfaced in the admin overhaul)
         'data' => 'data', 'votes' => 'data', 'donations' => 'data', 'orders' => 'data', 'users' => 'data',
         'registrations' => 'data', 'points' => 'data', 'comments' => 'data', 'activity' => 'data', 'reports' => 'data',
+        // Analytics is `data` and not `finance` on purpose: it carries no naira
+        // figure at all. Gating the growth of the platform behind the revenue
+        // section would hide it from the editors and moderators whose work it is
+        // meant to direct. See the note on AnalyticsController.
+        'analytics' => 'data',
         // finance (superadmin + admin)
         //
         // `refunds`, `vote-delivery` and `payments` were missing here, and the
