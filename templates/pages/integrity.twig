@@ -1,299 +1,642 @@
 {% extends "layout/gates.twig" %}
 
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE INTEGRITY PAGE — A SUMMARY WITH DOORS, NOT A DOCUMENT
+  ══════════════════════════════════════════════════════════════════════════════
+
+  This page used to be one long scroll that said everything once and was read by
+  nobody. Somebody who wanted to know whether their small category was a handicap
+  had to pass the judging rubric, the fraud thresholds and the data-retention
+  policy to reach four sentences about it — and the four sentences had no title,
+  no URL and no way for support to send them to anybody.
+
+  So the depth moved into the Help Centre, where each claim gets its own title, its
+  own address and its own place in search. What stays here is the SUMMARY: enough
+  to be a complete answer on its own, with a door to the full one beside it. The
+  page is now navigable in a minute and exhaustive if you want it to be.
+
+  ── EVERY NUMBER ON THIS PAGE IS READ, NOT TYPED ────────────────────────────
+
+  The weights, the bonus-vote ceiling, the judge quorum, the fraud bands and the
+  community-return share all arrive from RuleEngine via the route — the same
+  object the scorer consults. An operator can change any of them per programme and
+  per cycle, and of every page on this site the METHODOLOGY page is the one that
+  must not go on describing a system the code has stopped running.
+
+  The articles this page links to resolve the same values from the same engine, so
+  the summary and the deep dive cannot drift apart.
+#}
+
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   body[data-page="integrity"]{ background:#eef0ec; color:var(--ag-ink); }
-  .mth{ max-width:920px; margin:0 auto; padding:clamp(2rem,5vw,2.9rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+  .mth{ max-width:1000px; margin:0 auto; padding:clamp(2rem,5vw,3rem) var(--ag-gutter,32px) clamp(3rem,6vw,4.5rem); }
 
-  .mth-hero{ text-align:center; max-width:640px; margin:0 auto; }
+  /* ── hero ─────────────────────────────────────────────────────────────── */
+  .mth-hero{ text-align:center; max-width:680px; margin:0 auto; }
   .mth-hero .mth-eyebrow{ margin:0 0 10px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
-  .mth-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4.6vw,2.625rem); letter-spacing:-.02em; }
+  .mth-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,5vw,2.75rem); letter-spacing:-.02em; line-height:1.12; }
   .mth-hero h1 em{ font-style:italic; color:var(--ag-green); }
-  .mth-hero p{ margin:14px 0 0; font-size:16px; line-height:1.6; color:#52605c; }
-  .mth-chips{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:18px; }
-  .mth-chip{ display:inline-flex; align-items:center; gap:7px; background:var(--ag-surface); border:1px solid rgba(16,41,44,.1); border-radius:999px; padding:7px 13px; font-size:12.5px; font-weight:500; color:#3a4448; }
-  .mth-chip::before{ content:""; width:6px; height:6px; border-radius:50%; background:var(--ag-green); }
+  .mth-hero p{ margin:16px 0 0; font-size:16.5px; line-height:1.65; color:#52605c; }
 
-  .mth-h2{ margin:clamp(2.4rem,5vw,3.2rem) 0 4px; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.5rem,3vw,1.85rem); letter-spacing:-.01em; }
-  .mth-lead{ margin:0 0 1.3rem; color:#52605c; font-size:15px; line-height:1.6; max-width:46rem; }
+  /* Live figures, stated up front. The three claims most often doubted. */
+  .mth-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:rgba(16,41,44,.1);
+              border:1px solid rgba(16,41,44,.1); border-radius:18px; overflow:hidden; margin:clamp(1.6rem,4vw,2.2rem) auto 0; max-width:720px; }
+  .mth-stat{ background:var(--ag-surface); padding:18px 14px; text-align:center; }
+  .mth-stat__n{ display:block; font:700 clamp(1.4rem,3.4vw,1.75rem)/1 var(--ag-font-mono); color:var(--ag-green); letter-spacing:-.02em; }
+  .mth-stat__l{ display:block; margin-top:7px; font-size:12px; line-height:1.45; color:#5c6864; }
 
-  /* scoring card */
-  .mth-score{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(1.6rem,3vw,2rem); }
+  /* ── section index ────────────────────────────────────────────────────── */
+  .mth-index{ margin:clamp(1.8rem,4vw,2.4rem) 0 0; padding:16px 18px; background:var(--ag-surface);
+              border:1px solid rgba(16,41,44,.08); border-radius:18px; }
+  .mth-index h2{ margin:0 0 11px; font:600 11.5px/1 var(--ag-font-body); letter-spacing:.13em; text-transform:uppercase; color:#7b8783; }
+  .mth-index ol{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:7px; counter-reset:ix; }
+  .mth-index a{ counter-increment:ix; display:inline-flex; align-items:baseline; gap:7px; text-decoration:none;
+                border:1px solid rgba(16,41,44,.12); border-radius:999px; padding:7px 13px; font-size:13px; color:#33403d; background:#fff; }
+  .mth-index a::before{ content:counter(ix,decimal-leading-zero); font:700 10.5px/1 var(--ag-font-mono); color:var(--ag-green); }
+  .mth-index a:hover{ border-color:var(--ag-green); color:var(--ag-green-dark); }
+
+  /* ── section furniture ────────────────────────────────────────────────── */
+  .mth-sec{ scroll-margin-top:96px; margin-top:clamp(2.6rem,6vw,3.6rem); }
+  .mth-sec__n{ display:block; font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em; color:var(--ag-green); margin-bottom:9px; }
+  .mth-h2{ margin:0 0 6px; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.45rem,3.2vw,1.9rem); letter-spacing:-.015em; line-height:1.2; }
+  .mth-lead{ margin:0 0 1.3rem; color:#52605c; font-size:15.5px; line-height:1.65; max-width:60ch; }
+  .mth-h3{ margin:1.6rem 0 .45rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.1rem; color:var(--ag-ink); }
+
+  /* "Read the detail" — the doors out of the summary. */
+  .mth-more{ margin-top:1.1rem; display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; }
+  .mth-more__a{ display:flex; align-items:flex-start; gap:10px; text-decoration:none; background:#fff;
+                border:1px solid rgba(16,41,44,.1); border-radius:13px; padding:13px 15px; transition:border-color .15s,transform .15s; }
+  .mth-more__a:hover{ border-color:var(--ag-green); transform:translateY(-1px); }
+  .mth-more__ico{ flex:none; width:22px; height:22px; border-radius:7px; background:var(--ag-green-wash); color:var(--ag-green-dark);
+                  display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .mth-more__t{ display:block; font-size:13.5px; line-height:1.45; font-weight:600; color:var(--ag-ink); }
+  .mth-more__s{ display:block; margin-top:3px; font-size:12px; line-height:1.45; color:#6c7873; }
+
+  /* ── scoring card ─────────────────────────────────────────────────────── */
+  .mth-score{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(1.5rem,3vw,2rem); }
   .mth-score__head{ display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1.3rem; }
-  .mth-score__head h3{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.25rem; }
-  .mth-score__max{ font:700 14px/1 var(--ag-font-mono); color:var(--ag-green); }
+  .mth-score__head h3{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.2rem; }
+  .mth-score__max{ font:700 13.5px/1 var(--ag-font-mono); color:var(--ag-green); }
   .mth-bar{ margin-bottom:1.3rem; }
-  .mth-bar:last-child{ margin-bottom:0; }
-  .mth-bar__top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .mth-bar:last-of-type{ margin-bottom:0; }
+  .mth-bar__top{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:8px; }
   .mth-bar__name{ display:flex; align-items:center; gap:11px; font-weight:600; font-size:15.5px; }
   .mth-bar__ico{ width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex:none; }
   .mth-bar__pct{ font:700 14px/1 var(--ag-font-mono); color:var(--ag-ink); }
-  .mth-bar__track{ height:9px; border-radius:5px; background:#eef2ee; overflow:hidden; margin-bottom:7px; }
+  .mth-bar__track{ display:block; height:9px; border-radius:5px; background:#eef2ee; overflow:hidden; margin-bottom:7px; }
   .mth-bar__fill{ display:block; height:100%; border-radius:5px; background:linear-gradient(90deg,var(--ag-green),var(--ag-green-light)); }
-  .mth-bar__desc{ margin:0; font-size:13.5px; line-height:1.55; color:#626a6e; }
-  .mth-eq{ text-align:center; margin:1.4rem 0 0; font:700 .95rem/1 var(--ag-font-mono); color:var(--ag-ink); }
-  .mth-why{ margin-top:1.1rem; background:#fff8e8; border:1px solid rgba(201,162,75,.3); border-radius:14px; padding:1rem 1.2rem; font-size:14px; line-height:1.6; color:#5b4a1f; }
+  .mth-bar__desc{ margin:0; font-size:13.5px; line-height:1.6; color:#626a6e; }
+  .mth-eq{ text-align:center; margin:1.4rem 0 0; font:700 .95rem/1.5 var(--ag-font-mono); color:var(--ag-ink); }
+  .mth-why{ margin-top:1.1rem; background:#fff8e8; border:1px solid rgba(201,162,75,.3); border-radius:14px; padding:1rem 1.2rem; font-size:14px; line-height:1.65; color:#5b4a1f; }
   .mth-why strong{ color:#3a2f12; }
 
-  /* grids */
-  .mth-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:1.2rem; }
+  /* ── generic cells ────────────────────────────────────────────────────── */
+  .mth-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .mth-grid--3{ grid-template-columns:repeat(3,1fr); }
   .mth-cell{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:20px; }
   .mth-cell__top{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.5rem; }
   .mth-cell h3{ margin:0; font-weight:600; font-size:15.5px; color:var(--ag-ink); }
   .mth-cell__pct{ font:700 12px/1 var(--ag-font-mono); color:var(--ag-green); background:var(--ag-green-wash); padding:5px 9px; border-radius:999px; }
-  .mth-cell p{ margin:0; font-size:13.5px; line-height:1.6; color:#626a6e; }
+  .mth-cell p{ margin:0; font-size:13.5px; line-height:1.65; color:#626a6e; }
   .mth-cell__ico{ width:40px; height:40px; border-radius:11px; background:#effaf0; display:flex; align-items:center; justify-content:center; margin-bottom:12px; }
 
-  /* timeline (dark) */
-  .mth-time{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:22px; padding:clamp(1.6rem,3vw,2.1rem); margin-top:1.2rem; }
+  /* ── eligibility rule ─────────────────────────────────────────────────── */
+  .mth-rule{ display:flex; align-items:center; gap:clamp(14px,3vw,26px); background:var(--ag-ink); border-radius:20px;
+             padding:clamp(1.2rem,3vw,1.6rem) clamp(1.3rem,3vw,1.9rem); color:#fff; flex-wrap:wrap; }
+  .mth-rule__n{ font:700 clamp(2.2rem,6vw,3rem)/1 var(--ag-font-mono); color:var(--ag-green-light); letter-spacing:-.03em; }
+  .mth-rule__b{ flex:1 1 260px; }
+  .mth-rule__b strong{ display:block; font-size:15.5px; margin-bottom:5px; }
+  .mth-rule__b p{ margin:0; font-size:13.5px; line-height:1.65; color:rgba(255,255,255,.72); }
+
+  /* ── money: can / cannot ──────────────────────────────────────────────── */
+  .mth-money{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
+  .mth-money__col{ border-radius:16px; padding:20px 22px; border:1px solid; }
+  .mth-money__col--can{ background:#f2f9f1; border-color:#bfe0bd; }
+  .mth-money__col--cannot{ background:#fdf6f6; border-color:#eccaca; }
+  .mth-money__col h3{ display:flex; align-items:center; gap:8px; margin:0 0 11px; font-size:14.5px; color:var(--ag-ink); }
+  .mth-money__col ul{ margin:0; padding-left:18px; }
+  .mth-money__col li{ font-size:13.5px; line-height:1.7; color:#3f4a4c; margin-bottom:9px; }
+  .mth-money__col li:last-child{ margin-bottom:0; }
+  .mth-note{ margin:14px 0 0; font-size:14px; line-height:1.75; color:#4a5256; max-width:70ch; }
+  .mth-note em{ color:var(--ag-ink); font-style:italic; }
+
+  /* ── risk bands ───────────────────────────────────────────────────────── */
+  .mth-bands{ display:flex; height:38px; border-radius:11px; overflow:hidden; border:1px solid rgba(16,41,44,.1); }
+  .mth-band{ display:flex; align-items:center; justify-content:center; font:700 11px/1 var(--ag-font-mono); color:#fff; text-align:center; padding:0 4px; }
+  .mth-band--ok{ background:#3f9b3c; }
+  .mth-band--watch{ background:#8aa63c; }
+  .mth-band--flag{ background:#c98b2b; }
+  .mth-band--stop{ background:#b0453f; }
+  .mth-bands__key{ display:flex; flex-wrap:wrap; gap:12px 20px; margin-top:12px; }
+  .mth-bands__k{ display:flex; align-items:flex-start; gap:8px; font-size:13px; line-height:1.55; color:#4a5256; max-width:34ch; }
+  .mth-bands__dot{ flex:none; width:10px; height:10px; border-radius:3px; margin-top:4px; }
+
+  /* ── timeline (dark) ──────────────────────────────────────────────────── */
+  .mth-time{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:22px; padding:clamp(1.5rem,3vw,2.1rem); }
   .mth-time__orb{ position:absolute; right:-50px; top:-50px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.18),transparent 68%); }
-  .mth-time h3{ position:relative; margin:0 0 1.3rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.25rem; color:#fff; }
+  .mth-time h3{ position:relative; margin:0 0 1.3rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.2rem; color:#fff; }
   .mth-time__row{ position:relative; display:grid; grid-template-columns:repeat(6,1fr); gap:0; }
   .mth-step__head{ display:flex; align-items:center; }
   .mth-step__n{ width:30px; height:30px; flex:none; border-radius:50%; background:var(--ag-green-light); color:var(--ag-ink); display:flex; align-items:center; justify-content:center; font:700 13px/1 var(--ag-font-mono); }
   .mth-step__line{ flex:1; height:2px; background:rgba(127,200,124,.35); }
   .mth-step:last-child .mth-step__line{ background:transparent; }
   .mth-step__t{ font-weight:600; font-size:13px; color:#fff; margin-top:12px; padding-right:12px; }
-  .mth-step__d{ font-size:11.5px; line-height:1.5; color:rgba(255,255,255,.6); margin-top:4px; padding-right:12px; }
+  .mth-step__d{ font-size:11.5px; line-height:1.5; color:rgba(255,255,255,.62); margin-top:4px; padding-right:12px; }
 
-  /* prose */
-  .mth-prose h3{ margin:1.5rem 0 .35rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.15rem; color:var(--ag-ink); }
-  .mth-prose p{ margin:0; font-size:14.5px; line-height:1.7; color:#3a4448; }
+  /* ── prose ────────────────────────────────────────────────────────────── */
+  .mth-prose p{ margin:0 0 .8rem; font-size:14.5px; line-height:1.75; color:#3a4448; max-width:70ch; }
+  .mth-prose p:last-child{ margin-bottom:0; }
   .mth-prose a{ color:var(--ag-green); }
-  .mth-prose ol{ margin:.6rem 0 0; padding-left:1.3rem; display:flex; flex-direction:column; gap:.4rem; font-size:14px; line-height:1.6; color:#3a4448; }
+  .mth-prose ol{ margin:.6rem 0 0; padding-left:1.3rem; display:flex; flex-direction:column; gap:.45rem; font-size:14px; line-height:1.65; color:#3a4448; max-width:70ch; }
 
-  .mth-cta{ text-align:center; margin-top:clamp(2.4rem,5vw,3.2rem); }
+  .mth-cta{ text-align:center; margin-top:clamp(2.6rem,6vw,3.6rem); padding-top:clamp(2rem,4vw,2.6rem); border-top:1px solid rgba(16,41,44,.1); }
   .mth-cta p{ margin:0 0 1rem; color:#52605c; }
   .mth-btn{ display:inline-flex; align-items:center; gap:.5rem; background:var(--ag-green); color:#fff; text-decoration:none; font-weight:600; font-size:15px; padding:14px 28px; border-radius:999px; box-shadow:0 12px 24px -12px rgba(35,123,34,.6); }
   .mth-btn:hover{ background:var(--ag-green-dark); }
+  .mth-cta__alt{ margin-top:14px; font-size:13.5px; }
+  .mth-cta__alt a{ color:var(--ag-green-dark); }
 
-  @media (max-width:680px){
-    .mth-grid{ grid-template-columns:1fr; }
+  @media (max-width:760px){
+    .mth-grid, .mth-grid--3{ grid-template-columns:1fr; }
     .mth-time__row{ grid-template-columns:1fr; gap:1rem; }
     .mth-step__line{ display:none; }
+    .mth-stats{ grid-template-columns:1fr; }
+    .mth-band{ font-size:10px; }
   }
-  .mth-money{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin:18px 0 12px }
-  .mth-money__col{ border-radius:14px; padding:18px 20px; border:1px solid }
-  .mth-money__col--can{ background:#f2f9f1; border-color:#bfe0bd }
-  .mth-money__col--cannot{ background:#fdf6f6; border-color:#eccaca }
-  .mth-money__col h3{ margin:0 0 10px; font-size:14.5px; color:#10292C }
-  .mth-money__col ul{ margin:0; padding-left:18px }
-  .mth-money__col li{ font-size:13.5px; line-height:1.7; color:#3f4a4c; margin-bottom:8px }
-  .mth-money__note{ font-size:13.5px; line-height:1.75; color:#4a5256; max-width:74ch; margin:0 0 8px }
 </style>
 {% endblock %}
 
 {% block content %}
+{#  One place defines a "read the detail" link, so a section cannot invent its own
+    shape and a slug is written exactly once. #}
+{% macro more(links) %}
+  <div class="mth-more">
+    {% for l in links %}
+      <a class="mth-more__a" href="/help/{{ l.slug }}">
+        <span class="mth-more__ico" aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </span>
+        <span>
+          <span class="mth-more__t">{{ l.t }}</span>
+          <span class="mth-more__s">{{ l.s }}</span>
+        </span>
+      </a>
+    {% endfor %}
+  </div>
+{% endmacro %}
+{% import _self as ui %}
+
 <div class="mth">
   <header class="mth-hero">
-    <p class="mth-eyebrow">Methodology · Integrity Center</p>
-    <h1>How the CPI is <em>scored.</em></h1>
-    <p>Transparent rules, verified identities, independent scoring. The Cultural Power Index is a defensible, audited score — this page is your reference if anything is ever disputed.</p>
-    <div class="mth-chips">
-      {% for label in ['OTP-verified voting','One vote per identity','Fraud-scored','Independent jury','Weighted public + judge','Full audit trail'] %}
-        <span class="mth-chip">{{ label }}</span>
-      {% endfor %}
-    </div>
+    <p class="mth-eyebrow">Methodology · Integrity Centre</p>
+    <h1>How a winner is <em>decided</em> — and what money cannot do about it.</h1>
+    <p>The Cultural Power Index is meant to survive being questioned. This page is the whole method
+       in summary: what counts, what deliberately does not, who checks it, and what happens when we
+       get something wrong. Every figure below is read live from the scoring engine.</p>
   </header>
 
-  {# ── The score ── #}
-  <h2 class="mth-h2">The score</h2>
-  <p class="mth-lead">The final CPI is a weighted combination of the community’s verified votes and an independent judge panel. Neither alone decides the winner.</p>
-  <div class="mth-score">
-    <div class="mth-score__head">
-      <h3>Two weighted inputs</h3>
-      <span class="mth-score__max">= CPI score</span>
+  {# The three claims that get doubted most, answered before anybody scrolls. #}
+  <div class="mth-stats">
+    <div class="mth-stat">
+      <span class="mth-stat__n">{{ community_pct|default(45) }}&thinsp;/&thinsp;{{ judge_pct|default(55) }}</span>
+      <span class="mth-stat__l">Community votes to judge panel, in the final index</span>
     </div>
-    <div class="mth-bar">
-      <div class="mth-bar__top">
-        <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>Public votes</span>
-        <span class="mth-bar__pct">{{ community_pct|default(45) }}%</span>
-      </div>
-      <span class="mth-bar__track"><span class="mth-bar__fill" style="width:{{ community_pct|default(45) }}%"></span></span>
-      <p class="mth-bar__desc">Community voice — normalised within each category against the category’s highest vote count. Only organic, OTP-verified votes count toward the score; donation bonus votes never move it.</p>
+    <div class="mth-stat">
+      <span class="mth-stat__n">0%</span>
+      <span class="mth-stat__l">Of the index that contributions can move</span>
     </div>
-    <div class="mth-bar">
-      <div class="mth-bar__top">
-        <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#f3eef7;color:#5b3a8a"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>Judge panel</span>
-        <span class="mth-bar__pct">{{ judge_pct|default(55) }}%</span>
-      </div>
-      <span class="mth-bar__track"><span class="mth-bar__fill" style="width:{{ judge_pct|default(55) }}%"></span></span>
-      <p class="mth-bar__desc">An independent panel scores each shortlisted nominee on four equally-weighted criteria. Only complete scorecards count, and a nominee needs at least {{ min_judges|default(2) }} of them to be winner-eligible.</p>
+    <div class="mth-stat">
+      <span class="mth-stat__n">{{ min_judges|default(2) }}</span>
+      <span class="mth-stat__l">Complete judge scorecards needed to be winner-eligible</span>
     </div>
-    <p class="mth-eq">{{ community_pct|default(45) }}% public&nbsp;+&nbsp;{{ judge_pct|default(55) }}% judges&nbsp;=&nbsp;CPI</p>
-    <div class="mth-why"><strong>Why {{ community_pct|default(45) }}/{{ judge_pct|default(55) }}?</strong> Popularity alone shouldn’t decide a winner — a well-funded campaign can generate disproportionate vote volume. The slight tilt to the judge panel keeps merit, not marketing, in charge of the decision.</div>
   </div>
 
-  {# ── What money can and cannot do ──────────────────────────────────────────
+  <nav class="mth-index" aria-label="On this page">
+    <h2>On this page</h2>
+    <ol>
+      <li><a href="#score">The score</a></li>
+      <li><a href="#eligible">Who can actually win</a></li>
+      <li><a href="#criteria">What judges score</a></li>
+      <li><a href="#money">What money can and cannot do</a></li>
+      <li><a href="#return">The community return</a></li>
+      <li><a href="#honest">Keeping the count honest</a></li>
+      <li><a href="#failures">When a payment goes wrong</a></li>
+      <li><a href="#sealed">Sealing the result</a></li>
+      <li><a href="#cycle">The cycle, stage by stage</a></li>
+      <li><a href="#disputes">Disputes and your data</a></li>
+    </ol>
+  </nav>
+
+  {# ── 01 · THE SCORE ─────────────────────────────────────────────────────── #}
+  <section class="mth-sec" id="score">
+    <span class="mth-sec__n">01</span>
+    <h2 class="mth-h2">The score</h2>
+    <p class="mth-lead">The Cultural Power Index is a weighted combination of the community’s verified
+       votes and an independent judge panel. Neither alone decides a winner, and that is the point of
+       having both.</p>
+
+    <div class="mth-score">
+      <div class="mth-score__head">
+        <h3>Two weighted inputs</h3>
+        <span class="mth-score__max">= CPI score</span>
+      </div>
+      <div class="mth-bar">
+        <div class="mth-bar__top">
+          <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>Community votes</span>
+          <span class="mth-bar__pct">{{ community_pct|default(45) }}%</span>
+        </div>
+        <span class="mth-bar__track"><span class="mth-bar__fill" style="width:{{ community_pct|default(45) }}%"></span></span>
+        <p class="mth-bar__desc">Normalised <strong>within each category</strong>, against that category’s
+           strongest vote count — so a nominee in a small field is not punished for being in one. Only
+           organic, code-verified votes count here; contribution bonus votes never enter this number.</p>
+      </div>
+      <div class="mth-bar">
+        <div class="mth-bar__top">
+          <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#f3eef7;color:#5b3a8a"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>Judge panel</span>
+          <span class="mth-bar__pct">{{ judge_pct|default(55) }}%</span>
+        </div>
+        <span class="mth-bar__track"><span class="mth-bar__fill" style="width:{{ judge_pct|default(55) }}%"></span></span>
+        <p class="mth-bar__desc">An independent panel scores each shortlisted nominee on four
+           equally-weighted criteria. Only complete scorecards are counted, and judges do not see the
+           vote tally while scoring.</p>
+      </div>
+      <p class="mth-eq">{{ community_pct|default(45) }}% community&nbsp;+&nbsp;{{ judge_pct|default(55) }}% judges&nbsp;=&nbsp;CPI</p>
+      <div class="mth-why"><strong>Why {{ community_pct|default(45) }}/{{ judge_pct|default(55) }}?</strong>
+        Popularity alone should not decide a winner — a well-funded campaign can generate
+        disproportionate vote volume, and reach on the internet is not the same thing as impact on the
+        continent. The slight tilt to the panel keeps merit, not marketing, in charge of the decision.
+        The split is a per-cycle setting, and this page always shows the one currently in force.</div>
+    </div>
+
+    {{ ui.more([
+      {slug:'how-cpi-works', t:'How the CPI is calculated', s:'The full method, end to end.'},
+      {slug:'why-a-small-category-is-not-a-disadvantage', t:'Why a small category is not a disadvantage', s:'What normalising inside a category actually does.'}
+    ]) }}
+  </section>
+
+  {# ── 02 · ELIGIBILITY ───────────────────────────────────────────────────── #}
+  <section class="mth-sec" id="eligible">
+    <span class="mth-sec__n">02</span>
+    <h2 class="mth-h2">Who can actually win</h2>
+    <p class="mth-lead">Leading the public vote makes a nominee the front-runner. It does not, by
+       itself, make them eligible to be declared the winner.</p>
+
+    <div class="mth-rule">
+      <span class="mth-rule__n">{{ min_judges|default(2) }}</span>
+      <div class="mth-rule__b">
+        <strong>Complete judge scorecards, minimum</strong>
+        <p>A nominee needs at least {{ min_judges|default(2) }} judges to have scored them on every
+           criterion. A half-finished card counts as nothing — not as a zero, which would be a silent
+           penalty for a judge’s browser crashing. If nobody in a category reaches the quorum, the award
+           is not given: an empty result is more honest than one nobody scored.</p>
+      </div>
+    </div>
+
+    <h3 class="mth-h3">And three exclusions that apply before anything is counted</h3>
+    <div class="mth-grid mth-grid--3">
+      <div class="mth-cell">
+        <h3>Judges recuse themselves</h3>
+        <p>A judge with any connection to a nominee steps out of scoring them, and a judge’s own votes in
+           a category they judge are excluded from the community count.</p>
+      </div>
+      <div class="mth-cell">
+        <h3>The shortlist is frozen</h3>
+        <p>Once a category opens for voting, nobody can be added to it. A late entrant would be competing
+           against totals that had a head start, and every earlier vote would have been cast on a
+           different ballot.</p>
+      </div>
+      <div class="mth-cell">
+        <h3>Unverified profiles score nothing</h3>
+        <p>A profile must clear human review before any votes or impact points attach to it, so a
+           fabricated nominee cannot accumulate a score while waiting to be noticed.</p>
+      </div>
+    </div>
+
+    {{ ui.more([
+      {slug:'why-the-leader-may-not-be-eligible-to-win', t:'Why the vote leader may not be eligible', s:'Quorum, complete cards and recusal, in detail.'},
+      {slug:'what-happens-if-two-nominees-tie', t:'What happens if two nominees tie', s:'The tiebreak is organic votes — never money.'}
+    ]) }}
+  </section>
+
+  {# ── 03 · CRITERIA ──────────────────────────────────────────────────────── #}
+  <section class="mth-sec" id="criteria">
+    <span class="mth-sec__n">03</span>
+    <h2 class="mth-h2">What the judges score</h2>
+    <p class="mth-lead">Every judge scores each nominee from 0 to 10 on four dimensions. The four carry
+       equal weight — there is no hidden multiplier making one of them decide the card.</p>
+    <div class="mth-grid">
+      {% set crit = {
+        'Impact':'The measurable difference made for a community, an industry or the continent. What is different because this person did the work?',
+        'Originality':'Inventiveness. Has something genuinely new been introduced, or is this an existing thing done competently?',
+        'Reach':'Breadth of influence — local, regional, continental, global. Reach is not follower count.',
+        'Integrity':'Consistency of values and accountability under pressure, including how a nominee behaves when it costs them something.'
+      } %}
+      {% for title, desc in crit %}
+        <div class="mth-cell">
+          <div class="mth-cell__top"><h3>{{ title }}</h3><span class="mth-cell__pct">25%</span></div>
+          <p>{{ desc }}</p>
+        </div>
+      {% endfor %}
+    </div>
+    <p class="mth-note">Judges see a nominee’s dossier, not their vote count. The public tally is kept off
+       the scoring screen deliberately, so it cannot anchor a score before the judge has formed one.</p>
+
+    {{ ui.more([
+      {slug:'what-the-judges-actually-score', t:'What the judges actually score you on', s:'Each criterion, and what evidence counts for it.'}
+    ]) }}
+  </section>
+
+  {# ── 04 · MONEY ─────────────────────────────────────────────────────────────
      Published because the separation was real in the engine and invisible on the
      site. The platform keeps organic votes and purchased ones in different columns
      and normalises the community share over the organic one only — a genuine
      commitment, enforced in code, that a visitor had no way of knowing about. A
-     promise nobody can see is not a promise anybody can hold us to.
+     promise nobody can see is not a promise anybody can hold us to. #}
+  <section class="mth-sec" id="money">
+    <span class="mth-sec__n">04</span>
+    <h2 class="mth-h2">What a contribution can — and cannot — do</h2>
+    <p class="mth-lead">Supporters can contribute to the programme in a nominee’s name, and each
+       contribution adds to that nominee’s public tally. The money keeps the awards running — the panel,
+       the verification work, the platform itself. It is fair to ask what it actually buys, and the honest
+       answer is: visibility, never rank.</p>
 
-     Every number here comes from RuleEngine via the route, so this section cannot
-     go on claiming a rule the platform has stopped following. #}
-  <h2 class="mth-h2" id="money">What a contribution can — and cannot — do</h2>
-  <p class="mth-lead">
-    Supporters can contribute to the programme in a nominee’s name, and each contribution adds to
-    that nominee’s public tally. The money keeps the awards running — the judging panel, the
-    verification work, the platform itself. It is fair to ask what it actually buys, and the honest
-    answer is: visibility, never rank.
-  </p>
-
-  <div class="mth-money">
-    <div class="mth-money__col mth-money__col--can">
-      <h3>What a contribution does</h3>
-      <ul>
-        <li>Adds to the nominee’s <strong>public tally</strong> — the number shown on their page and on the leaderboard.</li>
-        <li>Puts the buyer’s name on the nominee’s supporters list, if they chose to be named.</li>
-        <li>Funds the judging panel, the verification work and running the programme.</li>
-      </ul>
-    </div>
-    <div class="mth-money__col mth-money__col--cannot">
-      <h3>What it does not do</h3>
-      <ul>
-        <li>It <strong>does not move the Cultural Power Index</strong>. The {{ community_pct|default(45) }}% community
-            share is normalised over organic, OTP-verified votes only. Purchased votes are held in a
-            separate column the scorer never reads.</li>
-        <li>It <strong>does not break a tie</strong>. When two nominees finish level, the tiebreak is organic
-            votes — one verified supporter outranks any number of purchased ones.</li>
-        <li>It is <strong>capped</strong>: purchased votes on any nominee cannot exceed
-            {{ paid_cap_pct|default(50) }}% of the organic support they have earned, so money can amplify a
-            real following and cannot manufacture one.</li>
-      </ul>
-    </div>
-  </div>
-  <p class="mth-money__note">
-    Put plainly: money can make a nominee <em>look</em> more popular. It cannot make them win.
-    If that ever stops being true, this page is wrong and we want to hear about it —
-    the numbers above are read from the live scoring configuration, not typed in by hand.
-  </p>
-
-  {# ── When we take money and something goes wrong ──────────────────────────── #}
-  <h2 class="mth-h2">If you paid and your votes did not appear</h2>
-  <p class="mth-lead">
-    Payments pass through a bank and a payment gateway before they reach us, and any of those
-    steps can fail after your card has been charged. We would rather say so than pretend it
-    never happens.
-  </p>
-  <div class="mth-grid">
-    <div class="mth-card">
-      <h3>Your votes are still owed to you</h3>
-      <p>If the ballot was open when you paid, the votes are yours even if the confirmation
-         reached us late. We check the time you started the payment, not the moment our
-         system happened to notice it.</p>
-    </div>
-    <div class="mth-card">
-      <h3>If they cannot be delivered, the money goes back</h3>
-      <p>Where votes genuinely cannot be counted — the nominee left the ballot, or the payment
-         confirmed long after voting closed — the order is refunded rather than kept. We do not
-         keep money for votes we did not deliver.</p>
-    </div>
-    <div class="mth-card">
-      <h3>Tell us, with your reference</h3>
-      <p>Every order has a reference beginning <code>AFG-</code>. Send it to us through
-         <a href="/support">support</a> and we can trace the payment all the way to the gateway
-         and tell you exactly what happened to it.</p>
-    </div>
-  </div>
-
-  {# ── Judge criteria ── #}
-  <h2 class="mth-h2">The four judging criteria</h2>
-  <p class="mth-lead">Every judge scores each nominee 0–10 on four dimensions. The equally-weighted average becomes that judge’s score.</p>
-  <div class="mth-grid">
-    {% set crit = {
-      'Impact':'Measurable difference made for the community, industry, or continent.',
-      'Originality':'Inventiveness and novelty — has this person introduced something genuinely new?',
-      'Reach':'Breadth of influence: local, regional, continental, or global.',
-      'Integrity':'Consistency of values, ethics, and accountability under pressure.'
-    } %}
-    {% for title, desc in crit %}
-      <div class="mth-cell">
-        <div class="mth-cell__top"><h3>{{ title }}</h3><span class="mth-cell__pct">25%</span></div>
-        <p>{{ desc }}</p>
+    <div class="mth-money">
+      <div class="mth-money__col mth-money__col--can">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          What a contribution does
+        </h3>
+        <ul>
+          <li>Adds to the nominee’s <strong>public tally</strong> — the number shown on their page and on the leaderboard.</li>
+          <li>Puts the supporter’s name on the nominee’s supporters list, if they chose to be named.</li>
+          <li>Sets aside a share for the nominee themselves, once they qualify — see <a href="#return">the community return</a>.</li>
+          <li>Funds the judging panel, the verification work and running the programme.</li>
+        </ul>
       </div>
-    {% endfor %}
-  </div>
-
-  {# ── Principles ── #}
-  <h2 class="mth-h2">Principles we hold</h2>
-  <div class="mth-grid">
-    {% set princ = [
-      ['One person, one vote','Email is hashed (SHA-256) and checked for uniqueness per category. Plain addresses are never stored.'],
-      ['No pay-to-win','Donations and ticket sales never affect a score. Funding and ranking are fully separated.'],
-      ['Open audit trail','Every recomputation is logged. An independent reviewer can replay the math from source.'],
-      ['Panel verification','A profile must clear human review before any votes or impact points are counted.']
-    ] %}
-    {% for p in princ %}
-      <div class="mth-cell">
-        <div class="mth-cell__ico"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
-        <h3>{{ p[0] }}</h3>
-        <p style="margin-top:6px">{{ p[1] }}</p>
+      <div class="mth-money__col mth-money__col--cannot">
+        <h3>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b0453f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          What it does not do
+        </h3>
+        <ul>
+          <li>It <strong>does not move the Cultural Power Index</strong>. The {{ community_pct|default(45) }}%
+              community share is normalised over organic, code-verified votes only. Purchased votes live in
+              a separate column the scorer never reads.</li>
+          <li>It <strong>does not break a tie</strong>. When two nominees finish level, the tiebreak is
+              organic votes — one verified supporter outranks any number of purchased ones.</li>
+          <li>It is <strong>capped</strong>: purchased votes on a nominee cannot exceed
+              {{ paid_cap_pct|default(50) }}% of the organic support they have earned, so money can amplify
+              a real following and cannot manufacture one.</li>
+          <li>It <strong>buys no consideration from a judge</strong>, who cannot see it.</li>
+        </ul>
       </div>
-    {% endfor %}
-  </div>
-
-  {# ── Lifecycle timeline ── #}
-  <h2 class="mth-h2">From nomination to result</h2>
-  <div class="mth-time">
-    <div class="mth-time__orb" aria-hidden="true"></div>
-    <h3>Every programme runs six enforced stages</h3>
-    <div class="mth-time__row">
-      {% set steps = [
-        ['1','Nominated','Anyone can nominate; entries are queued for moderation.'],
-        ['2','Verified','The team reviews eligibility, accuracy and completeness.'],
-        ['3','Shortlisted','Approved nominees go public; the list is then frozen.'],
-        ['4','Voted','OTP-verified, fraud-scored community votes are collected.'],
-        ['5','Judged','The independent panel scores each nominee.'],
-        ['6','Sealed','A signed snapshot is taken; results are computed and archived.']
-      ] %}
-      {% for s in steps %}
-        <div class="mth-step">
-          <div class="mth-step__head"><span class="mth-step__n">{{ s[0] }}</span><span class="mth-step__line"></span></div>
-          <div class="mth-step__t">{{ s[1] }}</div>
-          <div class="mth-step__d">{{ s[2] }}</div>
-        </div>
-      {% endfor %}
     </div>
-  </div>
+    <p class="mth-note">Put plainly: money can make a nominee <em>look</em> more popular. It cannot make
+       them win. If that ever stops being true, this page is wrong and we want to hear about it — the
+       numbers above are read from the live scoring configuration, not typed in by hand.</p>
 
-  {# ── Detailed rules (prose) ── #}
-  <div class="mth-prose">
-    <h2 class="mth-h2">Voting rules in detail</h2>
-    <h3>OTP verification required</h3>
-    <p>Every vote requires a one-time 6-digit code delivered to the voter’s email. The code expires in {{ otp_expiry_minutes }} minutes, can only be used once, and is cryptographically bound to the specific nominee it was requested for — it cannot be reused for a different nominee.</p>
-    <h3>Fraud scoring on every vote</h3>
-    <p>Each vote attempt gets a risk score (0–100) from device fingerprint, IP vote density, OTP request patterns, and behavioural signals. Below 30 auto-approves; 60–79 is flagged for manual review; 80+ is blocked before the vote is recorded.</p>
-    <h3>Disposable email addresses blocked</h3>
-    <p>Known temporary email domains (Mailinator, Guerrilla Mail, 10-minute mail, and 30+ others) are rejected at code-request time — before any database write occurs.</p>
-    <h3>Donation votes</h3>
-    <p>Supporters who donate earn bonus votes (currently {{ donation_votes_per_1000 }} per ₦1,000 donated, admin-configurable). Bonus votes face the same OTP verification and fraud scoring as standard votes, and — importantly — they are excluded from the CPI calculation. They show support; they do not move the score.</p>
+    {{ ui.more([
+      {slug:'what-paid-votes-do', t:'What paid votes actually do', s:'Price, ceiling, and what they are excluded from.'},
+      {slug:'how-free-voting-works', t:'How free voting works', s:'The vote that does move the score.'}
+    ]) }}
+  </section>
 
-    <h2 class="mth-h2">Nomination eligibility</h2>
-    <h3>Who can nominate</h3>
-    <p>Any person with a valid, non-disposable email address. There is no fee. Nominators provide their full name, phone number, and location for accountability.</p>
-    <h3>Who can be nominated</h3>
-    <p>Any African individual, school, choir, or business that meets the criteria for the specific award programme. Self-nominations are accepted.</p>
-    <h3>Grounds for rejection</h3>
-    <p>A nomination is rejected if the nominee doesn’t meet the criteria, the reason given is demonstrably false, it duplicates an existing approved entry, or it violates our community standards.</p>
+  {# ── 05 · COMMUNITY RETURN ──────────────────────────────────────────────── #}
+  <section class="mth-sec" id="return">
+    <span class="mth-sec__n">05</span>
+    <h2 class="mth-h2">The community return</h2>
+    <p class="mth-lead">If money is going to be part of this, the people whose communities raised it
+       should see some of it back. A nominee keeps a share of what supporters contribute in their name —
+       whether or not they win, because they raised it either way.</p>
 
-    <h2 class="mth-h2">Disputes &amp; your data</h2>
-    <p>If you believe a result was manipulated or a fraud pattern was missed, email <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a> or open an appeal via <a href="/support">Support &amp; Appeals</a>. We will:</p>
-    <ol>
-      <li>Acknowledge the complaint within {{ review_sla_hours }} hours.</li>
-      <li>Export the relevant vote audit trail (timestamps, hashed identities, risk scores).</li>
-      <li>Engage an independent reviewer if the complaint is substantiated.</li>
-      <li>Publish a summary of findings if the dispute affected a final result.</li>
-    </ol>
-    <h3>What we store</h3>
-    <p>A SHA-256 hash of your email and IP, a device fingerprint, and the nominee ID and timestamp of your vote. We never store your plain-text email, name, or personal identifier against a vote, and we never sell or monetise voter data. Full details: <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms</a>.</p>
-  </div>
+    <div class="mth-grid mth-grid--3">
+      <div class="mth-cell">
+        <div class="mth-cell__top"><h3>Qualifying</h3><span class="mth-cell__pct">{{ return_supporters|default(25) }}</span></div>
+        <p>A nominee begins earning once <strong>{{ return_supporters|default(25) }} distinct supporters</strong>
+           have contributed in their name. It counts people, not votes — one person can buy fifty votes in
+           one order, and cannot be fifty verified supporters.</p>
+      </div>
+      <div class="mth-cell">
+        <div class="mth-cell__top"><h3>The share</h3><span class="mth-cell__pct">{{ return_pct|default('0') }}%</span></div>
+        <p>From that point on, {{ return_pct|default('0') }}% of each further contribution is set aside for
+           the nominee. Crossing the line does not reach backwards — earlier contributions stay unshared,
+           so nobody is rewarded retroactively by a threshold moving.</p>
+      </div>
+      <div class="mth-cell">
+        <div class="mth-cell__top"><h3>When it is payable</h3></div>
+        <p>Not until that cycle has ended and its results have been announced. Before then it is a running
+           figure on the nominee’s profile and is described as one.</p>
+      </div>
+    </div>
+
+    <p class="mth-note">It is held as an <em>append-only ledger</em>, not a balance we can quietly edit.
+       Every entry records what it was computed from and at what rate; if a contribution is refunded or
+       charged back, the share accrued on it is reversed and the reversal stays on the record beside the
+       original. That is what makes any figure explainable line by line rather than merely asserted —
+       {% if return_pct|default('0') == '0' %}and it is why a share of 0%, as it is set now, simply
+       accrues nothing rather than quietly promising something.{% else %}and it is why a disputed figure
+       can be walked through rather than defended.{% endif %}</p>
+
+    {{ ui.more([
+      {slug:'the-community-return', t:'The community return, in full', s:'Thresholds, the ledger, reversals and payout.'}
+    ]) }}
+  </section>
+
+  {# ── 06 · HONEST COUNT ──────────────────────────────────────────────────── #}
+  <section class="mth-sec" id="honest">
+    <span class="mth-sec__n">06</span>
+    <h2 class="mth-h2">Keeping the count honest</h2>
+    <p class="mth-lead">Every vote needs a one-time code sent to a working email address, and every
+       attempt is scored for risk from 0 to 100 <em>before</em> anything is written down.</p>
+
+    <div class="mth-bands" role="img"
+         aria-label="Risk bands: below {{ fraud_monitor|default(30) }} auto-approved, {{ fraud_monitor|default(30) }} to {{ fraud_flag|default(60) }} monitored, {{ fraud_flag|default(60) }} to {{ fraud_block|default(80) }} flagged for review, {{ fraud_block|default(80) }} and above blocked.">
+      <span class="mth-band mth-band--ok"    style="width:{{ fraud_monitor|default(30) }}%">0–{{ fraud_monitor|default(30) }}</span>
+      <span class="mth-band mth-band--watch" style="width:{{ (fraud_flag|default(60)) - (fraud_monitor|default(30)) }}%">{{ fraud_monitor|default(30) }}–{{ fraud_flag|default(60) }}</span>
+      <span class="mth-band mth-band--flag"  style="width:{{ (fraud_block|default(80)) - (fraud_flag|default(60)) }}%">{{ fraud_flag|default(60) }}–{{ fraud_block|default(80) }}</span>
+      <span class="mth-band mth-band--stop"  style="width:{{ 100 - (fraud_block|default(80)) }}%">{{ fraud_block|default(80) }}+</span>
+    </div>
+    <div class="mth-bands__key">
+      <span class="mth-bands__k"><span class="mth-bands__dot" style="background:#3f9b3c"></span>Approved as it is cast.</span>
+      <span class="mth-bands__k"><span class="mth-bands__dot" style="background:#8aa63c"></span>Counted, and kept under observation.</span>
+      <span class="mth-bands__k"><span class="mth-bands__dot" style="background:#c98b2b"></span>Flagged for a person to review.</span>
+      <span class="mth-bands__k"><span class="mth-bands__dot" style="background:#b0453f"></span>Refused before the vote exists.</span>
+    </div>
+
+    <div class="mth-grid mth-grid--3" style="margin-top:1.2rem">
+      <div class="mth-cell">
+        <h3>One identity, one vote</h3>
+        <p>Per category. The address is stored only as a SHA-256 hash, so we can tell that two votes came
+           from the same person without holding the person.</p>
+      </div>
+      <div class="mth-cell">
+        <h3>Disposable mail refused</h3>
+        <p>Known throwaway domains are rejected at the moment a code is requested — before any database
+           write happens at all.</p>
+      </div>
+      <div class="mth-cell">
+        <h3>A total can go down</h3>
+        <p>Votes later found to be fraudulent are removed, and a refunded contribution takes its bonus
+           votes with it. A falling number is usually the integrity system working.</p>
+      </div>
+    </div>
+    <p class="mth-note">Being flagged is not an accusation. A shared office network or a campus wifi
+       produces the same pattern a vote farm does, which is exactly why a flag sends a vote to a human
+       rather than to the bin.</p>
+
+    {{ ui.more([
+      {slug:'how-we-spot-a-vote-that-is-not-real', t:'How we decide a vote is not real', s:'The signals, the bands, and what to do if yours was refused.'},
+      {slug:'already-voted', t:'It says I already voted', s:'The commonest reason a real person is turned away.'}
+    ]) }}
+  </section>
+
+  {# ── 07 · WHEN MONEY GOES WRONG ─────────────────────────────────────────── #}
+  <section class="mth-sec" id="failures">
+    <span class="mth-sec__n">07</span>
+    <h2 class="mth-h2">When a payment goes wrong</h2>
+    <p class="mth-lead">A payment passes through a bank and a gateway before it reaches us, and any of
+       those steps can fail after a card has been charged. We would rather say so than pretend it never
+       happens.</p>
+    <div class="mth-grid mth-grid--3">
+      <div class="mth-cell">
+        <div class="mth-cell__ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h3>The votes are still owed to you</h3>
+        <p style="margin-top:6px">If the ballot was open when you paid, the votes are yours even if the
+           confirmation reached us late. We check the time you <em>started</em> the payment, not the moment
+           our system happened to notice it.</p>
+      </div>
+      <div class="mth-cell">
+        <div class="mth-cell__ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></div>
+        <h3>If they cannot be delivered, the money goes back</h3>
+        <p style="margin-top:6px">Where votes genuinely cannot be counted — the nominee left the ballot, or
+           the payment confirmed long after voting closed — the order is refunded rather than kept. We do
+           not keep money for votes we did not deliver.</p>
+      </div>
+      <div class="mth-cell">
+        <div class="mth-cell__ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v12H7l-3 3z"/></svg></div>
+        <h3>Tell us, with your reference</h3>
+        <p style="margin-top:6px">Every order carries a reference beginning <code>AFG-</code>. Give it to
+           the <a href="/support/assistant">assistant</a> and it re-checks the payment with the bank
+           directly, adding the votes on the spot if the money arrived.</p>
+      </div>
+    </div>
+    <p class="mth-note">The same honesty applies to our own failures. When our records show a voting code
+       never left the building, that vote can be restored after voting closes — proposed by one person,
+       approved by a different one, capped in size, and disclosed on the nominee’s page.</p>
+
+    {{ ui.more([
+      {slug:'paid-but-no-votes', t:'I paid but my votes have not appeared', s:'Fixable in under a minute, without waiting for anyone.'},
+      {slug:'refund-when-votes-cannot-count', t:'When do you refund?', s:'The one case that refunds itself, and the rest.'},
+      {slug:'votes-we-could-not-deliver', t:'Votes that never reached you', s:'How a failed code becomes a restored vote.'}
+    ]) }}
+  </section>
+
+  {# ── 08 · SEALED ────────────────────────────────────────────────────────── #}
+  <section class="mth-sec" id="sealed">
+    <span class="mth-sec__n">08</span>
+    <h2 class="mth-h2">Sealing the result</h2>
+    <p class="mth-lead">A result you have to take on trust is not a result. Every time the standings are
+       computed they are sealed — each record carrying a fingerprint of itself and of the record before
+       it, all the way back to the first.</p>
+    <div class="mth-prose">
+      <p>The consequence is the useful part. Editing an old standing — nudging one number in a table
+         months later — breaks its fingerprint, and because the next record contains that fingerprint, it
+         breaks every record after it. There is no quiet edit available; there is only an edit that
+         announces itself.</p>
+      <ol>
+        <li>The chain is re-verified automatically every day, link by link.</li>
+        <li>A break is not a line in a log somebody might read. It is raised as a failure, to people, with
+            the position of the broken link.</li>
+        <li>The database refuses to record two standings claiming the same predecessor, so the chain
+            cannot be forked into a convenient second history.</li>
+        <li>Every recomputation is logged, and an independent reviewer can replay the arithmetic from
+            source.</li>
+      </ol>
+      <p style="margin-top:.9rem">This protects you from us as much as from anybody else. A platform that
+         can silently rewrite its own results has to be taken on trust; one that cannot does not need to
+         be.</p>
+    </div>
+
+    {{ ui.more([
+      {slug:'how-results-are-sealed', t:'How you can tell a result was not edited', s:'The chain, the daily check, and what a break looks like.'},
+      {slug:'dispute-a-result', t:'I think a count or a ranking is wrong', s:'Ask for an audit — we will show the working.'}
+    ]) }}
+  </section>
+
+  {# ── 09 · CYCLE ─────────────────────────────────────────────────────────── #}
+  <section class="mth-sec" id="cycle">
+    <span class="mth-sec__n">09</span>
+    <h2 class="mth-h2">The cycle, stage by stage</h2>
+    <p class="mth-lead">A programme moves through six stages in one direction. The stage is not a label on
+       a page — the system enforces it, and each transition closes something permanently.</p>
+    <div class="mth-time">
+      <div class="mth-time__orb" aria-hidden="true"></div>
+      <h3>Six enforced stages</h3>
+      <div class="mth-time__row">
+        {% set steps = [
+          ['1','Nominated','Anyone can enter someone; entries queue for moderation.'],
+          ['2','Verified','The team checks eligibility, accuracy and completeness.'],
+          ['3','Shortlisted','Approved nominees go public — and the list is frozen.'],
+          ['4','Voted','Code-verified, risk-scored votes are collected.'],
+          ['5','Judged','The panel scores the shortlist, without seeing tallies.'],
+          ['6','Sealed','A signed snapshot is taken; results computed and archived.']
+        ] %}
+        {% for s in steps %}
+          <div class="mth-step">
+            <div class="mth-step__head"><span class="mth-step__n">{{ s[0] }}</span><span class="mth-step__line"></span></div>
+            <div class="mth-step__t">{{ s[1] }}</div>
+            <div class="mth-step__d">{{ s[2] }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    <p class="mth-note">Card contribution closes a little earlier than free voting, so payments already in
+       flight have time to land before the ballot shuts. Free voting runs to the bell.</p>
+
+    {{ ui.more([
+      {slug:'the-stages-of-an-award-cycle', t:'The stages, and what freezes at each', s:'What each transition closes, and why.'},
+      {slug:'when-does-voting-close', t:'When does voting close?', s:'Deadlines, and the gap before them.'}
+    ]) }}
+  </section>
+
+  {# ── 10 · DISPUTES ──────────────────────────────────────────────────────── #}
+  <section class="mth-sec" id="disputes">
+    <span class="mth-sec__n">10</span>
+    <h2 class="mth-h2">Disputes and your data</h2>
+    <p class="mth-lead">If you believe a result was manipulated or a fraud pattern was missed, say so.
+       Every recomputation is logged, so a count can be replayed from the underlying votes and the working
+       shown to you.</p>
+    <div class="mth-prose">
+      <p>Raise it at <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a> or
+         through <a href="/support">Support &amp; appeals</a>. Appeals go to somebody independent of the
+         original decision. We will:</p>
+      <ol>
+        <li>Acknowledge the complaint within {{ review_sla_hours }} hours.</li>
+        <li>Export the relevant vote audit trail — timestamps, hashed identities, risk scores.</li>
+        <li>Engage an independent reviewer if the complaint is substantiated.</li>
+        <li>Publish a summary of findings if the dispute affected a final result.</li>
+      </ol>
+      <h3 class="mth-h3">What we store when you vote</h3>
+      <p>A SHA-256 hash of your email and IP, a device fingerprint, and the nominee ID and timestamp of
+         your vote. We never store your plain-text email, name or personal identifier against a vote, and
+         we never sell or monetise voter data.
+         Full details: <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms</a>.</p>
+    </div>
+
+    {{ ui.more([
+      {slug:'dispute-a-result', t:'I think a count or a ranking is wrong', s:'What to send, and what happens next.'},
+      {slug:'report-a-profile', t:'How do I report a nominee or profile?', s:'Confidentially, and without needing proof.'},
+      {slug:'what-data-do-you-keep', t:'What data do you keep about me?', s:'Held, never held, and your rights.'}
+    ]) }}
+  </section>
 
   <div class="mth-cta">
-    <p>Questions not answered here?</p>
+    <p>Questions this page does not answer?</p>
     <a class="mth-btn" href="mailto:integrity@afrovanguard.org.ng">Contact the Integrity Team
       <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    <p class="mth-cta__alt">Or browse every written answer in the <a href="/help">Help Centre</a>.</p>
   </div>
 </div>
 {% endblock %}

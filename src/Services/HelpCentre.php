@@ -277,11 +277,16 @@ final class HelpCentre
                       . 'votes and independent jury scoring only. Money is visible and money is welcome; '
                       . 'money does not buy a result.'],
                 ['p' => 'There is also a ceiling on how much paid support one nominee can show relative to '
-                      . 'their organic backing, so a large purchase cannot drown out a genuine following.'],
+                      . 'their organic backing — currently {paid_cap_pct}% — so a large purchase cannot '
+                      . 'drown out a genuine following.'],
+                ['p' => 'And where a race is closest, money is consulted least: a tie is broken on free '
+                      . 'votes. See <a href="/help/what-happens-if-two-nominees-tie">what happens if two '
+                      . 'nominees finish level</a>.'],
                 ['note' => 'One vote costs ₦{price}, with discounts on larger bundles, and a single order '
                          . 'can carry up to {max_qty} votes. Current prices are always on the ballot.'],
             ],
-            'related' => ['how-cpi-works', 'how-free-voting-works'],
+            'related' => ['how-cpi-works', 'how-free-voting-works', 'what-happens-if-two-nominees-tie',
+                          'the-community-return'],
         ],
 
         // ── VOTING ───────────────────────────────────────────────────────────
@@ -471,11 +476,19 @@ final class HelpCentre
                       . 'otherwise measure audience size rather than merit.'],
                 ['p' => 'Paid votes are excluded entirely. So are jury members\' own votes in categories '
                       . 'they judge.'],
+                ['p' => 'The split is <strong>{community_pct}% community, {judge_pct}% judges</strong>, '
+                      . 'and it is set per cycle rather than fixed forever. Going deeper: '
+                      . '<a href="/help/why-a-small-category-is-not-a-disadvantage">why a small category '
+                      . 'is not a disadvantage</a>, '
+                      . '<a href="/help/what-the-judges-actually-score">what the judges actually score</a>, '
+                      . 'and <a href="/help/why-the-leader-may-not-be-eligible-to-win">why the vote leader '
+                      . 'may not be eligible to win</a>.'],
                 ['note' => 'The full method, the weights and the audit trail are on the '
                          . '<a href="/integrity">integrity page</a>. Every recomputation is logged and can '
                          . 'be replayed from source.'],
             ],
-            'related' => ['what-paid-votes-do', 'dispute-a-result'],
+            'related' => ['what-paid-votes-do', 'dispute-a-result',
+                          'why-a-small-category-is-not-a-disadvantage', 'how-results-are-sealed'],
         ],
         [
             'slug' => 'dispute-a-result',
@@ -497,8 +510,13 @@ final class HelpCentre
                 ]],
                 ['note' => 'Raise it through <a href="/support">Support &amp; appeals</a> with the nominee '
                          . 'and category. Appeals go to someone independent of the original decision.'],
+                ['p' => 'Two more things make an audit possible rather than merely promised: standings are '
+                      . '<a href="/help/how-results-are-sealed">sealed into a chain</a> that cannot be '
+                      . 'quietly edited, and every vote carries the risk assessment it was given when '
+                      . '<a href="/help/how-we-spot-a-vote-that-is-not-real">it was cast</a>.'],
             ],
-            'related' => ['how-cpi-works', 'what-paid-votes-do'],
+            'related' => ['how-cpi-works', 'what-paid-votes-do', 'how-results-are-sealed',
+                          'how-we-spot-a-vote-that-is-not-real'],
         ],
         [
             'slug' => 'report-a-profile',
@@ -515,7 +533,294 @@ final class HelpCentre
                 ['note' => 'If someone has created a profile pretending to be <em>you</em>, say so '
                          . 'explicitly and we will treat it as urgent.'],
             ],
-            'related' => ['dispute-a-result'],
+            'related' => ['dispute-a-result', 'how-we-spot-a-vote-that-is-not-real'],
+        ],
+
+        // ── RESULTS & INTEGRITY: the deep dives ──────────────────────────────
+        //
+        // These nine are the /integrity page taken apart. That page had grown into
+        // a single long scroll that answered everything and was read by nobody:
+        // somebody who wants to know why their small category is not a handicap had
+        // to scan past the judging rubric, the fraud thresholds and the privacy
+        // policy to find four sentences about it.
+        //
+        // Splitting them out is not tidying. It makes each claim ADDRESSABLE — the
+        // assistant can quote "why a small category is not a disadvantage" at the
+        // person who asked, support can paste one URL into a ticket, and the claim
+        // gets a title somebody can disagree with. A promise buried in paragraph
+        // fourteen of a methodology page is a promise nobody can hold us to.
+        //
+        // /integrity still says all of it, in summary, and links here for the rest.
+        [
+            'slug' => 'why-a-small-category-is-not-a-disadvantage',
+            'cat'  => 'results',
+            'title' => 'Why a small category is not a disadvantage',
+            'summary' => 'Vote counts are compared inside a category, never across them.',
+            'keywords' => ['normalised', 'normalized', 'small category', 'fewer votes', 'category size',
+                           'compared to other categories', 'cohort', 'unfair category', 'big category',
+                           'my category has fewer people'],
+            'body' => [
+                ['p' => 'A nominee in a category with two hundred voters is not competing with a nominee '
+                      . 'in a category with twenty thousand. The community part of the score is '
+                      . '<strong>normalised inside each category</strong>: a nominee is measured against '
+                      . 'the strongest vote count in their own category, and that ratio — not the raw '
+                      . 'number — is what enters the Cultural Power Index.'],
+                ['p' => 'Without that step the index would be measuring audience size. A musician will '
+                      . 'always out-poll a rural school administrator, and a raw comparison would say the '
+                      . 'musician is more culturally significant purely because more people are online in '
+                      . 'their direction. That is a fact about the internet, not about the work.'],
+                ['p' => 'So the community component asks a narrower and more answerable question: '
+                      . '<em>of the people who came to this category, how many chose you?</em> Being the '
+                      . 'clearest choice in a small field scores exactly as well as being the clearest '
+                      . 'choice in a large one.'],
+                ['note' => 'This is also why a nominee\'s rank can move without their own total changing. '
+                         . 'If somebody else in the category surges, the top of the category moves and '
+                         . 'everybody\'s ratio is recomputed against it.'],
+            ],
+            'related' => ['how-cpi-works', 'why-the-leader-may-not-be-eligible-to-win', 'dispute-a-result'],
+        ],
+        [
+            'slug' => 'why-the-leader-may-not-be-eligible-to-win',
+            'cat'  => 'results',
+            'title' => 'Why the nominee with the most votes may not be eligible to win',
+            'summary' => 'Winning needs {min_judges} complete judge scorecards. Votes alone are not enough.',
+            'keywords' => ['not eligible', 'ineligible', 'quorum', 'how many judges', 'judge panel',
+                           'scorecard', 'leading but not winning', 'top of the leaderboard',
+                           'why did they win with fewer votes', 'jury'],
+            'body' => [
+                ['p' => 'Leading the public vote makes a nominee the front-runner. It does not, on its '
+                      . 'own, make them winner-eligible. A nominee must also have been scored by at least '
+                      . '<strong>{min_judges} judges</strong>, and those scorecards must be '
+                      . '<strong>complete</strong> — every criterion filled in, not a partial card left '
+                      . 'open in a browser tab.'],
+                ['p' => 'The rule exists because a single judge is a single opinion, and a half-finished '
+                      . 'card is an opinion that was never actually formed. Awarding a title off either '
+                      . 'one would make the jury component decorative.'],
+                ['steps' => [
+                    'A judge who has any connection to a nominee recuses themselves from that nominee, '
+                        . 'and their own votes in a category they judge are excluded.',
+                    'Only complete scorecards are averaged. An abandoned card counts as nothing at all — '
+                        . 'not as a zero, which would be a silent penalty.',
+                    'A nominee below the quorum is still ranked and still shown. They are simply not '
+                        . 'eligible to be declared the winner of that category.',
+                ]],
+                ['note' => 'If a category ends with nobody at quorum, the award is not given. An empty '
+                         . 'result is more honest than one nobody scored.'],
+            ],
+            'related' => ['what-the-judges-actually-score', 'how-cpi-works', 'what-happens-if-two-nominees-tie'],
+        ],
+        [
+            'slug' => 'what-the-judges-actually-score',
+            'cat'  => 'results',
+            'title' => 'What the judges actually score you on',
+            'summary' => 'Four criteria, equally weighted, each scored out of ten.',
+            'keywords' => ['criteria', 'rubric', 'impact', 'originality', 'reach', 'what do judges look for',
+                           'judging', 'how are we judged', 'scored out of'],
+            'body' => [
+                ['p' => 'Each judge scores each shortlisted nominee from 0 to 10 on four dimensions. The '
+                      . 'four carry <strong>equal weight</strong> — there is no hidden multiplier making '
+                      . 'one of them decide the card.'],
+                ['steps' => [
+                    '<strong>Impact</strong> — the measurable difference made for a community, an '
+                        . 'industry or the continent. What is different because this person did the work?',
+                    '<strong>Originality</strong> — inventiveness. Has something genuinely new been '
+                        . 'introduced, or is this an existing thing done competently?',
+                    '<strong>Reach</strong> — the breadth of influence: local, regional, continental, '
+                        . 'global. Reach is not follower count; a policy that changed one state\'s '
+                        . 'curriculum reaches further than a viral post.',
+                    '<strong>Integrity</strong> — consistency of values and accountability under '
+                        . 'pressure, including how the nominee behaves when it costs them something.',
+                ]],
+                ['p' => 'The average of the four is that judge\'s score for that nominee. The average '
+                      . 'across judges becomes the jury component, which carries {judge_pct}% of the '
+                      . 'final index.'],
+                ['note' => 'Judges see the nominee\'s dossier, not their vote count. The public tally is '
+                         . 'deliberately kept out of the scoring screen so it cannot anchor the score.'],
+            ],
+            'related' => ['why-the-leader-may-not-be-eligible-to-win', 'how-cpi-works'],
+        ],
+        [
+            'slug' => 'how-we-spot-a-vote-that-is-not-real',
+            'cat'  => 'results',
+            'title' => 'How we decide a vote was not cast by a real person',
+            'summary' => 'Every vote is scored for risk before it is recorded — and some are blocked outright.',
+            'keywords' => ['fraud', 'bot', 'fake votes', 'blocked', 'vote rejected', 'risk score', 'vpn',
+                           'multiple accounts', 'disposable email', 'temporary email', 'vote farm',
+                           'why was my vote blocked', 'suspicious'],
+            'body' => [
+                ['p' => 'Every vote requires a one-time code sent to a working email address, and every '
+                      . 'attempt is given a <strong>risk score from 0 to 100</strong> before anything is '
+                      . 'written down. Low risk passes silently. Middling risk is recorded but flagged for '
+                      . 'a person to look at. High risk is refused before the vote exists.'],
+                ['p' => 'The score is built from signals that are cheap for us to read and expensive for '
+                      . 'a vote farm to fake all at once: how many votes have come from this network in '
+                      . 'the last hour, whether the device has been seen before, how the code was '
+                      . 'requested, and how the session behaved on the way to the button.'],
+                ['steps' => [
+                    'Known disposable-mail domains are refused at the moment the code is requested, '
+                        . 'before any database write happens at all.',
+                    'One verified identity gets one vote per category. The address is stored only as a '
+                        . 'SHA-256 hash, so we can tell that two votes came from the same person without '
+                        . 'holding the person.',
+                    'Votes later found to be fraudulent are removed from the count, which is why a total '
+                        . 'can legitimately go <em>down</em>.',
+                ]],
+                ['note' => 'Being flagged is not an accusation. A shared office network or a campus wifi '
+                         . 'produces exactly the pattern a vote farm does, which is why a flag sends the '
+                         . 'vote to a human rather than to the bin. If yours was refused and you are a '
+                         . 'real person, tell us through <a href="/support">support</a> and we will look.'],
+            ],
+            'related' => ['already-voted', 'dispute-a-result', 'vote-not-showing'],
+        ],
+        [
+            'slug' => 'what-happens-if-two-nominees-tie',
+            'cat'  => 'results',
+            'title' => 'What happens if two nominees finish level',
+            'summary' => 'The tiebreak is organic votes — never money.',
+            'keywords' => ['tie', 'tied', 'same score', 'draw', 'dead heat', 'tiebreak', 'tie breaker',
+                           'level', 'both had the same', 'joint winner'],
+            'body' => [
+                ['p' => 'When two nominees finish a category on the same index score, the tie is broken by '
+                      . '<strong>organic votes</strong> — the free, code-verified ones. Contributions are '
+                      . 'not consulted, so the closest possible race is decided by people rather than by '
+                      . 'whoever was willing to spend more at the end of it.'],
+                ['p' => 'This is worth stating plainly because the tempting alternative is the wrong one. '
+                      . 'A tiebreak on the public tally would have quietly reintroduced pay-to-win at the '
+                      . 'exact moment it mattered most: when everything else was equal, money would have '
+                      . 'been the deciding factor.'],
+                ['note' => 'If two nominees are level on the index <em>and</em> level on organic votes, '
+                         . 'the result is recorded as a dead heat and escalated to the integrity team '
+                         . 'rather than settled by an arbitrary rule such as who registered first.'],
+            ],
+            'related' => ['what-paid-votes-do', 'how-cpi-works', 'why-the-leader-may-not-be-eligible-to-win'],
+        ],
+        [
+            'slug' => 'how-results-are-sealed',
+            'cat'  => 'results',
+            'title' => 'How you can tell a result was not edited afterwards',
+            'summary' => 'Each standing is sealed into a chain, and every link is checked daily.',
+            'keywords' => ['tamper', 'edited results', 'audit', 'proof', 'hash', 'snapshot', 'sealed',
+                           'can you change the results', 'trust the results', 'evidence', 'chain'],
+            'body' => [
+                ['p' => 'Every time the standings are computed, the result is written down and '
+                      . '<strong>sealed</strong>: the record carries a fingerprint of itself and of the '
+                      . 'record before it. Each seal therefore depends on every seal that came before, all '
+                      . 'the way back to the first.'],
+                ['p' => 'The consequence is the useful part. Editing an old standing — nudging one number '
+                      . 'in a table months later — breaks its fingerprint, and because the next record '
+                      . 'contains that fingerprint, it breaks every record after it too. There is no quiet '
+                      . 'edit available. There is only an edit that announces itself.'],
+                ['steps' => [
+                    'The chain is re-verified automatically every day, link by link.',
+                    'A break is not a warning in a log somebody might read. It is raised as a failure, to '
+                        . 'people, with the position of the broken link.',
+                    'The database refuses to record two records claiming the same predecessor, so the '
+                        . 'chain cannot be forked into a convenient second history.',
+                ]],
+                ['note' => 'This protects you from us as much as from anybody else. A platform that can '
+                         . 'silently rewrite its own results has to be taken on trust; one that cannot '
+                         . 'does not need to be.'],
+            ],
+            'related' => ['dispute-a-result', 'how-cpi-works', 'the-stages-of-an-award-cycle'],
+        ],
+        [
+            'slug' => 'votes-we-could-not-deliver',
+            'cat'  => 'results',
+            'title' => 'Votes that never reached you, and how they are given back',
+            'summary' => 'When our own records show a code never got out, the vote is restored — under review, and disclosed.',
+            // Deliberately NOT keyed on "code did not arrive" phrasings. Somebody
+            // typing that is mid-vote and wants their code resent; this article is
+            // about what happens to that vote afterwards, and answering the first
+            // question with the second would be technically related and useless.
+            'keywords' => ['recovered votes', 'restored votes', 'votes added later', 'recovery',
+                           'delivery failed', 'missed my vote', 'vote given back', 'vote reinstated'],
+            'body' => [
+                ['p' => 'Sometimes a voting code fails to leave our system — a mail provider rejects it, a '
+                      . 'queue stalls, a domain bounces. The person did everything right and never got the '
+                      . 'chance to finish. We record that failure at the moment it happens, so those cases '
+                      . 'are evidence in our own logs rather than something anybody has to claim.'],
+                ['p' => 'After voting closes, those specific failures can be reviewed and the votes '
+                      . 'restored. Three rules keep that from becoming a back door:'],
+                ['steps' => [
+                    'Only codes our system recorded as <strong>undelivered</strong> are eligible. Nobody '
+                        . 'can assert a vote that has no failure behind it.',
+                    'A restoration is proposed by one person and approved by a <strong>different</strong> '
+                        . 'one. The system refuses to let the same account do both.',
+                    'The size is capped, and a suspicious cluster — many failures from one network — is '
+                        . 'excluded rather than restored.',
+                ]],
+                ['note' => 'Restored votes are disclosed on the nominee\'s page, with the count and the '
+                         . 'reason. A correction nobody can see is indistinguishable from a thumb on the '
+                         . 'scale.'],
+            ],
+            'related' => ['code-did-not-arrive', 'dispute-a-result', 'how-results-are-sealed'],
+        ],
+        [
+            'slug' => 'the-community-return',
+            'cat'  => 'results',
+            'title' => 'The community return: a share of what your supporters raised',
+            'summary' => 'A nominee keeps a share of the contributions made in their name — win or lose.',
+            'keywords' => ['community return', 'do nominees get paid', 'my share', 'earnings', 'payout',
+                           'withdraw', 'money back to nominee', 'supporters raised', 'what do i earn',
+                           'nominee earnings'],
+            'body' => [
+                ['p' => 'When supporters contribute in a nominee\'s name, a share of that money is set '
+                      . 'aside <strong>for the nominee</strong>. It is not a prize and it does not depend '
+                      . 'on winning — they raised it either way, and a nominee who mobilised a community '
+                      . 'and came second mobilised a community.'],
+                ['p' => 'Two conditions shape it. A nominee starts earning only once they have reached '
+                      . '<strong>{return_supporters} distinct supporters</strong>, and from that point '
+                      . 'the share is <strong>{return_pct}%</strong> of what is contributed in their name '
+                      . 'afterwards. Crossing that line does not reach backwards: earlier contributions '
+                      . 'stay unshared.'],
+                ['p' => 'The threshold counts <em>people</em>, not votes, and that distinction is the '
+                      . 'whole safeguard. One person can buy fifty votes in a single order; one person '
+                      . 'cannot be fifty verified supporters.'],
+                ['steps' => [
+                    'Every entry is written to a ledger that only ever grows. Nothing is overwritten, so '
+                        . 'any figure can be explained line by line.',
+                    'If a contribution is refunded or charged back, the share accrued on it is reversed — '
+                        . 'and the reversal stays on the record beside the original.',
+                    'Nothing is payable until that cycle has ended and its results have been announced.',
+                ]],
+                ['note' => 'The share is a per-cycle setting and can be zero. When it is set to '
+                         . '{return_pct}%, as it is now, that is exactly what accrues — the ledger simply '
+                         . 'stays empty rather than quietly promising something.'],
+            ],
+            'related' => ['what-paid-votes-do', 'refund-when-votes-cannot-count', 'how-cpi-works'],
+        ],
+        [
+            'slug' => 'the-stages-of-an-award-cycle',
+            'cat'  => 'results',
+            'title' => 'The stages of an award cycle, and what freezes at each one',
+            'summary' => 'Six stages. Each one closes something so the next cannot be argued with.',
+            'keywords' => ['stages', 'timeline', 'when are results announced', 'shortlist', 'frozen',
+                           'what happens next', 'cycle', 'phases', 'schedule', 'archived'],
+            'body' => [
+                ['p' => 'A programme moves through six stages in one direction. The stage is not a label '
+                      . 'on a page — the system enforces it, and each transition closes something '
+                      . 'permanently.'],
+                ['steps' => [
+                    '<strong>Nominated</strong> — anyone can enter someone. Entries queue for review; '
+                        . 'nothing is public yet.',
+                    '<strong>Verified</strong> — the team checks eligibility, accuracy and completeness. '
+                        . 'Rejections carry a reason.',
+                    '<strong>Shortlisted</strong> — approved nominees go public and <em>the list is '
+                        . 'frozen</em>. Nobody can be added to a category once people have started voting '
+                        . 'in it.',
+                    '<strong>Voted</strong> — code-verified, risk-scored votes are collected. Card '
+                        . 'contribution closes slightly earlier than free voting so payments in flight '
+                        . 'have time to land.',
+                    '<strong>Judged</strong> — the panel scores the shortlist. The vote tally is not shown '
+                        . 'on the scoring screen.',
+                    '<strong>Sealed</strong> — a signed snapshot is taken, results are computed from it, '
+                        . 'and the cycle is archived. From here the numbers are evidence, not a live feed.',
+                ]],
+                ['note' => 'Only once a cycle reaches its results does anything become payable or final. '
+                         . 'Before that, every figure on the site is a running total and is described as '
+                         . 'one.'],
+            ],
+            'related' => ['when-does-voting-close', 'how-results-are-sealed', 'card-payment-closed-early'],
         ],
 
         // ── ACCOUNT & PROFILE ────────────────────────────────────────────────
@@ -918,11 +1223,52 @@ final class HelpCentre
             $grace  = (string) PaidVoteService::lateMintGraceHours();
         } catch (\Throwable) {}
 
+        // ── THE SCORING RULES, FROM THE ENGINE THAT SCORES ───────────────────
+        //
+        // Same argument as the price, with more at stake. The integrity articles
+        // publish the community/judge split, the bonus-vote ceiling and the judge
+        // quorum — and RuleEngine lets an operator change every one of them per
+        // programme and per cycle. An article that has MEMORISED "45/55" becomes a
+        // false published claim the moment somebody sets a cycle override, and
+        // nothing in the system would notice.
+        //
+        // /integrity already reads these from RuleEngine for exactly this reason.
+        // The articles that page links out to have to read the same source, or the
+        // deep dive quietly contradicts the summary that sent the reader to it.
+        $communityPct = '45'; $judgePct = '55'; $paidCapPct = '50'; $minJudges = '2';
+        $returnPct = '0'; $returnSupporters = '25';
+        try {
+            $rules = new RuleEngine();
+            $w     = $rules->weights();
+            $eff   = $rules->effective();
+
+            $communityPct = (string) (int) round($w['community'] * 100);
+            $judgePct     = (string) (int) round($w['judge'] * 100);
+            $paidCapPct   = (string) (int) ($eff['max_paid_weight_pct'] ?? 50);
+            $minJudges    = (string) (int) ($eff['min_judges_per_nominee'] ?? 2);
+
+            // Basis points to a percentage a person can read: 3000 → "30",
+            // 1250 → "12.5". Never a trailing ".0", because "30.0%" in a sentence
+            // reads like a measurement rather than a rule.
+            $bps = (int) ($eff['community_return_bps'] ?? 0);
+            $returnPct = rtrim(rtrim(number_format($bps / 100, 2, '.', ''), '0'), '.');
+            if ($returnPct === '') $returnPct = '0';
+
+            $returnSupporters = (string) (int) ($eff['community_return_min_supporters'] ?? 25);
+        } catch (\Throwable) {}
+
         return [
             '{price}'   => $price,
             '{max_qty}' => $maxQty,
             '{cutoff}'  => $cutoff,
             '{grace}'   => $grace,
+
+            '{community_pct}'     => $communityPct,
+            '{judge_pct}'         => $judgePct,
+            '{paid_cap_pct}'      => $paidCapPct,
+            '{min_judges}'        => $minJudges,
+            '{return_pct}'        => $returnPct,
+            '{return_supporters}' => $returnSupporters,
         ];
     }
 }

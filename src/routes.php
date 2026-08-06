@@ -748,6 +748,14 @@ return function(App $app) {
             $rules   = new \AfricaGates\Services\RuleEngine();
             $w       = $rules->weights();
             $eff     = $rules->effective();
+
+            // The community return share, as a percentage a person can read. Stored
+            // in basis points because money arithmetic is done in integers; shown
+            // without a trailing ".0" because "30.0%" in a sentence reads like a
+            // measurement rather than a rule.
+            $bps       = (int) ($eff['community_return_bps'] ?? 0);
+            $returnPct = rtrim(rtrim(number_format($bps / 100, 2, '.', ''), '0'), '.');
+
             return $tv($req)->render($res, 'pages/integrity.twig', [
                 'page_title'       => 'Awards Integrity & Methodology — Africa GATES',
                 'meta_description' => 'How Africa GATES safeguards fair results — the methodology behind community votes, expert judging and the Cultural Power Index that ranks African excellence.',
@@ -758,6 +766,11 @@ return function(App $app) {
                 'judge_pct'        => (int) round($w['judge'] * 100),
                 'paid_cap_pct'     => (int) ($eff['max_paid_weight_pct'] ?? 50),
                 'min_judges'       => (int) ($eff['min_judges_per_nominee'] ?? 2),
+                'fraud_block'      => (int) ($eff['fraud_block'] ?? 80),
+                'fraud_flag'       => (int) ($eff['fraud_flag'] ?? 60),
+                'fraud_monitor'    => (int) ($eff['fraud_monitor'] ?? 30),
+                'return_pct'       => $returnPct === '' ? '0' : $returnPct,
+                'return_supporters'=> (int) ($eff['community_return_min_supporters'] ?? 25),
             ]);
         });
         $g->get('/support', fn($req,$res)=>$tv($req)->render($res,'pages/support.twig',['page_title'=>'Support & Appeals — Africa GATES','meta_description'=>'Get help with Africa GATES — the CPI, voting, nominations and your profile — and appeal any moderation decision through an independent review.','gates_page'=>'support','has_hero'=>false]));
