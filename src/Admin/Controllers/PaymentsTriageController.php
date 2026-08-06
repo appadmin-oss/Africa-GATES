@@ -145,6 +145,42 @@ final class PaymentsTriageController
         return $res->withHeader('Location', '/admin/payments?days=' . $days)->withStatus(302);
     }
 
+    /**
+     * Mint the votes still owed on confirmed orders — gateway-checked first.
+     *
+     * The console equivalent (`votes:remint`) is unreachable without a shell, and
+     * the operator of this platform does not have one. Same rule on both: the
+     * confirmed flag is not sufficient evidence for a manual mint, because this
+     * path acts on it long after it was written.
+     */
+    public function deliver(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $days = max(1, (int) (((array) $req->getParsedBody())['days'] ?? 30));
+        $t = new PaymentTriage();
+
+        if (!$t->enabledProviders()) {
+            $_SESSION['flash_error'] = 'No payment gateway is configured, so no order can be checked against '
+                . 'Paystack — and a manual mint that has not been checked is a mint on trust. Refusing.';
+            return $res->withHeader('Location', '/admin/payments?days=' . $days)->withStatus(302);
+        }
+
+        $owed = PaymentTriage::buckets($days)['buckets']['refund_owed'];
+        $r = $t->deliverOwed($owed);
+
+        try {
+            $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'payments.deliver_owed', 'donation', null,
+                ['minted' => $r['minted'], 'votes' => $r['votes'], 'refused' => count($r['refused'])]);
+        } catch (\Throwable) {}
+
+        $_SESSION['flash_notice'] = $r['minted'] . ' order(s) delivered (' . $r['votes'] . ' vote(s)). '
+            . count($r['refused']) . ' could not be — those stay in the refund queue.'
+            . ($r['refused'] ? ' First few: ' . implode('; ', array_slice($r['refused'], 0, 3)) : '');
+
+        return $res->withHeader('Location', '/admin/payments?days=' . $days)->withStatus(302);
+    }
+
     private function render(Response $res, int $days, array $extra): Response
     {
         $data = PaymentTriage::buckets($days);

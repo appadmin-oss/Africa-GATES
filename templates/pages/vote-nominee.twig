@@ -461,13 +461,13 @@
                 gross(){ return this.q() * this.per },
                 cost(){ return Math.max(100, Math.ceil(this.gross() * (100 - this.off()) / 100)) } }"
               style="background:#f4f9f4;border:1.5px solid #cfe6cf;border-radius:16px;padding:16px 18px;margin:0 0 16px">
-              <h3 id="pv-h" style="margin:0 0 4px;font-size:15.5px;color:#10292c">Buy votes for {{ firstName }}</h3>
+              <h3 id="pv-h" style="margin:0 0 4px;font-size:15.5px;color:#10292c">Support {{ firstName }}</h3>
               {# NO DISCOUNT IS ADVERTISED ANYWHERE ON THIS PAGE.
                  The ladder still PRICES the order — `cost()` below applies it, and the
                  server recomputes the same figure — but the percentage is never named,
                  no "save up to N%" is promised and no next tier is dangled. A buyer
                  sees a quantity and the price of that quantity. #}
-              <p style="margin:0 0 12px;font-size:13px;color:#5a6d6f;line-height:1.5">₦{{ vote_price|number_format }} per vote. Paid votes raise the public tally; they never affect the jury/CPI score.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} votes in one order.{% endif %}</p>
+              <p style="margin:0 0 12px;font-size:13px;color:#5a6d6f;line-height:1.5">A contribution of ₦{{ vote_price|number_format }} adds one vote to {{ firstName }}'s public tally and helps fund the programme. It does not affect the jury score or the Cultural Power Index.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} in one contribution.{% endif %} <a href="/integrity#money" style="color:#177015">How this works</a>.</p>
               <form method="POST" action="/vote/paid/start">
                 <input type="hidden" name="_token" value="{{ csrf_token }}">
                 <input type="hidden" name="nominee_id" value="{{ nominee.id }}">
@@ -515,7 +515,7 @@
                 </div>
                 {% if pay_providers|length > 1 %}
                 <fieldset style="border:0;padding:0;margin:12px 0 0">
-                  <legend class="vn-label" style="padding:0">Pay with</legend>
+                  <legend class="vn-label" style="padding:0">Contribute with</legend>
                   <div style="display:flex;gap:12px;flex-wrap:wrap">
                     {% for p in pay_providers %}
                     <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#10292c;cursor:pointer"><input type="radio" name="provider" value="{{ p.id }}" {% if loop.first %}checked{% endif %}> {{ p.label }}</label>
@@ -534,7 +534,7 @@
                    comparing it against qty × unit price can still see it is lower; the
                    page simply does not sell that as an offer. #}
                 <button type="submit" class="vn-go" style="margin-top:10px">
-                  <span x-text="'Pay ₦' + cost().toLocaleString() + ' for ' + q() + (q() === 1 ? ' vote' : ' votes') + ' →'"></span>
+                  <span x-text="'Contribute ₦' + cost().toLocaleString() + ' · ' + q() + (q() === 1 ? ' vote' : ' votes') + ' →'"></span>
                 </button>
                 <p style="margin:8px 0 0;font-size:11.5px;color:#5a6d6f">Secured checkout — the charge is verified server-side before any vote counts.</p>
               </form>

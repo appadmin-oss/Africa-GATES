@@ -1151,6 +1151,7 @@ return function(App $app) {
         $a->get('/payments',                     \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':index');
         $a->post('/payments/verify',             \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':verify');
         $a->post('/payments/repair',             \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':repair');
+        $a->post('/payments/deliver',            \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':deliver');
 
 
         // Member account actions (manual points adjustment — audited, admin+ gated in-controller).

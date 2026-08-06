@@ -210,6 +210,69 @@ final class PaymentTriage
     }
 
     /**
+     * Does the gateway agree that this order was paid, and for the right amount?
+     *
+     * ── WHY MANUAL MINTING MUST ASK, AND THE LIVE PATH MUST NOT ──────────────
+     *
+     * The live callback and webhook verify server-to-server BEFORE they set
+     * `confirmed`, so by the time mint() runs the check has already happened and
+     * repeating it would add a network round trip to the buyer's own request —
+     * plus a new way to fail them, since a gateway blip would then block votes for
+     * a payment that genuinely landed.
+     *
+     * Every OTHER way votes get minted acts on the stored flag instead, minutes or
+     * weeks later: `votes:remint`, an operator repairing a batch, anything that
+     * sweeps "confirmed with votes_used = 0". Those paths trust a column, and a
+     * column can be wrong — set by a bad reconciler run, a hand-edit, a restore, or
+     * a repair that verified against the wrong provider. Minting votes for money
+     * that was never actually taken is the mirror image of the bug we have been
+     * chasing, and it is worse, because it silently inflates a result rather than
+     * failing loudly.
+     *
+     * So: the live path verifies once, at the right moment. Manual minting verifies
+     * again, at its own moment, because its evidence is older than it is.
+     *
+     * @return array{ok:bool, reason:string, provider:?string, amount:int}
+     */
+    public function gatewayAgrees(object $order): array
+    {
+        $ref = trim((string) ($order->payment_ref ?? ''));
+        if ($ref === '') return ['ok' => false, 'reason' => 'the order carries no payment reference', 'provider' => null, 'amount' => 0];
+
+        $enabled = $this->enabledProviders();
+        if (!$enabled) {
+            return ['ok' => false, 'reason' => 'no payment gateway is configured, so nothing can be confirmed against it',
+                    'provider' => null, 'amount' => 0];
+        }
+
+        $p = $this->payments ?? new PaymentService();
+        $stored = strtolower(trim((string) ($order->provider ?? '')));
+        $try = $stored !== '' && in_array($stored, $enabled, true)
+            ? array_merge([$stored], array_diff($enabled, [$stored]))
+            : $enabled;
+
+        foreach ($try as $provider) {
+            try { $v = $p->verify($provider, $ref); } catch (\Throwable) { continue; }
+            if (empty($v['ok'])) continue;
+            if ((string) ($v['status'] ?? '') !== 'success') {
+                return ['ok' => false, 'reason' => 'the gateway reports this payment as "' . (string) ($v['status'] ?? '?') . '"',
+                        'provider' => $provider, 'amount' => (int) ($v['amount'] ?? 0)];
+            }
+            // Underpayment is refused for the same reason the live confirm refuses
+            // it: a gateway reporting success for less than we asked has not paid
+            // THIS order. Overpayment is allowed through, as it is there.
+            $paid = (int) ($v['amount'] ?? 0);
+            if ($paid < (int) $order->amount_naira) {
+                return ['ok' => false, 'provider' => $provider, 'amount' => $paid,
+                        'reason' => 'the gateway shows ₦' . number_format($paid) . ' against an order for ₦'
+                                  . number_format((int) $order->amount_naira)];
+            }
+            return ['ok' => true, 'reason' => '', 'provider' => $provider, 'amount' => $paid];
+        }
+        return ['ok' => false, 'reason' => 'no gateway recognises this reference', 'provider' => null, 'amount' => 0];
+    }
+
+    /**
      * Ask the gateway which stuck orders were really charged.
      *
      * Our own database is precisely the thing that cannot answer this: it says
@@ -244,6 +307,39 @@ final class PaymentTriage
             $hit === null ? $clean++ : $charged[] = $hit;
         }
         return ['charged' => $charged, 'clean' => $clean];
+    }
+
+    /**
+     * Deliver votes that are owed — but only where the gateway still agrees.
+     *
+     * The "confirmed, no votes" bucket is money we hold for votes we did not give.
+     * Some of those can still be minted (the mint refused for a reason that has
+     * since gone away); the rest belong to the refund sweep. Either way this asks
+     * Paystack first, because the confirmed flag is the only evidence this path
+     * has and it is older than the decision being made on it.
+     *
+     * @param array<int,object> $owed
+     * @return array{minted:int, votes:int, refused:array<int,string>}
+     */
+    public function deliverOwed(array $owed, int $limit = 100): array
+    {
+        $minted = 0; $votes = 0; $refused = [];
+
+        foreach (array_slice(array_values($owed), 0, max(1, $limit)) as $o) {
+            $agree = $this->gatewayAgrees($o);
+            if (!$agree['ok']) {
+                $refused[] = (string) $o->payment_ref . ' — ' . $agree['reason'];
+                continue;
+            }
+            $r = PaidVoteService::mint((int) $o->id);
+            if (!empty($r['ok'])) {
+                $minted++;
+                $votes += (int) ($r['minted'] ?? $o->bonus_votes);
+            } else {
+                $refused[] = (string) $o->payment_ref . ' — ' . (string) ($r['code'] ?? 'refused');
+            }
+        }
+        return ['minted' => $minted, 'votes' => $votes, 'refused' => $refused];
     }
 
     /**

@@ -250,6 +250,16 @@
     These the automatic sweep <em>can</em> see. If it has not acted on them, the reason is above:
     refunds switched off, or maintenance not running.
   </p>
+  <form method="post" action="/admin/payments/deliver" class="pt-row" style="margin-bottom:6px">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="days" value="{{ days }}">
+    <button class="pt-btn pt-btn--go" type="submit">Check Paystack, then deliver what can still be delivered</button>
+  </form>
+  <p class="pt-lede" style="margin-bottom:14px">
+    Each one is re-checked against the gateway before any votes are minted — the confirmed flag on
+    these rows was written a while ago and this is the wrong place to trust it. Anything the gateway
+    will not vouch for is left alone for the refund queue.
+  </p>
   <table class="pt-table">
     <thead><tr><th>Reference</th><th>Amount</th><th>Buyer</th><th>Confirmed</th></tr></thead>
     <tbody>

@@ -86,6 +86,7 @@ final class VotesRemintCommand extends Command
         $io->newLine();
 
         $minted = 0; $votes = 0; $blocked = [];
+        $triage = new \AfricaGates\Services\PaymentTriage();
 
         foreach ($rows as $d) {
             if (!$commit) {
@@ -93,6 +94,25 @@ final class VotesRemintCommand extends Command
                 // dial rather than pretending to predict mint()'s answer.
                 $io->text(sprintf('  %-26s %6d vote(s)  %s',
                     (string) $d->payment_ref, (int) $d->bonus_votes, (string) $d->created_at));
+                continue;
+            }
+
+            // ── THE GATEWAY HAS TO AGREE, EVERY TIME THIS PATH RUNS ──────
+            //
+            // The population above is "our column says confirmed". The live
+            // callback and webhook earned that column by verifying server to
+            // server; this command inherits it, possibly weeks later, and a
+            // column can be wrong — a bad reconciler run, a hand-edit, a restore,
+            // a repair that checked the wrong provider. Minting votes for money
+            // that was never taken is the mirror image of the bug this platform
+            // has been chasing, and it is worse, because it inflates a result
+            // quietly instead of failing loudly.
+            //
+            // So the flag is not enough here. Ask Paystack.
+            $agree = $triage->gatewayAgrees($d);
+            if (!$agree['ok']) {
+                $blocked['GATEWAY_DISAGREES'] = ($blocked['GATEWAY_DISAGREES'] ?? 0) + 1;
+                $io->text('  <comment>·</comment> ' . $d->payment_ref . ' — NOT MINTED: ' . $agree['reason']);
                 continue;
             }
 
