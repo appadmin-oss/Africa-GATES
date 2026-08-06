@@ -640,6 +640,27 @@ class PaidVoteService
                 'votes'      => $qty,
                 'order_ref'  => (string) ($don->payment_ref ?? ''),
             ]);
+            // ── THE NOMINEE'S SHARE OF WHAT WAS RAISED IN THEIR NAME ─────
+            //
+            // Provisioned HERE, at the moment the contribution becomes real, rather
+            // than totalled up at the end of the cycle. If the share were computed
+            // later, the money would have spent the whole cycle inside the operating
+            // budget looking spendable, and the bill would arrive after it was gone.
+            // Setting it aside on arrival means the programme only ever sees its own
+            // portion.
+            //
+            // Inside the transaction on purpose: a vote that exists without its
+            // accrual, or an accrual without its vote, are both states somebody would
+            // later have to reconcile by hand. Silent when the rate is zero, when the
+            // nominee has not qualified, or when this contribution already accrued —
+            // all three are ordinary rather than failures, and none of them may
+            // interrupt the delivery of votes somebody has paid for.
+            try {
+                CommunityReturnService::accrue((int) $don->id);
+            } catch (\Throwable $e) {
+                error_log('[paid-vote] community return not accrued on order ' . (int) $don->id . ': ' . $e->getMessage());
+            }
+
             return ['ok' => true, 'minted' => $qty];
         });
     }

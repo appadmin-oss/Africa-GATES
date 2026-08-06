@@ -25,6 +25,16 @@ class RuleEngine
         'fraud_monitor'    => 30,
         'max_paid_weight_pct' => 50,   // bonus-vote ceiling, as % of a nominee's ORGANIC votes
         'min_judges_per_nominee' => 2, // COMPLETE judge scorecards required to be winner-eligible
+
+        // ── Community return ─────────────────────────────────────────────────
+        // A nominee's share of what supporters contributed in their name, in basis
+        // points (3000 = 30%). ZERO by default: sharing revenue is a decision
+        // somebody makes deliberately, per cycle, not a behaviour that arrives with
+        // a deploy. Qualification counts DISTINCT SUPPORTERS rather than votes,
+        // because one person can buy fifty votes in one order and cannot be fifty
+        // different verified people.
+        'community_return_bps' => 0,
+        'community_return_min_supporters' => 25,
     ];
 
     /** @return array<string,mixed> merged ruleset */

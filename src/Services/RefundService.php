@@ -816,6 +816,25 @@ final class RefundService
         } catch (\Throwable $e) {
             error_log('[refund] could not record outcome for donation ' . $id . ': ' . $e->getMessage());
         }
+
+        // ── THE NOMINEE'S SHARE GOES BACK TOO ────────────────────────────────
+        //
+        // Money the contributor has been given back cannot still be sitting in
+        // somebody's community return. The accrual is NOT deleted — a negative
+        // entry is written beside it, so the ledger says "this was set aside, and
+        // then the contribution behind it was returned" rather than showing a
+        // balance that dropped for no recorded reason.
+        //
+        // Only once the refund has actually landed. A refund merely in flight can
+        // still fail at the gateway, and reversing on the attempt would take money
+        // off a nominee who is still owed it.
+        if ($state === 'refunded') {
+            try {
+                CommunityReturnService::reverse($id, 'contribution refunded: ' . mb_substr($reason, 0, 200));
+            } catch (\Throwable $e) {
+                error_log('[refund] community return not reversed for donation ' . $id . ': ' . $e->getMessage());
+            }
+        }
     }
 
     /**
