@@ -203,6 +203,14 @@ final class SupportController
             'proof'      => $proof,
             'ok'         => (string) ($q['ok'] ?? ''),
             'err'        => (string) ($q['e'] ?? ''),
+            // Evidence, grouped by the message it arrived with. Attachments on a
+            // message_id of 0 are ones whose message is gone — shown at the top of
+            // the thread rather than dropped, because losing evidence silently is
+            // worse than showing it without its sentence.
+            'attachments'    => \AfricaGates\Services\SupportAttachmentService::byMessage((int) $t->id),
+            'attach_accept'  => \AfricaGates\Services\SupportAttachmentService::acceptAttribute(),
+            'attach_limit'   => \AfricaGates\Services\SupportAttachmentService::humanLimit(),
+            'attach_max'     => \AfricaGates\Services\SupportAttachmentService::MAX_PER_MESSAGE,
         ]);
     }
 
@@ -281,6 +289,21 @@ final class SupportController
 
         if (!$r['ok']) {
             return $res->withHeader('Location', $back . '?e=send')->withStatus(302);
+        }
+
+        // Evidence going the other way — a gateway screenshot, a refund receipt.
+        // AFTER the reply is safely stored, and never allowed to fail it: a
+        // rejected attachment must not swallow an answer somebody has written.
+        try {
+            \AfricaGates\Services\SupportAttachmentService::attachAll(
+                $req->getUploadedFiles()['files'] ?? null,
+                (int) $t->id,
+                isset($r['message_id']) ? (int) $r['message_id'] : null,
+                'staff',
+                ((int) ($_SESSION['admin_id'] ?? 0)) ?: null,
+            );
+        } catch (\Throwable $e) {
+            error_log('[admin/support] attachment failed on ' . $ref . ': ' . $e->getMessage());
         }
         // Recorded either way. The flash separates recorded-and-delivered from
         // recorded-but-nobody-was-told, and names which of the two it was.

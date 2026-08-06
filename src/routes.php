@@ -846,6 +846,14 @@ return function(App $app) {
         $g->get('/support/t/{token:[a-f0-9]{64}}',        SupportController::class.':linkedThread');
         $g->post('/support/t/{token:[a-f0-9]{64}}/reply', SupportController::class.':linkedReply');
 
+        // Ticket evidence. The ONLY way these bytes leave the server — the files
+        // live outside the document root, so there is no static path to guess.
+        // Access is decided per request inside the controller (staff, the member
+        // who owns the ticket, or a valid thread token in `?t=`), and a refusal
+        // is a 404 because confirming an attachment exists is itself a disclosure.
+        $g->get('/support/attachment/{id:[0-9]+}',
+                \AfricaGates\Controllers\SupportAttachmentController::class.':show');
+
         // Nominee page claiming. GUESTS, deliberately: the population is nominees who
         // have never had an account here, so a login wall would gate a page on having
         // the very thing the page exists to give you. Neither POST accepts a

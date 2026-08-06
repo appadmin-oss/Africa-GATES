@@ -6,6 +6,7 @@ namespace AfricaGates\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
+use Illuminate\Database\Capsule\Manager as DB;
 use AfricaGates\Services\{RateLimitService, SupportAgentService,
                           SupportContext, SupportTicketService, UserAccountService};
 
@@ -330,8 +331,25 @@ final class SupportController
             return $this->json($res, ['ok' => false,
                 'message' => 'I could not open the ticket. Please email the team directly.'], 500);
         }
+        // Evidence, once the ticket is safely open. Best-effort and never fatal: a
+        // rejected screenshot must not lose the description somebody just wrote.
+        $note = '';
+        try {
+            $tid = (int) DB::table('gates_support_tickets')->where('reference', $ref)->value('id');
+            if ($tid > 0) {
+                $mid = (int) (DB::table('gates_support_messages')->where('ticket_id', $tid)
+                    ->orderBy('id')->value('id') ?? 0);
+                $a = \AfricaGates\Services\SupportAttachmentService::attachAll(
+                    $req->getUploadedFiles()['files'] ?? null, $tid, $mid ?: null,
+                    'member', (int) $m['id']);
+                if ($a['problems']) $note = ' ' . implode(' ', $a['problems']);
+            }
+        } catch (\Throwable $e) {
+            error_log('[support] attachment failed on ' . $ref . ': ' . $e->getMessage());
+        }
+
         return $this->json($res, ['ok' => true, 'ticket' => $ref,
-            'message' => "Ticket {$ref} is open. You will get a reply by email, and you can follow it here."]);
+            'message' => "Ticket {$ref} is open. You will get a reply by email, and you can follow it here." . $note]);
     }
 
     /** The member's own tickets. */
@@ -355,6 +373,12 @@ final class SupportController
             'member_name'      => $m['name'],
             'tickets'          => $this->tickets?->forMember((int) $m['id'], (string) $m['email']) ?? [],
             'thread'           => $thread,
+            'attachments'      => $thread !== null && isset($thread['ticket']->id)
+                ? \AfricaGates\Services\SupportAttachmentService::byMessage((int) $thread['ticket']->id)
+                : [],
+            'attach_accept'    => \AfricaGates\Services\SupportAttachmentService::acceptAttribute(),
+            'attach_limit'     => \AfricaGates\Services\SupportAttachmentService::humanLimit(),
+            'attach_max'       => \AfricaGates\Services\SupportAttachmentService::MAX_PER_MESSAGE,
             // A reference that is not theirs looks exactly like one that does not
             // exist. Said plainly so it does not read as a bug.
             'not_found'        => $ref !== '' && $thread === null ? $ref : null,
@@ -474,7 +498,23 @@ final class SupportController
             (int) $m['id'], (string) $m['email'], (string) $m['name']
         );
 
-        return $this->json($res, ['ok' => $r['ok'], 'message' => $r['message']], $r['ok'] ? 200 : 422);
+        // Bound to THIS message, using the id the service now returns rather than
+        // "the newest row on the ticket" — which is right almost always, and wrong
+        // exactly when two replies land together.
+        $note = '';
+        if ($r['ok'] ?? false) {
+            try {
+                $a = \AfricaGates\Services\SupportAttachmentService::attachAll(
+                    $req->getUploadedFiles()['files'] ?? null,
+                    (int) ($r['ticket_id'] ?? 0), (int) ($r['message_id'] ?? 0) ?: null,
+                    'member', (int) $m['id']);
+                if ($a['problems']) $note = ' ' . implode(' ', $a['problems']);
+            } catch (\Throwable $e) {
+                error_log('[support] attachment failed on reply: ' . $e->getMessage());
+            }
+        }
+
+        return $this->json($res, ['ok' => $r['ok'], 'message' => $r['message'] . $note], $r['ok'] ? 200 : 422);
     }
 
     /**

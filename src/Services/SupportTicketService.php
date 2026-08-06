@@ -335,7 +335,12 @@ final class SupportTicketService
 
         try {
             $t = DB::table('gates_support_tickets')->where('reference', trim($reference))->first(['id', 'subject', 'status']);
-            DB::table('gates_support_messages')->insert([
+            // insertGetId, not insert: the caller needs to bind any evidence the
+            // member attached to THIS message. Guessing it afterwards by "the most
+            // recent row" would be right almost always, and the exception is two
+            // replies landing together — which is exactly when a screenshot ending
+            // up under the wrong message is hardest to notice.
+            $messageId = (int) DB::table('gates_support_messages')->insertGetId([
                 'ticket_id' => $t->id, 'author_type' => 'member',
                 'author_id' => $userId > 0 ? $userId : null,
                 'author_name' => mb_substr($name ?: 'Member', 0, 160),
@@ -365,7 +370,8 @@ final class SupportTicketService
                 ['reference' => trim($reference), 'from' => 'member', 'at' => date('c')]);
         } catch (\Throwable) {}
 
-        return ['ok' => true, 'message' => 'Reply added — the team has been notified.'];
+        return ['ok' => true, 'message' => 'Reply added — the team has been notified.',
+                'ticket_id' => (int) $t->id, 'message_id' => $messageId];
     }
 
     /**
@@ -575,11 +581,14 @@ final class SupportTicketService
                 ->first(['id', 'reference', 'subject', 'email', 'name', 'status', 'user_id']);
             if (!$t) return ['ok' => false, 'emailed' => false, 'reason' => 'no_ticket', 'to' => null];
 
-            DB::table('gates_support_messages')->insert(OptionalColumn::filter('gates_support_messages', [
-                'ticket_id' => $ticketId, 'author_type' => $author['type'], 'author_id' => $author['id'],
-                'author_name' => $author['name'], 'body' => $body,
-                'is_internal' => 0, 'emailed' => 0, 'created_at' => $now,
-            ], ['author_id']));
+            $messageId = (int) DB::table('gates_support_messages')->insertGetId(
+                OptionalColumn::filter('gates_support_messages', [
+                    'ticket_id' => $ticketId, 'author_type' => $author['type'], 'author_id' => $author['id'],
+                    'author_name' => $author['name'], 'body' => $body,
+                    'is_internal' => 0, 'emailed' => 0, 'created_at' => $now,
+                ], ['author_id']));
+            $out['message_id'] = $messageId;
+            $out['ticket_id']  = $ticketId;
 
             $patch = ['last_activity' => $now];
             if ($resolve) { $patch['status'] = 'resolved'; $patch['resolved_at'] = $now; }

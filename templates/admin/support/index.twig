@@ -42,9 +42,28 @@
   .sq td{ padding:13px 14px; border-bottom:1px solid rgba(16,41,44,.06); font-size:13.5px; color:#39464a; vertical-align:top; }
   .sq tr:last-child td{ border-bottom:none }
   .sq tr:hover td{ background:#fafcfa }
-  .sq__ref{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; white-space:nowrap; }
-  .sq__ref a{ color:#177015; text-decoration:none; font-weight:600 }
+  .sq__ref{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; white-space:nowrap; color:#5a6d6f; }
   .sq__subj{ font-weight:600; color:#10292C; }
+
+  /* ── The row opens the ticket ──────────────────────────────────────────
+     `position:relative` on the row plus a stretched pseudo-element on the
+     subject's anchor. One link per row — the reference is now plain text — so
+     the keyboard gets a single tab stop and a screen reader reads one
+     destination, while the pointer gets the whole row. */
+  .sq__row{ position:relative; transition:background-color .12s linear; }
+  .sq__row:hover{ background:#f4f8f4; }
+  .sq__row:has(.sq__go:focus-visible){ background:#eef6ee; outline:2px solid #177015; outline-offset:-2px; }
+  .sq__go{ color:#10292C; text-decoration:none; text-decoration-color:rgba(23,112,21,.4); }
+  .sq__go::after{ content:""; position:absolute; inset:0; }
+  .sq__go:hover{ text-decoration:underline; }
+  .sq__open{ text-align:right; white-space:nowrap; }
+  /* Visible at rest, not only on hover. The whole reason this exists is that
+     somebody could not find how to open a ticket — an affordance you have to
+     discover by hovering is the same failure with an extra step. */
+  .sq-open{ font-size:12.5px; font-weight:600; color:#177015; opacity:.6; transition:opacity .12s linear; }
+  .sq__row:hover .sq-open{ opacity:1; }
+  .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+            clip:rect(0 0 0 0); white-space:nowrap; border:0; }
   .sq__who{ font-size:12px; color:#5a6d6f; margin-top:3px; }
   .sq__when{ white-space:nowrap; font-size:12.5px; color:#5a6d6f; }
 
@@ -91,14 +110,28 @@
             <th>Replies</th>
             <th>Last activity</th>
             <th>Opened</th>
+            <th><span class="sr-only">Open ticket</span></th>
           </tr>
         </thead>
         <tbody>
+          {# ── THE WHOLE ROW IS THE TARGET ──────────────────────────────────
+             Only the reference was a link, which is a six-character word in a
+             monospace column that does not look like one. Somebody who came here
+             to answer tickets could not work out how to open one — and a queue
+             you cannot get into is a queue nobody clears.
+
+             The row is made clickable by a stretched overlay on the subject's
+             own anchor, so there is still exactly ONE link per row for a screen
+             reader and for the keyboard, and the destination is the subject
+             rather than the reference. The explicit Open button is there because
+             a discoverable affordance should not depend on hovering. #}
           {% for t in tickets %}
-            <tr>
-              <td class="sq__ref"><a href="/admin/support/{{ t.reference }}">{{ t.reference }}</a></td>
+            <tr class="sq__row">
+              <td class="sq__ref">{{ t.reference }}</td>
               <td>
-                <div class="sq__subj">{{ t.subject }}</div>
+                <div class="sq__subj">
+                  <a class="sq__go" href="/admin/support/{{ t.reference }}">{{ t.subject }}</a>
+                </div>
                 <div class="sq__who">
                   {{ t.name ?: 'Someone' }}{% if t.email %} · {{ t.email }}{% endif %}
                   {% if t.severity == 'urgent' %}
@@ -110,6 +143,7 @@
               <td>{{ replies[t.id]|default(0) }}</td>
               <td class="sq__when">{{ t.last_activity ?: '—' }}</td>
               <td class="sq__when">{{ t.created_at }}</td>
+              <td class="sq__open"><span class="sq-open" aria-hidden="true">Open &rarr;</span></td>
             </tr>
           {% endfor %}
         </tbody>

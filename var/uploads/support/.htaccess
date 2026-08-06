@@ -1,0 +1,13 @@
+# Belt and braces. These files already live OUTSIDE the document root, so no
+# request should ever reach this directory — the only way out is
+# /support/attachment/{id}, which checks who is asking first.
+#
+# This file exists for the deployment where somebody points a vhost at the
+# project root instead of public/, which is a common shared-hosting mistake and
+# would otherwise expose every bank screenshot on the platform at a guessable
+# path. Denying here costs nothing and removes that class of accident.
+Require all denied
+<IfModule !mod_authz_core.c>
+  Order allow,deny
+  Deny from all
+</IfModule>

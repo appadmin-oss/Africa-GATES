@@ -90,6 +90,15 @@
      the two paths sit in separate blocks with separate labels. */
   .tk-btn--note{ background:#fff; border:1px dashed #cbb26a; color:#7a5f00 }
   .tk-check{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#4a5256; cursor:pointer }
+  .tk-att{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }
+  .tk-att__item{ display:flex; flex-direction:column; gap:5px; width:132px; text-decoration:none;
+                 border:1px solid #dbe4e0; border-radius:10px; padding:6px; background:#fff; color:#3d4b4c }
+  .tk-att__item:hover{ border-color:#177015 }
+  .tk-att__item img{ width:100%; height:88px; object-fit:cover; border-radius:6px; display:block; background:#eef2ef }
+  .tk-att__item--doc{ flex-direction:row; align-items:center; width:auto; max-width:260px; padding:10px 12px; gap:9px }
+  .tk-att__meta{ font-size:11px; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .tk-file{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:#3d4b4c; cursor:pointer }
+  .tk-file input{ max-width:190px; font-size:11.5px }
   .tk-hint{ margin:9px 0 0; font-size:11.5px; line-height:1.55; color:#7a8a86 }
   .tk-sep{ border:none; border-top:1px solid rgba(16,41,44,.08); margin:20px 0 }
 
@@ -123,6 +132,27 @@
 {% endblock %}
 
 {% block content %}
+{% macro evidence(items) %}
+  {# Thumbnails for images, a labelled row for a PDF. Every href goes through
+     /support/attachment/{id}, which checks who is asking before it writes a
+     byte — the files are outside the web root and have no other way out. #}
+  <div class="tk-att">
+    {% for a in items %}
+      <a class="tk-att__item{{ a.mime starts with 'image/' ? '' : ' tk-att__item--doc' }}"
+         href="/support/attachment/{{ a.id }}" target="_blank" rel="noopener">
+        {% if a.mime starts with 'image/' %}
+          <img src="/support/attachment/{{ a.id }}" alt="{{ a.original_name }}" loading="lazy">
+        {% else %}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+        {% endif %}
+        <span class="tk-att__meta">{{ a.original_name }} · {{ a.bytes >= 1048576 ? (a.bytes / 1048576)|round(1) ~ ' MB' : (a.bytes / 1024)|round ~ ' KB' }}</span>
+      </a>
+    {% endfor %}
+  </div>
+{% endmacro %}
+{% import _self as ui %}
+
+
 
 {# `ok` and `err` come from the controller. They used to be read off an `app` global
    that does not exist in this project's Twig, so both were always '' and this whole
@@ -218,9 +248,19 @@
               <span class="tk-entry__when">{{ m.created_at }}{% if cap != 'member' %} · {{ m.emailed ? 'emailed' : 'NOT emailed' }}{% endif %}</span>
             </div>
             <div class="tk-entry__body">{{ m.body }}</div>
+            {% if attachments[m.id]|default([])|length %}{{ ui.evidence(attachments[m.id]) }}{% endif %}
           </div>
         {% endif %}
       {% endfor %}
+
+      {# Evidence whose message is gone. Shown rather than dropped: losing a bank
+         screenshot silently is worse than showing it without its sentence. #}
+      {% if attachments[0]|default([])|length %}
+        <div class="tk-entry">
+          <div class="tk-entry__hd"><span class="tk-entry__who">Attached to the ticket</span></div>
+          {{ ui.evidence(attachments[0]) }}
+        </div>
+      {% endif %}
 
       {% if not messages and not t.transcript %}
         <p style="margin:0;font-size:13.5px;color:#7a8a86">Nothing on this ticket yet.</p>
@@ -230,17 +270,25 @@
     {# ── reply ────────────────────────────────────────────────────────────── #}
     <div class="tk-card tk-reply">
       <h2>Reply to the member</h2>
-      <form method="post" action="/admin/support/{{ t.reference }}/reply">
+      <form method="post" action="/admin/support/{{ t.reference }}/reply" enctype="multipart/form-data">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <input type="hidden" name="kind" value="reply">
         <textarea name="body" placeholder="Written to the member. Emailed to them and added to their own thread page."></textarea>
         <div class="tk-reply__row">
           <button class="tk-btn tk-btn--send" type="submit">Send reply</button>
+          {# Evidence going the OTHER way — a gateway screenshot, a refund receipt.
+             Stored privately and served only to this ticket's participants. #}
+          <label class="tk-file">
+            <input type="file" name="files[]" multiple accept="{{ attach_accept }}">
+            <span>Attach evidence</span>
+          </label>
           <label class="tk-check">
             <input type="checkbox" name="resolve" value="1"> Mark resolved after sending
           </label>
         </div>
-        <p class="tk-hint">Goes to the address on the ticket. It also lands on the member's own thread at
+        <p class="tk-hint">Up to {{ attach_max }} files, {{ attach_limit }} each — photos or PDF.
+          Attachments are stored privately and are only ever served to this ticket's participants.
+          Goes to the address on the ticket. It also lands on the member's own thread at
           /support/tickets — which a reply sent from an inbox never did, which is why their page showed
           silence while somebody had in fact answered.</p>
       </form>

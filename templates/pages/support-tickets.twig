@@ -102,6 +102,12 @@
   .st-go{ border:0; background:var(--ag-green,#237b22); color:#fff; font-weight:700;
           font-size:14px; padding:10px 20px; border-radius:999px; cursor:pointer; }
   .st-go[disabled]{ opacity:.45; cursor:default; }
+  .st-file{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:#5a6d6f; cursor:pointer }
+  .st-file input{ max-width:180px; font-size:11.5px }
+  .st-att{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px }
+  .st-att__item{ display:block; width:120px; border:1px solid #dbe4e0; border-radius:10px; padding:6px;
+                 background:#fff; text-decoration:none; color:#3d4b4c; font-size:11px }
+  .st-att__item img{ width:100%; height:78px; object-fit:cover; border-radius:6px; display:block; background:#eef2ef }
   .st-hint{ margin:8px 0 0; font-size:12px; line-height:1.55; color:#8a9a9c; }
   .st-hint a{ color:var(--ag-green,#237b22); font-weight:600; }
   .st-note{ margin:0; font-size:13px; line-height:1.5; font-weight:600; }
@@ -221,6 +227,20 @@
                   <span class="st-when">{{ m.created_at|date('j M, H:i') }}</span>
                 </div>
                 <p class="st-say">{{ m.body }}</p>
+                {% if attachments[m.id]|default([])|length %}
+                  {# Served by /support/attachment/{id}, which checks the session
+                     before writing a byte. The files are outside the web root. #}
+                  <div class="st-att">
+                    {% for a in attachments[m.id] %}
+                      <a class="st-att__item" href="/support/attachment/{{ a.id }}" target="_blank" rel="noopener">
+                        {% if a.mime starts with 'image/' %}
+                          <img src="/support/attachment/{{ a.id }}" alt="{{ a.original_name }}" loading="lazy">
+                        {% endif %}
+                        {{ a.original_name }}
+                      </a>
+                    {% endfor %}
+                  </div>
+                {% endif %}
               </div>
             </div>
             {% endfor %}
@@ -235,11 +255,19 @@
             <div class="st-bar">
               <button class="st-go" type="button" :disabled="busy || !replyBody.trim()"
                       @click="reply('{{ t.reference }}')">Send reply</button>
+              {# A screenshot of a bank alert is worth more than a paragraph
+                 describing one, and it is the thing people already have. #}
+              <label class="st-file">
+                <input type="file" x-ref="files_{{ t.reference }}" multiple accept="{{ attach_accept }}">
+                <span>Attach a screenshot or receipt</span>
+              </label>
               <span class="st-when" x-show="replyBody.length > 4000" x-cloak
                     x-text="(5000 - replyBody.length) + ' characters left'"></span>
               <p class="st-note" :class="noteOk ? 'st-note--ok' : 'st-note--err'" x-show="!!note" x-cloak x-text="note"></p>
             </div>
-            <p class="st-hint">Your reply reaches the team by email, and theirs reaches you the same way.</p>
+            <p class="st-hint">Your reply reaches the team by email, and theirs reaches you the same way.
+              Attachments — up to {{ attach_max }} photos or PDFs, {{ attach_limit }} each — are stored privately
+              and only ever shown to you and the team.</p>
           </div>
         </div>
       </div>
@@ -368,6 +396,10 @@
                         placeholder="What has gone wrong? Include a payment reference if you have one."></textarea>
               <div class="st-bar">
                 <button class="st-go" type="submit" :disabled="busy || !body.trim()">Open ticket</button>
+                <label class="st-file">
+                  <input type="file" x-ref="newFiles" multiple accept="{{ attach_accept }}">
+                  <span>Attach evidence</span>
+                </label>
               </div>
               <p class="st-note" :class="noteOk ? 'st-note--ok' : 'st-note--err'" x-show="!!note" x-cloak x-text="note" style="margin-top:9px"></p>
             </form>
@@ -396,13 +428,23 @@ function ticketDesk(){
     shown(status){ return this.filter === 'all' || (this.filter === 'open') === (status === 'open'); },
     anyShown(){ return this.statuses.some(s => this.shown(s)); },
 
-    post(url, params){
+    /* Files switch the body to multipart and DROP the Content-Type header, because
+       the browser has to set it itself — a hand-written multipart Content-Type has
+       no boundary and the server parses nothing. Without files the request is
+       byte-for-byte what it always was, so nothing that worked before changes. */
+    post(url, params, files){
       this.busy = true; this.note = '';
-      return fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
-        body: new URLSearchParams(params)
-      })
+      var opts = { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' } };
+      if (files && files.length) {
+        var fd = new FormData();
+        Object.keys(params).forEach(function(k){ fd.append(k, params[k]); });
+        for (var i = 0; i < files.length; i++) fd.append('files[]', files[i]);
+        opts.body = fd;
+      } else {
+        opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        opts.body = new URLSearchParams(params);
+      }
+      return fetch(url, opts)
         .then(r => r.json())
         .catch(() => ({ ok: false, message: 'Lost the connection. Please try again.' }))
         .finally(() => { this.busy = false; });
@@ -410,7 +452,8 @@ function ticketDesk(){
 
     create(){
       if (!this.body.trim() || this.busy) return;
-      this.post('/api/v1/support/ticket', { subject: this.subject, body: this.body, page_url: location.href })
+      this.post('/api/v1/support/ticket', { subject: this.subject, body: this.body, page_url: location.href },
+                this.$refs.newFiles && this.$refs.newFiles.files)
         .then(j => {
           this.noteOk = !!j.ok; this.note = j.message || '';
           // Signed out mid-form — a session can expire while somebody types. Send
@@ -424,7 +467,8 @@ function ticketDesk(){
 
     reply(ref){
       if (!this.replyBody.trim() || this.busy) return;
-      this.post('/api/v1/support/reply', { reference: ref, body: this.replyBody })
+      this.post('/api/v1/support/reply', { reference: ref, body: this.replyBody },
+                this.$refs['files_' + ref] && this.$refs['files_' + ref].files)
         .then(j => {
           this.noteOk = !!j.ok; this.note = j.message || '';
           if (j.ok) { this.replyBody = ''; setTimeout(() => location.reload(), 900); }
