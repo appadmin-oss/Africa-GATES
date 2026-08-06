@@ -183,6 +183,11 @@
   {% else %}
   {# Motion design tokens (Phase 2 seed — see resources/motion/motion.ts) #}
   <link rel="stylesheet" href="{{ asset('/assets/css/tokens.motion.css') }}">
+  {# The layer that actually uses those tokens. Loaded right after them and
+     before main.css, so a page stylesheet can still override any of it. Hides
+     nothing on its own — every rule is scoped under `.ag-motion`, which
+     ag-motion.js adds. #}
+  <link rel="stylesheet" href="{{ asset('/assets/css/motion.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/main.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/ui-overhaul.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/professional.css') }}">
@@ -399,6 +404,10 @@
    DOMContentLoaded — so anything loaded after it initialises components that
    call window.agSocial before it exists. Loading it second threw
    "Cannot read properties of undefined" on every card in the feed. #}
+{# Scroll entrances, staggers and counters. `defer`, and it opts the page IN
+   rather than the stylesheet hiding things — if this never runs, the page is
+   simply not animated instead of being blank. #}
+<script defer src="{{ asset('/assets/js/ag-motion.js') }}"></script>
 <script defer src="{{ asset('/assets/js/ag-social.js') }}"></script>
 {# Site-wide search overlay. Plain JS, no Alpine — it has to work on every page
    including the ones that never load Alpine, and it enhances a form that already

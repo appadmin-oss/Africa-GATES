@@ -58,6 +58,11 @@ final class AssetBundle
      */
     public const STYLESHEETS = [
         'assets/css/tokens.motion.css',
+        // The layer that consumes those tokens. Immediately after them and before
+        // main.css, matching the layout — a page stylesheet must still be able to
+        // override any of it, and the bundle is a concatenation, so order here IS
+        // the cascade.
+        'assets/css/motion.css',
         'assets/css/main.css',
         'assets/css/ui-overhaul.css',
         'assets/css/professional.css',

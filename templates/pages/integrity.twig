@@ -219,7 +219,7 @@
 {#  One place defines a "read the detail" link, so a section cannot invent its own
     shape and a slug is written exactly once. #}
 {% macro more(links) %}
-  <div class="mth-more">
+  <div class="mth-more" data-ag-cascade="sm">
     {% for l in links %}
       <a class="mth-more__a" href="/help/{{ l.slug }}">
         <span class="mth-more__ico" aria-hidden="true">
@@ -245,7 +245,7 @@
   </header>
 
   {# The three claims that get doubted most, answered before anybody scrolls. #}
-  <div class="mth-stats">
+  <div class="mth-stats" data-ag-cascade="sm">
     <div class="mth-stat">
       <span class="mth-stat__n">{{ community_pct|default(45) }}&thinsp;/&thinsp;{{ judge_pct|default(55) }}</span>
       <span class="mth-stat__l">Community votes to judge panel, in the final index</span>
@@ -255,14 +255,14 @@
       <span class="mth-stat__l">Of the index that contributions can move</span>
     </div>
     <div class="mth-stat">
-      <span class="mth-stat__n">{{ min_judges|default(2) }}</span>
+      <span class="mth-stat__n" data-ag-count>{{ min_judges|default(2) }}</span>
       <span class="mth-stat__l">Complete judge scorecards needed to be winner-eligible</span>
     </div>
   </div>
 
   <nav class="mth-index" aria-label="On this page">
     <h2>On this page</h2>
-    <ol>
+    <ol data-ag-cascade="sm">
       <li><a href="#score">The score</a></li>
       <li><a href="#eligible">Who can actually win</a></li>
       <li><a href="#criteria">What judges score</a></li>
@@ -277,7 +277,7 @@
   </nav>
 
   {# ── 01 · THE SCORE ─────────────────────────────────────────────────────── #}
-  <section class="mth-sec" id="score">
+  <section class="mth-sec" data-ag-reveal id="score">
     <span class="mth-sec__n">01</span>
     <h2 class="mth-h2">The score</h2>
     <p class="mth-lead">The Cultural Power Index is a weighted combination of the community’s verified
@@ -294,7 +294,7 @@
           <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>Community votes</span>
           <span class="mth-bar__pct">{{ community_pct|default(45) }}%</span>
         </div>
-        <span class="mth-bar__track"><span class="mth-bar__fill" style="width:{{ community_pct|default(45) }}%"></span></span>
+        <span class="mth-bar__track"><span class="mth-bar__fill" data-ag-fill style="width:{{ community_pct|default(45) }}%"></span></span>
         <p class="mth-bar__desc">Normalised <strong>within each category</strong>, against that category’s
            strongest vote count — so a nominee in a small field is not punished for being in one. Only
            organic, code-verified votes count here; contribution bonus votes never enter this number.</p>
@@ -304,7 +304,7 @@
           <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#f3eef7;color:#5b3a8a"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>Judge panel</span>
           <span class="mth-bar__pct">{{ judge_pct|default(55) }}%</span>
         </div>
-        <span class="mth-bar__track"><span class="mth-bar__fill" style="width:{{ judge_pct|default(55) }}%"></span></span>
+        <span class="mth-bar__track"><span class="mth-bar__fill" data-ag-fill style="width:{{ judge_pct|default(55) }}%"></span></span>
         <p class="mth-bar__desc">An independent panel scores each shortlisted nominee on four
            equally-weighted criteria. Only complete scorecards are counted, and judges do not see the
            vote tally while scoring.</p>
@@ -324,7 +324,7 @@
   </section>
 
   {# ── 02 · ELIGIBILITY ───────────────────────────────────────────────────── #}
-  <section class="mth-sec" id="eligible">
+  <section class="mth-sec" data-ag-reveal id="eligible">
     <span class="mth-sec__n">02</span>
     <h2 class="mth-h2">Who can actually win</h2>
     <p class="mth-lead">Leading the public vote makes a nominee the front-runner. It does not, by
@@ -342,7 +342,7 @@
     </div>
 
     <h3 class="mth-h3">And three exclusions that apply before anything is counted</h3>
-    <div class="mth-grid mth-grid--3">
+    <div class="mth-grid mth-grid--3" data-ag-cascade>
       <div class="mth-cell">
         <h3>Judges recuse themselves</h3>
         <p>A judge with any connection to a nominee steps out of scoring them, and a judge’s own votes in
@@ -368,12 +368,12 @@
   </section>
 
   {# ── 03 · CRITERIA ──────────────────────────────────────────────────────── #}
-  <section class="mth-sec" id="criteria">
+  <section class="mth-sec" data-ag-reveal id="criteria">
     <span class="mth-sec__n">03</span>
     <h2 class="mth-h2">What the judges score</h2>
     <p class="mth-lead">Every judge scores each nominee from 0 to 10 on four dimensions. The four carry
        equal weight — there is no hidden multiplier making one of them decide the card.</p>
-    <div class="mth-grid">
+    <div class="mth-grid" data-ag-cascade>
       {% set crit = {
         'Impact':'The measurable difference made for a community, an industry or the continent. What is different because this person did the work?',
         'Originality':'Inventiveness. Has something genuinely new been introduced, or is this an existing thing done competently?',
@@ -401,7 +401,7 @@
      and normalises the community share over the organic one only — a genuine
      commitment, enforced in code, that a visitor had no way of knowing about. A
      promise nobody can see is not a promise anybody can hold us to. #}
-  <section class="mth-sec" id="money">
+  <section class="mth-sec" data-ag-reveal id="money">
     <span class="mth-sec__n">04</span>
     <h2 class="mth-h2">What a contribution can — and cannot — do</h2>
     <p class="mth-lead">Supporters can contribute to the programme in a nominee’s name, and each
@@ -409,7 +409,7 @@
        the verification work, the platform itself. It is fair to ask what it actually buys, and the honest
        answer is: visibility, never rank.</p>
 
-    <div class="mth-money">
+    <div class="mth-money" data-ag-cascade>
       <div class="mth-money__col mth-money__col--can">
         <h3>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
@@ -451,14 +451,14 @@
   </section>
 
   {# ── 05 · COMMUNITY RETURN ──────────────────────────────────────────────── #}
-  <section class="mth-sec" id="return">
+  <section class="mth-sec" data-ag-reveal id="return">
     <span class="mth-sec__n">05</span>
     <h2 class="mth-h2">The community return</h2>
     <p class="mth-lead">If money is going to be part of this, the people whose communities raised it
        should see some of it back. A nominee keeps a share of what supporters contribute in their name —
        whether or not they win, because they raised it either way.</p>
 
-    <div class="mth-grid mth-grid--3">
+    <div class="mth-grid mth-grid--3" data-ag-cascade>
       <div class="mth-cell">
         <div class="mth-cell__top"><h3>Qualifying support</h3><span class="mth-cell__pct">{{ return_threshold|default(250)|number_format }}</span></div>
         <p>A nominee begins earning once they have gathered
@@ -503,13 +503,13 @@
   </section>
 
   {# ── 06 · HONEST COUNT ──────────────────────────────────────────────────── #}
-  <section class="mth-sec" id="honest">
+  <section class="mth-sec" data-ag-reveal id="honest">
     <span class="mth-sec__n">06</span>
     <h2 class="mth-h2">Keeping the count honest</h2>
     <p class="mth-lead">Every vote needs a one-time code sent to a working email address, and every
        attempt is scored for risk from 0 to 100 <em>before</em> anything is written down.</p>
 
-    <div class="mth-bands" role="img"
+    <div class="mth-bands" data-ag-seal role="img"
          aria-label="Risk bands: below {{ fraud_monitor|default(30) }} auto-approved, {{ fraud_monitor|default(30) }} to {{ fraud_flag|default(60) }} monitored, {{ fraud_flag|default(60) }} to {{ fraud_block|default(80) }} flagged for review, {{ fraud_block|default(80) }} and above blocked.">
       <span class="mth-band mth-band--ok"    style="width:{{ fraud_monitor|default(30) }}%">0–{{ fraud_monitor|default(30) }}</span>
       <span class="mth-band mth-band--watch" style="width:{{ (fraud_flag|default(60)) - (fraud_monitor|default(30)) }}%">{{ fraud_monitor|default(30) }}–{{ fraud_flag|default(60) }}</span>
@@ -551,13 +551,13 @@
   </section>
 
   {# ── 07 · WHEN MONEY GOES WRONG ─────────────────────────────────────────── #}
-  <section class="mth-sec" id="failures">
+  <section class="mth-sec" data-ag-reveal id="failures">
     <span class="mth-sec__n">07</span>
     <h2 class="mth-h2">When a payment goes wrong</h2>
     <p class="mth-lead">A payment passes through a bank and a gateway before it reaches us, and any of
        those steps can fail after a card has been charged. We would rather say so than pretend it never
        happens.</p>
-    <div class="mth-grid mth-grid--3">
+    <div class="mth-grid mth-grid--3" data-ag-cascade>
       <div class="mth-cell">
         <div class="mth-cell__ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
         <h3>The votes are still owed to you</h3>
@@ -592,7 +592,7 @@
   </section>
 
   {# ── 08 · SEALED ────────────────────────────────────────────────────────── #}
-  <section class="mth-sec" id="sealed">
+  <section class="mth-sec" data-ag-reveal id="sealed">
     <span class="mth-sec__n">08</span>
     <h2 class="mth-h2">Sealing the result</h2>
     <p class="mth-lead">A result you have to take on trust is not a result. Every time the standings are
@@ -624,7 +624,7 @@
   </section>
 
   {# ── 09 · CYCLE ─────────────────────────────────────────────────────────── #}
-  <section class="mth-sec" id="cycle">
+  <section class="mth-sec" data-ag-reveal id="cycle">
     <span class="mth-sec__n">09</span>
     <h2 class="mth-h2">The cycle, stage by stage</h2>
     <p class="mth-lead">A programme moves through six stages in one direction. The stage is not a label on
@@ -632,7 +632,7 @@
     <div class="mth-time">
       <div class="mth-time__orb" aria-hidden="true"></div>
       <h3>Six enforced stages</h3>
-      <div class="mth-time__row">
+      <div class="mth-time__row" data-ag-cascade>
         {% set steps = [
           ['1','Nominated','Anyone can enter someone; entries queue for moderation.'],
           ['2','Verified','The team checks eligibility, accuracy and completeness.'],
@@ -660,7 +660,7 @@
   </section>
 
   {# ── 10 · DISPUTES ──────────────────────────────────────────────────────── #}
-  <section class="mth-sec" id="disputes">
+  <section class="mth-sec" data-ag-reveal id="disputes">
     <span class="mth-sec__n">10</span>
     <h2 class="mth-h2">Disputes and your data</h2>
     <p class="mth-lead">If you believe a result was manipulated or a fraud pattern was missed, say so.

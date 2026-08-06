@@ -1,0 +1,136 @@
+/* ============================================================================
+   Africa GATES — page motion
+   ----------------------------------------------------------------------------
+   Consumes tokens.motion.css, which shipped as a single source of truth and then
+   sat INERT — its own header said "no rules reference these tokens yet". This is
+   the layer that uses them.
+
+   ── SIX KINDS, BECAUSE THE CONTENT HAS SIX SHAPES ─────────────────────────
+
+     reveal    a section arriving          quiet fade + rise
+     cascade   a list or grid of peers     the same, sequenced
+     count     a figure being stated       numerals tick to their value
+     fill      a measurement               a bar grows to its width
+     seal      the standings chain         a one-off set piece
+     lift      something you can click     hover feedback
+
+   The point of separating them is that a grid of six cards fading in together
+   reads as a page loading, and the same six arriving 60ms apart reads as a list
+   being laid down. Same opacity change, different sentence.
+
+   ── EVERYTHING STARTS VISIBLE ─────────────────────────────────────────────
+
+   The hidden state is applied by JS (`.ag-motion` on <html>), never by this
+   stylesheet on its own. If the script fails, is blocked, or the browser has no
+   IntersectionObserver, every element stays exactly where it is and the page is
+   simply not animated — rather than a page of invisible content, which is how
+   scroll-reveal libraries take a site down.
+
+   Reduced motion is honoured twice over: the tokens collapse to 0ms, and the
+   block at the bottom disables the transitions outright.
+   ========================================================================= */
+
+/* ── reveal ─────────────────────────────────────────────────────────────── */
+.ag-motion [data-ag-reveal] {
+  opacity: 0;
+  transform: translateY(var(--motion-rise, 16px));
+  transition:
+    opacity   var(--motion-slow, 640ms) var(--ease-out-expo, ease),
+    transform var(--motion-slow, 640ms) var(--ease-out-expo, ease);
+  will-change: opacity, transform;
+}
+.ag-motion [data-ag-reveal].is-in {
+  opacity: 1;
+  transform: none;
+}
+/* A heavier arrival for a section that is a statement rather than a paragraph. */
+.ag-motion [data-ag-reveal="lg"] { transform: translateY(var(--motion-rise-lg, 32px)); }
+
+/* ── cascade ────────────────────────────────────────────────────────────── */
+.ag-motion [data-ag-cascade] > * {
+  opacity: 0;
+  transform: translateY(var(--motion-rise, 16px));
+  transition:
+    opacity   var(--motion-base, 320ms) var(--ease-out-quart, ease),
+    transform var(--motion-base, 320ms) var(--ease-out-quart, ease);
+}
+.ag-motion [data-ag-cascade].is-in > * {
+  opacity: 1;
+  transform: none;
+  /* --i is set per child by the script; the multiplication is the whole effect. */
+  transition-delay: calc(var(--i, 0) * var(--motion-stagger, 60ms));
+}
+.ag-motion [data-ag-cascade="sm"].is-in > * {
+  transition-delay: calc(var(--i, 0) * var(--motion-stagger-sm, 35ms));
+}
+
+/* ── fill ───────────────────────────────────────────────────────────────── */
+/* The bar is laid out at its true width immediately, so nothing reflows; only
+   the scale animates, which is compositor-only and cannot jitter the text
+   beside it. Origin left, because a measurement grows from its axis. */
+.ag-motion [data-ag-fill] {
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--motion-slow, 640ms) var(--ease-out-expo, ease);
+}
+.ag-motion [data-ag-fill].is-in { transform: scaleX(1); }
+
+/* ── count ──────────────────────────────────────────────────────────────── */
+/* Digits are tabular while ticking so the element does not change width on
+   every frame and shove its neighbours around. */
+[data-ag-count] { font-variant-numeric: tabular-nums; }
+
+/* ── seal ───────────────────────────────────────────────────────────────── */
+/* The standings chain on /integrity. Blocks settle in sequence and the links
+   draw between them — the one place on the site where motion is carrying an
+   idea rather than easing an arrival. */
+.ag-motion [data-ag-seal] .mth-band { transform-origin: left center; }
+.ag-motion [data-ag-seal] > * {
+  opacity: 0;
+  transform: scale(.94);
+  transition:
+    opacity   var(--motion-base, 320ms) var(--ease-out-quart, ease),
+    transform var(--motion-base, 320ms) var(--ease-spring, ease);
+}
+.ag-motion [data-ag-seal].is-in > * {
+  opacity: 1;
+  transform: none;
+  transition-delay: calc(var(--i, 0) * 90ms);
+}
+
+/* ── lift ───────────────────────────────────────────────────────────────── */
+/* Hover only, and only where something is genuinely clickable. Kept in CSS
+   rather than JS because it must respond on the first frame of the pointer
+   entering, not after a listener has decided. */
+.mth-more__a,
+.mth-cell,
+.mth-index a {
+  transition:
+    transform    var(--motion-fast, 160ms) var(--ease-out-quart, ease),
+    border-color var(--motion-fast, 160ms) linear,
+    box-shadow   var(--motion-fast, 160ms) linear;
+}
+.mth-more__a:hover { transform: translateY(-2px); box-shadow: 0 10px 22px -14px rgba(16,41,44,.5); }
+.mth-cell:hover    { transform: translateY(-1px); }
+.mth-index a:hover { transform: translateY(-1px); }
+
+/* Focus is never animated away: a keyboard user needs the ring immediately. */
+.mth-more__a:focus-visible,
+.mth-index a:focus-visible {
+  outline: 2px solid var(--ag-green, #237b22);
+  outline-offset: 3px;
+  transform: none;
+}
+
+/* ── the escape hatch ───────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .ag-motion [data-ag-reveal],
+  .ag-motion [data-ag-cascade] > *,
+  .ag-motion [data-ag-seal] > * {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+  .ag-motion [data-ag-fill] { transform: scaleX(1) !important; transition: none !important; }
+  .mth-more__a:hover, .mth-cell:hover, .mth-index a:hover { transform: none; }
+}

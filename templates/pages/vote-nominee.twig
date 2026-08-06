@@ -351,7 +351,7 @@
          reader, one consent rule — just more of it. Nobody appears here who did
          not tick the box. #}
       {% if award_kind|default('') %}
-      <section class="vn-card vn-laurel">
+      <section class="vn-card vn-laurel" data-ag-reveal="lg">
         <div class="vn-laurel__glow" aria-hidden="true"></div>
         <div class="vn-laurel__head">
           <span class="vn-laurel__badge">
@@ -360,7 +360,7 @@
           </span>
           <h2>{{ award_kind == 'winner' ? n.name ~ ' won.' : n.name ~ ' placed.' }}</h2>
           {% if backer_count|default(0) > 0 %}
-            <p class="vn-laurel__lede">And <strong>{{ backer_count|number_format }}</strong>
+            <p class="vn-laurel__lede">And <strong data-ag-count>{{ backer_count|number_format }}</strong>
                {{ backer_count == 1 ? 'person' : 'people' }} put {{ firstName }} there. The community half of
                the score is the part they decided — that is not a footnote to the result, it <em>is</em> the
                result.</p>
@@ -374,7 +374,7 @@
           <div class="vn-laurel__roll">
             <h3>Roll of honour</h3>
             <p>The supporters who asked to be named. Everyone else counted exactly the same and stays private.</p>
-            <div class="vn-laurel__names">
+            <div class="vn-laurel__names" data-ag-cascade="sm">
               {% for s in roll_of_honour %}
                 <span class="vn-laurel__name">{{ s.name }}</span>
               {% endfor %}
@@ -395,7 +395,7 @@
       <section class="vn-card">
         <h2>Supporters of {{ firstName }}</h2>
         <p style="margin:8px 0 0;font-size:13px;color:#5a6d6f;line-height:1.6">These supporters chose to be named. Votes from everyone else count exactly the same and stay private — we publish a name only when its owner ticks the box.</p>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px" data-ag-cascade="sm">
           {% for s in supporters %}
           <span style="display:inline-flex;align-items:center;gap:7px;background:#f4f9f4;border:1px solid #cfe6cf;border-radius:999px;padding:6px 13px 6px 7px;font-size:13px;color:#10292c">
             <span aria-hidden="true" style="width:24px;height:24px;border-radius:50%;background:#237b22;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">{{ s.name|slice(0,1)|upper }}</span>
