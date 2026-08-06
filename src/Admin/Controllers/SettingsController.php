@@ -221,6 +221,31 @@ class SettingsController
                 \AfricaGates\Services\PaidVoteService::HARD_MAX_QTY,
                 (int) ($b['vote_max_qty'] ?? \AfricaGates\Services\PaidVoteService::DEFAULT_MAX_QTY)
             )), $adminId);
+
+            // ── THE TWO TIMING WINDOWS, NOW REACHABLE WITHOUT A SHELL ────────
+            //
+            // Both already existed and both were read from settings; neither had a
+            // field, so in practice they were constants nobody could change.
+            //
+            // The grace window is the one that matters, and it is not cosmetic. It
+            // decides whether an order confirmed AFTER a cycle closed can still be
+            // delivered — which is exactly the question a backlog recovery runs
+            // into. At the 6-hour default, a stranded payment from a cycle that
+            // closed yesterday refuses with CONFIRMED_TOO_LATE and there is no way,
+            // short of a database client, for the operator to say "these were paid
+            // on time, deliver them".
+            //
+            // Clamped to the same ceilings the service applies (168 hours, 240
+            // minutes), because a settings row is not a trusted input just because
+            // an admin typed it.
+            if (array_key_exists('paid_vote_grace_hours', $b)) {
+                $this->settings->set('paid_vote_grace_hours',
+                    (string) max(0, min(168, (int) $b['paid_vote_grace_hours'])), $adminId);
+            }
+            if (array_key_exists('paid_vote_cutoff_minutes', $b)) {
+                $this->settings->set('paid_vote_cutoff_minutes',
+                    (string) max(0, min(240, (int) $b['paid_vote_cutoff_minutes'])), $adminId);
+            }
         }
 
         // AI providers — keys live in gates_settings and are WRITE-ONLY: they

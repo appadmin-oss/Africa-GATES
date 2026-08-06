@@ -223,6 +223,24 @@
         <div><label for="f-vote_max_qty">Maximum votes per order</label><input type="number" name="vote_max_qty" id="f-vote_max_qty" min="1" step="1" value="{{ values.vote_max_qty|default('1000') }}"></div>
       </div>
 
+      {# ── The two timing windows ────────────────────────────────────────────
+         Both were already read from settings and neither had a field, so in
+         practice they were constants nobody without a database client could
+         change. The grace window is the one that matters during an incident:
+         it decides whether a payment confirmed AFTER a cycle closed can still
+         be delivered, which is precisely the question a backlog recovery hits. #}
+      <div class="row">
+        <div>
+          <label for="f-paid_vote_cutoff_minutes">Card checkout closes early by (minutes)</label>
+          <input type="number" name="paid_vote_cutoff_minutes" id="f-paid_vote_cutoff_minutes" min="0" max="240" step="1" value="{{ values.paid_vote_cutoff_minutes|default('10') }}">
+        </div>
+        <div>
+          <label for="f-paid_vote_grace_hours">Deliver late confirmations for (hours after close)</label>
+          <input type="number" name="paid_vote_grace_hours" id="f-paid_vote_grace_hours" min="0" max="168" step="1" value="{{ values.paid_vote_grace_hours|default('6') }}">
+        </div>
+      </div>
+      <p style="margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)"><strong>The grace window decides whether a stranded payment can still be recovered.</strong> A supporter who paid while voting was open, but whose confirmation reached us after it closed, is delivered only if we are still inside this window — otherwise minting refuses with <code>CONFIRMED_TOO_LATE</code> and the order becomes a refund instead. Raise it before running a backlog recovery in <a href="/admin/payments" style="color:var(--ad-accent,#237b22)">Payments</a> for a cycle that has already closed; the ceiling is 168 hours (7 days). It never lets a payment <em>started</em> after voting closed through — that is a separate check.</p>
+
       {# ── ONE LADDER, THREE THINGS THAT USED TO DISAGREE ────────────────────
 
          "Discounts in percentages", "let me edit the vote chips" and "make the
