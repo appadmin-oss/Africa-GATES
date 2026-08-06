@@ -278,15 +278,35 @@ final class PaymentTriage
      * Our own database is precisely the thing that cannot answer this: it says
      * pending BECAUSE we never found out.
      *
+     * ── UNDERPAYMENT IS ITS OWN ANSWER, NOT A YES ────────────────────────────
+     *
+     * This asked only whether the gateway said "success" and treated that as
+     * charged. {@see gatewayAgrees()}, which guards the OTHER route to the same
+     * outcome, additionally refuses an amount below what the order asked for — and
+     * its docblock explains exactly why: minting votes for money that was never
+     * taken silently inflates a result instead of failing loudly.
+     *
+     * Both routes end in `mint()`, and mint issues `bonus_votes` off our own row
+     * without ever looking at what was actually paid. So a success for a fraction
+     * of the order confirmed here delivered the FULL quantity — the guarded path
+     * refused it and this one waved it through.
+     *
+     * They are now reported separately rather than merged into `charged` or
+     * silently counted `clean`. An underpaid order is a real thing that happened to
+     * a real person and needs a human, not a bucket it disappears into.
+     *
      * @param array<int,object> $stuck
-     * @return array{charged: array<int,array{order:object, provider:string, amount:int}>, clean:int}
+     * @return array{charged: array<int,array{order:object, provider:string, amount:int}>,
+     *               underpaid: array<int,array{order:object, provider:string, amount:int}>,
+     *               clean:int}
      */
     public function askGateway(array $stuck, int $limit = 200): array
     {
         $charged = [];
+        $underpaid = [];
         $clean = 0;
         $enabled = $this->enabledProviders();
-        if (!$enabled) return ['charged' => [], 'clean' => 0];
+        if (!$enabled) return ['charged' => [], 'underpaid' => [], 'clean' => 0];
 
         $p = $this->payments ?? new PaymentService();
 
@@ -304,9 +324,12 @@ final class PaymentTriage
                     break;
                 }
             }
-            $hit === null ? $clean++ : $charged[] = $hit;
+
+            if ($hit === null)                                    { $clean++; continue; }
+            if ($hit['amount'] < (int) $o->amount_naira)          { $underpaid[] = $hit; continue; }
+            $charged[] = $hit;
         }
-        return ['charged' => $charged, 'clean' => $clean];
+        return ['charged' => $charged, 'underpaid' => $underpaid, 'clean' => $clean];
     }
 
     /**
@@ -349,21 +372,49 @@ final class PaymentTriage
      * failing that, an order the refund sweep can finally see. The one thing that
      * must not continue is the third state, where it is neither.
      *
+     * ── IT ASKS AGAIN, AT THE MOMENT IT ACTS ─────────────────────────────────
+     *
+     * The verification that produced this list happened in an earlier request and
+     * was carried here through the session. That is right for the DECISION — the
+     * operator should repair the list they actually looked at — but it is the wrong
+     * evidence to confirm money on. Between the two clicks the operator may have
+     * gone for lunch, and in that window a payment can be refunded or reversed at
+     * the gateway.
+     *
+     * So the stash decides WHICH orders, and the gateway decides WHETHER, right
+     * now, one call per order. {@see gatewayAgrees()} is the same check the manual
+     * mint path uses, which also closes the underpayment hole this method had: it
+     * confirmed on "success" alone and mint() then issued the full stored quantity
+     * without ever looking at what was paid.
+     *
+     * A refusal is reported, never swallowed. An order that cannot be confirmed is
+     * a person who is still owed an answer.
+     *
      * @param array<int,array{order:object, provider:string, amount:int}> $charged
-     * @return array{fixed:int, errors:array<int,string>}
+     * @return array{fixed:int, refused:array<int,string>, errors:array<int,string>}
      */
     public function repair(array $charged): array
     {
         $fixed = 0;
+        $refused = [];
         $errors = [];
 
         foreach ($charged as $c) {
             $o = $c['order'];
             try {
+                $agree = $this->gatewayAgrees($o);
+                if (!$agree['ok']) {
+                    $refused[] = (string) $o->payment_ref . ' — ' . $agree['reason'];
+                    continue;
+                }
+
                 $changed = DB::table('gates_donations')->where('id', $o->id)->where('status', 'pending')
                     ->update(OptionalColumn::filter('gates_donations', [
                         'status'       => 'confirmed',
-                        'provider'     => $c['provider'],
+                        // The provider the gateway just answered on, not the one the
+                        // stash remembered — they are the same in every ordinary case
+                        // and this one is the one that was actually checked.
+                        'provider'     => $agree['provider'] ?? $c['provider'],
                         'confirmed_at' => date('Y-m-d H:i:s'),
                     ], ['confirmed_at', 'provider']));
                 if ($changed === 0) continue;   // somebody else got there first
@@ -378,6 +429,6 @@ final class PaymentTriage
                 $errors[] = (string) $o->payment_ref . ': ' . $e->getMessage();
             }
         }
-        return ['fixed' => $fixed, 'errors' => $errors];
+        return ['fixed' => $fixed, 'refused' => $refused, 'errors' => $errors];
     }
 }

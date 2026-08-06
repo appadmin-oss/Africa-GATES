@@ -198,6 +198,28 @@
         {% endif %}
       </div>
 
+      {# ── Charged, but not for what the order asked ────────────────────────
+         Deliberately NOT repairable from here. Minting the full stored quantity
+         against a part-payment inflates a tally, and refunding somebody who did
+         pay something is not a decision to take automatically either. Both ends
+         of that need a person, so the row is shown and nothing else happens. #}
+      {% if verified.underpaid|default([])|length > 0 %}
+        <div class="pt-verdict pt-verdict--refund_owed" style="margin-top:14px">
+          <strong>{{ verified.underpaid|length }} paid LESS than the order asked for.</strong>
+          These are not repaired automatically — crediting the full quantity for a part-payment would
+          put votes on a tally that nobody bought. Decide each one: top-up, partial delivery, or refund.
+        </div>
+        <table class="pt-table">
+          <thead><tr><th>Reference</th><th>Order</th><th>Actually paid</th><th>Buyer</th></tr></thead>
+          <tbody>
+          {% for c in verified.underpaid|slice(0, 40) %}
+            <tr><td>{{ c.ref }}</td><td>₦{{ c.ours|number_format }}</td>
+                <td>₦{{ c.gateway|number_format }}</td><td>{{ c.email }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+
       {% if verified.charged|length > 0 %}
         <table class="pt-table">
           <thead><tr><th>Reference</th><th>Provider</th><th>Ours</th><th>Gateway</th><th>Buyer</th><th>Started</th></tr></thead>

@@ -100,6 +100,16 @@ final class PaymentsTriageController
                 'email'     => (string) ($c['order']->donor_email ?? ''),
                 'created'   => (string) $c['order']->created_at,
             ], $r['charged']),
+            // Charged, but for LESS than the order asked. Shown rather than
+            // repaired: minting the full stored quantity against a part-payment
+            // would inflate a tally, and refunding somebody who did pay something
+            // is not a decision to make automatically either. A person looks.
+            'underpaid' => array_map(static fn ($c) => [
+                'ref'      => (string) $c['order']->payment_ref,
+                'ours'     => (int) $c['order']->amount_naira,
+                'gateway'  => $c['amount'],
+                'email'    => (string) ($c['order']->donor_email ?? ''),
+            ], $r['underpaid']),
         ];
 
         return $res->withHeader('Location', '/admin/payments?days=' . $days)->withStatus(302);
@@ -140,6 +150,11 @@ final class PaymentsTriageController
         $_SESSION['flash_notice'] = $r['fixed'] . ' order(s) confirmed and put back on the normal path. '
             . 'Votes were credited where they still could be; anything that could not mint is now visible to '
             . 'the refund sweep.'
+            // Refusals are reported, never swallowed. An order the gateway would not
+            // stand behind at the moment of repair is a person still owed an answer,
+            // and a silent drop is how they stop being anybody's problem.
+            . ($r['refused'] ? ' Not confirmed (' . count($r['refused']) . '): '
+                             . implode('; ', array_slice($r['refused'], 0, 3)) : '')
             . ($r['errors'] ? ' Problems: ' . implode('; ', array_slice($r['errors'], 0, 3)) : '');
 
         return $res->withHeader('Location', '/admin/payments?days=' . $days)->withStatus(302);
