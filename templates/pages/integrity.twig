@@ -72,6 +72,14 @@
     .mth-time__row{ grid-template-columns:1fr; gap:1rem; }
     .mth-step__line{ display:none; }
   }
+  .mth-money{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; margin:18px 0 12px }
+  .mth-money__col{ border-radius:14px; padding:18px 20px; border:1px solid }
+  .mth-money__col--can{ background:#f2f9f1; border-color:#bfe0bd }
+  .mth-money__col--cannot{ background:#fdf6f6; border-color:#eccaca }
+  .mth-money__col h3{ margin:0 0 10px; font-size:14.5px; color:#10292C }
+  .mth-money__col ul{ margin:0; padding-left:18px }
+  .mth-money__col li{ font-size:13.5px; line-height:1.7; color:#3f4a4c; margin-bottom:8px }
+  .mth-money__note{ font-size:13.5px; line-height:1.75; color:#4a5256; max-width:74ch; margin:0 0 8px }
 </style>
 {% endblock %}
 
@@ -99,21 +107,93 @@
     <div class="mth-bar">
       <div class="mth-bar__top">
         <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>Public votes</span>
-        <span class="mth-bar__pct">45%</span>
+        <span class="mth-bar__pct">{{ community_pct|default(45) }}%</span>
       </div>
-      <span class="mth-bar__track"><span class="mth-bar__fill" style="width:45%"></span></span>
+      <span class="mth-bar__track"><span class="mth-bar__fill" style="width:{{ community_pct|default(45) }}%"></span></span>
       <p class="mth-bar__desc">Community voice — normalised within each category against the category’s highest vote count. Only organic, OTP-verified votes count toward the score; donation bonus votes never move it.</p>
     </div>
     <div class="mth-bar">
       <div class="mth-bar__top">
         <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#f3eef7;color:#5b3a8a"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>Judge panel</span>
-        <span class="mth-bar__pct">55%</span>
+        <span class="mth-bar__pct">{{ judge_pct|default(55) }}%</span>
       </div>
-      <span class="mth-bar__track"><span class="mth-bar__fill" style="width:55%"></span></span>
-      <p class="mth-bar__desc">An independent panel scores each shortlisted nominee on four equally-weighted criteria. Only complete scorecards count, and a nominee needs a minimum number of judges to be winner-eligible.</p>
+      <span class="mth-bar__track"><span class="mth-bar__fill" style="width:{{ judge_pct|default(55) }}%"></span></span>
+      <p class="mth-bar__desc">An independent panel scores each shortlisted nominee on four equally-weighted criteria. Only complete scorecards count, and a nominee needs at least {{ min_judges|default(2) }} of them to be winner-eligible.</p>
     </div>
-    <p class="mth-eq">45% public&nbsp;+&nbsp;55% judges&nbsp;=&nbsp;CPI</p>
-    <div class="mth-why"><strong>Why 45/55?</strong> Popularity alone shouldn’t decide a winner — a well-funded campaign can generate disproportionate vote volume. The slight tilt to the judge panel keeps merit, not marketing, in charge of the decision.</div>
+    <p class="mth-eq">{{ community_pct|default(45) }}% public&nbsp;+&nbsp;{{ judge_pct|default(55) }}% judges&nbsp;=&nbsp;CPI</p>
+    <div class="mth-why"><strong>Why {{ community_pct|default(45) }}/{{ judge_pct|default(55) }}?</strong> Popularity alone shouldn’t decide a winner — a well-funded campaign can generate disproportionate vote volume. The slight tilt to the judge panel keeps merit, not marketing, in charge of the decision.</div>
+  </div>
+
+  {# ── What money can and cannot do ──────────────────────────────────────────
+     Published because the separation was real in the engine and invisible on the
+     site. The platform keeps organic votes and purchased ones in different columns
+     and normalises the community share over the organic one only — a genuine
+     commitment, enforced in code, that a visitor had no way of knowing about. A
+     promise nobody can see is not a promise anybody can hold us to.
+
+     Every number here comes from RuleEngine via the route, so this section cannot
+     go on claiming a rule the platform has stopped following. #}
+  <h2 class="mth-h2">What buying votes can — and cannot — do</h2>
+  <p class="mth-lead">
+    Supporters can buy votes for a nominee, and that money keeps the awards running. It is
+    fair to ask what it actually buys. The honest answer is: visibility, never rank.
+  </p>
+
+  <div class="mth-money">
+    <div class="mth-money__col mth-money__col--can">
+      <h3>What a purchased vote does</h3>
+      <ul>
+        <li>Adds to the nominee’s <strong>public tally</strong> — the number shown on their page and on the leaderboard.</li>
+        <li>Puts the buyer’s name on the nominee’s supporters list, if they chose to be named.</li>
+        <li>Funds the judging panel, the verification work and running the programme.</li>
+      </ul>
+    </div>
+    <div class="mth-money__col mth-money__col--cannot">
+      <h3>What it does not do</h3>
+      <ul>
+        <li>It <strong>does not move the Cultural Power Index</strong>. The {{ community_pct|default(45) }}% community
+            share is normalised over organic, OTP-verified votes only. Purchased votes are held in a
+            separate column the scorer never reads.</li>
+        <li>It <strong>does not break a tie</strong>. When two nominees finish level, the tiebreak is organic
+            votes — one verified supporter outranks any number of purchased ones.</li>
+        <li>It is <strong>capped</strong>: purchased votes on any nominee cannot exceed
+            {{ paid_cap_pct|default(50) }}% of the organic support they have earned, so money can amplify a
+            real following and cannot manufacture one.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="mth-money__note">
+    Put plainly: money can make a nominee <em>look</em> more popular. It cannot make them win.
+    If that ever stops being true, this page is wrong and we want to hear about it —
+    the numbers above are read from the live scoring configuration, not typed in by hand.
+  </p>
+
+  {# ── When we take money and something goes wrong ──────────────────────────── #}
+  <h2 class="mth-h2">If you paid and your votes did not appear</h2>
+  <p class="mth-lead">
+    Payments pass through a bank and a payment gateway before they reach us, and any of those
+    steps can fail after your card has been charged. We would rather say so than pretend it
+    never happens.
+  </p>
+  <div class="mth-grid">
+    <div class="mth-card">
+      <h3>Your votes are still owed to you</h3>
+      <p>If the ballot was open when you paid, the votes are yours even if the confirmation
+         reached us late. We check the time you started the payment, not the moment our
+         system happened to notice it.</p>
+    </div>
+    <div class="mth-card">
+      <h3>If they cannot be delivered, the money goes back</h3>
+      <p>Where votes genuinely cannot be counted — the nominee left the ballot, or the payment
+         confirmed long after voting closed — the order is refunded rather than kept. We do not
+         keep money for votes we did not deliver.</p>
+    </div>
+    <div class="mth-card">
+      <h3>Tell us, with your reference</h3>
+      <p>Every order has a reference beginning <code>AFG-</code>. Send it to us through
+         <a href="/support">support</a> and we can trace the payment all the way to the gateway
+         and tell you exactly what happened to it.</p>
+    </div>
   </div>
 
   {# ── Judge criteria ── #}

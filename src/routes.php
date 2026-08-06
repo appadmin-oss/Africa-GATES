@@ -733,7 +733,33 @@ return function(App $app) {
             ]);
         });
         $g->get('/cookies', fn($req,$res)=>$legalRender($req,$res,'cookies'));
-        $g->get('/integrity',fn($req,$res)=>$tv($req)->render($res,'pages/integrity.twig',['page_title'=>'Awards Integrity & Methodology — Africa GATES','meta_description'=>'How Africa GATES safeguards fair results — the methodology behind community votes, expert judging and the Cultural Power Index that ranks African excellence.','gates_page'=>'integrity','has_hero'=>false,'current_section'=>'projects']));
+        $g->get('/integrity', function ($req, $res) use ($tv) {
+            // ── THE PAGE HAS TO READ THE ENGINE, NOT REMEMBER IT ─────────────
+            //
+            // These numbers were prose. The route passed no data at all, so
+            // "45% public + 55% judges" was a sentence somebody typed, and
+            // RuleEngine lets an operator change the real weights per programme
+            // and per cycle. The two could drift apart with nothing to notice —
+            // and of all the pages on this site, the METHODOLOGY page is the one
+            // that must not describe a system the code is not running.
+            //
+            // Read from the same RuleEngine the scorer uses, so the published
+            // claim cannot become false without the published claim changing.
+            $rules   = new \AfricaGates\Services\RuleEngine();
+            $w       = $rules->weights();
+            $eff     = $rules->effective();
+            return $tv($req)->render($res, 'pages/integrity.twig', [
+                'page_title'       => 'Awards Integrity & Methodology — Africa GATES',
+                'meta_description' => 'How Africa GATES safeguards fair results — the methodology behind community votes, expert judging and the Cultural Power Index that ranks African excellence.',
+                'gates_page'       => 'integrity',
+                'has_hero'         => false,
+                'current_section'  => 'projects',
+                'community_pct'    => (int) round($w['community'] * 100),
+                'judge_pct'        => (int) round($w['judge'] * 100),
+                'paid_cap_pct'     => (int) ($eff['max_paid_weight_pct'] ?? 50),
+                'min_judges'       => (int) ($eff['min_judges_per_nominee'] ?? 2),
+            ]);
+        });
         $g->get('/support', fn($req,$res)=>$tv($req)->render($res,'pages/support.twig',['page_title'=>'Support & Appeals — Africa GATES','meta_description'=>'Get help with Africa GATES — the CPI, voting, nominations and your profile — and appeal any moderation decision through an independent review.','gates_page'=>'support','has_hero'=>false]));
         // /signin was a non-functional mock (fake success, no auth). Retire it —
         // the real, working member sign-in is /account/login.
@@ -1114,6 +1140,17 @@ return function(App $app) {
         // outbound calls and, in apply mode, moves money — a GET would let a prefetch
         // or a refresh confirm payments.
         $a->post('/finance/reconcile',           AdminFinanceController::class.':reconcile');
+
+        // Payment triage — the orders that were CHARGED and never confirmed, which
+        // mint, the refund sweep and the receipt are all structurally blind to
+        // because every one of them starts at status='confirmed'. Exists as a page
+        // and not only as `bin/console payments:triage` because this platform's
+        // operator has no shell, which made the command unrunnable by the one
+        // person who needs it. GET looks; POST asks the gateway; a second POST
+        // repairs, and only after the operator has seen what they are repairing.
+        $a->get('/payments',                     \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':index');
+        $a->post('/payments/verify',             \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':verify');
+        $a->post('/payments/repair',             \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':repair');
 
 
         // Member account actions (manual points adjustment — audited, admin+ gated in-controller).

@@ -367,6 +367,12 @@ return [
     ),
     // The support queue. Gets the ticket service so a staff reply travels the
     // same path as an automated one — mailed, and recorded on the member's thread.
+    // Payment triage. Gets the audit service so a repair — which confirms orders and
+    // moves money — is recorded against the admin who pressed the button.
+    \AfricaGates\Admin\Controllers\PaymentsTriageController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\PaymentsTriageController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Admin\Services\AuditService::class)
+    ),
     \AfricaGates\Admin\Controllers\SupportController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\SupportController(
         $c->get(Twig::class),
         new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
