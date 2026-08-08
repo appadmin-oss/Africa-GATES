@@ -90,7 +90,7 @@ final class CommunityReturnService
      * still resolves to something sane on a database that is mid-migration rather
      * than throwing on a nominee page.
      */
-    public const FALLBACK_RATE_BPS       = 3000;   // 30%
+    public const FALLBACK_RATE_BPS       = 5000;   // 50% — keep in step with RuleEngine::DEFAULTS
     public const FALLBACK_VOTE_THRESHOLD = 250;
     public const FALLBACK_CAP_PCT        = 10;
 
@@ -98,7 +98,7 @@ final class CommunityReturnService
     // Configuration — all of it read, none of it decided here
     // ─────────────────────────────────────────────────────────────────────────
 
-    /** The share, in basis points (3000 = 30%), for this nominee's cycle. */
+    /** The share, in basis points (5000 = 50%), for this nominee's cycle. */
     public static function rateBps(int $nomineeId): int
     {
         $r = self::rulesFor($nomineeId);

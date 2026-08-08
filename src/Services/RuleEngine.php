@@ -29,9 +29,15 @@ class RuleEngine
         // ── Community return ─────────────────────────────────────────────────
         //
         // A nominee's share of what supporters contributed in their name, in basis
-        // points (3000 = 30%). Editable per cycle from Settings → Community return;
+        // points (5000 = 50%). Editable per cycle from Settings → Community return;
         // this is only what applies when nobody has set one.
-        'community_return_bps' => 3000,
+        //
+        // NOTE FOR ANYONE CHANGING THIS: an override row in gates_rule_sets BEATS
+        // this value. On an installation where somebody has already saved the
+        // Community return card, editing the constant changes nothing — the card
+        // has to be saved again. `/integrity` publishes whichever one is in force,
+        // so the page is the way to check which happened.
+        'community_return_bps' => 5000,
 
         // Qualification: how much QUALIFYING SUPPORT, counted in votes, a nominee
         // must gather before they begin earning.

@@ -119,7 +119,7 @@
   },
   {
     q: 'What is the Africa GATES community return?',
-    a: 'A nominee keeps ' ~ return_pct|default('30') ~ '% of what supporters contribute in their name, win or lose, once they have gathered ' ~ return_threshold|default(250) ~ ' votes of qualifying support. No single supporter can supply more than ' ~ return_cap_pct|default(10) ~ '% of that threshold, so qualifying takes at least ' ~ return_people|default(10) ~ ' different verified people.'
+    a: 'A nominee keeps ' ~ return_pct|default('50') ~ '% of what supporters contribute in their name, win or lose, once they have gathered ' ~ return_threshold|default(250) ~ ' votes of qualifying support. No single supporter can supply more than ' ~ return_cap_pct|default(10) ~ '% of that threshold, so qualifying takes at least ' ~ return_people|default(10) ~ ' different verified people.'
   },
   {
     q: 'Is Africa GATES a pyramid or Ponzi scheme?',
@@ -835,8 +835,8 @@ window.agIntegrityDoc = function () {
               </tr>
               <tr>
                 <th scope="row">The share</th>
-                <td class="ar-num">{{ return_pct|default('30') }}%</td>
-                <td>From that point on, {{ return_pct|default('30') }}% of each further contribution is
+                <td class="ar-num">{{ return_pct|default('50') }}%</td>
+                <td>From that point on, {{ return_pct|default('50') }}% of each further contribution is
                     set aside for the nominee. Crossing the line does not reach backwards — earlier
                     contributions stay unshared, so nobody is rewarded retroactively by a threshold
                     moving.</td>

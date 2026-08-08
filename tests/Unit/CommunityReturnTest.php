@@ -106,18 +106,32 @@ class CommunityReturnTest extends TestCase
     }
 
     /**
-     * The rate is ADMIN-DEFINED, and its unset value is 30% rather than nothing.
+     * The rate is ADMIN-DEFINED, and its unset value is 50% rather than nothing.
      *
      * An earlier version defaulted to zero on the reasoning that revenue-sharing
      * should be a deliberate decision. It was the wrong call in practice: the rule
      * shipped switched off, every public page correctly published "0%", and the
      * programme was quietly promising a share it was not accruing. A default nobody
      * notices is worse than one somebody has to change.
+     *
+     * The default was 30% until 2026-08-08, when the published philosophy set the
+     * community return at 50% and the two had to agree.
+     *
+     * TWO CONSTANTS, ONE POLICY. `RuleEngine::DEFAULTS` is the policy;
+     * `CommunityReturnService::FALLBACK_RATE_BPS` is what resolves on a database
+     * that is mid-migration. They are separate values in separate files and nothing
+     * but this assertion stops them drifting — at which point a nominee page and the
+     * accrual would quote different shares of the same money.
      */
-    public function test_the_default_share_is_thirty_percent_and_comes_from_the_rules(): void
+    public function test_the_default_share_is_fifty_percent_and_comes_from_the_rules(): void
     {
-        $this->assertSame(3000, RuleEngine::DEFAULTS['community_return_bps']);
-        $this->assertSame(3000, Ret::rateBps(1), 'with no override at all');
+        $this->assertSame(5000, RuleEngine::DEFAULTS['community_return_bps']);
+        $this->assertSame(5000, Ret::rateBps(1), 'with no override at all');
+        $this->assertSame(
+            RuleEngine::DEFAULTS['community_return_bps'],
+            Ret::FALLBACK_RATE_BPS,
+            'the mid-migration fallback has drifted from the policy default'
+        );
 
         // 250 votes at a 10% ceiling — the shipped defaults, derived not typed.
         $this->assertSame(250, Ret::voteThreshold(1));
