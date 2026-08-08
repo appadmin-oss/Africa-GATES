@@ -19,6 +19,7 @@ use Illuminate\Database\Capsule\Manager as DB;
 use Symfony\Component\Console\Application;
 use AfricaGates\Services\{PaymentService, OtpService};
 use AfricaGates\Console\Commands\{
+    LegalSeedCommand,
     AdminCreateCommand,
     AssetsBuildCommand,
     CacheClearCommand,
@@ -81,4 +82,5 @@ $app->add(new VotesRecoverCommand());
 $app->add(new VotesRemintCommand());
 $app->add(new SupportGapsCommand());
 $app->add(new VotesProofCommand());
+$app->add(new LegalSeedCommand());
 $app->run();

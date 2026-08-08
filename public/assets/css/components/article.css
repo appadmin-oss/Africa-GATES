@@ -1,48 +1,59 @@
 /* ══════════════════════════════════════════════════════════════════════════════
-   ARTICLE — the shared editorial document layout
+   ARTICLE — the shared document layout
    ══════════════════════════════════════════════════════════════════════════════
 
    Four pages present a document a reader is expected to quote, keep or cite:
    /philosophy, /integrity, /terms and /privacy. They share this sheet.
 
-   IT LIVES IN A FILE, NOT IN FOUR `head_styles` BLOCKS. The first version of this
-   was ~260 lines inline in one template. Copying that into three more would have
-   been four cascades to keep in step, and the failure mode is not a broken page —
-   it is the terms drifting a shade off the philosophy, which reads as two
-   organisations. One sheet, four pages, no drift.
+   IT LIVES IN A FILE, NOT IN FOUR `head_styles` BLOCKS. The first version was
+   ~260 lines inline in one template. Copying that into three more would have been
+   four cascades to keep in step, and the failure mode is not a broken page — it is
+   the terms drifting a shade off the philosophy, which reads as two organisations.
+   One sheet, four pages, no drift.
 
-   It is deliberately absent from AssetBundle::STYLESHEETS. Bundling a sheet into
-   the global payload to save a request on four pages makes every other page
-   heavier; the bundler's docblock says so and this follows it.
+   Deliberately absent from AssetBundle::STYLESHEETS: bundling a sheet into the
+   global payload to save a request on four pages makes every other page heavier.
 
-   ── THE EDITORIAL RULES ─────────────────────────────────────────────────────
+   ── WHY THIS IS THE SECOND SKIN ─────────────────────────────────────────────
 
-   Plainer than the rest of the site, on purpose. Warm paper, one measure of about
-   66 characters, Playfair for headings and DM Sans for body at 1.78 leading, and
-   hairline rules doing all the separating that panels used to do. No cards, no
-   gradients, no shadows — the only boxed things in a document are the ones whose
-   job is to interrupt it. */
+   The first pass was austere editorial — flat warm paper, no surfaces, no shadow,
+   hairlines doing all the work. Structurally right and it read well, but it did
+   not look like Africa GATES. Dropped into a site built on white cards over a
+   soft green-grey ground, with green and gold accents and real depth, it read as
+   an imported document rather than part of the platform — and on the terms and
+   privacy pages, which are exactly where a visitor is deciding whether this
+   operation is real, that is the wrong signal.
+
+   So: the ARTICLE STRUCTURE is unchanged — one measure, contents rail, section
+   numbering, Copy/Download/Cite, citation panel. The SKIN is now the house
+   language: `#eef0ec` ground, white document surface with the site's rounding and
+   shadow, green section markers, denser type. Class names are untouched, so no
+   template changed to get here.
+*/
 
 /* ── TOKENS ─────────────────────────────────────────────────────────────────
-   On BODY, not on .ar. Custom properties inherit downward only, so a --ar-paper
+   On BODY, not on .ar. Custom properties inherit downward only, so a --ar-ground
    declared on .ar is invisible to the body element that has to paint the
-   background — which is exactly how this shipped white the first time. The
-   selector list is explicit rather than clever: a new document page adds its
-   `gates_page` value here. */
+   background — which is exactly how the first version shipped white. The selector
+   list is explicit rather than clever: a new document page adds its `gates_page`
+   value here. */
 body[data-page="integrity"],
 body[data-page="philosophy"],
 body[data-page="legal"]{
-  --ar-paper:#f4f2ea;
-  --ar-ink:#12292b;
-  --ar-soft:#5b6663;          /* ≥4.5:1 on the paper — body-adjacent text */
-  --ar-faint:#7c8683;         /* ≥3:1 — labels and furniture only, never prose */
-  --ar-line:rgba(18,41,43,.14);
-  --ar-line-soft:rgba(18,41,43,.08);
-  --ar-accent:#237b22;
-  --ar-accent-dark:#1a6118;
+  --ar-ground:#eef0ec;          /* the site's own document ground */
+  --ar-surface:#ffffff;         /* the page sits ON something, as everything here does */
+  --ar-ink:var(--ag-ink,#10292c);
+  --ar-soft:#4f5b58;            /* ≥4.5:1 on white — body-adjacent text */
+  --ar-faint:#6b7773;           /* ≥4.5:1 on white — labels and furniture */
+  --ar-line:rgba(16,41,44,.10);
+  --ar-line-soft:rgba(16,41,44,.06);
+  --ar-accent:var(--ag-green,#237b22);
+  --ar-accent-dark:var(--ag-green-dark,#1a6118);
+  --ar-wash:rgba(127,200,124,.14);
   --ar-gold:#9a7726;
-  --ar-measure:42rem;         /* ≈66 characters at the body size */
-  background:var(--ar-paper);
+  --ar-shadow:0 1px 2px rgba(16,41,44,.04), 0 8px 24px -14px rgba(16,41,44,.16);
+  --ar-measure:44rem;
+  background:var(--ar-ground);
   color:var(--ar-ink);
 }
 
@@ -50,242 +61,295 @@ body[data-page="legal"]{
    One column of prose, with the contents parked in the margin from 1180px up.
    Below that the rail becomes an inline block at the top, because a sticky
    sidebar on a narrow screen is a sticky obstruction. */
-.ar-shell{ max-width:74rem; margin:0 auto; padding:clamp(2rem,5vw,3.4rem) var(--ag-gutter,32px) clamp(4rem,8vw,6rem); }
+.ar-shell{ max-width:76rem; margin:0 auto; padding:clamp(1.6rem,4vw,2.6rem) var(--ag-gutter,32px) clamp(3.5rem,7vw,5rem); }
 @media (min-width:1180px){
-  .ar-shell{ display:grid; grid-template-columns:minmax(0,1fr) 15rem; gap:4rem; align-items:start; }
-  .ar-rail{ position:sticky; top:calc(var(--ag-nav-h,72px) + 1.5rem); order:2; }
+  .ar-shell{ display:grid; grid-template-columns:minmax(0,1fr) 15.5rem; gap:3rem; align-items:start; }
+  .ar-rail{ position:sticky; top:calc(var(--ag-nav-h,72px) + 1.25rem); order:2; }
   .ar-body{ order:1; }
 }
-.ar-body{ max-width:var(--ar-measure); }
 
-/* ── TYPE ───────────────────────────────────────────────────────────────── */
-.ar-body p, .ar-body li{ font-family:var(--ag-font-body); font-size:17.5px; line-height:1.78; color:var(--ar-ink); }
-.ar-body p{ margin:0 0 1.35em; }
-.ar-body a{ color:var(--ar-accent-dark); text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:.16em; }
-.ar-body a:hover{ text-decoration-thickness:2px; }
-.ar-body code{ font-family:var(--ag-font-mono); font-size:.9em; background:rgba(18,41,43,.06); padding:.12em .38em; border-radius:4px; }
+/* THE DOCUMENT IS A SURFACE. This is the single biggest change from the first
+   pass: the prose sits on white with the site's rounding and shadow, the way
+   every other panel on this platform does. */
+.ar-body{
+  max-width:none;
+  background:var(--ar-surface);
+  border:1px solid var(--ar-line);
+  border-radius:var(--ag-r-lg,22px);
+  box-shadow:var(--ar-shadow);
+  padding:clamp(1.5rem,4vw,3rem) clamp(1.35rem,4vw,3.25rem) clamp(2.5rem,5vw,3.5rem);
+}
+/* The measure is enforced on the CONTENT rather than on the card, so the card can
+   be generous while the prose stays readable. */
+.ar-body > *{ max-width:var(--ar-measure); }
+.ar-body > .ar-head, .ar-body > .ar-cite, .ar-body > .ar-part-head{ max-width:var(--ar-measure); }
+
+/* ── TYPE ───────────────────────────────────────────────────────────────────
+   Denser than the first pass: 16.5/1.72 rather than 17.5/1.78. These are long
+   documents and the extra air was making them feel longer than they are. */
+.ar-body p, .ar-body li{ font-family:var(--ag-font-body); font-size:16.5px; line-height:1.72; color:var(--ar-ink); }
+.ar-body p{ margin:0 0 1.15em; }
+.ar-body a{ color:var(--ar-accent-dark); font-weight:500; text-decoration:underline;
+            text-decoration-color:rgba(35,123,34,.35); text-decoration-thickness:1px; text-underline-offset:.16em; }
+.ar-body a:hover{ text-decoration-color:currentColor; text-decoration-thickness:2px; }
+.ar-body code{ font-family:var(--ag-font-mono); font-size:.88em; background:var(--ar-wash);
+               color:var(--ar-accent-dark); padding:.12em .4em; border-radius:5px; }
 
 /* ── MASTHEAD ───────────────────────────────────────────────────────────── */
-.ar-eyebrow{ margin:0 0 1.1rem; font:600 11px/1 var(--ag-font-mono); letter-spacing:.18em; text-transform:uppercase; color:var(--ar-accent); }
-.ar-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2.15rem,5.2vw,3.35rem); line-height:1.07; letter-spacing:-.022em; color:var(--ar-ink); }
-.ar-sub{ margin:.85rem 0 0; font-family:var(--ag-font-display); font-style:italic; font-weight:400; font-size:clamp(1.15rem,2.6vw,1.42rem); line-height:1.4; color:var(--ar-soft); }
-.ar-stand{ margin:1.7rem 0 0; font-size:19px !important; line-height:1.72 !important; color:var(--ar-soft) !important; }
+.ar-eyebrow{ display:inline-flex; align-items:center; margin:0 0 .9rem; padding:.34rem .7rem;
+             background:var(--ar-wash); border-radius:var(--ag-r-pill,999px);
+             font:700 10.5px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase;
+             color:var(--ar-accent-dark); }
+.ar-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.95rem,4.4vw,2.85rem);
+        line-height:1.1; letter-spacing:-.022em; color:var(--ar-ink); }
+.ar-sub{ margin:.7rem 0 0; font-family:var(--ag-font-display); font-style:italic; font-weight:400;
+         font-size:clamp(1.08rem,2.3vw,1.3rem); line-height:1.4; color:var(--ar-soft); }
+.ar-stand{ margin:1.3rem 0 0; font-size:17.5px !important; line-height:1.68 !important; color:var(--ar-soft) !important; }
 
-/* The byline row — a colophon, not a headline. Wraps on a phone without
-   becoming a list. */
-.ar-meta{ margin:2rem 0 0; padding:.9rem 0; border-top:1px solid var(--ar-line); border-bottom:1px solid var(--ar-line);
-          display:flex; flex-wrap:wrap; gap:.4rem 1.4rem; font:500 12px/1.5 var(--ag-font-mono); color:var(--ar-faint); }
-.ar-meta b{ color:var(--ar-soft); font-weight:600; }
+/* The colophon. A tinted strip rather than two bare hairlines — it reads as a
+   block of metadata instead of a stray line of small text. */
+.ar-meta{ margin:1.5rem 0 0; padding:.75rem 1rem; background:var(--ag-surface-2,#f6f7f6);
+          border:1px solid var(--ar-line-soft); border-radius:var(--ag-r-md,14px);
+          display:flex; flex-wrap:wrap; gap:.35rem 1.25rem;
+          font:500 12px/1.5 var(--ag-font-mono); color:var(--ar-faint); }
+.ar-meta b{ color:var(--ar-ink); font-weight:600; }
 .ar-meta dfn{ font-style:normal; }
 
 /* ── TOOLBAR ────────────────────────────────────────────────────────────────
-   Copy, Download, Cite. Hairline and quiet: these are utilities on a document,
-   not calls to action, and styling them as buttons would make them compete with
-   the words. */
-.ar-tools{ margin:1.5rem 0 0; display:flex; flex-wrap:wrap; gap:.55rem; position:relative; }
-.ar-tool{ display:inline-flex; align-items:center; gap:.5rem; cursor:pointer; background:transparent;
-          border:1px solid var(--ar-line); border-radius:999px; padding:.5rem .95rem;
-          font:600 12.5px/1 var(--ag-font-body); color:var(--ar-ink); text-decoration:none;
-          transition:border-color .15s, background-color .15s; }
-.ar-tool:hover{ border-color:var(--ar-accent); background:rgba(35,123,34,.05); text-decoration:none; }
-.ar-tool[aria-expanded="true"]{ border-color:var(--ar-accent); background:rgba(35,123,34,.06); }
-.ar-tool.is-done{ border-color:var(--ar-accent); color:var(--ar-accent-dark); background:rgba(35,123,34,.08); }
+   The first pass made all three hairline-quiet. Copy is the one people actually
+   want, so it now reads as the primary action and the other two support it. */
+.ar-tools{ margin:1.25rem 0 0; display:flex; flex-wrap:wrap; gap:.5rem; position:relative; }
+.ar-tool{ display:inline-flex; align-items:center; gap:.45rem; cursor:pointer;
+          background:var(--ar-surface); border:1px solid var(--ar-line); border-radius:var(--ag-r-pill,999px);
+          padding:.52rem 1rem; font:600 12.5px/1 var(--ag-font-body); color:var(--ar-ink);
+          text-decoration:none !important; transition:border-color .15s, background-color .15s, transform .15s; }
+.ar-tool:hover{ border-color:var(--ar-accent); background:var(--ar-wash); transform:translateY(-1px); }
+.ar-tool[aria-expanded="true"]{ border-color:var(--ar-accent); background:var(--ar-wash); }
+.ar-tool.is-done{ border-color:var(--ar-accent); background:var(--ar-accent); color:#fff; }
 .ar-tool svg{ flex:none; }
+/* The first button in a toolbar is the primary one. */
+.ar-tools > button:first-child{ background:var(--ar-accent); border-color:var(--ar-accent); color:#fff; }
+.ar-tools > button:first-child:hover{ background:var(--ar-accent-dark); border-color:var(--ar-accent-dark); }
 
-/* The download menu — a popover rather than two more buttons, because .md and
-   .txt are one decision with two answers. */
-.ar-pop{ position:absolute; top:calc(100% + .45rem); left:0; z-index:20; min-width:15rem;
-         background:#fff; border:1px solid var(--ar-line); border-radius:12px; padding:.35rem;
-         box-shadow:0 12px 32px -12px rgba(18,41,43,.28); }
-.ar-pop a{ display:block; padding:.6rem .7rem; border-radius:8px; text-decoration:none; color:var(--ar-ink); }
-.ar-pop a:hover{ background:rgba(18,41,43,.05); text-decoration:none; }
+.ar-pop{ position:absolute; top:calc(100% + .45rem); left:0; z-index:20; min-width:15.5rem;
+         background:var(--ar-surface); border:1px solid var(--ar-line); border-radius:var(--ag-r-md,14px); padding:.35rem;
+         box-shadow:0 14px 36px -12px rgba(16,41,44,.3); }
+.ar-pop a{ display:block; padding:.6rem .7rem; border-radius:9px; text-decoration:none !important; color:var(--ar-ink); }
+.ar-pop a:hover{ background:var(--ar-wash); }
 .ar-pop b{ display:block; font:600 13.5px/1.3 var(--ag-font-body); }
 .ar-pop span{ display:block; margin-top:2px; font-size:12px; line-height:1.45; color:var(--ar-faint); }
 
-/* Announced to screen readers, shown to everybody. One line, no layout shift. */
-.ar-say{ margin:.7rem 0 0; min-height:1.1rem; font:500 12.5px/1.1 var(--ag-font-mono); color:var(--ar-accent-dark); }
+.ar-say{ margin:.65rem 0 0; min-height:1.1rem; font:600 12.5px/1.1 var(--ag-font-body); color:var(--ar-accent-dark); }
 
-/* ── CONTENTS ───────────────────────────────────────────────────────────── */
-.ar-rail h2, .ar-toc h2{ margin:0 0 .8rem; font:600 11px/1 var(--ag-font-mono); letter-spacing:.16em; text-transform:uppercase; color:var(--ar-faint); }
+/* ── CONTENTS ───────────────────────────────────────────────────────────────
+   A card, like every other sidebar on this platform. */
+.ar-rail, .ar-toc{ background:var(--ar-surface); border:1px solid var(--ar-line);
+                   border-radius:var(--ag-r-lg,18px); padding:1.1rem 1.2rem; box-shadow:var(--ar-shadow); }
+.ar-rail h2, .ar-toc h2{ margin:0 0 .7rem; font:700 10.5px/1 var(--ag-font-mono); letter-spacing:.14em;
+                         text-transform:uppercase; color:var(--ar-faint); }
 .ar-rail ol, .ar-toc ol{ list-style:none; margin:0; padding:0; counter-reset:ar; }
 .ar-rail ol > li, .ar-toc ol > li{ counter-increment:ar; }
 /* Scoped to the contents LIST, not to every link in the rail. The legal pages put
    an "Also filed here" <ul> in the same rail, and an unscoped rule numbered those
    sibling policies 01/02/03 as though they were sections of this document. */
-.ar-rail ol a, .ar-toc ol a{ display:flex; gap:.6rem; padding:.32rem 0; font-size:13.5px !important; line-height:1.45 !important;
-                             color:var(--ar-soft) !important; text-decoration:none; }
-.ar-rail ol a::before, .ar-toc ol a::before{ content:counter(ar,decimal-leading-zero); flex:none; font:600 10.5px/1.7 var(--ag-font-mono); color:var(--ar-faint); }
-.ar-rail ol a:hover, .ar-toc ol a:hover{ color:var(--ar-accent-dark) !important; text-decoration:none; }
-.ar-rail .ar-part, .ar-toc .ar-part{ margin:1rem 0 .35rem; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ar-accent); }
+.ar-rail ol a, .ar-toc ol a{ display:flex; gap:.55rem; padding:.34rem .4rem; margin:0 -.4rem; border-radius:7px;
+                             font-size:13px !important; line-height:1.42 !important; font-weight:500 !important;
+                             color:var(--ar-soft) !important; text-decoration:none !important; }
+.ar-rail ol a::before, .ar-toc ol a::before{ content:counter(ar,decimal-leading-zero); flex:none;
+                                             font:700 10px/1.7 var(--ag-font-mono); color:var(--ar-accent); }
+.ar-rail ol a:hover, .ar-toc ol a:hover{ background:var(--ar-wash); color:var(--ar-accent-dark) !important; }
+.ar-rail .ar-part, .ar-toc .ar-part{ margin:.9rem 0 .3rem; font:700 10px/1 var(--ag-font-mono);
+                                     letter-spacing:.12em; text-transform:uppercase; color:var(--ar-accent); }
 .ar-rail .ar-part:first-child, .ar-toc .ar-part:first-child{ margin-top:0; }
-/* The part labels and the reference entry are <li> because they live inside the
-   <ol> — but they are not sections, so they must not consume a number. Without
-   this the contents counted them and every entry was off by one per part: the
-   body said "13 The score" while the contents said 15. */
 .ar-rail li.ar-part, .ar-toc li.ar-part,
 .ar-rail li.ar-ref,  .ar-toc li.ar-ref{ counter-increment:none; }
 .ar-rail li.ar-ref a::before, .ar-toc li.ar-ref a::before{ content:"§"; }
-/* The rail's non-contents lists keep the quiet reference styling and no numbers. */
 .ar-rail .ar-refs ul a::before{ content:none; }
-/* Inline contents, for the narrow layout only. */
-.ar-toc{ margin:2.6rem 0 0; padding:1.2rem 1.3rem; border:1px solid var(--ar-line); border-radius:14px; }
+.ar-toc{ margin:1.6rem 0 0; }
 .ar-rail{ display:none; }
 @media (min-width:1180px){ .ar-toc{ display:none; } .ar-rail{ display:block; } }
 
 /* ── PART DIVIDER ───────────────────────────────────────────────────────── */
-.ar-part-head{ margin:clamp(3.4rem,7vw,5rem) 0 0; padding-top:1.6rem; border-top:2px solid var(--ar-ink); }
-.ar-part-head .ar-pn{ display:block; font:600 11px/1 var(--ag-font-mono); letter-spacing:.18em; text-transform:uppercase; color:var(--ar-accent); margin-bottom:.7rem; }
-.ar-part-head h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.7rem,3.6vw,2.2rem); line-height:1.15; letter-spacing:-.018em; }
-.ar-part-head p{ margin:.75rem 0 0; color:var(--ar-soft) !important; }
+.ar-part-head{ margin:clamp(2.6rem,5vw,3.6rem) 0 0; padding:1.3rem 1.4rem;
+               background:var(--ag-surface-2,#f6f7f6); border:1px solid var(--ar-line-soft);
+               border-left:3px solid var(--ar-accent); border-radius:var(--ag-r-md,14px); }
+.ar-part-head .ar-pn{ display:block; font:700 10.5px/1 var(--ag-font-mono); letter-spacing:.15em;
+                      text-transform:uppercase; color:var(--ar-accent); margin-bottom:.5rem; }
+.ar-part-head h2{ margin:0; font-family:var(--ag-font-display); font-weight:700;
+                  font-size:clamp(1.45rem,3vw,1.85rem); line-height:1.18; letter-spacing:-.018em; }
+.ar-part-head p{ margin:.55rem 0 0; color:var(--ar-soft) !important; font-size:15.5px !important; }
 
-/* ── SECTIONS ───────────────────────────────────────────────────────────── */
-.ar-sec{ scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.5rem); margin-top:clamp(2.6rem,5.5vw,3.6rem); }
-.ar-sec > h3{ margin:0 0 1.1rem; font-family:var(--ag-font-display); font-weight:700;
-              font-size:clamp(1.42rem,3vw,1.78rem); line-height:1.22; letter-spacing:-.016em; color:var(--ar-ink); }
-.ar-sn{ display:block; margin-bottom:.5rem; font:600 11px/1 var(--ag-font-mono); letter-spacing:.16em; color:var(--ar-accent); }
-.ar-h4{ margin:2rem 0 .7rem; font-family:var(--ag-font-body); font-weight:700; font-size:1.02rem; line-height:1.4;
-        letter-spacing:.01em; color:var(--ar-ink); }
+/* ── SECTIONS ───────────────────────────────────────────────────────────────
+   The number is a green chip rather than a bare mono string. It gives each
+   section a visible anchor point in a long scroll, which is what the flat
+   version was missing. */
+.ar-sec{ scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.25rem); margin-top:clamp(2.2rem,4.5vw,3rem); }
+.ar-sec > h3{ margin:0 0 .9rem; font-family:var(--ag-font-display); font-weight:700;
+              font-size:clamp(1.3rem,2.7vw,1.6rem); line-height:1.24; letter-spacing:-.014em; color:var(--ar-ink); }
+.ar-sn{ display:inline-flex; align-items:center; justify-content:center; min-width:1.65rem; height:1.65rem;
+        margin-bottom:.55rem; padding:0 .45rem; background:var(--ar-wash); border-radius:8px;
+        font:700 11px/1 var(--ag-font-mono); letter-spacing:.06em; color:var(--ar-accent-dark); }
 
-/* ── LISTS ──────────────────────────────────────────────────────────────────
-   Hanging markers, so the text block keeps one left edge with the paragraphs
-   around it. A bullet that pushes prose inward breaks the column. */
-.ar-list{ list-style:none; margin:0 0 1.35em; padding:0; }
-.ar-list li{ position:relative; padding-left:1.35rem; margin-bottom:.6em; }
-.ar-list li::before{ content:""; position:absolute; left:.25rem; top:.72em; width:5px; height:5px; border-radius:50%; background:var(--ar-accent); }
-.ar-steps{ list-style:none; margin:0 0 1.35em; padding:0; counter-reset:st; }
-.ar-steps li{ position:relative; padding-left:2.1rem; margin-bottom:.7em; counter-increment:st; }
-.ar-steps li::before{ content:counter(st,decimal-leading-zero); position:absolute; left:0; top:.28em;
-                      font:600 11.5px/1.6 var(--ag-font-mono); color:var(--ar-accent); }
+.ar-h4{ margin:1.7rem 0 .6rem; font-family:var(--ag-font-body); font-weight:700; font-size:1rem;
+        line-height:1.4; color:var(--ar-ink); }
+
+/* ── LISTS ──────────────────────────────────────────────────────────────── */
+.ar-list{ list-style:none; margin:0 0 1.15em; padding:0; }
+.ar-list li{ position:relative; padding-left:1.3rem; margin-bottom:.5em; }
+.ar-list li::before{ content:""; position:absolute; left:.2rem; top:.68em; width:6px; height:6px;
+                     border-radius:2px; background:var(--ar-accent); }
+.ar-steps{ list-style:none; margin:0 0 1.15em; padding:0; counter-reset:st; }
+.ar-steps li{ position:relative; padding-left:2.2rem; margin-bottom:.6em; counter-increment:st; }
+.ar-steps li::before{ content:counter(st); position:absolute; left:0; top:.12em;
+                      width:1.5rem; height:1.5rem; display:flex; align-items:center; justify-content:center;
+                      background:var(--ar-wash); border-radius:50%;
+                      font:700 11px/1 var(--ag-font-mono); color:var(--ar-accent-dark); }
 
 /* ── PULL QUOTE ─────────────────────────────────────────────────────────────
-   The document's own voice. Playfair italic, no quotation marks — the marks are
-   what make a pull quote look like a testimonial. */
-.ar-quote{ margin:2.1rem 0; padding:0 0 0 1.5rem; border-left:2px solid var(--ar-accent); }
+   A tinted panel now, not a bare left rule. On a white surface the hairline
+   version had nothing to sit against. */
+.ar-quote{ margin:1.7rem 0; padding:1.15rem 1.35rem; background:var(--ar-wash);
+           border-left:3px solid var(--ar-accent); border-radius:0 var(--ag-r-md,14px) var(--ag-r-md,14px) 0; }
 .ar-quote p{ margin:0; font-family:var(--ag-font-display); font-style:italic; font-weight:400;
-             font-size:clamp(1.2rem,2.6vw,1.44rem) !important; line-height:1.48 !important; color:var(--ar-ink) !important; }
+             font-size:clamp(1.1rem,2.3vw,1.3rem) !important; line-height:1.46 !important; color:var(--ar-ink) !important; }
 
 /* ── TABLE ──────────────────────────────────────────────────────────────────
-   What used to be bar charts. Hairline rows, mono figures, and a scroll
-   container so a narrow screen scrolls the table instead of the page. */
-.ar-tw{ margin:0 0 1.5em; overflow-x:auto; }
+   What used to be bar charts. A tinted header row and zebra-free hairlines, in a
+   scroll container so a narrow screen scrolls the table instead of the page. */
+.ar-tw{ margin:0 0 1.3em; overflow-x:auto; border:1px solid var(--ar-line);
+        border-radius:var(--ag-r-md,14px); background:var(--ar-surface); }
 .ar-table{ width:100%; border-collapse:collapse; font-family:var(--ag-font-body); }
-.ar-table caption{ caption-side:top; text-align:left; margin-bottom:.7rem;
-                   font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ar-faint); }
-.ar-table th, .ar-table td{ text-align:left; padding:.72rem .9rem .72rem 0; border-bottom:1px solid var(--ar-line-soft);
-                            font-size:15.5px; line-height:1.6; vertical-align:baseline; }
-.ar-table thead th{ border-bottom:1px solid var(--ar-line); font-weight:600; font-size:12.5px;
-                    letter-spacing:.04em; text-transform:uppercase; color:var(--ar-faint); }
-.ar-table tbody th{ font-weight:600; color:var(--ar-ink); white-space:nowrap; }
-.ar-table td:last-child, .ar-table th:last-child{ padding-right:0; }
-.ar-table .ar-num{ font-family:var(--ag-font-mono); font-weight:600; font-size:14.5px; color:var(--ar-accent-dark); white-space:nowrap; }
-.ar-table tfoot td{ border-bottom:0; padding-top:.9rem; font-size:14px; color:var(--ar-soft); }
+.ar-table caption{ caption-side:top; text-align:left; padding:.8rem 1rem .1rem;
+                   font:700 10.5px/1.4 var(--ag-font-mono); letter-spacing:.13em; text-transform:uppercase; color:var(--ar-faint); }
+.ar-table th, .ar-table td{ text-align:left; padding:.7rem 1rem; border-bottom:1px solid var(--ar-line-soft);
+                            font-size:15px; line-height:1.6; vertical-align:baseline; }
+.ar-table thead th{ background:var(--ag-surface-2,#f6f7f6); border-bottom:1px solid var(--ar-line);
+                    font-weight:700; font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ar-faint); }
+.ar-table tbody th{ font-weight:600; color:var(--ar-ink); }
+.ar-table tbody tr:last-child td, .ar-table tbody tr:last-child th{ border-bottom:0; }
+.ar-table .ar-num{ font-family:var(--ag-font-mono); font-weight:700; font-size:14px;
+                   color:var(--ar-accent-dark); white-space:nowrap; }
+.ar-table tfoot td{ background:var(--ag-surface-2,#f6f7f6); border-bottom:0; border-top:1px solid var(--ar-line);
+                    font-size:13.5px; color:var(--ar-soft); }
 
-/* ── TWO COLUMNS ────────────────────────────────────────────────────────────
-   "What it does" against "what it does not". A single hairline between them
-   carries the contrast; a green panel and a red one read as a warning rather
-   than as a distinction. */
-.ar-cols{ margin:0 0 1.5em; display:grid; gap:1.6rem; }
-@media (min-width:640px){ .ar-cols{ grid-template-columns:1fr 1fr; gap:2.2rem; } }
-.ar-cols > div + div{ padding-top:1.6rem; border-top:1px solid var(--ar-line); }
-@media (min-width:640px){
-  .ar-cols > div + div{ padding-top:0; border-top:0; padding-left:2.2rem; border-left:1px solid var(--ar-line); }
-}
-.ar-cols h4{ margin:0 0 .8rem; font:600 12px/1 var(--ag-font-mono); letter-spacing:.13em; text-transform:uppercase; }
+/* ── TWO COLUMNS ──────────────────────────────────────────────────────────── */
+.ar-cols{ margin:0 0 1.3em; display:grid; gap:1rem; }
+@media (min-width:640px){ .ar-cols{ grid-template-columns:1fr 1fr; gap:1rem; } }
+.ar-cols > div{ padding:1.1rem 1.2rem; border:1px solid var(--ar-line-soft);
+                border-radius:var(--ag-r-md,14px); background:var(--ag-surface-2,#f6f7f6); }
+.ar-cols--can{ border-top:3px solid var(--ar-accent) !important; }
+.ar-cols--cannot{ border-top:3px solid #b0453f !important; }
+.ar-cols h4{ margin:0 0 .65rem; font:700 11px/1 var(--ag-font-mono); letter-spacing:.12em; text-transform:uppercase; }
 .ar-cols--can h4{ color:var(--ar-accent-dark); }
 .ar-cols--cannot h4{ color:#a2453f; }
-.ar-cols li{ font-size:16px !important; line-height:1.7 !important; }
-.ar-cols .ar-list li::before{ background:currentColor; opacity:.5; }
+.ar-cols li{ font-size:15px !important; line-height:1.65 !important; }
 .ar-cols--cannot .ar-list li::before{ background:#a2453f; }
 
 /* ── NOTICE ─────────────────────────────────────────────────────────────────
-   Being the only boxed thing in a document is what makes the box mean
-   something. Use it for a notice whose job is to interrupt, and nothing else. */
-.ar-note{ margin:1.6rem 0 1.5em; padding:1.4rem 1.5rem; background:rgba(154,119,38,.07);
-          border:1px solid rgba(154,119,38,.28); border-radius:14px; }
-.ar-note h4{ margin:0 0 .9rem; font:600 11.5px/1 var(--ag-font-mono); letter-spacing:.15em; text-transform:uppercase; color:var(--ar-gold); }
-.ar-note p{ font-size:16px !important; line-height:1.72 !important; }
+   The one thing on a page whose job is to interrupt it. */
+.ar-note{ margin:1.4rem 0 1.3em; padding:1.25rem 1.4rem; background:rgba(201,162,75,.09);
+          border:1px solid rgba(154,119,38,.3); border-left:3px solid var(--ar-gold);
+          border-radius:var(--ag-r-md,14px); }
+.ar-note h4{ margin:0 0 .8rem; font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em;
+             text-transform:uppercase; color:var(--ar-gold); }
+.ar-note p{ font-size:15.5px !important; line-height:1.68 !important; }
 .ar-note p:last-child{ margin-bottom:0; }
 
 /* ── ASIDE ──────────────────────────────────────────────────────────────── */
-.ar-aside{ margin:1.5rem 0; padding-left:1.2rem; border-left:1px solid var(--ar-line); }
-.ar-aside p{ margin:0; font-size:15.5px !important; line-height:1.7 !important; color:var(--ar-soft) !important; }
+.ar-aside{ margin:1.3rem 0; padding:.9rem 1.1rem; background:var(--ag-surface-2,#f6f7f6);
+           border-radius:var(--ag-r-md,12px); }
+.ar-aside p{ margin:0; font-size:15px !important; line-height:1.65 !important; color:var(--ar-soft) !important; }
 
 /* Further reading — a line of references, the way an article ends a section. */
-.ar-refs{ margin:1.4rem 0 0; padding-top:.9rem; border-top:1px solid var(--ar-line-soft); }
-.ar-refs span{ font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ar-faint); }
-.ar-refs ul{ list-style:none; margin:.6rem 0 0; padding:0; }
-.ar-refs li{ margin-bottom:.3rem; font-size:14.5px !important; line-height:1.6 !important; }
-.ar-refs a{ color:var(--ar-soft) !important; text-decoration-color:var(--ar-line); }
+.ar-refs{ margin:1.2rem 0 0; padding-top:.8rem; border-top:1px solid var(--ar-line-soft); }
+.ar-refs span{ font:700 10px/1 var(--ag-font-mono); letter-spacing:.13em; text-transform:uppercase; color:var(--ar-faint); }
+.ar-refs ul{ list-style:none; margin:.5rem 0 0; padding:0; }
+.ar-refs li{ margin-bottom:.28rem; font-size:14px !important; line-height:1.55 !important; }
+.ar-refs a{ color:var(--ar-soft) !important; }
 .ar-refs a:hover{ color:var(--ar-accent-dark) !important; }
 
 /* ── CONTINUE ───────────────────────────────────────────────────────────────
-   The bridge between the two halves of the Integrity Centre: the philosophy
-   argues, the methodology enforces, and each ends by handing over to the other.
-   A full-width hairline card so it reads as a door rather than as a footnote. */
-.ar-next{ margin:clamp(2.6rem,5vw,3.4rem) 0 0; display:block; padding:1.3rem 1.5rem;
-          border:1px solid var(--ar-line); border-radius:16px; text-decoration:none !important;
-          transition:border-color .15s, transform .15s; background:rgba(255,255,255,.5); }
-.ar-next:hover{ border-color:var(--ar-accent); transform:translateY(-1px); }
-.ar-next span{ display:block; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.15em; text-transform:uppercase; color:var(--ar-accent); }
-.ar-next b{ display:block; margin-top:.55rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.22rem; line-height:1.25; color:var(--ar-ink); }
-.ar-next em{ display:block; margin-top:.35rem; font-style:normal; font-size:14.5px; line-height:1.6; color:var(--ar-soft); }
+   The bridge between the two halves of the Integrity Centre. Now reads as a real
+   card, because it is a call to go somewhere. */
+.ar-next{ margin:clamp(2.2rem,4vw,3rem) 0 0; display:block; padding:1.2rem 1.4rem;
+          border:1px solid var(--ar-line); border-left:3px solid var(--ar-accent);
+          border-radius:var(--ag-r-md,14px); text-decoration:none !important;
+          background:var(--ag-surface-2,#f6f7f6); box-shadow:var(--ar-shadow);
+          transition:border-color .15s, transform .15s, box-shadow .15s; }
+.ar-next:hover{ transform:translateY(-2px); box-shadow:0 10px 28px -14px rgba(16,41,44,.28); }
+.ar-next span{ display:block; font:700 10px/1 var(--ag-font-mono); letter-spacing:.14em;
+               text-transform:uppercase; color:var(--ar-accent); }
+.ar-next b{ display:block; margin-top:.5rem; font-family:var(--ag-font-display); font-weight:700;
+            font-size:1.16rem; line-height:1.26; color:var(--ar-ink); }
+.ar-next em{ display:block; margin-top:.3rem; font-style:normal; font-size:14px; line-height:1.55; color:var(--ar-soft); }
 
 /* ── CITATION ───────────────────────────────────────────────────────────── */
-.ar-cite{ scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.5rem); margin:clamp(3.4rem,7vw,5rem) 0 0; padding-top:1.6rem; border-top:2px solid var(--ar-ink); }
-.ar-cite > h2{ margin:0 0 .5rem; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.5rem,3.2vw,1.9rem); letter-spacing:-.016em; }
-.ar-tabs{ margin:1.4rem 0 0; display:flex; flex-wrap:wrap; gap:.4rem; border-bottom:1px solid var(--ar-line); padding-bottom:.7rem; }
-.ar-tab{ cursor:pointer; background:transparent; border:1px solid transparent; border-radius:999px; padding:.4rem .8rem;
-         font:600 12.5px/1 var(--ag-font-body); color:var(--ar-soft); }
-.ar-tab:hover{ color:var(--ar-ink); background:rgba(18,41,43,.05); }
-.ar-tab[aria-selected="true"]{ background:var(--ar-ink); color:#f4f2ea; }
-.ar-cite-body{ margin:1.1rem 0 0; }
+.ar-cite{ scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.25rem); margin:clamp(2.6rem,5vw,3.6rem) 0 0;
+          padding-top:1.5rem; border-top:2px solid var(--ar-line); }
+.ar-cite > h2{ margin:0 0 .45rem; font-family:var(--ag-font-display); font-weight:700;
+               font-size:clamp(1.35rem,2.8vw,1.7rem); letter-spacing:-.014em; }
+.ar-tabs{ margin:1.2rem 0 0; display:flex; flex-wrap:wrap; gap:.35rem; }
+.ar-tab{ cursor:pointer; background:var(--ag-surface-2,#f6f7f6); border:1px solid var(--ar-line);
+         border-radius:var(--ag-r-pill,999px); padding:.42rem .85rem;
+         font:600 12.5px/1 var(--ag-font-body); color:var(--ar-soft); transition:background .15s, color .15s; }
+.ar-tab:hover{ color:var(--ar-ink); background:var(--ar-wash); border-color:var(--ar-accent); }
+.ar-tab[aria-selected="true"]{ background:var(--ar-accent); border-color:var(--ar-accent); color:#fff; }
+.ar-cite-body{ margin:1rem 0 0; }
 /* `.ar-body p` is `.class element` and beats a bare `.ar-cite-text`, which is how
    the citations lost their monospace the first time. Hence the qualified selector. */
-.ar-body .ar-cite-text{ margin:0; padding:1.1rem 1.2rem; background:#fff; border:1px solid var(--ar-line); border-radius:12px;
-                        font-family:var(--ag-font-mono) !important; font-size:13.5px !important; line-height:1.75 !important;
+.ar-body .ar-cite-text{ margin:0; padding:1rem 1.15rem; background:var(--ag-surface-2,#f6f7f6);
+                        border:1px solid var(--ar-line); border-radius:var(--ag-r-md,12px);
+                        font-family:var(--ag-font-mono) !important; font-size:13px !important; line-height:1.72 !important;
                         color:var(--ar-ink); white-space:pre-wrap; word-break:break-word; }
-.ar-cite-act{ margin:.8rem 0 0; display:flex; flex-wrap:wrap; gap:.55rem; align-items:center; }
+.ar-cite-act{ margin:.7rem 0 0; display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; }
+.ar-cite-act > button:first-child{ background:var(--ar-surface); border-color:var(--ar-line); color:var(--ar-ink); }
 
 /* ── CLOSING ────────────────────────────────────────────────────────────── */
-.ar-end{ margin:clamp(3rem,6vw,4rem) 0 0; padding-top:1.6rem; border-top:1px solid var(--ar-line); }
-.ar-end p{ color:var(--ar-soft) !important; font-size:16px !important; }
+.ar-end{ margin:clamp(2.4rem,5vw,3.2rem) 0 0; padding-top:1.4rem; border-top:1px solid var(--ar-line); }
+.ar-end p{ color:var(--ar-soft) !important; font-size:15px !important; }
 
 /* ── RICH BODY (admin-authored) ─────────────────────────────────────────────
    The terms and the privacy policy are written in the admin rich-text editor, so
-   their markup is whatever the sanitizer allowed — bare h2/h3/p/ul/ol/blockquote
-   with no classes to hook. These rules give that stream the same rhythm the
-   hand-built sections have, so a legal page and the philosophy read as one set
+   their markup is bare h2/h3/p/ul/ol/blockquote with no classes to hook. These
+   rules give that stream the same rhythm the hand-built sections have, including
+   the green section marker — so a legal page and the philosophy read as one set
    of documents rather than as one document and one form. */
-.ar-rich > h2{ margin:clamp(2.4rem,5vw,3.2rem) 0 1rem; font-family:var(--ag-font-display); font-weight:700;
-               font-size:clamp(1.42rem,3vw,1.78rem); line-height:1.22; letter-spacing:-.016em; color:var(--ar-ink);
-               scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.5rem); }
-.ar-rich > h2:first-child{ margin-top:0; }
-.ar-rich > h3{ margin:2rem 0 .7rem; font-family:var(--ag-font-body); font-weight:700; font-size:1.02rem;
-               line-height:1.4; letter-spacing:.01em; color:var(--ar-ink); }
-.ar-rich > h4{ margin:1.6rem 0 .6rem; font-family:var(--ag-font-body); font-weight:700; font-size:.97rem; color:var(--ar-ink); }
-.ar-rich ul, .ar-rich ol{ margin:0 0 1.35em; padding-left:1.4em; }
-.ar-rich li{ margin-bottom:.55em; padding-left:.2em; }
-.ar-rich li::marker{ color:var(--ar-accent); }
-.ar-rich blockquote{ margin:2.1rem 0; padding:0 0 0 1.5rem; border-left:2px solid var(--ar-accent); }
-.ar-rich blockquote p{ font-family:var(--ag-font-display); font-style:italic;
-                       font-size:clamp(1.15rem,2.4vw,1.34rem) !important; line-height:1.5 !important; }
-.ar-rich hr{ margin:2.4rem 0; border:0; border-top:1px solid var(--ar-line); }
+.ar-rich > h2{ margin:clamp(2rem,4vw,2.8rem) 0 .9rem; padding-top:1.2rem; border-top:1px solid var(--ar-line-soft);
+               font-family:var(--ag-font-display); font-weight:700;
+               font-size:clamp(1.28rem,2.6vw,1.55rem); line-height:1.24; letter-spacing:-.014em; color:var(--ar-ink);
+               scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.25rem); }
+.ar-rich > h2:first-child{ margin-top:0; padding-top:0; border-top:0; }
+.ar-rich > h3{ margin:1.7rem 0 .6rem; font-family:var(--ag-font-body); font-weight:700; font-size:1rem;
+               line-height:1.4; color:var(--ar-ink); }
+.ar-rich > h4{ margin:1.4rem 0 .5rem; font-family:var(--ag-font-body); font-weight:700; font-size:.95rem; color:var(--ar-ink); }
+.ar-rich ul, .ar-rich ol{ margin:0 0 1.15em; padding-left:1.3em; }
+.ar-rich li{ margin-bottom:.45em; padding-left:.15em; }
+.ar-rich li::marker{ color:var(--ar-accent); font-weight:700; }
+.ar-rich blockquote{ margin:1.6rem 0; padding:1.05rem 1.3rem; background:var(--ar-wash);
+                     border-left:3px solid var(--ar-accent); border-radius:0 var(--ag-r-md,14px) var(--ag-r-md,14px) 0; }
+.ar-rich blockquote p{ margin:0; font-family:var(--ag-font-display); font-style:italic;
+                       font-size:clamp(1.05rem,2.2vw,1.22rem) !important; line-height:1.5 !important; }
+.ar-rich hr{ margin:2rem 0; border:0; border-top:1px solid var(--ar-line); }
 .ar-rich small{ font-size:.86em; color:var(--ar-soft); }
+.ar-rich table{ width:100%; border-collapse:collapse; margin:0 0 1.3em; font-size:15px; }
+.ar-rich th, .ar-rich td{ text-align:left; padding:.6rem .8rem; border:1px solid var(--ar-line-soft); }
+.ar-rich thead th{ background:var(--ag-surface-2,#f6f7f6); font-weight:700; }
 
 /* ── PRINT ──────────────────────────────────────────────────────────────────
    A document with a Download button will be printed, so it gets a stylesheet
    rather than whatever the browser improvises. Utilities and the contents rail
-   go; the URL and version stay, because a printed page that cannot be traced
-   back to its source cannot be cited from either. */
+   go; the URL and version stay, because a printed page that cannot be traced back
+   to its source cannot be cited from either. */
 @media print{
   body[data-page="integrity"], body[data-page="philosophy"], body[data-page="legal"]{ background:#fff; }
   .ar-tools, .ar-rail, .ar-toc, .ar-say, .ar-tabs, .ar-cite-act, .ar-next{ display:none !important; }
   .ar-shell{ max-width:none; padding:0; display:block; }
-  .ar-body{ max-width:none; }
-  .ar-body p, .ar-body li{ font-size:11pt; line-height:1.55; }
-  .ar-sec, .ar-part-head, .ar-cite{ break-inside:avoid-page; }
+  .ar-body{ max-width:none; border:0; border-radius:0; box-shadow:none; padding:0; }
+  .ar-body > *{ max-width:none; }
+  .ar-body p, .ar-body li{ font-size:11pt; line-height:1.5; }
+  .ar-sec, .ar-part-head, .ar-cite, .ar-note{ break-inside:avoid-page; }
   .ar-sec > h3, .ar-part-head h2, .ar-rich > h2{ break-after:avoid-page; }
-  .ar-note{ border:1px solid #999; background:none; }
+  .ar-note, .ar-quote, .ar-aside, .ar-part-head, .ar-cols > div{ background:none; border:1px solid #999; }
   .ar-body .ar-cite-text{ background:none; border:1px solid #999; }
   .ar-body a::after{ content:" (" attr(href) ")"; font-size:9pt; color:#555; word-break:break-all; }
   .ar-refs a::after{ content:""; }
