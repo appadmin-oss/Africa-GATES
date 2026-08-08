@@ -178,7 +178,10 @@
     {% for g in groups %}
       {% if g.label %}<li class="ar-part" aria-hidden="true">{{ g.label }}</li>{% endif %}
       {% for it in g.items %}
-        <li><a href="#{{ it.id }}">{{ it.title|striptags }}</a></li>
+        {# `nav_title` where the source supplies one (its entities are already
+           decoded); `title|striptags` otherwise, which is correct for the legal
+           outlines because DocText::inline() decoded those on the way in. #}
+        <li><a href="#{{ it.id }}">{{ it.nav_title|default(it.title|striptags) }}</a></li>
       {% endfor %}
     {% endfor %}
     <li class="ar-part" aria-hidden="true">Reference</li>

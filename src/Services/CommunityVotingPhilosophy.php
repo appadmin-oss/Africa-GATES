@@ -98,6 +98,15 @@ final class CommunityVotingPhilosophy
 
         foreach ($s as $i => $sec) {
             $s[$i]['title']  = self::resolve($sec['title'], $figures);
+            // A navigation-safe title: entities decoded, tags gone.
+            //
+            // The titles are authored for HTML and carry `&ldquo;`/`&rsquo;`, which the
+            // body renders correctly because it prints them raw. A contents list
+            // cannot: `striptags` leaves the entity as the literal text `&ldquo;`, and
+            // autoescape then renders it as `&amp;ldquo;` — so the rail displayed
+            // `What we mean by &ldquo;community&rdquo;`. Decoding here keeps the fix
+            // out of the template and keeps the escaping on.
+            $s[$i]['nav_title'] = self::text($s[$i]['title']);
             $s[$i]['blocks'] = array_map(
                 static fn (array $b): array => self::resolveBlock($b, $figures),
                 $sec['blocks']
