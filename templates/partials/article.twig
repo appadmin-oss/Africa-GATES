@@ -1,0 +1,402 @@
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  ARTICLE FURNITURE — the parts every published document shares
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Four pages present a citable document: /philosophy, /integrity, /terms and
+  /privacy. The masthead, the Copy/Download/Cite toolbar, the contents and the
+  citation panel are identical on all four, and the toolbar and citation panel in
+  particular are substantial markup with real accessibility obligations — a
+  tablist with a roving tabindex, a popover that closes on Escape, a live region.
+
+  Copied four times, three of those copies eventually lose the Escape handler.
+  So they live here as macros and the pages pass their own metadata in.
+
+  ── CALLING CONVENTION ──────────────────────────────────────────────────────
+
+  Macros cannot see the template context, so `csp_nonce` and everything else is an
+  explicit argument. Every macro takes a single `d` hash rather than a positional
+  list, because these have up to a dozen fields and `tools(a, b, c, '', '', d)` is
+  how the wrong value ends up in the wrong slot.
+
+  Presentation only. Not one of these macros decides anything: no figure is
+  computed here, no date is read from a clock. The route resolves all of that and
+  hands it over, so the page, the .txt and the .md cannot disagree.
+#}
+
+{# The shared stylesheet. A <link> rather than an inline block: four pages share it
+   and it is deliberately outside AssetBundle::STYLESHEETS — see the sheet's own
+   header for why. `'self'` in style-src-elem covers it, so no nonce is needed. #}
+{% macro styles() %}
+<link rel="stylesheet" href="{{ asset('/assets/css/components/article.css') }}">
+{% endmacro %}
+
+{#
+  Citation metadata for machines: Highwire Press `citation_*` and Dublin Core.
+  These are what Zotero, Mendeley and Google Scholar actually read when somebody
+  saves a reference; without them a manager guesses the title from <title> and the
+  date from nothing.
+
+  d: {title, author, publisher, published, updated, url}
+#}
+{% macro cite_meta(d) %}
+<meta name="citation_title" content="{{ d.title }}">
+<meta name="citation_author" content="{{ d.author }}">
+<meta name="citation_publisher" content="{{ d.publisher }}">
+<meta name="citation_publication_date" content="{{ d.published }}">
+<meta name="citation_online_date" content="{{ d.updated }}">
+<meta name="citation_public_url" content="{{ d.url }}">
+<meta name="DC.title" content="{{ d.title }}">
+<meta name="DC.creator" content="{{ d.author }}">
+<meta name="DC.publisher" content="{{ d.publisher }}">
+<meta name="DC.date" content="{{ d.updated }}">
+<meta name="DC.identifier" content="{{ d.url }}">
+<meta name="DC.type" content="Text">
+<meta name="DC.format" content="text/html">
+{% endmacro %}
+
+{#
+  schema.org Article. `version` is the field that makes a dated document citable
+  rather than merely dated.
+
+  d: {title, subtitle, description, author, publisher, published, updated, version, url, terms_url}
+#}
+{% macro article_ld(d, nonce) %}
+<script nonce="{{ nonce }}" type="application/ld+json">
+{"@context":"https://schema.org","@type":"Article",
+"headline":{{ d.title|json_encode|raw }},
+{% if d.subtitle is defined and d.subtitle %}"alternativeHeadline":{{ d.subtitle|json_encode|raw }},{% endif %}
+"description":{{ d.description|striptags|json_encode|raw }},
+"author":{"@type":"Organization","name":{{ d.author|json_encode|raw }}},
+"publisher":{"@type":"Organization","name":{{ d.publisher|json_encode|raw }}},
+"datePublished":{{ d.published|json_encode|raw }},
+"dateModified":{{ d.updated|json_encode|raw }},
+"version":{{ d.version|json_encode|raw }},
+"inLanguage":"en",
+"isAccessibleForFree":true,
+{% if d.terms_url is defined and d.terms_url %}"license":{{ d.terms_url|json_encode|raw }},{% endif %}
+"mainEntityOfPage":{"@type":"WebPage","@id":{{ d.url|json_encode|raw }}},
+"url":{{ d.url|json_encode|raw }}}
+</script>
+{% endmacro %}
+
+{#
+  The masthead: eyebrow, title, subtitle, standfirst, colophon.
+
+  d: {eyebrow, title, subtitle, standfirst, author, version, updated, read_minutes}
+#}
+{% macro masthead(d) %}
+<p class="ar-eyebrow">{{ d.eyebrow }}</p>
+<h1 class="ar-h1">{{ d.title }}</h1>
+{% if d.subtitle is defined and d.subtitle %}<p class="ar-sub">{{ d.subtitle }}</p>{% endif %}
+{% if d.standfirst is defined and d.standfirst %}<p class="ar-stand">{{ d.standfirst|raw }}</p>{% endif %}
+<dl class="ar-meta">
+  <div><dfn>By</dfn> <b>{{ d.author }}</b></div>
+  {% if d.version is defined and d.version %}<div><dfn>Version</dfn> <b>{{ d.version }}</b></div>{% endif %}
+  <div><dfn>Updated</dfn> <b><time datetime="{{ d.updated }}">{{ d.updated|date('j F Y') }}</time></b></div>
+  {% if d.read_minutes is defined and d.read_minutes %}<div><b>{{ d.read_minutes }} min</b> read</div>{% endif %}
+</dl>
+{% endmacro %}
+
+{#
+  Copy · Download · Cite.
+
+  `@click.away` closes the download menu and Escape closes it from the keyboard —
+  a popover dismissible only by pointer is a trap for anyone who opened it with a
+  keyboard. The download links are real <a download> hrefs, so Download works with
+  no JavaScript at all; only Copy needs it.
+
+  d: {txt_url, md_url, file_stem, id, portable}
+
+  `id` disambiguates the popover on a page that ever renders two toolbars.
+
+  `portable` (default true) is whether this document HAS a .txt/.md edition. Set it
+  false and only Cite renders. That is the case on /integrity, whose prose lives in
+  its template rather than in PHP: a Copy that lifted a different document from the
+  one on screen, or a Download that saved one, would be worse than no button —
+  the reader would file it and find out later. See MethodologyDocument.
+#}
+{% macro tools(d) %}
+{% set pid = 'ar-dl-' ~ (d.id|default('1')) %}
+{% set portable = d.portable is not defined or d.portable %}
+<div class="ar-tools">
+  {% if portable %}
+  <button type="button" class="ar-tool" :class="done === 'all' && 'is-done'" @click="copyAll()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+    </svg>
+    <span x-text="done === 'all' ? 'Copied' : 'Copy'">Copy</span>
+  </button>
+
+  <div style="position:relative">
+    <button type="button" class="ar-tool" @click="menu = !menu" :aria-expanded="menu ? 'true' : 'false'"
+            aria-haspopup="true" aria-controls="{{ pid }}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>
+      </svg>
+      Download
+    </button>
+    <div class="ar-pop" id="{{ pid }}" x-show="menu" x-cloak @click.away="menu = false"
+         @keydown.escape.window="menu = false" role="menu">
+      <a href="{{ d.md_url }}" download="{{ d.file_stem }}.md" role="menuitem" @click="menu = false">
+        <b>Markdown (.md)</b>
+        <span>Headings and quotes preserved — for quoting or republishing.</span>
+      </a>
+      <a href="{{ d.txt_url }}" download="{{ d.file_stem }}.txt" role="menuitem" @click="menu = false">
+        <b>Plain text (.txt)</b>
+        <span>Wrapped to 78 columns — pastes cleanly into an email.</span>
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <a class="ar-tool" href="#cite">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M6 4h9l5 5v11H6z"/><path d="M14 4v6h6"/><path d="M9 14h6M9 17h4"/>
+    </svg>
+    Cite
+  </a>
+</div>
+<p class="ar-say" role="status" aria-live="polite" x-text="said"></p>
+{% endmacro %}
+
+{#
+  Contents.
+
+  groups: [{label, items: [{id, title}]}]  — `label` may be empty for an
+  unlabelled single group. A trailing "How to cite" entry is added here so every
+  document's contents ends the same way.
+
+  `wide` picks the sticky margin rail (.ar-rail) or the inline block (.ar-toc);
+  the two are mutually exclusive at 1180px in CSS, and both are rendered because
+  which one applies is a viewport question, not a server one.
+#}
+{% macro contents(groups, wide) %}
+<nav class="{{ wide ? 'ar-rail' : 'ar-toc' }}" aria-label="Document contents">
+  <h2>Contents</h2>
+  <ol>
+    {% for g in groups %}
+      {% if g.label %}<li class="ar-part" aria-hidden="true">{{ g.label }}</li>{% endif %}
+      {% for it in g.items %}
+        <li><a href="#{{ it.id }}">{{ it.title|striptags }}</a></li>
+      {% endfor %}
+    {% endfor %}
+    <li class="ar-part" aria-hidden="true">Reference</li>
+    <li class="ar-ref"><a href="#cite">How to cite</a></li>
+  </ol>
+</nav>
+{% endmacro %}
+
+{#
+  A rendered philosophy/structured section body.
+
+  Walks the block kinds emitted by CommunityVotingPhilosophy. The kinds are few on
+  purpose: a format that can express anything ends up expressing it inconsistently.
+#}
+{% macro blocks(list) %}
+  {%- for block in list %}
+    {%- if block.p is defined %}
+      <p>{{ block.p|raw }}</p>
+    {%- elseif block.h3 is defined %}
+      <h4 class="ar-h4">{{ block.h3|raw }}</h4>
+    {%- elseif block.quote is defined %}
+      <blockquote class="ar-quote"><p>{{ block.quote|raw }}</p></blockquote>
+    {%- elseif block.list is defined %}
+      <ul class="ar-list">{% for li in block.list %}<li>{{ li|raw }}</li>{% endfor %}</ul>
+    {%- elseif block.steps is defined %}
+      <ol class="ar-steps">{% for li in block.steps %}<li>{{ li|raw }}</li>{% endfor %}</ol>
+    {%- elseif block.note is defined %}
+      <div class="ar-note">
+        <h4>{{ block.note.title|raw }}</h4>
+        {% for p in block.note.body %}<p>{{ p|raw }}</p>{% endfor %}
+      </div>
+    {%- endif %}
+  {%- endfor %}
+{% endmacro %}
+
+{#
+  The bridge between two documents. The philosophy argues and the methodology
+  enforces; each ends by handing the reader to the other, which is what makes them
+  one Integrity Centre rather than two pages that happen to match.
+
+  d: {url, kicker, title, blurb}
+#}
+{% macro next(d) %}
+<a class="ar-next" href="{{ d.url }}">
+  <span>{{ d.kicker }}</span>
+  <b>{{ d.title }}</b>
+  <em>{{ d.blurb }}</em>
+</a>
+{% endmacro %}
+
+{#
+  "How to cite", with a real tablist.
+
+  role/aria-selected/aria-controls and a roving tabindex, so the panel is announced
+  when the tab changes rather than silently swapped. Arrow keys are wired on the
+  container — see the note in the script macro for why that is not optional.
+
+  d: {citations, version, published, updated, accessed, url, txt_url, md_url, file_stem, note}
+#}
+{% macro cite(d) %}
+<section class="ar-cite" id="cite">
+  <h2>How to cite this document</h2>
+  <p>{{ d.note|raw }}</p>
+
+  <dl class="ar-meta">
+    {% if d.version %}<div><dfn>Version</dfn> <b>{{ d.version }}</b></div>{% endif %}
+    <div><dfn>Published</dfn> <b><time datetime="{{ d.published }}">{{ d.published|date('j F Y') }}</time></b></div>
+    <div><dfn>Updated</dfn> <b><time datetime="{{ d.updated }}">{{ d.updated|date('j F Y') }}</time></b></div>
+    <div><dfn>Accessed</dfn> <b><time datetime="{{ d.accessed }}">{{ d.accessed|date('j F Y') }}</time></b></div>
+  </dl>
+
+  <div class="ar-tabs" role="tablist" aria-label="Citation format"
+       @keydown.arrow-right.prevent="moveTab('next')"
+       @keydown.arrow-left.prevent="moveTab('prev')"
+       @keydown.home.prevent="moveTab('home')"
+       @keydown.end.prevent="moveTab('end')">
+    {% for c in d.citations %}
+      <button type="button" class="ar-tab" role="tab"
+              id="ar-tab-{{ c.id }}" aria-controls="ar-panel-{{ c.id }}"
+              :aria-selected="tab === '{{ c.id }}' ? 'true' : 'false'"
+              :tabindex="tab === '{{ c.id }}' ? 0 : -1"
+              @click="tab = '{{ c.id }}'">{{ c.label }}</button>
+    {% endfor %}
+  </div>
+
+  <div class="ar-cite-body">
+    {% for c in d.citations %}
+      <div role="tabpanel" id="ar-panel-{{ c.id }}" aria-labelledby="ar-tab-{{ c.id }}"
+           x-show="tab === '{{ c.id }}'" x-cloak>
+        <p class="ar-cite-text" x-ref="cite{{ c.id }}">{{ c.text }}</p>
+        <div class="ar-cite-act">
+          <button type="button" class="ar-tool" :class="done === 'cite' && 'is-done'"
+                  @click="copyCite($refs.cite{{ c.id }})">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            Copy {{ c.label }}
+          </button>
+          <button type="button" class="ar-tool" :class="done === 'link' && 'is-done'" @click="copyLink()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>
+            </svg>
+            Copy permalink
+          </button>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="ar-refs">
+    <span>Machine-readable</span>
+    <ul>
+      <li>This page carries <code>citation_*</code> and Dublin Core metadata plus schema.org
+          <code>Article</code> markup, so Zotero, Mendeley and similar tools can import the
+          reference directly from the URL.</li>
+      {% if d.portable is not defined or d.portable %}
+        <li>Plain-text and Markdown editions:
+            <a href="{{ d.txt_url }}" download="{{ d.file_stem }}.txt">{{ d.file_stem }}.txt</a> ·
+            <a href="{{ d.md_url }}" download="{{ d.file_stem }}.md">{{ d.file_stem }}.md</a></li>
+      {% elseif d.portable_note is defined and d.portable_note %}
+        <li>{{ d.portable_note|raw }}</li>
+      {% endif %}
+    </ul>
+  </div>
+</section>
+{% endmacro %}
+
+{#
+  The Alpine component behind the toolbar and the citation tabs.
+
+  Emitted inline and nonce'd. It runs during parse, and Alpine loads deferred, so
+  the component is always defined before `x-data` is evaluated.
+
+  d: {txt_url, url, tab_ids}
+#}
+{% macro script(d, nonce) %}
+<script nonce="{{ nonce }}">
+window.agArticleDoc = function () {
+  return {
+    tabs: {{ d.tab_ids|json_encode|raw }},
+    tab: {{ (d.tab_ids|first)|json_encode|raw }},
+    said: '',
+    menu: false,
+    done: '',
+
+    /* One clipboard path for every button on the page.
+       navigator.clipboard needs a secure context and is missing on some older
+       Android WebViews, so the textarea fallback is not belt-and-braces — it is
+       the only path on a real slice of this platform's traffic. */
+    put: function (text, key, msg) {
+      var self = this;
+      var ok = function () {
+        self.done = key;
+        self.said = msg;
+        window.setTimeout(function () { self.done = ''; }, 2200);
+      };
+      var fail = function () { self.said = 'Could not copy — select the text and copy it manually.'; };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(ok, fail);
+        return;
+      }
+      try {
+        var t = document.createElement('textarea');
+        t.value = text;
+        t.setAttribute('readonly', '');
+        t.style.position = 'fixed';
+        t.style.top = '-1000px';
+        document.body.appendChild(t);
+        t.select();
+        var worked = document.execCommand('copy');
+        document.body.removeChild(t);
+        worked ? ok() : fail();
+      } catch (e) { fail(); }
+    },
+
+    /* The whole document.
+
+       Fetched from the .txt edition rather than scraped out of the DOM or inlined
+       into it. Scraping would put the furniture — contents, button labels, tab
+       names — on the clipboard alongside the prose; inlining would ship the whole
+       document twice to every visitor for a button most never press. The fetch
+       also guarantees the paste and the download are byte-identical, because they
+       are the same response. */
+    copyAll: function () {
+      var self = this;
+      this.said = 'Preparing…';
+      fetch({{ d.txt_url|json_encode|raw }}, { headers: { 'Accept': 'text/plain' } })
+        .then(function (r) {
+          if (!r.ok) throw new Error('http ' + r.status);
+          return r.text();
+        })
+        .then(function (t) { self.put(t, 'all', 'Full document copied to the clipboard.'); })
+        .catch(function () { self.said = 'Could not fetch the text — use Download instead.'; });
+    },
+
+    copyCite: function (el) { this.put(el.innerText, 'cite', 'Citation copied.'); },
+    copyLink: function () { this.put({{ d.url|json_encode|raw }}, 'link', 'Permalink copied.'); },
+
+    /* Arrow-key movement across the citation tabs.
+
+       Not a nicety. The tabs carry a roving tabindex — the selected one is 0, the
+       rest are -1 — which is correct for a tablist and means Tab enters the group
+       once instead of stopping four times. But it also means the arrow keys are
+       the ONLY way to reach the others, so without this a keyboard user could see
+       four citation formats and reach exactly one. */
+    moveTab: function (dir) {
+      var i = this.tabs.indexOf(this.tab);
+      if (i < 0) i = 0;
+      var next = dir === 'home' ? 0
+               : dir === 'end'  ? this.tabs.length - 1
+               : (i + (dir === 'next' ? 1 : -1) + this.tabs.length) % this.tabs.length;
+      this.tab = this.tabs[next];
+      /* Selection follows focus, so focus has to follow selection — otherwise the
+         next arrow press is computed from a tab the browser is no longer on. */
+      var el = document.getElementById('ar-tab-' + this.tab);
+      if (el) el.focus();
+    }
+  };
+};
+</script>
+{% endmacro %}

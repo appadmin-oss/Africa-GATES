@@ -705,22 +705,81 @@ return function(App $app) {
         $legalRender = function($req,$res,string $slug) use ($tv){
             $doc = \AfricaGates\Services\LegalService::get($slug);
             if (!$doc) return $res->withStatus(404);
+
+            $L     = \AfricaGates\Services\LegalDocument::class;
+            $url   = \AfricaGates\Support\SiteUrl::base($req) . '/' . $slug;
+            $today = date('Y-m-d');
+            $eff   = $L::effectiveDate($doc);
+
             return $tv($req)->render($res,'pages/legal.twig',[
                 'page_title'=>$doc['title'].' — Africa GATES',
                 'meta_description'=>'The '.$doc['title'].' for Africa GATES — the continental Cultural Power Index recognising African excellence.',
+                'og_type'=>'article',
                 'gates_page'=>'legal','has_hero'=>false,
-                'legal_doc'=>$doc,'legal_tabs'=>\AfricaGates\Services\LegalService::published(),
-                // Automated-processing disclosure, DERIVED from the capability
-                // registry rather than written into the admin-editable body — so
-                // adding an AI feature updates the published notice by itself and
-                // the page cannot fall out of step with what the code sends.
-                // Privacy doc only; the other legal docs are unrelated.
-                'ai_disclosure'=>$slug==='privacy' ? \AfricaGates\Services\AiPrivacy::disclosure() : [],
-                'ai_disclosure_active'=>$slug==='privacy' && \AfricaGates\Services\AiPrivacy::currentlyActive(),
+                'breadcrumbs'=>[['label'=>'Home','url'=>'/'],['label'=>$doc['title']]],
+                'legal_doc'=>$doc,
+                'legal_tabs'=>\AfricaGates\Services\LegalService::published(),
+
+                // ── ONE SOURCE FOR THREE RENDERINGS ──────────────────────────
+                // The body the page shows is the body the .txt and .md contain —
+                // including the generated AI disclosure, which used to be assembled
+                // in the template and would therefore have been missing from every
+                // download of the privacy policy. See LegalDocument.
+                'legal_body'=>$L::bodyWithAnchors($doc),
+                'doc_outline'=>$L::outline($doc),
+                'doc_author'=>$L::AUTHOR,
+                'doc_publisher'=>$L::PUBLISHER,
+                'doc_effective'=>$eff,
+                'doc_url'=>$url,
+                'doc_accessed'=>$today,
+                'doc_citations'=>$L::citations($doc, $url, $today),
+                'doc_file_stem'=>$L::fileStem($doc),
+                'doc_txt_url'=>'/'.$slug.'.txt',
+                'doc_md_url'=>'/'.$slug.'.md',
+                'doc_standfirst'=>($doc['updated_label'] ?? '') !== ''
+                    ? 'Last updated '.$doc['updated_label'].', and effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.'
+                    : 'Effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.',
             ]);
         };
+
+        /**
+         * A legal document as a file.
+         *
+         * Same two formats and the same `Content-Disposition: attachment` as the
+         * philosophy, from the same body the page renders. A policy is the document
+         * people most reasonably want to keep a copy of, and "keep a copy" has to mean
+         * the copy they were actually shown.
+         */
+        $legalFile = function($req,$res,string $slug,string $fmt){
+            $doc = \AfricaGates\Services\LegalService::get($slug);
+            if (!$doc) return $res->withStatus(404);
+
+            $L    = \AfricaGates\Services\LegalDocument::class;
+            $url  = \AfricaGates\Support\SiteUrl::base($req) . '/' . $slug;
+            $body = $fmt === 'md' ? $L::markdown($doc, $url) : $L::plainText($doc, $url);
+
+            $res->getBody()->write($body);
+            return $res
+                ->withHeader('Content-Type', $fmt === 'md' ? 'text/markdown; charset=utf-8' : 'text/plain; charset=utf-8')
+                ->withHeader('Content-Disposition', 'attachment; filename="'.$L::fileStem($doc).'.'.$fmt.'"')
+                // Revised rarely, and the Copy button fetches the .txt on every click.
+                ->withHeader('Cache-Control', 'public, max-age=3600');
+        };
+
         $g->get('/privacy', fn($req,$res)=>$legalRender($req,$res,'privacy'));
         $g->get('/terms',   fn($req,$res)=>$legalRender($req,$res,'terms'));
+        // Downloads. Declared BEFORE the {slug} routes below, because Slim's default
+        // placeholder matches any run of non-slash characters — `/legal/{slug}` would
+        // happily swallow `privacy.txt` as a slug and render the page instead of
+        // serving the file.
+        $g->get('/privacy.txt', fn($req,$res)=>$legalFile($req,$res,'privacy','txt'));
+        $g->get('/privacy.md',  fn($req,$res)=>$legalFile($req,$res,'privacy','md'));
+        $g->get('/terms.txt',   fn($req,$res)=>$legalFile($req,$res,'terms','txt'));
+        $g->get('/terms.md',    fn($req,$res)=>$legalFile($req,$res,'terms','md'));
+        $g->get('/cookies.txt', fn($req,$res)=>$legalFile($req,$res,'cookies','txt'));
+        $g->get('/cookies.md',  fn($req,$res)=>$legalFile($req,$res,'cookies','md'));
+        $g->get('/legal/{slug}.txt', fn($req,$res,$args)=>$legalFile($req,$res,strtolower((string)($args['slug']??'')),'txt'));
+        $g->get('/legal/{slug}.md',  fn($req,$res,$args)=>$legalFile($req,$res,strtolower((string)($args['slug']??'')),'md'));
         $g->get('/legal/{slug}', fn($req,$res,$args)=>$legalRender($req,$res,strtolower((string)($args['slug']??''))));
         // Per-programme terms (admin-editable). Unknown slug falls back to the general terms.
         $g->get('/terms/{slug}', function($req,$res,$args) use ($tv){
@@ -812,16 +871,70 @@ return function(App $app) {
                 // (which fetches the .txt) off the database on every click.
                 ->withHeader('Cache-Control', 'public, max-age=3600');
         };
-        $g->get('/integrity.txt', fn($req, $res) => $integrityFile($req, $res, 'txt'));
-        $g->get('/integrity.md',  fn($req, $res) => $integrityFile($req, $res, 'md'));
+        $g->get('/philosophy.txt', fn($req, $res) => $integrityFile($req, $res, 'txt'));
+        $g->get('/philosophy.md',  fn($req, $res) => $integrityFile($req, $res, 'md'));
+        // The document lived at /integrity until it earned its own page. Anything
+        // already published — a citation, a shared link, a saved download — must keep
+        // resolving, so the old addresses redirect permanently rather than 404.
+        $g->get('/integrity.txt', fn($req, $res) => $res->withHeader('Location', '/philosophy.txt')->withStatus(301));
+        $g->get('/integrity.md',  fn($req, $res) => $res->withHeader('Location', '/philosophy.md')->withStatus(301));
 
-        $g->get('/integrity', function ($req, $res) use ($tv, $integrityFigures) {
+        /**
+         * The philosophy, in full.
+         *
+         * /integrity carries the précis and links here; this page carries the argument.
+         * Splitting them is what stopped sixteen sections of Ubuntu sitting between a
+         * reader arriving from a ballot and the answer to "how is a winner decided".
+         */
+        $g->get('/philosophy', function ($req, $res) use ($tv, $integrityFigures) {
             $doc   = \AfricaGates\Services\CommunityVotingPhilosophy::class;
             $figs  = $integrityFigures();
             $url   = \AfricaGates\Support\SiteUrl::base($req) . $doc::PATH;
-            // One clock reading for the whole request: the visible "accessed" date,
-            // the citation strings and the download must not disagree because three
-            // callers each asked the system what day it is.
+            $today = date('Y-m-d');
+
+            return $tv($req)->render($res, 'pages/philosophy.twig', $figs + [
+                'page_title'       => 'The philosophy behind Africa GATES community voting',
+                'meta_description' => sprintf(
+                    'Why Africa GATES voting carries a token contribution, what a vote actually '
+                    . 'represents, and why the public vote is deliberately limited to %d%% of the outcome.',
+                    (int) $figs['community_pct']
+                ),
+                'og_type'          => 'article',
+                'og_title'         => 'Reimagining recognition through communal spirit',
+                'breadcrumbs'      => [
+                    ['label' => 'Home', 'url' => '/'],
+                    ['label' => 'Integrity Centre', 'url' => '/integrity'],
+                    ['label' => 'Philosophy'],
+                ],
+                'gates_page'       => 'philosophy',
+                'has_hero'         => false,
+                'current_section'  => 'projects',
+                'doc_sections'     => $doc::sections($figs),
+                'doc_standfirst'   => $doc::standfirst($figs),
+                'doc_title'        => $doc::TITLE,
+                'doc_subtitle'     => $doc::SUBTITLE,
+                'doc_author'       => $doc::AUTHOR,
+                'doc_publisher'    => $doc::PUBLISHER,
+                'doc_version'      => $doc::VERSION,
+                'doc_published'    => $doc::PUBLISHED,
+                'doc_updated'      => $doc::UPDATED,
+                'doc_read_minutes' => $doc::readMinutes($figs),
+                'doc_url'          => $url,
+                'doc_accessed'     => $today,
+                'doc_citations'    => $doc::citations($url, $today),
+                'doc_file_stem'    => $doc::fileStem(),
+            ]);
+        });
+
+        $g->get('/integrity', function ($req, $res) use ($tv, $integrityFigures) {
+            $phil  = \AfricaGates\Services\CommunityVotingPhilosophy::class;
+            $meth  = \AfricaGates\Services\MethodologyDocument::class;
+            $figs  = $integrityFigures();
+            $base  = \AfricaGates\Support\SiteUrl::base($req);
+            $url   = $base . $meth::PATH;
+            // One clock reading for the whole request: the visible "accessed" date and
+            // the citation strings must not disagree because two callers each asked the
+            // system what day it is.
             $today = date('Y-m-d');
 
             $cPct = (int) $figs['community_pct'];
@@ -831,8 +944,7 @@ return function(App $app) {
                 // ── SEO ──────────────────────────────────────────────────────
                 // The title leads with the QUESTION people search, not with the
                 // internal name of the page. Nobody types "awards integrity and
-                // methodology"; they type "how is the winner decided". The old title
-                // described the filing cabinet the document lives in.
+                // methodology"; they type "how is the winner decided".
                 'page_title'       => 'How the Cultural Power Index is scored — Africa GATES',
                 // Under 155 characters, and it states the two figures rather than
                 // promising them — a description that answers gets the click that a
@@ -853,24 +965,29 @@ return function(App $app) {
                 'current_section'  => 'projects',
 
                 // ── THE DOCUMENT ─────────────────────────────────────────────
-                // The philosophy arrives as structure, with its figures already
-                // substituted, so the template's job is presentation and nothing
-                // else. See CommunityVotingPhilosophy for why the prose lives in
-                // PHP rather than in this template.
-                'doc_sections'     => $doc::sections($figs),
-                'doc_standfirst'   => $doc::standfirst($figs),
-                'doc_title'        => $doc::TITLE,
-                'doc_subtitle'     => $doc::SUBTITLE,
-                'doc_author'       => $doc::AUTHOR,
-                'doc_publisher'    => $doc::PUBLISHER,
-                'doc_version'      => $doc::VERSION,
-                'doc_published'    => $doc::PUBLISHED,
-                'doc_updated'      => $doc::UPDATED,
-                'doc_read_minutes' => $doc::readMinutes($figs),
+                // Identity from MethodologyDocument: this page is its own citable
+                // document, not an appendix to the philosophy, and citing it as the
+                // philosophy would send a reader to the wrong title and version.
+                'doc_title'        => $meth::TITLE,
+                'doc_subtitle'     => $meth::SUBTITLE,
+                'doc_author'       => $meth::AUTHOR,
+                'doc_publisher'    => $meth::PUBLISHER,
+                'doc_version'      => $meth::VERSION,
+                'doc_published'    => $meth::PUBLISHED,
+                'doc_updated'      => $meth::UPDATED,
                 'doc_url'          => $url,
                 'doc_accessed'     => $today,
-                'doc_citations'    => $doc::citations($url, $today),
-                'doc_file_stem'    => $doc::fileStem(),
+                'doc_citations'    => $meth::citations($url, $today),
+
+                // The philosophy, in précis. Same source as /philosophy, so the two
+                // cannot quote different figures; see the class for why it is a
+                // separate rendering rather than the first N sections.
+                'doc_summary'      => $phil::summary($figs),
+                // No reading time. The philosophy can count its own words because it
+                // IS its data; this page's prose is in its template, so any figure
+                // here would be typed, and a typed reading time is one more number
+                // that silently stops being true the next time a section is added.
+                // The masthead macro omits the field when it is absent.
             ]);
         });
         $g->get('/support', fn($req,$res)=>$tv($req)->render($res,'pages/support.twig',['page_title'=>'Support & Appeals — Africa GATES','meta_description'=>'Get help with Africa GATES — the CPI, voting, nominations and your profile — and appeal any moderation decision through an independent review.','gates_page'=>'support','has_hero'=>false]));

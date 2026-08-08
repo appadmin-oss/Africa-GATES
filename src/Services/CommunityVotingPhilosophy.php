@@ -44,8 +44,16 @@ namespace AfricaGates\Services;
  */
 final class CommunityVotingPhilosophy
 {
-    /** Substantive revision of this document. Bump with UPDATED, not on typo fixes. */
-    public const VERSION = '1.0';
+    /**
+     * Substantive revision of this document. Bump with UPDATED, not on typo fixes.
+     *
+     * 1.0 → 1.1: four sections added (what "community" means, what standing for
+     * someone asks of a nominee, what this model cannot do, recognition as a
+     * record), and the document moved to its own page with /integrity carrying the
+     * précis. New argument is a new version; the percentages moving is not, because
+     * the document's claim is "the split is whatever the engine says".
+     */
+    public const VERSION = '1.1';
 
     /** ISO date of the last substantive revision. */
     public const UPDATED = '2026-08-08';
@@ -58,8 +66,15 @@ final class CommunityVotingPhilosophy
     public const AUTHOR = 'Africa GATES Integrity Centre';
     public const PUBLISHER = 'Africa GATES — An Afrovanguard Initiative';
 
-    /** Canonical path. The absolute URL is built by the caller from SiteUrl. */
-    public const PATH = '/integrity';
+    /**
+     * Canonical path. The absolute URL is built by the caller from SiteUrl.
+     *
+     * The document moved here from /integrity when it outgrew being a preamble to
+     * the methodology: an argument that runs to sixteen sections was burying the
+     * mechanics underneath it. /integrity now carries {@see summary()} and links
+     * here for the whole of it.
+     */
+    public const PATH = '/philosophy';
 
     /**
      * The document, as structure.
@@ -104,6 +119,63 @@ final class CommunityVotingPhilosophy
     }
 
     /**
+     * The short version, for the methodology page.
+     *
+     * ── WHY A SECOND RENDERING AND NOT A SECOND DOCUMENT ────────────────────
+     *
+     * /integrity answers "how is a winner decided". It needs the argument in front
+     * of the mechanics — a reader who meets the {community_pct}/{judge_pct} split
+     * without knowing why the public vote is capped at all reads the cap as a
+     * hedge. But it needs it in about four hundred words, not sixteen sections,
+     * which is what pushed the full essay onto its own page.
+     *
+     * So this is a précis, not an excerpt: written to stand alone at this length,
+     * carrying the same tokens so it cannot quote a figure the engine has changed.
+     * The last block hands the reader to the full document rather than trailing
+     * off, because a summary that does not say what it is a summary OF reads like
+     * the whole argument.
+     *
+     * @param array<string,string|int> $figures
+     * @return list<array<string,mixed>>
+     */
+    public static function summary(array $figures = []): array
+    {
+        $blocks = [
+            ['p' => 'Africa GATES begins from an African principle rather than an awards '
+                  . 'convention: we are stronger when we stand for one another. Across African '
+                  . 'societies a person&rsquo;s achievement has rarely been considered theirs '
+                  . 'alone &mdash; families, neighbours, institutions and communities '
+                  . 'contribute to the journey &mdash; and this platform is an attempt to bring '
+                  . 'that into modern recognition.'],
+            ['p' => 'So the public vote is not a popularity meter. The question it asks is not '
+                  . '<em>how many people have heard of you</em> but <em>how many people are '
+                  . 'willing to stand with you</em>. A token contribution is what makes that '
+                  . 'answer mean something: it asks a supporter for a small, deliberate act '
+                  . 'rather than a passing tap, and it funds the judging, verification and '
+                  . 'production work the programme runs on. It buys participation in a '
+                  . 'recognition process. It does not buy an award.'],
+            ['quote' => 'How many people are willing to stand with you, support your journey '
+                      . 'and identify with the values you represent?'],
+            ['p' => 'That is also why the public vote is capped at <strong>{community_pct}%</strong> '
+                  . 'and not set at 100%. Popularity is not excellence: a larger following is not '
+                  . 'greater impact, a nominee with more capacity to mobilise supporters is not '
+                  . 'necessarily the strongest candidate, and some of the most deserving people '
+                  . 'come from communities with the fewest digital and financial resources. The '
+                  . 'remaining <strong>{judge_pct}%</strong> is independent assessment, which is '
+                  . 'what stops the process being decided by whoever can raise the most.'],
+            ['p' => 'And because the community raises it, a share comes back: a nominee keeps '
+                  . '<strong>{return_pct}%</strong> of what supporters contribute in their name, '
+                  . 'win or lose, once they have gathered {return_threshold} votes of qualifying '
+                  . 'support from at least {return_people} different verified people. The rest of '
+                  . 'this page is how all of that is enforced in code.'],
+        ];
+
+        return $figures === []
+            ? $blocks
+            : array_map(static fn (array $b): array => self::resolveBlock($b, $figures), $blocks);
+    }
+
+    /**
      * @param array<string,string|int> $figures
      * @return list<array{id:string, title:string, blocks:list<array<string,mixed>>}>
      */
@@ -127,6 +199,30 @@ final class CommunityVotingPhilosophy
                     ['quote' => 'How many people are willing to stand with you, support your journey and '
                               . 'identify with the values you represent?'],
                     ['p' => 'That distinction is fundamental to the Africa GATES philosophy.'],
+                ],
+            ],
+            [
+                'id'    => 'philosophy-community',
+                'title' => 'What we mean by &ldquo;community&rdquo;',
+                'blocks' => [
+                    ['p' => 'The word does a lot of work in this document, so it is worth being '
+                          . 'precise about it. We do not mean an audience, and we do not mean a '
+                          . 'follower count.'],
+                    ['p' => 'A nominee&rsquo;s community, as this platform counts it, is the set of '
+                          . 'people who will do something small and deliberate on their behalf. '
+                          . 'Sometimes that is family. Often it is the people they have actually '
+                          . 'served &mdash; the women in a cooperative, the students from a '
+                          . 'workshop, the neighbourhood a clinic sits in. Sometimes it is '
+                          . 'strangers who recognise the work and decide it should be seen.'],
+                    ['p' => 'This is a narrower thing than fame and a broader thing than family, '
+                          . 'and it is measurable in a way neither is. It is also why our counting '
+                          . 'rules are shaped the way they are: qualification requires support from '
+                          . 'a number of <em>different verified people</em>, not a sum of money, '
+                          . 'because a community is a plurality by definition. One very generous '
+                          . 'person is a patron. That is a good thing to have, and it is not the '
+                          . 'same thing.'],
+                    ['quote' => 'A community is a plurality. One person, however generous, cannot '
+                              . 'be one.'],
                 ],
             ],
             [
@@ -216,6 +312,32 @@ final class CommunityVotingPhilosophy
                 ],
             ],
             [
+                'id'    => 'philosophy-nominee-obligation',
+                'title' => 'What standing for someone asks of them',
+                'blocks' => [
+                    ['p' => 'Almost everything written here describes what the community owes a '
+                          . 'nominee. The obligation runs the other way too, and a philosophy that '
+                          . 'only described one direction would be a marketing document.'],
+                    ['p' => 'When people put their names and their money behind a person, they are '
+                          . 'making a claim about that person in public. Being nominated here is '
+                          . 'therefore not a prize to be collected; it is a claim to be lived up '
+                          . 'to. That has practical consequences we take seriously:'],
+                    ['list' => [
+                        'A nominee is answerable for how their campaign behaves. Supporters '
+                        . 'mobilised in someone&rsquo;s name act in their name, and pressure, '
+                        . 'misrepresentation or abuse by a campaign is a matter for the nominee.',
+                        'Recognition is for work that can be described. Where a nominee cannot say '
+                        . 'what changed because of what they did, no amount of community support '
+                        . 'makes that a stronger case.',
+                        'Integrity is one of the things judges score, and it is scored on conduct '
+                        . 'under pressure &mdash; including conduct during the cycle itself.',
+                    ]],
+                    ['p' => 'None of that is a threat. It is the reason recognition is worth '
+                          . 'anything at all: an award that asked nothing of the person receiving '
+                          . 'it would tell you nothing about them.'],
+                ],
+            ],
+            [
                 'id'    => 'philosophy-where-money-goes',
                 'title' => 'Where does the money go?',
                 'blocks' => [
@@ -277,6 +399,56 @@ final class CommunityVotingPhilosophy
                           . 'assessment and independent judgement. This is intended to create a healthier '
                           . 'balance between public voice, merit, impact, values and independent '
                           . 'assessment.'],
+                ],
+            ],
+            [
+                'id'    => 'philosophy-limits',
+                'title' => 'What this model cannot do',
+                'blocks' => [
+                    ['p' => 'A document that only argued for its own design would not be worth '
+                          . 'reading, and we would rather state the limits than be told them.'],
+                    ['p' => 'A token contribution is a smaller barrier than a ticket and it is '
+                          . 'still a barrier. Somebody who cannot spare it can vote free of charge '
+                          . 'and their vote is the one that moves the score &mdash; but we are not '
+                          . 'going to pretend the paid tier is neutral between a nominee whose '
+                          . 'supporters have disposable income and one whose supporters do not. '
+                          . 'That is the reason the paid component is capped as a proportion of a '
+                          . 'nominee&rsquo;s <em>earned</em> support rather than allowed to run '
+                          . 'free, and the reason it is excluded from the index entirely. It is a '
+                          . 'mitigation. It is not a solution.'],
+                    ['p' => 'Nor can community support tell you everything. Quiet, unglamorous, '
+                          . 'long-term work mobilises fewer people than work that photographs '
+                          . 'well, and there are people doing the most important work on this '
+                          . 'continent whose communities will never be loud. That asymmetry is '
+                          . 'precisely what the judging component exists to correct, and correcting '
+                          . 'it is a matter of judgement rather than arithmetic &mdash; which means '
+                          . 'it can be got wrong.'],
+                    ['p' => 'What we can promise is that the method is published, the figures are '
+                          . 'read from the live system rather than typed into a page, results are '
+                          . 'sealed against quiet editing, and a decision can be disputed and '
+                          . 'audited. A process that can be checked is not the same as a process '
+                          . 'that is never wrong. It is the more honest of the two things to offer.'],
+                ],
+            ],
+            [
+                'id'    => 'philosophy-record',
+                'title' => 'Recognition as a record',
+                'blocks' => [
+                    ['p' => 'There is one more reason to do this carefully, and it has nothing to '
+                          . 'do with prizes.'],
+                    ['p' => 'Africa has never lacked extraordinary people. What the continent has '
+                          . 'often lacked are systems that consistently identify, document and '
+                          . 'amplify them &mdash; so achievement goes unrecorded, and a generation '
+                          . 'grows up able to name foreign figures more readily than the ones who '
+                          . 'built what is around them.'],
+                    ['p' => 'Every verified nomination, every scored ballot and every sealed result '
+                          . 'is therefore also an archive entry: a dated, evidenced, checkable '
+                          . 'record that this person did this work and these people stood behind '
+                          . 'them. That is why nominee profiles persist after a cycle ends, why '
+                          . 'standings are sealed rather than overwritten, and why the register is '
+                          . 'public and searchable.'],
+                    ['quote' => 'An award is an event. A record is what is still there in twenty '
+                              . 'years.'],
                 ],
             ],
             [
@@ -619,6 +791,11 @@ final class CommunityVotingPhilosophy
     /**
      * Citation strings for the formats a reader is most likely to be asked for.
      *
+     * The punctuation lives in {@see \AfricaGates\Support\Citation}, shared with the
+     * terms and the privacy policy — four documents carrying four hand-written APA
+     * formats would be three chances to get the comma before the retrieval date
+     * wrong. This method's job is to say what this document IS.
+     *
      * `accessed` is a parameter rather than a `date()` call so a test can pin it —
      * and so the page, the .txt and the .md produced by one request all agree on
      * the date rather than each asking the clock again.
@@ -627,55 +804,17 @@ final class CommunityVotingPhilosophy
      */
     public static function citations(string $url, ?string $accessed = null): array
     {
-        $accessed = $accessed ?? date('Y-m-d');
-        $year     = substr(self::PUBLISHED, 0, 4);
-        $title    = self::text(self::TITLE);
-        $human    = date('j F Y', strtotime($accessed) ?: time());
-        $mlaDate  = date('j M. Y', strtotime($accessed) ?: time());
-
-        return [
-            [
-                'id'    => 'apa',
-                'label' => 'APA (7th edition)',
-                'text'  => sprintf(
-                    '%s. (%s). %s (Version %s). %s. Retrieved %s, from %s',
-                    self::AUTHOR, $year, $title, self::VERSION, self::PUBLISHER, $human, $url
-                ),
-            ],
-            [
-                'id'    => 'mla',
-                'label' => 'MLA (9th edition)',
-                'text'  => sprintf(
-                    '%s. "%s." Version %s, %s, %s, %s. Accessed %s.',
-                    self::AUTHOR, $title, self::VERSION, self::PUBLISHER,
-                    date('j M. Y', strtotime(self::UPDATED) ?: time()), $url, $mlaDate
-                ),
-            ],
-            [
-                'id'    => 'chicago',
-                'label' => 'Chicago (17th edition, note)',
-                'text'  => sprintf(
-                    '%s, "%s," version %s, %s, last modified %s, %s.',
-                    self::AUTHOR, $title, self::VERSION, self::PUBLISHER,
-                    date('F j, Y', strtotime(self::UPDATED) ?: time()), $url
-                ),
-            ],
-            [
-                'id'    => 'bibtex',
-                'label' => 'BibTeX',
-                'text'  => implode("\n", [
-                    '@misc{africagates' . $year . 'philosophy,',
-                    '  title        = {' . $title . '},',
-                    '  author       = {{' . self::AUTHOR . '}},',
-                    '  organization = {' . self::PUBLISHER . '},',
-                    '  year         = {' . $year . '},',
-                    '  version      = {' . self::VERSION . '},',
-                    '  url          = {' . $url . '},',
-                    '  urldate      = {' . $accessed . '}',
-                    '}',
-                ]),
-            ],
-        ];
+        return \AfricaGates\Support\Citation::formats([
+            'title'     => self::text(self::TITLE),
+            'author'    => self::AUTHOR,
+            'publisher' => self::PUBLISHER,
+            'version'   => self::VERSION,
+            'published' => self::PUBLISHED,
+            'updated'   => self::UPDATED,
+            'url'       => $url,
+            'accessed'  => $accessed ?? date('Y-m-d'),
+            'key'       => 'philosophy',
+        ]);
     }
 
     /** Filename stem for the downloads. No spaces, versioned, sorts sensibly. */

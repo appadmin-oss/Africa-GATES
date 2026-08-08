@@ -6,7 +6,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
-use AfricaGates\Services\{CacheService, AwardService, PointsService, PaidVoteService, PaymentService};
+use AfricaGates\Services\{CacheService, AwardService, PointsService, PaidVoteService, PaymentService, RuleEngine};
 
 class VoteController {
 
@@ -30,6 +30,38 @@ class VoteController {
         private readonly AwardService    $awards,
         private readonly ?PaymentService $payments = null
     ) {}
+
+    /**
+     * The community/judge split, as the scorer currently computes it.
+     *
+     * ── WHY A BALLOT NEEDS THIS ─────────────────────────────────────────────
+     *
+     * The vote pages told a voter "community votes are 45% of the final score" in
+     * typed prose, while /integrity one click away read the figure out of
+     * RuleEngine — which an operator can change per programme and per cycle. The
+     * two could disagree, and the page that would have been wrong is the one a
+     * person reads immediately before deciding whether to pay.
+     *
+     * Same engine, same numbers, everywhere the split is quoted.
+     *
+     * @return array{community:int, judge:int}
+     */
+    private function splitPct(): array {
+        try {
+            $w = (new RuleEngine())->weights();
+            return [
+                'community' => (int) round($w['community'] * 100),
+                'judge'     => (int) round($w['judge'] * 100),
+            ];
+        } catch (\Throwable) {
+            // A ballot must still render if the rules table is unreachable. The code
+            // defaults are the same ones RuleEngine would have returned.
+            return [
+                'community' => (int) round(RuleEngine::DEFAULTS['community_weight'] * 100),
+                'judge'     => (int) round(RuleEngine::DEFAULTS['judge_weight'] * 100),
+            ];
+        }
+    }
 
     /** /vote — the HUB: browse the live programmes, then drill into one to vote. */
     public function index(Request $req, Response $res): Response {
@@ -62,6 +94,7 @@ class VoteController {
             'has_hero'         => false,
             'current_section'  => 'projects',
             'hub'              => $hub,
+            'split'            => $this->splitPct(),
             'meta'             => [
                 'count'        => count($hub),
                 'votes_total'  => $votesTotal,

@@ -1,92 +1,69 @@
 {% extends "layout/gates.twig" %}
+{% import "partials/article.twig" as art %}
 
 {#
   ══════════════════════════════════════════════════════════════════════════════
-  THE INTEGRITY CENTRE — ONE CITABLE DOCUMENT
+  THE METHODOLOGY — how a winner is decided
   ══════════════════════════════════════════════════════════════════════════════
 
-  This page was a summary with doors: ten short sections, each a card, each with a
-  link out to the Help Centre. That shape was right when the page's only job was to
-  answer "how is a winner decided" in a minute.
+  Half of a pair. /philosophy argues; this page enforces. Each ends by handing the
+  reader to the other, which is what makes them one Integrity Centre rather than
+  two pages that happen to share a stylesheet.
 
-  It has a second job now. The philosophy behind community voting is a POSITION —
-  the sort of thing a journalist quotes, a regulator asks for, and a nominee's
-  lawyer reads twice — and positions have to be citable. A card grid cannot be
-  cited. So the page is now built as an article: one column, continuous numbering,
-  a stated version and date, and Copy / Download / Cite in the header.
+  ── WHY THE PHILOSOPHY IS ONLY A PRÉCIS HERE ────────────────────────────────
 
-  ── EDITORIAL, NOT DECORATIVE ───────────────────────────────────────────────
+  The full argument used to open this page: sixteen sections before the first
+  table. That put Ubuntu between a reader arriving from a ballot and the answer to
+  the question they came with, which is "how is a winner decided". So the argument
+  moved to its own page and what stays is
+  {@see CommunityVotingPhilosophy::summary()} — about four hundred words, enough
+  that the {community_pct}/{judge_pct} split does not read as an unexplained hedge,
+  with a door to the whole of it.
 
-  The styling below is deliberately plainer than the rest of the site. No cards, no
-  gradients, no shadows, no progress bars. Warm paper, one measure of about 66
-  characters, Playfair for headings and DM Sans for body at a generous 1.78 leading,
-  and hairline rules doing all the separating that panels used to do.
+  It is a PRÉCIS, not an excerpt: a separate rendering written to stand alone at
+  this length, carrying the same {tokens} so it cannot quote a figure the engine
+  has changed.
 
-  Data that used to be a bar chart is now a table, because a table can be read
-  aloud, copied into a spreadsheet, and printed — and every one of those matters
-  more for this document than the bar did.
+  ── EVERY NUMBER ON THIS PAGE IS READ, NOT TYPED ────────────────────────────
 
-  ── WHERE THE WORDS LIVE ────────────────────────────────────────────────────
+  The weights, the bonus-vote ceiling, the judge quorum, the fraud bands and the
+  community-return share all arrive from RuleEngine via the route — the same
+  object the scorer consults. An operator can change any of them per programme and
+  per cycle, and of every page on this site the METHODOLOGY page is the one that
+  must not go on describing a system the code has stopped running.
 
-  Part I is NOT written here. It arrives as `doc_sections` from
-  {@see \AfricaGates\Services\CommunityVotingPhilosophy}, because the same prose has
-  to leave as HTML, as the .txt the Copy button lifts, and as the .md the Download
-  button saves. One source, three surfaces, no drift.
+  `default()` on each figure below is a rendering guard, not a published number: if
+  the engine is unreachable the page must still say something coherent.
 
-  Part II is written here, and every figure in it is a route variable read from
-  RuleEngine — the same object the scorer consults. Of every page on this site the
-  methodology page is the one that must not go on describing a system the code has
-  stopped running.
+  ── NO COPY, NO DOWNLOAD, ON PURPOSE ────────────────────────────────────────
+
+  Cite only. This page's prose lives in this template rather than in PHP, so there
+  is no .txt or .md that IS this page — and a Download that saved a different
+  document would be worse than no Download, because the reader would file it and
+  find out later. {@see MethodologyDocument} for when that changes.
 #}
 
-{% set part2_offset = doc_sections|default([])|length %}
-
-{#
-  ── STRUCTURED DATA & CITATION METADATA ─────────────────────────────────────
-
-  Three things, for three different readers:
-
-  1. `Article` — tells a search engine this is a dated, versioned document with an
-     author and a publisher, which is what earns the byline treatment in results.
-  2. Highwire Press `citation_*` tags plus Dublin Core — what Zotero, Mendeley and
-     Google Scholar actually read when somebody clicks "save citation". Without
-     them a reference manager guesses the title from the <title> tag and the date
-     from nothing.
-  3. `FAQPage` — kept from the previous build, and still built only from questions
-     this page VISIBLY answers. Marking up an answer a reader cannot find is the
-     thing search engines penalise, and it is also just a lie in a format nobody
-     reads.
-#}
 {% block structured_data %}
-<meta name="citation_title" content="{{ doc_title }}">
-<meta name="citation_author" content="{{ doc_author }}">
-<meta name="citation_publisher" content="{{ doc_publisher }}">
-<meta name="citation_publication_date" content="{{ doc_published }}">
-<meta name="citation_online_date" content="{{ doc_updated }}">
-<meta name="citation_public_url" content="{{ doc_url }}">
-<meta name="DC.title" content="{{ doc_title }}">
-<meta name="DC.creator" content="{{ doc_author }}">
-<meta name="DC.publisher" content="{{ doc_publisher }}">
-<meta name="DC.date" content="{{ doc_updated }}">
-<meta name="DC.identifier" content="{{ doc_url }}">
-<meta name="DC.type" content="Text">
-<meta name="DC.format" content="text/html">
-<script nonce="{{ csp_nonce }}" type="application/ld+json">
-{"@context":"https://schema.org","@type":"Article",
-"headline":{{ doc_title|json_encode|raw }},
-"alternativeHeadline":{{ doc_subtitle|json_encode|raw }},
-"description":{{ doc_standfirst|striptags|json_encode|raw }},
-"author":{"@type":"Organization","name":{{ doc_author|json_encode|raw }}},
-"publisher":{"@type":"Organization","name":{{ doc_publisher|json_encode|raw }}},
-"datePublished":{{ doc_published|json_encode|raw }},
-"dateModified":{{ doc_updated|json_encode|raw }},
-"version":{{ doc_version|json_encode|raw }},
-"inLanguage":"en",
-"isAccessibleForFree":true,
-"license":{{ (_site_url ~ '/terms')|json_encode|raw }},
-"mainEntityOfPage":{"@type":"WebPage","@id":{{ doc_url|json_encode|raw }}},
-"url":{{ doc_url|json_encode|raw }}}
-</script>
+{{ art.cite_meta({
+  title: doc_title, author: doc_author, publisher: doc_publisher,
+  published: doc_published, updated: doc_updated, url: doc_url
+}) }}
+{{ art.article_ld({
+  title: doc_title, subtitle: doc_subtitle, description: meta_description,
+  author: doc_author, publisher: doc_publisher, published: doc_published,
+  updated: doc_updated, version: doc_version, url: doc_url,
+  terms_url: _site_url ~ '/terms'
+}, csp_nonce) }}
+
+{#
+  A FAQPage, built from questions this page VISIBLY ANSWERS. That constraint is the
+  whole discipline: marking up an answer the reader cannot find is the thing search
+  engines penalise, and it is also just a lie told in a format nobody reads.
+
+  The figures interpolate from the same route variables the visible copy uses, so
+  the machine-readable answer and the human one cannot drift — and a cycle override
+  changes both at once.
+#}
 <script nonce="{{ csp_nonce }}" type="application/ld+json">
 {% set faq = [
   {
@@ -94,16 +71,8 @@
     a: 'The CPI is ' ~ community_pct|default(45) ~ '% verified community votes and ' ~ judge_pct|default(55) ~ '% independent judge panel. The community share is normalised within each category, so a nominee in a small category is measured against their own field rather than against the whole platform.'
   },
   {
-    q: 'Why is voting on Africa GATES paid?',
-    a: 'A token contribution gives a supporter a practical way of standing with a nominee, and it funds the judging, verification and production work behind the programme. It is not a purchase of an award: contributions add to a public tally but are held in a column the scorer never reads.'
-  },
-  {
     q: 'Can you buy votes to win an Africa GATES award?',
     a: 'No. Contributions add to a nominee’s public tally but are held in a separate column the scorer never reads, they cannot break a tie, and they are capped at ' ~ paid_cap_pct|default(50) ~ '% of the organic support a nominee has earned. Money can make a nominee look more popular; it cannot make them win.'
-  },
-  {
-    q: 'Why is the public vote only ' ~ community_pct|default(45) ~ '%?',
-    a: 'Because popularity is not the same thing as excellence. A larger following is not greater impact, and a nominee with more capacity to mobilise supporters is not necessarily the strongest candidate. Limiting the public vote to ' ~ community_pct|default(45) ~ '% leaves ' ~ judge_pct|default(55) ~ '% for structured, independent assessment.'
   },
   {
     q: 'Why might the nominee with the most votes not win?',
@@ -120,517 +89,73 @@
   {
     q: 'What is the Africa GATES community return?',
     a: 'A nominee keeps ' ~ return_pct|default('50') ~ '% of what supporters contribute in their name, win or lose, once they have gathered ' ~ return_threshold|default(250) ~ ' votes of qualifying support. No single supporter can supply more than ' ~ return_cap_pct|default(10) ~ '% of that threshold, so qualifying takes at least ' ~ return_people|default(10) ~ ' different verified people.'
-  },
-  {
-    q: 'Is Africa GATES a pyramid or Ponzi scheme?',
-    a: 'No. Africa GATES is not a Ponzi scheme, pyramid scheme, MLM programme, investment scheme or get-rich-quick scheme. Nobody is promised a financial return for recruiting other participants, and no participant earns money by introducing another person into the programme.'
   }
 ] %}
 {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in faq %}{"@type":"Question","name":{{ f.q|json_encode|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
 </script>
 {% endblock %}
 
-{% block head_styles %}
-<style nonce="{{ csp_nonce }}">
-  /* ══ THE PAPER ═══════════════════════════════════════════════════════════
-     A warm sheet rather than the site's cool white. The document is meant to
-     feel like something printed and kept, and #fbfbfa reads as a screen.
-
-     The tokens are declared on BODY, not on .ar. Custom properties inherit
-     downward only, so a --ar-paper defined on .ar is invisible to the body
-     element that has to paint the background — which is exactly how this
-     shipped white the first time. Declaring them here puts both the painter
-     and its descendants inside the same scope. */
-  body[data-page="integrity"]{
-    --ar-paper:#f4f2ea;
-    --ar-ink:#12292b;
-    --ar-soft:#5b6663;          /* ≥4.5:1 on the paper — body-adjacent text */
-    --ar-faint:#7c8683;         /* ≥3:1 — labels and furniture only, never prose */
-    --ar-line:rgba(18,41,43,.14);
-    --ar-line-soft:rgba(18,41,43,.08);
-    --ar-accent:#237b22;
-    --ar-accent-dark:#1a6118;
-    --ar-gold:#9a7726;
-    --ar-measure:42rem;         /* ≈66 characters at the body size */
-    background:var(--ar-paper);
-    color:var(--ar-ink);
-  }
-
-  /* ══ SHELL ═══════════════════════════════════════════════════════════════
-     One column of prose, with the contents parked in the margin from 1180px up.
-     Below that the rail becomes an inline block at the top, because a sticky
-     sidebar on a narrow screen is a sticky obstruction. */
-  .ar-shell{ max-width:74rem; margin:0 auto; padding:clamp(2rem,5vw,3.4rem) var(--ag-gutter,32px) clamp(4rem,8vw,6rem); }
-  @media (min-width:1180px){
-    .ar-shell{ display:grid; grid-template-columns:minmax(0,1fr) 15rem; gap:4rem; align-items:start; }
-    .ar-rail{ position:sticky; top:calc(var(--ag-nav-h,72px) + 1.5rem); order:2; }
-    .ar-body{ order:1; }
-  }
-  .ar-body{ max-width:var(--ar-measure); }
-
-  /* ══ TYPE ════════════════════════════════════════════════════════════════ */
-  .ar-body p, .ar-body li{ font-family:var(--ag-font-body); font-size:17.5px; line-height:1.78; color:var(--ar-ink); }
-  .ar-body p{ margin:0 0 1.35em; }
-  .ar-body a{ color:var(--ar-accent-dark); text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:.16em; }
-  .ar-body a:hover{ text-decoration-thickness:2px; }
-  .ar-body code{ font-family:var(--ag-font-mono); font-size:.9em; background:rgba(18,41,43,.06); padding:.12em .38em; border-radius:4px; }
-
-  /* ══ MASTHEAD ════════════════════════════════════════════════════════════ */
-  .ar-eyebrow{ margin:0 0 1.1rem; font:600 11px/1 var(--ag-font-mono); letter-spacing:.18em; text-transform:uppercase; color:var(--ar-accent); }
-  .ar-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2.15rem,5.2vw,3.35rem); line-height:1.07; letter-spacing:-.022em; color:var(--ar-ink); }
-  .ar-sub{ margin:.85rem 0 0; font-family:var(--ag-font-display); font-style:italic; font-weight:400; font-size:clamp(1.15rem,2.6vw,1.42rem); line-height:1.4; color:var(--ar-soft); }
-  .ar-stand{ margin:1.7rem 0 0; font-size:19px !important; line-height:1.72 !important; color:var(--ar-soft) !important; }
-
-  /* The byline row. Hairline above and below, mono, small — a colophon, not a
-     headline. Wraps to two lines on a phone without becoming a list. */
-  .ar-meta{ margin:2rem 0 0; padding:.9rem 0; border-top:1px solid var(--ar-line); border-bottom:1px solid var(--ar-line);
-            display:flex; flex-wrap:wrap; gap:.4rem 1.4rem; font:500 12px/1.5 var(--ag-font-mono); color:var(--ar-faint); }
-  .ar-meta b{ color:var(--ar-soft); font-weight:600; }
-  .ar-meta dfn{ font-style:normal; }
-
-  /* ══ TOOLBAR ═════════════════════════════════════════════════════════════
-     Copy, Download, Cite. Hairline and quiet: these are utilities on a
-     document, not calls to action, and styling them as buttons would make them
-     compete with the words. */
-  .ar-tools{ margin:1.5rem 0 0; display:flex; flex-wrap:wrap; gap:.55rem; position:relative; }
-  .ar-tool{ display:inline-flex; align-items:center; gap:.5rem; cursor:pointer; background:transparent;
-            border:1px solid var(--ar-line); border-radius:999px; padding:.5rem .95rem;
-            font:600 12.5px/1 var(--ag-font-body); color:var(--ar-ink); text-decoration:none;
-            transition:border-color .15s, background-color .15s; }
-  .ar-tool:hover{ border-color:var(--ar-accent); background:rgba(35,123,34,.05); text-decoration:none; }
-  .ar-tool[aria-expanded="true"]{ border-color:var(--ar-accent); background:rgba(35,123,34,.06); }
-  .ar-tool.is-done{ border-color:var(--ar-accent); color:var(--ar-accent-dark); background:rgba(35,123,34,.08); }
-  .ar-tool svg{ flex:none; }
-
-  /* The download menu. A popover rather than two more buttons in the row,
-     because .md and .txt are one decision with two answers. */
-  .ar-pop{ position:absolute; top:calc(100% + .45rem); left:0; z-index:20; min-width:15rem;
-           background:#fff; border:1px solid var(--ar-line); border-radius:12px; padding:.35rem;
-           box-shadow:0 12px 32px -12px rgba(18,41,43,.28); }
-  .ar-pop a{ display:block; padding:.6rem .7rem; border-radius:8px; text-decoration:none; color:var(--ar-ink); }
-  .ar-pop a:hover{ background:rgba(18,41,43,.05); text-decoration:none; }
-  .ar-pop b{ display:block; font:600 13.5px/1.3 var(--ag-font-body); }
-  .ar-pop span{ display:block; margin-top:2px; font-size:12px; line-height:1.45; color:var(--ar-faint); }
-
-  /* Announced to screen readers, shown to everybody. One line, no layout shift. */
-  .ar-say{ margin:.7rem 0 0; min-height:1.1rem; font:500 12.5px/1.1 var(--ag-font-mono); color:var(--ar-accent-dark); }
-
-  /* ══ CONTENTS ════════════════════════════════════════════════════════════ */
-  .ar-rail h2, .ar-toc h2{ margin:0 0 .8rem; font:600 11px/1 var(--ag-font-mono); letter-spacing:.16em; text-transform:uppercase; color:var(--ar-faint); }
-  .ar-rail ol, .ar-toc ol{ list-style:none; margin:0; padding:0; counter-reset:ar; }
-  .ar-rail li, .ar-toc li{ counter-increment:ar; }
-  .ar-rail a, .ar-toc a{ display:flex; gap:.6rem; padding:.32rem 0; font-size:13.5px !important; line-height:1.45 !important;
-                         color:var(--ar-soft) !important; text-decoration:none; }
-  .ar-rail a::before, .ar-toc a::before{ content:counter(ar,decimal-leading-zero); flex:none; font:600 10.5px/1.7 var(--ag-font-mono); color:var(--ar-faint); }
-  .ar-rail a:hover, .ar-toc a:hover{ color:var(--ar-accent-dark) !important; text-decoration:none; }
-  .ar-rail .ar-part, .ar-toc .ar-part{ margin:1rem 0 .35rem; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ar-accent); }
-  .ar-rail .ar-part:first-child, .ar-toc .ar-part:first-child{ margin-top:0; }
-  /* The part labels and the reference entry are <li> because they live inside the
-     <ol> — but they are not sections, so they must not consume a number. Without
-     this the contents counted them and every entry was off by one per part: the
-     body said "13 The score" while the contents said 15. */
-  .ar-rail li.ar-part, .ar-toc li.ar-part,
-  .ar-rail li.ar-ref, .ar-toc li.ar-ref{ counter-increment:none; }
-  .ar-rail li.ar-ref a::before, .ar-toc li.ar-ref a::before{ content:"§"; }
-  /* Inline contents, for the narrow layout only. */
-  .ar-toc{ margin:2.6rem 0 0; padding:1.2rem 1.3rem; border:1px solid var(--ar-line); border-radius:14px; }
-  @media (min-width:1180px){ .ar-toc{ display:none; } }
-  .ar-rail{ display:none; }
-  @media (min-width:1180px){ .ar-rail{ display:block; } }
-
-  /* ══ PART DIVIDER ════════════════════════════════════════════════════════ */
-  .ar-part-head{ margin:clamp(3.4rem,7vw,5rem) 0 0; padding-top:1.6rem; border-top:2px solid var(--ar-ink); }
-  .ar-part-head .ar-pn{ display:block; font:600 11px/1 var(--ag-font-mono); letter-spacing:.18em; text-transform:uppercase; color:var(--ar-accent); margin-bottom:.7rem; }
-  .ar-part-head h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.7rem,3.6vw,2.2rem); line-height:1.15; letter-spacing:-.018em; }
-  .ar-part-head p{ margin:.75rem 0 0; color:var(--ar-soft) !important; }
-
-  /* ══ SECTIONS ════════════════════════════════════════════════════════════ */
-  .ar-sec{ scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.5rem); margin-top:clamp(2.6rem,5.5vw,3.6rem); }
-  .ar-sec > h3{ margin:0 0 1.1rem; font-family:var(--ag-font-display); font-weight:700;
-                font-size:clamp(1.42rem,3vw,1.78rem); line-height:1.22; letter-spacing:-.016em; color:var(--ar-ink); }
-  .ar-sn{ display:block; margin-bottom:.5rem; font:600 11px/1 var(--ag-font-mono); letter-spacing:.16em; color:var(--ar-accent); }
-  .ar-h4{ margin:2rem 0 .7rem; font-family:var(--ag-font-body); font-weight:700; font-size:1.02rem; line-height:1.4;
-          letter-spacing:.01em; color:var(--ar-ink); }
-
-  /* ══ LISTS ═══════════════════════════════════════════════════════════════
-     Hanging markers, so the text block keeps one left edge with the paragraphs
-     around it. A bullet that pushes prose inward breaks the column. */
-  .ar-list{ list-style:none; margin:0 0 1.35em; padding:0; }
-  .ar-list li{ position:relative; padding-left:1.35rem; margin-bottom:.6em; }
-  .ar-list li::before{ content:""; position:absolute; left:.25rem; top:.72em; width:5px; height:5px; border-radius:50%; background:var(--ar-accent); }
-  .ar-steps{ list-style:none; margin:0 0 1.35em; padding:0; counter-reset:st; }
-  .ar-steps li{ position:relative; padding-left:2.1rem; margin-bottom:.7em; counter-increment:st; }
-  .ar-steps li::before{ content:counter(st,decimal-leading-zero); position:absolute; left:0; top:.28em;
-                        font:600 11.5px/1.6 var(--ag-font-mono); color:var(--ar-accent); }
-
-  /* ══ PULL QUOTE ══════════════════════════════════════════════════════════
-     The document's own voice. Playfair italic, no quotation marks — the marks
-     are what make a pull quote look like a testimonial. */
-  .ar-quote{ margin:2.1rem 0; padding:0 0 0 1.5rem; border-left:2px solid var(--ar-accent); }
-  .ar-quote p{ margin:0; font-family:var(--ag-font-display); font-style:italic; font-weight:400;
-               font-size:clamp(1.2rem,2.6vw,1.44rem) !important; line-height:1.48 !important; color:var(--ar-ink) !important; }
-
-  /* ══ TABLE ═══════════════════════════════════════════════════════════════
-     What used to be bar charts. Hairline rows, mono figures, and a scroll
-     container so a narrow screen scrolls the table instead of the page. */
-  .ar-tw{ margin:0 0 1.5em; overflow-x:auto; }
-  .ar-table{ width:100%; border-collapse:collapse; font-family:var(--ag-font-body); }
-  .ar-table caption{ caption-side:top; text-align:left; margin-bottom:.7rem;
-                     font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ar-faint); }
-  .ar-table th, .ar-table td{ text-align:left; padding:.72rem .9rem .72rem 0; border-bottom:1px solid var(--ar-line-soft);
-                              font-size:15.5px; line-height:1.6; vertical-align:baseline; }
-  .ar-table thead th{ border-bottom:1px solid var(--ar-line); font-weight:600; font-size:12.5px;
-                      letter-spacing:.04em; text-transform:uppercase; color:var(--ar-faint); }
-  .ar-table tbody th{ font-weight:600; color:var(--ar-ink); white-space:nowrap; }
-  .ar-table td:last-child, .ar-table th:last-child{ padding-right:0; }
-  .ar-table .ar-num{ font-family:var(--ag-font-mono); font-weight:600; font-size:14.5px; color:var(--ar-accent-dark); white-space:nowrap; }
-  .ar-table tfoot td{ border-bottom:0; padding-top:.9rem; font-size:14px; color:var(--ar-soft); }
-
-  /* ══ TWO COLUMNS ═════════════════════════════════════════════════════════
-     "What it does" against "what it does not". A single hairline between them
-     carries the contrast; the previous build used a green panel and a red one,
-     which read as a warning rather than as a distinction. */
-  .ar-cols{ margin:0 0 1.5em; display:grid; gap:1.6rem; }
-  @media (min-width:640px){ .ar-cols{ grid-template-columns:1fr 1fr; gap:2.2rem; } }
-  .ar-cols > div + div{ padding-top:1.6rem; border-top:1px solid var(--ar-line); }
-  @media (min-width:640px){
-    .ar-cols > div + div{ padding-top:0; border-top:0; padding-left:2.2rem; border-left:1px solid var(--ar-line); }
-  }
-  .ar-cols h4{ margin:0 0 .8rem; font:600 12px/1 var(--ag-font-mono); letter-spacing:.13em; text-transform:uppercase; }
-  .ar-cols--can h4{ color:var(--ar-accent-dark); }
-  .ar-cols--cannot h4{ color:#a2453f; }
-  .ar-cols li{ font-size:16px !important; line-height:1.7 !important; }
-  .ar-cols .ar-list li::before{ background:currentColor; opacity:.5; }
-  .ar-cols--cannot .ar-list li::before{ background:#a2453f; }
-
-  /* ══ NOTICE ══════════════════════════════════════════════════════════════
-     One on the page: the anti-fraud disclaimer. Being the only boxed thing in
-     the document is what makes the box mean something. */
-  .ar-note{ margin:1.6rem 0 1.5em; padding:1.4rem 1.5rem; background:rgba(154,119,38,.07);
-            border:1px solid rgba(154,119,38,.28); border-radius:14px; }
-  .ar-note h4{ margin:0 0 .9rem; font:600 11.5px/1 var(--ag-font-mono); letter-spacing:.15em; text-transform:uppercase; color:var(--ar-gold); }
-  .ar-note p{ font-size:16px !important; line-height:1.72 !important; }
-  .ar-note p:last-child{ margin-bottom:0; }
-
-  /* ══ ASIDE / FOOTNOTE ════════════════════════════════════════════════════ */
-  .ar-aside{ margin:1.5rem 0; padding-left:1.2rem; border-left:1px solid var(--ar-line); }
-  .ar-aside p{ margin:0; font-size:15.5px !important; line-height:1.7 !important; color:var(--ar-soft) !important; }
-
-  /* Further reading — a line of references, the way an article ends a section. */
-  .ar-refs{ margin:1.4rem 0 0; padding-top:.9rem; border-top:1px solid var(--ar-line-soft); }
-  .ar-refs span{ font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ar-faint); }
-  .ar-refs ul{ list-style:none; margin:.6rem 0 0; padding:0; }
-  .ar-refs li{ margin-bottom:.3rem; font-size:14.5px !important; line-height:1.6 !important; }
-  .ar-refs a{ color:var(--ar-soft) !important; text-decoration-color:var(--ar-line); }
-  .ar-refs a:hover{ color:var(--ar-accent-dark) !important; }
-
-  /* ══ CITATION ════════════════════════════════════════════════════════════ */
-  .ar-cite{ scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.5rem); margin:clamp(3.4rem,7vw,5rem) 0 0; padding-top:1.6rem; border-top:2px solid var(--ar-ink); }
-  .ar-cite > h2{ margin:0 0 .5rem; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.5rem,3.2vw,1.9rem); letter-spacing:-.016em; }
-  .ar-tabs{ margin:1.4rem 0 0; display:flex; flex-wrap:wrap; gap:.4rem; border-bottom:1px solid var(--ar-line); padding-bottom:.7rem; }
-  .ar-tab{ cursor:pointer; background:transparent; border:1px solid transparent; border-radius:999px; padding:.4rem .8rem;
-           font:600 12.5px/1 var(--ag-font-body); color:var(--ar-soft); }
-  .ar-tab:hover{ color:var(--ar-ink); background:rgba(18,41,43,.05); }
-  .ar-tab[aria-selected="true"]{ background:var(--ar-ink); color:#f4f2ea; }
-  .ar-cite-body{ margin:1.1rem 0 0; }
-  .ar-body .ar-cite-text{ margin:0; padding:1.1rem 1.2rem; background:#fff; border:1px solid var(--ar-line); border-radius:12px;
-                 font-family:var(--ag-font-mono) !important; font-size:13.5px !important; line-height:1.75 !important; color:var(--ar-ink);
-                 white-space:pre-wrap; word-break:break-word; }
-  .ar-cite-act{ margin:.8rem 0 0; display:flex; flex-wrap:wrap; gap:.55rem; align-items:center; }
-
-  /* ══ CLOSING ═════════════════════════════════════════════════════════════ */
-  .ar-end{ margin:clamp(3rem,6vw,4rem) 0 0; padding-top:1.6rem; border-top:1px solid var(--ar-line); }
-  .ar-end p{ color:var(--ar-soft) !important; font-size:16px !important; }
-
-  /* ══ PRINT ═══════════════════════════════════════════════════════════════
-     A document with a Download button will be printed, so it gets a print
-     stylesheet rather than whatever the browser improvises. Utilities and the
-     contents rail go; the URL and version stay, because a printed page that
-     cannot be traced back to its source cannot be cited from either. */
-  @media print{
-    body[data-page="integrity"]{ background:#fff; }
-    .ar-tools, .ar-rail, .ar-toc, .ar-say, .ar-tabs, .ar-cite-act{ display:none !important; }
-    .ar-shell{ max-width:none; padding:0; display:block; }
-    .ar-body{ max-width:none; }
-    .ar-body p, .ar-body li{ font-size:11pt; line-height:1.55; }
-    .ar-sec, .ar-part-head, .ar-cite{ break-inside:avoid-page; }
-    .ar-sec > h3, .ar-part-head h2{ break-after:avoid-page; }
-    .ar-note{ border:1px solid #999; background:none; }
-    .ar-cite-text{ background:none; border:1px solid #999; }
-    .ar-body a::after{ content:" (" attr(href) ")"; font-size:9pt; color:#555; word-break:break-all; }
-    .ar-refs a::after{ content:""; }
-  }
-</style>
-{% endblock %}
+{% block head_styles %}{{ art.styles() }}{% endblock %}
 
 {% block content %}
-{#
-  Alpine's expression compiler runs on a deferred script, so this inline block —
-  which runs during parse — is guaranteed to have defined the component before
-  `x-data` is evaluated. It carries a nonce; see Support\Csp.
-#}
-<script nonce="{{ csp_nonce }}">
-window.agIntegrityDoc = function () {
-  return {
-    tabs: {{ doc_citations|column('id')|json_encode|raw }},
-    tab: 'apa',
-    said: '',
-    menu: false,
-    done: '',
+{{ art.script({ txt_url: '/philosophy.txt', url: doc_url, tab_ids: doc_citations|column('id') }, csp_nonce) }}
 
-    /* Arrow-key movement across the citation tabs.
+{% set method_toc = [
+  { id: 'why',      title: 'Why this exists' },
+  { id: 'score',    title: 'The score' },
+  { id: 'eligible', title: 'Who can actually win' },
+  { id: 'criteria', title: 'What judges score' },
+  { id: 'money',    title: 'What money can and cannot do' },
+  { id: 'return',   title: 'The community return' },
+  { id: 'honest',   title: 'Keeping the count honest' },
+  { id: 'failures', title: 'When a payment goes wrong' },
+  { id: 'sealed',   title: 'Sealing the result' },
+  { id: 'cycle',    title: 'The cycle, stage by stage' },
+  { id: 'disputes', title: 'Disputes and your data' }
+] %}
+{% set toc = [{ label: '', items: method_toc }] %}
 
-       Not a nicety. The tabs carry a roving tabindex — the selected one is 0, the
-       rest are -1 — which is correct for a tablist and means Tab enters the group
-       once instead of stopping four times. But it also means the arrow keys are the
-       ONLY way to reach the other three, so without this handler a keyboard user
-       could see four formats and reach exactly one. Home and End are included
-       because a four-item list is short enough that jumping to an end is faster
-       than stepping to it. */
-    moveTab: function (dir) {
-      var i = this.tabs.indexOf(this.tab);
-      if (i < 0) i = 0;
-      var next = dir === 'home' ? 0
-               : dir === 'end'  ? this.tabs.length - 1
-               : (i + (dir === 'next' ? 1 : -1) + this.tabs.length) % this.tabs.length;
-      this.tab = this.tabs[next];
-      /* Selection follows focus, so focus has to follow selection — otherwise the
-         next arrow press is computed from a tab the browser is no longer on. */
-      var el = document.getElementById('ar-tab-' + this.tab);
-      if (el) el.focus();
-    },
-
-    /* One clipboard path for every button on the page.
-       navigator.clipboard needs a secure context and is missing on some older
-       Android WebViews, so the textarea fallback is not belt-and-braces — it is
-       the only path on a real slice of this platform's traffic. */
-    put: function (text, key, msg) {
-      var self = this;
-      var ok = function () {
-        self.done = key;
-        self.said = msg;
-        window.setTimeout(function () { self.done = ''; }, 2200);
-      };
-      var fail = function () { self.said = 'Could not copy — select the text and copy it manually.'; };
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(ok, fail);
-        return;
-      }
-      try {
-        var t = document.createElement('textarea');
-        t.value = text;
-        t.setAttribute('readonly', '');
-        t.style.position = 'fixed';
-        t.style.top = '-1000px';
-        document.body.appendChild(t);
-        t.select();
-        var worked = document.execCommand('copy');
-        document.body.removeChild(t);
-        worked ? ok() : fail();
-      } catch (e) { fail(); }
-    },
-
-    /* The whole document.
-
-       Fetched from /integrity.txt rather than scraped out of the DOM or inlined
-       into it. Scraping would put the furniture — contents, button labels, tab
-       names — on the clipboard alongside the prose; inlining would ship ~15KB of
-       duplicate text to every visitor for a button most never press. The fetch
-       also guarantees the paste and the download are byte-identical, because
-       they are the same response. */
-    copyAll: function () {
-      var self = this;
-      this.said = 'Preparing…';
-      fetch('/integrity.txt', { headers: { 'Accept': 'text/plain' } })
-        .then(function (r) {
-          if (!r.ok) throw new Error('http ' + r.status);
-          return r.text();
-        })
-        .then(function (t) { self.put(t, 'all', 'Full document copied to the clipboard.'); })
-        .catch(function () {
-          self.said = 'Could not fetch the text — use Download instead.';
-        });
-    },
-
-    copyCite: function (el) {
-      this.put(el.innerText, 'cite', 'Citation copied.');
-    },
-
-    copyLink: function () {
-      this.put({{ doc_url|json_encode|raw }}, 'link', 'Permalink copied.');
-    }
-  };
-};
-</script>
-
-<div class="ar" x-data="agIntegrityDoc()">
+<div class="ar" x-data="agArticleDoc()">
   <div class="ar-shell">
-
-    {# ══ CONTENTS RAIL (wide screens) ═════════════════════════════════════ #}
-    <aside class="ar-rail">
-      <nav aria-label="Document contents">
-        <h2>Contents</h2>
-        <ol>
-          <li class="ar-part" aria-hidden="true">Part I · Philosophy</li>
-          {% for s in doc_sections %}
-            <li><a href="#{{ s.id }}">{{ s.title|striptags }}</a></li>
-          {% endfor %}
-          <li class="ar-part" aria-hidden="true">Part II · Method</li>
-          <li><a href="#score">The score</a></li>
-          <li><a href="#eligible">Who can actually win</a></li>
-          <li><a href="#criteria">What judges score</a></li>
-          <li><a href="#money">What money can and cannot do</a></li>
-          <li><a href="#return">The community return</a></li>
-          <li><a href="#honest">Keeping the count honest</a></li>
-          <li><a href="#failures">When a payment goes wrong</a></li>
-          <li><a href="#sealed">Sealing the result</a></li>
-          <li><a href="#cycle">The cycle, stage by stage</a></li>
-          <li><a href="#disputes">Disputes and your data</a></li>
-          <li class="ar-part" aria-hidden="true">Reference</li>
-          <li class="ar-ref"><a href="#cite">How to cite</a></li>
-        </ol>
-      </nav>
-    </aside>
+    {{ art.contents(toc, true) }}
 
     <article class="ar-body">
-
-      {# ══ MASTHEAD ══════════════════════════════════════════════════════ #}
       <header class="ar-head">
-        <p class="ar-eyebrow">Integrity Centre · Position paper</p>
-        <h1 class="ar-h1">{{ doc_title }}</h1>
-        <p class="ar-sub">{{ doc_subtitle }}</p>
-        <p class="ar-stand">{{ doc_standfirst|raw }}</p>
-
-        <dl class="ar-meta">
-          <div><dfn>By</dfn> <b>{{ doc_author }}</b></div>
-          <div><dfn>Version</dfn> <b>{{ doc_version }}</b></div>
-          <div><dfn>Updated</dfn> <b><time datetime="{{ doc_updated }}">{{ doc_updated|date('j F Y') }}</time></b></div>
-          <div><b>{{ doc_read_minutes }} min</b> read</div>
-        </dl>
-
-        {# ── Utilities ────────────────────────────────────────────────────
-           `@click.away` closes the download menu, and Escape closes it from the
-           keyboard — a popover you can only dismiss with a pointer is a trap for
-           anybody who opened it with one. #}
-        <div class="ar-tools">
-          <button type="button" class="ar-tool" :class="done === 'all' && 'is-done'" @click="copyAll()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-            </svg>
-            <span x-text="done === 'all' ? 'Copied' : 'Copy'">Copy</span>
-          </button>
-
-          <div style="position:relative">
-            <button type="button" class="ar-tool" @click="menu = !menu" :aria-expanded="menu ? 'true' : 'false'"
-                    aria-haspopup="true" aria-controls="ar-dl">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>
-              </svg>
-              Download
-            </button>
-            <div class="ar-pop" id="ar-dl" x-show="menu" x-cloak @click.away="menu = false"
-                 @keydown.escape.window="menu = false" role="menu">
-              <a href="/integrity.md" download="{{ doc_file_stem }}.md" role="menuitem" @click="menu = false">
-                <b>Markdown (.md)</b>
-                <span>Headings and quotes preserved — for quoting or republishing.</span>
-              </a>
-              <a href="/integrity.txt" download="{{ doc_file_stem }}.txt" role="menuitem" @click="menu = false">
-                <b>Plain text (.txt)</b>
-                <span>Wrapped to 78 columns — pastes cleanly into an email.</span>
-              </a>
-            </div>
-          </div>
-
-          <a class="ar-tool" href="#cite">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M6 4h9l5 5v11H6z"/><path d="M14 4v6h6"/><path d="M9 14h6M9 17h4"/>
-            </svg>
-            Cite
-          </a>
-        </div>
-        <p class="ar-say" role="status" aria-live="polite" x-text="said"></p>
+        {{ art.masthead({
+          eyebrow: 'Integrity Centre · Methodology',
+          title: doc_title, subtitle: doc_subtitle,
+          standfirst: 'The Cultural Power Index is meant to survive being questioned. This is the
+                       whole method: what counts, what deliberately does not, who checks it, and what
+                       happens when we get something wrong. Every figure below is read live from the
+                       scoring engine.',
+          author: doc_author, version: doc_version, updated: doc_updated,
+          read_minutes: doc_read_minutes
+        }) }}
+        {{ art.tools({ portable: false, id: 'top' }) }}
       </header>
 
-      {# ══ CONTENTS (narrow screens) ═════════════════════════════════════ #}
-      <nav class="ar-toc" aria-label="Document contents">
-        <h2>Contents</h2>
-        <ol>
-          <li class="ar-part" aria-hidden="true">Part I · Philosophy</li>
-          {% for s in doc_sections %}
-            <li><a href="#{{ s.id }}">{{ s.title|striptags }}</a></li>
-          {% endfor %}
-          <li class="ar-part" aria-hidden="true">Part II · Method</li>
-          <li><a href="#score">The score</a></li>
-          <li><a href="#eligible">Who can actually win</a></li>
-          <li><a href="#criteria">What judges score</a></li>
-          <li><a href="#money">What money can and cannot do</a></li>
-          <li><a href="#return">The community return</a></li>
-          <li><a href="#honest">Keeping the count honest</a></li>
-          <li><a href="#failures">When a payment goes wrong</a></li>
-          <li><a href="#sealed">Sealing the result</a></li>
-          <li><a href="#cycle">The cycle, stage by stage</a></li>
-          <li><a href="#disputes">Disputes and your data</a></li>
-          <li class="ar-part" aria-hidden="true">Reference</li>
-          <li class="ar-ref"><a href="#cite">How to cite</a></li>
-        </ol>
-      </nav>
+      {{ art.contents(toc, false) }}
 
-      {# ══════════════════════════════════════════════════════════════════
-         PART I — THE PHILOSOPHY
-         Rendered from CommunityVotingPhilosophy. The block kinds are few on
-         purpose; see the class for why.
-         ══════════════════════════════════════════════════════════════════ #}
-      <div class="ar-part-head">
-        <span class="ar-pn">Part I</span>
-        <h2>The philosophy</h2>
-        <p>Why community voting exists, why it carries a token contribution, and why
-           the public vote is deliberately capped.</p>
-      </div>
-
-      {% for s in doc_sections %}
-        <section class="ar-sec" id="{{ s.id }}" data-ag-reveal>
-          <h3><span class="ar-sn">{{ '%02d'|format(loop.index) }}</span>{{ s.title|raw }}</h3>
-          {% for block in s.blocks %}
-            {%- if block.p is defined %}
-              <p>{{ block.p|raw }}</p>
-            {%- elseif block.h3 is defined %}
-              <h4 class="ar-h4">{{ block.h3|raw }}</h4>
-            {%- elseif block.quote is defined %}
-              <blockquote class="ar-quote"><p>{{ block.quote|raw }}</p></blockquote>
-            {%- elseif block.list is defined %}
-              <ul class="ar-list">
-                {% for li in block.list %}<li>{{ li|raw }}</li>{% endfor %}
-              </ul>
-            {%- elseif block.steps is defined %}
-              <ol class="ar-steps">
-                {% for li in block.steps %}<li>{{ li|raw }}</li>{% endfor %}
-              </ol>
-            {%- elseif block.note is defined %}
-              <div class="ar-note">
-                <h4>{{ block.note.title|raw }}</h4>
-                {% for p in block.note.body %}<p>{{ p|raw }}</p>{% endfor %}
-              </div>
-            {%- endif %}
-          {% endfor %}
-        </section>
-      {% endfor %}
-
-      {# ══════════════════════════════════════════════════════════════════
-         PART II — THE METHOD
-         The figures below are route variables read from RuleEngine. `default()`
-         on each one is a rendering guard, not a published number: if the engine
-         is unreachable the page must still say something coherent.
-         ══════════════════════════════════════════════════════════════════ #}
-      <div class="ar-part-head">
-        <span class="ar-pn">Part II</span>
-        <h2>The method</h2>
-        <p>How the commitments in Part I are enforced in code. Every figure in this
-           part is read live from the scoring engine, not typed into the page.</p>
-      </div>
+      {# ── THE PRÉCIS ───────────────────────────────────────────────────────
+         The philosophy in about four hundred words, rendered from the same source
+         as /philosophy so the two cannot quote different figures. Unnumbered: it
+         is a preamble to the method, not the first step of it. #}
+      <section class="ar-sec" id="why" data-ag-reveal>
+        <h3>Why this exists</h3>
+        {{ art.blocks(doc_summary) }}
+        {{ art.next({
+          url: '/philosophy',
+          kicker: 'The argument in full',
+          title: 'The philosophy behind Africa GATES community voting',
+          blurb: 'Sixteen sections on what a vote means here, what we mean by a community, what
+                  standing for someone asks of a nominee, and what this model cannot do. Available
+                  to copy, download and cite.'
+        }) }}
+      </section>
 
       {# ── THE SCORE ───────────────────────────────────────────────────── #}
       <section class="ar-sec" id="score" data-ag-reveal>
-        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 1) }}</span>The score</h3>
+        <h3><span class="ar-sn">01</span>The score</h3>
         <p>The Cultural Power Index is a weighted combination of the community’s verified votes
            and an independent judge panel. Neither alone decides a winner, and that is the point
            of having both.</p>
@@ -681,7 +206,7 @@ window.agIntegrityDoc = function () {
 
       {# ── ELIGIBILITY ─────────────────────────────────────────────────── #}
       <section class="ar-sec" id="eligible" data-ag-reveal>
-        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 2) }}</span>Who can actually win</h3>
+        <h3><span class="ar-sn">02</span>Who can actually win</h3>
         <p>Leading the public vote makes a nominee the front-runner. It does not, by itself, make
            them eligible to be declared the winner.</p>
         <p><strong>Complete judge scorecards, minimum {{ min_judges|default(2) }}.</strong> A nominee needs
@@ -714,7 +239,7 @@ window.agIntegrityDoc = function () {
 
       {# ── CRITERIA ────────────────────────────────────────────────────── #}
       <section class="ar-sec" id="criteria" data-ag-reveal>
-        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 3) }}</span>What the judges score</h3>
+        <h3><span class="ar-sn">03</span>What the judges score</h3>
         <p>Every judge scores each nominee from 0 to 10 on four dimensions. The four carry equal
            weight — there is no hidden multiplier making one of them decide the card.</p>
 
@@ -756,7 +281,7 @@ window.agIntegrityDoc = function () {
          the site. A promise nobody can see is not a promise anybody can hold us
          to. #}
       <section class="ar-sec" id="money" data-ag-reveal>
-        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 4) }}</span>What a contribution can — and cannot — do</h3>
+        <h3><span class="ar-sn">04</span>What a contribution can — and cannot — do</h3>
         <p>Supporters can contribute to the programme in a nominee’s name, and each contribution
            adds to that nominee’s public tally. The money keeps the awards running — the panel, the
            verification work, the platform itself. It is fair to ask what it actually buys, and the
@@ -803,7 +328,7 @@ window.agIntegrityDoc = function () {
 
       {# ── COMMUNITY RETURN ────────────────────────────────────────────── #}
       <section class="ar-sec" id="return" data-ag-reveal>
-        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 5) }}</span>The community return</h3>
+        <h3><span class="ar-sn">05</span>The community return</h3>
         <p>If money is going to be part of this, the people whose communities raised it should see
            some of it back. A nominee keeps a share of what supporters contribute in their name —
            whether or not they win, because they raised it either way.</p>
@@ -871,7 +396,7 @@ window.agIntegrityDoc = function () {
 
       {# ── HONEST COUNT ────────────────────────────────────────────────── #}
       <section class="ar-sec" id="honest" data-ag-reveal>
-        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 6) }}</span>Keeping the count honest</h3>
+        <h3><span class="ar-sn">06</span>Keeping the count honest</h3>
         <p>Every vote needs a one-time code sent to a working email address, and every attempt is
            scored for risk from 0 to 100 <em>before</em> anything is written down.</p>
 
@@ -918,7 +443,7 @@ window.agIntegrityDoc = function () {
 
       {# ── WHEN MONEY GOES WRONG ───────────────────────────────────────── #}
       <section class="ar-sec" id="failures" data-ag-reveal>
-        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 7) }}</span>When a payment goes wrong</h3>
+        <h3><span class="ar-sn">07</span>When a payment goes wrong</h3>
         <p>A payment passes through a bank and a gateway before it reaches us, and any of those steps
            can fail after a card has been charged. We would rather say so than pretend it never
            happens.</p>
@@ -953,7 +478,7 @@ window.agIntegrityDoc = function () {
 
       {# ── SEALED ──────────────────────────────────────────────────────── #}
       <section class="ar-sec" id="sealed" data-ag-reveal>
-        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 8) }}</span>Sealing the result</h3>
+        <h3><span class="ar-sn">08</span>Sealing the result</h3>
         <p>A result you have to take on trust is not a result. Every time the standings are computed
            they are sealed — each record carrying a fingerprint of itself and of the record before it,
            all the way back to the first.</p>
@@ -984,7 +509,7 @@ window.agIntegrityDoc = function () {
 
       {# ── CYCLE ───────────────────────────────────────────────────────── #}
       <section class="ar-sec" id="cycle" data-ag-reveal>
-        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 9) }}</span>The cycle, stage by stage</h3>
+        <h3><span class="ar-sn">09</span>The cycle, stage by stage</h3>
         <p>A programme moves through six stages in one direction. The stage is not a label on a page —
            the system enforces it, and each transition closes something permanently.</p>
         <ol class="ar-steps">
@@ -1014,7 +539,7 @@ window.agIntegrityDoc = function () {
 
       {# ── DISPUTES ────────────────────────────────────────────────────── #}
       <section class="ar-sec" id="disputes" data-ag-reveal>
-        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 10) }}</span>Disputes and your data</h3>
+        <h3><span class="ar-sn">10</span>Disputes and your data</h3>
         <p>If you believe a result was manipulated or a fraud pattern was missed, say so. Every
            recomputation is logged, so a count can be replayed from the underlying votes and the
            working shown to you.</p>
@@ -1043,81 +568,30 @@ window.agIntegrityDoc = function () {
         </div>
       </section>
 
-      {# ══════════════════════════════════════════════════════════════════
-         CITATION
+      {# The handover. The method ends by pointing back at the argument it
+         enforces, so a reader who arrived here from a ballot can go and find out
+         why any of it is shaped this way. #}
+      {{ art.next({
+        url: '/philosophy',
+        kicker: 'The argument behind the method',
+        title: 'The philosophy behind Africa GATES community voting',
+        blurb: 'Why the public vote carries a token contribution, what we mean by a community,
+                what standing for someone asks of a nominee, and what this model cannot do.'
+      }) }}
 
-         Four formats because a reader is asked for whichever one their
-         institution uses, and a document that only offers APA has decided for
-         them. The strings are built server-side by
-         CommunityVotingPhilosophy::citations() so the page, the .txt and the
-         .md all quote the same version and the same access date.
-
-         Tabs are a real tablist: role, aria-selected and aria-controls, so the
-         panel is announced when the tab changes rather than silently swapped.
-         ══════════════════════════════════════════════════════════════════ #}
-      <section class="ar-cite" id="cite">
-        <h2>How to cite this document</h2>
-        <p>This is a versioned document with a stable address. Please cite the version you read —
-           the figures in Part II track live programme settings, so an undated reference to
-           &ldquo;the Africa GATES methodology&rdquo; may not describe what you saw.</p>
-
-        <dl class="ar-meta">
-          <div><dfn>Version</dfn> <b>{{ doc_version }}</b></div>
-          <div><dfn>Published</dfn> <b><time datetime="{{ doc_published }}">{{ doc_published|date('j F Y') }}</time></b></div>
-          <div><dfn>Updated</dfn> <b><time datetime="{{ doc_updated }}">{{ doc_updated|date('j F Y') }}</time></b></div>
-          <div><dfn>Accessed</dfn> <b><time datetime="{{ doc_accessed }}">{{ doc_accessed|date('j F Y') }}</time></b></div>
-        </dl>
-
-        <div class="ar-tabs" role="tablist" aria-label="Citation format"
-             @keydown.arrow-right.prevent="moveTab('next')"
-             @keydown.arrow-left.prevent="moveTab('prev')"
-             @keydown.home.prevent="moveTab('home')"
-             @keydown.end.prevent="moveTab('end')">
-          {% for c in doc_citations %}
-            <button type="button" class="ar-tab" role="tab"
-                    id="ar-tab-{{ c.id }}" aria-controls="ar-panel-{{ c.id }}"
-                    :aria-selected="tab === '{{ c.id }}' ? 'true' : 'false'"
-                    :tabindex="tab === '{{ c.id }}' ? 0 : -1"
-                    @click="tab = '{{ c.id }}'">{{ c.label }}</button>
-          {% endfor %}
-        </div>
-
-        <div class="ar-cite-body">
-          {% for c in doc_citations %}
-            <div role="tabpanel" id="ar-panel-{{ c.id }}" aria-labelledby="ar-tab-{{ c.id }}"
-                 x-show="tab === '{{ c.id }}'" x-cloak>
-              <p class="ar-cite-text" x-ref="cite{{ c.id }}">{{ c.text }}</p>
-              <div class="ar-cite-act">
-                <button type="button" class="ar-tool" :class="done === 'cite' && 'is-done'"
-                        @click="copyCite($refs.cite{{ c.id }})">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                  </svg>
-                  Copy {{ c.label }}
-                </button>
-                <button type="button" class="ar-tool" :class="done === 'link' && 'is-done'" @click="copyLink()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>
-                  </svg>
-                  Copy permalink
-                </button>
-              </div>
-            </div>
-          {% endfor %}
-        </div>
-
-        <div class="ar-refs">
-          <span>Machine-readable</span>
-          <ul>
-            <li>This page carries <code>citation_*</code> and Dublin Core metadata plus schema.org
-                <code>Article</code> markup, so Zotero, Mendeley and similar tools can import the
-                reference directly from the URL.</li>
-            <li>Plain-text and Markdown editions:
-                <a href="/integrity.txt" download="{{ doc_file_stem }}.txt">{{ doc_file_stem }}.txt</a> ·
-                <a href="/integrity.md" download="{{ doc_file_stem }}.md">{{ doc_file_stem }}.md</a></li>
-          </ul>
-        </div>
-      </section>
+      {{ art.cite({
+        citations: doc_citations, version: doc_version, published: doc_published,
+        updated: doc_updated, accessed: doc_accessed, url: doc_url,
+        portable: false,
+        portable_note: 'This page has no plain-text edition, because its figures are tables read from
+                        the live scoring engine. The philosophy that accompanies it does:
+                        <a href="/philosophy">read it in full</a>, or download it from there.',
+        note: 'This is a versioned document with a stable address. Please cite the version you read
+               &mdash; the figures on it track live programme settings, so an undated reference to
+               &ldquo;the Africa GATES methodology&rdquo; may not describe what you saw. The version
+               changes when the METHOD changes; a figure moving is not a new version, because the
+               claim is that the page reports whatever the engine is running.'
+      }) }}
 
       <div class="ar-end">
         <p>Questions this document does not answer? Write to

@@ -140,11 +140,20 @@
   {% if hub|length == 0 %}
     <div class="vh-empty" style="margin-top:26px">
       <h2>No programmes yet</h2>
-      <p>Programmes appear here as soon as a cycle goes live. In the meantime, explore the rankings or nominate someone.</p>
+      <p>Programmes appear here as soon as a cycle goes live. In the meantime, explore the rankings,
+         nominate someone, or read why voting here works the way it does.</p>
       <div class="vh-btns">
         <a href="/leaderboard" class="vh-act vh-act--p">See the leaderboard</a>
         <a href="/nominate" class="vh-act vh-act--g">Submit a nomination</a>
       </div>
+      {# Reachable in the EMPTY state too. The contextual link lives in the
+         "closing soon" card, which only renders when a programme is open — so
+         between cycles, the one page that explains the model was unreachable from
+         the ballot hub. This is the door that is always here. #}
+      <p style="margin-top:14px;font-size:13.5px">
+        <a href="/philosophy">Why voting works this way</a> &middot;
+        <a href="/integrity">How a winner is decided</a>
+      </p>
     </div>
   {% else %}
   <div class="vh-grid">
@@ -250,13 +259,17 @@
         {% if meta.soonest %}
           <p class="vh-closing__k">{{ meta.soonest.closing_soon ? 'Closing soon' : 'Next deadline' }}</p>
           <h3>Voting closes {{ meta.soonest.closes_at|date('j M Y') }}</h3>
-          <p>{{ meta.soonest.detail }}. After it closes, judges review the top nominees per category before the Awards Gala — community votes are 45% of the final score.</p>
+          <p>{{ meta.soonest.detail }}. After it closes, judges review the top nominees per category before the Awards Gala — community votes are {{ split.community|default(45) }}% of the final score.</p>
         {% else %}
           <p class="vh-closing__k">How it works</p>
-          <h3>Community votes count for 45%</h3>
-          <p>Public votes blend with an expert judging panel (55%) to set each Cultural Power Index score. Popularity alone never decides a winner.</p>
+          <h3>Community votes count for {{ split.community|default(45) }}%</h3>
+          <p>Public votes blend with an expert judging panel ({{ split.judge|default(55) }}%) to set each Cultural Power Index score. Popularity alone never decides a winner.</p>
         {% endif %}
+        {# Two doors, not one. "How scoring works" answers the mechanical question;
+           a voter about to contribute money is usually asking the other one —
+           why voting carries a contribution at all — and that is the philosophy. #}
         <a href="/integrity">How scoring works →</a>
+        <a href="/philosophy">Why voting works this way →</a>
       </div>
     </div>
   </div>

@@ -382,20 +382,80 @@ class AiPrivacyTest extends TestCase
 
     // ── The published page ──────────────────────────────────────────────────
 
-    /** Render pages/legal.twig through the app's real Twig, as /privacy does. */
+    /**
+     * Render pages/legal.twig through the app's real Twig, as /privacy does.
+     *
+     * The fixture mirrors the route's contract rather than inventing one, which is
+     * the only way this test keeps proving what it claims. It used to pass
+     * `ai_disclosure` and `ai_disclosure_active` because the template assembled the
+     * disclosure itself; the disclosure now comes in already built, inside
+     * `legal_body`, because the .txt and .md editions need it too and a section
+     * assembled in Twig cannot reach them. See LegalDocument.
+     */
     private function renderPrivacy(array $extra = []): string
     {
         $builder = new \DI\ContainerBuilder();
         $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
         $twig = $builder->build()->get(\Slim\Views\Twig::class);
 
+        $doc = ['slug' => 'privacy', 'title' => 'Privacy', 'body_html' => '<p>Body.</p>',
+                'updated_label' => '1 May 2025', 'updated_at' => '2025-05-01 09:00:00'];
+        $L   = \AfricaGates\Services\LegalDocument::class;
+        $url = 'https://africagates.test/privacy';
+
         return $twig->fetch('pages/legal.twig', array_merge([
-            'legal_doc'  => ['slug' => 'privacy', 'title' => 'Privacy', 'body_html' => '<p>Body.</p>',
-                             'updated_label' => '1 May 2025'],
-            'legal_tabs' => [['slug' => 'privacy', 'title' => 'Privacy']],
-            'ai_disclosure'        => AiPrivacy::disclosure(),
-            'ai_disclosure_active' => AiPrivacy::currentlyActive(),
+            'legal_doc'      => $doc,
+            'legal_tabs'     => [['slug' => 'privacy', 'title' => 'Privacy']],
+            'legal_body'     => $L::bodyWithAnchors($doc),
+            'doc_outline'    => $L::outline($doc),
+            'doc_author'     => $L::AUTHOR,
+            'doc_publisher'  => $L::PUBLISHER,
+            'doc_effective'  => $L::effectiveDate($doc),
+            'doc_url'        => $url,
+            'doc_accessed'   => '2026-08-08',
+            'doc_citations'  => $L::citations($doc, $url, '2026-08-08'),
+            'doc_file_stem'  => $L::fileStem($doc),
+            'doc_txt_url'    => '/privacy.txt',
+            'doc_md_url'     => '/privacy.md',
+            'doc_standfirst' => 'Last updated 1 May 2025.',
         ], $extra));
+    }
+
+    /**
+     * Render a NON-privacy legal document the same way.
+     *
+     * `slug` is what decides whether the disclosure is attached, and it is decided in
+     * LegalDocument now rather than by an `ai_disclosure` variable the caller chose
+     * to pass — so proving the terms carry no AI section means building the terms the
+     * way the route builds them.
+     */
+    private function renderOtherLegal(string $slug = 'terms'): string
+    {
+        $builder = new \DI\ContainerBuilder();
+        $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        $twig = $builder->build()->get(\Slim\Views\Twig::class);
+
+        $doc = ['slug' => $slug, 'title' => ucfirst($slug), 'body_html' => '<p>Body.</p>',
+                'updated_label' => '1 May 2025', 'updated_at' => '2025-05-01 09:00:00'];
+        $L   = \AfricaGates\Services\LegalDocument::class;
+        $url = 'https://africagates.test/' . $slug;
+
+        return $twig->fetch('pages/legal.twig', [
+            'legal_doc'      => $doc,
+            'legal_tabs'     => [['slug' => $slug, 'title' => ucfirst($slug)]],
+            'legal_body'     => $L::bodyWithAnchors($doc),
+            'doc_outline'    => $L::outline($doc),
+            'doc_author'     => $L::AUTHOR,
+            'doc_publisher'  => $L::PUBLISHER,
+            'doc_effective'  => $L::effectiveDate($doc),
+            'doc_url'        => $url,
+            'doc_accessed'   => '2026-08-08',
+            'doc_citations'  => $L::citations($doc, $url, '2026-08-08'),
+            'doc_file_stem'  => $L::fileStem($doc),
+            'doc_txt_url'    => '/' . $slug . '.txt',
+            'doc_md_url'     => '/' . $slug . '.md',
+            'doc_standfirst' => 'Last updated 1 May 2025.',
+        ]);
     }
 
     public function test_the_privacy_page_actually_renders_the_disclosure(): void
@@ -441,10 +501,10 @@ class AiPrivacyTest extends TestCase
 
     public function test_the_other_legal_documents_carry_no_ai_section(): void
     {
-        $html = $this->renderPrivacy([
-            'legal_doc'     => ['slug' => 'terms', 'title' => 'Terms', 'body_html' => '<p>Body.</p>'],
-            'ai_disclosure' => [],
-        ]);
+        // Built the way the route builds the terms, because the slug is now what
+        // decides whether the disclosure is attached — it is no longer a variable the
+        // caller chooses to pass, so passing an empty one would prove nothing.
+        $html = $this->renderOtherLegal('terms');
 
         $this->assertStringNotContainsString('Automated processing', $html);
         $this->assertStringContainsString('Body.', $html, 'and the document itself still renders');
@@ -452,20 +512,34 @@ class AiPrivacyTest extends TestCase
 
     public function test_the_disclosure_text_is_escaped_not_injected(): void
     {
-        // The strings are developer-authored today, but they land in a public page
-        // through a loop; autoescape must be doing its job on them.
-        $html = $this->renderPrivacy([
-            'ai_disclosure' => [[
-                'provider'     => 'groq',
-                'capabilities' => [[
-                    'name' => 'x', 'purpose' => '<script>alert(1)</script>',
-                    'sends' => 'text', 'minimised' => true, 'advisory' => true,
-                ]],
+        // The strings are developer-authored today, but they land in a public legal
+        // page through a loop, so the escaping has to be real rather than assumed.
+        //
+        // The seam moved: this used to inject through a Twig variable and rely on
+        // autoescape. The disclosure is built in PHP now, so the assertion follows the
+        // escaping to where it actually happens — LegalDocument::disclosureHtml().
+        $html = \AfricaGates\Services\LegalDocument::disclosureHtml([[
+            'provider'     => 'groq',
+            'label'        => '<img src=x onerror=alert(1)>',
+            'primary'      => true,
+            'capabilities' => [[
+                'name' => 'x', 'purpose' => '<script>alert(1)</script>',
+                'sends' => '</p><script>alert(2)</script>', 'minimised' => true, 'advisory' => true,
             ]],
-        ]);
+        ]]);
 
         $this->assertStringNotContainsString('<script>alert(1)</script>', $html);
+        $this->assertStringNotContainsString('<script>alert(2)</script>', $html);
+        $this->assertStringNotContainsString('onerror=alert(1)>', $html);
         $this->assertStringContainsString('&lt;script&gt;', $html);
+
+        // And it must still survive the sanitizer the page runs it through, rather
+        // than being stripped to nothing on the way to the reader.
+        $this->assertStringContainsString(
+            'Automated processing',
+            \AfricaGates\Support\Html::sanitize($html),
+            'the generated disclosure must survive Html::sanitize() intact'
+        );
     }
 
     public function test_the_nominate_form_discloses_at_the_point_of_collection(): void

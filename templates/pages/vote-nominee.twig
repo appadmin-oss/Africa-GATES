@@ -542,7 +542,7 @@
                  server recomputes the same figure — but the percentage is never named,
                  no "save up to N%" is promised and no next tier is dangled. A buyer
                  sees a quantity and the price of that quantity. #}
-              <p style="margin:0 0 12px;font-size:13px;color:#5a6d6f;line-height:1.5">A contribution of ₦{{ vote_price|number_format }} adds one vote to {{ firstName }}'s public tally and helps fund the programme. It does not affect the jury score or the Cultural Power Index.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} in one contribution.{% endif %} <a href="/integrity#money" style="color:#177015">How this works</a>.</p>
+              <p style="margin:0 0 12px;font-size:13px;color:#5a6d6f;line-height:1.5">A contribution of ₦{{ vote_price|number_format }} adds one vote to {{ firstName }}'s public tally and helps fund the programme. It does not affect the jury score or the Cultural Power Index.{% if max_qty > 1000 %} Up to {{ max_qty|number_format }} in one contribution.{% endif %} <a href="/integrity#money" style="color:#177015">How this works</a> &middot; <a href="/philosophy" style="color:#177015">why voting is paid</a>.</p>
               <form method="POST" action="/vote/paid/start">
                 <input type="hidden" name="_token" value="{{ csrf_token }}">
                 <input type="hidden" name="nominee_id" value="{{ nominee.id }}">
@@ -666,6 +666,19 @@
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5a6d6f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 OTP-secured · one vote per category · audited
               </div>
+              {# ── THE DOOR THAT IS ALWAYS HERE ─────────────────────────────
+                 There is a second link to the philosophy up in the contribution
+                 panel, beside the paragraph that explains the money — which is the
+                 better place for it, because that is where the question gets asked.
+                 But that whole panel is hidden when paid voting is off or
+                 unconfigured, and on a free-only ballot the one page explaining why
+                 any of this works this way was unreachable from here.
+                 So: on the free form too, which always renders. #}
+              <p style="margin:12px 0 0;font-size:12.5px;line-height:1.6;color:#5a6d6f">
+                <a href="/philosophy" style="color:#177015;font-weight:600">Why voting works this way</a>
+                &middot;
+                <a href="/integrity" style="color:#177015">How a winner is decided</a>
+              </p>
             </div>
             {# step: otp #}
             <div x-show="step === 'otp'" x-cloak>

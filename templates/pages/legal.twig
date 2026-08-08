@@ -1,138 +1,124 @@
 {% extends "layout/gates.twig" %}
+{% import "partials/article.twig" as art %}
 
-{# Content is admin-editable (gates_legal_docs via LegalService) — no longer
-   hardcoded here. `legal_doc` (the current doc) and `legal_tabs` (published
-   docs) are supplied by the controller; each doc's body is already sanitized
-   rich HTML. #}
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  LEGAL — the terms, the privacy policy, and anything else filed beside them
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Same article design as /philosophy and /integrity, and for the same reason: these
+  are documents people are asked to accept and occasionally need to keep a copy of.
+  A policy in a white card with 14.5px text reads as small print. A policy set as an
+  article reads as something written to be read, which is the honest signal when the
+  content is genuinely meant to be understood.
+
+  ── WHERE THE CONTENT COMES FROM ────────────────────────────────────────────
+
+  `legal_body` is {@see LegalDocument::bodyWithAnchors()} — the admin-authored HTML
+  from `gates_legal_docs`, already sanitized, with an id injected into every <h2> so
+  the contents can link to it, PLUS anything generated.
+
+  The generated part matters: on /privacy the automated-processing disclosure is
+  built from the AI capability registry rather than written into the editable body,
+  because hand-writing "we send nomination text to a third-party model" would go
+  stale the first time a capability changed. It used to be assembled in this
+  template. It moved into LegalDocument so the .txt and .md editions carry it too —
+  a privacy download that silently omitted the AI section would be missing the one
+  section somebody most plausibly downloaded the document to keep.
+
+  So there is no disclosure loop here any more. One variable, one source, three
+  renderings.
+#}
+
 {% set cur = legal_doc %}
 
-{% block head_styles %}
-<style nonce="{{ csp_nonce }}">
-  body[data-page="legal"]{ background:#eef0ec; color:var(--ag-ink); }
-  .lg-head{ max-width:1000px; margin:0 auto; padding:clamp(2rem,5vw,2.6rem) var(--ag-gutter,32px) 0; }
-  .lg-eyebrow{ margin:0 0 8px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
-  .lg-title{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,4vw,2.375rem); letter-spacing:-.02em; color:var(--ag-ink); }
-  .lg-updated{ margin:12px 0 0; font-size:14px; color:#5a6d6f; }
-
-  .lg-grid{ max-width:1000px; margin:24px auto 0; padding:0 var(--ag-gutter,32px) clamp(3rem,6vw,3.75rem);
-    display:grid; grid-template-columns:220px 1fr; gap:32px; align-items:start; }
-
-  .lg-side{ position:sticky; top:88px; display:flex; flex-direction:column; gap:4px; }
-  .lg-tab{ display:flex; align-items:center; gap:10px; text-decoration:none; cursor:pointer;
-    font-size:14px; font-weight:500; color:#4a5256; padding:11px 14px; border-radius:10px; transition:background .15s, color .15s; }
-  .lg-tab svg{ color:#5a6d6f; flex:none; }
-  .lg-tab:hover{ background:rgba(16,41,44,.04); }
-  .lg-tab.is-active{ background:var(--ag-ink); color:#fff; font-weight:600; }
-  .lg-tab.is-active svg{ color:var(--ag-green-light); }
-
-  .lg-help{ margin-top:14px; padding:14px; background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:12px; }
-  .lg-help p{ margin:0 0 8px; font:600 11px/1 var(--ag-font-body); letter-spacing:.06em; text-transform:uppercase; color:#5a6d6f; }
-  .lg-help a{ font-size:13px; color:var(--ag-green); text-decoration:none; font-weight:500; }
-
-  .lg-doc{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(1.6rem,3vw,2.25rem) clamp(1.5rem,3vw,2.5rem);
-    animation:lgFade .3s ease both; }
-  .lg-sec{ margin-bottom:26px; }
-  .lg-sec h2{ margin:0 0 10px; font-family:var(--ag-font-display); font-weight:700; font-size:19px; color:var(--ag-ink); }
-  .lg-sec p{ margin:0; font-size:14.5px; line-height:1.7; color:#3a4448; }
-  .lg-sec a{ color:var(--ag-green); }
-  /* Rich (admin-authored) body: match the old sectioned rhythm. */
-  .lg-rich h2{ margin:26px 0 10px; font-family:var(--ag-font-display); font-weight:700; font-size:19px; color:var(--ag-ink); }
-  .lg-rich h2:first-child{ margin-top:0; }
-  .lg-rich h3{ margin:18px 0 8px; font-weight:700; font-size:16px; color:var(--ag-ink); }
-  .lg-rich p{ margin:0 0 12px; font-size:14.5px; line-height:1.7; color:#3a4448; }
-  .lg-rich ul,.lg-rich ol{ margin:0 0 14px; padding-left:1.3em; font-size:14.5px; line-height:1.7; color:#3a4448; }
-  .lg-rich a{ color:var(--ag-green); }
-  .lg-rich blockquote{ border-left:3px solid var(--ag-green); margin:0 0 14px; padding:2px 14px; color:#475; }
-  .lg-fine{ margin-top:8px; padding-top:22px; border-top:1px solid rgba(16,41,44,.08); font-size:13px; line-height:1.6; color:#5a6d6f; }
-
-  @keyframes lgFade{ from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:translateY(0)} }
-
-  @media (max-width:760px){
-    .lg-grid{ grid-template-columns:1fr; gap:16px; }
-    .lg-side{ position:static; top:auto; flex-direction:row; gap:8px; overflow-x:auto; padding-bottom:4px; -webkit-overflow-scrolling:touch; }
-    .lg-tab{ white-space:nowrap; }
-    .lg-help{ display:none; }
-  }
-</style>
+{% block structured_data %}
+{{ art.cite_meta({
+  title: cur.title, author: doc_author, publisher: doc_publisher,
+  published: doc_effective, updated: doc_effective, url: doc_url
+}) }}
+{{ art.article_ld({
+  title: cur.title, description: meta_description,
+  author: doc_author, publisher: doc_publisher,
+  published: doc_effective, updated: doc_effective,
+  version: doc_effective, url: doc_url
+}, csp_nonce) }}
 {% endblock %}
 
+{% block head_styles %}{{ art.styles() }}{% endblock %}
+
 {% block content %}
-<div class="lg-head">
-  <p class="lg-eyebrow">Legal</p>
-  <h1 class="lg-title">{{ cur.title }}</h1>
-  {% if cur.updated_label %}<p class="lg-updated">Last updated {{ cur.updated_label }} · effective immediately</p>{% endif %}
-</div>
+{{ art.script({ txt_url: doc_txt_url, url: doc_url, tab_ids: doc_citations|column('id') }, csp_nonce) }}
 
-<div class="lg-grid">
-  <aside class="lg-side" aria-label="Legal documents">
-    {% for t in legal_tabs %}
-      <a class="lg-tab {{ t.slug == cur.slug ? 'is-active' : '' }}" href="/{{ t.slug }}"{{ t.slug == cur.slug ? ' aria-current="page"' : '' }}>
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/></svg>
-        {{ t.title }}
-      </a>
-    {% endfor %}
-    <div class="lg-help">
-      <p>Questions?</p>
-      <a href="mailto:legal@afrovanguard.org.ng">legal@afrovanguard.org.ng</a>
-    </div>
-  </aside>
+{# Contents from the document's own <h2>s, plus the sibling policies. A legal page
+   is one of a set and a reader arriving at the terms often wants the privacy
+   policy, so the set is part of the navigation rather than a footnote. #}
+{% set groups = [] %}
+{% if doc_outline is not empty %}
+  {% set groups = groups|merge([{ label: 'In this document', items: doc_outline }]) %}
+{% endif %}
 
-  <div class="lg-doc lg-rich">
-    {{ cur.body_html|sanitize_html }}
+<div class="ar" x-data="agArticleDoc()">
+  <div class="ar-shell">
 
-    {# ── Automated processing ─────────────────────────────────────────────────
-       Generated from AiCapability, not authored here. The previous privacy copy
-       described hashed emails and cookies and said nothing about sending
-       nomination text to a third-party model; hand-writing that into the
-       editable body would have gone stale the first time a capability changed.
-       Only capabilities that process PUBLIC-submitted content are listed. #}
-    {% if ai_disclosure is not empty %}
-      <h2 id="automated-processing">Automated processing (AI)</h2>
-      <p>Some parts of this platform send text to a third-party language model to help
-        with moderation, triage and optional writing suggestions. This section is generated
-        from the platform's own configuration, so it always describes what the code
-        actually does.</p>
-      <p><strong>Three things are true of every item below.</strong> A model's output is
-        advisory: it never approves, rejects, ranks or decides anything on its own — a
-        person makes every decision that affects a nomination. Contact details are
-        replaced with placeholders such as <code>[email]</code> and <code>[phone]</code>
-        before text is sent, where noted. And nominee email addresses and phone numbers
-        collected on the nomination form are never sent to a model at all.</p>
-      <p>Names <em>are</em> sent, because a feature that cannot see who was nominated
-        could not do its job. We would rather say so plainly than imply otherwise.</p>
-
-      {% for group in ai_disclosure %}
-        {# `|capitalize` rendered "openai" as "Openai" in a published legal notice.
-           The label comes from AiPrivacy::providerLabel() so the company names are
-           spelled the way the companies spell them. #}
-        <h3>Sent to {{ group.label }}{% if not group.primary %} <small>(only when the primary provider is unavailable)</small>{% endif %}</h3>
+    <aside class="ar-rail">
+      {{ art.contents(groups, true) }}
+      <nav class="ar-refs" aria-label="Other policies" style="margin-top:1.6rem">
+        <span>Also filed here</span>
         <ul>
-          {% for cap in group.capabilities %}
-            <li>
-              <strong>{{ cap.purpose }}</strong><br>
-              {{ cap.sends }}
-              {% if not cap.minimised %}<em>Contact details in this request are not
-                altered, because the request is made by an administrator about data
-                they already hold.</em>{% endif %}
-            </li>
+          {% for t in legal_tabs %}
+            {% if t.slug != cur.slug %}
+              <li><a href="/{{ t.slug }}">{{ t.title }}</a></li>
+            {% endif %}
           {% endfor %}
+          <li><a href="/integrity">How a winner is decided</a></li>
+          <li><a href="/philosophy">The philosophy behind community voting</a></li>
         </ul>
-      {% endfor %}
+      </nav>
+    </aside>
 
-      <p>{% if ai_disclosure_active %}These features are currently switched
-        on.{% else %}These features are currently switched off, so no text is being sent
-        to any model right now.{% endif %} An administrator can disable any of them
-        individually or all of them at once.</p>
-      <p>What we cannot yet tell you: how long each provider retains what it receives, and
-        whether they use it to train their models. That is governed by the provider's own
-        terms rather than ours, and we would rather leave this paragraph honest than fill
-        it with an assurance we have not verified. If that matters to your decision to
-        nominate, email
-        <a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a> and we
-        will tell you what we know.</p>
-    {% endif %}
+    <article class="ar-body">
+      <header class="ar-head">
+        {{ art.masthead({
+          eyebrow: 'Legal · Africa GATES',
+          title: cur.title,
+          standfirst: doc_standfirst,
+          author: doc_author,
+          version: '',
+          updated: doc_effective
+        }) }}
+        {{ art.tools({ txt_url: doc_txt_url, md_url: doc_md_url, file_stem: doc_file_stem, id: 'top' }) }}
+      </header>
 
-    <div class="lg-fine">An initiative of <a href="https://afrovanguard.org.ng">Afrovanguard</a>, Lagos, Nigeria, and governed by the laws of the Federal Republic of Nigeria. Provided for transparency — this document does not constitute legal advice.</div>
+      {{ art.contents(groups, false) }}
+
+      {# The authored body. `|raw` is safe here and only here: LegalDocument has
+         already put it through Html::sanitize(), and re-escaping it would print the
+         markup instead of rendering it. #}
+      <div class="ar-rich ar-sec">
+        {{ legal_body|raw }}
+      </div>
+
+      {{ art.cite({
+        citations: doc_citations, version: '', published: doc_effective,
+        updated: doc_effective, accessed: doc_accessed, url: doc_url,
+        txt_url: doc_txt_url, md_url: doc_md_url, file_stem: doc_file_stem,
+        note: 'Policy documents are cited by effective date rather than by version number, so every
+               format below quotes the date this document took effect. Please cite the date you read
+               &mdash; these documents are revised, and the copy you were shown is the one that
+               applied to you.'
+      }) }}
+
+      <div class="ar-end">
+        <p>Questions about this document? Write to
+           <a href="mailto:legal@afrovanguard.org.ng">legal@afrovanguard.org.ng</a>. For anything
+           about how a result was reached, the
+           <a href="/integrity">Integrity Centre</a> sets out the method.</p>
+        <p>An initiative of <a href="https://afrovanguard.org.ng">Afrovanguard</a>, Lagos, Nigeria,
+           and governed by the laws of the Federal Republic of Nigeria. Provided for transparency
+           &mdash; this document does not constitute legal advice.</p>
+      </div>
+    </article>
   </div>
 </div>
 {% endblock %}

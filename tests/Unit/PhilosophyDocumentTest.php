@@ -9,6 +9,7 @@ use Slim\Factory\AppFactory;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use AfricaGates\Services\CommunityVotingPhilosophy as Doc;
 use AfricaGates\Services\RuleEngine;
+use Illuminate\Database\Capsule\Manager as DB;
 
 /**
  * The philosophy document is a PUBLISHED POSITION, and it is downloadable.
@@ -36,7 +37,7 @@ use AfricaGates\Services\RuleEngine;
  */
 final class PhilosophyDocumentTest extends TestCase
 {
-    private const URL = 'https://africagates.test/integrity';
+    private const URL = 'https://africagates.test/philosophy';
 
     /** Figures the way the route builds them, from whatever the engine currently says. */
     private function figures(): array
@@ -131,7 +132,7 @@ final class PhilosophyDocumentTest extends TestCase
             'community_weight' => 0.30, 'judge_weight' => 0.70,
         ]);
 
-        [$status, $html] = $this->get('/integrity');
+        [$status, $html] = $this->get('/philosophy');
 
         $this->assertSame(200, $status);
         $this->assertStringContainsString('limited to 30%', $html,
@@ -148,7 +149,7 @@ final class PhilosophyDocumentTest extends TestCase
             'community_weight' => 0.30, 'judge_weight' => 0.70,
         ]);
 
-        [$status, $body] = $this->get('/integrity.txt');
+        [$status, $body] = $this->get('/philosophy.txt');
 
         $this->assertSame(200, $status);
         $this->assertStringContainsString('30% of the overall assessment', $body);
@@ -170,9 +171,9 @@ final class PhilosophyDocumentTest extends TestCase
             'community_return_bps' => 1250,
         ]);
 
-        [, $html] = $this->get('/integrity');
-        [, $md]   = $this->get('/integrity.md');
-        [, $txt]  = $this->get('/integrity.txt');
+        [, $html] = $this->get('/philosophy');
+        [, $md]   = $this->get('/philosophy.md');
+        [, $txt]  = $this->get('/philosophy.txt');
 
         foreach (['article' => $html, 'markdown' => $md, 'text' => $txt] as $what => $body) {
             $this->assertStringContainsString('40%', $body, "the {$what} edition lost the community share");
@@ -186,7 +187,7 @@ final class PhilosophyDocumentTest extends TestCase
 
     public function test_markdown_download_is_served_as_an_attachment(): void
     {
-        [$status, $body, $res] = $this->get('/integrity.md');
+        [$status, $body, $res] = $this->get('/philosophy.md');
 
         $this->assertSame(200, $status);
         $this->assertStringContainsString('text/markdown', $res->getHeaderLine('Content-Type'));
@@ -202,7 +203,7 @@ final class PhilosophyDocumentTest extends TestCase
 
     public function test_plain_text_download_is_served_as_an_attachment(): void
     {
-        [$status, $body, $res] = $this->get('/integrity.txt');
+        [$status, $body, $res] = $this->get('/philosophy.txt');
 
         $this->assertSame(200, $status);
         $this->assertStringContainsString('text/plain', $res->getHeaderLine('Content-Type'));
@@ -280,7 +281,7 @@ final class PhilosophyDocumentTest extends TestCase
 
     public function test_the_article_offers_all_four_citation_formats_and_the_metadata(): void
     {
-        [, $html] = $this->get('/integrity');
+        [, $html] = $this->get('/philosophy');
 
         foreach (['APA (7th edition)', 'MLA (9th edition)', 'Chicago (17th edition, note)', 'BibTeX'] as $label) {
             $this->assertStringContainsString($label, $html, "the cite panel is missing {$label}");
@@ -300,7 +301,7 @@ final class PhilosophyDocumentTest extends TestCase
     /** Every section must be reachable from the contents, or the document has a dead limb. */
     public function test_every_section_is_rendered_and_linked_from_the_contents(): void
     {
-        [, $html] = $this->get('/integrity');
+        [, $html] = $this->get('/philosophy');
 
         foreach (Doc::sections($this->figures()) as $sec) {
             $this->assertStringContainsString('id="' . $sec['id'] . '"', $html,
@@ -317,7 +318,7 @@ final class PhilosophyDocumentTest extends TestCase
     public function test_the_anti_pyramid_disclaimer_survives_every_rendering(): void
     {
         $figs = $this->figures();
-        [, $html] = $this->get('/integrity');
+        [, $html] = $this->get('/philosophy');
 
         foreach ([
             'article'  => $html,
@@ -354,7 +355,7 @@ final class PhilosophyDocumentTest extends TestCase
      */
     public function test_the_citation_tabs_are_reachable_by_keyboard(): void
     {
-        [, $html] = $this->get('/integrity');
+        [, $html] = $this->get('/philosophy');
 
         $this->assertStringContainsString('role="tablist"', $html);
         $this->assertStringContainsString('@keydown.arrow-right.prevent="moveTab(\'next\')"', $html,
@@ -383,6 +384,8 @@ final class PhilosophyDocumentTest extends TestCase
      */
     public function test_the_data_tables_are_marked_up_for_a_screen_reader(): void
     {
+        // The tables are on the METHODOLOGY page — the philosophy is prose. This
+        // assertion followed the tables when the two pages split.
         [, $html] = $this->get('/integrity');
 
         $tables = substr_count($html, '<table class="ar-table">');
@@ -394,6 +397,187 @@ final class PhilosophyDocumentTest extends TestCase
         // stops this matching `<thead>`, which has no scope and needs none.
         preg_match_all('/<th(?=[\s>])(?![^>]*\bscope=)[^>]*>/', $html, $m);
         $this->assertSame([], $m[0], 'a <th> without scope leaves a screen reader guessing');
+    }
+
+    // ── 7 · the two pages are one document set ──────────────────────────────
+
+    /**
+     * /integrity carries the PRÉCIS, not the essay.
+     *
+     * The split exists because sixteen sections of philosophy sat between a reader
+     * arriving from a ballot and the answer to "how is a winner decided". If the full
+     * document creeps back onto the methodology page, that regression is silent —
+     * the page still works, it just buries the mechanics again.
+     */
+    public function test_the_methodology_page_carries_the_precis_and_not_the_essay(): void
+    {
+        [$status, $html] = $this->get('/integrity');
+
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('Why this exists', $html, 'the précis must be there');
+        $this->assertStringContainsString('willing to stand with you', $html,
+            'and it must carry the argument, not just a link');
+
+        // Sections unique to the FULL document must not be on this page.
+        foreach (['philosophy-limits', 'philosophy-record', 'philosophy-nominee-obligation'] as $id) {
+            $this->assertStringNotContainsString('id="' . $id . '"', $html,
+                "the full essay has crept back onto /integrity ({$id})");
+        }
+
+        // And each page points at the other, which is what makes them one set.
+        $this->assertStringContainsString('href="/philosophy"', $html);
+        [, $phil] = $this->get('/philosophy');
+        $this->assertStringContainsString('href="/integrity"', $phil);
+    }
+
+    /**
+     * The précis quotes the engine too.
+     *
+     * It is a separate rendering from the full essay, which means it is a second
+     * place a figure could be typed. It carries the same tokens; this proves it.
+     */
+    public function test_the_precis_tracks_the_engine(): void
+    {
+        (new RuleEngine())->set('global', null, [
+            'community_weight' => 0.30, 'judge_weight' => 0.70,
+        ]);
+
+        [, $html] = $this->get('/integrity');
+
+        $this->assertStringContainsString('capped at <strong>30%</strong>', $html);
+        $this->assertStringNotContainsString('capped at <strong>45%</strong>', $html);
+    }
+
+    /**
+     * The methodology page offers Cite but NOT Copy or Download.
+     *
+     * Deliberate: its prose lives in its template, so there is no .txt that IS this
+     * page, and a Download that saved a different document would be worse than no
+     * Download — the reader would file it and find out later.
+     */
+    public function test_the_methodology_page_offers_cite_but_not_a_misleading_download(): void
+    {
+        [, $html] = $this->get('/integrity');
+
+        $this->assertStringContainsString('href="#cite"', $html, 'Cite must be offered');
+        $this->assertStringContainsString('APA (7th edition)', $html);
+        $this->assertStringNotContainsString('copyAll()', $html,
+            '/integrity has a Copy button but no text edition of itself to copy');
+        $this->assertStringNotContainsString('download="', $html,
+            '/integrity has a Download button but no file that is this page');
+    }
+
+    /** Its citation is its OWN identity, not the philosophy's. */
+    public function test_the_methodology_cites_itself_rather_than_the_philosophy(): void
+    {
+        [, $html] = $this->get('/integrity');
+
+        $this->assertStringContainsString('How the Cultural Power Index is Scored', $html);
+        $this->assertStringNotContainsString(Doc::TITLE . ' (Version', $html,
+            'the methodology page is citing the philosophy — wrong title and version');
+    }
+
+    /**
+     * The document used to live at /integrity, so anything already published — a
+     * citation, a shared link, a saved download — must keep resolving.
+     */
+    public function test_the_old_download_addresses_still_resolve(): void
+    {
+        foreach (['/integrity.txt' => '/philosophy.txt', '/integrity.md' => '/philosophy.md'] as $old => $new) {
+            [$status, , $res] = $this->get($old);
+            $this->assertSame(301, $status, "{$old} must redirect permanently, not 404");
+            $this->assertSame($new, $res->getHeaderLine('Location'));
+        }
+    }
+
+    // ── 8 · the ballot agrees with the method ───────────────────────────────
+
+    /**
+     * A voter about to pay is shown the split, and it must be the live one.
+     *
+     * The vote pages typed "community votes are 45% of the final score" while
+     * /integrity one click away read the figure from RuleEngine. The page that would
+     * have been wrong is the one somebody reads immediately before deciding to spend
+     * money, which is the least forgivable place for it.
+     */
+    public function test_the_vote_hub_quotes_the_live_split_and_links_the_philosophy(): void
+    {
+        (new RuleEngine())->set('global', null, [
+            'community_weight' => 0.30, 'judge_weight' => 0.70,
+        ]);
+
+        [$status, $html] = $this->get('/vote');
+
+        $this->assertSame(200, $status);
+        $this->assertStringContainsString('30%', $html, 'the ballot must quote the live community share');
+        $this->assertStringNotContainsString('count for 45%', $html,
+            'the vote hub is still quoting the default split');
+        $this->assertStringContainsString('href="/philosophy"', $html,
+            'a voter about to contribute should be able to read why voting is paid');
+    }
+
+    /**
+     * THE SURFACE THAT MATTERS MOST.
+     *
+     * The nominee ballot is where somebody actually decides to spend money, and
+     * "why is voting paid?" is the question they are asking at that moment. A link to
+     * the philosophy on the hub is useful; a link here is the one that answers the
+     * question at the point it is being asked.
+     */
+    public function test_the_nominee_ballot_links_the_philosophy_beside_the_contribution(): void
+    {
+        $pid = (int) DB::table('gates_award_programmes')->insertGetId([
+            'slug' => 'creative', 'title' => 'Creative Awards', 'is_active' => 1,
+            'sort_order' => 1, 'description' => 'A programme.',
+        ]);
+        $cid = (int) DB::table('gates_award_cycles')->insertGetId([
+            'programme_id' => $pid, 'year' => (int) date('Y'), 'status' => 'voting',
+            'voting_open'  => date('Y-m-d H:i:s', strtotime('-1 day')),
+            'voting_close' => date('Y-m-d H:i:s', strtotime('+10 days')),
+        ]);
+        $catId = (int) DB::table('gates_award_categories')->insertGetId([
+            'cycle_id' => $cid, 'slug' => 'music', 'title' => 'Music', 'sort_order' => 1,
+        ]);
+        $nid = (int) DB::table('gates_nominees')->insertGetId([
+            'category_id' => $catId, 'name' => 'Ada Obi', 'status' => 'approved',
+        ]);
+
+        $builder = new ContainerBuilder();
+        $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        $ctrl = $builder->build()->get(\AfricaGates\Controllers\VoteController::class);
+
+        $out = $ctrl->nominee(
+            (new ServerRequestFactory())->createServerRequest('GET', "/vote/creative/{$nid}"),
+            new \Slim\Psr7\Response(),
+            ['program' => 'creative', 'slug' => (string) $nid]
+        );
+        $html = (string) $out->getBody();
+
+        $this->assertSame(200, $out->getStatusCode());
+
+        // Present on EVERY ballot. There are two links on this page: one beside the
+        // paragraph that explains the money, and one on the free-vote form. The first
+        // is the better placement and the second is the one that always renders — the
+        // contribution panel is hidden when paid voting is off or unconfigured, which
+        // is exactly the state this test runs in, and it is how the link came to be
+        // unreachable from a free-only ballot in the first place.
+        $this->assertStringContainsString('href="/philosophy"', $html,
+            'the ballot must let a supporter read why voting carries a contribution');
+        $this->assertMatchesRegularExpression(
+            '/OTP-secured.{0,600}href="\/philosophy"/s',
+            $html,
+            'the free-vote form has no link — so a ballot with paid voting off has none at all'
+        );
+
+        // And where the contribution panel DOES render, the link sits beside the
+        // paragraph about the money rather than only in the footer.
+        if (str_contains($html, 'helps fund the programme')) {
+            $this->assertMatchesRegularExpression(
+                '/helps fund the programme.{0,400}href="\/philosophy"/s',
+                $html,
+                'the contribution panel rendered but explains the money without the door'
+            );
+        }
     }
 
     /** Version and dates are what make it citable. An empty one breaks every format. */

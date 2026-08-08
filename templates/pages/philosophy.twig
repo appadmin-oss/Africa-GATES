@@ -1,0 +1,133 @@
+{% extends "layout/gates.twig" %}
+{% import "partials/article.twig" as art %}
+
+{#
+  ══════════════════════════════════════════════════════════════════════════════
+  THE PHILOSOPHY — the argument, in full
+  ══════════════════════════════════════════════════════════════════════════════
+
+  Half of a pair. This page argues; /integrity enforces. Each ends by handing the
+  reader to the other, which is what makes them one Integrity Centre rather than
+  two pages that happen to share a stylesheet.
+
+  It lived on /integrity first and outgrew it: an argument that runs to sixteen
+  sections was burying the mechanics underneath it, and a reader who arrives from
+  a ballot wanting to know how a winner is decided should not have to scroll past
+  Ubuntu to find out. /integrity now carries the précis
+  ({@see CommunityVotingPhilosophy::summary()}) and links here.
+
+  NOT ONE WORD OF THE PROSE IS WRITTEN HERE. It arrives as `doc_sections` from
+  CommunityVotingPhilosophy, because the same words leave as HTML, as the .txt the
+  Copy button lifts and as the .md the Download button saves. One source, three
+  surfaces. Every figure in it is a resolved {token}, never typed — see the class.
+#}
+
+{% block structured_data %}
+{{ art.cite_meta({
+  title: doc_title, author: doc_author, publisher: doc_publisher,
+  published: doc_published, updated: doc_updated, url: doc_url
+}) }}
+{{ art.article_ld({
+  title: doc_title, subtitle: doc_subtitle, description: doc_standfirst,
+  author: doc_author, publisher: doc_publisher, published: doc_published,
+  updated: doc_updated, version: doc_version, url: doc_url,
+  terms_url: _site_url ~ '/terms'
+}, csp_nonce) }}
+
+{#
+  A FAQPage built ONLY from questions this page visibly answers — marking up an
+  answer a reader cannot find is what search engines penalise, and it is also just
+  a lie in a format nobody reads. The figures interpolate from the same route
+  variables the prose uses, so a cycle override changes both at once.
+#}
+<script nonce="{{ csp_nonce }}" type="application/ld+json">
+{% set faq = [
+  {
+    q: 'Why is voting on Africa GATES paid?',
+    a: 'A token contribution gives a supporter a practical way of standing with a nominee rather than passively applauding, and it funds the judging, verification, communications and production work behind the programme. It is a contribution toward a community-driven recognition process, not the purchase of an award.'
+  },
+  {
+    q: 'Can you buy an Africa GATES award?',
+    a: 'No. Contributions add to a nominee’s public tally but are held in a column the scorer never reads, they cannot break a tie, and they are capped at ' ~ paid_cap_pct|default(50) ~ '% of the organic support a nominee has earned. Money can make a nominee look more popular; it cannot make them win.'
+  },
+  {
+    q: 'Why is the public vote only ' ~ community_pct|default(45) ~ '% of the decision?',
+    a: 'Because popularity is not the same thing as excellence. A larger following is not greater impact, a nominee with more capacity to mobilise supporters is not necessarily the strongest candidate, and some deserving people come from communities with fewer financial and digital resources. The remaining ' ~ judge_pct|default(55) ~ '% is independent assessment.'
+  },
+  {
+    q: 'Is Africa GATES a pyramid or Ponzi scheme?',
+    a: 'No. Africa GATES is not a Ponzi scheme, pyramid scheme, MLM programme, investment scheme or get-rich-quick scheme. Nobody is promised a financial return for recruiting other participants, and no participant earns money by introducing another person into the programme.'
+  },
+  {
+    q: 'Do nominees receive any of the money supporters contribute?',
+    a: 'Yes. A nominee keeps ' ~ return_pct|default('50') ~ '% of what supporters contribute in their name, win or lose, once they have gathered ' ~ return_threshold|default(250) ~ ' votes of qualifying support. No single supporter may supply more than ' ~ return_cap_pct|default(10) ~ '% of that threshold, so qualifying takes at least ' ~ return_people|default(10) ~ ' different verified people.'
+  },
+  {
+    q: 'What does Africa GATES mean by a nominee’s community?',
+    a: 'Not an audience and not a follower count: the people who will do something small and deliberate on a nominee’s behalf. Qualification therefore requires support from a number of different verified people rather than a sum of money, because a community is a plurality by definition.'
+  }
+] %}
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in faq %}{"@type":"Question","name":{{ f.q|json_encode|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
+</script>
+{% endblock %}
+
+{% block head_styles %}{{ art.styles() }}{% endblock %}
+
+{% block content %}
+{{ art.script({ txt_url: '/philosophy.txt', url: doc_url, tab_ids: doc_citations|column('id') }, csp_nonce) }}
+
+{% set toc = [{ label: '', items: doc_sections }] %}
+
+<div class="ar" x-data="agArticleDoc()">
+  <div class="ar-shell">
+    {{ art.contents(toc, true) }}
+
+    <article class="ar-body">
+      <header class="ar-head">
+        {{ art.masthead({
+          eyebrow: 'Integrity Centre · Position paper',
+          title: doc_title, subtitle: doc_subtitle, standfirst: doc_standfirst,
+          author: doc_author, version: doc_version, updated: doc_updated,
+          read_minutes: doc_read_minutes
+        }) }}
+        {{ art.tools({ txt_url: '/philosophy.txt', md_url: '/philosophy.md', file_stem: doc_file_stem, id: 'top' }) }}
+      </header>
+
+      {{ art.contents(toc, false) }}
+
+      {% for s in doc_sections %}
+        <section class="ar-sec" id="{{ s.id }}" data-ag-reveal>
+          <h3><span class="ar-sn">{{ '%02d'|format(loop.index) }}</span>{{ s.title|raw }}</h3>
+          {{ art.blocks(s.blocks) }}
+        </section>
+      {% endfor %}
+
+      {# The handover. The argument ends by pointing at its own enforcement — a
+         philosophy page that did not would be asking to be taken on trust. #}
+      {{ art.next({
+        url: '/integrity',
+        kicker: 'Continue · Part II',
+        title: 'How the Cultural Power Index is scored',
+        blurb: 'Everything above, enforced in code: the ' ~ community_pct|default(45) ~ '/' ~ judge_pct|default(55)
+             ~ ' split, the ceiling on purchased votes, the judge quorum, the risk bands and the sealed result.'
+      }) }}
+
+      {{ art.cite({
+        citations: doc_citations, version: doc_version, published: doc_published,
+        updated: doc_updated, accessed: doc_accessed, url: doc_url,
+        txt_url: '/philosophy.txt', md_url: '/philosophy.md', file_stem: doc_file_stem,
+        note: 'This is a versioned document with a stable address. Please cite the version you read
+                — the figures in it track live programme settings, so an undated reference to
+                &ldquo;the Africa GATES philosophy&rdquo; may not describe what you saw.'
+      }) }}
+
+      <div class="ar-end">
+        <p>Questions this document does not answer? Write to
+           <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>, or browse
+           every written answer in the <a href="/help">Help Centre</a>.</p>
+        <p><em>{{ doc_publisher }}</em></p>
+      </div>
+    </article>
+  </div>
+</div>
+{% endblock %}

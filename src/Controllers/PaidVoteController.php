@@ -332,6 +332,14 @@ final class PaidVoteController
             'nominee_name'     => $nominee ? (string)$nominee->name : '',
             'ballot_url'       => $this->ballotUrl($nominee, $req),
             'reference'        => $reference,
+            // The jury share, read from the engine rather than typed into the
+            // template. This page is the first thing a supporter sees after paying,
+            // so a figure here that contradicts /integrity contradicts it at the
+            // least forgivable moment.
+            'judge_pct'        => (function (): int {
+                try { return (int) round((new \AfricaGates\Services\RuleEngine())->weights()['judge'] * 100); }
+                catch (\Throwable) { return (int) round(\AfricaGates\Services\RuleEngine::DEFAULTS['judge_weight'] * 100); }
+            })(),
             // For the /vote hub's per-device ballot tracker. Only meaningful when
             // votes actually landed, so the template gates the write on `minted`.
             'programme_id'     => $this->programmeIdFor($nominee),
