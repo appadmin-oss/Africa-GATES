@@ -733,31 +733,101 @@ return function(App $app) {
             ]);
         });
         $g->get('/cookies', fn($req,$res)=>$legalRender($req,$res,'cookies'));
-        $g->get('/integrity', function ($req, $res) use ($tv) {
-            // ── THE PAGE HAS TO READ THE ENGINE, NOT REMEMBER IT ─────────────
-            //
-            // These numbers were prose. The route passed no data at all, so
-            // "45% public + 55% judges" was a sentence somebody typed, and
-            // RuleEngine lets an operator change the real weights per programme
-            // and per cycle. The two could drift apart with nothing to notice —
-            // and of all the pages on this site, the METHODOLOGY page is the one
-            // that must not describe a system the code is not running.
-            //
-            // Read from the same RuleEngine the scorer uses, so the published
-            // claim cannot become false without the published claim changing.
-            $rules   = new \AfricaGates\Services\RuleEngine();
-            $w       = $rules->weights();
-            $eff     = $rules->effective();
+        // ── THE PAGE HAS TO READ THE ENGINE, NOT REMEMBER IT ─────────────────
+        //
+        // These numbers were prose. The route passed no data at all, so
+        // "45% public + 55% judges" was a sentence somebody typed, and
+        // RuleEngine lets an operator change the real weights per programme
+        // and per cycle. The two could drift apart with nothing to notice —
+        // and of all the pages on this site, the METHODOLOGY page is the one
+        // that must not describe a system the code is not running.
+        //
+        // Read from the same RuleEngine the scorer uses, so the published
+        // claim cannot become false without the published claim changing.
+        //
+        // ── AND WHY IT IS A CLOSURE ─────────────────────────────────────────
+        //
+        // Three routes now publish this document — the article, the .txt and the
+        // .md — and a download that disagrees with the page it came from is worse
+        // than no download at all. Resolving the figures ONCE, here, is what makes
+        // "the download is the page" true by construction rather than by care.
+        $integrityFigures = static function (): array {
+            $rules = new \AfricaGates\Services\RuleEngine();
+            $w     = $rules->weights();
+            $eff   = $rules->effective();
 
             // The community-return figures, shaped for publishing by the service that
             // enforces them — the same call the Help Centre articles make, so the
             // summary here and the deep dive there cannot format one setting two ways.
             $ret = \AfricaGates\Services\CommunityReturnService::displayRules($eff);
 
-            $cPct = (int) round($w['community'] * 100);
-            $jPct = (int) round($w['judge'] * 100);
+            return [
+                'community_pct'    => (int) round($w['community'] * 100),
+                'judge_pct'        => (int) round($w['judge'] * 100),
+                'paid_cap_pct'     => (int) ($eff['max_paid_weight_pct'] ?? 50),
+                'min_judges'       => (int) ($eff['min_judges_per_nominee'] ?? 2),
+                'fraud_block'      => (int) ($eff['fraud_block'] ?? 80),
+                'fraud_flag'       => (int) ($eff['fraud_flag'] ?? 60),
+                'fraud_monitor'    => (int) ($eff['fraud_monitor'] ?? 30),
+                'return_pct'       => $ret['pct'],
+                'return_on'        => $ret['on'],
+                'return_threshold' => $ret['threshold'],
+                'return_cap_pct'   => $ret['cap_pct'],
+                'return_cap_votes' => $ret['cap_votes'],
+                'return_people'    => $ret['min_supporters'],
+            ];
+        };
 
-            return $tv($req)->render($res, 'pages/integrity.twig', [
+        /**
+         * The philosophy document as a file.
+         *
+         * Two formats because the two audiences want different things: `.md` keeps the
+         * headings and quotes for anyone republishing or quoting it, `.txt` is what
+         * pastes cleanly into an email or a court filing. Both come from the same
+         * structure as the page, so there is no third copy to fall out of date.
+         *
+         * `Content-Disposition: attachment` is the point of the route — a browser that
+         * renders Markdown inline would give the Download button nothing to download.
+         */
+        $integrityFile = static function ($req, $res, string $fmt) use ($integrityFigures) {
+            $doc  = \AfricaGates\Services\CommunityVotingPhilosophy::class;
+            $figs = $integrityFigures();
+            $url  = \AfricaGates\Support\SiteUrl::base($req) . $doc::PATH;
+
+            $body = $fmt === 'md'
+                ? $doc::markdown($figs, $url)
+                : $doc::plainText($figs, $url);
+
+            $res->getBody()->write($body);
+            return $res
+                ->withHeader('Content-Type', $fmt === 'md'
+                    ? 'text/markdown; charset=utf-8'
+                    : 'text/plain; charset=utf-8')
+                ->withHeader(
+                    'Content-Disposition',
+                    'attachment; filename="' . $doc::fileStem() . '.' . $fmt . '"'
+                )
+                // The document changes only when an operator changes a programme
+                // setting, so an hour of caching is safe and keeps the Copy button
+                // (which fetches the .txt) off the database on every click.
+                ->withHeader('Cache-Control', 'public, max-age=3600');
+        };
+        $g->get('/integrity.txt', fn($req, $res) => $integrityFile($req, $res, 'txt'));
+        $g->get('/integrity.md',  fn($req, $res) => $integrityFile($req, $res, 'md'));
+
+        $g->get('/integrity', function ($req, $res) use ($tv, $integrityFigures) {
+            $doc   = \AfricaGates\Services\CommunityVotingPhilosophy::class;
+            $figs  = $integrityFigures();
+            $url   = \AfricaGates\Support\SiteUrl::base($req) . $doc::PATH;
+            // One clock reading for the whole request: the visible "accessed" date,
+            // the citation strings and the download must not disagree because three
+            // callers each asked the system what day it is.
+            $today = date('Y-m-d');
+
+            $cPct = (int) $figs['community_pct'];
+            $jPct = (int) $figs['judge_pct'];
+
+            return $tv($req)->render($res, 'pages/integrity.twig', $figs + [
                 // ── SEO ──────────────────────────────────────────────────────
                 // The title leads with the QUESTION people search, not with the
                 // internal name of the page. Nobody types "awards integrity and
@@ -781,19 +851,26 @@ return function(App $app) {
                 'gates_page'       => 'integrity',
                 'has_hero'         => false,
                 'current_section'  => 'projects',
-                'community_pct'    => (int) round($w['community'] * 100),
-                'judge_pct'        => (int) round($w['judge'] * 100),
-                'paid_cap_pct'     => (int) ($eff['max_paid_weight_pct'] ?? 50),
-                'min_judges'       => (int) ($eff['min_judges_per_nominee'] ?? 2),
-                'fraud_block'      => (int) ($eff['fraud_block'] ?? 80),
-                'fraud_flag'       => (int) ($eff['fraud_flag'] ?? 60),
-                'fraud_monitor'    => (int) ($eff['fraud_monitor'] ?? 30),
-                'return_pct'       => $ret['pct'],
-                'return_on'        => $ret['on'],
-                'return_threshold' => $ret['threshold'],
-                'return_cap_pct'   => $ret['cap_pct'],
-                'return_cap_votes' => $ret['cap_votes'],
-                'return_people'    => $ret['min_supporters'],
+
+                // ── THE DOCUMENT ─────────────────────────────────────────────
+                // The philosophy arrives as structure, with its figures already
+                // substituted, so the template's job is presentation and nothing
+                // else. See CommunityVotingPhilosophy for why the prose lives in
+                // PHP rather than in this template.
+                'doc_sections'     => $doc::sections($figs),
+                'doc_standfirst'   => $doc::standfirst($figs),
+                'doc_title'        => $doc::TITLE,
+                'doc_subtitle'     => $doc::SUBTITLE,
+                'doc_author'       => $doc::AUTHOR,
+                'doc_publisher'    => $doc::PUBLISHER,
+                'doc_version'      => $doc::VERSION,
+                'doc_published'    => $doc::PUBLISHED,
+                'doc_updated'      => $doc::UPDATED,
+                'doc_read_minutes' => $doc::readMinutes($figs),
+                'doc_url'          => $url,
+                'doc_accessed'     => $today,
+                'doc_citations'    => $doc::citations($url, $today),
+                'doc_file_stem'    => $doc::fileStem(),
             ]);
         });
         $g->get('/support', fn($req,$res)=>$tv($req)->render($res,'pages/support.twig',['page_title'=>'Support & Appeals — Africa GATES','meta_description'=>'Get help with Africa GATES — the CPI, voting, nominations and your profile — and appeal any moderation decision through an independent review.','gates_page'=>'support','has_hero'=>false]));

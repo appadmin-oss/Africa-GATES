@@ -133,7 +133,21 @@ final class IntegrityPageTest extends TestCase
             'the page is still quoting the default split after it was overridden');
     }
 
-    /** The risk bands are configuration too, and the bar has to add up. */
+    /**
+     * The risk bands are configuration too, and the bands must be contiguous.
+     *
+     * This used to also assert four `width:NN%` segments, because the bands were a
+     * proportional bar and the template computed each segment as a subtraction —
+     * `fraud_flag - fraud_monitor` and so on. Get one of those wrong and the bar
+     * silently overflowed or left a gap that read as a fifth band, so the widths
+     * were worth pinning.
+     *
+     * The bands are a table now, which removes that arithmetic entirely: each row
+     * prints its own two bounds. The contiguity assertions below are therefore the
+     * whole test, and they are stronger than they look — each band's upper bound is
+     * the next band's lower bound, so a gap or an overlap cannot produce this
+     * sequence of strings.
+     */
     public function test_the_risk_bands_are_drawn_from_the_configured_thresholds(): void
     {
         (new RuleEngine())->set('global', null, [
@@ -147,11 +161,10 @@ final class IntegrityPageTest extends TestCase
         $this->assertStringContainsString('50–90', $html);
         $this->assertStringContainsString('90+', $html);
 
-        // 20 + 30 + 40 + 10. If the arithmetic in the template is wrong the bar
-        // silently overflows or leaves a gap, which reads as a fifth band.
-        foreach (['width:20%', 'width:30%', 'width:40%', 'width:10%'] as $w) {
-            $this->assertStringContainsString($w, $html, "band segment missing: {$w}");
-        }
+        // And the defaults are genuinely gone, so this cannot pass against a
+        // template that printed them.
+        $this->assertStringNotContainsString('0–30', $html);
+        $this->assertStringNotContainsString('80+', $html);
     }
 
     /**

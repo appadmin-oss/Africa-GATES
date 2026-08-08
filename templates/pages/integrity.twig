@@ -2,48 +2,91 @@
 
 {#
   ══════════════════════════════════════════════════════════════════════════════
-  THE INTEGRITY PAGE — A SUMMARY WITH DOORS, NOT A DOCUMENT
+  THE INTEGRITY CENTRE — ONE CITABLE DOCUMENT
   ══════════════════════════════════════════════════════════════════════════════
 
-  This page used to be one long scroll that said everything once and was read by
-  nobody. Somebody who wanted to know whether their small category was a handicap
-  had to pass the judging rubric, the fraud thresholds and the data-retention
-  policy to reach four sentences about it — and the four sentences had no title,
-  no URL and no way for support to send them to anybody.
+  This page was a summary with doors: ten short sections, each a card, each with a
+  link out to the Help Centre. That shape was right when the page's only job was to
+  answer "how is a winner decided" in a minute.
 
-  So the depth moved into the Help Centre, where each claim gets its own title, its
-  own address and its own place in search. What stays here is the SUMMARY: enough
-  to be a complete answer on its own, with a door to the full one beside it. The
-  page is now navigable in a minute and exhaustive if you want it to be.
+  It has a second job now. The philosophy behind community voting is a POSITION —
+  the sort of thing a journalist quotes, a regulator asks for, and a nominee's
+  lawyer reads twice — and positions have to be citable. A card grid cannot be
+  cited. So the page is now built as an article: one column, continuous numbering,
+  a stated version and date, and Copy / Download / Cite in the header.
 
-  ── EVERY NUMBER ON THIS PAGE IS READ, NOT TYPED ────────────────────────────
+  ── EDITORIAL, NOT DECORATIVE ───────────────────────────────────────────────
 
-  The weights, the bonus-vote ceiling, the judge quorum, the fraud bands and the
-  community-return share all arrive from RuleEngine via the route — the same
-  object the scorer consults. An operator can change any of them per programme and
-  per cycle, and of every page on this site the METHODOLOGY page is the one that
-  must not go on describing a system the code has stopped running.
+  The styling below is deliberately plainer than the rest of the site. No cards, no
+  gradients, no shadows, no progress bars. Warm paper, one measure of about 66
+  characters, Playfair for headings and DM Sans for body at a generous 1.78 leading,
+  and hairline rules doing all the separating that panels used to do.
 
-  The articles this page links to resolve the same values from the same engine, so
-  the summary and the deep dive cannot drift apart.
+  Data that used to be a bar chart is now a table, because a table can be read
+  aloud, copied into a spreadsheet, and printed — and every one of those matters
+  more for this document than the bar did.
+
+  ── WHERE THE WORDS LIVE ────────────────────────────────────────────────────
+
+  Part I is NOT written here. It arrives as `doc_sections` from
+  {@see \AfricaGates\Services\CommunityVotingPhilosophy}, because the same prose has
+  to leave as HTML, as the .txt the Copy button lifts, and as the .md the Download
+  button saves. One source, three surfaces, no drift.
+
+  Part II is written here, and every figure in it is a route variable read from
+  RuleEngine — the same object the scorer consults. Of every page on this site the
+  methodology page is the one that must not go on describing a system the code has
+  stopped running.
 #}
+
+{% set part2_offset = doc_sections|default([])|length %}
 
 {#
-  ── STRUCTURED DATA ──────────────────────────────────────────────────────────
+  ── STRUCTURED DATA & CITATION METADATA ─────────────────────────────────────
 
-  A FAQPage, built from questions this page VISIBLY ANSWERS. That constraint is
-  the whole discipline: marking up an answer the reader cannot find on the page is
-  the thing search engines penalise, and it is also just a lie told in a format
-  nobody reads. Each entry below corresponds to a section above the fold of its
-  own heading.
+  Three things, for three different readers:
 
-  The figures interpolate from the same route variables the visible copy uses, so
-  the machine-readable answer and the human one cannot drift — and a cycle
-  override changes both at once.
-
-  BreadcrumbList comes from the layout, driven by the `breadcrumbs` route variable.
+  1. `Article` — tells a search engine this is a dated, versioned document with an
+     author and a publisher, which is what earns the byline treatment in results.
+  2. Highwire Press `citation_*` tags plus Dublin Core — what Zotero, Mendeley and
+     Google Scholar actually read when somebody clicks "save citation". Without
+     them a reference manager guesses the title from the <title> tag and the date
+     from nothing.
+  3. `FAQPage` — kept from the previous build, and still built only from questions
+     this page VISIBLY answers. Marking up an answer a reader cannot find is the
+     thing search engines penalise, and it is also just a lie in a format nobody
+     reads.
 #}
 {% block structured_data %}
+<meta name="citation_title" content="{{ doc_title }}">
+<meta name="citation_author" content="{{ doc_author }}">
+<meta name="citation_publisher" content="{{ doc_publisher }}">
+<meta name="citation_publication_date" content="{{ doc_published }}">
+<meta name="citation_online_date" content="{{ doc_updated }}">
+<meta name="citation_public_url" content="{{ doc_url }}">
+<meta name="DC.title" content="{{ doc_title }}">
+<meta name="DC.creator" content="{{ doc_author }}">
+<meta name="DC.publisher" content="{{ doc_publisher }}">
+<meta name="DC.date" content="{{ doc_updated }}">
+<meta name="DC.identifier" content="{{ doc_url }}">
+<meta name="DC.type" content="Text">
+<meta name="DC.format" content="text/html">
+<script nonce="{{ csp_nonce }}" type="application/ld+json">
+{"@context":"https://schema.org","@type":"Article",
+"headline":{{ doc_title|json_encode|raw }},
+"alternativeHeadline":{{ doc_subtitle|json_encode|raw }},
+"description":{{ doc_standfirst|striptags|json_encode|raw }},
+"author":{"@type":"Organization","name":{{ doc_author|json_encode|raw }}},
+"publisher":{"@type":"Organization","name":{{ doc_publisher|json_encode|raw }}},
+"datePublished":{{ doc_published|json_encode|raw }},
+"dateModified":{{ doc_updated|json_encode|raw }},
+"version":{{ doc_version|json_encode|raw }},
+"inLanguage":"en",
+"isAccessibleForFree":true,
+"license":{{ (_site_url ~ '/terms')|json_encode|raw }},
+"mainEntityOfPage":{"@type":"WebPage","@id":{{ doc_url|json_encode|raw }}},
+"url":{{ doc_url|json_encode|raw }}}
+</script>
 <script nonce="{{ csp_nonce }}" type="application/ld+json">
 {% set faq = [
   {
@@ -51,8 +94,16 @@
     a: 'The CPI is ' ~ community_pct|default(45) ~ '% verified community votes and ' ~ judge_pct|default(55) ~ '% independent judge panel. The community share is normalised within each category, so a nominee in a small category is measured against their own field rather than against the whole platform.'
   },
   {
+    q: 'Why is voting on Africa GATES paid?',
+    a: 'A token contribution gives a supporter a practical way of standing with a nominee, and it funds the judging, verification and production work behind the programme. It is not a purchase of an award: contributions add to a public tally but are held in a column the scorer never reads.'
+  },
+  {
     q: 'Can you buy votes to win an Africa GATES award?',
     a: 'No. Contributions add to a nominee’s public tally but are held in a separate column the scorer never reads, they cannot break a tie, and they are capped at ' ~ paid_cap_pct|default(50) ~ '% of the organic support a nominee has earned. Money can make a nominee look more popular; it cannot make them win.'
+  },
+  {
+    q: 'Why is the public vote only ' ~ community_pct|default(45) ~ '%?',
+    a: 'Because popularity is not the same thing as excellence. A larger following is not greater impact, and a nominee with more capacity to mobilise supporters is not necessarily the strongest candidate. Limiting the public vote to ' ~ community_pct|default(45) ~ '% leaves ' ~ judge_pct|default(55) ~ '% for structured, independent assessment.'
   },
   {
     q: 'Why might the nominee with the most votes not win?',
@@ -69,6 +120,10 @@
   {
     q: 'What is the Africa GATES community return?',
     a: 'A nominee keeps ' ~ return_pct|default('30') ~ '% of what supporters contribute in their name, win or lose, once they have gathered ' ~ return_threshold|default(250) ~ ' votes of qualifying support. No single supporter can supply more than ' ~ return_cap_pct|default(10) ~ '% of that threshold, so qualifying takes at least ' ~ return_people|default(10) ~ ' different verified people.'
+  },
+  {
+    q: 'Is Africa GATES a pyramid or Ponzi scheme?',
+    a: 'No. Africa GATES is not a Ponzi scheme, pyramid scheme, MLM programme, investment scheme or get-rich-quick scheme. Nobody is promised a financial return for recruiting other participants, and no participant earns money by introducing another person into the programme.'
   }
 ] %}
 {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{% for f in faq %}{"@type":"Question","name":{{ f.q|json_encode|raw }},"acceptedAnswer":{"@type":"Answer","text":{{ f.a|json_encode|raw }}}}{% if not loop.last %},{% endif %}{% endfor %}]}
@@ -77,624 +132,1001 @@
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  body[data-page="integrity"]{ background:#eef0ec; color:var(--ag-ink); }
-  .mth{ max-width:1000px; margin:0 auto; padding:clamp(2rem,5vw,3rem) var(--ag-gutter,32px) clamp(3rem,6vw,4.5rem); }
+  /* ══ THE PAPER ═══════════════════════════════════════════════════════════
+     A warm sheet rather than the site's cool white. The document is meant to
+     feel like something printed and kept, and #fbfbfa reads as a screen.
 
-  /* ── hero ─────────────────────────────────────────────────────────────── */
-  .mth-hero{ text-align:center; max-width:680px; margin:0 auto; }
-  .mth-hero .mth-eyebrow{ margin:0 0 10px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
-  .mth-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2rem,5vw,2.75rem); letter-spacing:-.02em; line-height:1.12; }
-  .mth-hero h1 em{ font-style:italic; color:var(--ag-green); }
-  .mth-hero p{ margin:16px 0 0; font-size:16.5px; line-height:1.65; color:#52605c; }
+     The tokens are declared on BODY, not on .ar. Custom properties inherit
+     downward only, so a --ar-paper defined on .ar is invisible to the body
+     element that has to paint the background — which is exactly how this
+     shipped white the first time. Declaring them here puts both the painter
+     and its descendants inside the same scope. */
+  body[data-page="integrity"]{
+    --ar-paper:#f4f2ea;
+    --ar-ink:#12292b;
+    --ar-soft:#5b6663;          /* ≥4.5:1 on the paper — body-adjacent text */
+    --ar-faint:#7c8683;         /* ≥3:1 — labels and furniture only, never prose */
+    --ar-line:rgba(18,41,43,.14);
+    --ar-line-soft:rgba(18,41,43,.08);
+    --ar-accent:#237b22;
+    --ar-accent-dark:#1a6118;
+    --ar-gold:#9a7726;
+    --ar-measure:42rem;         /* ≈66 characters at the body size */
+    background:var(--ar-paper);
+    color:var(--ar-ink);
+  }
 
-  /* Live figures, stated up front. The three claims most often doubted. */
-  .mth-stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:rgba(16,41,44,.1);
-              border:1px solid rgba(16,41,44,.1); border-radius:18px; overflow:hidden; margin:clamp(1.6rem,4vw,2.2rem) auto 0; max-width:720px; }
-  .mth-stat{ background:var(--ag-surface); padding:18px 14px; text-align:center; }
-  .mth-stat__n{ display:block; font:700 clamp(1.4rem,3.4vw,1.75rem)/1 var(--ag-font-mono); color:var(--ag-green); letter-spacing:-.02em; }
-  .mth-stat__l{ display:block; margin-top:7px; font-size:12px; line-height:1.45; color:#5c6864; }
+  /* ══ SHELL ═══════════════════════════════════════════════════════════════
+     One column of prose, with the contents parked in the margin from 1180px up.
+     Below that the rail becomes an inline block at the top, because a sticky
+     sidebar on a narrow screen is a sticky obstruction. */
+  .ar-shell{ max-width:74rem; margin:0 auto; padding:clamp(2rem,5vw,3.4rem) var(--ag-gutter,32px) clamp(4rem,8vw,6rem); }
+  @media (min-width:1180px){
+    .ar-shell{ display:grid; grid-template-columns:minmax(0,1fr) 15rem; gap:4rem; align-items:start; }
+    .ar-rail{ position:sticky; top:calc(var(--ag-nav-h,72px) + 1.5rem); order:2; }
+    .ar-body{ order:1; }
+  }
+  .ar-body{ max-width:var(--ar-measure); }
 
-  /* ── section index ────────────────────────────────────────────────────── */
-  .mth-index{ margin:clamp(1.8rem,4vw,2.4rem) 0 0; padding:16px 18px; background:var(--ag-surface);
-              border:1px solid rgba(16,41,44,.08); border-radius:18px; }
-  .mth-index h2{ margin:0 0 11px; font:600 11.5px/1 var(--ag-font-body); letter-spacing:.13em; text-transform:uppercase; color:#7b8783; }
-  .mth-index ol{ list-style:none; margin:0; padding:0; display:flex; flex-wrap:wrap; gap:7px; counter-reset:ix; }
-  .mth-index a{ counter-increment:ix; display:inline-flex; align-items:baseline; gap:7px; text-decoration:none;
-                border:1px solid rgba(16,41,44,.12); border-radius:999px; padding:7px 13px; font-size:13px; color:#33403d; background:#fff; }
-  .mth-index a::before{ content:counter(ix,decimal-leading-zero); font:700 10.5px/1 var(--ag-font-mono); color:var(--ag-green); }
-  .mth-index a:hover{ border-color:var(--ag-green); color:var(--ag-green-dark); }
+  /* ══ TYPE ════════════════════════════════════════════════════════════════ */
+  .ar-body p, .ar-body li{ font-family:var(--ag-font-body); font-size:17.5px; line-height:1.78; color:var(--ar-ink); }
+  .ar-body p{ margin:0 0 1.35em; }
+  .ar-body a{ color:var(--ar-accent-dark); text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:.16em; }
+  .ar-body a:hover{ text-decoration-thickness:2px; }
+  .ar-body code{ font-family:var(--ag-font-mono); font-size:.9em; background:rgba(18,41,43,.06); padding:.12em .38em; border-radius:4px; }
 
-  /* ── section furniture ────────────────────────────────────────────────── */
-  .mth-sec{ scroll-margin-top:96px; margin-top:clamp(2.6rem,6vw,3.6rem); }
-  .mth-sec__n{ display:block; font:700 11px/1 var(--ag-font-mono); letter-spacing:.14em; color:var(--ag-green); margin-bottom:9px; }
-  .mth-h2{ margin:0 0 6px; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.45rem,3.2vw,1.9rem); letter-spacing:-.015em; line-height:1.2; }
-  .mth-lead{ margin:0 0 1.3rem; color:#52605c; font-size:15.5px; line-height:1.65; max-width:60ch; }
-  .mth-h3{ margin:1.6rem 0 .45rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.1rem; color:var(--ag-ink); }
+  /* ══ MASTHEAD ════════════════════════════════════════════════════════════ */
+  .ar-eyebrow{ margin:0 0 1.1rem; font:600 11px/1 var(--ag-font-mono); letter-spacing:.18em; text-transform:uppercase; color:var(--ar-accent); }
+  .ar-h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(2.15rem,5.2vw,3.35rem); line-height:1.07; letter-spacing:-.022em; color:var(--ar-ink); }
+  .ar-sub{ margin:.85rem 0 0; font-family:var(--ag-font-display); font-style:italic; font-weight:400; font-size:clamp(1.15rem,2.6vw,1.42rem); line-height:1.4; color:var(--ar-soft); }
+  .ar-stand{ margin:1.7rem 0 0; font-size:19px !important; line-height:1.72 !important; color:var(--ar-soft) !important; }
 
-  /* "Read the detail" — the doors out of the summary. */
-  .mth-more{ margin-top:1.1rem; display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:10px; }
-  .mth-more__a{ display:flex; align-items:flex-start; gap:10px; text-decoration:none; background:#fff;
-                border:1px solid rgba(16,41,44,.1); border-radius:13px; padding:13px 15px; transition:border-color .15s,transform .15s; }
-  .mth-more__a:hover{ border-color:var(--ag-green); transform:translateY(-1px); }
-  .mth-more__ico{ flex:none; width:22px; height:22px; border-radius:7px; background:var(--ag-green-wash); color:var(--ag-green-dark);
-                  display:flex; align-items:center; justify-content:center; margin-top:1px; }
-  .mth-more__t{ display:block; font-size:13.5px; line-height:1.45; font-weight:600; color:var(--ag-ink); }
-  .mth-more__s{ display:block; margin-top:3px; font-size:12px; line-height:1.45; color:#6c7873; }
+  /* The byline row. Hairline above and below, mono, small — a colophon, not a
+     headline. Wraps to two lines on a phone without becoming a list. */
+  .ar-meta{ margin:2rem 0 0; padding:.9rem 0; border-top:1px solid var(--ar-line); border-bottom:1px solid var(--ar-line);
+            display:flex; flex-wrap:wrap; gap:.4rem 1.4rem; font:500 12px/1.5 var(--ag-font-mono); color:var(--ar-faint); }
+  .ar-meta b{ color:var(--ar-soft); font-weight:600; }
+  .ar-meta dfn{ font-style:normal; }
 
-  /* ── scoring card ─────────────────────────────────────────────────────── */
-  .mth-score{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(1.5rem,3vw,2rem); }
-  .mth-score__head{ display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1.3rem; }
-  .mth-score__head h3{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.2rem; }
-  .mth-score__max{ font:700 13.5px/1 var(--ag-font-mono); color:var(--ag-green); }
-  .mth-bar{ margin-bottom:1.3rem; }
-  .mth-bar:last-of-type{ margin-bottom:0; }
-  .mth-bar__top{ display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:8px; }
-  .mth-bar__name{ display:flex; align-items:center; gap:11px; font-weight:600; font-size:15.5px; }
-  .mth-bar__ico{ width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex:none; }
-  .mth-bar__pct{ font:700 14px/1 var(--ag-font-mono); color:var(--ag-ink); }
-  .mth-bar__track{ display:block; height:9px; border-radius:5px; background:#eef2ee; overflow:hidden; margin-bottom:7px; }
-  .mth-bar__fill{ display:block; height:100%; border-radius:5px; background:linear-gradient(90deg,var(--ag-green),var(--ag-green-light)); }
-  .mth-bar__desc{ margin:0; font-size:13.5px; line-height:1.6; color:#626a6e; }
-  .mth-eq{ text-align:center; margin:1.4rem 0 0; font:700 .95rem/1.5 var(--ag-font-mono); color:var(--ag-ink); }
-  .mth-why{ margin-top:1.1rem; background:#fff8e8; border:1px solid rgba(201,162,75,.3); border-radius:14px; padding:1rem 1.2rem; font-size:14px; line-height:1.65; color:#5b4a1f; }
-  .mth-why strong{ color:#3a2f12; }
+  /* ══ TOOLBAR ═════════════════════════════════════════════════════════════
+     Copy, Download, Cite. Hairline and quiet: these are utilities on a
+     document, not calls to action, and styling them as buttons would make them
+     compete with the words. */
+  .ar-tools{ margin:1.5rem 0 0; display:flex; flex-wrap:wrap; gap:.55rem; position:relative; }
+  .ar-tool{ display:inline-flex; align-items:center; gap:.5rem; cursor:pointer; background:transparent;
+            border:1px solid var(--ar-line); border-radius:999px; padding:.5rem .95rem;
+            font:600 12.5px/1 var(--ag-font-body); color:var(--ar-ink); text-decoration:none;
+            transition:border-color .15s, background-color .15s; }
+  .ar-tool:hover{ border-color:var(--ar-accent); background:rgba(35,123,34,.05); text-decoration:none; }
+  .ar-tool[aria-expanded="true"]{ border-color:var(--ar-accent); background:rgba(35,123,34,.06); }
+  .ar-tool.is-done{ border-color:var(--ar-accent); color:var(--ar-accent-dark); background:rgba(35,123,34,.08); }
+  .ar-tool svg{ flex:none; }
 
-  /* ── generic cells ────────────────────────────────────────────────────── */
-  .mth-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-  .mth-grid--3{ grid-template-columns:repeat(3,1fr); }
-  .mth-cell{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:20px; }
-  .mth-cell__top{ display:flex; align-items:center; justify-content:space-between; gap:.5rem; margin-bottom:.5rem; }
-  .mth-cell h3{ margin:0; font-weight:600; font-size:15.5px; color:var(--ag-ink); }
-  .mth-cell__pct{ font:700 12px/1 var(--ag-font-mono); color:var(--ag-green); background:var(--ag-green-wash); padding:5px 9px; border-radius:999px; }
-  .mth-cell p{ margin:0; font-size:13.5px; line-height:1.65; color:#626a6e; }
-  .mth-cell__ico{ width:40px; height:40px; border-radius:11px; background:#effaf0; display:flex; align-items:center; justify-content:center; margin-bottom:12px; }
+  /* The download menu. A popover rather than two more buttons in the row,
+     because .md and .txt are one decision with two answers. */
+  .ar-pop{ position:absolute; top:calc(100% + .45rem); left:0; z-index:20; min-width:15rem;
+           background:#fff; border:1px solid var(--ar-line); border-radius:12px; padding:.35rem;
+           box-shadow:0 12px 32px -12px rgba(18,41,43,.28); }
+  .ar-pop a{ display:block; padding:.6rem .7rem; border-radius:8px; text-decoration:none; color:var(--ar-ink); }
+  .ar-pop a:hover{ background:rgba(18,41,43,.05); text-decoration:none; }
+  .ar-pop b{ display:block; font:600 13.5px/1.3 var(--ag-font-body); }
+  .ar-pop span{ display:block; margin-top:2px; font-size:12px; line-height:1.45; color:var(--ar-faint); }
 
-  /* ── eligibility rule ─────────────────────────────────────────────────── */
-  .mth-rule{ display:flex; align-items:center; gap:clamp(14px,3vw,26px); background:var(--ag-ink); border-radius:20px;
-             padding:clamp(1.2rem,3vw,1.6rem) clamp(1.3rem,3vw,1.9rem); color:#fff; flex-wrap:wrap; }
-  .mth-rule__n{ font:700 clamp(2.2rem,6vw,3rem)/1 var(--ag-font-mono); color:var(--ag-green-light); letter-spacing:-.03em; }
-  .mth-rule__b{ flex:1 1 260px; }
-  .mth-rule__b strong{ display:block; font-size:15.5px; margin-bottom:5px; }
-  .mth-rule__b p{ margin:0; font-size:13.5px; line-height:1.65; color:rgba(255,255,255,.72); }
+  /* Announced to screen readers, shown to everybody. One line, no layout shift. */
+  .ar-say{ margin:.7rem 0 0; min-height:1.1rem; font:500 12.5px/1.1 var(--ag-font-mono); color:var(--ar-accent-dark); }
 
-  /* ── money: can / cannot ──────────────────────────────────────────────── */
-  .mth-money{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:14px; }
-  .mth-money__col{ border-radius:16px; padding:20px 22px; border:1px solid; }
-  .mth-money__col--can{ background:#f2f9f1; border-color:#bfe0bd; }
-  .mth-money__col--cannot{ background:#fdf6f6; border-color:#eccaca; }
-  .mth-money__col h3{ display:flex; align-items:center; gap:8px; margin:0 0 11px; font-size:14.5px; color:var(--ag-ink); }
-  .mth-money__col ul{ margin:0; padding-left:18px; }
-  .mth-money__col li{ font-size:13.5px; line-height:1.7; color:#3f4a4c; margin-bottom:9px; }
-  .mth-money__col li:last-child{ margin-bottom:0; }
-  .mth-note{ margin:14px 0 0; font-size:14px; line-height:1.75; color:#4a5256; max-width:70ch; }
-  .mth-note em{ color:var(--ag-ink); font-style:italic; }
+  /* ══ CONTENTS ════════════════════════════════════════════════════════════ */
+  .ar-rail h2, .ar-toc h2{ margin:0 0 .8rem; font:600 11px/1 var(--ag-font-mono); letter-spacing:.16em; text-transform:uppercase; color:var(--ar-faint); }
+  .ar-rail ol, .ar-toc ol{ list-style:none; margin:0; padding:0; counter-reset:ar; }
+  .ar-rail li, .ar-toc li{ counter-increment:ar; }
+  .ar-rail a, .ar-toc a{ display:flex; gap:.6rem; padding:.32rem 0; font-size:13.5px !important; line-height:1.45 !important;
+                         color:var(--ar-soft) !important; text-decoration:none; }
+  .ar-rail a::before, .ar-toc a::before{ content:counter(ar,decimal-leading-zero); flex:none; font:600 10.5px/1.7 var(--ag-font-mono); color:var(--ar-faint); }
+  .ar-rail a:hover, .ar-toc a:hover{ color:var(--ar-accent-dark) !important; text-decoration:none; }
+  .ar-rail .ar-part, .ar-toc .ar-part{ margin:1rem 0 .35rem; font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ar-accent); }
+  .ar-rail .ar-part:first-child, .ar-toc .ar-part:first-child{ margin-top:0; }
+  /* The part labels and the reference entry are <li> because they live inside the
+     <ol> — but they are not sections, so they must not consume a number. Without
+     this the contents counted them and every entry was off by one per part: the
+     body said "13 The score" while the contents said 15. */
+  .ar-rail li.ar-part, .ar-toc li.ar-part,
+  .ar-rail li.ar-ref, .ar-toc li.ar-ref{ counter-increment:none; }
+  .ar-rail li.ar-ref a::before, .ar-toc li.ar-ref a::before{ content:"§"; }
+  /* Inline contents, for the narrow layout only. */
+  .ar-toc{ margin:2.6rem 0 0; padding:1.2rem 1.3rem; border:1px solid var(--ar-line); border-radius:14px; }
+  @media (min-width:1180px){ .ar-toc{ display:none; } }
+  .ar-rail{ display:none; }
+  @media (min-width:1180px){ .ar-rail{ display:block; } }
 
-  /* ── risk bands ───────────────────────────────────────────────────────── */
-  .mth-bands{ display:flex; height:38px; border-radius:11px; overflow:hidden; border:1px solid rgba(16,41,44,.1); }
-  .mth-band{ display:flex; align-items:center; justify-content:center; font:700 11px/1 var(--ag-font-mono); color:#fff; text-align:center; padding:0 4px; }
-  .mth-band--ok{ background:#3f9b3c; }
-  .mth-band--watch{ background:#8aa63c; }
-  .mth-band--flag{ background:#c98b2b; }
-  .mth-band--stop{ background:#b0453f; }
-  .mth-bands__key{ display:flex; flex-wrap:wrap; gap:12px 20px; margin-top:12px; }
-  .mth-bands__k{ display:flex; align-items:flex-start; gap:8px; font-size:13px; line-height:1.55; color:#4a5256; max-width:34ch; }
-  .mth-bands__dot{ flex:none; width:10px; height:10px; border-radius:3px; margin-top:4px; }
+  /* ══ PART DIVIDER ════════════════════════════════════════════════════════ */
+  .ar-part-head{ margin:clamp(3.4rem,7vw,5rem) 0 0; padding-top:1.6rem; border-top:2px solid var(--ar-ink); }
+  .ar-part-head .ar-pn{ display:block; font:600 11px/1 var(--ag-font-mono); letter-spacing:.18em; text-transform:uppercase; color:var(--ar-accent); margin-bottom:.7rem; }
+  .ar-part-head h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.7rem,3.6vw,2.2rem); line-height:1.15; letter-spacing:-.018em; }
+  .ar-part-head p{ margin:.75rem 0 0; color:var(--ar-soft) !important; }
 
-  /* ── timeline (dark) ──────────────────────────────────────────────────── */
-  .mth-time{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:22px; padding:clamp(1.5rem,3vw,2.1rem); }
-  .mth-time__orb{ position:absolute; right:-50px; top:-50px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.18),transparent 68%); }
-  .mth-time h3{ position:relative; margin:0 0 1.3rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.2rem; color:#fff; }
-  .mth-time__row{ position:relative; display:grid; grid-template-columns:repeat(6,1fr); gap:0; }
-  .mth-step__head{ display:flex; align-items:center; }
-  .mth-step__n{ width:30px; height:30px; flex:none; border-radius:50%; background:var(--ag-green-light); color:var(--ag-ink); display:flex; align-items:center; justify-content:center; font:700 13px/1 var(--ag-font-mono); }
-  .mth-step__line{ flex:1; height:2px; background:rgba(127,200,124,.35); }
-  .mth-step:last-child .mth-step__line{ background:transparent; }
-  .mth-step__t{ font-weight:600; font-size:13px; color:#fff; margin-top:12px; padding-right:12px; }
-  .mth-step__d{ font-size:11.5px; line-height:1.5; color:rgba(255,255,255,.62); margin-top:4px; padding-right:12px; }
+  /* ══ SECTIONS ════════════════════════════════════════════════════════════ */
+  .ar-sec{ scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.5rem); margin-top:clamp(2.6rem,5.5vw,3.6rem); }
+  .ar-sec > h3{ margin:0 0 1.1rem; font-family:var(--ag-font-display); font-weight:700;
+                font-size:clamp(1.42rem,3vw,1.78rem); line-height:1.22; letter-spacing:-.016em; color:var(--ar-ink); }
+  .ar-sn{ display:block; margin-bottom:.5rem; font:600 11px/1 var(--ag-font-mono); letter-spacing:.16em; color:var(--ar-accent); }
+  .ar-h4{ margin:2rem 0 .7rem; font-family:var(--ag-font-body); font-weight:700; font-size:1.02rem; line-height:1.4;
+          letter-spacing:.01em; color:var(--ar-ink); }
 
-  /* ── prose ────────────────────────────────────────────────────────────── */
-  .mth-prose p{ margin:0 0 .8rem; font-size:14.5px; line-height:1.75; color:#3a4448; max-width:70ch; }
-  .mth-prose p:last-child{ margin-bottom:0; }
-  .mth-prose a{ color:var(--ag-green); }
-  .mth-prose ol{ margin:.6rem 0 0; padding-left:1.3rem; display:flex; flex-direction:column; gap:.45rem; font-size:14px; line-height:1.65; color:#3a4448; max-width:70ch; }
+  /* ══ LISTS ═══════════════════════════════════════════════════════════════
+     Hanging markers, so the text block keeps one left edge with the paragraphs
+     around it. A bullet that pushes prose inward breaks the column. */
+  .ar-list{ list-style:none; margin:0 0 1.35em; padding:0; }
+  .ar-list li{ position:relative; padding-left:1.35rem; margin-bottom:.6em; }
+  .ar-list li::before{ content:""; position:absolute; left:.25rem; top:.72em; width:5px; height:5px; border-radius:50%; background:var(--ar-accent); }
+  .ar-steps{ list-style:none; margin:0 0 1.35em; padding:0; counter-reset:st; }
+  .ar-steps li{ position:relative; padding-left:2.1rem; margin-bottom:.7em; counter-increment:st; }
+  .ar-steps li::before{ content:counter(st,decimal-leading-zero); position:absolute; left:0; top:.28em;
+                        font:600 11.5px/1.6 var(--ag-font-mono); color:var(--ar-accent); }
 
-  .mth-cta{ text-align:center; margin-top:clamp(2.6rem,6vw,3.6rem); padding-top:clamp(2rem,4vw,2.6rem); border-top:1px solid rgba(16,41,44,.1); }
-  .mth-cta p{ margin:0 0 1rem; color:#52605c; }
-  .mth-btn{ display:inline-flex; align-items:center; gap:.5rem; background:var(--ag-green); color:#fff; text-decoration:none; font-weight:600; font-size:15px; padding:14px 28px; border-radius:999px; box-shadow:0 12px 24px -12px rgba(35,123,34,.6); }
-  .mth-btn:hover{ background:var(--ag-green-dark); }
-  .mth-cta__alt{ margin-top:14px; font-size:13.5px; }
-  .mth-cta__alt a{ color:var(--ag-green-dark); }
+  /* ══ PULL QUOTE ══════════════════════════════════════════════════════════
+     The document's own voice. Playfair italic, no quotation marks — the marks
+     are what make a pull quote look like a testimonial. */
+  .ar-quote{ margin:2.1rem 0; padding:0 0 0 1.5rem; border-left:2px solid var(--ar-accent); }
+  .ar-quote p{ margin:0; font-family:var(--ag-font-display); font-style:italic; font-weight:400;
+               font-size:clamp(1.2rem,2.6vw,1.44rem) !important; line-height:1.48 !important; color:var(--ar-ink) !important; }
 
-  @media (max-width:760px){
-    .mth-grid, .mth-grid--3{ grid-template-columns:1fr; }
-    .mth-time__row{ grid-template-columns:1fr; gap:1rem; }
-    .mth-step__line{ display:none; }
-    .mth-stats{ grid-template-columns:1fr; }
-    .mth-band{ font-size:10px; }
+  /* ══ TABLE ═══════════════════════════════════════════════════════════════
+     What used to be bar charts. Hairline rows, mono figures, and a scroll
+     container so a narrow screen scrolls the table instead of the page. */
+  .ar-tw{ margin:0 0 1.5em; overflow-x:auto; }
+  .ar-table{ width:100%; border-collapse:collapse; font-family:var(--ag-font-body); }
+  .ar-table caption{ caption-side:top; text-align:left; margin-bottom:.7rem;
+                     font:600 11px/1.4 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ar-faint); }
+  .ar-table th, .ar-table td{ text-align:left; padding:.72rem .9rem .72rem 0; border-bottom:1px solid var(--ar-line-soft);
+                              font-size:15.5px; line-height:1.6; vertical-align:baseline; }
+  .ar-table thead th{ border-bottom:1px solid var(--ar-line); font-weight:600; font-size:12.5px;
+                      letter-spacing:.04em; text-transform:uppercase; color:var(--ar-faint); }
+  .ar-table tbody th{ font-weight:600; color:var(--ar-ink); white-space:nowrap; }
+  .ar-table td:last-child, .ar-table th:last-child{ padding-right:0; }
+  .ar-table .ar-num{ font-family:var(--ag-font-mono); font-weight:600; font-size:14.5px; color:var(--ar-accent-dark); white-space:nowrap; }
+  .ar-table tfoot td{ border-bottom:0; padding-top:.9rem; font-size:14px; color:var(--ar-soft); }
+
+  /* ══ TWO COLUMNS ═════════════════════════════════════════════════════════
+     "What it does" against "what it does not". A single hairline between them
+     carries the contrast; the previous build used a green panel and a red one,
+     which read as a warning rather than as a distinction. */
+  .ar-cols{ margin:0 0 1.5em; display:grid; gap:1.6rem; }
+  @media (min-width:640px){ .ar-cols{ grid-template-columns:1fr 1fr; gap:2.2rem; } }
+  .ar-cols > div + div{ padding-top:1.6rem; border-top:1px solid var(--ar-line); }
+  @media (min-width:640px){
+    .ar-cols > div + div{ padding-top:0; border-top:0; padding-left:2.2rem; border-left:1px solid var(--ar-line); }
+  }
+  .ar-cols h4{ margin:0 0 .8rem; font:600 12px/1 var(--ag-font-mono); letter-spacing:.13em; text-transform:uppercase; }
+  .ar-cols--can h4{ color:var(--ar-accent-dark); }
+  .ar-cols--cannot h4{ color:#a2453f; }
+  .ar-cols li{ font-size:16px !important; line-height:1.7 !important; }
+  .ar-cols .ar-list li::before{ background:currentColor; opacity:.5; }
+  .ar-cols--cannot .ar-list li::before{ background:#a2453f; }
+
+  /* ══ NOTICE ══════════════════════════════════════════════════════════════
+     One on the page: the anti-fraud disclaimer. Being the only boxed thing in
+     the document is what makes the box mean something. */
+  .ar-note{ margin:1.6rem 0 1.5em; padding:1.4rem 1.5rem; background:rgba(154,119,38,.07);
+            border:1px solid rgba(154,119,38,.28); border-radius:14px; }
+  .ar-note h4{ margin:0 0 .9rem; font:600 11.5px/1 var(--ag-font-mono); letter-spacing:.15em; text-transform:uppercase; color:var(--ar-gold); }
+  .ar-note p{ font-size:16px !important; line-height:1.72 !important; }
+  .ar-note p:last-child{ margin-bottom:0; }
+
+  /* ══ ASIDE / FOOTNOTE ════════════════════════════════════════════════════ */
+  .ar-aside{ margin:1.5rem 0; padding-left:1.2rem; border-left:1px solid var(--ar-line); }
+  .ar-aside p{ margin:0; font-size:15.5px !important; line-height:1.7 !important; color:var(--ar-soft) !important; }
+
+  /* Further reading — a line of references, the way an article ends a section. */
+  .ar-refs{ margin:1.4rem 0 0; padding-top:.9rem; border-top:1px solid var(--ar-line-soft); }
+  .ar-refs span{ font:600 10.5px/1 var(--ag-font-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--ar-faint); }
+  .ar-refs ul{ list-style:none; margin:.6rem 0 0; padding:0; }
+  .ar-refs li{ margin-bottom:.3rem; font-size:14.5px !important; line-height:1.6 !important; }
+  .ar-refs a{ color:var(--ar-soft) !important; text-decoration-color:var(--ar-line); }
+  .ar-refs a:hover{ color:var(--ar-accent-dark) !important; }
+
+  /* ══ CITATION ════════════════════════════════════════════════════════════ */
+  .ar-cite{ scroll-margin-top:calc(var(--ag-nav-h,72px) + 1.5rem); margin:clamp(3.4rem,7vw,5rem) 0 0; padding-top:1.6rem; border-top:2px solid var(--ar-ink); }
+  .ar-cite > h2{ margin:0 0 .5rem; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.5rem,3.2vw,1.9rem); letter-spacing:-.016em; }
+  .ar-tabs{ margin:1.4rem 0 0; display:flex; flex-wrap:wrap; gap:.4rem; border-bottom:1px solid var(--ar-line); padding-bottom:.7rem; }
+  .ar-tab{ cursor:pointer; background:transparent; border:1px solid transparent; border-radius:999px; padding:.4rem .8rem;
+           font:600 12.5px/1 var(--ag-font-body); color:var(--ar-soft); }
+  .ar-tab:hover{ color:var(--ar-ink); background:rgba(18,41,43,.05); }
+  .ar-tab[aria-selected="true"]{ background:var(--ar-ink); color:#f4f2ea; }
+  .ar-cite-body{ margin:1.1rem 0 0; }
+  .ar-body .ar-cite-text{ margin:0; padding:1.1rem 1.2rem; background:#fff; border:1px solid var(--ar-line); border-radius:12px;
+                 font-family:var(--ag-font-mono) !important; font-size:13.5px !important; line-height:1.75 !important; color:var(--ar-ink);
+                 white-space:pre-wrap; word-break:break-word; }
+  .ar-cite-act{ margin:.8rem 0 0; display:flex; flex-wrap:wrap; gap:.55rem; align-items:center; }
+
+  /* ══ CLOSING ═════════════════════════════════════════════════════════════ */
+  .ar-end{ margin:clamp(3rem,6vw,4rem) 0 0; padding-top:1.6rem; border-top:1px solid var(--ar-line); }
+  .ar-end p{ color:var(--ar-soft) !important; font-size:16px !important; }
+
+  /* ══ PRINT ═══════════════════════════════════════════════════════════════
+     A document with a Download button will be printed, so it gets a print
+     stylesheet rather than whatever the browser improvises. Utilities and the
+     contents rail go; the URL and version stay, because a printed page that
+     cannot be traced back to its source cannot be cited from either. */
+  @media print{
+    body[data-page="integrity"]{ background:#fff; }
+    .ar-tools, .ar-rail, .ar-toc, .ar-say, .ar-tabs, .ar-cite-act{ display:none !important; }
+    .ar-shell{ max-width:none; padding:0; display:block; }
+    .ar-body{ max-width:none; }
+    .ar-body p, .ar-body li{ font-size:11pt; line-height:1.55; }
+    .ar-sec, .ar-part-head, .ar-cite{ break-inside:avoid-page; }
+    .ar-sec > h3, .ar-part-head h2{ break-after:avoid-page; }
+    .ar-note{ border:1px solid #999; background:none; }
+    .ar-cite-text{ background:none; border:1px solid #999; }
+    .ar-body a::after{ content:" (" attr(href) ")"; font-size:9pt; color:#555; word-break:break-all; }
+    .ar-refs a::after{ content:""; }
   }
 </style>
 {% endblock %}
 
 {% block content %}
-{#  One place defines a "read the detail" link, so a section cannot invent its own
-    shape and a slug is written exactly once. #}
-{% macro more(links) %}
-  <div class="mth-more" data-ag-cascade="sm">
-    {% for l in links %}
-      <a class="mth-more__a" href="/help/{{ l.slug }}">
-        <span class="mth-more__ico" aria-hidden="true">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </span>
-        <span>
-          <span class="mth-more__t">{{ l.t }}</span>
-          <span class="mth-more__s">{{ l.s }}</span>
-        </span>
-      </a>
-    {% endfor %}
-  </div>
-{% endmacro %}
-{% import _self as ui %}
+{#
+  Alpine's expression compiler runs on a deferred script, so this inline block —
+  which runs during parse — is guaranteed to have defined the component before
+  `x-data` is evaluated. It carries a nonce; see Support\Csp.
+#}
+<script nonce="{{ csp_nonce }}">
+window.agIntegrityDoc = function () {
+  return {
+    tabs: {{ doc_citations|column('id')|json_encode|raw }},
+    tab: 'apa',
+    said: '',
+    menu: false,
+    done: '',
 
-<div class="mth">
-  <header class="mth-hero">
-    <p class="mth-eyebrow">Methodology · Integrity Centre</p>
-    <h1>How a winner is <em>decided</em> — and what money cannot do about it.</h1>
-    <p>The Cultural Power Index is meant to survive being questioned. This page is the whole method
-       in summary: what counts, what deliberately does not, who checks it, and what happens when we
-       get something wrong. Every figure below is read live from the scoring engine.</p>
-  </header>
+    /* Arrow-key movement across the citation tabs.
 
-  {# The three claims that get doubted most, answered before anybody scrolls. #}
-  <div class="mth-stats" data-ag-cascade="sm">
-    <div class="mth-stat">
-      <span class="mth-stat__n">{{ community_pct|default(45) }}&thinsp;/&thinsp;{{ judge_pct|default(55) }}</span>
-      <span class="mth-stat__l">Community votes to judge panel, in the final index</span>
-    </div>
-    <div class="mth-stat">
-      <span class="mth-stat__n">0%</span>
-      <span class="mth-stat__l">Of the index that contributions can move</span>
-    </div>
-    <div class="mth-stat">
-      <span class="mth-stat__n" data-ag-count>{{ min_judges|default(2) }}</span>
-      <span class="mth-stat__l">Complete judge scorecards needed to be winner-eligible</span>
-    </div>
-  </div>
+       Not a nicety. The tabs carry a roving tabindex — the selected one is 0, the
+       rest are -1 — which is correct for a tablist and means Tab enters the group
+       once instead of stopping four times. But it also means the arrow keys are the
+       ONLY way to reach the other three, so without this handler a keyboard user
+       could see four formats and reach exactly one. Home and End are included
+       because a four-item list is short enough that jumping to an end is faster
+       than stepping to it. */
+    moveTab: function (dir) {
+      var i = this.tabs.indexOf(this.tab);
+      if (i < 0) i = 0;
+      var next = dir === 'home' ? 0
+               : dir === 'end'  ? this.tabs.length - 1
+               : (i + (dir === 'next' ? 1 : -1) + this.tabs.length) % this.tabs.length;
+      this.tab = this.tabs[next];
+      /* Selection follows focus, so focus has to follow selection — otherwise the
+         next arrow press is computed from a tab the browser is no longer on. */
+      var el = document.getElementById('ar-tab-' + this.tab);
+      if (el) el.focus();
+    },
 
-  <nav class="mth-index" aria-label="On this page">
-    <h2>On this page</h2>
-    <ol data-ag-cascade="sm">
-      <li><a href="#score">The score</a></li>
-      <li><a href="#eligible">Who can actually win</a></li>
-      <li><a href="#criteria">What judges score</a></li>
-      <li><a href="#money">What money can and cannot do</a></li>
-      <li><a href="#return">The community return</a></li>
-      <li><a href="#honest">Keeping the count honest</a></li>
-      <li><a href="#failures">When a payment goes wrong</a></li>
-      <li><a href="#sealed">Sealing the result</a></li>
-      <li><a href="#cycle">The cycle, stage by stage</a></li>
-      <li><a href="#disputes">Disputes and your data</a></li>
-    </ol>
-  </nav>
+    /* One clipboard path for every button on the page.
+       navigator.clipboard needs a secure context and is missing on some older
+       Android WebViews, so the textarea fallback is not belt-and-braces — it is
+       the only path on a real slice of this platform's traffic. */
+    put: function (text, key, msg) {
+      var self = this;
+      var ok = function () {
+        self.done = key;
+        self.said = msg;
+        window.setTimeout(function () { self.done = ''; }, 2200);
+      };
+      var fail = function () { self.said = 'Could not copy — select the text and copy it manually.'; };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(ok, fail);
+        return;
+      }
+      try {
+        var t = document.createElement('textarea');
+        t.value = text;
+        t.setAttribute('readonly', '');
+        t.style.position = 'fixed';
+        t.style.top = '-1000px';
+        document.body.appendChild(t);
+        t.select();
+        var worked = document.execCommand('copy');
+        document.body.removeChild(t);
+        worked ? ok() : fail();
+      } catch (e) { fail(); }
+    },
 
-  {# ── 01 · THE SCORE ─────────────────────────────────────────────────────── #}
-  <section class="mth-sec" data-ag-reveal id="score">
-    <span class="mth-sec__n">01</span>
-    <h2 class="mth-h2">The score</h2>
-    <p class="mth-lead">The Cultural Power Index is a weighted combination of the community’s verified
-       votes and an independent judge panel. Neither alone decides a winner, and that is the point of
-       having both.</p>
+    /* The whole document.
 
-    <div class="mth-score">
-      <div class="mth-score__head">
-        <h3>Two weighted inputs</h3>
-        <span class="mth-score__max">= CPI score</span>
-      </div>
-      <div class="mth-bar">
-        <div class="mth-bar__top">
-          <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#eef7ee;color:#1a6118"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>Community votes</span>
-          <span class="mth-bar__pct">{{ community_pct|default(45) }}%</span>
-        </div>
-        <span class="mth-bar__track"><span class="mth-bar__fill" data-ag-fill style="width:{{ community_pct|default(45) }}%"></span></span>
-        <p class="mth-bar__desc">Normalised <strong>within each category</strong>, against that category’s
-           strongest vote count — so a nominee in a small field is not punished for being in one. Only
-           organic, code-verified votes count here; contribution bonus votes never enter this number.</p>
-      </div>
-      <div class="mth-bar">
-        <div class="mth-bar__top">
-          <span class="mth-bar__name"><span class="mth-bar__ico" style="background:#f3eef7;color:#5b3a8a"><svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg></span>Judge panel</span>
-          <span class="mth-bar__pct">{{ judge_pct|default(55) }}%</span>
-        </div>
-        <span class="mth-bar__track"><span class="mth-bar__fill" data-ag-fill style="width:{{ judge_pct|default(55) }}%"></span></span>
-        <p class="mth-bar__desc">An independent panel scores each shortlisted nominee on four
-           equally-weighted criteria. Only complete scorecards are counted, and judges do not see the
-           vote tally while scoring.</p>
-      </div>
-      <p class="mth-eq">{{ community_pct|default(45) }}% community&nbsp;+&nbsp;{{ judge_pct|default(55) }}% judges&nbsp;=&nbsp;CPI</p>
-      <div class="mth-why"><strong>Why {{ community_pct|default(45) }}/{{ judge_pct|default(55) }}?</strong>
-        Popularity alone should not decide a winner — a well-funded campaign can generate
-        disproportionate vote volume, and reach on the internet is not the same thing as impact on the
-        continent. The slight tilt to the panel keeps merit, not marketing, in charge of the decision.
-        The split is a per-cycle setting, and this page always shows the one currently in force.</div>
-    </div>
+       Fetched from /integrity.txt rather than scraped out of the DOM or inlined
+       into it. Scraping would put the furniture — contents, button labels, tab
+       names — on the clipboard alongside the prose; inlining would ship ~15KB of
+       duplicate text to every visitor for a button most never press. The fetch
+       also guarantees the paste and the download are byte-identical, because
+       they are the same response. */
+    copyAll: function () {
+      var self = this;
+      this.said = 'Preparing…';
+      fetch('/integrity.txt', { headers: { 'Accept': 'text/plain' } })
+        .then(function (r) {
+          if (!r.ok) throw new Error('http ' + r.status);
+          return r.text();
+        })
+        .then(function (t) { self.put(t, 'all', 'Full document copied to the clipboard.'); })
+        .catch(function () {
+          self.said = 'Could not fetch the text — use Download instead.';
+        });
+    },
 
-    {{ ui.more([
-      {slug:'how-cpi-works', t:'How the CPI is calculated', s:'The full method, end to end.'},
-      {slug:'why-a-small-category-is-not-a-disadvantage', t:'Why a small category is not a disadvantage', s:'What normalising inside a category actually does.'}
-    ]) }}
-  </section>
+    copyCite: function (el) {
+      this.put(el.innerText, 'cite', 'Citation copied.');
+    },
 
-  {# ── 02 · ELIGIBILITY ───────────────────────────────────────────────────── #}
-  <section class="mth-sec" data-ag-reveal id="eligible">
-    <span class="mth-sec__n">02</span>
-    <h2 class="mth-h2">Who can actually win</h2>
-    <p class="mth-lead">Leading the public vote makes a nominee the front-runner. It does not, by
-       itself, make them eligible to be declared the winner.</p>
+    copyLink: function () {
+      this.put({{ doc_url|json_encode|raw }}, 'link', 'Permalink copied.');
+    }
+  };
+};
+</script>
 
-    <div class="mth-rule">
-      <span class="mth-rule__n">{{ min_judges|default(2) }}</span>
-      <div class="mth-rule__b">
-        <strong>Complete judge scorecards, minimum</strong>
-        <p>A nominee needs at least {{ min_judges|default(2) }} judges to have scored them on every
-           criterion. A half-finished card counts as nothing — not as a zero, which would be a silent
-           penalty for a judge’s browser crashing. If nobody in a category reaches the quorum, the award
-           is not given: an empty result is more honest than one nobody scored.</p>
-      </div>
-    </div>
+<div class="ar" x-data="agIntegrityDoc()">
+  <div class="ar-shell">
 
-    <h3 class="mth-h3">And three exclusions that apply before anything is counted</h3>
-    <div class="mth-grid mth-grid--3" data-ag-cascade>
-      <div class="mth-cell">
-        <h3>Judges recuse themselves</h3>
-        <p>A judge with any connection to a nominee steps out of scoring them, and a judge’s own votes in
-           a category they judge are excluded from the community count.</p>
-      </div>
-      <div class="mth-cell">
-        <h3>The shortlist is frozen</h3>
-        <p>Once a category opens for voting, nobody can be added to it. A late entrant would be competing
-           against totals that had a head start, and every earlier vote would have been cast on a
-           different ballot.</p>
-      </div>
-      <div class="mth-cell">
-        <h3>Unverified profiles score nothing</h3>
-        <p>A profile must clear human review before any votes or impact points attach to it, so a
-           fabricated nominee cannot accumulate a score while waiting to be noticed.</p>
-      </div>
-    </div>
+    {# ══ CONTENTS RAIL (wide screens) ═════════════════════════════════════ #}
+    <aside class="ar-rail">
+      <nav aria-label="Document contents">
+        <h2>Contents</h2>
+        <ol>
+          <li class="ar-part" aria-hidden="true">Part I · Philosophy</li>
+          {% for s in doc_sections %}
+            <li><a href="#{{ s.id }}">{{ s.title|striptags }}</a></li>
+          {% endfor %}
+          <li class="ar-part" aria-hidden="true">Part II · Method</li>
+          <li><a href="#score">The score</a></li>
+          <li><a href="#eligible">Who can actually win</a></li>
+          <li><a href="#criteria">What judges score</a></li>
+          <li><a href="#money">What money can and cannot do</a></li>
+          <li><a href="#return">The community return</a></li>
+          <li><a href="#honest">Keeping the count honest</a></li>
+          <li><a href="#failures">When a payment goes wrong</a></li>
+          <li><a href="#sealed">Sealing the result</a></li>
+          <li><a href="#cycle">The cycle, stage by stage</a></li>
+          <li><a href="#disputes">Disputes and your data</a></li>
+          <li class="ar-part" aria-hidden="true">Reference</li>
+          <li class="ar-ref"><a href="#cite">How to cite</a></li>
+        </ol>
+      </nav>
+    </aside>
 
-    {{ ui.more([
-      {slug:'why-the-leader-may-not-be-eligible-to-win', t:'Why the vote leader may not be eligible', s:'Quorum, complete cards and recusal, in detail.'},
-      {slug:'what-happens-if-two-nominees-tie', t:'What happens if two nominees tie', s:'The tiebreak is organic votes — never money.'}
-    ]) }}
-  </section>
+    <article class="ar-body">
 
-  {# ── 03 · CRITERIA ──────────────────────────────────────────────────────── #}
-  <section class="mth-sec" data-ag-reveal id="criteria">
-    <span class="mth-sec__n">03</span>
-    <h2 class="mth-h2">What the judges score</h2>
-    <p class="mth-lead">Every judge scores each nominee from 0 to 10 on four dimensions. The four carry
-       equal weight — there is no hidden multiplier making one of them decide the card.</p>
-    <div class="mth-grid" data-ag-cascade>
-      {% set crit = {
-        'Impact':'The measurable difference made for a community, an industry or the continent. What is different because this person did the work?',
-        'Originality':'Inventiveness. Has something genuinely new been introduced, or is this an existing thing done competently?',
-        'Reach':'Breadth of influence — local, regional, continental, global. Reach is not follower count.',
-        'Integrity':'Consistency of values and accountability under pressure, including how a nominee behaves when it costs them something.'
-      } %}
-      {% for title, desc in crit %}
-        <div class="mth-cell">
-          <div class="mth-cell__top"><h3>{{ title }}</h3><span class="mth-cell__pct">25%</span></div>
-          <p>{{ desc }}</p>
-        </div>
-      {% endfor %}
-    </div>
-    <p class="mth-note">Judges see a nominee’s dossier, not their vote count. The public tally is kept off
-       the scoring screen deliberately, so it cannot anchor a score before the judge has formed one.</p>
+      {# ══ MASTHEAD ══════════════════════════════════════════════════════ #}
+      <header class="ar-head">
+        <p class="ar-eyebrow">Integrity Centre · Position paper</p>
+        <h1 class="ar-h1">{{ doc_title }}</h1>
+        <p class="ar-sub">{{ doc_subtitle }}</p>
+        <p class="ar-stand">{{ doc_standfirst|raw }}</p>
 
-    {{ ui.more([
-      {slug:'what-the-judges-actually-score', t:'What the judges actually score you on', s:'Each criterion, and what evidence counts for it.'}
-    ]) }}
-  </section>
+        <dl class="ar-meta">
+          <div><dfn>By</dfn> <b>{{ doc_author }}</b></div>
+          <div><dfn>Version</dfn> <b>{{ doc_version }}</b></div>
+          <div><dfn>Updated</dfn> <b><time datetime="{{ doc_updated }}">{{ doc_updated|date('j F Y') }}</time></b></div>
+          <div><b>{{ doc_read_minutes }} min</b> read</div>
+        </dl>
 
-  {# ── 04 · MONEY ─────────────────────────────────────────────────────────────
-     Published because the separation was real in the engine and invisible on the
-     site. The platform keeps organic votes and purchased ones in different columns
-     and normalises the community share over the organic one only — a genuine
-     commitment, enforced in code, that a visitor had no way of knowing about. A
-     promise nobody can see is not a promise anybody can hold us to. #}
-  <section class="mth-sec" data-ag-reveal id="money">
-    <span class="mth-sec__n">04</span>
-    <h2 class="mth-h2">What a contribution can — and cannot — do</h2>
-    <p class="mth-lead">Supporters can contribute to the programme in a nominee’s name, and each
-       contribution adds to that nominee’s public tally. The money keeps the awards running — the panel,
-       the verification work, the platform itself. It is fair to ask what it actually buys, and the honest
-       answer is: visibility, never rank.</p>
+        {# ── Utilities ────────────────────────────────────────────────────
+           `@click.away` closes the download menu, and Escape closes it from the
+           keyboard — a popover you can only dismiss with a pointer is a trap for
+           anybody who opened it with one. #}
+        <div class="ar-tools">
+          <button type="button" class="ar-tool" :class="done === 'all' && 'is-done'" @click="copyAll()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            <span x-text="done === 'all' ? 'Copied' : 'Copy'">Copy</span>
+          </button>
 
-    <div class="mth-money" data-ag-cascade>
-      <div class="mth-money__col mth-money__col--can">
-        <h3>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
-          What a contribution does
-        </h3>
-        <ul>
-          <li>Adds to the nominee’s <strong>public tally</strong> — the number shown on their page and on the leaderboard.</li>
-          <li>Puts the supporter’s name on the nominee’s supporters list, if they chose to be named.</li>
-          <li>Sets aside a share for the nominee themselves, once they qualify — see <a href="#return">the community return</a>.</li>
-          <li>Funds the judging panel, the verification work and running the programme.</li>
-        </ul>
-      </div>
-      <div class="mth-money__col mth-money__col--cannot">
-        <h3>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b0453f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          What it does not do
-        </h3>
-        <ul>
-          <li>It <strong>does not move the Cultural Power Index</strong>. The {{ community_pct|default(45) }}%
-              community share is normalised over organic, code-verified votes only. Purchased votes live in
-              a separate column the scorer never reads.</li>
-          <li>It <strong>does not break a tie</strong>. When two nominees finish level, the tiebreak is
-              organic votes — one verified supporter outranks any number of purchased ones.</li>
-          <li>It is <strong>capped</strong>: purchased votes on a nominee cannot exceed
-              {{ paid_cap_pct|default(50) }}% of the organic support they have earned, so money can amplify
-              a real following and cannot manufacture one.</li>
-          <li>It <strong>buys no consideration from a judge</strong>, who cannot see it.</li>
-        </ul>
-      </div>
-    </div>
-    <p class="mth-note">Put plainly: money can make a nominee <em>look</em> more popular. It cannot make
-       them win. If that ever stops being true, this page is wrong and we want to hear about it — the
-       numbers above are read from the live scoring configuration, not typed in by hand.</p>
-
-    {{ ui.more([
-      {slug:'what-paid-votes-do', t:'What paid votes actually do', s:'Price, ceiling, and what they are excluded from.'},
-      {slug:'how-free-voting-works', t:'How free voting works', s:'The vote that does move the score.'}
-    ]) }}
-  </section>
-
-  {# ── 05 · COMMUNITY RETURN ──────────────────────────────────────────────── #}
-  <section class="mth-sec" data-ag-reveal id="return">
-    <span class="mth-sec__n">05</span>
-    <h2 class="mth-h2">The community return</h2>
-    <p class="mth-lead">If money is going to be part of this, the people whose communities raised it
-       should see some of it back. A nominee keeps a share of what supporters contribute in their name —
-       whether or not they win, because they raised it either way.</p>
-
-    <div class="mth-grid mth-grid--3" data-ag-cascade>
-      <div class="mth-cell">
-        <div class="mth-cell__top"><h3>Qualifying support</h3><span class="mth-cell__pct">{{ return_threshold|default(250)|number_format }}</span></div>
-        <p>A nominee begins earning once they have gathered
-           <strong>{{ return_threshold|default(250)|number_format }} votes of qualifying support</strong>.
-           Votes are counted, not heads — somebody who bought twenty-five votes did more than somebody who
-           cast one, and a rule that scored them the same would call generosity noise.</p>
-      </div>
-      <div class="mth-cell">
-        <div class="mth-cell__top"><h3>No single pocket</h3><span class="mth-cell__pct">{{ return_cap_pct|default(10) }}%</span></div>
-        <p>But one supporter's votes count for at most
-           <strong>{{ return_cap_votes|default(25)|number_format }}</strong> toward that threshold, however
-           many they bought. So it takes at least <strong>{{ return_people|default(10) }} different verified
-           people</strong> — whatever anybody is willing to spend.</p>
-      </div>
-      <div class="mth-cell">
-        <div class="mth-cell__top"><h3>The share</h3><span class="mth-cell__pct">{{ return_pct|default('30') }}%</span></div>
-        <p>From that point on, {{ return_pct|default('30') }}% of each further contribution is set aside for
-           the nominee. Crossing the line does not reach backwards — earlier contributions stay unshared, so
-           nobody is rewarded retroactively by a threshold moving.</p>
-      </div>
-    </div>
-
-    <p class="mth-note">The ceiling is the safeguard, and it is deliberately not a headcount rule. A
-       threshold in raw votes is not a rule at all, it is a <em>price</em>: one person could buy the whole
-       thing in a single order and everything genuine afterwards would earn. Capping each supporter's
-       contribution to the threshold keeps that impossible while still letting the people who gave most
-       count for most. Free votes and contributions are added together per person, so splitting an order
-       cannot buy a second allowance.</p>
-
-    <p class="mth-note">It is held as an <em>append-only ledger</em>, not a balance we can quietly edit.
-       Every entry records what it was computed from and at what rate; if a contribution is refunded or
-       charged back, the share accrued on it is reversed and the reversal stays on the record beside the
-       original. Nothing is payable until that cycle has ended and its results have been announced — a
-       nominee cannot cash out mid-race, and the platform is not paying out money an integrity finding
-       might still reverse.
-       {% if not return_on|default(true) %}The share is currently set to 0%, so nothing is accruing at
-       all.{% endif %}</p>
-
-    {{ ui.more([
-      {slug:'the-community-return', t:'The community return, in full', s:'Qualifying support, the ceiling, the ledger and payout.'}
-    ]) }}
-  </section>
-
-  {# ── 06 · HONEST COUNT ──────────────────────────────────────────────────── #}
-  <section class="mth-sec" data-ag-reveal id="honest">
-    <span class="mth-sec__n">06</span>
-    <h2 class="mth-h2">Keeping the count honest</h2>
-    <p class="mth-lead">Every vote needs a one-time code sent to a working email address, and every
-       attempt is scored for risk from 0 to 100 <em>before</em> anything is written down.</p>
-
-    <div class="mth-bands" data-ag-seal role="img"
-         aria-label="Risk bands: below {{ fraud_monitor|default(30) }} auto-approved, {{ fraud_monitor|default(30) }} to {{ fraud_flag|default(60) }} monitored, {{ fraud_flag|default(60) }} to {{ fraud_block|default(80) }} flagged for review, {{ fraud_block|default(80) }} and above blocked.">
-      <span class="mth-band mth-band--ok"    style="width:{{ fraud_monitor|default(30) }}%">0–{{ fraud_monitor|default(30) }}</span>
-      <span class="mth-band mth-band--watch" style="width:{{ (fraud_flag|default(60)) - (fraud_monitor|default(30)) }}%">{{ fraud_monitor|default(30) }}–{{ fraud_flag|default(60) }}</span>
-      <span class="mth-band mth-band--flag"  style="width:{{ (fraud_block|default(80)) - (fraud_flag|default(60)) }}%">{{ fraud_flag|default(60) }}–{{ fraud_block|default(80) }}</span>
-      <span class="mth-band mth-band--stop"  style="width:{{ 100 - (fraud_block|default(80)) }}%">{{ fraud_block|default(80) }}+</span>
-    </div>
-    <div class="mth-bands__key">
-      <span class="mth-bands__k"><span class="mth-bands__dot" style="background:#3f9b3c"></span>Approved as it is cast.</span>
-      <span class="mth-bands__k"><span class="mth-bands__dot" style="background:#8aa63c"></span>Counted, and kept under observation.</span>
-      <span class="mth-bands__k"><span class="mth-bands__dot" style="background:#c98b2b"></span>Flagged for a person to review.</span>
-      <span class="mth-bands__k"><span class="mth-bands__dot" style="background:#b0453f"></span>Refused before the vote exists.</span>
-    </div>
-
-    <div class="mth-grid mth-grid--3" style="margin-top:1.2rem">
-      <div class="mth-cell">
-        <h3>One identity, one vote</h3>
-        <p>Per category. The address is stored only as a SHA-256 hash, so we can tell that two votes came
-           from the same person without holding the person.</p>
-      </div>
-      <div class="mth-cell">
-        <h3>Disposable mail refused</h3>
-        <p>Known throwaway domains are rejected at the moment a code is requested — before any database
-           write happens at all.</p>
-      </div>
-      <div class="mth-cell">
-        <h3>A total can go down</h3>
-        <p>Votes later found to be fraudulent are removed, and a refunded contribution takes its bonus
-           votes with it. A falling number is usually the integrity system working.</p>
-      </div>
-    </div>
-    <p class="mth-note">Being flagged is not an accusation. A shared office network or a campus wifi
-       produces the same pattern a vote farm does, which is exactly why a flag sends a vote to a human
-       rather than to the bin.</p>
-
-    {{ ui.more([
-      {slug:'how-we-spot-a-vote-that-is-not-real', t:'How we decide a vote is not real', s:'The signals, the bands, and what to do if yours was refused.'},
-      {slug:'already-voted', t:'It says I already voted', s:'The commonest reason a real person is turned away.'}
-    ]) }}
-  </section>
-
-  {# ── 07 · WHEN MONEY GOES WRONG ─────────────────────────────────────────── #}
-  <section class="mth-sec" data-ag-reveal id="failures">
-    <span class="mth-sec__n">07</span>
-    <h2 class="mth-h2">When a payment goes wrong</h2>
-    <p class="mth-lead">A payment passes through a bank and a gateway before it reaches us, and any of
-       those steps can fail after a card has been charged. We would rather say so than pretend it never
-       happens.</p>
-    <div class="mth-grid mth-grid--3" data-ag-cascade>
-      <div class="mth-cell">
-        <div class="mth-cell__ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
-        <h3>The votes are still owed to you</h3>
-        <p style="margin-top:6px">If the ballot was open when you paid, the votes are yours even if the
-           confirmation reached us late. We check the time you <em>started</em> the payment, not the moment
-           our system happened to notice it.</p>
-      </div>
-      <div class="mth-cell">
-        <div class="mth-cell__ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></div>
-        <h3>If they cannot be delivered, the money goes back</h3>
-        <p style="margin-top:6px">Where votes genuinely cannot be counted — the nominee left the ballot, or
-           the payment confirmed long after voting closed — the order is refunded rather than kept. We do
-           not keep money for votes we did not deliver.</p>
-      </div>
-      <div class="mth-cell">
-        <div class="mth-cell__ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v12H7l-3 3z"/></svg></div>
-        <h3>Tell us, with your reference</h3>
-        <p style="margin-top:6px">Every order carries a reference beginning <code>AFG-</code>. Give it to
-           the <a href="/support/assistant">assistant</a> and it re-checks the payment with the bank
-           directly, adding the votes on the spot if the money arrived.</p>
-      </div>
-    </div>
-    <p class="mth-note">The same honesty applies to our own failures. When our records show a voting code
-       never left the building, that vote can be restored after voting closes — proposed by one person,
-       approved by a different one, capped in size, and disclosed on the nominee’s page.</p>
-
-    {{ ui.more([
-      {slug:'paid-but-no-votes', t:'I paid but my votes have not appeared', s:'Fixable in under a minute, without waiting for anyone.'},
-      {slug:'refund-when-votes-cannot-count', t:'When do you refund?', s:'The one case that refunds itself, and the rest.'},
-      {slug:'votes-we-could-not-deliver', t:'Votes that never reached you', s:'How a failed code becomes a restored vote.'}
-    ]) }}
-  </section>
-
-  {# ── 08 · SEALED ────────────────────────────────────────────────────────── #}
-  <section class="mth-sec" data-ag-reveal id="sealed">
-    <span class="mth-sec__n">08</span>
-    <h2 class="mth-h2">Sealing the result</h2>
-    <p class="mth-lead">A result you have to take on trust is not a result. Every time the standings are
-       computed they are sealed — each record carrying a fingerprint of itself and of the record before
-       it, all the way back to the first.</p>
-    <div class="mth-prose">
-      <p>The consequence is the useful part. Editing an old standing — nudging one number in a table
-         months later — breaks its fingerprint, and because the next record contains that fingerprint, it
-         breaks every record after it. There is no quiet edit available; there is only an edit that
-         announces itself.</p>
-      <ol>
-        <li>The chain is re-verified automatically every day, link by link.</li>
-        <li>A break is not a line in a log somebody might read. It is raised as a failure, to people, with
-            the position of the broken link.</li>
-        <li>The database refuses to record two standings claiming the same predecessor, so the chain
-            cannot be forked into a convenient second history.</li>
-        <li>Every recomputation is logged, and an independent reviewer can replay the arithmetic from
-            source.</li>
-      </ol>
-      <p style="margin-top:.9rem">This protects you from us as much as from anybody else. A platform that
-         can silently rewrite its own results has to be taken on trust; one that cannot does not need to
-         be.</p>
-    </div>
-
-    {{ ui.more([
-      {slug:'how-results-are-sealed', t:'How you can tell a result was not edited', s:'The chain, the daily check, and what a break looks like.'},
-      {slug:'dispute-a-result', t:'I think a count or a ranking is wrong', s:'Ask for an audit — we will show the working.'}
-    ]) }}
-  </section>
-
-  {# ── 09 · CYCLE ─────────────────────────────────────────────────────────── #}
-  <section class="mth-sec" data-ag-reveal id="cycle">
-    <span class="mth-sec__n">09</span>
-    <h2 class="mth-h2">The cycle, stage by stage</h2>
-    <p class="mth-lead">A programme moves through six stages in one direction. The stage is not a label on
-       a page — the system enforces it, and each transition closes something permanently.</p>
-    <div class="mth-time">
-      <div class="mth-time__orb" aria-hidden="true"></div>
-      <h3>Six enforced stages</h3>
-      <div class="mth-time__row" data-ag-cascade>
-        {% set steps = [
-          ['1','Nominated','Anyone can enter someone; entries queue for moderation.'],
-          ['2','Verified','The team checks eligibility, accuracy and completeness.'],
-          ['3','Shortlisted','Approved nominees go public — and the list is frozen.'],
-          ['4','Voted','Code-verified, risk-scored votes are collected.'],
-          ['5','Judged','The panel scores the shortlist, without seeing tallies.'],
-          ['6','Sealed','A signed snapshot is taken; results computed and archived.']
-        ] %}
-        {% for s in steps %}
-          <div class="mth-step">
-            <div class="mth-step__head"><span class="mth-step__n">{{ s[0] }}</span><span class="mth-step__line"></span></div>
-            <div class="mth-step__t">{{ s[1] }}</div>
-            <div class="mth-step__d">{{ s[2] }}</div>
+          <div style="position:relative">
+            <button type="button" class="ar-tool" @click="menu = !menu" :aria-expanded="menu ? 'true' : 'false'"
+                    aria-haspopup="true" aria-controls="ar-dl">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>
+              </svg>
+              Download
+            </button>
+            <div class="ar-pop" id="ar-dl" x-show="menu" x-cloak @click.away="menu = false"
+                 @keydown.escape.window="menu = false" role="menu">
+              <a href="/integrity.md" download="{{ doc_file_stem }}.md" role="menuitem" @click="menu = false">
+                <b>Markdown (.md)</b>
+                <span>Headings and quotes preserved — for quoting or republishing.</span>
+              </a>
+              <a href="/integrity.txt" download="{{ doc_file_stem }}.txt" role="menuitem" @click="menu = false">
+                <b>Plain text (.txt)</b>
+                <span>Wrapped to 78 columns — pastes cleanly into an email.</span>
+              </a>
+            </div>
           </div>
-        {% endfor %}
+
+          <a class="ar-tool" href="#cite">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M6 4h9l5 5v11H6z"/><path d="M14 4v6h6"/><path d="M9 14h6M9 17h4"/>
+            </svg>
+            Cite
+          </a>
+        </div>
+        <p class="ar-say" role="status" aria-live="polite" x-text="said"></p>
+      </header>
+
+      {# ══ CONTENTS (narrow screens) ═════════════════════════════════════ #}
+      <nav class="ar-toc" aria-label="Document contents">
+        <h2>Contents</h2>
+        <ol>
+          <li class="ar-part" aria-hidden="true">Part I · Philosophy</li>
+          {% for s in doc_sections %}
+            <li><a href="#{{ s.id }}">{{ s.title|striptags }}</a></li>
+          {% endfor %}
+          <li class="ar-part" aria-hidden="true">Part II · Method</li>
+          <li><a href="#score">The score</a></li>
+          <li><a href="#eligible">Who can actually win</a></li>
+          <li><a href="#criteria">What judges score</a></li>
+          <li><a href="#money">What money can and cannot do</a></li>
+          <li><a href="#return">The community return</a></li>
+          <li><a href="#honest">Keeping the count honest</a></li>
+          <li><a href="#failures">When a payment goes wrong</a></li>
+          <li><a href="#sealed">Sealing the result</a></li>
+          <li><a href="#cycle">The cycle, stage by stage</a></li>
+          <li><a href="#disputes">Disputes and your data</a></li>
+          <li class="ar-part" aria-hidden="true">Reference</li>
+          <li class="ar-ref"><a href="#cite">How to cite</a></li>
+        </ol>
+      </nav>
+
+      {# ══════════════════════════════════════════════════════════════════
+         PART I — THE PHILOSOPHY
+         Rendered from CommunityVotingPhilosophy. The block kinds are few on
+         purpose; see the class for why.
+         ══════════════════════════════════════════════════════════════════ #}
+      <div class="ar-part-head">
+        <span class="ar-pn">Part I</span>
+        <h2>The philosophy</h2>
+        <p>Why community voting exists, why it carries a token contribution, and why
+           the public vote is deliberately capped.</p>
       </div>
-    </div>
-    <p class="mth-note">Card contribution closes a little earlier than free voting, so payments already in
-       flight have time to land before the ballot shuts. Free voting runs to the bell.</p>
 
-    {{ ui.more([
-      {slug:'the-stages-of-an-award-cycle', t:'The stages, and what freezes at each', s:'What each transition closes, and why.'},
-      {slug:'when-does-voting-close', t:'When does voting close?', s:'Deadlines, and the gap before them.'}
-    ]) }}
-  </section>
+      {% for s in doc_sections %}
+        <section class="ar-sec" id="{{ s.id }}" data-ag-reveal>
+          <h3><span class="ar-sn">{{ '%02d'|format(loop.index) }}</span>{{ s.title|raw }}</h3>
+          {% for block in s.blocks %}
+            {%- if block.p is defined %}
+              <p>{{ block.p|raw }}</p>
+            {%- elseif block.h3 is defined %}
+              <h4 class="ar-h4">{{ block.h3|raw }}</h4>
+            {%- elseif block.quote is defined %}
+              <blockquote class="ar-quote"><p>{{ block.quote|raw }}</p></blockquote>
+            {%- elseif block.list is defined %}
+              <ul class="ar-list">
+                {% for li in block.list %}<li>{{ li|raw }}</li>{% endfor %}
+              </ul>
+            {%- elseif block.steps is defined %}
+              <ol class="ar-steps">
+                {% for li in block.steps %}<li>{{ li|raw }}</li>{% endfor %}
+              </ol>
+            {%- elseif block.note is defined %}
+              <div class="ar-note">
+                <h4>{{ block.note.title|raw }}</h4>
+                {% for p in block.note.body %}<p>{{ p|raw }}</p>{% endfor %}
+              </div>
+            {%- endif %}
+          {% endfor %}
+        </section>
+      {% endfor %}
 
-  {# ── 10 · DISPUTES ──────────────────────────────────────────────────────── #}
-  <section class="mth-sec" data-ag-reveal id="disputes">
-    <span class="mth-sec__n">10</span>
-    <h2 class="mth-h2">Disputes and your data</h2>
-    <p class="mth-lead">If you believe a result was manipulated or a fraud pattern was missed, say so.
-       Every recomputation is logged, so a count can be replayed from the underlying votes and the working
-       shown to you.</p>
-    <div class="mth-prose">
-      <p>Raise it at <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a> or
-         through <a href="/support">Support &amp; appeals</a>. Appeals go to somebody independent of the
-         original decision. We will:</p>
-      <ol>
-        <li>Acknowledge the complaint within {{ review_sla_hours }} hours.</li>
-        <li>Export the relevant vote audit trail — timestamps, hashed identities, risk scores.</li>
-        <li>Engage an independent reviewer if the complaint is substantiated.</li>
-        <li>Publish a summary of findings if the dispute affected a final result.</li>
-      </ol>
-      <h3 class="mth-h3">What we store when you vote</h3>
-      <p>A SHA-256 hash of your email and IP, a device fingerprint, and the nominee ID and timestamp of
-         your vote. We never store your plain-text email, name or personal identifier against a vote, and
-         we never sell or monetise voter data.
-         Full details: <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms</a>.</p>
-    </div>
+      {# ══════════════════════════════════════════════════════════════════
+         PART II — THE METHOD
+         The figures below are route variables read from RuleEngine. `default()`
+         on each one is a rendering guard, not a published number: if the engine
+         is unreachable the page must still say something coherent.
+         ══════════════════════════════════════════════════════════════════ #}
+      <div class="ar-part-head">
+        <span class="ar-pn">Part II</span>
+        <h2>The method</h2>
+        <p>How the commitments in Part I are enforced in code. Every figure in this
+           part is read live from the scoring engine, not typed into the page.</p>
+      </div>
 
-    {{ ui.more([
-      {slug:'dispute-a-result', t:'I think a count or a ranking is wrong', s:'What to send, and what happens next.'},
-      {slug:'report-a-profile', t:'How do I report a nominee or profile?', s:'Confidentially, and without needing proof.'},
-      {slug:'what-data-do-you-keep', t:'What data do you keep about me?', s:'Held, never held, and your rights.'}
-    ]) }}
-  </section>
+      {# ── THE SCORE ───────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="score" data-ag-reveal>
+        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 1) }}</span>The score</h3>
+        <p>The Cultural Power Index is a weighted combination of the community’s verified votes
+           and an independent judge panel. Neither alone decides a winner, and that is the point
+           of having both.</p>
 
-  <div class="mth-cta">
-    <p>Questions this page does not answer?</p>
-    <a class="mth-btn" href="mailto:integrity@afrovanguard.org.ng">Contact the Integrity Team
-      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-    <p class="mth-cta__alt">Or browse every written answer in the <a href="/help">Help Centre</a>.</p>
+        <div class="ar-tw">
+          <table class="ar-table">
+            <caption>Composition of the Cultural Power Index</caption>
+            <thead>
+              <tr><th scope="col">Input</th><th scope="col">Share</th><th scope="col">What it measures</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Community votes</th>
+                <td class="ar-num">{{ community_pct|default(45) }}%</td>
+                <td>Normalised <strong>within each category</strong>, against that category’s strongest
+                    vote count — so a nominee in a small field is not punished for being in one. Only
+                    organic, code-verified votes count here; contribution bonus votes never enter
+                    this number.</td>
+              </tr>
+              <tr>
+                <th scope="row">Judge panel</th>
+                <td class="ar-num">{{ judge_pct|default(55) }}%</td>
+                <td>An independent panel scores each shortlisted nominee on four equally-weighted
+                    criteria. Only complete scorecards are counted, and judges do not see the vote
+                    tally while scoring.</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr><td colspan="3">{{ community_pct|default(45) }}% community + {{ judge_pct|default(55) }}% judges = CPI.
+                  The split is a per-cycle setting, and this page always shows the one currently in force.</td></tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <p><strong>Why {{ community_pct|default(45) }}/{{ judge_pct|default(55) }}?</strong> Popularity alone
+           should not decide a winner — a well-funded campaign can generate disproportionate vote
+           volume, and reach on the internet is not the same thing as impact on the continent. The
+           slight tilt to the panel keeps merit, not marketing, in charge of the decision.</p>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/how-cpi-works">How the CPI is calculated</a> — the full method, end to end.</li>
+            <li><a href="/help/why-a-small-category-is-not-a-disadvantage">Why a small category is not a disadvantage</a> — what normalising inside a category actually does.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── ELIGIBILITY ─────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="eligible" data-ag-reveal>
+        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 2) }}</span>Who can actually win</h3>
+        <p>Leading the public vote makes a nominee the front-runner. It does not, by itself, make
+           them eligible to be declared the winner.</p>
+        <p><strong>Complete judge scorecards, minimum {{ min_judges|default(2) }}.</strong> A nominee needs
+           at least {{ min_judges|default(2) }} judges to have scored them on every criterion. A
+           half-finished card counts as nothing — not as a zero, which would be a silent penalty for a
+           judge’s browser crashing. If nobody in a category reaches the quorum, the award is not
+           given: an empty result is more honest than one nobody scored.</p>
+
+        <h4 class="ar-h4">Three exclusions that apply before anything is counted</h4>
+        <ul class="ar-list">
+          <li><strong>Judges recuse themselves.</strong> A judge with any connection to a nominee steps
+              out of scoring them, and a judge’s own votes in a category they judge are excluded from
+              the community count.</li>
+          <li><strong>The shortlist is frozen.</strong> Once a category opens for voting, nobody can be
+              added to it. A late entrant would be competing against totals that had a head start, and
+              every earlier vote would have been cast on a different ballot.</li>
+          <li><strong>Unverified profiles score nothing.</strong> A profile must clear human review
+              before any votes or impact points attach to it, so a fabricated nominee cannot accumulate
+              a score while waiting to be noticed.</li>
+        </ul>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/why-the-leader-may-not-be-eligible-to-win">Why the vote leader may not be eligible</a> — quorum, complete cards and recusal, in detail.</li>
+            <li><a href="/help/what-happens-if-two-nominees-tie">What happens if two nominees tie</a> — the tiebreak is organic votes, never money.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── CRITERIA ────────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="criteria" data-ag-reveal>
+        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 3) }}</span>What the judges score</h3>
+        <p>Every judge scores each nominee from 0 to 10 on four dimensions. The four carry equal
+           weight — there is no hidden multiplier making one of them decide the card.</p>
+
+        <div class="ar-tw">
+          <table class="ar-table">
+            <caption>The judging rubric</caption>
+            <thead>
+              <tr><th scope="col">Criterion</th><th scope="col">Weight</th><th scope="col">What it asks</th></tr>
+            </thead>
+            <tbody>
+              {% set crit = {
+                'Impact':'The measurable difference made for a community, an industry or the continent. What is different because this person did the work?',
+                'Originality':'Inventiveness. Has something genuinely new been introduced, or is this an existing thing done competently?',
+                'Reach':'Breadth of influence — local, regional, continental, global. Reach is not follower count.',
+                'Integrity':'Consistency of values and accountability under pressure, including how a nominee behaves when it costs them something.'
+              } %}
+              {% for title, desc in crit %}
+                <tr><th scope="row">{{ title }}</th><td class="ar-num">25%</td><td>{{ desc }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="ar-aside">
+          <p>Judges see a nominee’s dossier, not their vote count. The public tally is kept off the
+             scoring screen deliberately, so it cannot anchor a score before the judge has formed one.</p>
+        </div>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/what-the-judges-actually-score">What the judges actually score you on</a> — each criterion, and what evidence counts for it.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── MONEY ───────────────────────────────────────────────────────────
+         Published because the separation was real in the engine and invisible on
+         the site. A promise nobody can see is not a promise anybody can hold us
+         to. #}
+      <section class="ar-sec" id="money" data-ag-reveal>
+        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 4) }}</span>What a contribution can — and cannot — do</h3>
+        <p>Supporters can contribute to the programme in a nominee’s name, and each contribution
+           adds to that nominee’s public tally. The money keeps the awards running — the panel, the
+           verification work, the platform itself. It is fair to ask what it actually buys, and the
+           honest answer is: visibility, never rank.</p>
+
+        <div class="ar-cols">
+          <div class="ar-cols--can">
+            <h4>What a contribution does</h4>
+            <ul class="ar-list">
+              <li>Adds to the nominee’s <strong>public tally</strong> — the number shown on their page and on the leaderboard.</li>
+              <li>Puts the supporter’s name on the nominee’s supporters list, if they chose to be named.</li>
+              <li>Sets aside a share for the nominee themselves, once they qualify — see <a href="#return">the community return</a>.</li>
+              <li>Funds the judging panel, the verification work and running the programme.</li>
+            </ul>
+          </div>
+          <div class="ar-cols--cannot">
+            <h4>What it does not do</h4>
+            <ul class="ar-list">
+              <li>It <strong>does not move the Cultural Power Index</strong>. The {{ community_pct|default(45) }}%
+                  community share is normalised over organic, code-verified votes only. Purchased votes
+                  live in a separate column the scorer never reads.</li>
+              <li>It <strong>does not break a tie</strong>. When two nominees finish level, the tiebreak
+                  is organic votes — one verified supporter outranks any number of purchased ones.</li>
+              <li>It is <strong>capped</strong>: purchased votes on a nominee cannot exceed
+                  {{ paid_cap_pct|default(50) }}% of the organic support they have earned, so money can
+                  amplify a real following and cannot manufacture one.</li>
+              <li>It <strong>buys no consideration from a judge</strong>, who cannot see it.</li>
+            </ul>
+          </div>
+        </div>
+
+        <p>Put plainly: money can make a nominee <em>look</em> more popular. It cannot make them win.
+           If that ever stops being true, this page is wrong and we want to hear about it — the
+           numbers above are read from the live scoring configuration, not typed in by hand.</p>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/what-paid-votes-do">What paid votes actually do</a> — price, ceiling, and what they are excluded from.</li>
+            <li><a href="/help/how-free-voting-works">How free voting works</a> — the vote that does move the score.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── COMMUNITY RETURN ────────────────────────────────────────────── #}
+      <section class="ar-sec" id="return" data-ag-reveal>
+        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 5) }}</span>The community return</h3>
+        <p>If money is going to be part of this, the people whose communities raised it should see
+           some of it back. A nominee keeps a share of what supporters contribute in their name —
+           whether or not they win, because they raised it either way.</p>
+
+        <div class="ar-tw">
+          <table class="ar-table">
+            <caption>How a nominee qualifies, and what they keep</caption>
+            <thead>
+              <tr><th scope="col">Rule</th><th scope="col">Setting</th><th scope="col">What it means</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Qualifying support</th>
+                <td class="ar-num">{{ return_threshold|default(250)|number_format }} votes</td>
+                <td>A nominee begins earning once they have gathered
+                    {{ return_threshold|default(250)|number_format }} votes of qualifying support.
+                    Votes are counted, not heads — somebody who bought twenty-five votes did more
+                    than somebody who cast one, and a rule that scored them the same would call
+                    generosity noise.</td>
+              </tr>
+              <tr>
+                <th scope="row">No single pocket</th>
+                <td class="ar-num">{{ return_cap_pct|default(10) }}%</td>
+                <td>One supporter’s votes count for at most
+                    <strong>{{ return_cap_votes|default(25)|number_format }}</strong> toward that
+                    threshold, however many they bought. So it takes at least
+                    <strong>{{ return_people|default(10) }} different verified people</strong>,
+                    whatever anybody is willing to spend.</td>
+              </tr>
+              <tr>
+                <th scope="row">The share</th>
+                <td class="ar-num">{{ return_pct|default('30') }}%</td>
+                <td>From that point on, {{ return_pct|default('30') }}% of each further contribution is
+                    set aside for the nominee. Crossing the line does not reach backwards — earlier
+                    contributions stay unshared, so nobody is rewarded retroactively by a threshold
+                    moving.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>The ceiling is the safeguard, and it is deliberately not a headcount rule. A threshold in
+           raw votes is not a rule at all, it is a <em>price</em>: one person could buy the whole thing
+           in a single order and everything genuine afterwards would earn. Capping each supporter’s
+           contribution to the threshold keeps that impossible while still letting the people who gave
+           most count for most. Free votes and contributions are added together per person, so
+           splitting an order cannot buy a second allowance.</p>
+
+        <p>It is held as an <em>append-only ledger</em>, not a balance we can quietly edit. Every entry
+           records what it was computed from and at what rate; if a contribution is refunded or charged
+           back, the share accrued on it is reversed and the reversal stays on the record beside the
+           original. Nothing is payable until that cycle has ended and its results have been
+           announced — a nominee cannot cash out mid-race, and the platform is not paying out money an
+           integrity finding might still reverse.
+           {% if not return_on|default(true) %}The share is currently set to 0%, so nothing is accruing
+           at all.{% endif %}</p>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/the-community-return">The community return, in full</a> — qualifying support, the ceiling, the ledger and payout.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── HONEST COUNT ────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="honest" data-ag-reveal>
+        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 6) }}</span>Keeping the count honest</h3>
+        <p>Every vote needs a one-time code sent to a working email address, and every attempt is
+           scored for risk from 0 to 100 <em>before</em> anything is written down.</p>
+
+        <div class="ar-tw">
+          <table class="ar-table">
+            <caption>Risk bands, and what each one does</caption>
+            <thead>
+              <tr><th scope="col">Score</th><th scope="col">Band</th><th scope="col">What happens</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="ar-num">0–{{ fraud_monitor|default(30) }}</td><th scope="row">Clear</th><td>Approved as it is cast.</td></tr>
+              <tr><td class="ar-num">{{ fraud_monitor|default(30) }}–{{ fraud_flag|default(60) }}</td><th scope="row">Monitored</th><td>Counted, and kept under observation.</td></tr>
+              <tr><td class="ar-num">{{ fraud_flag|default(60) }}–{{ fraud_block|default(80) }}</td><th scope="row">Flagged</th><td>Held for a person to review.</td></tr>
+              <tr><td class="ar-num">{{ fraud_block|default(80) }}+</td><th scope="row">Blocked</th><td>Refused before the vote exists.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <ul class="ar-list">
+          <li><strong>One identity, one vote</strong>, per category. The address is stored only as a
+              SHA-256 hash, so we can tell that two votes came from the same person without holding
+              the person.</li>
+          <li><strong>Disposable mail is refused</strong> at the moment a code is requested — before any
+              database write happens at all.</li>
+          <li><strong>A total can go down.</strong> Votes later found to be fraudulent are removed, and a
+              refunded contribution takes its bonus votes with it. A falling number is usually the
+              integrity system working.</li>
+        </ul>
+
+        <div class="ar-aside">
+          <p>Being flagged is not an accusation. A shared office network or a campus wifi produces the
+             same pattern a vote farm does, which is exactly why a flag sends a vote to a human rather
+             than to the bin.</p>
+        </div>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/how-we-spot-a-vote-that-is-not-real">How we decide a vote is not real</a> — the signals, the bands, and what to do if yours was refused.</li>
+            <li><a href="/help/already-voted">It says I already voted</a> — the commonest reason a real person is turned away.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── WHEN MONEY GOES WRONG ───────────────────────────────────────── #}
+      <section class="ar-sec" id="failures" data-ag-reveal>
+        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 7) }}</span>When a payment goes wrong</h3>
+        <p>A payment passes through a bank and a gateway before it reaches us, and any of those steps
+           can fail after a card has been charged. We would rather say so than pretend it never
+           happens.</p>
+        <ul class="ar-list">
+          <li><strong>The votes are still owed to you.</strong> If the ballot was open when you paid, the
+              votes are yours even if the confirmation reached us late. We check the time you
+              <em>started</em> the payment, not the moment our system happened to notice it.</li>
+          <li><strong>If they cannot be delivered, the money goes back.</strong> Where votes genuinely
+              cannot be counted — the nominee left the ballot, or the payment confirmed long after
+              voting closed — the order is refunded rather than kept. We do not keep money for votes we
+              did not deliver.</li>
+          <li><strong>Tell us, with your reference.</strong> Every order carries a reference beginning
+              <code>AFG-</code>. Give it to the <a href="/support/assistant">assistant</a> and it
+              re-checks the payment with the bank directly, adding the votes on the spot if the money
+              arrived.</li>
+        </ul>
+        <div class="ar-aside">
+          <p>The same honesty applies to our own failures. When our records show a voting code never
+             left the building, that vote can be restored after voting closes — proposed by one person,
+             approved by a different one, capped in size, and disclosed on the nominee’s page.</p>
+        </div>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/paid-but-no-votes">I paid but my votes have not appeared</a> — fixable in under a minute, without waiting for anyone.</li>
+            <li><a href="/help/refund-when-votes-cannot-count">When do you refund?</a> — the one case that refunds itself, and the rest.</li>
+            <li><a href="/help/votes-we-could-not-deliver">Votes that never reached you</a> — how a failed code becomes a restored vote.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── SEALED ──────────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="sealed" data-ag-reveal>
+        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 8) }}</span>Sealing the result</h3>
+        <p>A result you have to take on trust is not a result. Every time the standings are computed
+           they are sealed — each record carrying a fingerprint of itself and of the record before it,
+           all the way back to the first.</p>
+        <p>The consequence is the useful part. Editing an old standing — nudging one number in a table
+           months later — breaks its fingerprint, and because the next record contains that
+           fingerprint, it breaks every record after it. There is no quiet edit available; there is
+           only an edit that announces itself.</p>
+        <ol class="ar-steps">
+          <li>The chain is re-verified automatically every day, link by link.</li>
+          <li>A break is not a line in a log somebody might read. It is raised as a failure, to people,
+              with the position of the broken link.</li>
+          <li>The database refuses to record two standings claiming the same predecessor, so the chain
+              cannot be forked into a convenient second history.</li>
+          <li>Every recomputation is logged, and an independent reviewer can replay the arithmetic from
+              source.</li>
+        </ol>
+        <p>This protects you from us as much as from anybody else. A platform that can silently rewrite
+           its own results has to be taken on trust; one that cannot does not need to be.</p>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/how-results-are-sealed">How you can tell a result was not edited</a> — the chain, the daily check, and what a break looks like.</li>
+            <li><a href="/help/dispute-a-result">I think a count or a ranking is wrong</a> — ask for an audit; we will show the working.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── CYCLE ───────────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="cycle" data-ag-reveal>
+        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 9) }}</span>The cycle, stage by stage</h3>
+        <p>A programme moves through six stages in one direction. The stage is not a label on a page —
+           the system enforces it, and each transition closes something permanently.</p>
+        <ol class="ar-steps">
+          {% set steps = [
+            ['Nominated','Anyone can enter someone; entries queue for moderation.'],
+            ['Verified','The team checks eligibility, accuracy and completeness.'],
+            ['Shortlisted','Approved nominees go public — and the list is frozen.'],
+            ['Voted','Code-verified, risk-scored votes are collected.'],
+            ['Judged','The panel scores the shortlist, without seeing tallies.'],
+            ['Sealed','A signed snapshot is taken; results computed and archived.']
+          ] %}
+          {% for s in steps %}<li><strong>{{ s[0] }}.</strong> {{ s[1] }}</li>{% endfor %}
+        </ol>
+        <div class="ar-aside">
+          <p>Card contribution closes a little earlier than free voting, so payments already in flight
+             have time to land before the ballot shuts. Free voting runs to the bell.</p>
+        </div>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/the-stages-of-an-award-cycle">The stages, and what freezes at each</a> — what each transition closes, and why.</li>
+            <li><a href="/help/when-does-voting-close">When does voting close?</a> — deadlines, and the gap before them.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ── DISPUTES ────────────────────────────────────────────────────── #}
+      <section class="ar-sec" id="disputes" data-ag-reveal>
+        <h3><span class="ar-sn">{{ '%02d'|format(part2_offset + 10) }}</span>Disputes and your data</h3>
+        <p>If you believe a result was manipulated or a fraud pattern was missed, say so. Every
+           recomputation is logged, so a count can be replayed from the underlying votes and the
+           working shown to you.</p>
+        <p>Raise it at <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>
+           or through <a href="/support">Support &amp; appeals</a>. Appeals go to somebody independent
+           of the original decision. We will:</p>
+        <ol class="ar-steps">
+          <li>Acknowledge the complaint within {{ review_sla_hours }} hours.</li>
+          <li>Export the relevant vote audit trail — timestamps, hashed identities, risk scores.</li>
+          <li>Engage an independent reviewer if the complaint is substantiated.</li>
+          <li>Publish a summary of findings if the dispute affected a final result.</li>
+        </ol>
+        <h4 class="ar-h4">What we store when you vote</h4>
+        <p>A SHA-256 hash of your email and IP, a device fingerprint, and the nominee ID and timestamp
+           of your vote. We never store your plain-text email, name or personal identifier against a
+           vote, and we never sell or monetise voter data. Full details:
+           <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms</a>.</p>
+
+        <div class="ar-refs">
+          <span>Further reading</span>
+          <ul>
+            <li><a href="/help/dispute-a-result">I think a count or a ranking is wrong</a> — what to send, and what happens next.</li>
+            <li><a href="/help/report-a-profile">How do I report a nominee or profile?</a> — confidentially, and without needing proof.</li>
+            <li><a href="/help/what-data-do-you-keep">What data do you keep about me?</a> — held, never held, and your rights.</li>
+          </ul>
+        </div>
+      </section>
+
+      {# ══════════════════════════════════════════════════════════════════
+         CITATION
+
+         Four formats because a reader is asked for whichever one their
+         institution uses, and a document that only offers APA has decided for
+         them. The strings are built server-side by
+         CommunityVotingPhilosophy::citations() so the page, the .txt and the
+         .md all quote the same version and the same access date.
+
+         Tabs are a real tablist: role, aria-selected and aria-controls, so the
+         panel is announced when the tab changes rather than silently swapped.
+         ══════════════════════════════════════════════════════════════════ #}
+      <section class="ar-cite" id="cite">
+        <h2>How to cite this document</h2>
+        <p>This is a versioned document with a stable address. Please cite the version you read —
+           the figures in Part II track live programme settings, so an undated reference to
+           &ldquo;the Africa GATES methodology&rdquo; may not describe what you saw.</p>
+
+        <dl class="ar-meta">
+          <div><dfn>Version</dfn> <b>{{ doc_version }}</b></div>
+          <div><dfn>Published</dfn> <b><time datetime="{{ doc_published }}">{{ doc_published|date('j F Y') }}</time></b></div>
+          <div><dfn>Updated</dfn> <b><time datetime="{{ doc_updated }}">{{ doc_updated|date('j F Y') }}</time></b></div>
+          <div><dfn>Accessed</dfn> <b><time datetime="{{ doc_accessed }}">{{ doc_accessed|date('j F Y') }}</time></b></div>
+        </dl>
+
+        <div class="ar-tabs" role="tablist" aria-label="Citation format"
+             @keydown.arrow-right.prevent="moveTab('next')"
+             @keydown.arrow-left.prevent="moveTab('prev')"
+             @keydown.home.prevent="moveTab('home')"
+             @keydown.end.prevent="moveTab('end')">
+          {% for c in doc_citations %}
+            <button type="button" class="ar-tab" role="tab"
+                    id="ar-tab-{{ c.id }}" aria-controls="ar-panel-{{ c.id }}"
+                    :aria-selected="tab === '{{ c.id }}' ? 'true' : 'false'"
+                    :tabindex="tab === '{{ c.id }}' ? 0 : -1"
+                    @click="tab = '{{ c.id }}'">{{ c.label }}</button>
+          {% endfor %}
+        </div>
+
+        <div class="ar-cite-body">
+          {% for c in doc_citations %}
+            <div role="tabpanel" id="ar-panel-{{ c.id }}" aria-labelledby="ar-tab-{{ c.id }}"
+                 x-show="tab === '{{ c.id }}'" x-cloak>
+              <p class="ar-cite-text" x-ref="cite{{ c.id }}">{{ c.text }}</p>
+              <div class="ar-cite-act">
+                <button type="button" class="ar-tool" :class="done === 'cite' && 'is-done'"
+                        @click="copyCite($refs.cite{{ c.id }})">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                  </svg>
+                  Copy {{ c.label }}
+                </button>
+                <button type="button" class="ar-tool" :class="done === 'link' && 'is-done'" @click="copyLink()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>
+                  </svg>
+                  Copy permalink
+                </button>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="ar-refs">
+          <span>Machine-readable</span>
+          <ul>
+            <li>This page carries <code>citation_*</code> and Dublin Core metadata plus schema.org
+                <code>Article</code> markup, so Zotero, Mendeley and similar tools can import the
+                reference directly from the URL.</li>
+            <li>Plain-text and Markdown editions:
+                <a href="/integrity.txt" download="{{ doc_file_stem }}.txt">{{ doc_file_stem }}.txt</a> ·
+                <a href="/integrity.md" download="{{ doc_file_stem }}.md">{{ doc_file_stem }}.md</a></li>
+          </ul>
+        </div>
+      </section>
+
+      <div class="ar-end">
+        <p>Questions this document does not answer? Write to
+           <a href="mailto:integrity@afrovanguard.org.ng">integrity@afrovanguard.org.ng</a>, or browse
+           every written answer in the <a href="/help">Help Centre</a>.</p>
+        <p><em>{{ doc_publisher }}</em></p>
+      </div>
+
+    </article>
   </div>
 </div>
 {% endblock %}
