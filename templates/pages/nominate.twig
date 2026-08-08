@@ -110,6 +110,11 @@
   .nm-how li strong{ display:block; font-size:14px; color:var(--ink); margin-bottom:2px; }
   .nm-how li small{ display:block; font-size:12.5px; line-height:1.5; color:#5a6d6f; }
   @media (max-width:640px){ .nm-how{ grid-template-columns:1fr; gap:10px; } }
+  /* The line under the three steps. Same measure as the cards above it, quiet
+     enough not to compete with the form, prominent enough to be found. */
+  .nm-why{ max-width:820px; margin:12px auto 0; padding:0 var(--ag-gutter,32px);
+           font-size:13px; line-height:1.6; color:#5a6d6f; }
+  .nm-why a{ color:#1a6118; font-weight:600; }
 </style>
 {% endblock %}
 
@@ -128,6 +133,23 @@
     <li><span class="nm-how__n">2</span><span><strong>We verify</strong><small>Our panel reviews the profile, then publishes it into the live cycle.</small></span></li>
     <li><span class="nm-how__n">3</span><span><strong>The community decides</strong><small>People vote and judges score — together building their Cultural Power Index.</small></span></li>
   </ol>
+
+  {# ── WHY STEP 3 WORKS THE WAY IT DOES ─────────────────────────────────────
+     A nominator is the person who most needs this and is least likely to go
+     looking for it: they are about to put someone's name forward, and the first
+     thing that someone will ask them is "so is this the thing where you pay for
+     votes?". The answer is a page, and this is where they are standing when the
+     question arrives.
+
+     Placed under the three steps rather than in the consent block at the end of
+     the form. The consent block is where a nominator accepts the terms, and a
+     link they are meant to READ competes badly with a checkbox they are trying
+     to tick. #}
+  <p class="nm-why">
+    Wondering how the voting works, or why it carries a contribution?
+    <a href="/philosophy">Read the philosophy behind community voting</a> &middot;
+    <a href="/integrity">How a winner is decided</a>
+  </p>
 
   {% if not nominations_open %}
   {# CLOSED STATE. Previously this page rendered the full four-step wizard

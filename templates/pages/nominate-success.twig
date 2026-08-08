@@ -3,6 +3,9 @@
 {% set _nom = nominee|default('') %}
 {% set _cat = category|default('') %}
 {% set _ref = ref|default('') %}
+{# The last step points at /philosophy. A nominator has just told somebody they put
+   their name forward, and the first question back is usually "so is this the one
+   where you pay for votes?" — this is the moment they need the answer to hand. #}
 {% include 'partials/success.twig' with {
   sc_accent: 'green',
   sc_art: 'green',
@@ -21,7 +24,8 @@
   sc_steps: [
     'Our panel reviews the nomination (usually within {{ review_sla_hours }} hours).',
     'You’ll get an email the moment the profile goes live.',
-    'Then voting opens and the Cultural Power Index begins to build.'
+    'Then voting opens and the Cultural Power Index begins to build.',
+    'Curious how the voting works? Read the philosophy at /philosophy — and how a winner is decided at /integrity.'
   ]
 } only %}
 
