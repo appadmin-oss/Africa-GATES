@@ -271,6 +271,83 @@ final class LegalDocumentTest extends TestCase
         $this->assertNotContains('automated-processing-ai', array_column(L::outline($privacy), 'id'));
     }
 
+    // ── THE SEEDED CONTENT ──────────────────────────────────────────────────
+
+    /**
+     * THE GUARD ON THE PROSE.
+     *
+     * The seeded terms and privacy policy are STATIC HTML in a database column.
+     * There is no token resolution on the way out — unlike the philosophy, which
+     * resolves `{community_pct}` on every render — so a percentage typed into this
+     * content freezes at the moment it was written while RuleEngine moves on.
+     *
+     * A stale figure in the terms is materially worse than one on a marketing page,
+     * because the terms are the document a disputed result gets argued against. So
+     * both documents describe the mechanism and point at /integrity for the numbers,
+     * and this test fails the build if anybody pastes a figure in.
+     */
+    public function test_the_seeded_legal_content_states_no_percentages(): void
+    {
+        foreach (\AfricaGates\Console\Commands\LegalSeedCommand::documents() as $slug => $doc) {
+            preg_match_all('/(?<![\d])(\d{1,3}(?:\.\d+)?)\s?%/', $doc['body'], $m);
+
+            $this->assertSame([], $m[1],
+                "the seeded {$slug} has a hardcoded percentage (" . implode(', ', $m[1]) . '%) — '
+                . 'this content cannot resolve tokens, so it must point at /integrity instead');
+        }
+    }
+
+    /** And it does point there, so the guard above is not satisfied by silence. */
+    public function test_the_seeded_terms_send_the_reader_to_the_live_figures(): void
+    {
+        $terms = \AfricaGates\Console\Commands\LegalSeedCommand::documents()['terms']['body'];
+
+        $this->assertStringContainsString('href="/integrity"', $terms,
+            'the terms describe a weighting without saying where the number is');
+        $this->assertStringContainsString('href="/philosophy"', $terms);
+    }
+
+    /**
+     * The seeded privacy policy must NOT contain its own AI section.
+     *
+     * LegalDocument appends one generated from the capability registry. A
+     * handwritten section would produce two — and the handwritten one would be the
+     * copy that went stale the first time a capability changed, which is the exact
+     * failure the generated section exists to prevent.
+     */
+    public function test_the_seeded_privacy_policy_does_not_write_its_own_ai_section(): void
+    {
+        $seeded = \AfricaGates\Console\Commands\LegalSeedCommand::documents()['privacy']['body'];
+
+        $this->assertStringNotContainsString('Automated processing', $seeded,
+            'the privacy body writes an AI section by hand; LegalDocument already appends one');
+
+        // And on the assembled document there is exactly one.
+        $assembled = L::bodyWithAnchors($this->doc('privacy'));
+        $this->assertSame(1, substr_count($assembled, 'id="automated-processing"'),
+            'the privacy page must carry exactly one automated-processing section');
+    }
+
+    /** Every tag used in the seeded content must survive the sanitizer. */
+    public function test_the_seeded_content_is_not_stripped_by_the_sanitizer(): void
+    {
+        foreach (\AfricaGates\Console\Commands\LegalSeedCommand::documents() as $slug => $doc) {
+            $before = $doc['body'];
+            $after  = \AfricaGates\Support\Html::sanitize($before);
+
+            foreach (['<h2', '<h3', '<p>', '<ul>', '<ol>', '<li>', '<strong>', '<em>', '<a ', '<code>'] as $tag) {
+                if (str_contains($before, $tag)) {
+                    $this->assertStringContainsString($tag, $after,
+                        "{$slug}: the sanitizer removed {$tag} — it is not on Html::ALLOWED");
+                }
+            }
+            // A sanitizer that ate a third of a legal document is a bug worth catching
+            // even when every individual tag survived.
+            $this->assertGreaterThan(strlen($before) * 0.9, strlen($after),
+                "{$slug}: sanitising lost more than a tenth of the document");
+        }
+    }
+
     // ── THE HTML → TEXT CONVERTER ───────────────────────────────────────────
 
     /**
