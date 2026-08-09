@@ -73,7 +73,16 @@
   .vh-closing__k{ margin:0; font-size:11px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:#fbc329; }
   .vh-closing h3{ margin:9px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:18px; color:#fff; }
   .vh-closing p{ margin:8px 0 0; font-size:13px; line-height:1.55; color:rgba(255,255,255,.72); }
-  .vh-closing a{ display:inline-block; margin-top:14px; text-decoration:none; font-size:13px; font-weight:600; color:var(--ag-green-light,#7FC87C); }
+  /* TWO links live here, and as bare inline-blocks they ran together on one line with
+     nothing but a space between them — "How scoring works → Why voting works this way →"
+     reads as one sentence, and each was a 20px-tall target sitting against the other.
+     A flex column with real padding separates them and makes each a thumb tall; on a
+     wider card they sit side by side with a gap that is actually visible. */
+  .vh-closing__doors{ display:flex; flex-wrap:wrap; gap:2px 20px; margin-top:10px; }
+  .vh-closing a{ display:inline-flex; align-items:center; min-height:40px; text-decoration:none;
+    font-size:13px; font-weight:600; color:var(--ag-green-light,#7FC87C); }
+  .vh-closing a:hover{ text-decoration:underline; }
+  @media (max-width:420px){ .vh-closing__doors{ flex-direction:column; gap:0; } }
 
   .vh-empty{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(2rem,5vw,3rem); text-align:center; }
   .vh-empty h3{ margin:0 0 .4rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; color:var(--ag-ink,#10292C); }
@@ -268,8 +277,10 @@
         {# Two doors, not one. "How scoring works" answers the mechanical question;
            a voter about to contribute money is usually asking the other one —
            why voting carries a contribution at all — and that is the philosophy. #}
-        <a href="/integrity">How scoring works →</a>
-        <a href="/philosophy">Why voting works this way →</a>
+        <div class="vh-closing__doors">
+          <a href="/integrity">How scoring works →</a>
+          <a href="/philosophy">Why voting works this way →</a>
+        </div>
       </div>
     </div>
   </div>

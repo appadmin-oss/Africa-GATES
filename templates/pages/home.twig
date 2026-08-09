@@ -166,7 +166,11 @@
   .hm-lbsec{ display:grid; grid-template-columns:1.15fr .85fr; gap:clamp(2rem,4vw,3.5rem); align-items:start; padding:clamp(3.5rem,7vw,6rem) 0 0; }
   .hm-lbsec__hd{ display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:20px; }
   .hm-lbsec__hd h2{ margin:7px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.6rem,3.4vw,2.1rem); color:var(--ag-ink); }
-  .hm-allk{ font-size:14px; font-weight:600; color:var(--ag-green); text-decoration:none; white-space:nowrap; }
+  /* A standalone section link, not a link in a sentence, so it needs a real hit area —
+     it measured 22px tall beside a heading on a phone. */
+  .hm-allk{ display:inline-flex; align-items:center; min-height:40px; font-size:14px; font-weight:600;
+    color:var(--ag-green); text-decoration:none; white-space:nowrap; }
+  .hm-allk:hover{ text-decoration:underline; }
   .hm-lb{ display:flex; flex-direction:column; gap:9px; }
   .hm-lb__row{ display:flex; align-items:center; gap:16px; background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:14px 18px; }
   .hm-lb__rank{ font-family:var(--ag-font-mono); font-weight:700; font-size:16px; color:#5a6d6f; width:24px; text-align:center; flex:none; }

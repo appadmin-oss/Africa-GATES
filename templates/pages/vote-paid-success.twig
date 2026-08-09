@@ -96,7 +96,11 @@
    The free ballot has no such gap — its OTP proves the voter in the same request —
    so there the field sits on the form itself. #}
 {% if minted and reference %}
-<section class="pvm" x-data="paidMessage('{{ reference|e('js') }}', {{ msg_max|default(400) }})">
+{# `msg_posted` means the buyer already wrote something on the ballot and the callback
+   stored it once the payment cleared. The component starts in its sent state rather
+   than offering a second box — one message per person per nominee, so a second
+   submission would silently overwrite the first and read as if the first was lost. #}
+<section class="pvm" x-data="paidMessage('{{ reference|e('js') }}', {{ msg_max|default(400) }}, {{ msg_posted|default(false) ? 'true' : 'false' }})">
   <div class="pvm__in">
 
     <div x-show="!sent">
@@ -159,9 +163,16 @@
   .pvm__share-h{ margin:0 0 10px; font-size:13px; font-weight:600; color:#3d5254; }
 </style>
 <script nonce="{{ csp_nonce }}">
-function paidMessage(ref, max){
+function paidMessage(ref, max, alreadyPosted){
   return {
-    ref: ref, max: max, body: '', busy: false, sent: false, published: false, note: '', url: '', err: '',
+    ref: ref, max: max, body: '', busy: false,
+    // Opens in the sent state when the ballot's message was stored on confirmation.
+    sent: !!alreadyPosted,
+    published: !!alreadyPosted,
+    note: alreadyPosted
+      ? 'The message you wrote on the ballot has been saved. If it needs checking first it will appear shortly.'
+      : '',
+    url: '', err: '',
     async send(){
       if (this.busy || this.body.trim().length < 3) return;
       this.busy = true; this.err = '';

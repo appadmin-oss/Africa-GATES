@@ -392,6 +392,23 @@ final class VoteMessageService
         }
     }
 
+    /**
+     * Has this paid order already got a message?
+     *
+     * Used by the receipt page to decide between "here is a box" and "your message is
+     * in" — the ballot may already have carried one through the checkout. Answered from
+     * the database rather than from a query-string flag, so the page cannot be talked
+     * into claiming a message that was never stored.
+     */
+    public static function existsForDonation(int $donationId): bool
+    {
+        if ($donationId < 1) return false;
+        try {
+            return DB::table('gates_vote_messages')
+                ->where('donation_id', $donationId)->whereNull('deleted_at')->exists();
+        } catch (\Throwable) { return false; }
+    }
+
     /** The current count for a token, 0 when unknown. */
     public static function cheerCount(string $token): int
     {

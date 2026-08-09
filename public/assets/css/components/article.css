@@ -287,8 +287,13 @@ body[data-page="legal"]{
 .ar-cite > h2{ margin:0 0 .45rem; font-family:var(--ag-font-display); font-weight:700;
                font-size:clamp(1.35rem,2.8vw,1.7rem); letter-spacing:-.014em; }
 .ar-tabs{ margin:1.2rem 0 0; display:flex; flex-wrap:wrap; gap:.35rem; }
+/* min-height, not more padding: these four tabs sit in a row that already wraps on a
+   phone, and they measured 28px tall — under the 40px a thumb needs and under the
+   24px WCAG 2.5.8 asks for at minimum. A taller hit area with the same type size
+   keeps the row looking identical on a desktop and makes it usable on a handset. */
 .ar-tab{ cursor:pointer; background:var(--ag-surface-2,#f6f7f6); border:1px solid var(--ar-line);
          border-radius:var(--ag-r-pill,999px); padding:.42rem .85rem;
+         min-height:40px; display:inline-flex; align-items:center;
          font:600 12.5px/1 var(--ag-font-body); color:var(--ar-soft); transition:background .15s, color .15s; }
 .ar-tab:hover{ color:var(--ar-ink); background:var(--ar-wash); border-color:var(--ar-accent); }
 .ar-tab[aria-selected="true"]{ background:var(--ar-accent); border-color:var(--ar-accent); color:#fff; }

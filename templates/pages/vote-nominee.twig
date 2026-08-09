@@ -6,7 +6,11 @@
   [x-cloak]{ display:none !important; }
   .vn{ max-width:1080px; margin:0 auto; padding:0 var(--ag-gutter,32px); }
   .vn-crumb{ padding:18px 0 0; font-size:12.5px; color:#5a6d6f; }
-  .vn-crumb a{ color:#5a6d6f; text-decoration:none; }
+  /* Breadcrumb links were 15px tall — a 12.5px line box and nothing else. The trail
+     is how somebody gets back to the category they were browsing, so it has to be
+     tappable; inline-block plus vertical padding grows the hit area without moving
+     anything on the line. */
+  .vn-crumb a{ color:#5a6d6f; text-decoration:none; display:inline-block; padding:9px 0; }
   .vn-crumb a:hover{ color:var(--ag-ink); }
   .vn-crumb b{ color:var(--ag-ink); font-weight:500; }
 
@@ -126,8 +130,16 @@
   .vn-input{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:14.5px; color:var(--ag-ink); outline:none; transition:border-color .15s; }
   .vn-input:focus{ border-color:var(--ag-green); }
   .vn-input--otp{ text-align:center; font-family:var(--ag-font-mono); font-size:26px; font-weight:700; letter-spacing:.3em; padding:15px; margin-top:16px; }
-  .vn-check{ display:flex; align-items:flex-start; gap:9px; margin-top:13px; cursor:pointer; }
-  .vn-check input{ margin-top:2px; width:16px; height:16px; accent-color:var(--ag-green); }
+  /* The whole LABEL is the target, which is what makes a 16px box acceptable: a tap
+     anywhere on the sentence toggles it. The padding is there so the row is at least
+     a thumb tall even when the text wraps to one line, and the box keeps its 16px
+     visual size because a 40px checkbox looks like a bug. */
+  .vn-check{ display:flex; align-items:flex-start; gap:9px; margin-top:13px; cursor:pointer;
+    min-height:40px; padding:6px 0; }
+  .vn-check input{ margin-top:2px; width:16px; height:16px; accent-color:var(--ag-green);
+    /* A larger invisible hit box around the control itself, for anyone aiming at the
+       box rather than the words. */
+    padding:12px; margin-right:-12px; margin-left:-12px; }
   .vn-check span{ font-size:12px; line-height:1.5; color:#626a6e; }
   .vn-check a{ color:var(--ag-green); }
   .vn-go{ width:100%; margin-top:16px; cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:14px; border-radius:999px; transition:background .15s; }
@@ -175,13 +187,27 @@
   .vn-msg__meta{ display:flex; justify-content:space-between; gap:10px; margin-top:6px; font-size:11.5px; color:#5a6d6f; }
   .vn-msg__meta b{ font-variant-numeric:tabular-nums; }
   .vn-msg__over{ color:#b3261e; font-weight:700; }
-  .vn-msg__toggle{ display:inline-flex; align-items:center; gap:7px; background:none; border:none; padding:0;
+  /* min-height 40px: this is the door to the whole message feature and it measured 23px
+     tall on any width where its label fits on one line. */
+  .vn-msg__toggle{ display:inline-flex; align-items:center; gap:7px; background:none; border:none;
+    padding:6px 0; min-height:40px;
     font:600 13px/1.4 inherit; color:var(--ag-green,#237b22); cursor:pointer; text-align:left; }
   .vn-msg__toggle:hover{ text-decoration:underline; }
   .vn-msg__count{ font-style:normal; font-weight:600; font-size:11px; letter-spacing:.02em;
     background:#e8f3e7; color:#1a6118; border-radius:999px; padding:3px 8px; }
   .vn-msg__as{ margin:8px 0 0; font-size:12px; line-height:1.6; color:#5a6d6f; }
   .vn-msg__as strong{ color:#10292c; }
+  /* The quick-amount chips. A CLASS rather than an inline style, because the Alpine
+     `:style` binding that used to mark the selected one replaced the whole style
+     attribute and stripped every chip back to bare text — see the markup. min-height
+     40px because they measured 23px, the smallest tap target on the platform sitting
+     on its highest-intent control. */
+  .vn-qty{ border:1.5px solid rgba(16,41,44,.16); background:#fff; color:#10292c;
+    border-radius:999px; padding:7px 14px; min-height:40px; display:inline-flex;
+    align-items:center; font:700 12.5px/1 inherit; cursor:pointer;
+    transition:background .15s, color .15s, border-color .15s; }
+  .vn-qty:hover{ border-color:var(--ag-green,#237b22); color:var(--ag-green,#237b22); }
+  .vn-qty.is-on{ background:#237b22; color:#fff; border-color:transparent; }
   .vn-closed{ background:#fff8df; border:1px solid #f0e0b0; border-radius:14px; padding:14px 16px; font-size:13.5px; line-height:1.55; color:#7a5600; }
   .vn-toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); z-index:90; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:13px 22px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); }
   .vn-claimline{ margin:34px 0 8px; padding-top:20px; border-top:1px solid rgba(16,41,44,.09); font-size:13px; color:#5a6d6f; text-align:center; }
@@ -602,9 +628,20 @@
                    is worse than no button. #}
                 <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" role="group" aria-label="Quick amounts">
                   {% for t in vote_tiers|filter(t => t.qty <= max_qty) %}
-                  <button type="button" @click="qty={{ t.qty }}" :aria-pressed="qty==={{ t.qty }}"
-                          :style="qty==={{ t.qty }} ? 'background:#237b22;color:#fff;border-color:transparent' : ''"
-                          style="border:1.5px solid rgba(16,41,44,.16);background:#fff;color:#10292c;border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:700;cursor:pointer">{{ t.qty }} vote{{ t.qty == 1 ? '' : 's' }}</button>
+                  {# ── :class, NOT :style ──────────────────────────────────────
+                     These carried a static `style` attribute AND an Alpine
+                     `:style` binding, and Alpine's :style with a string value
+                     REPLACES the style attribute wholesale. So the moment Alpine
+                     booted, every chip lost its border, its radius, its padding
+                     and its font weight — 23px of bare text with a green blob on
+                     the selected one. It looked like a broken page, on the control
+                     most buyers use to choose what they are about to pay for.
+
+                     A class cannot do that: :class adds and removes, it does not
+                     overwrite what the stylesheet already said. #}
+                  <button type="button" class="vn-qty" @click="qty={{ t.qty }}"
+                          :aria-pressed="qty==={{ t.qty }}"
+                          :class="qty==={{ t.qty }} && 'is-on'">{{ t.qty }} vote{{ t.qty == 1 ? '' : 's' }}</button>
                   {% endfor %}
                 </div>
                 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -634,10 +671,54 @@
                    name typed under the old, ambiguous label; inferring consent from a
                    non-empty name would publish all of them retroactively. `show_name`
                    defaults to 0, so only orders placed from here on can carry a yes. #}
-                <div style="margin-top:10px">
+                {# The name and the message share one Alpine scope, because the message's
+                   byline preview has to reflect the name as it is typed. `pvName` is
+                   seeded from the SAME Twig expression the input's value uses — x-model
+                   overwrites the DOM value on init, so seeding it from anything else
+                   would silently discard a bounced checkout's remembered name. #}
+                {# `|e('html_attr')` on the JSON, NOT |raw. json_encode emits DOUBLE quotes,
+                   so `|raw` inside a double-quoted attribute closes the attribute at the
+                   first one — with an empty name that is `x-data="{ pvName: ""` and Alpine
+                   reports `Unexpected token '}'`, which is what happened. html_attr
+                   escaping lets the HTML parser hand Alpine the real string back, and it
+                   survives a name containing a quote or an apostrophe either way. #}
+                <div style="margin-top:10px"
+                     x-data="{ pvName: {{ (paid_retry.name|default('') ?: (member ? member.name : ''))|json_encode|e('html_attr') }}, pvMsg: '' }">
                   <label class="vn-label" for="pvName">Your name <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
-                  <input id="pvName" name="name" class="vn-input" type="text" placeholder="e.g. Amara Okonkwo" value="{{ paid_retry.name|default('') ?: (member ? member.name : '') }}">
+                  <input id="pvName" name="name" class="vn-input" type="text" placeholder="e.g. Amara Okonkwo" x-model="pvName">
                   <p style="margin:5px 0 0;font-size:11.5px;color:#5a6d6f;line-height:1.5">Shown on {{ firstName }}’s public supporters list and on your receipt. <strong>Leave it blank to give anonymously</strong> — your vote counts exactly the same. Only the name is ever published: never your email, your phone or the amount. <a href="/privacy#supporters" style="color:var(--ag-green,#237b22);font-weight:600">How we handle voter names</a></p>
+
+                {# ── SAY SOMETHING, ON THE PAID FORM TOO ─────────────────────────
+                   This was originally only on the free ballot, and on a paid-only
+                   deployment — `paid_voting_disable_free`, which is a real setting
+                   several programmes run — the whole free block is hidden, so the
+                   message box did not exist anywhere before payment. The only way to
+                   leave one was to pay first and find the box on the receipt page,
+                   which nobody would ever discover.
+
+                   WHAT HAPPENS TO IT, AND WHY NOTHING IS STORED YET. The text is put
+                   in the SESSION alongside the checkout reference, not written to the
+                   database — because a message stored before the gateway confirms is
+                   an open door: start a checkout, abandon it, and the words are
+                   already on a real person's page. PaidVoteController stores it only
+                   after the payment is verified, and the receipt page still carries
+                   the box for anyone whose session did not survive the round trip.
+                   See PaidVoteController::start()/callback(). #}
+                  <div class="vn-msg" style="margin-top:12px;padding-top:12px">
+                    <label class="vn-label" for="pvMsg">Say something about {{ firstName }} <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
+                    <textarea id="pvMsg" name="message" x-model="pvMsg" maxlength="{{ msg_max }}"
+                              placeholder="What do you want people to know about {{ firstName }}?"></textarea>
+                    <div class="vn-msg__meta">
+                      <span>Appears on this page once checked. No links or phone numbers.</span>
+                      <span :class="pvMsg.length > {{ msg_max }} - 40 ? 'vn-msg__over' : ''"><b x-text="pvMsg.length">0</b>/{{ msg_max }}</span>
+                    </div>
+                    {# No second consent control: the name field above IS the choice, and
+                       the server carries that same decision onto the message rather than
+                       asking a question one order could answer two different ways. #}
+                    <p class="vn-msg__as" x-show="pvMsg.trim().length" x-cloak>
+                      Appears as <strong x-text="pvName.trim() ? pvName.trim() : 'A supporter'">A supporter</strong>
+                    </p>
+                  </div>
                 </div>
                 {% if pay_providers|length > 1 %}
                 <fieldset style="border:0;padding:0;margin:12px 0 0">

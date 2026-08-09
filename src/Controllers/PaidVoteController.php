@@ -186,6 +186,19 @@ final class PaidVoteController
             return $bail('error');
         }
 
+        // ── THE BUYER'S MESSAGE, HELD IN THE SESSION ─────────────────────────
+        //
+        // Not written to the database here, and that is the whole design. A message
+        // stored before the gateway confirms is an open door: start a checkout,
+        // abandon it, and the words are already published on a real person's page —
+        // with no payment, no OTP and nothing to rate-limit against. So it waits in
+        // the session, keyed to this reference, and `confirm()` stores it only once the
+        // money is verified. See rememberMessage()/storeMessage().
+        //
+        // If the session does not survive the trip to the bank and back, nothing is
+        // lost that matters: the receipt page carries the same box.
+        $this->rememberMessage($reference, (string) ($b['message'] ?? ''));
+
         $callbackUrl = $this->base($req) . '/vote/paid/callback?provider=' . urlencode($provider) . '&ref=' . urlencode($reference);
         $init = $this->payments->initialize($provider, $amount, $email, $reference, $callbackUrl, [
             'reference' => $reference, 'purpose' => 'paid-vote',
@@ -224,6 +237,67 @@ final class PaidVoteController
      * which clears it, so a later visit to the same ballot is not pre-filled from a
      * checkout the supporter has since abandoned.
      */
+    /**
+     * Hold the buyer's message of support until the payment is verified.
+     *
+     * In the SESSION rather than the database, for the reason given at the call site:
+     * writing it at checkout would publish words paid for by a checkout that was never
+     * completed. Keyed by reference so a buyer who starts two orders cannot have the
+     * first one's message attached to the second.
+     */
+    private function rememberMessage(string $reference, string $body): void
+    {
+        if (!isset($_SESSION) || !is_array($_SESSION)) return;
+        $body = trim($body);
+        if ($body === '') { unset($_SESSION['paid_vote_message']); return; }
+        $_SESSION['paid_vote_message'] = [
+            'ref'  => $reference,
+            // Capped here as well as in the service: no reason to carry more than can
+            // ever be stored across a gateway round trip.
+            'body' => mb_substr($body, 0, \AfricaGates\Services\VoteMessageService::MAX_LEN),
+        ];
+    }
+
+    /**
+     * Store the held message, now that the money has arrived.
+     *
+     * Read-and-clear, so a second callback (a refresh, the gateway's webhook arriving
+     * behind the browser) cannot re-post it — and so a later, unrelated order does not
+     * inherit it.
+     *
+     * NEVER throws. This runs on the payment confirmation path; a message that cannot
+     * be saved must not turn a successful purchase into an error page.
+     *
+     * @return bool whether something was stored, for the receipt page's benefit
+     */
+    private function storeMessage(string $reference, object $don): bool
+    {
+        if (!isset($_SESSION) || !is_array($_SESSION)) return false;
+        $held = $_SESSION['paid_vote_message'] ?? null;
+        unset($_SESSION['paid_vote_message']);
+        if (!is_array($held) || ($held['ref'] ?? '') !== $reference) return false;
+
+        try {
+            $r = \AfricaGates\Services\VoteMessageService::submit([
+                'nominee_id'  => (int) ($don->intent_nominee_id ?? 0),
+                'donation_id' => (int) $don->id,
+                // From the ORDER, never from a request parameter — the same rule the
+                // API endpoint follows. See VoteMessageController::post().
+                'email'       => (string) $don->donor_email,
+                'body'        => (string) $held['body'],
+                'name'        => (string) ($don->donor_name ?? ''),
+                'show_name'   => (int) ($don->show_name ?? 0) === 1,
+                'source'      => 'paid',
+            ]);
+            return (bool) ($r['ok'] ?? false);
+        } catch (\Throwable $e) {
+            $this->log?->error('[paid-vote] could not store the buyer\'s message', [
+                'ref' => $reference, 'err' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
     private function rememberOrder(int $qty, string $email, string $name, string $detail): void
     {
         // `$_SESSION` as an array, not session_status() — the convention everywhere
@@ -285,7 +359,13 @@ final class PaidVoteController
             // the purchase existed. Claimed once per order, so the gateway webhook
             // arriving a second later does not send a duplicate. Never throws.
             \AfricaGates\Services\CheckoutMailer::receipt((int) $don->id);
-            return $this->redirect($res, $this->base($req) . '/vote/paid/success?ref=' . urlencode($reference));
+            // AFTER the mint, so a message is never attached to a purchase whose votes
+            // were refused. Re-read from the database: `$don` predates the confirm and
+            // does not carry donor_name/show_name as they now stand.
+            $stored = $this->storeMessage($reference,
+                DB::table('gates_donations')->where('id', $don->id)->first() ?? $don);
+            return $this->redirect($res, $this->base($req) . '/vote/paid/success?ref=' . urlencode($reference)
+                . ($stored ? '&msg=1' : ''));
         }
         return $this->redirect($res, $this->base($req) . '/vote?paid=failed');
     }
@@ -347,6 +427,14 @@ final class PaidVoteController
             // rather than typed into the template — a `maxlength` that disagreed with
             // the server would silently cut a buyer's words after they sent them.
             'msg_max'          => \AfricaGates\Services\VoteMessageService::MAX_LEN,
+            // Whether the message they wrote on the ballot was already stored by the
+            // callback. Set from the query string the callback appends AND verified
+            // against the database, so a hand-typed ?msg=1 cannot claim a message that
+            // does not exist — and so the receipt does not offer an empty box to
+            // somebody who has already written one.
+            'msg_posted'       => ($req->getQueryParams()['msg'] ?? '') === '1'
+                                  && $don !== null
+                                  && \AfricaGates\Services\VoteMessageService::existsForDonation((int) $don->id),
         ]);
     }
 

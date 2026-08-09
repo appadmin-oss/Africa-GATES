@@ -31,9 +31,12 @@
   .vm__cheer{ display:inline-flex; align-items:center; gap:8px; align-self:flex-start; border:1px solid rgba(16,41,44,.16); background:#fff; color:#10292C; border-radius:999px; padding:9px 15px; font:600 13.5px/1 inherit; cursor:pointer; }
   .vm__cheer:hover{ border-color:#237b22; color:#237b22; }
   .vm__cheer[data-on="1"]{ background:#e8f3e7; border-color:#7FC87C; color:#1a6118; }
-  .vm__report{ background:none; border:none; padding:0; font:500 12.5px/1.4 inherit; color:#8a9a9c; cursor:pointer; }
+  /* 40px of hit area, same reason as .vmi__act: it was 23px tall, next to a control
+     that does something entirely different, on a page people reach from a chat app. */
+  .vm__report{ background:none; border:none; padding:4px 6px; min-height:40px; display:inline-flex;
+               align-items:center; font:500 12.5px/1.4 inherit; color:#8a9a9c; cursor:pointer; }
   .vm__report:hover{ color:#b3261e; text-decoration:underline; }
-  .vm__reported{ font-size:12.5px; color:#6b7d7f; }
+  .vm__reported{ font-size:12.5px; color:#6b7d7f; min-height:40px; display:inline-flex; align-items:center; }
   .vm__cta{ margin-top:26px; background:#10292C; border-radius:18px; padding:26px 28px; color:#eef3ee; }
   .vm__cta h2{ margin:0 0 8px; font-size:1.12rem; color:#fff; letter-spacing:-.01em; }
   .vm__cta p{ margin:0 0 18px; font-size:14px; line-height:1.7; color:#b9c9bd; }
