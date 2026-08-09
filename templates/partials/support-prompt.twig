@@ -46,10 +46,32 @@
   'general': 'The assistant can check the live state of the platform, fix a stuck payment, and hand you to a person when that is the better answer.'
 }[_kind]) %}
 
+{# ── THE COMPACT LINE'S SECOND CLAUSE ────────────────────────────────────────
+   It used to print the support mailbox in full, in plain text, directly beneath
+   the pay button. Three things wrong with that in that position:
+
+   · It is a worse answer than the link beside it. The assistant re-checks the
+     payment with the gateway on the spot; an email is a wait, and offering both
+     side by side invites the slower one.
+   · A long address in a narrow ballot column had nothing to wrap on, so it ran
+     under the edge of the panel on a phone — the client's screenshot shows it
+     cut in half.
+   · It is a live mailto in public HTML on one of the most-visited pages on the
+     platform, which is a gift to address harvesters.
+
+   What belongs there instead is the answer to the question somebody actually has
+   with their thumb over a pay button: why does a vote carry a contribution at
+   all. That is /philosophy. Overridable, so a caller in a different context can
+   point the clause somewhere that fits it.
+
+   The card form (below) still offers "Email the team", where it sits in an
+   already-wide layout beside a heading that explains what it is for. #}
+{% set _altHref  = sp_alt_href|default('/philosophy') %}
+{% set _altLabel = sp_alt_label|default('why a vote carries a contribution') %}
 {% if sp_compact|default(false) %}
   <p class="ag-sprompt ag-sprompt--line">
     <a href="{{ _href }}">{{ _title }}</a>
-    <span>Or email <a href="mailto:{{ support_email }}">{{ support_email }}</a>.</span>
+    <span>Or read <a href="{{ _altHref }}">{{ _altLabel }}</a>.</span>
   </p>
 {% else %}
   <aside class="ag-sprompt" aria-label="Get help">

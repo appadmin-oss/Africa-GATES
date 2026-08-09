@@ -94,6 +94,59 @@ final class SupportSurfaceRenderTest extends TestCase
         $this->assertStringNotContainsString('<aside', $out);
     }
 
+    /**
+     * The compact line points at the philosophy, NOT at a mailbox.
+     *
+     * It is included in exactly one place — directly beneath the pay button on a
+     * nominee's ballot — and there it used to print the support address in full. Three
+     * problems, all specific to that position: an email is a strictly worse answer than
+     * the assistant link beside it (which re-checks the payment with the gateway on the
+     * spot), a long address in a narrow ballot column had nothing to wrap on and ran off
+     * the edge of the panel on a phone, and a live mailto in public HTML on one of the
+     * busiest pages on the platform is free food for address harvesters.
+     *
+     * What a reader with their thumb over a pay button actually wants is why a vote
+     * carries a contribution at all.
+     */
+    public function test_the_compact_line_offers_the_philosophy_and_publishes_no_address(): void
+    {
+        $out = $this->render(['sp_compact' => true, 'sp_kind' => 'payment', 'sp_ref' => self::REF]);
+
+        $this->assertStringContainsString('/philosophy', $out);
+        $this->assertStringNotContainsString('mailto:', $out,
+            'the compact line is back to publishing a mailbox under the pay button');
+        $this->assertStringNotContainsString('afrovanguard.org.ng', $out,
+            'the support address is in the page source again');
+    }
+
+    /** And a caller can point that clause somewhere else when the context differs. */
+    public function test_the_compact_lines_second_clause_is_overridable(): void
+    {
+        $out = $this->render([
+            'sp_compact'   => true,
+            'sp_kind'      => 'account',
+            'sp_alt_href'  => '/help/paid-votes',
+            'sp_alt_label' => 'how paid votes are counted',
+        ]);
+
+        $this->assertStringContainsString('/help/paid-votes', $out);
+        $this->assertStringContainsString('how paid votes are counted', $out);
+        $this->assertStringNotContainsString('/philosophy', $out);
+    }
+
+    /**
+     * The CARD form keeps its email, and that is not an inconsistency. It sits in a
+     * wide layout under a heading that says what it is for, beside a primary action —
+     * there is room for a second-best option there, and none under a pay button.
+     */
+    public function test_the_card_form_still_offers_the_inbox(): void
+    {
+        $out = $this->render(['sp_kind' => 'payment', 'sp_ref' => self::REF]);
+
+        $this->assertStringContainsString('Email the team', $out);
+        $this->assertStringContainsString('mailto:gates@afrovanguard.org.ng', $out);
+    }
+
     public function test_every_kind_renders_rather_than_falling_through_to_nothing(): void
     {
         foreach (['payment', 'votes', 'account', 'general'] as $kind) {
