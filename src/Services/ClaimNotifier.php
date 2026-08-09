@@ -55,8 +55,16 @@ use Illuminate\Database\Capsule\Manager as DB;
  */
 final class ClaimNotifier
 {
-    /** Cooling-off before any money moves, quoted in the message. §3. */
-    private const COOLING_OFF_DAYS = 7;
+    /**
+     * Cooling-off before any money moves, quoted in the message. §3.
+     *
+     * Read from {@see ClaimGuard} rather than declared here. It used to be a private
+     * constant on this class, which meant the sentence in the email was the ONLY thing
+     * in the codebase that knew about seven days — nothing enforced it. It is now the
+     * same number the payout bar refuses on, so the promise and the behaviour cannot
+     * drift apart.
+     */
+    private const COOLING_OFF_DAYS = ClaimGuard::COOLING_OFF_DAYS;
 
     /**
      * Tell every channel on file. Idempotent per claim, never throws.
@@ -90,11 +98,23 @@ final class ClaimNotifier
         $reference = self::reference($claimId, $claim);
         $usedHint  = trim((string) ($claim->channel_hint ?? ''));
 
+        // ── THE ONE-TAP WAY TO STOP IT ───────────────────────────────────────
+        //
+        // Before this, the only lever a wrongly-claimed nominee had was "reply to this
+        // email" — while somebody else already held their page. The link freezes the
+        // claim without an account and without waiting for a human to read support mail.
+        //
+        // Absolute, because it is going into an email. SiteUrl::base() needs a request
+        // and there is none here (this runs from a controller, a console command and a
+        // queue worker), so APP_URL is the only source that is right in all three.
+        $base = rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/');
+        $disputeUrl = $base !== '' ? ClaimDispute::url($claimId, $base) : null;
+
         $results = [];
         foreach (ClaimIndependence::contactsFor($nomineeId) as $c) {
             $results[] = $c['channel'] === 'email'
-                ? self::tellByEmail($c, $name, $reference, $usedHint, $mailer)
-                : self::tellByPhone($c, $name, $reference, $sms);
+                ? self::tellByEmail($c, $name, $reference, $usedHint, $mailer, $disputeUrl)
+                : self::tellByPhone($c, $name, $reference, $sms, $disputeUrl);
         }
 
         $reached = count(array_filter($results, static fn(array $r) => $r['status'] === 'sent'));
@@ -147,7 +167,8 @@ final class ClaimNotifier
      * @param array{channel:string,hint:string,value:string,country:string} $c
      * @return array{channel:string,hint:string,status:string}
      */
-    private static function tellByEmail(array $c, string $name, string $ref, string $usedHint, ?OtpService $mailer): array
+    private static function tellByEmail(array $c, string $name, string $ref, string $usedHint,
+                                       ?OtpService $mailer, ?string $disputeUrl = null): array
     {
         if ($mailer === null) {
             return ['channel' => 'email', 'hint' => $c['hint'], 'status' => 'unconfigured'];
@@ -162,6 +183,18 @@ final class ClaimNotifier
         $safeRef  = htmlspecialchars($ref, ENT_QUOTES, 'UTF-8');
         $safeSup  = htmlspecialchars($support, ENT_QUOTES, 'UTF-8');
 
+        // A BUTTON, not a bare link, and it lands on a page with a confirm step rather
+        // than acting on the GET. Corporate mail systems and every link-safety scanner
+        // fetch the URLs in a message before a human sees it — a freeze on GET would be
+        // tripped automatically on a large share of honest claims, and the cause would
+        // be invisible because the request looks like an ordinary visitor.
+        $stopBlock = $disputeUrl !== null
+            ? '<br><br><a href="' . htmlspecialchars($disputeUrl, ENT_QUOTES, 'UTF-8')
+              . '" style="display:inline-block;background:#b45309;color:#fff;font-weight:700;'
+              . 'font-size:14px;padding:11px 22px;border-radius:999px;text-decoration:none">'
+              . 'This was not me — freeze this claim</a>'
+            : '';
+
         $html = <<<HTML
 <p style="margin:0 0 14px;font-size:15px;color:#374151">Someone has just claimed the Africa GATES page for <strong>{$safeName}</strong>.</p>
 <p style="margin:0 0 14px;font-size:15px;color:#374151">They confirmed a code sent to <strong>{$safeUsed}</strong>. We are telling every contact on the nomination, including this one, so that you hear about it from us either way.</p>
@@ -172,9 +205,10 @@ final class ClaimNotifier
 </table>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:14px 18px">
   <tr><td style="font-size:14px;color:#92400e;line-height:1.7">
-    <strong>If this was not you</strong> — reply to this email, or write to
+    <strong>If this was not you</strong> — stop it now:{$stopBlock}
+    <br>Or reply to this email, or write to
     <a href="mailto:{$safeSup}" style="color:#b45309">{$safeSup}</a>, quoting
-    <strong>{$safeRef}</strong>. We will stop it while a person looks. There is nothing to pay.
+    <strong>{$safeRef}</strong>. There is nothing to pay, either way.
   </td></tr>
 </table>
 <p style="margin:0 0 10px;font-size:14px;color:#6b7280">Two things worth knowing, whoever it was:</p>
@@ -189,7 +223,10 @@ HTML;
                . "They confirmed a code sent to {$used}. We are telling every contact on the "
                . "nomination, including this one.\n\n"
                . "If this was you, there is nothing to do.\n\n"
-               . "If this was NOT you, reply to this email or write to {$support} quoting {$ref}. "
+               . ($disputeUrl !== null
+                    ? "If this was NOT you, stop it now:\n{$disputeUrl}\n\n"
+                    : '')
+               . "You can also reply to this email or write to {$support} quoting {$ref}. "
                . "We will stop it while a person looks. There is nothing to pay.\n\n"
                . "No money moves on a claim less than {$days} days old, and any payment can only "
                . "go to a bank account in the nominee's own name.\n\n"
@@ -217,7 +254,8 @@ HTML;
      * @param array{channel:string,hint:string,value:string,country:string} $c
      * @return array{channel:string,hint:string,status:string}
      */
-    private static function tellByPhone(array $c, string $name, string $ref, ?SmsService $sms): array
+    private static function tellByPhone(array $c, string $name, string $ref, ?SmsService $sms,
+                                       ?string $disputeUrl = null): array
     {
         $hint = $c['hint'];
         if ($sms === null || !$sms->configured()) {
@@ -232,9 +270,21 @@ HTML;
         }
 
         $support = Notifier::supportEmail();
-        $body = "Africa GATES: someone has claimed the page for {$name}. If this was not you, "
-              . "email {$support} quoting {$ref} and we will stop it. Nothing to pay. No money "
-              . "moves for " . self::COOLING_OFF_DAYS . " days, and only to the nominee's own account.";
+        // The LINK first when we have one. On a phone, tapping a link is the whole
+        // action; composing an email quoting a reference is a different afternoon. The
+        // email address stays as the fallback, and the reference stays because somebody
+        // reading this on a feature phone still needs to be able to quote it.
+        // The REFERENCE is in the message either way. A link is the easier action on a
+        // smartphone, and a large part of this audience is reading on a handset where
+        // tapping a URL is not an option at all — for them the only route is quoting the
+        // reference to a person, so dropping it in favour of the link would have taken
+        // the one thing they could use.
+        $stop = $disputeUrl !== null
+            ? "If this was not you, stop it here: {$disputeUrl}"
+            : "If this was not you, email {$support} and we will stop it.";
+        $body = "Africa GATES: someone has claimed the page for {$name}. {$stop} Ref {$ref}. "
+              . "Nothing to pay. No money moves for " . self::COOLING_OFF_DAYS . " days, and only "
+              . "to the nominee's own account.";
 
         $ok = false;
         try { $ok = $sms->sendSms($e164, $body, 'claim-alert'); } catch (\Throwable) {}

@@ -1326,6 +1326,19 @@ return function(App $app) {
         // destination — only an opaque channel key that must resolve to a contact
         // already on an approved nomination. See ClaimController and
         // docs/CLAIM-FAIRNESS-AND-FRAUD.md §2.
+        // BEFORE /claim/{id}: "dispute" is not a number, so the patterns cannot collide
+        // — but the ordering convention in this file is worth keeping.
+        //
+        // ── "THIS WAS NOT ME", IN ONE TAP ────────────────────────────────────
+        //
+        // Reached from the link in every claim notification. GET renders a confirm page
+        // and POST performs the freeze, and that split is not ceremony: Gmail, Outlook
+        // and every link-safety scanner FETCH the URLs in a message before a human sees
+        // them, so a freeze on GET would fire automatically on a large share of honest
+        // claims with nothing in the log to explain it. See ClaimDispute.
+        $g->get('/claim/dispute/{token:[a-f0-9]{32}}',  ClaimController::class.':disputePage');
+        $g->post('/claim/dispute/{token:[a-f0-9]{32}}', ClaimController::class.':disputeFreeze');
+
         $g->get('/claim/{id:[0-9]+}',          ClaimController::class.':page');
         $g->post('/claim/{id:[0-9]+}/code',    ClaimController::class.':send');
         $g->post('/claim/{id:[0-9]+}/confirm', ClaimController::class.':confirm');

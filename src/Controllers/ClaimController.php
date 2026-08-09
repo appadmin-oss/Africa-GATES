@@ -167,6 +167,82 @@ final class ClaimController
         }
     }
 
+    // ══ dispute: "this was not me" ═══════════════════════════════════════════
+
+    /**
+     * GET /claim/dispute/{token} — the confirm page.
+     *
+     * ── WHY THIS IS NOT THE ACTION ───────────────────────────────────────────
+     *
+     * A one-click freeze URL is exactly what the notification wants, and putting the
+     * freeze on the GET would break claiming in a way nobody could diagnose. Gmail,
+     * Outlook, Microsoft Defender for Office and every other link-safety scanner FETCH
+     * the URLs in a message before a human sees it. The freeze would fire automatically
+     * on a large share of honest claims, and the request in the log would look like an
+     * ordinary visitor arriving from an email.
+     *
+     * So GET renders a page with one button. Possession of the token authorises; the
+     * button establishes that a person meant it.
+     *
+     * Never 404s on an unknown token: somebody who taps an old link deserves the support
+     * address rather than a not-found page, and a 404 would confirm which tokens are
+     * real to anybody enumerating them.
+     */
+    public function disputePage(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $claim = \AfricaGates\Services\ClaimDispute::preview($token);
+
+        return $this->view->render($res, 'pages/claim-dispute.twig', [
+            'page_title'       => 'Stop a claim — Africa GATES',
+            'meta_description' => 'Freeze a claim on an Africa GATES nominee page.',
+            'gates_page'       => 'awards',
+            'has_hero'         => false,
+            // Never indexed and never cached: a one-time security action reached from a
+            // message, naming a nominee.
+            'robots'           => 'noindex, nofollow',
+            'token'            => $token,
+            'claim'            => $claim,
+            'support_email'    => Notifier::supportEmail(),
+            'done'             => null,
+        ])->withHeader('X-Robots-Tag', 'noindex, nofollow')
+          ->withHeader('Cache-Control', 'no-store, private');
+    }
+
+    /**
+     * POST /claim/dispute/{token} — freeze it.
+     *
+     * Renders the same template with an outcome rather than redirecting, so the result
+     * survives a reader who has no cookies (a link opened in a mail client's own browser
+     * frequently does not) — a flash message would be lost exactly there.
+     */
+    public function disputeFreeze(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $body  = (array) $req->getParsedBody();
+        $note  = (string) ($body['note'] ?? '');
+
+        $before = \AfricaGates\Services\ClaimDispute::preview($token);
+        // The masked channel that objected is NOT taken from the request — there is no
+        // field in which a disputer names themselves, and inventing one would let a
+        // stranger with a leaked token put words in a nominee's mouth in the audit trail.
+        // What we can say honestly is which claim's link was used.
+        $r = \AfricaGates\Services\ClaimDispute::freeze($token, $note, 'the dispute link we sent');
+
+        return $this->view->render($res, 'pages/claim-dispute.twig', [
+            'page_title'       => 'Claim frozen — Africa GATES',
+            'meta_description' => 'Freeze a claim on an Africa GATES nominee page.',
+            'gates_page'       => 'awards',
+            'has_hero'         => false,
+            'robots'           => 'noindex, nofollow',
+            'token'            => $token,
+            'claim'            => $before,
+            'support_email'    => Notifier::supportEmail(),
+            'done'             => $r,
+        ])->withHeader('X-Robots-Tag', 'noindex, nofollow')
+          ->withHeader('Cache-Control', 'no-store, private');
+    }
+
     /** The reference of the claim already holding this page, for the page to quote. */
     private function activeReference(int $nomineeId): ?string
     {

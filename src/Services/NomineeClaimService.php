@@ -324,12 +324,28 @@ final class NomineeClaimService
         try {
             $taken = DB::table('gates_nominee_claims')
                 ->where('id', $claimId)->where('status', 'pending')
-                ->update([
+                ->update(\AfricaGates\Support\OptionalColumn::filter('gates_nominee_claims', [
                     'status'            => 'active',
                     'active_nominee_id' => $nomineeId,
                     'activated_at'      => date('Y-m-d H:i:s'),
                     'independence'      => self::encode($verdict),
-                ]);
+                    // ── THE WINDOW, WRITTEN DOWN ─────────────────────────────
+                    //
+                    // The notification tells every contact "no money moves on a claim
+                    // less than N days old". That sentence used to be the only place in
+                    // the codebase that knew about the window — nothing enforced it, and
+                    // ClaimGuard now refuses payouts against this exact column.
+                    //
+                    // STORED rather than derived, because the window length is a policy
+                    // that will change and a claim must be governed by the policy in
+                    // force when it was made. Deriving it from today's constant would
+                    // silently move a date a nominee has already been given in writing.
+                    'cooling_off_until' => ClaimGuard::windowFromNow(),
+                    // Minted here as well as by the notifier, so the dispute link exists
+                    // from the instant the claim is live rather than from whenever the
+                    // first message is composed.
+                    'dispute_token'     => ClaimDispute::mintToken(),
+                ], ['cooling_off_until', 'dispute_token']));
             if ($taken < 1) {
                 // Somebody else settled this row between the read and the write.
                 return $this->hold($claim, [
@@ -746,6 +762,31 @@ HTML;
             deviceFp: $deviceFp,
             ipHash:   $ipHash,
         );
+
+        // ── SECOND OPINION: SIGNALS INDEPENDENCE CANNOT SEE ──────────────────
+        //
+        // The independence check asks whether this contact belongs to somebody who
+        // nominated. It cannot see a SHARED mailbox (one school address on thirty
+        // children's nominations — independent of the nominator on every one of them,
+        // and proof of being none of them), one device working through several nominees,
+        // or a page whose published result makes it worth taking.
+        //
+        // Either voice can send a claim to a person; neither can refuse it. See ClaimRisk.
+        $risk = ClaimRisk::assess($nomineeId, $contact, $deviceFp, $ipHash);
+        if ($risk['hold']) {
+            return [
+                'independent' => false,
+                // Both sets of reasons are kept on the row: an operator opening a held
+                // claim needs to know whether it was held for a contact match, a breadth
+                // signal, or both — they lead to different questions.
+                'matched' => array_values(array_unique(array_merge($v['matched'], $risk['signals']))),
+                // The RISK sentence when independence had nothing to say, because
+                // ClaimIndependence's wording explains a nominator match and would be
+                // simply untrue here.
+                'say' => $v['independent'] ? $risk['say'] : $v['say'],
+            ];
+        }
+
         return ['independent' => $v['independent'], 'matched' => $v['matched'], 'say' => $v['say']];
     }
 

@@ -504,7 +504,9 @@ final class CommunityReturnService
      * programme; `share_kobo` is theirs; `payable_kobo` is what a withdrawal could
      * take today, which is less whenever a cycle is still running.
      *
-     * @return array{raised_kobo:int, share_kobo:int, payable_kobo:int, held_kobo:int, entries:int}
+     * @return array{raised_kobo:int, share_kobo:int, payable_kobo:int, held_kobo:int,
+     *               entries:int, withdrawable_kobo:int,
+     *               claim_block:?array{code:string,reason:string}}
      */
     public static function balance(int $nomineeId): array
     {
@@ -519,12 +521,43 @@ final class CommunityReturnService
             if ((string) $r->entry_type === 'release')  $held   -= (int) $r->amount_kobo;
         }
 
+        $payable = self::payableFor($nomineeId, $rows);
+
+        // ── TWO QUESTIONS, TWO NUMBERS ────────────────────────────────────────
+        //
+        // `payable_kobo` answers "have the cycle rules released this money" — earned,
+        // results announced, integrity holds deducted. It is about the MONEY, and it is
+        // deliberately unchanged: the finance screens, the statement and the nominee's
+        // own view of what they have earned all mean exactly what they meant before.
+        //
+        // `withdrawable_kobo` answers the different question: "is there a verified person
+        // to send it to, and may it go yet". That is claim state, and conflating the two
+        // into one figure would either report zero earned for every unclaimed nominee on
+        // the platform or pay out to whoever claimed a page an hour ago.
+        //
+        // WHY THE SECOND NUMBER HAD TO EXIST. Every contact on a nomination is told, in
+        // writing, when a page is claimed: "No money moves on a claim less than 7 days
+        // old." That sentence lived in one private constant inside the notification email
+        // and was referenced by nothing else — no code anywhere read claim state before
+        // money was described as available. A hijacked claim was worth cash the instant
+        // it activated. This is the number a payout acts on, and ClaimGuard is what it
+        // asks.
+        $state = \AfricaGates\Services\ClaimGuard::payoutState($nomineeId);
+        $withdrawable = $state['payable'] ? $payable : 0;
+
         return [
             'raised_kobo'  => max(0, $raised),
             'share_kobo'   => $share,
-            'payable_kobo' => self::payableFor($nomineeId, $rows),
+            'payable_kobo' => $payable,
             'held_kobo'    => max(0, $held),
             'entries'      => $rows->count(),
+            // What may actually leave. Never greater than payable_kobo.
+            'withdrawable_kobo' => $withdrawable,
+            // Null when claim state is withholding nothing — so a reader can tell "zero
+            // because nothing is earned yet" from "zero because we will not pay this
+            // yet", which read identically before.
+            'claim_block'  => $state['payable'] ? null
+                              : ['code' => $state['code'], 'reason' => $state['reason']],
         ];
     }
 
