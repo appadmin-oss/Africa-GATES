@@ -1528,6 +1528,12 @@ return function(App $app) {
         // exact paragraph and a search engine can index it — none of which a
         // single page of accordions could do. See HelpController.
         $g->get('/help', HelpController::class . ':index');
+        // Every answer in one category. BEFORE the article route: both patterns
+        // exclude slashes, so `c/payments` could never match {slug} anyway, but the
+        // ordering is the thing that keeps that true if either pattern is ever
+        // loosened. A category has its own page because without one the index had
+        // to print all 33 answers inline — see HelpController::category().
+        $g->get('/help/c/{cat:[a-z0-9-]+}', HelpController::class . ':category');
         // Registered after the index, and the pattern excludes slashes, so it can
         // never shadow a deeper /help/... path added later.
         $g->get('/help/{slug:[a-z0-9-]+}', HelpController::class . ':article');

@@ -3,33 +3,46 @@
 {#
   THE HELP CENTRE INDEX.
 
-  ── WHAT CHANGED, AND WHY ───────────────────────────────────────────────────
-  This was one screen: a search box that filtered six accordions client-side, six
-  tiles linking to product pages (not to answers), and a contact banner. Three
-  problems, all structural rather than cosmetic:
+  ── WHAT THIS PAGE IS FOR ───────────────────────────────────────────────────
+  Somebody arriving here is stuck, not browsing, and the ticket queue says the
+  top arrival by a distance is "I paid and I have no votes". So the order is:
+  search, then the four things that go wrong most, then the taxonomy. Making a
+  stuck person read a category system first is a small unkindness repeated
+  thousands of times.
 
-    1. Nothing could be linked to. An accordion has no URL, so support could not
-       paste an answer, the assistant could not cite one, and no search engine
-       could index one.
-    2. The tiles went to /vote and /nominate — the product, not the help. Somebody
-       whose payment has failed does not want the checkout again.
-    3. The search could only match text already rendered. "Debited" found nothing,
-       because no article uses the word — while being exactly what people type.
+  ── THE LAYOUT PROBLEM THIS REBUILD FIXES ───────────────────────────────────
+  The previous version put six category cards in `grid-template-columns:
+  repeat(2,1fr)` and printed EVERY answer in each one. The corpus is deeply
+  uneven — 12 answers under "Results & integrity", 2 under "Privacy" — and a
+  grid row is as tall as its tallest cell, so each row left a column of empty
+  page beside the short card. Measured: 2,858px tall at 1280px wide, roughly a
+  third of it void, and "Results & integrity" was a wall of twelve links.
 
-  Now: server-side search over keywords, categories that lead to answers, and the
-  four commonest emergencies promoted above everything else.
+  Three changes, and the first is the one that matters:
 
-  ── THE ORDER OF THIS PAGE IS THE ARGUMENT ──────────────────────────────────
-  Search, then the four things that go wrong most, then the taxonomy. A person
-  arriving here is stuck, not browsing, and the ticket queue says the top arrival
-  by a distance is "I paid and I have no votes". Making them read a category
-  system first is a small unkindness repeated thousands of times.
+    1. CSS MULTI-COLUMN instead of a grid. Cards flow and pack, so a short card
+       is followed by the next card rather than by 350px of nothing. The column
+       count is the browser's: `columns: 20rem 2` means "as many columns as fit,
+       none narrower than 20rem, at most two", so a phone gets one and anything
+       above about 660px gets two, with no breakpoint in between. Now 2,317px
+       and the two columns end within 60px of each other.
+
+       Two and not three, having tried three: it fits at 1280px, saves only
+       150px of height, and every second title wraps onto a second line. These
+       titles are sentences — "Someone nominated me — can I manage my own
+       profile?" — so the count is set by what a line of them needs to read,
+       not by how much width is left over.
+    2. EACH CARD SHOWS FIVE and links to its own page for the rest, which is
+       why /help/c/{cat} now exists. Six evenly-sized cards, one screen.
+    3. TYPING NARROWS IN PLACE. Progressive enhancement over the same GET form
+       — Enter still runs the real scored server search, which is shareable and
+       matches keywords the page does not contain. See the Alpine note below.
 #}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   body[data-page="help"]{ background:#eef0ec; color:var(--ag-ink); }
-  .hc{ max-width:1000px; margin:0 auto; padding:clamp(1.75rem,5vw,2.9rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+  .hc{ max-width:1120px; margin:0 auto; padding:clamp(1.75rem,5vw,2.9rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
 
   /* ── hero + search ─────────────────────────────────────────────────────── */
   .hc-hero{ text-align:center; }
@@ -38,20 +51,32 @@
   .hc-hero p{ margin:12px auto 0; max-width:34rem; font-size:15px; line-height:1.6; color:#4a5256; }
 
   /* A real GET form, so a search is a URL you can share and reload. */
-  .hc-search{ display:flex; align-items:center; gap:11px; background:var(--ag-surface); border:1px solid rgba(16,41,44,.14);
-    border-radius:14px; padding:6px 6px 6px 18px; margin:22px auto 0; max-width:560px; }
+  .hc-search{ position:relative; display:flex; align-items:center; gap:11px; background:var(--ag-surface); border:1px solid rgba(16,41,44,.14);
+    border-radius:14px; padding:6px 6px 6px 18px; margin:22px auto 0; max-width:600px; }
   .hc-search:focus-within{ border-color:var(--ag-green); box-shadow:0 0 0 3px rgba(127,200,124,.18); }
   .hc-search input{ flex:1; min-width:0; border:none; outline:none; font-family:inherit; font-size:15px; color:var(--ag-ink); background:none; padding:10px 0; }
+  .hc-search input::-webkit-search-cancel-button{ cursor:pointer; }
   .hc-search button{ flex:none; cursor:pointer; border:none; font-family:inherit; font-weight:600; font-size:14px;
     padding:11px 20px; border-radius:10px; background:var(--ag-ink); color:#fff; }
 
+  /* The live count. Sits under the field rather than replacing anything, so the
+     page never jumps as you type. */
+  .hc-live{ margin:10px auto 0; max-width:600px; font-size:13px; color:var(--ag-ink-soft); min-height:1.2em; }
+  .hc-live b{ color:var(--ag-ink); }
+  .hc-live a{ color:var(--ag-green); font-weight:600; }
+
   /* ── the emergencies ───────────────────────────────────────────────────── */
   .hc-sec{ margin-top:clamp(2rem,4vw,2.75rem); }
-  .hc-sec__h{ display:flex; align-items:baseline; gap:12px; margin:0 0 14px; }
+  .hc-sec__h{ display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin:0 0 14px; }
   .hc-sec__h h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.25rem; }
   .hc-sec__h span{ font-size:13px; color:var(--ag-ink-soft); }
 
-  .hc-top{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+  /* TWO up, deliberately, rather than auto-fit. There are exactly four of these
+     and the set is curated in HelpController, so the count is known. auto-fit put
+     three on the first row and left the fourth as an orphan beside empty space —
+     the same raggedness this rebuild removed from the topic cards, reintroduced at
+     the top of the page. A 2×2 block is balanced at every width above a phone. */
+  .hc-top{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
   .hc-top a{ display:flex; gap:13px; align-items:flex-start; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08);
     border-radius:16px; padding:16px 18px; text-decoration:none; transition:border-color .15s, transform .15s, box-shadow .15s; }
   .hc-top a:hover{ border-color:rgba(16,41,44,.2); transform:translateY(-2px); box-shadow:0 12px 26px -18px rgba(16,41,44,.5); }
@@ -63,19 +88,34 @@
   .hc-top__d{ display:block; font-size:12.5px; line-height:1.5; color:var(--ag-ink-soft); margin-top:4px; }
 
   /* ── categories ────────────────────────────────────────────────────────── */
-  /* `align-items:start` — grid rows stretch by default, so a category with two
-     answers was drawn as tall as the one beside it with seven and ended in a
-     block of empty card. Each card is now the height of its own contents. */
-  .hc-cats{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; align-items:start; }
-  .hc-cat{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:20px 22px; }
-  .hc-cat__hd{ display:flex; align-items:center; gap:12px; }
+  /* MULTI-COLUMN, not grid. See the note at the top of this file: with a grid,
+     a 2-answer category sat beside a 12-answer one and the row was as tall as
+     the taller, leaving a column of empty page. Columns pack instead.
+     `columns: <width> <count>` sets a MAXIMUM count and a MINIMUM width, and the
+     browser picks — one column on a phone, two from about 660px up, with nothing
+     in between needing a media query.
+
+     The cap is 2 rather than 3 on purpose; see the note at the top of the file.
+     Three fits at 1280px and saves 150px of height, at the cost of wrapping every
+     second title onto a second line. */
+  .hc-cats{ columns:20rem 2; column-gap:16px; }
+  .hc-cat{ break-inside:avoid; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08);
+    border-radius:18px; padding:20px 22px; margin:0 0 16px; }
+  .hc-cat__hd{ display:flex; align-items:center; gap:12px; text-decoration:none; }
   .hc-cat__ico{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; }
   .hc-cat__t{ font-weight:600; font-size:15px; color:var(--ag-ink); }
   .hc-cat__d{ font-size:12.5px; color:var(--ag-ink-soft); margin-top:2px; }
+  a.hc-cat__hd:hover .hc-cat__t{ color:var(--ag-green); }
   .hc-cat__list{ list-style:none; margin:14px 0 0; padding:0; display:flex; flex-direction:column; }
   .hc-cat__list li + li{ border-top:1px solid rgba(16,41,44,.06); }
   .hc-cat__list a{ display:block; padding:10px 0; font-size:14px; line-height:1.45; color:#39464a; text-decoration:none; }
   .hc-cat__list a:hover{ color:var(--ag-green); }
+  .hc-cat__more{ display:inline-block; margin-top:12px; font-size:13px; font-weight:600; color:var(--ag-green); text-decoration:none; }
+  .hc-cat__more:hover{ text-decoration:underline; }
+  /* Hidden by the live filter. A class rather than an inline style so Alpine's
+     `:class` cannot clobber anything else on the element. */
+  .hc-cat.is-out, .hc-cat__list li.is-out{ display:none; }
+  .hc-cat__none{ font-size:13px; color:var(--ag-ink-soft); margin-top:12px; }
 
   /* ── search results ────────────────────────────────────────────────────── */
   .hc-res{ display:flex; flex-direction:column; gap:11px; }
@@ -104,36 +144,88 @@
   .hc-btn--p{ background:var(--ag-green-light); color:var(--ag-ink); }
   .hc-btn--g{ border:1px solid rgba(255,255,255,.24); background:none; color:#fff; }
 
-  @media (max-width:820px){ .hc-cats{ grid-template-columns:1fr; } }
+  /* One breakpoint left, and only for things a fluid rule cannot express. */
   @media (max-width:640px){
-    .hc-top{ grid-template-columns:1fr; }
     /* The search button collapses to its icon: at 360px a labelled button leaves
        the input too narrow to read what you typed. */
     .hc-search button span{ display:none; }
     .hc-search button{ padding:11px 14px; }
     .hc-ask{ flex-direction:column; align-items:flex-start; }
+    /* Two of these side by side on a phone leaves each title wrapping over four
+       lines, which is worse than scrolling. */
+    .hc-top{ grid-template-columns:1fr; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    .hc-top a{ transition:none; }
+    .hc-top a:hover{ transform:none; }
   }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="hc">
+{#
+  ── WHY ALPINE IS ON THE WHOLE PAGE AND NOT ON THE FORM ─────────────────────
+  The filter has to reach both the category cards and the live count, which are
+  siblings in different sections, so the state lives at the top.
+
+  `filter` is the typed string; nothing else. The corpus is a `<script
+  type="application/json">` block read once on init rather than an x-data
+  literal: 33 titles plus keywords is several kilobytes, and interpolating that
+  into an HTML attribute is how the vote page ended up with a broken x-data —
+  a quote in a title closes the attribute. JSON in a script tag has no such
+  failure mode, and it is not executable, so CSP is untouched.
+#}
+<div class="hc"
+     x-data="{
+       filter: '',
+       index: [],
+       init() { try { this.index = JSON.parse(this.$refs.corpus.textContent) } catch (e) { this.index = [] } },
+       get needle() { return this.filter.trim().toLowerCase() },
+       hits() { return this.needle.length < 2 ? this.index : this.index.filter(a => a.k.includes(this.needle)) },
+       shows(slug) { return this.needle.length < 2 || this.hits().some(a => a.s === slug) },
+       inCat(cat) { return this.hits().filter(a => a.c === cat).length },
+     }">
+
+  {# A DATA block, not code — `type="application/json"` is never executed, so
+     script-src does not apply to it. It carries the nonce anyway because the
+     repo-wide rule is "every inline <script> without src has one"
+     (CspTest::test_no_template_source_contains_an_un_nonced_inline_script), and an
+     invariant with an exception in it stops being mechanically checkable. #}
+  <script type="application/json" nonce="{{ csp_nonce }}" x-ref="corpus">{{ index|json_encode(constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
 
   <header class="hc-hero">
     <p class="hc-eyebrow">Help Centre</p>
     <h1>{% if q %}Results for “{{ q }}”{% else %}What has gone wrong?{% endif %}</h1>
     {% if not q %}
-      <p>Most problems here have a two-minute answer. Search it, or pick the one that sounds like yours.</p>
+      <p>Most problems here have a two-minute answer. Start typing and the list narrows, or press Enter to search properly.</p>
     {% endif %}
 
     {# A GET form, not an Alpine filter. A search you can bookmark, share with
        support, or press back to — and it matches the keywords people actually
-       type, which client-side filtering over rendered text cannot. #}
+       type, which client-side filtering over rendered text cannot. The live
+       narrowing below is additive: with JavaScript off this still works. #}
     <form class="hc-search" method="get" action="/help" role="search">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5a6d6f" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-      <input type="search" name="q" value="{{ q }}" placeholder="Describe it — “paid but no votes”, “no code”…" aria-label="Search the Help Centre">
+      <input type="search" name="q" value="{{ q }}" x-model="filter"
+             placeholder="Describe it — “paid but no votes”, “no code”…"
+             aria-label="Search the Help Centre" autocomplete="off">
       <button type="submit"><span>Search</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="display:block"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
     </form>
+
+    {# aria-live so the count is announced rather than only seen. `polite`, not
+       `assertive`: it changes on every keystroke and must not interrupt. #}
+    {% if not q %}
+      <p class="hc-live" aria-live="polite" x-cloak x-show="needle.length >= 2">
+        <template x-if="hits().length">
+          <span><b x-text="hits().length"></b> of {{ total }} answers match — or
+            <a :href="'/help?q=' + encodeURIComponent(filter)">search properly</a> for the best one first.</span>
+        </template>
+        <template x-if="!hits().length">
+          <span>No title matches that.
+            <a :href="'/help?q=' + encodeURIComponent(filter)">Search the full text →</a></span>
+        </template>
+      </p>
+    {% endif %}
   </header>
 
   {% if q %}
@@ -170,7 +262,10 @@
 
   {% else %}
     {# ── the four emergencies ────────────────────────────────────────────── #}
-    <section class="hc-sec">
+    {# Hidden once a filter is on: they are a shortcut for somebody who has not
+       said what they want, and leaving them above a filtered list makes the
+       filter look broken. #}
+    <section class="hc-sec" x-show="needle.length < 2">
       <div class="hc-sec__h">
         <h2>Most people are here for one of these</h2>
       </div>
@@ -192,28 +287,74 @@
     {# ── everything, by category ─────────────────────────────────────────── #}
     <section class="hc-sec">
       <div class="hc-sec__h">
-        <h2>Everything else</h2>
-        <span>{{ by_category|reduce((c, v) => c + v|length, 0) }} answers</span>
+        <h2 x-text="needle.length >= 2 ? 'Matching answers' : 'Browse by topic'">Browse by topic</h2>
+        <span x-show="needle.length < 2">{{ total }} answers in {{ categories|length }} topics</span>
       </div>
       <div class="hc-cats">
         {% for key, c in categories %}
-          <div class="hc-cat">
-            <div class="hc-cat__hd">
+          {% set list = by_category[key] %}
+          {# A card with nothing left after filtering is removed entirely rather
+             than left as an empty shell — six empty cards is a worse answer than
+             one that says nothing matched. #}
+          <div class="hc-cat" :class="{ 'is-out': inCat('{{ key }}') === 0 && needle.length >= 2 }">
+            <a class="hc-cat__hd" href="/help/c/{{ key }}">
               <span class="hc-cat__ico" style="background:{{ c.tint }};color:{{ c.fg }}">
                 <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ c.icon|raw }}</svg>
               </span>
-              <div>
-                <div class="hc-cat__t">{{ c.title }}</div>
-                <div class="hc-cat__d">{{ c.blurb }}</div>
-              </div>
-            </div>
+              <span>
+                <span class="hc-cat__t" style="display:block">{{ c.title }}</span>
+                <span class="hc-cat__d" style="display:block">{{ c.blurb }}</span>
+              </span>
+            </a>
             <ul class="hc-cat__list">
-              {% for a in by_category[key] %}
-                <li><a href="/help/{{ a.slug }}">{{ a.title }}</a></li>
+              {# EVERY article is rendered, and the ones past the preview are
+                 hidden by CSS until a filter is typed. That way the live filter
+                 can reach the whole category without a round trip, and a reader
+                 with no JavaScript still sees the first few plus a real link to
+                 the rest. #}
+              {#
+                OBJECT syntax on :class, not a string, and the difference is a bug
+                that shipped once already on the vote page.
+
+                `:class="cond ? '' : 'is-out'"` ADDS the classes it evaluates to and
+                removes only ones it added before — it never touches a class that
+                was in the static `class` attribute. So an <li> rendered with
+                `class="is-out"` for the server-side preview cap stayed hidden
+                forever, and searching "refund" showed a Payments card with nothing
+                in it, because the matching answer is the sixth in its category.
+
+                The object form sets and UNSETS the named class, so the static one is
+                cleared when the filter wants the item back. And the static class has
+                to stay: it is what caps the list for a reader with no JavaScript.
+              #}
+              {% for a in list %}
+                <li {% if loop.index > preview %}class="is-out"{% endif %}
+                    :class="{ 'is-out': !(shows('{{ a.slug }}') && (needle.length >= 2 || {{ loop.index }} <= {{ preview }})) }">
+                  <a href="/help/{{ a.slug }}">{{ a.title }}</a>
+                </li>
               {% endfor %}
             </ul>
+            {% if list|length > preview %}
+              <a class="hc-cat__more" href="/help/c/{{ key }}" x-show="needle.length < 2">
+                All {{ list|length }} answers on {{ c.title|lower }} →
+              </a>
+            {% endif %}
           </div>
         {% endfor %}
+      </div>
+
+      {# The one place a filter can dead-end, and it hands over rather than stopping. #}
+      <div class="hc-none" style="margin-top:16px" x-cloak
+           x-show="needle.length >= 2 && !hits().length">
+        <p>Nothing written covers that yet.</p>
+        <span>Search the full text of every answer, or ask the assistant — it can look up your own
+              payments and votes, which no article can.</span>
+        <div style="margin-top:16px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap">
+          <a class="hc-btn hc-btn--p" style="background:var(--ag-ink);color:#fff"
+             :href="'/help?q=' + encodeURIComponent(filter)">Search the full text</a>
+          <a class="hc-btn hc-btn--g" style="border-color:rgba(16,41,44,.2);color:var(--ag-ink)"
+             :href="'/support/assistant?q=' + encodeURIComponent(filter)">Ask the assistant</a>
+        </div>
       </div>
     </section>
   {% endif %}

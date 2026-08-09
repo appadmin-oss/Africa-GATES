@@ -53,6 +53,10 @@ final class HelpController
             'results'          => $q !== '' ? HelpCentre::search($q, 12) : [],
             'categories'       => HelpCentre::CATEGORIES,
             'by_category'      => $this->grouped(),
+            // How many titles a category card shows before it defers to its own
+            // page. The index used to print all 33 at once, which made "Results &
+            // integrity" a wall of twelve links and the page 2,800px tall.
+            'preview'          => self::PREVIEW,
             // The four a stuck person needs most often, promoted above the fold so
             // the commonest arrival does not have to read a taxonomy first.
             'top'              => array_values(array_filter(
@@ -61,7 +65,96 @@ final class HelpController
                     'paid-but-no-votes', 'vote-not-showing', 'code-did-not-arrive', 'paid-just-before-close',
                 ], true)
             )),
+            'index'            => $this->searchIndex(),
+            'total'            => count(HelpCentre::all()),
         ]);
+    }
+
+    /**
+     * GET /help/c/{cat} — every answer in one category.
+     *
+     * ── WHY THIS ROUTE HAD TO EXIST ──────────────────────────────────────────
+     *
+     * This class's own description has always claimed "an index, a category, and an
+     * article". There was no category route. The consequence was structural rather
+     * than cosmetic: with nowhere for a category to lead, the index had to print
+     * every one of its answers inline, so a card for a category with twelve answers
+     * was twelve times the height of one with two, and a two-column grid of those
+     * left roughly a third of the page as empty column.
+     *
+     * With somewhere to go, each card shows the first few and defers the rest — and
+     * "Payments & votes you paid for" becomes a thing support can link to.
+     */
+    public function category(Request $req, Response $res, array $args): Response
+    {
+        $key = (string) ($args['cat'] ?? '');
+        $cat = HelpCentre::CATEGORIES[$key] ?? null;
+
+        if ($cat === null) {
+            // Same reasoning as a stale article slug: somebody following an old
+            // link is still a person with a question, not a 404.
+            return $res->withHeader('Location', '/help')->withStatus(302);
+        }
+
+        $articles = HelpCentre::inCategory($key);
+
+        return $this->view->render($res, 'pages/help-category.twig', [
+            'page_title'       => $cat['title'] . ' — Help Centre — Africa GATES',
+            'meta_description' => (string) ($cat['blurb'] ?? '')
+                                . ' ' . count($articles) . ' answers on Africa GATES.',
+            'gates_page'       => 'help',
+            'has_hero'         => false,
+            'category'         => $cat,
+            'category_key'     => $key,
+            'articles'         => $articles,
+            'categories'       => HelpCentre::CATEGORIES,
+            'counts'           => array_map('count', $this->grouped()),
+        ]);
+    }
+
+    /** Titles a category card shows before deferring to its own page. */
+    private const PREVIEW = 5;
+
+    /**
+     * The corpus, flattened for instant narrowing in the browser.
+     *
+     * ── WHY BOTH THIS AND THE SERVER SEARCH ──────────────────────────────────
+     *
+     * The GET form stays exactly as it was, and it is still the thing that answers:
+     * a search is a URL you can bookmark, share with support, or press back to, and
+     * {@see HelpCentre::search()} scores keywords above titles above bodies, which
+     * no substring filter can do.
+     *
+     * What this adds is the part between keystrokes. Thirty-three answers is small
+     * enough to hold in a page, so typing can narrow the categories in place with
+     * no round trip — and pressing Enter still performs the real, scored, shareable
+     * search. The enhancement is additive: with JavaScript off, the form works and
+     * nothing is missing.
+     *
+     * KEYWORDS are included because they are the words people actually type and
+     * several appear nowhere in the article they point at — "debited" has to reach
+     * "I paid but my votes have not appeared". The BODY is not: it would multiply
+     * the payload for matches that are mostly noise, and the server search already
+     * weights body hits last for the same reason.
+     *
+     * @return list<array{s:string,t:string,c:string,k:string}>
+     */
+    private function searchIndex(): array
+    {
+        $out = [];
+        foreach (HelpCentre::all() as $a) {
+            $out[] = [
+                's' => (string) $a['slug'],
+                't' => (string) $a['title'],
+                'c' => (string) $a['cat'],
+                // Lower-cased once here rather than on every keystroke in the browser.
+                'k' => mb_strtolower(implode(' ', array_merge(
+                    [(string) $a['title'], (string) ($a['summary'] ?? '')],
+                    (array) ($a['keywords'] ?? [])
+                ))),
+            ];
+        }
+        return $out;
     }
 
     /** GET /help/{slug} — one answer, on its own page. */
