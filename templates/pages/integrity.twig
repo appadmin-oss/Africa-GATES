@@ -98,7 +98,7 @@
 {% block head_styles %}{{ art.styles() }}{% endblock %}
 
 {% block content %}
-{{ art.script({ txt_url: '/philosophy.txt', url: doc_url, tab_ids: doc_citations|column('id') }, csp_nonce) }}
+{{ art.script({ txt_url: '/philosophy/download/txt', url: doc_url, tab_ids: doc_citations|column('id') }, csp_nonce) }}
 
 {% set method_toc = [
   { id: 'why',      title: 'Why this exists' },

@@ -580,6 +580,78 @@ final class PhilosophyDocumentTest extends TestCase
         }
     }
 
+    // ── 9 · Download must not depend on JavaScript ──────────────────────────
+
+    /**
+     * THE REGRESSION THIS SECTION IS FOR.
+     *
+     * Download shipped as an Alpine popover containing the two format links, and was
+     * reported as "does not work" on the live host while serving fine locally. A
+     * popover can present exactly that way: it is invisible until JavaScript opens
+     * it, so if Alpine fails to initialise for any reason — a different CSP than the
+     * one the app sends (this project's production .htaccess replaces it wholesale),
+     * a blocked script, an old WebView — the button is present, clickable, and does
+     * nothing at all.
+     *
+     * A document download has no business depending on scripting. These assertions
+     * pin it as plain anchors.
+     */
+    public function test_download_is_a_plain_anchor_and_needs_no_javascript(): void
+    {
+        [, $html] = $this->get('/philosophy');
+
+        // Real links with a download attribute, not a JS-opened menu.
+        $this->assertMatchesRegularExpression(
+            '/<a class="ar-tool" href="[^"]*download\/md" download="[^"]+\.md"/', $html,
+            'the .md download is not a plain anchor');
+        $this->assertMatchesRegularExpression(
+            '/<a class="ar-tool" href="[^"]*download\/txt" download="[^"]+\.txt"/', $html,
+            'the .txt download is not a plain anchor');
+
+        // And the popover is gone for good.
+        $this->assertStringNotContainsString('ar-pop', $html,
+            'the download popover is back — it can fail silently when Alpine does not load');
+        $this->assertStringNotContainsString('x-show="menu"', $html);
+    }
+
+    /**
+     * Extension-shaped URLs are at the mercy of the web server before PHP sees them:
+     * MultiViews, mod_negotiation, static-file handlers, and this project's own root
+     * .htaccess, which denies whole extension classes by FilesMatch. A path with no
+     * extension cannot be intercepted by any of that, so it is the canonical one.
+     */
+    public function test_the_canonical_download_paths_have_no_extension(): void
+    {
+        foreach (['/philosophy/download/md' => 'text/markdown',
+                  '/philosophy/download/txt' => 'text/plain'] as $path => $type) {
+            [$status, $body, $res] = $this->get($path);
+
+            $this->assertSame(200, $status, "{$path} did not resolve");
+            $this->assertStringContainsString($type, $res->getHeaderLine('Content-Type'), $path);
+            $this->assertStringContainsString('attachment', $res->getHeaderLine('Content-Disposition'), $path);
+            $this->assertNotSame('', trim($body), "{$path} served nothing");
+        }
+    }
+
+    /** The dotted paths were published in the deploy notes, so they keep working. */
+    public function test_the_dotted_download_paths_still_resolve(): void
+    {
+        foreach (['/philosophy.md', '/philosophy.txt'] as $path) {
+            [$status, , $res] = $this->get($path);
+            $this->assertSame(200, $status, "{$path} stopped working — it may already be shared");
+            $this->assertStringContainsString('attachment', $res->getHeaderLine('Content-Disposition'));
+        }
+    }
+
+    /** The Copy button fetches the canonical extensionless path, not a dotted one. */
+    public function test_copy_fetches_the_canonical_path(): void
+    {
+        [, $html] = $this->get('/philosophy');
+
+        $this->assertStringContainsString('"\/philosophy\/download\/txt"', $html,
+            'copyAll() is still pointed at an extension-shaped URL');
+    }
+
     /** Version and dates are what make it citable. An empty one breaks every format. */
     public function test_the_document_is_versioned_and_dated(): void
     {

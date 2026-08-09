@@ -99,16 +99,9 @@
 {% endmacro %}
 
 {#
-  Copy · Download · Cite.
+  Download (.md) · Download (.txt) · Copy · Cite.
 
-  `@click.away` closes the download menu and Escape closes it from the keyboard —
-  a popover dismissible only by pointer is a trap for anyone who opened it with a
-  keyboard. The download links are real <a download> hrefs, so Download works with
-  no JavaScript at all; only Copy needs it.
-
-  d: {txt_url, md_url, file_stem, id, portable}
-
-  `id` disambiguates the popover on a page that ever renders two toolbars.
+  d: {txt_url, md_url, file_stem, portable}
 
   `portable` (default true) is whether this document HAS a .txt/.md edition. Set it
   false and only Cite renders. That is the case on /integrity, whose prose lives in
@@ -117,37 +110,47 @@
   the reader would file it and find out later. See MethodologyDocument.
 #}
 {% macro tools(d) %}
-{% set pid = 'ar-dl-' ~ (d.id|default('1')) %}
 {% set portable = d.portable is not defined or d.portable %}
 <div class="ar-tools">
   {% if portable %}
+  {#
+    ── DOWNLOAD IS PLAIN HTML, AND THAT IS THE FIX ──────────────────────────
+
+    This was an Alpine popover with the two formats inside it. Reported as "the
+    download feature does not work", and the reason it can present exactly that way
+    is that a popover is invisible until JavaScript opens it: if Alpine fails to
+    initialise for ANY reason — a different CSP than the one the app sends (this
+    project's production .htaccess replaces it wholesale), a blocked or cached
+    script, an older WebView — the button is still there, still clickable, and does
+    nothing at all. Silent, and indistinguishable from a broken route.
+
+    A document download has no business depending on JavaScript. Two ordinary
+    anchors with `download` work with scripting off, with any CSP, in any browser
+    that has ever existed. The only thing lost is the tidiness of one button
+    instead of two, which is not worth a feature that can fail silently.
+
+    Copy still needs JS — there is no non-JS way to write a clipboard — so it says
+    so out loud when it cannot work, rather than failing quietly.
+  #}
+  <a class="ar-tool" href="{{ d.md_url }}" download="{{ d.file_stem }}.md">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>
+    </svg>
+    Download <span class="ar-fmt">.md</span>
+  </a>
+  <a class="ar-tool" href="{{ d.txt_url }}" download="{{ d.file_stem }}.txt">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>
+    </svg>
+    Download <span class="ar-fmt">.txt</span>
+  </a>
+
   <button type="button" class="ar-tool" :class="done === 'all' && 'is-done'" @click="copyAll()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
       <rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
     </svg>
     <span x-text="done === 'all' ? 'Copied' : 'Copy'">Copy</span>
   </button>
-
-  <div style="position:relative">
-    <button type="button" class="ar-tool" @click="menu = !menu" :aria-expanded="menu ? 'true' : 'false'"
-            aria-haspopup="true" aria-controls="{{ pid }}">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/>
-      </svg>
-      Download
-    </button>
-    <div class="ar-pop" id="{{ pid }}" x-show="menu" x-cloak @click.away="menu = false"
-         @keydown.escape.window="menu = false" role="menu">
-      <a href="{{ d.md_url }}" download="{{ d.file_stem }}.md" role="menuitem" @click="menu = false">
-        <b>Markdown (.md)</b>
-        <span>Headings and quotes preserved — for quoting or republishing.</span>
-      </a>
-      <a href="{{ d.txt_url }}" download="{{ d.file_stem }}.txt" role="menuitem" @click="menu = false">
-        <b>Plain text (.txt)</b>
-        <span>Wrapped to 78 columns — pastes cleanly into an email.</span>
-      </a>
-    </div>
-  </div>
   {% endif %}
 
   <a class="ar-tool" href="#cite">

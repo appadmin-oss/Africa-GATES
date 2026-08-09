@@ -127,17 +127,15 @@ body[data-page="legal"]{
 .ar-tool[aria-expanded="true"]{ border-color:var(--ar-accent); background:var(--ar-wash); }
 .ar-tool.is-done{ border-color:var(--ar-accent); background:var(--ar-accent); color:#fff; }
 .ar-tool svg{ flex:none; }
-/* The first button in a toolbar is the primary one. */
-.ar-tools > button:first-child{ background:var(--ar-accent); border-color:var(--ar-accent); color:#fff; }
-.ar-tools > button:first-child:hover{ background:var(--ar-accent-dark); border-color:var(--ar-accent-dark); }
+/* The primary action is Download, and it is now an anchor rather than a button —
+   see the note in partials/article.twig on why Download stopped being a popover. */
+.ar-tools > a:first-child{ background:var(--ar-accent); border-color:var(--ar-accent); color:#fff !important; }
+.ar-tools > a:first-child:hover{ background:var(--ar-accent-dark); border-color:var(--ar-accent-dark); }
 
-.ar-pop{ position:absolute; top:calc(100% + .45rem); left:0; z-index:20; min-width:15.5rem;
-         background:var(--ar-surface); border:1px solid var(--ar-line); border-radius:var(--ag-r-md,14px); padding:.35rem;
-         box-shadow:0 14px 36px -12px rgba(16,41,44,.3); }
-.ar-pop a{ display:block; padding:.6rem .7rem; border-radius:9px; text-decoration:none !important; color:var(--ar-ink); }
-.ar-pop a:hover{ background:var(--ar-wash); }
-.ar-pop b{ display:block; font:600 13.5px/1.3 var(--ag-font-body); }
-.ar-pop span{ display:block; margin-top:2px; font-size:12px; line-height:1.45; color:var(--ar-faint); }
+/* The format on a download link. Muted, because ".md" is a detail and "Download" is
+   the verb — but present, because two buttons that both said Download and nothing
+   else would be a coin toss. */
+.ar-fmt{ font-family:var(--ag-font-mono); font-size:11px; font-weight:700; opacity:.72; letter-spacing:.02em; }
 
 .ar-say{ margin:.65rem 0 0; min-height:1.1rem; font:600 12.5px/1.1 var(--ag-font-body); color:var(--ar-accent-dark); }
 

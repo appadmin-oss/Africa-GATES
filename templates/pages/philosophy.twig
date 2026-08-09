@@ -74,7 +74,7 @@
 {% block head_styles %}{{ art.styles() }}{% endblock %}
 
 {% block content %}
-{{ art.script({ txt_url: '/philosophy.txt', url: doc_url, tab_ids: doc_citations|column('id') }, csp_nonce) }}
+{{ art.script({ txt_url: '/philosophy/download/txt', url: doc_url, tab_ids: doc_citations|column('id') }, csp_nonce) }}
 
 {% set toc = [{ label: '', items: doc_sections }] %}
 
@@ -90,7 +90,7 @@
           author: doc_author, version: doc_version, updated: doc_updated,
           read_minutes: doc_read_minutes
         }) }}
-        {{ art.tools({ txt_url: '/philosophy.txt', md_url: '/philosophy.md', file_stem: doc_file_stem, id: 'top' }) }}
+        {{ art.tools({ txt_url: '/philosophy/download/txt', md_url: '/philosophy/download/md', file_stem: doc_file_stem, id: 'top' }) }}
       </header>
 
       {{ art.contents(toc, false) }}
@@ -115,7 +115,7 @@
       {{ art.cite({
         citations: doc_citations, version: doc_version, published: doc_published,
         updated: doc_updated, accessed: doc_accessed, url: doc_url,
-        txt_url: '/philosophy.txt', md_url: '/philosophy.md', file_stem: doc_file_stem,
+        txt_url: '/philosophy/download/txt', md_url: '/philosophy/download/md', file_stem: doc_file_stem,
         note: 'This is a versioned document with a stable address. Please cite the version you read
                 — the figures in it track live programme settings, so an undated reference to
                 &ldquo;the Africa GATES philosophy&rdquo; may not describe what you saw.'

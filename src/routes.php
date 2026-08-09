@@ -812,8 +812,8 @@ return function(App $app) {
                 'doc_accessed'=>$today,
                 'doc_citations'=>$L::citations($doc, $url, $today),
                 'doc_file_stem'=>$L::fileStem($doc),
-                'doc_txt_url'=>'/'.$slug.'.txt',
-                'doc_md_url'=>'/'.$slug.'.md',
+                'doc_txt_url'=>'/'.$slug.'/download/txt',
+                'doc_md_url'=>'/'.$slug.'/download/md',
                 'doc_standfirst'=>($doc['updated_label'] ?? '') !== ''
                     ? 'Last updated '.$doc['updated_label'].', and effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.'
                     : 'Effective immediately. Written to be read — if any part of it is unclear, that is a fault worth reporting.',
@@ -850,6 +850,13 @@ return function(App $app) {
         // placeholder matches any run of non-slash characters — `/legal/{slug}` would
         // happily swallow `privacy.txt` as a slug and render the page instead of
         // serving the file.
+        // Extensionless first — see the note on /philosophy/download for why an
+        // extension-shaped URL is the wrong thing to depend on. Declared ahead of
+        // /terms/{slug} and /legal/{slug} so "download" cannot be read as a slug.
+        $g->get('/terms/download/{fmt:txt|md}',   fn($req,$res,$args)=>$legalFile($req,$res,'terms',(string)$args['fmt']));
+        $g->get('/privacy/download/{fmt:txt|md}', fn($req,$res,$args)=>$legalFile($req,$res,'privacy',(string)$args['fmt']));
+        $g->get('/cookies/download/{fmt:txt|md}', fn($req,$res,$args)=>$legalFile($req,$res,'cookies',(string)$args['fmt']));
+        $g->get('/legal/{slug}/download/{fmt:txt|md}', fn($req,$res,$args)=>$legalFile($req,$res,strtolower((string)($args['slug']??'')),(string)$args['fmt']));
         $g->get('/privacy.txt', fn($req,$res)=>$legalFile($req,$res,'privacy','txt'));
         $g->get('/privacy.md',  fn($req,$res)=>$legalFile($req,$res,'privacy','md'));
         $g->get('/terms.txt',   fn($req,$res)=>$legalFile($req,$res,'terms','txt'));
@@ -949,6 +956,21 @@ return function(App $app) {
                 // (which fetches the .txt) off the database on every click.
                 ->withHeader('Cache-Control', 'public, max-age=3600');
         };
+        // ── EXTENSIONLESS FIRST, DOTTED AS AN ALIAS ─────────────────────────
+        //
+        // `/philosophy.txt` was the only address, and it was reported as not working
+        // on the live host while serving fine locally. An extension-shaped URL is at
+        // the mercy of the web server before PHP ever sees it: MultiViews and
+        // mod_negotiation, static-file handlers, and this project's own root
+        // .htaccess — which denies whole extension classes by FilesMatch and remaps
+        // everything into public/ — all get a say. None of that is visible from here,
+        // and none of it can touch a path with no extension.
+        //
+        // So the canonical download paths have no extension. The dotted ones stay
+        // registered because they have been published in the deploy notes and may
+        // already be shared, and because if they DO work on a given host there is no
+        // reason to break them.
+        $g->get('/philosophy/download/{fmt:txt|md}', fn($req, $res, $args) => $integrityFile($req, $res, (string) $args['fmt']));
         $g->get('/philosophy.txt', fn($req, $res) => $integrityFile($req, $res, 'txt'));
         $g->get('/philosophy.md',  fn($req, $res) => $integrityFile($req, $res, 'md'));
         // The document lived at /integrity until it earned its own page. Anything
