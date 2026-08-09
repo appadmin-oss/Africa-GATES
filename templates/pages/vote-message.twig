@@ -31,6 +31,9 @@
   .vm__cheer{ display:inline-flex; align-items:center; gap:8px; align-self:flex-start; border:1px solid rgba(16,41,44,.16); background:#fff; color:#10292C; border-radius:999px; padding:9px 15px; font:600 13.5px/1 inherit; cursor:pointer; }
   .vm__cheer:hover{ border-color:#237b22; color:#237b22; }
   .vm__cheer[data-on="1"]{ background:#e8f3e7; border-color:#7FC87C; color:#1a6118; }
+  .vm__report{ background:none; border:none; padding:0; font:500 12.5px/1.4 inherit; color:#8a9a9c; cursor:pointer; }
+  .vm__report:hover{ color:#b3261e; text-decoration:underline; }
+  .vm__reported{ font-size:12.5px; color:#6b7d7f; }
   .vm__cta{ margin-top:26px; background:#10292C; border-radius:18px; padding:26px 28px; color:#eef3ee; }
   .vm__cta h2{ margin:0 0 8px; font-size:1.12rem; color:#fff; letter-spacing:-.01em; }
   .vm__cta p{ margin:0 0 18px; font-size:14px; line-height:1.7; color:#b9c9bd; }
@@ -39,11 +42,7 @@
   .vm__more{ margin-top:44px; }
   .vm__more h2{ font-size:1.02rem; margin:0 0 4px; letter-spacing:-.01em; }
   .vm__more p.vm__more-sub{ margin:0 0 18px; font-size:13px; color:#5a6d6f; }
-  .vm__list{ list-style:none; margin:0; padding:0; display:grid; gap:12px; }
-  .vm__item{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:14px; padding:16px 18px; }
-  .vm__item p{ margin:0; font-size:14.5px; line-height:1.65; color:#243b3d; }
-  .vm__item footer{ margin-top:9px; font-size:12px; color:#6b7d7f; display:flex; gap:9px; align-items:center; }
-  .vm__item footer a{ color:#237b22; font-weight:600; text-decoration:none; }
+  /* The item styles live in partials/vote-message-assets.twig, beside the markup. */
   .vm__legal{ margin-top:30px; font-size:12px; line-height:1.7; color:#7b8b8c; }
   .vm__legal a{ color:#5f7273; }
 </style>
@@ -69,11 +68,20 @@
       </p>
     </div>
 
-    <div class="vm__actions" x-data="vmCheer('{{ msg.token|e('js') }}', {{ msg.cheers|default(0) }})">
-      <button type="button" class="vm__cheer" :data-on="mine ? '1' : '0'" @click="cheer()" :disabled="busy">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3ZM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-        <span x-text="n > 0 ? (mine ? 'You and ' + (n - 1) + ' others' : n + (n === 1 ? ' cheer' : ' cheers')) : 'Cheer this'">Cheer this</span>
-      </button>
+    {# vmItem, the same component the wall items use — one implementation of "cheer"
+       and "report" on the platform, defined in partials/vote-message-assets.twig. #}
+    <div class="vm__actions" x-data="vmItem('{{ msg.token|e('js') }}', {{ msg.cheers|default(0) }})">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <button type="button" class="vm__cheer" :data-on="mine ? '1' : '0'" @click="cheer()" :disabled="busy">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3ZM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+          <span x-text="n > 0 ? (mine ? 'You and ' + (n - 1) + ' others' : n + (n === 1 ? ' cheer' : ' cheers')) : 'Cheer this'">Cheer this</span>
+        </button>
+        {# One tap, no form. A reason field is another screen between noticing something
+           about a real person and saying so, and the moderator reads the message either
+           way. Anyone can use it — see VoteMessageController::report(). #}
+        <button type="button" class="vm__report" @click="report()" x-show="!reported" x-cloak>Report this message</button>
+        <span class="vm__reported" x-show="reported" x-cloak>Reported — thank you. A moderator will look at it.</span>
+      </div>
       {# The same share row the whole platform uses. The text is the message itself,
          because that is what the reader is passing on. #}
       {% include 'partials/share.twig' with {
@@ -96,19 +104,22 @@
   <section class="vm__more">
     <h2>What others are saying</h2>
     <p class="vm__more-sub">{{ wall_total }} {{ wall_total == 1 ? 'message' : 'messages' }} for {{ msg.nominee_name }}.</p>
-    <ul class="vm__list">
-      {% for m in wall %}
-      <li class="vm__item">
-        <p>{{ m.body }}</p>
-        <footer>
-          <span>{{ m.name }}</span>
-          {% if m.token %}<span aria-hidden="true">·</span><a href="/m/{{ m.token }}">Open</a>{% endif %}
-        </footer>
-      </li>
-      {% endfor %}
+    {# The same item partial the ballot and the full messages page use, so a reader who
+       arrives here from Facebook gets the same cheer and report controls they would
+       anywhere else on the platform. #}
+    <ul class="vmi-list">
+      {% for m in wall %}{% include 'partials/vote-message.twig' with { m: m } only %}{% endfor %}
     </ul>
+    {% if wall_total > (wall|length + 1) and ballot_url %}
+    <p style="margin:16px 0 0;font-size:13px">
+      <a href="{{ ballot_url }}/messages" style="color:#237b22;font-weight:600;text-decoration:none">
+        Read all {{ wall_total }} messages for {{ msg.nominee_name }} →
+      </a>
+    </p>
+    {% endif %}
   </section>
   {% endif %}
+  {% include 'partials/vote-message-assets.twig' %}
 
   <p class="vm__legal">
     Messages are written by voters, not by Africa GATES, and are checked before they appear.
@@ -116,43 +127,4 @@
     real people quickly. Read the <a href="/terms">terms</a> and the <a href="/privacy">privacy notice</a>.
   </p>
 </div>
-{% endblock %}
-
-{% block foot_scripts %}
-<script nonce="{{ csp_nonce }}">
-/**
- * The cheer button.
- *
- * The count is authoritative on the server; this remembers the reader's own tap in
- * localStorage so the button stays lit on a return visit instead of inviting the
- * same person to cheer twice. The server enforces the real limit (one per network
- * per message per day) — this is politeness, not the rule.
- */
-function vmCheer(token, initial){
-  var key = 'afg_cheer_' + token;
-  return {
-    n: initial, mine: false, busy: false,
-    init(){ try { this.mine = !!localStorage.getItem(key); } catch(e){} },
-    async cheer(){
-      if (this.mine || this.busy) return;
-      this.busy = true;
-      try {
-        const r = await fetch('/api/vote-message/cheer', {
-          // X-Requested-With satisfies the same-origin guard on /api/ writes — see
-          // CsrfMiddleware::sameOrigin().
-          method:'POST', headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},
-          body: JSON.stringify({ token: token })
-        });
-        const d = await r.json().catch(function(){ return {}; });
-        if (d && d.success) {
-          if (typeof d.cheers === 'number') this.n = d.cheers;
-          this.mine = true;
-          try { localStorage.setItem(key, '1'); } catch(e){}
-        }
-      } catch(e){}
-      finally { this.busy = false; }
-    }
-  };
-}
-</script>
 {% endblock %}

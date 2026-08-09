@@ -503,8 +503,13 @@ class VoteController {
             // to print. The count is of approved messages too, so the "showing the N
             // most recent" line cannot imply held-back messages that a reader would
             // then wonder about.
-            'messages'           => \AfricaGates\Services\VoteMessageService::wall((int) $nom->id, 12),
+            // Six on the ballot, not twelve. This is a VOTING page — the wall is
+            // evidence that other people showed up, and past about half a dozen it
+            // becomes a scroll between the reader and the ballot they came for. The
+            // rest live at their own URL.
+            'messages'           => \AfricaGates\Services\VoteMessageService::wall((int) $nom->id, 6),
             'message_count'      => \AfricaGates\Services\VoteMessageService::countForNominee((int) $nom->id),
+            'messages_url'       => $nomPath . '/messages',
             // The ceiling comes from the service, not the textarea: the server
             // truncates at this number, so a `maxlength` that disagreed would either
             // silently cut a voter's words or promise room that does not exist.

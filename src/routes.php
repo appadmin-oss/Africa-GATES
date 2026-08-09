@@ -743,6 +743,9 @@ return function(App $app) {
         // og:image to. The 4:5 flier lost its bottom third — the vote URL and the rally
         // copy — in every preview. See FlierService::ogCard().
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/card.png',   FlierController::class.':card');
+        // Every message of support for one nominee, paginated. Before /{slug} for the
+        // same reason the flier routes are: FastRoute matches in declaration order.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/messages',   VoteMessageController::class.':forNominee');
         $g->get('/vote/{program}/{slug}', VoteController::class.':nominee');
 
         // ── A MESSAGE OF SUPPORT, AT ITS OWN URL ─────────────────────────────
@@ -755,6 +758,11 @@ return function(App $app) {
         //
         // Why a token instead of an id, and why the page re-checks approval on every
         // read: see VoteMessageController.
+        // The card BEFORE the page: FastRoute matches in declaration order, and
+        // `/m/{token}` would otherwise swallow nothing here (the patterns differ) but
+        // the ordering convention in this file is worth keeping — see the flier routes
+        // above for the case where it genuinely mattered.
+        $g->get('/m/{token:[A-Za-z0-9_-]{16,32}}/card.png', VoteMessageController::class.':card');
         $g->get('/m/{token:[A-Za-z0-9_-]{16,32}}', VoteMessageController::class.':permalink');
         $g->get('/partner',       PartnerController::class.':form');
         $g->post('/partner',      PartnerController::class.':submit');
@@ -1252,8 +1260,12 @@ return function(App $app) {
             // who they are. This endpoint is for the PAID path, where the checkout has
             // been to a bank and back and the payment reference is the proof. See
             // VoteMessageController::post().
-            $a->post('/vote-message',       VoteMessageController::class.':post');
-            $a->post('/vote-message/cheer', VoteMessageController::class.':cheer');
+            $a->post('/vote-message',        VoteMessageController::class.':post');
+            $a->post('/vote-message/cheer',  VoteMessageController::class.':cheer');
+            // Open to anyone, on purpose: the reader who most needs to report something
+            // about a named child is a stranger who followed a WhatsApp link and has no
+            // account here. Rate-limited per network per message. See the controller.
+            $a->post('/vote-message/report', VoteMessageController::class.':report');
             $a->post('/nominations/draft', ApiController::class.':saveDraft');
             $a->get('/nominations/draft',  ApiController::class.':loadDraft');
             $a->post('/nominations/share-link', ApiController::class.':createShareLink');

@@ -307,6 +307,114 @@ final class VoteMessageTest extends TestCase
         }
     }
 
+    // ── reports ──────────────────────────────────────────────────────────────
+
+    /**
+     * THE SAFEGUARDING PATH.
+     *
+     * The classifier cleared it; readers who can see the nominee — often a child —
+     * and the context did not. At the threshold the message comes OFF the page and
+     * goes in front of a person. The tie goes to taking it down and looking again.
+     */
+    public function test_enough_reader_reports_pull_an_approved_message_off_the_page(): void
+    {
+        $r = $this->submit();
+        $token = (string) $r['token'];
+
+        for ($i = 1; $i < VoteMessageService::REPORT_THRESHOLD; $i++) {
+            VoteMessageService::report($token);
+            $this->assertCount(1, VoteMessageService::wall(self::NOMINEE),
+                'the message came down before the threshold was reached');
+        }
+
+        VoteMessageService::report($token);
+
+        $this->assertSame([], VoteMessageService::wall(self::NOMINEE));
+        $this->assertNull(VoteMessageService::byToken($token), 'the share link still resolves after a takedown');
+        $this->assertCount(1, VoteMessageService::queue(), 'the reported message is not in front of a moderator');
+    }
+
+    /** Quarantined, never deleted — a moderator has to be able to put it straight back. */
+    public function test_a_reported_message_is_held_rather_than_destroyed(): void
+    {
+        $r = $this->submit();
+        for ($i = 0; $i < VoteMessageService::REPORT_THRESHOLD; $i++) {
+            VoteMessageService::report((string) $r['token']);
+        }
+
+        $row = DB::table('gates_vote_messages')->first();
+        $this->assertSame('quarantined', (string) $row->status);
+        $this->assertNull($row->deleted_at, 'a reported message was destroyed instead of held');
+        $this->assertSame(VoteMessageService::REPORT_THRESHOLD, (int) $row->reports);
+        $this->assertStringContainsString('report', (string) $row->mod_reason);
+
+        // And the moderator can reverse it.
+        VoteMessageService::decide((int) $r['id'], 'approve', 1);
+        $this->assertCount(1, VoteMessageService::wall(self::NOMINEE));
+    }
+
+    /**
+     * The previous verdict does not survive a takedown. It was a decision about
+     * whether the text was publishable, and it has just been contradicted by people
+     * who can see who the text is about.
+     */
+    public function test_a_takedown_clears_the_moderator_who_had_approved_it(): void
+    {
+        $r = $this->submit();
+        VoteMessageService::decide((int) $r['id'], 'approve', 42);
+
+        for ($i = 0; $i < VoteMessageService::REPORT_THRESHOLD; $i++) {
+            VoteMessageService::report((string) $r['token']);
+        }
+
+        $row = DB::table('gates_vote_messages')->first();
+        $this->assertNull($row->moderated_by);
+        $this->assertNull($row->moderated_at);
+    }
+
+    /** Reported messages sort to the top: they are the ones with a person waiting. */
+    public function test_the_queue_puts_reported_messages_first(): void
+    {
+        $old = $this->submit(['email' => 'old@example.com', 'body' => 'An older borderline one.'],
+            $this->spam('quarantine', 0.6, 'borderline'));
+        $new = $this->submit(['email' => 'new@example.com', 'body' => 'A newer one that readers flagged.']);
+        DB::table('gates_vote_messages')->where('id', $old['id'])->update(['created_at' => '2026-01-01 00:00:00']);
+
+        for ($i = 0; $i < VoteMessageService::REPORT_THRESHOLD; $i++) {
+            VoteMessageService::report((string) $new['token']);
+        }
+
+        $queue = VoteMessageService::queue();
+        $this->assertSame((int) $new['id'], (int) $queue[0]['id'],
+            'the reported message is buried behind whatever the classifier held that morning');
+    }
+
+    /**
+     * Anyone may report — no account. The reader who most needs this is a stranger who
+     * followed a WhatsApp link and saw something about a named child; requiring
+     * registration would not protect the nominee, it would mean the report never
+     * arrives.
+     *
+     * The reply is identical whether the report landed or was refused. A reporter told
+     * "you already reported this" has learned that the first one counted; one told
+     * "over the limit" has learned where the ceiling is.
+     */
+    public function test_the_report_endpoint_is_open_and_indistinguishable_when_refused(): void
+    {
+        $r = $this->submit();
+
+        $first = $this->jsonPost('/api/vote-message/report', ['token' => $r['token']]);
+        $again = $this->jsonPost('/api/vote-message/report', ['token' => $r['token']]);
+
+        $this->assertSame(200, $first->getStatusCode());
+        $this->assertSame(200, $again->getStatusCode());
+        $this->assertSame((string) $first->getBody(), (string) $again->getBody(),
+            'the second report from the same network is distinguishable from the first');
+
+        // And it only counted once, so a single reader cannot reach the threshold alone.
+        $this->assertSame(1, (int) DB::table('gates_vote_messages')->value('reports'));
+    }
+
     // ── cheers ───────────────────────────────────────────────────────────────
 
     public function test_cheering_counts_up_and_only_for_a_live_message(): void
@@ -460,6 +568,130 @@ final class VoteMessageTest extends TestCase
         // And it still has to lead somewhere: a shared message that cannot be acted
         // on is a dead end.
         $this->assertStringContainsString('/vote/prog-4400/', $html);
+    }
+
+    /**
+     * THE CARD IS THE SHARE.
+     *
+     * Facebook's preview is mostly image. Before this, the image was the nominee's
+     * ballot card — so fifty supporters posting fifty different sentences produced
+     * fifty identical "VOTE NOW" thumbnails and the words were lost. The og:image now
+     * points at the message's own graphic.
+     */
+    public function test_the_permalink_advertises_the_messages_own_card_not_the_ballots(): void
+    {
+        $r    = $this->submit();
+        $html = (string) $this->app()->handle(
+            (new ServerRequestFactory())->createServerRequest('GET', '/m/' . $r['token'])
+        )->getBody();
+
+        $this->assertMatchesRegularExpression(
+            '#property="og:image" content="[^"]*/m/' . preg_quote((string) $r['token'], '#') . '/card\.png"#',
+            $html,
+            'a shared message previews with the ballot card, so the words never appear'
+        );
+    }
+
+    /**
+     * A message permalink is share bait, not search bait: one short quote surrounded by
+     * boilerplate, one per message. A few hundred of those is thin content that dilutes
+     * the pages which should rank, so it is noindex — and `follow`, because the links
+     * out of it are worth crawling. Social crawlers read og: tags and ignore robots
+     * meta, so the share is unaffected. The full wall stays indexable.
+     */
+    public function test_a_message_permalink_is_noindex_but_the_full_wall_is_not(): void
+    {
+        $r = $this->submit();
+        $app = $this->app();
+
+        $one = (string) $app->handle(
+            (new ServerRequestFactory())->createServerRequest('GET', '/m/' . $r['token'])
+        )->getBody();
+        $all = (string) $app->handle(
+            (new ServerRequestFactory())->createServerRequest('GET', '/vote/prog-4400/' . self::NOMINEE . '-amara-okonkwo/messages')
+        )->getBody();
+
+        $this->assertMatchesRegularExpression('/name="robots" content="noindex, follow/', $one);
+        $this->assertMatchesRegularExpression('/name="robots" content="index, follow/', $all);
+        // The og: tags are what a share preview reads, and they are untouched by any of
+        // this — asserted here because "noindex" and "unshareable" are one careless
+        // change apart.
+        $this->assertStringContainsString('property="og:image"', $one);
+    }
+
+    /**
+     * And the card renders. GD and the bundled fonts are what it needs; where they are
+     * missing it must REDIRECT to the nominee's card rather than 404, because a missing
+     * og:image is a blank preview and that is worse than a generic one.
+     */
+    public function test_the_message_card_is_a_png_or_a_redirect_never_an_error(): void
+    {
+        $r   = $this->submit();
+        $res = $this->app()->handle(
+            (new ServerRequestFactory())->createServerRequest('GET', '/m/' . $r['token'] . '/card.png')
+        );
+
+        if ($res->getStatusCode() === 200) {
+            $this->assertSame('image/png', $res->getHeaderLine('Content-Type'));
+            // The PNG magic number, so this is a real raster and not an error page
+            // served with the wrong header.
+            $this->assertSame("\x89PNG", substr((string) $res->getBody(), 0, 4));
+            $this->assertStringContainsString('public', $res->getHeaderLine('Cache-Control'));
+        } else {
+            $this->assertSame(302, $res->getStatusCode(), 'no GD/fonts should redirect, not fail');
+            $this->assertStringContainsString('/card.png', $res->getHeaderLine('Location'));
+        }
+    }
+
+    /** A card for a message a moderator took down must not keep rendering. */
+    public function test_the_card_disappears_with_the_message(): void
+    {
+        $r = $this->submit();
+        VoteMessageService::decide((int) $r['id'], 'reject', 1);
+
+        $status = $this->app()->handle(
+            (new ServerRequestFactory())->createServerRequest('GET', '/m/' . $r['token'] . '/card.png')
+        )->getStatusCode();
+
+        $this->assertSame(404, $status);
+    }
+
+    /**
+     * The full wall is a PAGE, not a "load more" button — so it has a URL a nominee can
+     * send to their family, it is visible to crawlers and to readers without
+     * JavaScript, and the item markup has exactly one renderer.
+     */
+    public function test_a_nominee_has_a_page_of_all_their_messages(): void
+    {
+        $this->submit(['email' => 'a@example.com', 'body' => 'She never once asked anybody for a naira.']);
+        $this->submit(['email' => 'b@example.com', 'body' => 'Twelve people and no instruments.']);
+
+        $html = (string) $this->app()->handle(
+            (new ServerRequestFactory())->createServerRequest('GET', '/vote/prog-4400/' . self::NOMINEE . '-amara-okonkwo/messages')
+        )->getBody();
+
+        $this->assertStringContainsString('She never once asked anybody for a naira.', $html);
+        $this->assertStringContainsString('Twelve people and no instruments.', $html);
+        $this->assertStringContainsString('Messages for Amara Okonkwo', $html);
+        // The report control has to be on THIS page too — it comes from the shared
+        // partial, which is the whole reason the partial exists.
+        $this->assertStringContainsString('vmItem(', $html);
+    }
+
+    /** Held and rejected messages are not on it, not counted, and not hinted at. */
+    public function test_the_messages_page_shows_only_what_was_approved(): void
+    {
+        $this->submit(['email' => 'ok@example.com', 'body' => 'A clean and public message.']);
+        $this->submit(['email' => 'held@example.com', 'body' => 'Something borderline.'],
+            $this->spam('quarantine', 0.6, 'borderline'));
+
+        $html = (string) $this->app()->handle(
+            (new ServerRequestFactory())->createServerRequest('GET', '/vote/prog-4400/' . self::NOMINEE . '-amara-okonkwo/messages')
+        )->getBody();
+
+        $this->assertStringContainsString('A clean and public message.', $html);
+        $this->assertStringNotContainsString('Something borderline.', $html);
+        $this->assertStringContainsString('1 message from verified voters', $html);
     }
 
     public function test_an_unknown_or_rejected_token_is_a_404_not_a_blank_page(): void

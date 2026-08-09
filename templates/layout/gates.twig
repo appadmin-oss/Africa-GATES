@@ -8,7 +8,13 @@
   <meta name="theme-color" content="#10292C">
 
   <meta name="csrf-token" content="{{ csrf_token }}">
-  <meta name="robots" content="index, follow, max-image-preview:large">
+  {# Overridable, because not every page on this platform wants to be in an index.
+     A message permalink exists so Facebook has something to preview — hundreds of
+     near-identical short pages are the classic thin-content pattern and they would
+     dilute the pages that should rank. `follow` stays on regardless: the links out
+     of those pages (to the ballot, to /philosophy) are worth crawling even when the
+     page itself is not worth indexing. #}
+  <meta name="robots" content="{{ robots|default('index, follow, max-image-preview:large') }}">
   <meta name="author" content="Africa GATES — an Afrovanguard initiative">
   <meta name="keywords" content="{{ meta_keywords|default('Africa GATES, African awards, Cultural Power Index, CPI, Afrovanguard, African excellence, continental awards, African creatives, African nominations, African leaderboard, African cultural recognition') }}">
 

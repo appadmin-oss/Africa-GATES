@@ -318,6 +318,80 @@ final class VoteMessageService
         } catch (\Throwable) { return null; }
     }
 
+    /**
+     * How many reader reports pull an approved message back off the page.
+     *
+     * Three, and deliberately low. The community queue's threshold protects a forum
+     * from brigading; this one protects a named person — often a child — from words
+     * the classifier cleared and readers who can see the context did not. Getting it
+     * wrong in the strict direction costs a moderator one look at something fine.
+     * Getting it wrong in the other direction leaves it on their page.
+     */
+    public const REPORT_THRESHOLD = 3;
+
+    /**
+     * A reader reports a message.
+     *
+     * Deliberately quiet, exactly like the community reporter: the caller is told the
+     * report was recorded and never whether it tripped anything. Telling somebody
+     * "that is now hidden" turns the button into a weapon with a scoreboard, and
+     * telling them "two more needed" turns it into an instruction.
+     *
+     * De-duplication per reporter is the caller's job (the rate limiter, keyed on
+     * network + message) because there is no account here to key on — see the
+     * migration for why this is a counter rather than a row per reporter.
+     *
+     * @return array{ok:bool, message?:string}
+     */
+    public static function report(string $token, ?SpamService $spam = null): array
+    {
+        if ($token === '') return ['ok' => false, 'message' => 'Which message?'];
+
+        try {
+            $row = DB::table('gates_vote_messages')
+                ->where('share_token', $token)->whereNull('deleted_at')
+                ->select('id', 'status', 'reports')->first();
+            if ($row === null) return ['ok' => false, 'message' => 'That message is not available.'];
+
+            $n = (int) ($row->reports ?? 0) + 1;
+            DB::table('gates_vote_messages')->where('id', $row->id)->update([
+                'reports'     => $n,
+                'reported_at' => date('Y-m-d H:i:s'),
+            ]);
+
+            // At the threshold it comes OFF the page and goes in front of a person.
+            // Only an approved message can be pulled back: one already held is already
+            // where the reports would send it.
+            if ($n >= self::REPORT_THRESHOLD && (string) $row->status === 'approved') {
+                DB::table('gates_vote_messages')->where('id', $row->id)->update([
+                    'status'    => 'quarantined',
+                    'mod_score' => null,
+                    'mod_reason' => 'reported by ' . $n . ' readers',
+                    // The previous verdict is cleared: it was a decision about whether the
+                    // text was publishable, and it has now been contradicted by people who
+                    // can see who it is about.
+                    'moderated_by' => null,
+                    'moderated_at' => null,
+                ]);
+                // The same audit trail the automatic pipeline writes, so "why did this
+                // disappear" is answerable from one place.
+                try {
+                    ($spam ?? new SpamService())->logDecision('vote_message', (int) $row->id, [
+                        'provider' => 'reader-report',
+                        'decision' => 'quarantine',
+                        'score'    => 1.0,
+                        'reason'   => 'reported by ' . $n . ' readers',
+                    ]);
+                } catch (\Throwable) { /* the takedown matters; the log entry is a bonus */ }
+            }
+
+            return ['ok' => true, 'message' => 'Thank you — a moderator will look at this.'];
+        } catch (\Throwable $e) {
+            error_log('[vote-message] could not record a report: ' . $e->getMessage());
+            return ['ok' => false, 'message' => 'Could not record that right now.'];
+        }
+    }
+
     /** The current count for a token, 0 when unknown. */
     public static function cheerCount(string $token): int
     {
@@ -341,6 +415,10 @@ final class VoteMessageService
                 ->leftJoin('gates_nominees as n', 'n.id', '=', 'm.nominee_id')
                 ->whereIn('m.status', ['pending', 'quarantined'])
                 ->whereNull('m.deleted_at')
+                // REPORTED FIRST, then oldest. A message readers have flagged is the one
+                // with a person on the other end of the delay; strict age order buries it
+                // behind whatever the classifier happened to hold that morning.
+                ->orderByDesc('m.reports')
                 ->orderBy('m.created_at')
                 ->limit(max(1, min(200, $limit)))
                 ->select('m.*', 'n.name as nominee_name')

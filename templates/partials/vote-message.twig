@@ -1,0 +1,41 @@
+{# ── ONE MESSAGE OF SUPPORT, RENDERED ONCE ────────────────────────────────────
+   Used by the wall on the ballot AND by /vote/{prog}/{slug}/messages. One renderer,
+   so a change to how somebody's words are displayed — or to what the report button
+   does — cannot land in one place and not the other.
+
+   Context: m (a row from VoteMessageService::wall).
+
+   `m.name` has ALREADY been resolved against the voter's consent by the service and
+   arrives as "A supporter" where consent was not given. Nothing here has the real
+   name in scope, which is deliberate: a template that held it would be one edit away
+   from printing it. #}
+<li class="vmi" x-data="vmItem('{{ m.token|e('js') }}', {{ m.cheers|default(0) }})">
+  <p class="vmi__b">{{ m.body }}</p>
+  <footer class="vmi__f">
+    <span class="vmi__n">{{ m.name }}</span>
+    {% if m.source == 'paid' %}<span class="vmi__tag">backed with votes</span>{% endif %}
+
+    <button type="button" class="vmi__act" :class="mine && 'is-on'" @click="cheer()" :disabled="busy"
+            :aria-label="mine ? 'You cheered this' : 'Cheer this message'">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3ZM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+      <span x-text="n > 0 ? n : 'Cheer'">{{ m.cheers ?: 'Cheer' }}</span>
+    </button>
+
+    {% if m.token %}
+    <a class="vmi__act" href="/m/{{ m.token }}">Share this</a>
+    {# ── THE REPORT BUTTON ─────────────────────────────────────────────────
+       Quiet, last, and open to anybody — including a stranger who arrived from a
+       WhatsApp link. These messages are about named people, many of them children,
+       so the person best placed to notice something wrong is a reader who knows
+       them and who is never going to register an account to say so.
+
+       One tap, no form: a reason field would be another screen between seeing
+       something and reporting it, and the moderator is going to read the message
+       either way. The reply is the same whether this is the first report or the one
+       that trips the threshold. #}
+    <button type="button" class="vmi__act vmi__act--report" @click="report()" x-show="!reported" x-cloak
+            aria-label="Report this message">Report</button>
+    <span class="vmi__done" x-show="reported" x-cloak>Reported ✓</span>
+    {% endif %}
+  </footer>
+</li>

@@ -129,25 +129,78 @@ final class MigrationRunner
         return ['ok' => true, 'lines' => $lines, 'ran' => $done, 'pending' => $remaining, 'error' => null];
     }
 
-    /** Apply one schema .sql file. On MySQL, per-statement + benign-error tolerant. Returns warning count. */
+    /**
+     * Apply one schema .sql file, per-statement and tolerant of what is already done.
+     * Returns the warning count.
+     *
+     * ── WHY SQLITE IS NO LONGER ONE BIG exec() ───────────────────────────────
+     *
+     * It used to be `$pdo->exec($whole_file)`, which is all-or-nothing: ONE statement
+     * that cannot apply takes the entire migrate run down, and — because the schema
+     * files are step 1 of 3 — takes it down BEFORE any dated migration gets to fix
+     * the thing that was wrong.
+     *
+     * That is not hypothetical. The base schema files declare standalone
+     * `CREATE INDEX ... ON table(col)` statements. On a database that already has the
+     * table, `CREATE TABLE IF NOT EXISTS` is a no-op, so a column introduced later by
+     * an ALTER TABLE migration does not exist yet when the index statement runs —
+     * SQLite raises "no such column", and the upgrade dies with the fix sitting
+     * unapplied two steps later. Fifteen such index/column pairs are in the schema
+     * files today; each is fine on a fresh database and fatal on one with data, which
+     * is the worst possible distribution of a bug.
+     *
+     * MySQL has been per-statement and tolerant since the equivalent failure there
+     * ("duplicate index" on a re-deploy) stopped new columns being added and made
+     * admin writes 500. This gives SQLite the same treatment. A statement that cannot
+     * apply is now a WARN and the run continues — which is right for schema files
+     * specifically, because they are DECLARATIVE and re-applied on every deploy: their
+     * job is to converge the database, and a line that is already satisfied (or not
+     * yet satisfiable) is not a reason to stop.
+     *
+     * Dated migrations are NOT treated this way — they still fail loudly, because each
+     * one is a specific change that either happened or did not.
+     */
     private static function applySchemaFile(string $f, string $driver, array &$lines): int
     {
         $pdo = DB::connection()->getPdo();
         $sql = (string) file_get_contents($f);
-        if ($driver === 'sqlite') { $pdo->exec($sql); return 0; }
         $warnings = 0;
         foreach (self::splitSql($sql) as $stmt) {
             if (trim($stmt) === '') continue;
             try {
                 $pdo->exec($stmt);
             } catch (\PDOException $e) {
-                $code = (int) ($e->errorInfo[1] ?? 0);
-                if (in_array($code, self::BENIGN_MYSQL, true)) continue;
+                if (self::benign($e, $driver)) continue;
                 $warnings++;
+                $code = (int) ($e->errorInfo[1] ?? 0);
                 $lines[] = '  WARN [' . basename($f) . "] SQL {$code}: " . substr(trim($e->getMessage()), 0, 150);
             }
         }
         return $warnings;
+    }
+
+    /**
+     * "Already done", per driver.
+     *
+     * SQLite reports everything as SQLSTATE HY000 / code 1, so unlike MySQL there is no
+     * numeric vocabulary to match on — the message is all there is. Matching on message
+     * text is unpleasant and it is what the driver leaves available; the alternative is
+     * treating every SQLite error as fatal, which is the behaviour being fixed.
+     *
+     * Deliberately NARROW: only the genuine "this is already true" cases. "no such
+     * column" is left out even though it is the commonest one during an upgrade (a
+     * schema-file index naming a column a later migration adds), because it is also
+     * what a MISSPELLED column name looks like — and an index that silently never
+     * exists is a slow query nobody can explain. It is no longer fatal; it prints as a
+     * WARN and the run continues, which is the honest treatment of "I could not do
+     * this and something may be wrong."
+     */
+    private static function benign(\PDOException $e, string $driver): bool
+    {
+        if ($driver !== 'sqlite') {
+            return in_array((int) ($e->errorInfo[1] ?? 0), self::BENIGN_MYSQL, true);
+        }
+        return (bool) preg_match('/already exists|duplicate column name|duplicate/i', $e->getMessage());
     }
 
     /**

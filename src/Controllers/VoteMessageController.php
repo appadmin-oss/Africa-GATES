@@ -77,6 +77,16 @@ final class VoteMessageController
             'gates_page'       => 'awards',
             'has_hero'         => false,
             'og_type'          => 'article',
+            // NOINDEX, FOLLOW. This page exists so a social platform has something to
+            // preview — one short quote, mostly boilerplate around it, one per message.
+            // A few hundred of those is the textbook thin-content pattern and it would
+            // dilute the pages that should rank (the ballot, /philosophy, the full wall).
+            // `follow` stays on: the links out of here are worth crawling.
+            //
+            // It costs nothing that matters. Crawlers that build link previews —
+            // Facebook, WhatsApp, X, LinkedIn — read the og: tags and ignore robots
+            // meta entirely, so the share still works exactly as before.
+            'robots'           => 'noindex, follow, max-image-preview:large',
             'msg'              => $msg,
             'ballot_url'       => $ballot,
             'share_url'        => $base . '/m/' . rawurlencode((string) $msg['token']),
@@ -85,15 +95,57 @@ final class VoteMessageController
                 fn(array $m) => (int) $m['id'] !== (int) $msg['id']
             )),
             'wall_total'       => VoteMessageService::countForNominee((int) $msg['nominee_id']),
-        ] + array_filter([
-            // The nominee's purpose-built social card. Absolute, because a relative
+        ] + [
+            // THE MESSAGE'S OWN CARD, not the nominee's ballot card. Facebook's preview
+            // is mostly image, so a card that does not carry the words loses them — and
+            // fifty supporters sharing fifty different sentences would otherwise produce
+            // fifty identical "VOTE NOW" thumbnails. Absolute, because a relative
             // og:image is silently ignored by every crawler.
-            'og_image'      => $ballot !== '' ? $base . $ballot . '/card.png' : null,
+            'og_image'      => $base . '/m/' . rawurlencode((string) $msg['token']) . '/card.png',
             'og_image_w'    => \AfricaGates\Services\FlierService::OG_W,
             'og_image_h'    => \AfricaGates\Services\FlierService::OG_H,
             'og_image_type' => 'image/png',
             'og_image_alt'  => 'A message of support for ' . $msg['nominee_name'] . ' — Africa GATES',
-        ], fn($v) => $v !== null));
+        ]);
+    }
+
+    /**
+     * GET /m/{token}/card.png — the message, as a 1200×630 raster.
+     *
+     * It has to BE an image at a URL. No major chat app renders SVG in a preview and no
+     * crawler runs JavaScript, so a graphic drawn in the browser could never be the
+     * thing Facebook shows. See {@see \AfricaGates\Services\FlierService::messageCard()}
+     * for what is on it and why the ballot's card was the wrong picture here.
+     *
+     * On a host without GD or the bundled fonts this falls back to the nominee's own
+     * card rather than 404ing: a missing og:image is a blank preview, which is worse
+     * than a generic one.
+     */
+    public function card(Request $req, Response $res, array $args): Response
+    {
+        $msg = VoteMessageService::byToken((string) ($args['token'] ?? ''));
+        if ($msg === null) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $flier = new \AfricaGates\Services\FlierService();
+        $f     = $flier->forNominee((int) $msg['nominee_id']);
+        $png   = $f !== null ? $flier->messageCard($f, (string) $msg['body'], (string) $msg['name']) : null;
+
+        if ($png === null) {
+            $ballot = $this->ballotPath((int) $msg['nominee_id'], (string) $msg['nominee_name']);
+            return $res->withHeader('Location', ($ballot !== '' ? $ballot . '/card.png' : '/'))->withStatus(302);
+        }
+
+        $res->getBody()->write($png);
+        return $res
+            ->withHeader('Content-Type', 'image/png')
+            ->withHeader('Content-Length', (string) strlen($png))
+            // Longer than the ballot card's ten minutes. That one carries a live rank
+            // that must not go stale; this one carries a sentence that does not change,
+            // so a share posted once should stay cheap to preview.
+            ->withHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800')
+            ->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withHeader('Content-Disposition',
+                'inline; filename="message-' . \AfricaGates\Support\Slug::make((string) $msg['nominee_name'], 48) . '.png"');
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -228,6 +280,123 @@ final class VoteMessageController
             return $this->json($res, ['success' => false, 'message' => 'That message is not available.'], 404);
         }
         return $this->json($res, ['success' => true, 'cheers' => $n]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST /api/vote-message/report
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Report a message.
+     *
+     * ── WHY THIS IS OPEN TO ANYONE ──────────────────────────────────────────
+     *
+     * The reader who most needs this button is a stranger who followed a WhatsApp
+     * link, saw something about a named child, and has no account here. Requiring one
+     * would not protect the nominee — it would mean the report never arrives.
+     *
+     * The abuse case is the obvious one: somebody mass-reporting a rival's supporters
+     * to strip their page. Three things blunt it. One report per network per message
+     * per day, so it costs real distinct connections. A threshold rather than a
+     * hair-trigger. And quarantine rather than deletion — a reported message goes in
+     * front of a moderator, who can put it straight back, and the report count is on
+     * the row where they can see it. Nothing here removes anything permanently.
+     *
+     * The response is the same whether the report was the first or the one that
+     * tripped the threshold, and the same for an already-reported message. A reporter
+     * who learns "two more needed" has been handed an instruction.
+     */
+    public function report(Request $req, Response $res): Response
+    {
+        $b     = (array) $req->getParsedBody();
+        $token = trim((string) ($b['token'] ?? ''));
+        if ($token === '') {
+            return $this->json($res, ['success' => false, 'message' => 'Which message?'], 400);
+        }
+
+        $ipHash = hash('sha256', $this->ip($req));
+        if (!$this->rateLimit->check($ipHash . '|' . $token, 'vmsg_report', 1, 86400)
+            || !$this->rateLimit->check($ipHash, 'vmsg_report_any', 20, 3600)) {
+            // The SAME reply a first report gets. A "you already reported this" leaks
+            // that the first one landed, and an over-limit error tells a brigade
+            // exactly where the ceiling is.
+            return $this->json($res, ['success' => true, 'message' => 'Thank you — a moderator will look at this.']);
+        }
+
+        $r = VoteMessageService::report($token);
+        return $this->json($res, [
+            'success' => (bool) $r['ok'],
+            'message' => $r['message'] ?? '',
+        ], $r['ok'] ? 200 : 404);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /vote/{program}/{slug}/messages — all of them
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Every message for one nominee, paginated.
+     *
+     * ── WHY A PAGE AND NOT A "LOAD MORE" BUTTON ─────────────────────────────
+     *
+     * The ballot shows the newest few. The obvious next step is a button that appends
+     * the rest over an API, and it is the wrong one three times over: the wall would
+     * then have TWO renderers (a Twig loop for the first page, a JavaScript template
+     * for the others) that will drift, everything past the first page becomes
+     * invisible to crawlers and to any reader without JavaScript, and "all the
+     * messages about me" — which is a thing a nominee wants to send to their family —
+     * would have no URL.
+     *
+     * One template, one renderer, server-paginated, shareable. The item markup is a
+     * partial used by both this page and the ballot, so a change to how a message is
+     * displayed cannot apply in one place and not the other.
+     */
+    public function forNominee(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) (string) ($args['slug'] ?? '0');
+        if ($id < 1) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        try {
+            $nom = DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                ->where('n.id', $id)->whereIn('n.status', ['approved', 'winner', 'runner_up'])
+                ->select('n.id', 'n.name', 'n.photo_path', 'c.title as category', 'p.slug as programme_slug')
+                ->first();
+        } catch (\Throwable) { $nom = null; }
+        if ($nom === null) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $perPage = 20;
+        $page    = max(1, (int) ($req->getQueryParams()['page'] ?? 1));
+        $total   = VoteMessageService::countForNominee($id);
+        $items   = VoteMessageService::wall($id, $perPage, ($page - 1) * $perPage);
+        $ballot  = $this->ballotPath($id, (string) $nom->name);
+        $base    = SiteUrl::base($req);
+
+        return $this->view->render($res, 'pages/vote-messages.twig', [
+            'page_title'       => 'Messages of support for ' . $nom->name . ' — Africa GATES',
+            'meta_description' => $total > 0
+                ? $total . ' ' . ($total === 1 ? 'message' : 'messages') . ' from verified voters about '
+                    . $nom->name . ' in ' . $nom->category . '.'
+                : 'Messages of support for ' . $nom->name . ' at Africa GATES.',
+            'gates_page'  => 'awards',
+            'has_hero'    => false,
+            'nom'         => $nom,
+            'messages'    => $items,
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $perPage,
+            'pages'       => max(1, (int) ceil($total / $perPage)),
+            'ballot_url'  => $ballot,
+            'share_url'   => $base . $ballot . '/messages',
+            // The nominee's own card, not a message card: this page is about all of
+            // them, so no single message's words belong on the preview.
+            'og_image'      => $ballot !== '' ? $base . $ballot . '/card.png' : null,
+            'og_image_w'    => \AfricaGates\Services\FlierService::OG_W,
+            'og_image_h'    => \AfricaGates\Services\FlierService::OG_H,
+            'og_image_type' => 'image/png',
+        ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

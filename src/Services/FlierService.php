@@ -850,6 +850,143 @@ final class FlierService
         return $out !== '' ? $out : null;
     }
 
+    /** The portrait strip on a message card. Narrower than the ballot card's, because
+     *  here the WORDS are the subject and the face is the context. */
+    private const MSG_PHOTO_W = 372;
+
+    /**
+     * A voter's message of support, as a 1200×630 social card.
+     *
+     * ── WHY A MESSAGE NEEDS ITS OWN GRAPHIC ─────────────────────────────────
+     *
+     * `/m/{token}` already gives each message its own og:title, so Facebook renders a
+     * different HEADLINE per message. The IMAGE was still the nominee's ballot card —
+     * "VOTE NOW", the rank pill, the name — which is a good card for the ballot and
+     * the wrong one here: it invites a vote where the reader was handed a sentence,
+     * and it makes fifty supporters' fifty different messages look, at thumbnail
+     * size, like fifty copies of the same post. Facebook's preview is mostly image;
+     * a card that does not carry the words is a card that loses them.
+     *
+     * So this puts the message itself on the graphic. It reuses the ballot card's
+     * gradient, portrait strip and seam fade — a supporter's share and the nominee's
+     * own share should look like they came from the same platform — and drops
+     * everything that belongs to the ballot: no VOTE NOW lockup, no rank, no
+     * progress, no jury footnote. A rank on a card about somebody's kind words reads
+     * as a scoreboard.
+     *
+     * ── WHAT IT DOES ABOUT LONG MESSAGES ────────────────────────────────────
+     *
+     * A card is a teaser, not a document. The quote is pre-trimmed to what can be
+     * read at a third of native size in a chat thread, on a word boundary, with an
+     * ellipsis that says plainly there is more — because the alternative is either
+     * 22px type nobody reads or a sentence cut mid-word, and both make the platform
+     * look broken rather than the message look inviting.
+     *
+     * @param array<string,mixed> $f    the nominee, from {@see forNominee()}
+     * @param string $quote             the message body
+     * @param string $attribution       the display name, already resolved against consent
+     */
+    public function messageCard(array $f, string $quote, string $attribution): ?string
+    {
+        if (!function_exists('imagecreatetruecolor') || !self::fontsPresent()['ok']) {
+            return null;
+        }
+
+        $W = self::OG_W; $H = self::OG_H; $PW = self::MSG_PHOTO_W;
+        $L = FlierLayout::for($f);
+
+        $im = imagecreatetruecolor($W, $H);
+        imagealphablending($im, true);
+
+        $c = static function (string $hex) use ($im): int {
+            [$r, $g, $b] = FlierLayout::rgb($hex);
+            return (int) imagecolorallocate($im, $r, $g, $b);
+        };
+        $white = $c(FlierLayout::C_WHITE);
+        $leaf  = $c(FlierLayout::C_LEAF);
+        $mist  = $c(FlierLayout::C_MIST);
+        $muted = $c(FlierLayout::C_MUTED);
+
+        $bgTop = FlierLayout::rgb(FlierLayout::C_BG_TOP);
+        $bgBot = FlierLayout::rgb(FlierLayout::C_BG_BOTTOM);
+        $this->vGradient($im, 0, 0, $W, $H, $bgTop, $bgBot);
+
+        // ── The portrait strip ───────────────────────────────────────────────
+        $photo = !empty($f['photo_card']) ? $this->loadPhoto((string) $f['photo_card']) : null;
+        if ($photo !== null) {
+            $this->cover($im, $photo, 0, 0, $PW, $H);
+            imagedestroy($photo);
+            $this->edgeFade($im, $PW - 130, $PW, $H, $bgTop, $bgBot);
+        } else {
+            imagefilledrectangle($im, 0, 0, $PW - 1, $H - 1, $c(FlierLayout::C_PANEL));
+            // 140, not the ballot card's 230: this column is 372px wide, and a two-letter
+            // monogram at display sizes is ~1.9× the point size, so the larger figure ran
+            // the second letter straight into the seam fade — visible on the first render.
+            $this->centredInBand($im, (string) $L['monogram'], 140, self::font('display'),
+                $c(FlierLayout::C_MONOGRAM), $PW / 2, 0, $H);
+            $this->edgeFade($im, $PW - 100, $PW, $H, $bgTop, $bgBot);
+        }
+
+        // ── The words ────────────────────────────────────────────────────────
+        $cx = $PW + 56;
+        $cw = $W - $cx - 56;
+
+        $this->text($im, 'A MESSAGE OF SUPPORT', 21, self::font('bold'), $leaf, $cx, 88, 5.4);
+
+        // Trimmed BEFORE fitting. fitLines() shrinks rather than truncates — right for a
+        // name, wrong here: it would take a 400-character message down to the floor and
+        // render it at a size nobody reads in a thread.
+        $q = '“' . $this->cardQuote($quote) . '”';
+        [$size, $lines] = $this->fitLines($q, $cw, 46, 28, self::font('display'), 5);
+
+        // Centred as a BLOCK in the space between the kicker and the attribution, so a
+        // one-line message and a five-line one are both balanced rather than both
+        // top-aligned with a hole underneath.
+        $lh   = 1.3 * $size;
+        $band = 466 - 150;                       // between kicker and attribution
+        $y    = 150 + max(0.0, ($band - count($lines) * $lh) / 2)
+              + max($lh * 0.76, $this->ascent($lines[0] ?? '', $size, self::font('display')));
+        foreach ($lines as $line) {
+            $this->text($im, $line, $size, self::font('display'), $white, $cx, $y);
+            $y += $lh;
+        }
+
+        // ── Who said it, and about whom ──────────────────────────────────────
+        //
+        // The attribution has already been resolved against the voter's consent by
+        // VoteMessageService — "A supporter" arrives here as a string, so this cannot
+        // publish a name the reader never agreed to.
+        $who = $this->wrapMeasured(
+            '— ' . $attribution . ', on ' . (string) $f['name'], $cw, 25, self::font('semibold'), 2
+        );
+        foreach ($who as $i => $line) {
+            $this->text($im, $line, 25, self::font('semibold'), $mist, $cx, 500 + ($i * 32));
+        }
+
+        $this->text($im, 'AFRICA GATES · ' . mb_strtoupper((string) $f['category']),
+            17, self::font('regular'), $muted, $cx, 588, 2.4);
+
+        ob_start();
+        imagepng($im, null, 6);
+        $out = (string) ob_get_clean();
+        imagedestroy($im);
+
+        return $out !== '' ? $out : null;
+    }
+
+    /** How much of a message fits on a card and still reads at thumbnail size. */
+    private const CARD_QUOTE_CHARS = 168;
+
+    /** Trim to a whole word. A card is a teaser; the page carries the rest. */
+    private function cardQuote(string $s): string
+    {
+        $s = trim(preg_replace('/\s+/u', ' ', $s) ?? $s);
+        if (mb_strlen($s) <= self::CARD_QUOTE_CHARS) return $s;
+        $cut = mb_substr($s, 0, self::CARD_QUOTE_CHARS);
+        $sp  = mb_strrpos($cut, ' ');
+        return rtrim($sp !== false && $sp > self::CARD_QUOTE_CHARS * 0.6 ? mb_substr($cut, 0, $sp) : $cut, " ,.;:—-") . '…';
+    }
+
     // ── GD helpers. Small, named, and shared by png() only. ──────────────────
 
     /** Draw text with an optional letter-spacing, which imagettftext has no concept of. */

@@ -970,6 +970,12 @@ CREATE TABLE IF NOT EXISTS gates_vote_messages (
   moderated_by INTEGER NULL,
   moderated_at TEXT NULL,
   cheers INTEGER NOT NULL DEFAULT 0,
+  -- Reader reports. Counted on the row rather than in gates_reports because that
+  -- table requires a member id and constrains target_type to thread|comment: a
+  -- reader who arrives from a WhatsApp link and sees something about a child is not
+  -- going to register in order to say so.
+  reports INTEGER NOT NULL DEFAULT 0,
+  reported_at TEXT NULL,
   share_token TEXT NULL,
   created_at TEXT NULL,
   deleted_at TEXT NULL,
@@ -979,3 +985,13 @@ CREATE INDEX IF NOT EXISTS idx_vmsg_wall ON gates_vote_messages(nominee_id, stat
 CREATE UNIQUE INDEX IF NOT EXISTS uq_vmsg_voter ON gates_vote_messages(nominee_id, voter_email_hash);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_vmsg_token ON gates_vote_messages(share_token);
 CREATE INDEX IF NOT EXISTS idx_vmsg_queue ON gates_vote_messages(status, created_at);
+-- For a FRESH database. On an existing one this statement cannot run: db:migrate
+-- applies the schema files BEFORE the dated migrations, `CREATE TABLE IF NOT EXISTS`
+-- skips the table, and `reports` is added two steps later by
+-- database/migrations/2026_08_23_vote_message_reports.php — which also creates this
+-- index. So on an upgrade this line prints a WARN and the migration does the work.
+--
+-- It used to take the whole upgrade down with it: the SQLite applier was a single
+-- exec() of the entire file, so one unrunnable statement aborted the run two steps
+-- before the migration that would have fixed it. See MigrationRunner::applySchemaFile.
+CREATE INDEX IF NOT EXISTS idx_vmsg_reported ON gates_vote_messages(reports, reported_at);

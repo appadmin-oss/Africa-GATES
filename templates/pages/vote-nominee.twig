@@ -166,15 +166,8 @@
   .vn-share{ display:flex; gap:9px; }
   .vn-share button, .vn-share a{ flex:1; cursor:pointer; border:1px solid rgba(16,41,44,.16); background:#fff; color:var(--ag-ink); font-family:inherit; font-weight:600; font-size:13.5px; padding:11px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; gap:7px; text-decoration:none; }
   .vn-share button:hover, .vn-share a:hover{ border-color:var(--ag-green); color:var(--ag-green); }
-  /* The wall of support — what voters wrote. */
-  .vn-wall{ list-style:none; margin:18px 0 0; padding:0; display:grid; gap:11px; }
-  .vn-wall__i{ background:#f7faf7; border:1px solid #dfeade; border-left:3px solid #7FC87C; border-radius:0 12px 12px 0; padding:14px 16px; }
-  .vn-wall__b{ margin:0; font-size:14.5px; line-height:1.65; color:#20393b; }
-  .vn-wall__f{ margin-top:9px; display:flex; align-items:center; flex-wrap:wrap; gap:10px; font-size:12px; color:#6b7d7f; }
-  .vn-wall__n{ font-weight:600; color:#3d5254; }
-  .vn-wall__tag{ background:#e8f3e7; color:#1a6118; border-radius:999px; padding:3px 9px; font-size:11px; font-weight:600; }
-  .vn-wall__f a{ color:#237b22; font-weight:600; text-decoration:none; margin-left:auto; }
-  .vn-wall__f a:hover{ text-decoration:underline; }
+  /* The wall's item styles live in partials/vote-message-assets.twig, beside the
+     markup they belong to, because the full messages page renders the same items. */
   /* The optional message field on the ballot. */
   .vn-msg{ margin-top:15px; padding-top:15px; border-top:1px dashed rgba(16,41,44,.14); }
   .vn-msg textarea{ width:100%; box-sizing:border-box; margin-top:7px; font:inherit; font-size:14px; line-height:1.6; color:var(--ag-ink); background:#fff; border:1px solid rgba(16,41,44,.18); border-radius:12px; padding:11px 13px; resize:vertical; min-height:78px; }
@@ -182,6 +175,13 @@
   .vn-msg__meta{ display:flex; justify-content:space-between; gap:10px; margin-top:6px; font-size:11.5px; color:#5a6d6f; }
   .vn-msg__meta b{ font-variant-numeric:tabular-nums; }
   .vn-msg__over{ color:#b3261e; font-weight:700; }
+  .vn-msg__toggle{ display:inline-flex; align-items:center; gap:7px; background:none; border:none; padding:0;
+    font:600 13px/1.4 inherit; color:var(--ag-green,#237b22); cursor:pointer; text-align:left; }
+  .vn-msg__toggle:hover{ text-decoration:underline; }
+  .vn-msg__count{ font-style:normal; font-weight:600; font-size:11px; letter-spacing:.02em;
+    background:#e8f3e7; color:#1a6118; border-radius:999px; padding:3px 8px; }
+  .vn-msg__as{ margin:8px 0 0; font-size:12px; line-height:1.6; color:#5a6d6f; }
+  .vn-msg__as strong{ color:#10292c; }
   .vn-closed{ background:#fff8df; border:1px solid #f0e0b0; border-radius:14px; padding:14px 16px; font-size:13.5px; line-height:1.55; color:#7a5600; }
   .vn-toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); z-index:90; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:13px 22px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); }
   .vn-claimline{ margin:34px 0 8px; padding-top:20px; border-top:1px solid rgba(16,41,44,.09); font-size:13px; color:#5a6d6f; text-align:center; }
@@ -446,23 +446,22 @@
           {{ message_count }} {{ message_count == 1 ? 'message' : 'messages' }} from verified voters.
           Written by supporters, checked before publication — and a name appears only where its owner asked for it.
         </p>
-        <ul class="vn-wall" data-ag-cascade="sm">
-          {% for m in messages %}
-          <li class="vn-wall__i">
-            <p class="vn-wall__b">{{ m.body }}</p>
-            <footer class="vn-wall__f">
-              <span class="vn-wall__n">{{ m.name }}</span>
-              {% if m.source == 'paid' %}<span class="vn-wall__tag">backed with votes</span>{% endif %}
-              {% if m.cheers %}<span title="cheers">♥ {{ m.cheers }}</span>{% endif %}
-              {# Each message links to its own page, which is what makes it shareable
-                 as itself rather than as a link to this one. See /m/{token}. #}
-              {% if m.token %}<a href="/m/{{ m.token }}">Share this</a>{% endif %}
-            </footer>
-          </li>
-          {% endfor %}
+        {# The item markup lives in ONE partial, shared with the full messages page, so
+           the cheer and report controls cannot exist in one place and not the other. #}
+        <ul class="vmi-list" data-ag-cascade="sm">
+          {% for m in messages %}{% include 'partials/vote-message.twig' with { m: m } only %}{% endfor %}
         </ul>
+        {% include 'partials/vote-message-assets.twig' %}
         {% if message_count > messages|length %}
-        <p style="margin:14px 0 0;font-size:12.5px;color:#5a6d6f">Showing the {{ messages|length }} most recent.</p>
+        {# A LINK, not a "load more" button. Everything past the first page would
+           otherwise be invisible to crawlers and to anyone without JavaScript, the wall
+           would need a second renderer, and "all the messages about me" — which is a
+           thing a nominee sends to their family — would have no URL of its own. #}
+        <p style="margin:16px 0 0;font-size:13px">
+          <a href="{{ messages_url }}" style="color:#237b22;font-weight:600;text-decoration:none">
+            Read all {{ message_count }} messages →
+          </a>
+        </p>
         {% endif %}
       </section>
       {% endif %}
@@ -714,15 +713,24 @@
                  The line below says so, because "your message is with a moderator" is
                  a much better sentence to read before writing than after. #}
               <div class="vn-msg" x-data="{ open: false }">
-                <button type="button" @click="open = !open" style="background:none;border:none;padding:0;font:600 13px/1.4 inherit;color:var(--ag-green,#237b22);cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+                <button type="button" class="vn-msg__toggle" @click="open = !open" :aria-expanded="open ? 'true' : 'false'" aria-controls="vnMsgPanel">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
-                  <span x-text="open ? 'Hide the message box' : 'Say something about {{ firstName|e('js') }} (optional)'">Say something about {{ firstName }} (optional)</span>
+                  <span x-text="open ? 'Hide the message box' : 'Say something about {{ firstName|e('js') }}'">Say something about {{ firstName }}</span>
+                  {# SOCIAL PROOF, not decoration. "Optional" on its own reads as "skip
+                     me"; the number of people who already did it is the thing that makes
+                     somebody open the box. Absent when it would say zero — "be the first"
+                     is a nudge, "0 others" is a discouragement. #}
+                  {% if message_count > 0 %}
+                  <em class="vn-msg__count">{{ message_count }} {{ message_count == 1 ? 'other' : 'others' }}</em>
+                  {% else %}
+                  <em class="vn-msg__count">be the first</em>
+                  {% endif %}
                 </button>
-                <div x-show="open" x-cloak>
+                <div id="vnMsgPanel" x-show="open" x-cloak>
                   <label class="vn-label" for="vnMsg" style="margin-top:10px">Your message</label>
                   <textarea id="vnMsg" x-model="message" maxlength="{{ msg_max }}" placeholder="What do you want people to know about {{ firstName }}?"></textarea>
                   <div class="vn-msg__meta">
-                    <span>Published on this page once checked. No links or phone numbers.</span>
+                    <span>Checked before it appears. No links or phone numbers.</span>
                     <span :class="message.length > {{ msg_max }} - 40 ? 'vn-msg__over' : ''"><b x-text="message.length"></b>/{{ msg_max }}</span>
                   </div>
                   {# A SEPARATE consent, and not the same question as the name field.
@@ -730,7 +738,18 @@
                      a choice to be published — see the note further down. Putting that
                      name on a message beside it IS a choice, so it is asked for here
                      and defaults to off. #}
-                  <label class="vn-check" style="margin-top:10px"><input type="checkbox" x-model="messageShowName"><span>Show my name with this message. Leave it unticked to appear as “A supporter”.</span></label>
+                  <label class="vn-check" style="margin-top:10px"><input type="checkbox" x-model="messageShowName"><span>Show my name with this message.</span></label>
+                  {# THE PREVIEW IS THE POINT OF THE CONTROL.
+                     "Leave it unticked to appear as 'A supporter'" made the reader hold
+                     two states in their head. This just shows them the byline they are
+                     about to publish, using the name they actually typed — which is also
+                     the only honest way to present it, because an empty name field means
+                     the tickbox cannot deliver what it promises. #}
+                  <p class="vn-msg__as" x-show="message.trim().length" x-cloak>
+                    Appears as
+                    <strong x-text="messageShowName &amp;&amp; fullName.trim() ? fullName.trim() : 'A supporter'">A supporter</strong>
+                    <span x-show="messageShowName &amp;&amp; !fullName.trim()">— add your full name above to be named.</span>
+                  </p>
                 </div>
               </div>
               <label class="vn-check"><input type="checkbox" x-model="agreed"><span>I’m a real person voting once, and I accept the <a href="/terms">voting rules</a>.</span></label>

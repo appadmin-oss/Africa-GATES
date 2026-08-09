@@ -37,6 +37,10 @@
          Whether it is PUBLISHED is a separate question the label answers. #}
       {% if m.display_name %} · by {{ m.display_name }}{{ m.show_name ? ' (asked to be named)' : ' (will publish as “A supporter”)' }}{% endif %}
       · <span style="font-weight:700;color:{{ m.status == 'pending' ? '#a47306' : '#b03a5b' }}">{{ m.status == 'pending' ? 'held — not yet judged' : 'quarantined' }}</span>
+      {# Reader reports, and they sort this list. A message readers flagged is the one
+         with a person on the other end of the delay — the classifier cleared it and
+         people who can see who it is about disagreed. #}
+      {% if m.reports %}· <span style="font-weight:700;color:#b03a5b">⚑ {{ m.reports }} reader {{ m.reports == 1 ? 'report' : 'reports' }}</span>{% endif %}
       {% if m.mod_score is not null %} · {{ ui.verdict(m.mod_score, m.mod_reason) }}{% elseif m.mod_reason %} · <span style="font-size:11px">{{ m.mod_reason }}</span>{% endif %}
     </div>
     <form method="post" action="/admin/moderation/vote_message/{{ m.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve &amp; publish</button></form>

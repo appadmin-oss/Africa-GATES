@@ -881,6 +881,12 @@ CREATE TABLE IF NOT EXISTS gates_vote_messages (
   moderated_by BIGINT UNSIGNED NULL,
   moderated_at TIMESTAMP NULL DEFAULT NULL,
   cheers INT UNSIGNED NOT NULL DEFAULT 0,
+  -- Reader reports. Counted on the row rather than in gates_reports because that
+  -- table requires a member id and constrains target_type to thread|comment: a
+  -- reader who arrives from a WhatsApp link and sees something about a child is not
+  -- going to register in order to say so.
+  reports INT UNSIGNED NOT NULL DEFAULT 0,
+  reported_at TIMESTAMP NULL DEFAULT NULL,
   share_token CHAR(22) NULL,
   created_at TIMESTAMP NULL DEFAULT NULL,
   deleted_at TIMESTAMP NULL DEFAULT NULL,
@@ -888,5 +894,6 @@ CREATE TABLE IF NOT EXISTS gates_vote_messages (
   UNIQUE KEY uq_vmsg_voter (nominee_id, voter_email_hash),
   UNIQUE KEY uq_vmsg_token (share_token),
   KEY idx_vmsg_queue (status, created_at),
+  KEY idx_vmsg_reported (reports, reported_at),
   CONSTRAINT fk_vmsg_nominee FOREIGN KEY (nominee_id) REFERENCES gates_nominees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
