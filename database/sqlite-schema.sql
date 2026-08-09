@@ -944,3 +944,38 @@ CREATE TABLE IF NOT EXISTS gates_support_messages (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_smsg_ticket ON gates_support_messages(ticket_id, id);
+
+-- ── VOTE MESSAGES ──────────────────────────────────────────────────────────
+-- A voter's message of support for a nominee. A separate table rather than a
+-- column on gates_votes: a message needs a moderation lifecycle, and putting that
+-- on the integrity table would conflate "is this vote real" with "is this
+-- sentence publishable". See database/migrations/2026_08_22_vote_messages.php.
+CREATE TABLE IF NOT EXISTS gates_vote_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nominee_id INTEGER NOT NULL,
+  category_id INTEGER NULL,
+  -- NULL for a paid contribution: its votes are minted after the gateway
+  -- confirms, so the message exists before the vote row does.
+  vote_id INTEGER NULL,
+  donation_id INTEGER NULL,
+  voter_email_hash TEXT NOT NULL,
+  display_name TEXT NULL,
+  -- Shown only when 1, exactly like the supporters list.
+  show_name INTEGER NOT NULL DEFAULT 0,
+  body TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT 'free' CHECK(source IN ('free','paid')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected','quarantined')),
+  mod_score REAL NULL,
+  mod_reason TEXT NULL,
+  moderated_by INTEGER NULL,
+  moderated_at TEXT NULL,
+  cheers INTEGER NOT NULL DEFAULT 0,
+  share_token TEXT NULL,
+  created_at TEXT NULL,
+  deleted_at TEXT NULL,
+  FOREIGN KEY(nominee_id) REFERENCES gates_nominees(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_vmsg_wall ON gates_vote_messages(nominee_id, status, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vmsg_voter ON gates_vote_messages(nominee_id, voter_email_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vmsg_token ON gates_vote_messages(share_token);
+CREATE INDEX IF NOT EXISTS idx_vmsg_queue ON gates_vote_messages(status, created_at);

@@ -855,3 +855,38 @@ CREATE TABLE IF NOT EXISTS gates_support_messages (
   PRIMARY KEY (id),
   KEY idx_smsg_ticket (ticket_id, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── VOTE MESSAGES ──────────────────────────────────────────────────────────
+-- A voter's message of support for a nominee. A separate table rather than a
+-- column on gates_votes: a message needs a moderation lifecycle, and putting that
+-- on the integrity table would conflate "is this vote real" with "is this
+-- sentence publishable". See database/migrations/2026_08_22_vote_messages.php.
+CREATE TABLE IF NOT EXISTS gates_vote_messages (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  nominee_id BIGINT UNSIGNED NOT NULL,
+  category_id BIGINT UNSIGNED NULL,
+  -- NULL for a paid contribution: its votes are minted after the gateway
+  -- confirms, so the message exists before the vote row does.
+  vote_id BIGINT UNSIGNED NULL,
+  donation_id BIGINT UNSIGNED NULL,
+  voter_email_hash VARCHAR(64) NOT NULL,
+  display_name VARCHAR(120) NULL,
+  -- Shown only when 1, exactly like the supporters list.
+  show_name TINYINT(1) NOT NULL DEFAULT 0,
+  body TEXT NOT NULL,
+  source ENUM('free','paid') NOT NULL DEFAULT 'free',
+  status ENUM('pending','approved','rejected','quarantined') NOT NULL DEFAULT 'pending',
+  mod_score DECIMAL(4,3) NULL,
+  mod_reason VARCHAR(190) NULL,
+  moderated_by BIGINT UNSIGNED NULL,
+  moderated_at TIMESTAMP NULL DEFAULT NULL,
+  cheers INT UNSIGNED NOT NULL DEFAULT 0,
+  share_token CHAR(22) NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  deleted_at TIMESTAMP NULL DEFAULT NULL,
+  KEY idx_vmsg_wall (nominee_id, status, created_at),
+  UNIQUE KEY uq_vmsg_voter (nominee_id, voter_email_hash),
+  UNIQUE KEY uq_vmsg_token (share_token),
+  KEY idx_vmsg_queue (status, created_at),
+  CONSTRAINT fk_vmsg_nominee FOREIGN KEY (nominee_id) REFERENCES gates_nominees(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
