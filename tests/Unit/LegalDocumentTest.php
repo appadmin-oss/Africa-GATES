@@ -288,7 +288,7 @@ final class LegalDocumentTest extends TestCase
      */
     public function test_the_seeded_legal_content_states_no_percentages(): void
     {
-        foreach (\AfricaGates\Console\Commands\LegalSeedCommand::documents() as $slug => $doc) {
+        foreach (\AfricaGates\Services\LegalSeeder::documents() as $slug => $doc) {
             preg_match_all('/(?<![\d])(\d{1,3}(?:\.\d+)?)\s?%/', $doc['body'], $m);
 
             $this->assertSame([], $m[1],
@@ -300,7 +300,7 @@ final class LegalDocumentTest extends TestCase
     /** And it does point there, so the guard above is not satisfied by silence. */
     public function test_the_seeded_terms_send_the_reader_to_the_live_figures(): void
     {
-        $terms = \AfricaGates\Console\Commands\LegalSeedCommand::documents()['terms']['body'];
+        $terms = \AfricaGates\Services\LegalSeeder::documents()['terms']['body'];
 
         $this->assertStringContainsString('href="/integrity"', $terms,
             'the terms describe a weighting without saying where the number is');
@@ -317,7 +317,7 @@ final class LegalDocumentTest extends TestCase
      */
     public function test_the_seeded_privacy_policy_does_not_write_its_own_ai_section(): void
     {
-        $seeded = \AfricaGates\Console\Commands\LegalSeedCommand::documents()['privacy']['body'];
+        $seeded = \AfricaGates\Services\LegalSeeder::documents()['privacy']['body'];
 
         $this->assertStringNotContainsString('Automated processing', $seeded,
             'the privacy body writes an AI section by hand; LegalDocument already appends one');
@@ -331,7 +331,7 @@ final class LegalDocumentTest extends TestCase
     /** Every tag used in the seeded content must survive the sanitizer. */
     public function test_the_seeded_content_is_not_stripped_by_the_sanitizer(): void
     {
-        foreach (\AfricaGates\Console\Commands\LegalSeedCommand::documents() as $slug => $doc) {
+        foreach (\AfricaGates\Services\LegalSeeder::documents() as $slug => $doc) {
             $before = $doc['body'];
             $after  = \AfricaGates\Support\Html::sanitize($before);
 

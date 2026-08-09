@@ -20,6 +20,10 @@ var/logs/
 var/shots/
 var/shots2/
 var/tmp/
+# Build/deploy archives written here for hand-off. They are outputs of the tree,
+# so committing them puts a copy of the tree inside the tree — the first attempt
+# produced a 26MB "changed files" zip containing the full-app zip.
+var/deploy/
 
 # Off-host build output + user uploads (not committed)
 public/assets/dist/

@@ -129,6 +129,84 @@ return function(App $app) {
      * so an unchanged rebuild produces the same filename and every cached copy stays
      * valid.
      */
+    /**
+     * GET /__setup/legal — install the terms and privacy policy without a shell.
+     *
+     * Same reason /__setup/migrate and /__setup/assets exist: this deploys to shared
+     * cPanel where there is often no SSH, and `php bin/console legal:seed` is not a
+     * thing an operator can run there. A step that cannot be run on the host will not
+     * be run, so it has to be reachable from a browser.
+     *
+     * ── WHY IT SKIPS BY DEFAULT, AND WHY THAT MATTERS MORE HERE ─────────────
+     *
+     * A document that already exists is kept unless `&force=1`. On the CLI that is
+     * good manners; on a URL it is a safety requirement — a link can be opened by
+     * accident, bookmarked, retried on a flaky connection, or prefetched by a
+     * browser, and any of those silently reverting a policy an administrator had
+     * revised would undo legal review with nothing to show what happened.
+     *
+     * Token-gated and 404 without the token, exactly like the other setup routes.
+     */
+    $app->get('/__setup/legal', function ($req, $res) use ($setupGuard) {
+        if (!$setupGuard($req)) return $res->withStatus(404);
+
+        $q     = $req->getQueryParams();
+        $force = ($q['force'] ?? '') === '1';
+        $only  = strtolower(trim((string) ($q['only'] ?? ''))) ?: null;
+
+        $r  = \AfricaGates\Services\LegalSeeder::install($force, $only);
+        $e  = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+        $ok = $r['failed'] === [];
+
+        $lines = [];
+        foreach ($r['written'] as $slug) {
+            $body = \AfricaGates\Services\LegalSeeder::documents()[$slug]['body'];
+            $lines[] = '+ ' . $slug . ' installed — ' . number_format(strlen($body))
+                     . ' bytes, ' . substr_count($body, '<h2') . ' sections';
+        }
+        foreach ($r['kept'] as $slug) {
+            $lines[] = '= ' . $slug . ' already exists — KEPT (add &force=1 to replace it)';
+        }
+        foreach ($r['failed'] as $slug => $msg) {
+            $lines[] = '! ' . $slug . ' FAILED — ' . $msg;
+        }
+        if ($lines === []) $lines[] = 'Nothing matched — check the &only= value.';
+
+        $tok = (string) ($q['token'] ?? '');
+        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            . '<title>Africa GATES — legal documents</title>'
+            . '<style>body{font-family:system-ui,"Segoe UI",Roboto,sans-serif;background:#10292C;color:#bcd;margin:0;padding:30px 16px}'
+            . '.box{max-width:780px;margin:0 auto}h1{color:#fff;font-size:18px;margin:0 0 6px}'
+            . 'pre{background:#06181a;color:#9fe6a0;padding:16px;border-radius:10px;overflow:auto;font-size:12.5px;line-height:1.6}'
+            . 'a{color:#7FC87C}.ok{color:#7FC87C;font-weight:600}.err{color:#ff9a9a;font-weight:600}'
+            . '.warn{background:#3a2f12;color:#f0d9a0;padding:12px 14px;border-radius:10px;font-size:13px;line-height:1.6}'
+            . '</style></head><body><div class="box">'
+            . '<h1>Africa GATES — legal documents</h1>'
+            . '<p class="' . ($ok ? 'ok' : 'err') . '">' . ($ok ? 'DONE' : 'FAILED') . '</p>'
+            . '<pre>' . $e(implode("\n", $lines)) . '</pre>';
+
+        if ($r['kept'] !== [] && !$force) {
+            $html .= '<p>Those documents were left alone because something is already there. '
+                  . 'To replace them: <a href="/__setup/legal?token=' . $e(rawurlencode($tok))
+                  . '&amp;force=1">run again with force</a>.</p>';
+        }
+
+        $html .= '<p>Now edit them at <a href="/admin/legal">/admin/legal</a>, and read them at '
+              . '<a href="/terms">/terms</a> and <a href="/privacy">/privacy</a>. This endpoint will '
+              . 'not touch them again unless you pass <code>force=1</code>.</p>'
+              . '<div class="warn"><strong>Not legal advice.</strong> This wording is an accurate, '
+              . 'plain-language description of what the platform does, written from the code. It has '
+              . 'not been reviewed by a lawyer — the data-protection specifics, consumer-protection '
+              . 'wording and liability clause in particular want counsel before you rely on them.</div>'
+              . '<p style="color:#8aa;font-size:12.5px">Delete SETUP_TOKEN from .env when you have '
+              . 'finished with the setup endpoints.</p>'
+              . '</div></body></html>';
+
+        $res->getBody()->write($html);
+        return $res->withHeader('Content-Type', 'text/html; charset=utf-8');
+    });
+
     $app->get('/__setup/assets', function ($req, $res) use ($setupGuard) {
         if (!$setupGuard($req)) return $res->withStatus(404);
         $r = \AfricaGates\Support\AssetBundle::build();
