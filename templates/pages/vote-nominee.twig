@@ -208,6 +208,18 @@
     transition:background .15s, color .15s, border-color .15s; }
   .vn-qty:hover{ border-color:var(--ag-green,#237b22); color:var(--ag-green,#237b22); }
   .vn-qty.is-on{ background:#237b22; color:#fff; border-color:transparent; }
+  /* Quantity + email. `align-items:flex-start` so the two labels start on the same
+     line even when one of them wraps — flex-end pinned the inputs and let the labels
+     drift apart, which is what made the row look broken. */
+  .vn-payrow{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; }
+  .vn-payrow__qty{ flex:0 0 110px; }
+  .vn-payrow__email{ flex:1; min-width:150px; }
+  @media (max-width:480px){
+    /* Stacked on a phone: side by side, the email label wraps to two lines in a
+       150px column and an address is uncomfortable to type in half a screen. */
+    .vn-payrow{ flex-direction:column; align-items:stretch; gap:4px; }
+    .vn-payrow__qty, .vn-payrow__email{ flex:1 1 auto; min-width:0; }
+  }
   .vn-closed{ background:#fff8df; border:1px solid #f0e0b0; border-radius:14px; padding:14px 16px; font-size:13.5px; line-height:1.55; color:#7a5600; }
   .vn-toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); z-index:90; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:13px 22px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); }
   .vn-claimline{ margin:34px 0 8px; padding-top:20px; border-top:1px solid rgba(16,41,44,.09); font-size:13px; color:#5a6d6f; text-align:center; }
@@ -644,14 +656,19 @@
                           :class="qty==={{ t.qty }} && 'is-on'">{{ t.qty }} vote{{ t.qty == 1 ? '' : 's' }}</button>
                   {% endfor %}
                 </div>
-                <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
-                  <div style="flex:0 0 110px">
+                {# CLASSES, not inline flex. The two fields sat side by side at every width
+                   with `align-items:flex-end`, and "Your email (for the receipt)" wraps to
+                   two lines in a 150px column while "Votes" does not — so the labels sat
+                   at different heights and the row read as broken. Below 480px they stack,
+                   which also gives an email address the full width it wants on a phone. #}
+                <div class="vn-payrow">
+                  <div class="vn-payrow__qty">
                     <label class="vn-label" for="pvQty">Votes</label>
                     {# max from the server, not a literal 1000 — PaidVoteService::maxQtyForOrder()
                        is the one authority, and the checkout rejects against the same value. #}
                     <input id="pvQty" name="qty" class="vn-input" type="number" min="1" max="{{ max_qty }}" x-model.number="qty" required>
                   </div>
-                  <div style="flex:1;min-width:150px">
+                  <div class="vn-payrow__email">
                     <label class="vn-label" for="pvEmail">Your email <span style="font-weight:400;color:#5a6d6f">(for the receipt)</span></label>
                     <input id="pvEmail" name="email" class="vn-input" type="email" required placeholder="you@email.com" value="{{ paid_retry.email|default('') ?: (member ? member.email : '') }}">
                   </div>

@@ -117,6 +117,155 @@ return function(App $app) {
                    ->withStatus($r['ok'] ? 200 : 500);
     });
     /**
+     * GET /__setup/deployed?token=… — "is the thing I just uploaded actually live?"
+     *
+     * ── WHY THIS EXISTS ──────────────────────────────────────────────────────
+     *
+     * This platform is deployed by uploading a zip through cPanel File Manager and
+     * pressing Extract. There is no shell, no build step and no deploy log, so when a
+     * new feature does not appear there is no way to tell WHICH of these it is:
+     *
+     *   · the files never landed (extracted to the wrong directory, or Extract
+     *     skipped existing files instead of overwriting them)
+     *   · the files landed but the database migration has not been run
+     *   · everything landed and the feature is switched off by a setting
+     *   · everything landed and works, and the operator is looking in the wrong place
+     *
+     * Those four have completely different fixes and identical symptoms. Guessing
+     * between them over a chat window costs more than the endpoint does.
+     *
+     * So this reads the actual disk and the actual database and reports facts. It never
+     * writes anything. It is invisible (404) without the setup token, like every other
+     * /__setup route — because a public inventory of which files are on the server is a
+     * reconnaissance gift.
+     *
+     * ── AND IT ANSWERS "WHERE DO I LOOK" ─────────────────────────────────────
+     *
+     * The last section resolves the live settings into a sentence naming the page and
+     * the position the message box is in right now. Its own configuration decides that
+     * — free voting off moves it — which is exactly the thing an operator cannot work
+     * out from the outside.
+     */
+    $app->get('/__setup/deployed', function ($req, $res) use ($setupGuard) {
+        if (!$setupGuard($req)) return $res->withStatus(404);
+        $root = dirname(__DIR__);
+        $e    = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+
+        /** A file must exist AND contain a marker, so a stale copy fails too. */
+        $file = static function (string $rel, string $marker = '') use ($root): array {
+            $p = $root . '/' . $rel;
+            if (!is_file($p)) return [false, 'missing'];
+            if ($marker === '') return [true, 'present'];
+            $has = str_contains((string) file_get_contents($p), $marker);
+            return [$has, $has ? 'present + current' : 'PRESENT BUT OLD (marker absent)'];
+        };
+
+        $checks = [];
+        foreach ([
+            ['The message box on the paid form', 'templates/pages/vote-nominee.twig', 'id="pvMsg"'],
+            ['The message box on the free form', 'templates/pages/vote-nominee.twig', 'id="vnMsg"'],
+            ['One message, rendered',            'templates/partials/vote-message.twig', 'vmi__act'],
+            ['Cheer / Report behaviour',         'templates/partials/vote-message-assets.twig', 'vmItem'],
+            ['A nominee\'s full wall',           'templates/pages/vote-messages.twig', 'vmi-list'],
+            ['A message\'s own page',            'templates/pages/vote-message.twig', 'vm__quote'],
+            ['The share row',                    'templates/partials/share.twig', 'ag-share--grid'],
+            ['Quantity chips (deformity fix)',   'templates/pages/vote-nominee.twig', 'vn-qty'],
+            ['Poll options (deformity fix)',     'templates/partials/poll.twig', 'ag-poll__opt'],
+            ['Message routes + card',            'src/Controllers/VoteMessageController.php', 'messageCard'],
+            ['The message card renderer',        'src/Services/FlierService.php', 'messageCard'],
+            ['Moderation queue rows',            'templates/admin/moderation/index.twig', 'vote_message'],
+        ] as [$label, $rel, $marker]) {
+            [$ok, $note] = $file($rel, $marker);
+            $checks[] = [$ok, $label, $rel . ' — ' . $note];
+        }
+
+        // ── the database ────────────────────────────────────────────────────
+        $dbRows = [];
+        try {
+            // Fully qualified: routes.php has no `use` for the capsule and the rest of
+            // the file spells it out too.
+            $cap      = \Illuminate\Database\Capsule\Manager::class;
+            $hasTable = $cap::schema()->hasTable('gates_vote_messages');
+            $dbRows[] = [$hasTable, 'Table gates_vote_messages', $hasTable ? 'present' : 'MISSING — run /__setup/migrate'];
+            if ($hasTable) {
+                foreach (['reports', 'reported_at', 'share_token', 'cheers'] as $col) {
+                    $has = $cap::schema()->hasColumn('gates_vote_messages', $col);
+                    $dbRows[] = [$has, 'Column ' . $col, $has ? 'present' : 'MISSING — run /__setup/migrate'];
+                }
+                $dbRows[] = [true, 'Messages stored so far',
+                    (string) $cap::table('gates_vote_messages')->count() . ' total, '
+                    . (string) $cap::table('gates_vote_messages')->where('status', 'approved')->count() . ' approved and visible, '
+                    . (string) $cap::table('gates_vote_messages')->whereIn('status', ['pending', 'quarantined'])->count() . ' waiting in /admin/moderation'];
+            }
+        } catch (\Throwable $ex) {
+            $dbRows[] = [false, 'Database', 'could not be read: ' . $ex->getMessage()];
+        }
+
+        // ── where the box is, given THIS site's settings ────────────────────
+        $paid = \AfricaGates\Services\PaidVoteService::enabled();
+        $free = !\AfricaGates\Services\PaidVoteService::freeVotingDisabled();
+        $where = [];
+        if ($paid) {
+            $where[] = 'On the <strong>contribution panel</strong>, directly under “Your name (optional)” '
+                     . 'and above the pay button: “<strong>Say something about …</strong>”. '
+                     . 'It is a plain textarea — always visible, nothing to expand.';
+        }
+        if ($free) {
+            $where[] = 'On the <strong>free vote form</strong>, under the email field: a green line reading '
+                     . '“<strong>Say something about …</strong>” which opens the box when tapped.';
+        }
+        if (!$paid && !$free) {
+            $where[] = '<strong>Nowhere — voting is closed or unconfigured on this ballot</strong>, so neither '
+                     . 'form renders. The box appears with the form it belongs to.';
+        }
+        $where[] = 'A message only appears on the ballot <em>after</em> it is approved, so a nominee with no '
+                 . 'messages yet shows no “What voters are saying” panel at all — that is deliberate, not a fault.';
+
+        $row = static function (array $r) use ($e): string {
+            [$ok, $label, $note] = $r;
+            return '<tr><td>' . ($ok ? '<span class="ok">✓</span>' : '<span class="err">✗</span>')
+                 . '</td><td>' . $e($label) . '</td><td class="n">' . $e($note) . '</td></tr>';
+        };
+
+        $allOk = !in_array(false, array_column(array_merge($checks, $dbRows), 0), true);
+
+        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            . '<title>Africa GATES — what is deployed</title>'
+            . '<style>body{font-family:system-ui,"Segoe UI",Roboto,sans-serif;background:#10292C;color:#bcd;margin:0;padding:30px 16px;line-height:1.6}'
+            . '.box{max-width:860px;margin:0 auto}h1{color:#fff;font-size:19px;margin:0 0 4px}h2{color:#fff;font-size:15px;margin:26px 0 8px}'
+            . 'table{width:100%;border-collapse:collapse;font-size:13.5px}td{padding:6px 8px;border-top:1px solid rgba(255,255,255,.08);vertical-align:top}'
+            . 'td:first-child{width:22px}.n{color:#8fa8a4;font-size:12.5px}'
+            . '.ok{color:#7FC87C;font-weight:700}.err{color:#ff9a9a;font-weight:700}'
+            . '.verdict{margin:14px 0 0;padding:12px 14px;border-radius:10px;font-weight:600}'
+            . '.good{background:rgba(127,200,124,.14);color:#9ee89b}.bad{background:rgba(255,154,154,.14);color:#ffbcbc}'
+            . 'ul{padding-left:20px}li{margin:6px 0}a{color:#7FC87C}code{background:#06181a;padding:2px 5px;border-radius:4px;font-size:12.5px}</style>'
+            . '</head><body><div class="box"><h1>What is deployed</h1>'
+            . '<p class="n">Read-only. Nothing on this page changes anything.</p>'
+            . '<div class="verdict ' . ($allOk ? 'good' : 'bad') . '">'
+            . ($allOk
+                ? 'Everything is in place. If you still cannot see the box, read “Where to look” below — '
+                  . 'and if your host runs a page cache (LiteSpeed Cache on cPanel does), purge it.'
+                : 'Something is missing — every row marked ✗ below tells you which fix applies.')
+            . '</div>'
+            . '<h2>Files on this server</h2><table>' . implode('', array_map($row, $checks)) . '</table>'
+            . '<h2>Database</h2><table>' . implode('', array_map($row, $dbRows)) . '</table>'
+            . '<h2>Where to look, on THIS site\'s current settings</h2>'
+            . '<p class="n">Paid voting: <strong>' . ($paid ? 'on' : 'off') . '</strong> · '
+            . 'Free voting: <strong>' . ($free ? 'on' : 'off') . '</strong></p>'
+            . '<ul><li>' . implode('</li><li>', $where) . '</li></ul>'
+            . '<h2>If a row above says PRESENT BUT OLD</h2>'
+            . '<p>The file is there but it is the previous version — the upload did not overwrite it. '
+            . 'Re-extract with overwrite enabled, or delete that file first and upload it again.</p>'
+            . '</div></body></html>';
+
+        $res->getBody()->write($html);
+        return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
+                   ->withHeader('Cache-Control', 'no-store')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    });
+
+    /**
      * GET /__setup/assets — build the CSS bundle without a shell.
      *
      * Same reason /__setup/migrate exists: this deploys to shared cPanel where there is
