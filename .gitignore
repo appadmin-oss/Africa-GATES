@@ -14,6 +14,12 @@ var/cache/
 var/data/
 public/assets/vendor/*.map
 var/logs/
+# Screenshots and other throwaway artefacts written under var/ by tooling. `var/`
+# is the project's scratch directory, and 6.8MB of PNGs got committed from a
+# verification run because only its named subdirectories were ignored.
+var/shots/
+var/shots2/
+var/tmp/
 
 # Off-host build output + user uploads (not committed)
 public/assets/dist/
