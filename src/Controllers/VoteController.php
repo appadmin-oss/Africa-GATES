@@ -362,7 +362,14 @@ class VoteController {
                 'c.id as category_id', 'c.title as category',
                 'cy.id as cycle_id', 'cy.status as cycle_status', 'cy.year as year',
                 'p.id as programme_id', 'p.title as programme_title', 'p.slug as programme_slug',
-            ], \AfricaGates\Support\OptionalColumn::on('gates_nominees', 'organisation') ? ['n.organisation'] : []))
+            ],
+                \AfricaGates\Support\OptionalColumn::on('gates_nominees', 'organisation') ? ['n.organisation'] : [],
+                // `story` is the nominator's FULL case for this person. Optional in the
+                // same way and for the same reason as `organisation`: a bare column name
+                // would throw on any deployment whose migrations have not been applied,
+                // and this is THE BALLOT — the failure would be the whole voting page
+                // rather than one missing paragraph.
+                \AfricaGates\Support\OptionalColumn::on('gates_nominees', 'story') ? ['n.story'] : []))
             ->first();
         if (!$nom) throw new \Slim\Exception\HttpNotFoundException($req);
 
@@ -510,6 +517,9 @@ class VoteController {
             'messages'           => \AfricaGates\Services\VoteMessageService::wall((int) $nom->id, 6),
             'message_count'      => \AfricaGates\Services\VoteMessageService::countForNominee((int) $nom->id),
             'messages_url'       => $nomPath . '/messages',
+            // "and 40 more" used to lead nowhere. Every one of those people ticked a
+            // box asking to be named in public.
+            'supporters_url'     => $nomPath . '/supporters',
             // The ceiling comes from the service, not the textarea: the server
             // truncates at this number, so a `maxlength` that disagreed would either
             // silently cut a voter's words or promise room that does not exist.

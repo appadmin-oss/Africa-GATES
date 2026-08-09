@@ -87,10 +87,37 @@
   /* The nomination brief, when a fuller profile bio follows it. Set apart so the
      two read as a lead and a body rather than as one paragraph that repeats. */
   .vn-card p.vn-lede{ font-size:16px; line-height:1.65; color:var(--ag-ink,#10292c); font-weight:500; }
+  /* The nomination story. Unclamped by default — the clamp is added by Alpine only
+     after it has measured that there is more to show, so no-JS readers get all of it
+     and a short story never gets a button that does nothing. */
+  .vn-story{ position:relative; }
+  .vn-story.is-clamped{ max-height:300px; overflow:hidden; }
+  .vn-story__fade{ position:absolute; left:0; right:0; bottom:0; height:86px; pointer-events:none;
+    background:linear-gradient(to bottom, rgba(255,255,255,0), var(--ag-surface,#fff) 86%); }
+  .vn-more{ display:inline-flex; align-items:center; gap:6px; min-height:40px; margin-top:6px;
+    background:none; border:none; padding:6px 0; cursor:pointer;
+    font:700 13.5px/1 inherit; color:var(--ag-green,#237b22); }
+  .vn-more:hover{ text-decoration:underline; }
+  .vn-more svg{ transition:transform .18s ease; }
+  /* One "Support for X" card holding the messages and the named chips — the two used
+     to be separate cards saying the same thing twice. */
+  .vn-sect{ margin-top:18px; }
+  .vn-sect--split{ padding-top:18px; border-top:1px solid rgba(16,41,44,.09); }
+  .vn-sect__h{ margin:0; font-size:14px; font-weight:700; color:var(--ag-ink,#10292c); }
+  .vn-sect__sub{ margin:8px 0 0; font-size:13px; line-height:1.6; color:#5a6d6f; }
+  .vn-sect__more{ margin:14px 0 0; font-size:13px; }
+  .vn-sect__more a{ display:inline-flex; align-items:center; min-height:40px;
+    color:#237b22; font-weight:600; text-decoration:none; }
+  .vn-sect__more a:hover{ text-decoration:underline; }
+  .vn-chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .vn-chip{ display:inline-flex; align-items:center; gap:7px; background:#f4f9f4; border:1px solid #cfe6cf;
+    border-radius:999px; padding:6px 13px 6px 7px; font-size:13px; color:#10292c; }
+  .vn-chip strong{ font-weight:600; }
+  .vn-chip__av{ width:24px; height:24px; border-radius:50%; background:#237b22; color:#fff;
+    display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; }
   .vn-full{ margin:16px 0 0; font-size:13.5px; font-weight:600; color:var(--ag-green-dark); text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
 
   /* others in category */
-  .vn-glance h2{ margin:0 0 14px; font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#5a6d6f; }
   .vn-sim{ display:flex; flex-direction:column; gap:14px; }
   .vn-sim__row{ display:flex; align-items:center; gap:12px; text-decoration:none; }
   .vn-sim__av{ flex:none; width:40px; height:40px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:17px; background-size:cover; background-position:center; }
@@ -100,11 +127,6 @@
   .vn-sim__go{ font-size:12px; font-weight:600; color:var(--ag-green-dark); }
 
   /* at a glance */
-  .vn-facts{ display:flex; flex-direction:column; gap:13px; }
-  .vn-fact{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
-  .vn-fact__k{ font-size:13.5px; color:#626a6e; }
-  .vn-fact__v{ font-size:13.5px; font-weight:500; color:var(--ag-ink); text-align:right; }
-  .vn-fact__v.mono{ font-family:var(--ag-font-mono); font-weight:700; }
 
   /* ballot card (white, clean inputs; green-accent header) */
   .vn-ballot{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; box-shadow:0 14px 40px -22px rgba(16,41,44,.4); overflow:hidden; }
@@ -378,18 +400,54 @@
   {# ── Body grid ── #}
   <div class="vn-grid">
     <div class="vn-col">
-      {% if (profile and profile.bio) or n.tagline %}
+      {% if (profile and profile.bio) or n.story|default('') or n.tagline %}
       <section class="vn-card">
         <h2>Why {{ firstName }} is nominated</h2>
         {# The nomination brief is the ONE place a nominee's case is stated in
            their nominator's words, and it used to vanish entirely whenever a
            registry profile existed — the bio replaced it rather than joining it.
            Now the brief leads and the fuller profile bio follows, and when the
-           two are the same text only one of them prints. #}
+           two are the same text only one of them prints.
+
+           ── AND IT IS NO LONGER 200 CHARACTERS ──────────────────────────────
+           `tagline` is a SUMMARY: approval derives it from the story's first
+           sentence for use on cards, fliers and leaderboard rows. `story` is the
+           nominator's full text. This prints the story when there is one and falls
+           back to the tagline for nominees approved before the column existed, so
+           an un-backfilled row still shows what it always did rather than nothing. #}
+        {% set _story = n.story|default('')|trim %}
         {% set _brief = n.tagline|default('')|trim %}
+        {% set _case  = _story ?: _brief %}
         {% set _bio   = (profile and profile.bio) ? profile.bio|trim : '' %}
-        {% if _brief and _brief != _bio %}<p class="body vn-lede">{{ _brief }}</p>{% endif %}
-        {% if _bio %}<p class="body">{{ _bio }}</p>{% endif %}
+
+        {# ── FULL TEXT IN THE HTML, CLAMPED ONLY IF JAVASCRIPT SAYS SO ────────
+           The whole story is always in the markup: a crawler indexes it, a reader with
+           no JavaScript reads all of it, and nothing waits on a request. `long` is
+           measured from the RENDERED height inside $nextTick — after Alpine has
+           registered $refs and the browser has laid the text out — and the clamp class
+           only appears once that measurement says it is needed, so the clamp and the
+           button arrive together and short stories are never given a pointless button.
+
+           If Alpine never boots, nothing is clamped and everything is readable. That
+           is the opposite of the previous behaviour, where the text was already gone
+           before the page was rendered. #}
+        {% if _case or _bio %}
+        <div x-data="{ open:false, long:false }" x-init="$nextTick(() => { long = $refs.story.scrollHeight > 300 })">
+          <div class="vn-story" x-ref="story" :class="long && !open ? 'is-clamped' : ''">
+            {% if _case and _case != _bio %}<p class="body vn-lede">{{ _case|nl2br }}</p>{% endif %}
+            {% if _bio %}<p class="body">{{ _bio|nl2br }}</p>{% endif %}
+            <span class="vn-story__fade" x-show="long && !open" x-cloak aria-hidden="true"></span>
+          </div>
+          <button type="button" class="vn-more" x-show="long" x-cloak
+                  @click="open = !open" :aria-expanded="open ? 'true' : 'false'">
+            <span x-text="open ? 'Show less' : 'Read the full nomination'">Read the full nomination</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                 :style="open ? 'transform:rotate(180deg)' : ''"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+        {% endif %}
+
         {% if profile and profile.slug %}<a class="vn-full" href="/registry/{{ profile.slug }}">View full profile <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>{% endif %}
       </section>
       {% endif %}
@@ -438,54 +496,32 @@
       </section>
       {% endif %}
 
-      {# ── Supporters who asked to be named ──────────────────────────────────
-         The whole section is absent until at least one person opts in, which on
-         the day this ships is every nominee: consent is stored per-vote and
-         defaults to 0, so nothing anyone has already paid for appears here. An
-         empty-state ("no supporters yet") would be worse than nothing — it reads
-         as "nobody backed this nominee" when the truth is "nobody has been asked
-         yet". #}
-      {% if supporters|default([])|length %}
-      <section class="vn-card">
-        <h2>Supporters of {{ firstName }}</h2>
-        <p style="margin:8px 0 0;font-size:13px;color:#5a6d6f;line-height:1.6">These supporters chose to be named. Votes from everyone else count exactly the same and stay private — we publish a name only when its owner ticks the box.</p>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px" data-ag-cascade="sm">
-          {% for s in supporters %}
-          <span style="display:inline-flex;align-items:center;gap:7px;background:#f4f9f4;border:1px solid #cfe6cf;border-radius:999px;padding:6px 13px 6px 7px;font-size:13px;color:#10292c">
-            <span aria-hidden="true" style="width:24px;height:24px;border-radius:50%;background:#237b22;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">{{ s.name|slice(0,1)|upper }}</span>
-            <strong style="font-weight:600">{{ s.name }}</strong>
-          </span>
-          {% endfor %}
-          {# No per-supporter vote numbers, deliberately.
-             The list is RANKED by contribution, but printing each person's total
-             turns a thank-you into a table of who spent most — it invites exactly
-             the escalation this platform should not encourage, and it discloses
-             one person's spending to every reader. The ranking is the useful
-             part; the figure behind it is nobody's business. #}
-          {% if supporters_more|default('') %}
-          <span style="display:inline-flex;align-items:center;padding:6px 13px;font-size:13px;color:#5a6d6f">{{ supporters_more }}</span>
-          {% endif %}
-        </div>
-      </section>
-      {% endif %}
+      {# ── ONE CARD FOR THE CROWD ─────────────────────────────────────────────
+         This was TWO cards — "Supporters of X" and "What voters are saying about X" —
+         stacked one above the other, saying the same thing twice in two different
+         registers and pushing the rest of the page down. They are one section now,
+         which is a declutter and also the truer shape: the messages ARE what the
+         supporters said, and the named chips are the same crowd with faces on.
 
-      {# ── THE WALL OF SUPPORT ────────────────────────────────────────────────
-         What voters said, in their own words. Absent until somebody has written
-         something and a moderator (or the classifier) has cleared it — for the same
-         reason the supporters list above is absent until somebody opts in: an empty
-         "no messages yet" panel on a real person's page reads as a verdict on them.
-
-         Every message here is `approved`. Pending and quarantined ones are not
-         rendered, not counted and not hinted at; see VoteMessageService::wall(). #}
-      {% if messages|default([])|length %}
+         The messages lead because they are the substance; the names follow as a
+         footer. Each half still appears only when it has content, so a nominee with
+         messages and no named supporters gets no empty half — and a nominee with
+         neither gets no card at all. An empty "no supporters yet" panel on a real
+         person's page reads as a verdict on them; consent defaults to off and every
+         vote cast before the field existed is private, so absence means "not asked
+         yet", never "not supported". #}
+      {% if messages|default([])|length or supporters|default([])|length %}
       <section class="vn-card">
-        <h2>What voters are saying about {{ firstName }}</h2>
-        <p style="margin:8px 0 0;font-size:13px;color:#5a6d6f;line-height:1.6">
-          {{ message_count }} {{ message_count == 1 ? 'message' : 'messages' }} from verified voters.
-          Written by supporters, checked before publication — and a name appears only where its owner asked for it.
+        <h2>Support for {{ firstName }}</h2>
+
+        {% if messages|default([])|length %}
+        <p class="vn-sect__sub">
+          {{ message_count }} {{ message_count == 1 ? 'message' : 'messages' }} from verified voters,
+          checked before publication. A name appears only where its owner asked for it.
         </p>
-        {# The item markup lives in ONE partial, shared with the full messages page, so
-           the cheer and report controls cannot exist in one place and not the other. #}
+        {# The item markup lives in ONE partial, shared with the full messages page and
+           with a message's own permalink, so the cheer and report controls cannot exist
+           in one place and not the other. #}
         <ul class="vmi-list" data-ag-cascade="sm">
           {% for m in messages %}{% include 'partials/vote-message.twig' with { m: m } only %}{% endfor %}
         </ul>
@@ -493,13 +529,42 @@
         {% if message_count > messages|length %}
         {# A LINK, not a "load more" button. Everything past the first page would
            otherwise be invisible to crawlers and to anyone without JavaScript, the wall
-           would need a second renderer, and "all the messages about me" — which is a
-           thing a nominee sends to their family — would have no URL of its own. #}
-        <p style="margin:16px 0 0;font-size:13px">
-          <a href="{{ messages_url }}" style="color:#237b22;font-weight:600;text-decoration:none">
-            Read all {{ message_count }} messages →
-          </a>
+           would need a second renderer, and "all the messages about me" — a thing a
+           nominee sends to their family — would have no URL of its own. #}
+        <p class="vn-sect__more">
+          <a href="{{ messages_url }}">Read all {{ message_count }} messages →</a>
         </p>
+        {% endif %}
+        {% endif %}
+
+        {% if supporters|default([])|length %}
+        <div class="vn-sect{{ messages|default([])|length ? ' vn-sect--split' : '' }}">
+          <h3 class="vn-sect__h">Named supporters</h3>
+          <p class="vn-sect__sub">These supporters asked to be named. Votes from everyone else count exactly the same and stay private.</p>
+          <div class="vn-chips" data-ag-cascade="sm">
+            {% for s in supporters %}
+            <span class="vn-chip">
+              <span class="vn-chip__av" aria-hidden="true">{{ s.name|slice(0,1)|upper }}</span>
+              <strong>{{ s.name }}</strong>
+            </span>
+            {% endfor %}
+            {# No per-supporter vote numbers, deliberately. The list is RANKED by
+               contribution, but printing each person's total turns a thank-you into a
+               table of who spent most — it invites exactly the escalation this platform
+               should not encourage, and it discloses one person's spending to every
+               reader. The ranking is the useful part; the figure behind it is nobody's
+               business. #}
+          </div>
+          {# "and 40 more" used to lead NOWHERE. Every one of those people ticked a box
+             asking to be named in public, so the phrase is a link now. #}
+          {% if supporter_count > supporters|length %}
+          <p class="vn-sect__more">
+            <a href="{{ supporters_url }}">See all {{ supporter_count }} named supporters →</a>
+          </p>
+          {% elseif supporters_more|default('') %}
+          <p class="vn-sect__more"><a href="{{ supporters_url }}">{{ supporters_more }} →</a></p>
+          {% endif %}
+        </div>
         {% endif %}
       </section>
       {% endif %}
@@ -523,22 +588,17 @@
       </section>
       {% endif %}
 
-      <aside class="vn-glance vn-card">
-        <h2>At a glance</h2>
-        <div class="vn-facts">
-          <div class="vn-fact"><span class="vn-fact__k">Country</span><span class="vn-fact__v">{{ flag }} {{ ctry }}</span></div>
-          {# The school belongs in the facts table as well as the header. This table is
-             what someone reads when they want the details rather than the headline,
-             and listing country and category while omitting the school would be an odd
-             gap now that the value exists. #}
-          {% if n.organisation|default('') %}<div class="vn-fact"><span class="vn-fact__k">School / organisation</span><span class="vn-fact__v">{{ n.organisation }}</span></div>{% endif %}
-          <div class="vn-fact"><span class="vn-fact__k">Programme</span><span class="vn-fact__v">{{ n.programme_title }}</span></div>
-          <div class="vn-fact"><span class="vn-fact__k">Category</span><span class="vn-fact__v">{{ n.category }}</span></div>
-          {% if rank %}<div class="vn-fact"><span class="vn-fact__k">Current rank</span><span class="vn-fact__v mono">#{{ rank }}</span></div>{% endif %}
-          <div class="vn-fact"><span class="vn-fact__k">Votes</span><span class="vn-fact__v mono" x-text="votes.toLocaleString()">{{ n.vote_count }}</span></div>
-          {% if profile and profile.region %}<div class="vn-fact"><span class="vn-fact__k">Region</span><span class="vn-fact__v">{{ profile.region }}</span></div>{% endif %}
-        </div>
-      </aside>
+      {# ── "AT A GLANCE" HAS BEEN REMOVED ─────────────────────────────────────
+         It listed Country, School / organisation, Programme, Category, Current rank
+         and Votes — and every one of those is already on this page, most of them
+         twice: the breadcrumb carries programme and category, the hero carries the
+         rank pill, the name, "country · category · programme", the organisation line
+         and the live vote count. It was a table restating the top of the page at the
+         bottom of it, and on a phone it was another screen of scrolling between the
+         reader and the ballot.
+
+         Region was the one fact unique to it, and it is a coarse label ("west") that
+         the country already implies. #}
     </div>
 
     {# ── Ballot — primary action; pulled above the content on mobile via order ── #}

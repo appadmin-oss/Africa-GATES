@@ -328,7 +328,22 @@ HTML;
                             // still carry whatever was typed, and this is the last
                             // moment before the name becomes a public ballot entry.
                             'name'         => \AfricaGates\Support\Name::title((string)$nom->nominee_name),
-                            'tagline'      => mb_substr((string)$nom->reason, 0, 200),
+                            // ── THE STORY SURVIVES APPROVAL NOW ──────────────────────
+                            //
+                            // This was `mb_substr($nom->reason, 0, 200)` into `tagline`
+                            // and nothing else — so a nominator's 3,000-character case
+                            // for a person became 200 characters cut mid-word, and the
+                            // full text stayed in gates_nominations.reason, which no
+                            // public page joins to. Every ballot on the platform showed
+                            // a fragment with no way to read on, because there was
+                            // nothing more on the row to read.
+                            //
+                            // `story` carries the whole thing and is what the ballot
+                            // prints. `tagline` stays the SHORT line that leaderboard
+                            // rows, cards and fliers need — but it now ends where a
+                            // sentence ends instead of at a byte count.
+                            'story'        => trim((string)$nom->reason) ?: null,
+                            'tagline'      => \AfricaGates\Support\Text::firstSentence((string)$nom->reason, 200),
                             'country_code' => $nom->country_code,
                             // CARRIED ACROSS, not re-asked. The nomination form already
                             // collected the school/organisation and approval used to drop

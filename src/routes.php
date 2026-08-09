@@ -895,6 +895,9 @@ return function(App $app) {
         // Every message of support for one nominee, paginated. Before /{slug} for the
         // same reason the flier routes are: FastRoute matches in declaration order.
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/messages',   VoteMessageController::class.':forNominee');
+        // Everyone who ticked the box asking to be named. The ballot shows the ten
+        // biggest backers and used to end with "and 40 more" leading nowhere.
+        $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/supporters', VoteMessageController::class.':supporters');
         $g->get('/vote/{program}/{slug}', VoteController::class.':nominee');
 
         // ── A MESSAGE OF SUPPORT, AT ITS OWN URL ─────────────────────────────

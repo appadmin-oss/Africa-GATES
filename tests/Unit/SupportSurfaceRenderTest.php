@@ -245,14 +245,31 @@ final class SupportSurfaceRenderTest extends TestCase
         // the hero as well — printing it twice made the reader meet the same
         // paragraph again forty pixels later, and pushed the vote count and the
         // CTA down the page on a phone.
-        $this->assertSame(1, substr_count($src, '{{ n.tagline }}') + substr_count($src, '{{ _brief }}'),
-            'the brief is printed exactly once');
+        // `_case` is the nominee's case for the ballot: the full `story` where one
+        // exists, falling back to `tagline` for rows approved before the story column
+        // did. Printed exactly ONCE, and not in the hero as well.
+        $this->assertSame(1, substr_count($src, '{{ _case|nl2br }}'),
+            'the nominee\'s case is printed exactly once');
         $this->assertStringNotContainsString('vn-bioline', $src,
             'the hero copy is gone, and so is the CSS that positioned it');
+
+        // ── AND IT IS THE FULL TEXT ──────────────────────────────────────────
+        // The story is what approval now keeps in full; `tagline` is only the fallback
+        // for un-backfilled rows. A template reading tagline FIRST would reintroduce
+        // the 200-character truncation this whole change exists to remove.
+        $this->assertStringContainsString('{% set _story = n.story|default(\'\')|trim %}', $src);
+        $this->assertStringContainsString('{% set _case  = _story ?: _brief %}', $src,
+            'the story must be preferred over the short tagline');
 
         // And nothing is destroyed on the way there.
         $this->assertStringNotContainsString('n.tagline|slice', $src);
         $this->assertStringNotContainsString('n.tagline|u.truncate', $src);
+        $this->assertStringNotContainsString('n.story|slice', $src);
+        // The clamp is a CSS class applied by Alpine after measuring, never a Twig
+        // truncation — so the whole text is in the HTML for a crawler and for anyone
+        // whose JavaScript never runs.
+        $this->assertStringContainsString('long = $refs.story.scrollHeight', $src,
+            'the clamp must be measured at runtime, not baked into the markup');
         $this->assertStringContainsString('overflow-wrap:anywhere', $src,
             'a pasted URL must break rather than widen the column');
     }
@@ -265,7 +282,7 @@ final class SupportSurfaceRenderTest extends TestCase
         // nominator's words. It used to vanish entirely whenever a registry
         // profile existed, because the bio REPLACED it rather than joining it.
         $this->assertStringNotContainsString("(profile and profile.bio) ? profile.bio : n.tagline", $src);
-        $this->assertStringContainsString('_brief != _bio', $src,
+        $this->assertStringContainsString('_case != _bio', $src,
             'and when the two are the same text, only one of them prints');
     }
 }

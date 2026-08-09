@@ -72,6 +72,11 @@ CREATE TABLE IF NOT EXISTS gates_nominees (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, category_id BIGINT UNSIGNED NOT NULL,
   profile_id BIGINT UNSIGNED DEFAULT NULL, name VARCHAR(200) NOT NULL,
   tagline VARCHAR(300) DEFAULT NULL, photo_path VARCHAR(400) DEFAULT NULL,
+  -- The nominator's full case for this person. `tagline` is the SHORT line a
+  -- leaderboard row, card or flier needs; this is what the ballot prints. Approval
+  -- used to keep only the first 200 characters of the story in `tagline` and drop
+  -- the rest, so every ballot showed a sentence cut mid-word with no way to read on.
+  story TEXT NULL,
   country_code CHAR(2) DEFAULT NULL,
   -- School / organisation, carried across from the nomination on approval.
   organisation VARCHAR(200) DEFAULT NULL,

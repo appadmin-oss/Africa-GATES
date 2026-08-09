@@ -87,7 +87,63 @@ final class SupportersService
      */
     public static function forNominee(int $nomineeId, int $limit = self::DEFAULT_LIMIT): array
     {
-        if ($nomineeId < 1) return [];
+        return array_slice(self::foldRows($nomineeId, self::SCAN)['people'], 0, max(1, $limit));
+    }
+
+    /**
+     * How many vote rows the FULL list will read before it stops folding.
+     *
+     * Higher than SCAN because this backs a page whose whole purpose is completeness,
+     * and lower than infinity because a rally can put an unbounded number of rows
+     * behind one nominee and this runs on shared hosting. When the ceiling is reached
+     * the page says so rather than quietly presenting a partial list as the whole.
+     */
+    private const SCAN_ALL = 5000;
+
+    /**
+     * Every named supporter, paginated — the list behind "and N more".
+     *
+     * ── WHY THIS EXISTS ─────────────────────────────────────────────────────
+     *
+     * The ballot shows the ten biggest backers and then "and 40 more", and there was
+     * nothing behind that phrase. These are people who ticked a box asking to be named
+     * in public; telling them "and 40 more" and never naming them is the one outcome
+     * the consent did not promise.
+     *
+     * The ORDER is the same as the ballot's — by contribution — and the numbers behind
+     * it are still never printed, for the reason given on forNominee(). What changes
+     * here is only how many of the names are reachable.
+     *
+     * @return array{people:list<array{name:string,votes:int,paid:bool,when:string}>,
+     *               total:int, capped:bool}
+     */
+    public static function page(int $nomineeId, int $perPage = 60, int $offset = 0): array
+    {
+        $f      = self::foldRows($nomineeId, self::SCAN_ALL);
+        $people = $f['people'];
+
+        return [
+            'people' => array_slice($people, max(0, $offset), max(1, min(200, $perPage))),
+            'total'  => count($people),
+            // True when there were more rows than we were willing to read, so the page
+            // can say "the most recent 5,000 contributions" instead of implying it has
+            // counted every one.
+            'capped' => $f['capped'],
+        ];
+    }
+
+    /**
+     * Read vote rows for a nominee and fold them into PEOPLE, ranked.
+     *
+     * Extracted so the ballot's top ten and the full list cannot disagree about who a
+     * supporter is, how names are deduplicated, or what order they come in — the kind
+     * of divergence nobody notices until a supporter is on one list and not the other.
+     *
+     * @return array{people:list<array{name:string,votes:int,paid:bool,when:string}>, capped:bool}
+     */
+    private static function foldRows(int $nomineeId, int $scan): array
+    {
+        if ($nomineeId < 1) return ['people' => [], 'capped' => false];
 
         try {
             $rows = DB::table('gates_votes')
@@ -99,11 +155,13 @@ final class SupportersService
                 ->whereNotNull('voter_name')
                 ->where('voter_name', '<>', '')
                 ->orderByDesc('id')
-                ->limit(self::SCAN)
+                ->limit($scan)
                 ->get(['voter_name', 'weight', 'vote_type', 'voted_at']);
         } catch (\Throwable) {
-            return [];
+            return ['people' => [], 'capped' => false];
         }
+
+        $capped = $rows->count() >= $scan;
 
         /** @var array<string, array{name:string, votes:int, paid:bool, when:string, top:int}> $people */
         $people = [];
@@ -135,12 +193,15 @@ final class SupportersService
         // requests instead of depending on however the rows happened to arrive.
         uasort($people, static fn($a, $b) => $b['votes'] <=> $a['votes'] ?: strcasecmp($a['name'], $b['name']));
 
+        // Everything, ranked. Callers slice — forNominee() to its top N, page() to a
+        // page — so there is one definition of "who supports this nominee, in what
+        // order" and no way for two surfaces to answer it differently.
         $out = [];
-        foreach (array_slice(array_values($people), 0, max(1, $limit)) as $p) {
+        foreach (array_values($people) as $p) {
             unset($p['top']);
             $out[] = $p;
         }
-        return $out;
+        return ['people' => $out, 'capped' => $capped];
     }
 
     /**

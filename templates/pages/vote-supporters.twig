@@ -1,0 +1,124 @@
+{% extends "layout/gates.twig" %}
+
+{# ── EVERYONE WHO ASKED TO BE NAMED ───────────────────────────────────────────
+
+   The ballot names the ten biggest backers and then said "and 40 more", which led
+   nowhere. Every one of these people ticked a box asking to be named in public;
+   naming ten and counting the rest is the one outcome that consent did not promise.
+
+   Two rules this page keeps, both inherited from SupportersService:
+
+   · No numbers. What each person contributed decides the ORDER and is never printed.
+     Publishing it turns a thank-you into a table of who spent most, discloses one
+     person's spending to every reader, and invites exactly the escalation this
+     platform should not encourage.
+
+   · Nobody appears here who did not ask to. The private majority is acknowledged in
+     words instead, because a list of the named implying it is the whole crowd would
+     understate the people who chose not to be listed. #}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .vsu{ max-width:760px; margin:0 auto; padding:38px 20px 72px; }
+  .vsu__crumb{ font-size:12.5px; color:#5a6d6f; margin:0 0 14px; }
+  .vsu__crumb a{ color:#237b22; font-weight:600; text-decoration:none; display:inline-block; padding:8px 0; }
+  .vsu__head{ display:flex; align-items:center; gap:16px; }
+  .vsu__ava{ width:56px; height:56px; border-radius:50%; object-fit:cover; background:#e8ece8; flex:none; }
+  .vsu__mono{ width:56px; height:56px; border-radius:50%; background:#237b22; color:#fff; flex:none;
+              display:flex; align-items:center; justify-content:center; font:700 22px/1 inherit; }
+  .vsu__ht{ min-width:0; }
+  .vsu__h{ margin:0; font-size:clamp(1.24rem, 1.05rem + .8vw, 1.7rem); letter-spacing:-.015em; color:#10292C; }
+  .vsu__sub{ margin:5px 0 0; font-size:13.5px; line-height:1.6; color:#5a6d6f; }
+  .vsu__grid{ list-style:none; margin:24px 0 0; padding:0;
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:9px; }
+  .vsu__i{ display:flex; align-items:center; gap:9px; background:#f4f9f4; border:1px solid #cfe6cf;
+    border-radius:999px; padding:7px 14px 7px 7px; min-height:44px; font-size:13.5px; color:#10292c; }
+  .vsu__av{ width:28px; height:28px; border-radius:50%; background:#237b22; color:#fff; flex:none;
+    display:inline-flex; align-items:center; justify-content:center; font:700 12px/1 inherit; }
+  .vsu__n{ font-weight:600; min-width:0; overflow-wrap:anywhere; }
+  .vsu__note{ margin:24px 0 0; background:#f7faf7; border:1px solid #dfeade; border-radius:12px;
+    padding:13px 15px; font-size:12.5px; line-height:1.7; color:#4a5f61; }
+  .vsu__note a{ color:#237b22; font-weight:600; }
+  .vsu__empty{ margin:26px 0 0; text-align:center; padding:40px 24px; background:#f7faf7;
+    border:1px dashed #cfe0cf; border-radius:16px; }
+  .vsu__empty p{ margin:0 0 16px; font-size:14.5px; line-height:1.7; color:#4a5f61; }
+  .vsu__cta{ display:inline-block; background:#10292C; color:#fff; font-weight:700; font-size:14.5px;
+    padding:12px 26px; border-radius:999px; text-decoration:none; }
+  .vsu__pager{ margin:26px 0 0; display:flex; flex-wrap:wrap; align-items:center;
+    justify-content:space-between; gap:8px 14px; font-size:13.5px; }
+  .vsu__pager a{ color:#237b22; font-weight:600; text-decoration:none; display:inline-flex;
+    align-items:center; min-height:40px; }
+  .vsu__pager span{ color:#8a9a9c; display:inline-flex; align-items:center; min-height:40px; }
+  .vsu__share{ margin:26px 0 0; padding-top:20px; border-top:1px solid rgba(16,41,44,.09); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="vsu">
+
+  <p class="vsu__crumb"><a href="{{ ballot_url }}">← {{ nom.name }}’s ballot</a></p>
+
+  <header class="vsu__head">
+    {% if nom.photo_path %}
+      <img class="vsu__ava" src="{{ nom.photo_path|media_url('avatar') }}" alt="" width="56" height="56">
+    {% else %}
+      <span class="vsu__mono" aria-hidden="true">{{ nom.name|slice(0,1)|upper }}</span>
+    {% endif %}
+    <div class="vsu__ht">
+      <h1 class="vsu__h">Supporters of {{ nom.name }}</h1>
+      <p class="vsu__sub">
+        {% if total %}{{ total }} {{ total == 1 ? 'person' : 'people' }} asked to be named{% else %}Nobody has asked to be named yet{% endif %}
+        · {{ nom.category }}
+      </p>
+    </div>
+  </header>
+
+  {% if supporters|length %}
+    <ul class="vsu__grid" data-ag-cascade="sm">
+      {% for s in supporters %}
+      <li class="vsu__i">
+        <span class="vsu__av" aria-hidden="true">{{ s.name|slice(0,1)|upper }}</span>
+        <span class="vsu__n">{{ s.name }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+
+    {% if pages > 1 %}
+    <nav class="vsu__pager" aria-label="Pages of supporters">
+      {% if page > 1 %}<a href="?page={{ page - 1 }}" rel="prev">← Previous</a>{% else %}<span>← Previous</span>{% endif %}
+      <span>Page {{ page }} of {{ pages }}</span>
+      {% if page < pages %}<a href="?page={{ page + 1 }}" rel="next">Next →</a>{% else %}<span>Next →</span>{% endif %}
+    </nav>
+    {% endif %}
+
+    <div class="vsu__share">
+      {% include 'partials/share.twig' with {
+        share_url: share_url,
+        share_text: 'The people backing ' ~ nom.name ~ ' at Africa GATES:',
+        share_label: 'Share this page'
+      } only %}
+    </div>
+  {% else %}
+    {# Not a scolding. Zero named supporters means nobody has ticked the box yet — the
+       consent defaults to off and most votes predate the field entirely — not that
+       nobody backed this nominee. #}
+    <div class="vsu__empty">
+      <p>No one has asked to be named here yet. The box is optional and off by default, so most
+         supporters stay private — {{ nom.name }} may have many.</p>
+      <a class="vsu__cta" href="{{ ballot_url }}">Back {{ nom.name }} →</a>
+    </div>
+  {% endif %}
+
+  <p class="vsu__note">
+    {% if backer_count > total %}
+      <strong>{{ backer_count }} {{ backer_count == 1 ? 'person has' : 'people have' }} backed {{ nom.name }} in total.</strong>
+      The {{ total }} above are the ones who asked to be named; everyone else counted exactly the same and stays private.
+    {% else %}
+      A name appears here only when its owner ticked the box asking for it. Votes from everyone else
+      count exactly the same and stay private.
+    {% endif %}
+    We never publish an email address, a phone number or an amount.
+    <a href="/privacy#supporters">How we handle voter names</a>{% if capped %} · This page lists the most recent contributions; on a very large rally the oldest may not be shown{% endif %}.
+  </p>
+</div>
+{% endblock %}

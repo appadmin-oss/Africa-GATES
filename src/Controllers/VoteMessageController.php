@@ -149,6 +149,77 @@ final class VoteMessageController
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // GET /vote/{program}/{slug}/supporters — everyone who asked to be named
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * The list behind "and N more".
+     *
+     * ── WHY IT NEEDED A PAGE ────────────────────────────────────────────────
+     *
+     * The ballot names the ten biggest backers and then says "and 40 more", and there
+     * was nothing behind that phrase. Every one of those people ticked a box asking to
+     * be named in public. Naming ten of them and counting the rest is the one outcome
+     * the consent did not promise — and on the day a nominee wins, the crowd behind
+     * them is the page worth sending to their family.
+     *
+     * Same ordering as the ballot's list, from the same fold, so a supporter cannot be
+     * on one and missing from the other. And the same silence about numbers: what each
+     * person contributed decides the order and is never printed.
+     */
+    public function supporters(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) (string) ($args['slug'] ?? '0');
+        $nom = $this->nomineeFor($id);
+        if ($nom === null) throw new \Slim\Exception\HttpNotFoundException($req);
+
+        $perPage = 60;
+        $page    = max(1, (int) ($req->getQueryParams()['page'] ?? 1));
+        $r       = \AfricaGates\Services\SupportersService::page($id, $perPage, ($page - 1) * $perPage);
+        $ballot  = $this->ballotPath($id, (string) $nom->name);
+        $base    = SiteUrl::base($req);
+
+        return $this->view->render($res, 'pages/vote-supporters.twig', [
+            'page_title'       => 'Supporters of ' . $nom->name . ' — Africa GATES',
+            'meta_description' => 'The people who asked to be named among ' . $nom->name
+                                . '\'s supporters in ' . $nom->category . ' at Africa GATES.',
+            'gates_page'  => 'awards',
+            'has_hero'    => false,
+            'nom'         => $nom,
+            'supporters'  => $r['people'],
+            'total'       => $r['total'],
+            'capped'      => $r['capped'],
+            'page'        => $page,
+            'pages'       => max(1, (int) ceil($r['total'] / $perPage)),
+            'ballot_url'  => $ballot,
+            'share_url'   => $base . $ballot . '/supporters',
+            // Everybody behind them, named or not — so the page can say plainly that
+            // the named list is a subset of the real crowd rather than implying the
+            // people who stayed private were not there.
+            'backer_count' => \AfricaGates\Services\CommunityReturnService::supporterCount($id),
+            'og_image'      => $ballot !== '' ? $base . $ballot . '/card.png' : null,
+            'og_image_w'    => \AfricaGates\Services\FlierService::OG_W,
+            'og_image_h'    => \AfricaGates\Services\FlierService::OG_H,
+            'og_image_type' => 'image/png',
+        ]);
+    }
+
+    /** The nominee row both list pages need, or null when there is no public ballot. */
+    private function nomineeFor(int $id): ?object
+    {
+        if ($id < 1) return null;
+        try {
+            return DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                ->where('n.id', $id)->whereIn('n.status', ['approved', 'winner', 'runner_up'])
+                ->select('n.id', 'n.name', 'n.photo_path', 'n.status', 'c.title as category', 'p.slug as programme_slug')
+                ->first();
+        } catch (\Throwable) { return null; }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // POST /api/vote-message — the paid path
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -356,15 +427,7 @@ final class VoteMessageController
         $id = (int) (string) ($args['slug'] ?? '0');
         if ($id < 1) throw new \Slim\Exception\HttpNotFoundException($req);
 
-        try {
-            $nom = DB::table('gates_nominees as n')
-                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
-                ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
-                ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
-                ->where('n.id', $id)->whereIn('n.status', ['approved', 'winner', 'runner_up'])
-                ->select('n.id', 'n.name', 'n.photo_path', 'c.title as category', 'p.slug as programme_slug')
-                ->first();
-        } catch (\Throwable) { $nom = null; }
+        $nom = $this->nomineeFor($id);
         if ($nom === null) throw new \Slim\Exception\HttpNotFoundException($req);
 
         $perPage = 20;

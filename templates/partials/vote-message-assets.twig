@@ -6,9 +6,15 @@
   .vmi{ background:#f7faf7; border:1px solid #dfeade; border-left:3px solid #7FC87C;
         border-radius:0 12px 12px 0; padding:14px 16px; }
   .vmi__b{ margin:0; font-size:14.5px; line-height:1.65; color:#20393b; }
-  .vmi__f{ margin-top:9px; display:flex; align-items:center; flex-wrap:wrap; gap:2px 10px;
-           font-size:12px; color:#6b7d7f; }
-  .vmi__n{ font-weight:600; color:#3d5254; }
+  /* Attribution left, controls right — on one line when there is room, on two when
+     there is not, and the SAME either way for every message in the list. Grouping the
+     controls is what fixes that: a wrapping single row put "Report" inline or on its
+     own line depending on the length of the supporter's name. */
+  .vmi__f{ margin-top:9px; display:flex; align-items:center; justify-content:space-between;
+           flex-wrap:wrap; gap:0 12px; font-size:12px; color:#6b7d7f; }
+  .vmi__who{ display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0; }
+  .vmi__acts{ display:inline-flex; align-items:center; gap:10px; flex:none; }
+  .vmi__n{ font-weight:600; color:#3d5254; overflow-wrap:anywhere; }
   .vmi__tag{ background:#e8f3e7; color:#1a6118; border-radius:999px; padding:3px 9px; font-size:11px; font-weight:600; }
   /* The actions sit right, away from the attribution: a Report button beside
      somebody's name reads as being about the person rather than the words.
@@ -22,21 +28,21 @@
      other two by a wider gap of its own. */
   .vmi__act{ display:inline-flex; align-items:center; gap:5px; background:none; border:none;
              min-height:40px; padding:4px 6px; font:600 12px/1 inherit; color:#237b22;
-             cursor:pointer; text-decoration:none; }
-  .vmi__act:first-of-type{ margin-left:auto; }
+             cursor:pointer; text-decoration:none; white-space:nowrap; }
   .vmi__act:hover{ text-decoration:underline; }
   .vmi__act.is-on{ color:#1a6118; }
   .vmi__act[disabled]{ opacity:.5; cursor:default; }
-  .vmi__act--report{ color:#8a9a9c; font-weight:500; margin-left:8px; }
+  /* Extra separation from Cheer, which is two controls away and does something very
+     different. A mis-tap here reports somebody's message about a child. */
+  .vmi__act--report{ color:#8a9a9c; font-weight:500; margin-left:6px; }
   .vmi__act--report:hover{ color:#b3261e; }
   .vmi__done{ font-size:12px; color:#8a9a9c; min-height:40px; display:inline-flex; align-items:center; }
   @media (max-width:520px){
-    /* On a phone the actions get their own row rather than being squeezed onto the
-       attribution line, and Report is pushed to the far end of it — the furthest
-       point from where the thumb lands for Cheer. */
-    .vmi__f{ gap:0 10px; }
-    .vmi__act:first-of-type{ margin-left:0; }
-    .vmi__act--report{ margin-left:auto; }
+    /* On a phone the controls always take their own full-width row under the
+       attribution, and spread across it — so Report ends up as far from Cheer as the
+       row allows, and every message in the list is the same height. */
+    .vmi__f{ flex-direction:column; align-items:stretch; gap:0; }
+    .vmi__acts{ width:100%; justify-content:space-between; gap:4px; }
   }
 </style>
 <script nonce="{{ csp_nonce }}">

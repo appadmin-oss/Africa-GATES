@@ -97,6 +97,9 @@ CREATE TABLE IF NOT EXISTS gates_nominees (
   profile_id INTEGER,
   name TEXT NOT NULL,
   tagline TEXT,
+  -- The nominator's full case for this person; `tagline` stays the short line.
+  -- See schema.sql and database/migrations/2026_08_24_nominee_story.php.
+  story TEXT,
   photo_path TEXT,
   country_code TEXT,
   organisation TEXT,                              -- school / organisation, carried from the nomination
