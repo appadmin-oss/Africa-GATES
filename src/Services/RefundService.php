@@ -979,7 +979,7 @@ final class RefundService
      */
     public static function statusFor(string $reference): array
     {
-        $ref = trim($reference);
+        $ref = PaymentLookup::canonical(trim($reference));
         if ($ref === '') return ['found' => false, 'say' => 'A payment reference is needed.'];
 
         try {
@@ -987,7 +987,9 @@ final class RefundService
         } catch (\Throwable) {
             return ['found' => false, 'say' => 'I could not check that just now.'];
         }
-        if (!$d) return ['found' => false, 'say' => 'No payment with that reference is on record.'];
+        if (!$d) return ['found' => false, 'say' => 'No payment matching that is on record — the reference we '
+                                                  . 'sent you, or the transaction number on your bank or '
+                                                  . 'Paystack receipt, will both find it.'];
 
         $state = self::ready() ? (string) ($d->refund_state ?? '') : '';
         if (($d->refunded_at ?? null) !== null || $state === 'refunded') {

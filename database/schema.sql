@@ -491,6 +491,15 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   votes_used INT UNSIGNED NOT NULL DEFAULT 0,
   intent_nominee_id BIGINT UNSIGNED DEFAULT NULL, -- paid-vote orders: auto-mint target on confirm
   payment_ref VARCHAR(200) DEFAULT NULL,
+  -- The GATEWAY's own identifiers for this payment, captured at confirmation.
+  -- `payment_ref`/`reference` above is the reference WE mint and hand to the gateway;
+  -- these two are what Paystack's receipt, dashboard and SMS actually show the buyer, so
+  -- without them the number in a supporter's hand matches nothing on the platform.
+  -- Deliberately NOT unique: a transaction id is unique per gateway, not across them, and
+  -- some providers reuse a reference on a retried charge.
+  -- See database/migrations/2026_08_26_gateway_reference.php.
+  gateway_txn_id VARCHAR(64) DEFAULT NULL,
+  gateway_ref VARCHAR(80) DEFAULT NULL,
   status ENUM('pending','confirmed','failed') NOT NULL DEFAULT 'pending',
   -- The buyer's answer to "show my name publicly", carried through the gateway
   -- round-trip and copied onto the vote at mint. Default 0 = private.
@@ -531,6 +540,8 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(id),
   KEY idx_donation_email(donor_email),
+  KEY idx_dona_gwtxn (gateway_txn_id),
+  KEY idx_dona_gwref (gateway_ref),
   KEY idx_donation_status(status),
   KEY idx_donations_pending_age(status, created_at),
   KEY idx_donation_refund_retry(refund_state, refund_retry_after),
@@ -789,12 +800,23 @@ CREATE TABLE IF NOT EXISTS gates_orders (
   status VARCHAR(20) NOT NULL DEFAULT 'pending',
   provider VARCHAR(30) DEFAULT NULL,
   provider_ref VARCHAR(120) DEFAULT NULL,
+  -- The GATEWAY's own identifiers for this payment, captured at confirmation.
+  -- `payment_ref`/`reference` above is the reference WE mint and hand to the gateway;
+  -- these two are what Paystack's receipt, dashboard and SMS actually show the buyer, so
+  -- without them the number in a supporter's hand matches nothing on the platform.
+  -- Deliberately NOT unique: a transaction id is unique per gateway, not across them, and
+  -- some providers reuse a reference on a retried charge.
+  -- See database/migrations/2026_08_26_gateway_reference.php.
+  gateway_txn_id VARCHAR(64) DEFAULT NULL,
+  gateway_ref VARCHAR(80) DEFAULT NULL,
   ip_hash VARCHAR(64) DEFAULT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   paid_at TIMESTAMP NULL DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_order_ref (reference),
-  KEY idx_order_status (status)
+  KEY idx_order_status (status),
+  KEY idx_orde_gwtxn (gateway_txn_id),
+  KEY idx_orde_gwref (gateway_ref)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Shop catalogue. Same gap gates_orders had: it lived only in the 2026_06_22_shop

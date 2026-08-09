@@ -472,6 +472,15 @@ final class PaymentController
                 'confirmed_at' => Carbon::now()->toDateTimeString(),
             ], ['confirmed_at']));
 
+        // The gateway's own transaction id and reference — the numbers on the buyer's
+        // receipt, and the only moment we hold them. Every lookup surface on this
+        // platform used to match only the AFG- reference WE minted, so "the number on my
+        // Paystack receipt" was the one thing guaranteed to find nothing. Outside the
+        // `$changed` branch on purpose: a second confirmation attempt that loses the race
+        // still learned the ids, and writing them is not a state transition.
+        // See PaymentLookup. Never throws.
+        \AfricaGates\Services\PaymentLookup::remember('gates_donations', (int) $donation->id, $v);
+
         if ($changed > 0) {
             $this->log?->info('[payment] confirmed', ['src' => $source, 'ref' => $reference, 'amount' => $v['amount']]);
             // Post-commit, best-effort (dispatch never throws) — additive to the

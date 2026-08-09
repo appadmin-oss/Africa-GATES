@@ -35,7 +35,8 @@ class PaymentClawbackCommand extends Command
 
         $donation = ctype_digit($arg)
             ? DB::table('gates_donations')->where('id', (int) $arg)->first()
-            : DB::table('gates_donations')->where('payment_ref', $arg)->first();
+            : DB::table('gates_donations')
+                ->where('payment_ref', \AfricaGates\Services\PaymentLookup::canonical($arg))->first();
         if (!$donation) { $io->error("No donation matches '{$arg}'."); return Command::FAILURE; }
 
         $rows = DB::table('gates_votes')->where('donation_id', (int) $donation->id)->get(['nominee_id', 'weight']);

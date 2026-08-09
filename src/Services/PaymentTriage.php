@@ -143,7 +143,10 @@ final class PaymentTriage
      */
     public function lookup(string $reference): array
     {
-        $reference = trim($reference);
+        // An operator on the phone to a buyer is being read a number off the buyer's screen,
+        // and that screen is Paystack's receipt, not ours. Resolve first so the reference
+        // this whole comparison hangs off is the one our row is keyed by.
+        $reference = PaymentLookup::canonical(trim($reference), $this->payments);
         $ours = $reference === '' ? null
               : DB::table('gates_donations')->where('payment_ref', $reference)->first();
 
@@ -161,8 +164,9 @@ final class PaymentTriage
         // ── Say what it MEANS, not just what the fields are ──────────────────
         if ($ours === null && $gateway === null) {
             return ['found' => false, 'ours' => null, 'gateway' => null, 'verdict' => 'unknown',
-                    'detail' => 'Neither we nor the gateway recognise this reference. Check the characters — '
-                              . 'buyers often quote the gateway\'s own transaction id rather than ours.'];
+                    'detail' => 'Neither we nor the gateway recognise this reference. The gateway\'s own '
+                              . 'transaction id works here as well as ours, so check the characters — or '
+                              . 'search by the buyer\'s email address instead.'];
         }
         if ($ours === null) {
             return ['found' => true, 'ours' => null, 'gateway' => $gateway, 'verdict' => 'orphan',

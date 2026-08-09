@@ -520,6 +520,19 @@ class PaymentService
             'amount'   => $amount,
             'currency' => (string)($data['currency'] ?? 'NGN'),
             'meta'     => is_array($data['metadata'] ?? null) ? $data['metadata'] : [],
+            // ── THE GATEWAY'S OWN IDENTIFIERS ────────────────────────────────
+            //
+            // Dropped on the floor until now, and they are the numbers a supporter
+            // actually has. Paystack's receipt and dashboard show its transaction id and
+            // its own reference; ours (AFG-PVOTE-…) is the one WE minted. So somebody
+            // pasting "the reference from my receipt" matched nothing anywhere, and
+            // VoteProof's own error message had to apologise for it: "if you paid inside
+            // a bank or wallet app, that app shows its own different number".
+            //
+            // Stored on the order at confirm time so every later lookup is a local
+            // indexed hit rather than a live call. See PaymentLookup.
+            'gateway_id'  => (string) ($data['id'] ?? ''),
+            'gateway_ref' => (string) ($data['reference'] ?? ''),
         ];
     }
 
@@ -634,6 +647,10 @@ class PaymentService
             'amount'   => $amount,
             'currency' => (string)($data['currency'] ?? 'NGN'),
             'meta'     => is_array($data['meta'] ?? null) ? $data['meta'] : [],
+            // Same reason as Paystack's: these are the numbers on the supporter's own
+            // receipt. Flutterwave calls them `id` and `flw_ref`.
+            'gateway_id'  => (string) ($data['id'] ?? ''),
+            'gateway_ref' => (string) ($data['flw_ref'] ?? $data['tx_ref'] ?? ''),
         ];
     }
 

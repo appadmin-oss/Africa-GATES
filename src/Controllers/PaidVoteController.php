@@ -486,6 +486,16 @@ final class PaidVoteController
                 'status'       => 'confirmed',
                 'confirmed_at' => Carbon::now()->toDateTimeString(),
             ], ['confirmed_at']));
+
+        // ── WRITE DOWN THE GATEWAY'S OWN NUMBERS ─────────────────────────────
+        //
+        // This is the only moment we hold them. They are what the supporter has in front
+        // of them — Paystack's receipt shows its transaction id, not the AFG- reference we
+        // minted — and every lookup surface on this platform used to match only ours, so
+        // "the number on my receipt" was the one thing guaranteed to fail. See
+        // PaymentLookup. Never blocks the confirmation: the money has arrived either way.
+        \AfricaGates\Services\PaymentLookup::remember('gates_donations', (int) $don->id, $v);
+
         return $changed > 0 ? 'confirmed' : 'already';
     }
 

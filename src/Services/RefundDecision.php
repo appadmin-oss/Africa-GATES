@@ -89,6 +89,11 @@ final class RefundDecision
                 'That does not look like one of our payment references. Ours begin with AFG-.');
         }
 
+        // Somebody asking for their money back is quoting whatever number they have, and
+        // that is usually the gateway's receipt. Resolve it to ours before deciding, so the
+        // verdict is about their actual payment rather than about a failed string match.
+        $ref = PaymentLookup::canonical($ref, $this->payments);
+
         try {
             $d = DB::table('gates_donations')->where('payment_ref', $ref)->first();
         } catch (\Throwable) {
@@ -96,8 +101,9 @@ final class RefundDecision
         }
         if (!$d) {
             return $this->verdict('NOT_FOUND', false,
-                'No payment with that reference is on record. If they paid inside a bank or wallet app, '
-                . 'that app shows its own different number — ours begins with AFG-.');
+                'No payment matching that is on record. The reference we sent (it begins with AFG-), the '
+                . 'transaction number on their bank or Paystack receipt, or the email address they paid '
+                . 'with — any one of those will find it.');
         }
 
         $base = [

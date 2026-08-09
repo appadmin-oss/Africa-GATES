@@ -435,6 +435,15 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   votes_used INTEGER NOT NULL DEFAULT 0,
   intent_nominee_id INTEGER, -- paid-vote orders: auto-mint target on confirm
   payment_ref TEXT,
+  -- The GATEWAY's own identifiers for this payment, captured at confirmation.
+  -- `payment_ref`/`reference` above is the reference WE mint and hand to the gateway;
+  -- these two are what Paystack's receipt, dashboard and SMS actually show the buyer, so
+  -- without them the number in a supporter's hand matches nothing on the platform.
+  -- Deliberately NOT unique: a transaction id is unique per gateway, not across them, and
+  -- some providers reuse a reference on a retried charge.
+  -- See database/migrations/2026_08_26_gateway_reference.php.
+  gateway_txn_id TEXT DEFAULT NULL,
+  gateway_ref TEXT DEFAULT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','confirmed','failed')),
   -- The buyer's answer to "show my name publicly", carried through the gateway
   -- round-trip and copied onto the vote at mint. Default 0 = private.
@@ -473,6 +482,8 @@ CREATE TABLE IF NOT EXISTS gates_donations (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_donation_email ON gates_donations(donor_email);
+CREATE INDEX IF NOT EXISTS idx_dona_gwtxn ON gates_donations(gateway_txn_id);
+CREATE INDEX IF NOT EXISTS idx_dona_gwref ON gates_donations(gateway_ref);
 CREATE INDEX IF NOT EXISTS idx_donation_status ON gates_donations(status);
 CREATE INDEX IF NOT EXISTS idx_donations_pending_age ON gates_donations(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_donation_refund_retry ON gates_donations(refund_state, refund_retry_after);
@@ -874,11 +885,22 @@ CREATE TABLE IF NOT EXISTS gates_orders (
   status TEXT NOT NULL DEFAULT 'pending',
   provider TEXT,
   provider_ref TEXT,
+  -- The GATEWAY's own identifiers for this payment, captured at confirmation.
+  -- `payment_ref`/`reference` above is the reference WE mint and hand to the gateway;
+  -- these two are what Paystack's receipt, dashboard and SMS actually show the buyer, so
+  -- without them the number in a supporter's hand matches nothing on the platform.
+  -- Deliberately NOT unique: a transaction id is unique per gateway, not across them, and
+  -- some providers reuse a reference on a retried charge.
+  -- See database/migrations/2026_08_26_gateway_reference.php.
+  gateway_txn_id TEXT DEFAULT NULL,
+  gateway_ref TEXT DEFAULT NULL,
   ip_hash TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   paid_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_order_status ON gates_orders(status);
+CREATE INDEX IF NOT EXISTS idx_orde_gwtxn ON gates_orders(gateway_txn_id);
+CREATE INDEX IF NOT EXISTS idx_orde_gwref ON gates_orders(gateway_ref);
 
 -- Shop catalogue. Same gap gates_orders had: it lived only in the 2026_06_22_shop
 -- migration, so a database built from this file had orders with no products for them

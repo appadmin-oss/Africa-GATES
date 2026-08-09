@@ -666,6 +666,22 @@ final class SupportContext
         $email = strtolower(trim((string) $this->viewerEmail));
         if ($email === '') return [];
 
+        // ── RESOLVE FIRST, THEN CHECK OWNERSHIP ──────────────────────────────
+        //
+        // The ownership rule below is unchanged and is what keeps this from being a probe:
+        // a row comes back only when the email on it matches the signed-in member. What
+        // changes is that the reference no longer has to be OURS. A member pasting the
+        // transaction number from their Paystack receipt — the number they actually have —
+        // used to be told "no payment with that reference belongs to this account", which
+        // is both unhelpful and untrue.
+        //
+        // PaymentLookup turns whatever they pasted into our reference; the email check
+        // then runs against it exactly as before.
+        try {
+            $hit = \AfricaGates\Services\PaymentLookup::resolve($ref);
+            if ($hit['found'] && ($hit['reference'] ?? '') !== '') $ref = (string) $hit['reference'];
+        } catch (\Throwable) { /* fall through to the exact-match path */ }
+
         $d = DB::table('gates_donations')
             ->where('payment_ref', $ref)->whereRaw('LOWER(donor_email) = ?', [$email])
             ->first(['payment_ref', 'amount_naira', 'status', 'bonus_votes', 'refunded_at', 'created_at']);
@@ -687,7 +703,9 @@ final class SupportContext
         }
 
         return ['found' => false,
-                'note' => 'No payment with that reference belongs to this account. It may have been made with a different email address.'];
+                'note' => 'No payment matching that belongs to this account. It may have been made with a '
+                        . 'different email address. We can look it up from our own reference (it begins '
+                        . 'with AFG-) or from the transaction number on your bank or Paystack receipt.'];
     }
 
     /**
@@ -819,7 +837,7 @@ final class SupportContext
      */
     private function resendReceipt(string $reference): array
     {
-        $ref = trim($reference);
+        $ref = \AfricaGates\Services\PaymentLookup::canonical(trim($reference));
         if ($ref === '' || mb_strlen($ref) > 120) {
             return ['ok' => false, 'note' => 'A payment reference is needed to find the receipt.'];
         }
@@ -839,8 +857,8 @@ final class SupportContext
 
         if (!$d) {
             return ['ok' => false, 'outcome' => 'NOT_FOUND',
-                    'say' => 'No payment with that reference is on record. Check the reference, '
-                           . 'or the payment may have been made somewhere other than this site.'];
+                    'say' => 'No payment matching that is on record. The reference we sent you, or the '
+                           . 'transaction number on your bank or Paystack receipt, will both find it.'];
         }
         if ((string) $d->status !== 'confirmed' || $d->refunded_at !== null) {
             // Deliberately routed to the OTHER tool rather than answered here: an

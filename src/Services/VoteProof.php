@@ -71,16 +71,29 @@ final class VoteProof
             return ['found' => false, 'say' => 'That does not look like a payment reference.'];
         }
 
+        // ── WHATEVER THEY PASTED ─────────────────────────────────────────────
+        //
+        // This was `where('payment_ref', $ref)` and nothing else, so it matched only the
+        // reference WE minted. The old error message below had to apologise for that:
+        // "if you paid inside a bank or wallet app, that app shows its own different
+        // number". The number on the supporter's receipt is the one thing they reliably
+        // have, and it was the one thing guaranteed to fail.
+        //
+        // PaymentLookup tries ours, the gateway's stored ids, plausible re-typings of
+        // ours, and finally asks the gateway — which is what rescues every payment
+        // confirmed before we started storing its ids.
         try {
-            $d = DB::table('gates_donations')->where('payment_ref', $ref)->first();
+            $hit = \AfricaGates\Services\PaymentLookup::resolve($ref);
         } catch (\Throwable) {
             return ['found' => false, 'say' => 'The record could not be read just now.'];
         }
-        if (!$d) {
-            return ['found' => false,
-                    'say' => 'No payment with that reference is on record. If you paid inside a bank or '
-                           . 'wallet app, that app shows its own different number — ours begins with AFG-.'];
+        $d = $hit['donation'];
+        if (!$hit['found'] || $d === null) {
+            return ['found' => false, 'say' => $hit['say']];
         }
+        // The reference we know it by, so everything downstream quotes ours rather than
+        // whatever the supporter happened to type.
+        $ref = (string) ($hit['reference'] ?? $ref);
 
         // The votes themselves, not the counter that claims they exist.
         $rows = [];
