@@ -166,6 +166,22 @@
   .vn-share{ display:flex; gap:9px; }
   .vn-share button, .vn-share a{ flex:1; cursor:pointer; border:1px solid rgba(16,41,44,.16); background:#fff; color:var(--ag-ink); font-family:inherit; font-weight:600; font-size:13.5px; padding:11px; border-radius:999px; display:inline-flex; align-items:center; justify-content:center; gap:7px; text-decoration:none; }
   .vn-share button:hover, .vn-share a:hover{ border-color:var(--ag-green); color:var(--ag-green); }
+  /* The wall of support — what voters wrote. */
+  .vn-wall{ list-style:none; margin:18px 0 0; padding:0; display:grid; gap:11px; }
+  .vn-wall__i{ background:#f7faf7; border:1px solid #dfeade; border-left:3px solid #7FC87C; border-radius:0 12px 12px 0; padding:14px 16px; }
+  .vn-wall__b{ margin:0; font-size:14.5px; line-height:1.65; color:#20393b; }
+  .vn-wall__f{ margin-top:9px; display:flex; align-items:center; flex-wrap:wrap; gap:10px; font-size:12px; color:#6b7d7f; }
+  .vn-wall__n{ font-weight:600; color:#3d5254; }
+  .vn-wall__tag{ background:#e8f3e7; color:#1a6118; border-radius:999px; padding:3px 9px; font-size:11px; font-weight:600; }
+  .vn-wall__f a{ color:#237b22; font-weight:600; text-decoration:none; margin-left:auto; }
+  .vn-wall__f a:hover{ text-decoration:underline; }
+  /* The optional message field on the ballot. */
+  .vn-msg{ margin-top:15px; padding-top:15px; border-top:1px dashed rgba(16,41,44,.14); }
+  .vn-msg textarea{ width:100%; box-sizing:border-box; margin-top:7px; font:inherit; font-size:14px; line-height:1.6; color:var(--ag-ink); background:#fff; border:1px solid rgba(16,41,44,.18); border-radius:12px; padding:11px 13px; resize:vertical; min-height:78px; }
+  .vn-msg textarea:focus{ outline:none; border-color:var(--ag-green,#237b22); box-shadow:0 0 0 3px rgba(35,123,34,.12); }
+  .vn-msg__meta{ display:flex; justify-content:space-between; gap:10px; margin-top:6px; font-size:11.5px; color:#5a6d6f; }
+  .vn-msg__meta b{ font-variant-numeric:tabular-nums; }
+  .vn-msg__over{ color:#b3261e; font-weight:700; }
   .vn-closed{ background:#fff8df; border:1px solid #f0e0b0; border-radius:14px; padding:14px 16px; font-size:13.5px; line-height:1.55; color:#7a5600; }
   .vn-toast{ position:fixed; left:50%; bottom:32px; transform:translateX(-50%); z-index:90; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:13px 22px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); }
   .vn-claimline{ margin:34px 0 8px; padding-top:20px; border-top:1px solid rgba(16,41,44,.09); font-size:13px; color:#5a6d6f; text-align:center; }
@@ -415,6 +431,42 @@
       </section>
       {% endif %}
 
+      {# ── THE WALL OF SUPPORT ────────────────────────────────────────────────
+         What voters said, in their own words. Absent until somebody has written
+         something and a moderator (or the classifier) has cleared it — for the same
+         reason the supporters list above is absent until somebody opts in: an empty
+         "no messages yet" panel on a real person's page reads as a verdict on them.
+
+         Every message here is `approved`. Pending and quarantined ones are not
+         rendered, not counted and not hinted at; see VoteMessageService::wall(). #}
+      {% if messages|default([])|length %}
+      <section class="vn-card">
+        <h2>What voters are saying about {{ firstName }}</h2>
+        <p style="margin:8px 0 0;font-size:13px;color:#5a6d6f;line-height:1.6">
+          {{ message_count }} {{ message_count == 1 ? 'message' : 'messages' }} from verified voters.
+          Written by supporters, checked before publication — and a name appears only where its owner asked for it.
+        </p>
+        <ul class="vn-wall" data-ag-cascade="sm">
+          {% for m in messages %}
+          <li class="vn-wall__i">
+            <p class="vn-wall__b">{{ m.body }}</p>
+            <footer class="vn-wall__f">
+              <span class="vn-wall__n">{{ m.name }}</span>
+              {% if m.source == 'paid' %}<span class="vn-wall__tag">backed with votes</span>{% endif %}
+              {% if m.cheers %}<span title="cheers">♥ {{ m.cheers }}</span>{% endif %}
+              {# Each message links to its own page, which is what makes it shareable
+                 as itself rather than as a link to this one. See /m/{token}. #}
+              {% if m.token %}<a href="/m/{{ m.token }}">Share this</a>{% endif %}
+            </footer>
+          </li>
+          {% endfor %}
+        </ul>
+        {% if message_count > messages|length %}
+        <p style="margin:14px 0 0;font-size:12.5px;color:#5a6d6f">Showing the {{ messages|length }} most recent.</p>
+        {% endif %}
+      </section>
+      {% endif %}
+
       {% if others|length %}
       <section class="vn-card">
         <h2>Others in {{ n.category }}</h2>
@@ -650,6 +702,37 @@
                  published. Free votes therefore stay off the public supporters list
                  (gates_votes.show_name keeps its 0 default), which is what the field was
                  collected under. #}
+              {# ── SAY SOMETHING ABOUT THEM ───────────────────────────────────
+                 Optional, and placed BEFORE the code is requested rather than after.
+                 A voter who has just typed a 6-digit code is finished; asking them to
+                 write a sentence at that point gets a blank field. Asked here, while
+                 they are still thinking about the person they came to back, it gets an
+                 answer — and it travels with the vote in the same request, so there is
+                 no second submission that can fail on its own.
+
+                 Every message is checked before it appears on a real person's page.
+                 The line below says so, because "your message is with a moderator" is
+                 a much better sentence to read before writing than after. #}
+              <div class="vn-msg" x-data="{ open: false }">
+                <button type="button" @click="open = !open" style="background:none;border:none;padding:0;font:600 13px/1.4 inherit;color:var(--ag-green,#237b22);cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+                  <span x-text="open ? 'Hide the message box' : 'Say something about {{ firstName|e('js') }} (optional)'">Say something about {{ firstName }} (optional)</span>
+                </button>
+                <div x-show="open" x-cloak>
+                  <label class="vn-label" for="vnMsg" style="margin-top:10px">Your message</label>
+                  <textarea id="vnMsg" x-model="message" maxlength="{{ msg_max }}" placeholder="What do you want people to know about {{ firstName }}?"></textarea>
+                  <div class="vn-msg__meta">
+                    <span>Published on this page once checked. No links or phone numbers.</span>
+                    <span :class="message.length > {{ msg_max }} - 40 ? 'vn-msg__over' : ''"><b x-text="message.length"></b>/{{ msg_max }}</span>
+                  </div>
+                  {# A SEPARATE consent, and not the same question as the name field.
+                     The name above is REQUIRED to cast a free vote, so giving it is not
+                     a choice to be published — see the note further down. Putting that
+                     name on a message beside it IS a choice, so it is asked for here
+                     and defaults to off. #}
+                  <label class="vn-check" style="margin-top:10px"><input type="checkbox" x-model="messageShowName"><span>Show my name with this message. Leave it unticked to appear as “A supporter”.</span></label>
+                </div>
+              </div>
               <label class="vn-check"><input type="checkbox" x-model="agreed"><span>I’m a real person voting once, and I accept the <a href="/terms">voting rules</a>.</span></label>
               {# RENDERED EXPLICITLY, not by the `cf-turnstile` auto-scan.
                  The auto-scan gives the page a widget it holds no handle to, and a
@@ -698,9 +781,53 @@
                 <div style="text-align:left"><div style="font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:#5a6d6f">Now at</div><div style="font-family:var(--ag-font-mono);font-weight:700;font-size:18px;color:var(--ag-ink)" x-text="votes.toLocaleString() + ' votes'"></div></div>
                 <span style="font-size:11.5px;font-weight:600;color:#1a6118;background:#dff0df;padding:6px 11px;border-radius:999px" x-show="newRank" x-text="'#' + newRank"></span>
               </div>
-              <div class="vn-share">
-                <button type="button" @click="share()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4 20-7Z"/></svg>Rally votes</button>
+
+              {# What happened to the message, if one was written. Three outcomes, and
+                 the voter is told which — including "a moderator has it", because a
+                 message that silently fails to appear reads as a message that was
+                 thrown away. `message_url` is only ever set for one that is live. #}
+              <template x-if="messageNote">
+                <div style="margin:14px 0 0;background:#f4f9f4;border:1px solid #cfe6cf;border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.6;color:#1a4a19;text-align:left">
+                  <span x-text="messageNote"></span>
+                  {# The MESSAGE's own links, distinct from the panel below. That panel
+                     shares the ballot to rally votes; these share the sentence this
+                     voter wrote, at its own URL, so Facebook previews their words
+                     instead of the same card everybody else posts. #}
+                  <template x-if="messageUrl">
+                    <span style="display:flex;flex-wrap:wrap;gap:12px;margin-top:8px">
+                      <a :href="messageUrl" style="color:#237b22;font-weight:600">Open your message ↗</a>
+                      <a :href="'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(messageUrl)" target="_blank" rel="noopener" style="color:#1877f2;font-weight:600">Share it on Facebook</a>
+                      <a :href="'https://wa.me/?text=' + encodeURIComponent(messageUrl)" target="_blank" rel="noopener" style="color:#1ba84f;font-weight:600">WhatsApp</a>
+                    </span>
+                  </template>
+                </div>
+              </template>
+
+              {# ── SHARE, IMMEDIATELY, WHERE THE MOMENT IS ────────────────────
+                 The share panel is here rather than behind a second tap because the
+                 instant after voting is the only moment a voter is certain to rally
+                 anybody. When a message went live, the thing shared is the MESSAGE's
+                 own permalink — it previews as the words they wrote — and otherwise it
+                 is the nominee's ballot.
+
+                 On the honest limits of "automatic": the device's share sheet is
+                 opened for the voter automatically, once, from inside the tap that
+                 confirmed the vote — that click is the user gesture browsers require,
+                 and nothing can open a share sheet without one. Posting to somebody's
+                 Facebook or X account on their behalf is a different thing entirely
+                 (an OAuth login, granted publish permissions, and per-platform app
+                 review) and is not what happens here. If the sheet is unavailable or
+                 dismissed, these buttons are already on screen. #}
+              <p style="margin:16px 0 8px;font-size:13px;font-weight:600;color:#3d5254">Rally more votes for {{ firstName }}</p>
+              {% include 'partials/share.twig' with {
+                share_url: site_url|default('') ~ '/vote/' ~ nominee.programme_slug ~ '/' ~ slug,
+                share_text: 'I just voted for ' ~ n.name ~ ' in ' ~ n.category ~ ' at Africa GATES. Add your vote:',
+                share_label: '',
+                share_grid: true
+              } only %}
+              <div class="vn-share" style="margin-top:12px">
                 <a href="/vote">Vote in another</a>
+                <a href="{{ flier_url }}">Get a flier</a>
               </div>
             </div>
             {% endif %}{# /free OTP flow (hidden when the admin disables free voting) #}
@@ -737,6 +864,13 @@ function voteNominee() {
     step: 'email', email: '', fullName: '', phone: '', otp: '', agreed: false, busy: false,
     newRank: {{ rank|default(0)|e('js') }} || null,
     otpError: '', voteError: '', toast: '', _t: null,
+    // The optional message of support and its own consent flag. Carried in this
+    // component rather than a nested one so it travels with the vote in a single
+    // POST — see submitVote().
+    message: '', messageShowName: false,
+    // Filled from the server's reply: what happened to the message, and its
+    // permalink when it went live.
+    messageNote: '', messageUrl: '',
 
     // ── Turnstile ───────────────────────────────────────────────────────────
     // tsOn is a template constant, not a runtime probe: when no site key is
@@ -878,6 +1012,9 @@ function voteNominee() {
           body: JSON.stringify({
             email: this.email, otp: this.otp, nominee_id: this.nomineeId, award_id: this.awardId,
             name: this.fullName, phone: this.phone,
+            // Optional. The server ignores an empty string entirely — no row is written
+            // and no moderation runs — so nothing here can affect a vote cast without one.
+            message: this.message, message_show_name: this.messageShowName,
             session_id: window.AFG_SESSION || '', device_hash: window.AFG_DEVICE || '',
           })
         });
@@ -885,7 +1022,14 @@ function voteNominee() {
         if (d && d.success) {
           this.votes = d.new_count || (this.votes + 1);
           this.newRank = d.new_rank || this.newRank;
+          this.messageNote = d.message_note || '';
+          this.messageUrl  = d.message_url  || '';
           this.step = 'done';
+          // Inside the same tap that confirmed the vote. That click is the user
+          // gesture every browser requires before it will open a share sheet, and it
+          // is the only reason "share automatically after voting" can work at all —
+          // see autoShare().
+          this.autoShare();
           // The /vote hub's "your ballot" tracker READS this key but nothing in
           // the codebase ever wrote it, so it was permanently "0 of N voted".
           this.markVoted();
@@ -910,6 +1054,39 @@ function voteNominee() {
       else if (navigator.clipboard) { navigator.clipboard.writeText(url).then(() => this.ping('Link copied — share it to rally votes')).catch(() => {}); }
       else { this.ping('Copy the page link to share'); }
     },
+
+    /**
+     * ── "AUTOMATIC SHARING AFTER THEY'VE VOTED", HONESTLY ────────────────────
+     *
+     * What this does: opens the device's own share sheet — every messaging and
+     * social app the voter has installed — the moment their vote lands, without
+     * them having to find a button. It runs inside the click that confirmed the
+     * vote, because a share sheet cannot be opened outside a user gesture in any
+     * browser. That is a deliberate anti-hijack rule and it is not worth trying to
+     * defeat: a page that could open share dialogs on its own would be a spam
+     * cannon.
+     *
+     * What it is NOT: posting to somebody's Facebook, X or Instagram account for
+     * them. That requires an OAuth login to each platform, publish permissions
+     * granted by the account holder, and per-platform app review — a different
+     * feature with a login attached, not a switch. Nothing here posts anything.
+     * The voter still taps their app and still sees what they are about to send,
+     * which is also what keeps this from putting words in anybody's mouth.
+     *
+     * ONCE per vote, and never twice: `_shared` guards a re-run, and a dismissed
+     * sheet (AbortError) is a decision, not a failure. When there is no sheet at
+     * all — most desktop browsers — nothing happens and the share buttons that are
+     * already on screen are the whole answer.
+     */
+    autoShare() {
+      if (this._shared || !navigator.share) return;
+      this._shared = true;
+      const url  = this.messageUrl || (location.origin + '{{ ('/vote/' ~ nominee.programme_slug ~ '/' ~ slug)|e('js') }}');
+      const text = 'I just voted for {{ nominee.name|e('js') }} in the Africa GATES awards. Add your vote:';
+      try { navigator.share({ title: 'Africa GATES', text: text, url: url }).catch(() => {}); }
+      catch (e) { /* NotAllowedError = the gesture had already expired. The panel stands. */ }
+    },
+    _shared: false,
   };
 }
 </script>

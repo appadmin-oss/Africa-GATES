@@ -3,7 +3,7 @@ declare(strict_types=1);
 use AfricaGates\Support\Env;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController};
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
     BallotController as JudgeBallotController
@@ -744,6 +744,18 @@ return function(App $app) {
         // copy — in every preview. See FlierService::ogCard().
         $g->get('/vote/{program}/{slug:[0-9]+[^/]*}/card.png',   FlierController::class.':card');
         $g->get('/vote/{program}/{slug}', VoteController::class.':nominee');
+
+        // ── A MESSAGE OF SUPPORT, AT ITS OWN URL ─────────────────────────────
+        //
+        // Short on purpose: this link is typed into WhatsApp, pasted into a Facebook
+        // post and read aloud. `/m/{token}` survives that; `/vote/message/{token}`
+        // does not. It sits OUTSIDE the /vote tree for the same reason — a message
+        // outlives the ballot it came from, and the roll of honour keeps linking to
+        // it long after voting closes.
+        //
+        // Why a token instead of an id, and why the page re-checks approval on every
+        // read: see VoteMessageController.
+        $g->get('/m/{token:[A-Za-z0-9_-]{16,32}}', VoteMessageController::class.':permalink');
         $g->get('/partner',       PartnerController::class.':form');
         $g->post('/partner',      PartnerController::class.':submit');
         $g->get('/partner/success',fn($req,$res)=>$tv($req)->render($res,'pages/partner-success.twig',['page_title'=>'Thank You — Africa GATES','meta_description'=>'Thank you for your interest in partnering with Africa GATES. Our team will be in touch to explore how we can champion African excellence together.','gates_page'=>'partner','has_hero'=>false]));
@@ -1235,6 +1247,13 @@ return function(App $app) {
             $a->post('/otp/request',     ApiController::class.':otpRequest');
             $a->post('/vote',            ApiController::class.':castVote');
             $a->post('/funnel',          ApiController::class.':trackFunnel');
+            // Messages of support. A FREE voter's message rides along with the vote
+            // itself (POST /vote), because the OTP in that same request is what proves
+            // who they are. This endpoint is for the PAID path, where the checkout has
+            // been to a bank and back and the payment reference is the proof. See
+            // VoteMessageController::post().
+            $a->post('/vote-message',       VoteMessageController::class.':post');
+            $a->post('/vote-message/cheer', VoteMessageController::class.':cheer');
             $a->post('/nominations/draft', ApiController::class.':saveDraft');
             $a->get('/nominations/draft',  ApiController::class.':loadDraft');
             $a->post('/nominations/share-link', ApiController::class.':createShareLink');

@@ -14,6 +14,39 @@
 {% endmacro %}
 {% import _self as ui %}
 
+{# ── FIRST IN THE QUEUE, ON PURPOSE ───────────────────────────────────────────
+   These are messages voters wrote about a NAMED nominee, shown on that nominee's
+   own page. Several nominees are children and did not ask to be nominated, so this
+   is the one item here where a wrong "approve" lands on a real person rather than
+   on a forum. The nominee's name is on every row so the decision is made knowing
+   who the words are about.
+
+   'held' means the classifier was unavailable, not that the text was borderline —
+   an unjudged message, which is why it is labelled differently below. #}
+{% if vote_messages|default([])|length %}
+<div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Messages of support<small>{{ vote_messages|length }} awaiting review · shown on a nominee's page once approved</small></div></div><div class="ad-card__body">
+  {% for m in vote_messages %}
+  <div style="border:1px solid var(--ad-border,#e3e8e8);border-left:3px solid {{ m.status == 'pending' ? '#a47306' : '#b03a5b' }};border-radius:0 10px 10px 0;padding:14px;margin-bottom:10px">
+    <div style="font-size:14px;line-height:1.6;color:var(--ad-text,#10292c)">{{ m.body }}</div>
+    <div style="font-size:11px;color:var(--ad-text-mute,#8a9a9c);margin:7px 0 9px">
+      about <strong style="color:var(--ad-text,#10292c)">{{ m.nominee_name|default('nominee #' ~ m.nominee_id) }}</strong>
+      · {{ m.source == 'paid' ? 'paid vote' : 'free vote' }}
+      · {{ m.created_at }}
+      {# The name is shown to the MODERATOR whatever the voter chose, because a
+         moderator deciding on words about a real person should see who wrote them.
+         Whether it is PUBLISHED is a separate question the label answers. #}
+      {% if m.display_name %} · by {{ m.display_name }}{{ m.show_name ? ' (asked to be named)' : ' (will publish as “A supporter”)' }}{% endif %}
+      · <span style="font-weight:700;color:{{ m.status == 'pending' ? '#a47306' : '#b03a5b' }}">{{ m.status == 'pending' ? 'held — not yet judged' : 'quarantined' }}</span>
+      {% if m.mod_score is not null %} · {{ ui.verdict(m.mod_score, m.mod_reason) }}{% elseif m.mod_reason %} · <span style="font-size:11px">{{ m.mod_reason }}</span>{% endif %}
+    </div>
+    <form method="post" action="/admin/moderation/vote_message/{{ m.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve &amp; publish</button></form>
+    <form method="post" action="/admin/moderation/vote_message/{{ m.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit">Remove</button></form>
+    <form method="post" action="/admin/moderation/vote_message/{{ m.id }}/recheck" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" title="Run the current AI moderation pipeline again and apply its verdict">✦ AI re-check</button></form>
+  </div>
+  {% endfor %}
+</div></div>
+{% endif %}
+
 {% if threads|length %}
 <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Quarantined threads<small>{{ threads|length }} awaiting review</small></div></div><div class="ad-card__body">
   {% for t in threads %}

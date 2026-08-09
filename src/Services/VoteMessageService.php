@@ -290,11 +290,43 @@ final class VoteMessageService
             'name'          => ((int) $r->show_name === 1 && ($r->display_name ?? '') !== '')
                                   ? (string) $r->display_name : 'A supporter',
             'token'         => (string) $r->share_token,
+            'cheers'        => (int) $r->cheers,
             'nominee_id'    => (int) $r->nominee_id,
             'nominee_name'  => (string) $r->nominee_name,
             'nominee_photo' => (string) ($r->nominee_photo ?? ''),
             'when'          => (string) ($r->created_at ?? ''),
         ];
+    }
+
+    /**
+     * Applaud a message. Returns the new count, or null when there is nothing to
+     * applaud (unknown token, or a message a moderator has since rejected).
+     *
+     * `increment` rather than read-add-write: two readers tapping at the same moment
+     * would otherwise both write the same number and one of the taps would vanish.
+     */
+    public static function cheer(string $token): ?int
+    {
+        if ($token === '') return null;
+        try {
+            $row = DB::table('gates_vote_messages')
+                ->where('share_token', $token)->where('status', 'approved')->whereNull('deleted_at')
+                ->select('id', 'cheers')->first();
+            if ($row === null) return null;
+            DB::table('gates_vote_messages')->where('id', $row->id)->increment('cheers');
+            return (int) $row->cheers + 1;
+        } catch (\Throwable) { return null; }
+    }
+
+    /** The current count for a token, 0 when unknown. */
+    public static function cheerCount(string $token): int
+    {
+        if ($token === '') return 0;
+        try {
+            return (int) DB::table('gates_vote_messages')
+                ->where('share_token', $token)->where('status', 'approved')
+                ->value('cheers');
+        } catch (\Throwable) { return 0; }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -343,6 +343,10 @@ final class PaidVoteController
             // For the /vote hub's per-device ballot tracker. Only meaningful when
             // votes actually landed, so the template gates the write on `minted`.
             'programme_id'     => $this->programmeIdFor($nominee),
+            // The message-of-support box's ceiling, from the service that enforces it
+            // rather than typed into the template — a `maxlength` that disagreed with
+            // the server would silently cut a buyer's words after they sent them.
+            'msg_max'          => \AfricaGates\Services\VoteMessageService::MAX_LEN,
         ]);
     }
 

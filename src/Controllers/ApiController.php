@@ -140,6 +140,43 @@ class ApiController {
 
         $nom=DB::table('gates_nominees')->where('id',$nId)->first();
 
+        // ── THE VOTER'S MESSAGE, IF THEY WROTE ONE ───────────────────────────
+        //
+        // Optional, and stored AFTER the vote has already succeeded — in its own
+        // statement, outside the audited vote path, with its own failure mode. A
+        // sentence about a vote is not worth risking the vote for, so nothing here
+        // can change the outcome above: `$msg` only ever adds fields to the reply.
+        //
+        // `message_show_name` is asked EXPLICITLY on this path rather than inferred
+        // from the name being present, which is the opposite of the paid ballot's rule
+        // and for the reason the comment above already gives: here the name is
+        // REQUIRED for accountability, so supplying it says nothing about wanting it
+        // published. On the paid form the name is optional, so typing one IS the
+        // choice. Same principle — consent has to be a decision the voter could have
+        // made differently — applied to two forms that differ.
+        $msg=null;
+        if(trim((string)($b['message']??''))!=='') {
+            $r2=\AfricaGates\Services\VoteMessageService::submit([
+                'nominee_id'  => $nId,
+                'category_id' => (int)($r['category_id'] ?? 0),
+                'vote_id'     => (int)($r['vote_id'] ?? 0),
+                'email'       => $email,
+                'body'        => (string)$b['message'],
+                'name'        => $name,
+                'show_name'   => !empty($b['message_show_name']),
+                'source'      => 'free',
+            ]);
+            $msg=[
+                'message_status' => $r2['ok'] ? (string)($r2['status'] ?? 'pending') : 'failed',
+                'message_note'   => $r2['ok']
+                    ? \AfricaGates\Controllers\VoteMessageController::statusLine((string)($r2['status'] ?? ''))
+                    : (string)($r2['message'] ?? 'Your vote counted, but the message could not be saved.'),
+                'message_url'    => ($r2['ok'] && ($r2['status'] ?? '')==='approved' && !empty($r2['token']))
+                    ? \AfricaGates\Support\SiteUrl::base($req).'/m/'.rawurlencode((string)$r2['token'])
+                    : '',
+            ];
+        }
+
         // Post-commit vote webhook — additive to the audited vote path (dispatch
         // never throws). Counts + ids only; the voter's identity stays hashed.
         \AfricaGates\Services\WebhookService::dispatch('vote.cast', [
@@ -202,7 +239,9 @@ HTML;
             'new_rank'  => $r['new_rank']  ?? null,
             'days_left' => $r['days_left'] ?? 0,
             'milestone' => $milestone,
-        ]);
+            // `message_status` / `message_note` / `message_url` ride along only when the
+            // voter actually wrote something — see the block above.
+        ] + ($msg ?? []));
     }
 
     public function trackFunnel(Request $req,Response $res):Response {

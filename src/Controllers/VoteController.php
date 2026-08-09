@@ -496,6 +496,19 @@ class VoteController {
             // Everybody behind them, named or not — the honest size of the crowd,
             // which the consented list always understates.
             'backer_count'       => \AfricaGates\Services\CommunityReturnService::supporterCount((int) $nom->id),
+            // ── What voters SAID ─────────────────────────────────────────────
+            //
+            // Approved messages only, resolved against each voter's naming consent
+            // inside the service — the template never sees a name it is not allowed
+            // to print. The count is of approved messages too, so the "showing the N
+            // most recent" line cannot imply held-back messages that a reader would
+            // then wonder about.
+            'messages'           => \AfricaGates\Services\VoteMessageService::wall((int) $nom->id, 12),
+            'message_count'      => \AfricaGates\Services\VoteMessageService::countForNominee((int) $nom->id),
+            // The ceiling comes from the service, not the textarea: the server
+            // truncates at this number, so a `maxlength` that disagreed would either
+            // silently cut a voter's words or promise room that does not exist.
+            'msg_max'            => \AfricaGates\Services\VoteMessageService::MAX_LEN,
         ] + array_filter([
             // Social card: the nominee's own photo when they have one.
             /**
