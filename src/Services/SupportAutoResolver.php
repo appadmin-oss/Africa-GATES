@@ -90,9 +90,28 @@ final class SupportAutoResolver
         private readonly ?SupportTicketService $tickets = null,
     ) {}
 
+    /**
+     * Can the queue be worked at all?
+     *
+     * This used to also require `$this->agent->available()` — an AI provider — and
+     * so returned false on its first line for every site without an API key. The
+     * effect was that the platform's commonest repairable ticket ("I paid, no
+     * votes") waited for a person on exactly the deployments least likely to have
+     * one watching, while the two-second fix sat there the whole time.
+     *
+     * The repair does not involve a model. `fix_payment` asks Paystack and credits
+     * the votes; `resend_receipt` re-sends to the address on the order. A model
+     * chooses which to call and phrases the outcome, and {@see SupportPlan} plus
+     * the tools' own `say` strings do both when there is none.
+     *
+     * What still holds the line is unchanged and is checked per ticket, not here:
+     * consider() will not act unless a plan can actually DO something (rule 1),
+     * and worthSending() will not post an answer that repaired nothing and looked
+     * nothing up (rule 4). Both are stricter without a model than with one.
+     */
     public function available(): bool
     {
-        return $this->agent !== null && $this->tickets !== null && $this->agent->available();
+        return $this->agent !== null && $this->tickets !== null;
     }
 
     /**
@@ -201,6 +220,21 @@ final class SupportAutoResolver
             isAdmin:     false,
             search:      new ActivityFeedService(),
         );
+
+        // ── WITHOUT A MODEL, ONLY ACT WHERE THERE IS SOMETHING TO DO ─────────
+        //
+        // Rule 1 in the class note, applied to the model-free path. With rules
+        // doing the planning, a vague ticket plans one step — read a Help Centre
+        // article — and that article would come back ok:true, satisfy
+        // worthSending(), and be posted to somebody's inbox as though it were an
+        // answer. It would also mark the ticket answered on the queue, burying it.
+        //
+        // So an unattended model-free pass requires a plan that can actually DO
+        // something: repair a payment, resend a receipt. Anything vaguer waits for
+        // a person, which is the correct outcome and was the outcome before.
+        if (!$this->agent->available() && !SupportPlan::canAct($question, $ctx, self::SAFE_TOOLS)) {
+            return false;
+        }
 
         $r = $this->agent->ask($question, [], $ctx, self::SAFE_TOOLS, escalate: false);
 

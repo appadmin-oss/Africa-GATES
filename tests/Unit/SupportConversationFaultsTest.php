@@ -71,10 +71,38 @@ final class SupportConversationFaultsTest extends TestCase
         // holding the receipt for.
         $r = $this->guest()->run('check_reference', ['reference' => 'paystack_6413965117_hw8rf'])['data'];
 
-        $this->assertFalse($r['ok']);
+        $this->assertFalse($r['ok'], 'nothing in the database matches this one');
         $this->assertSame('gateway', $r['shape']);
         $this->assertStringContainsString('AFG-', $r['say'], 'and it must say where ours is');
-        $this->assertStringContainsString('Do NOT say the payment cannot be found', $r['say']);
+        // The instruction not to deny it, whatever its current wording.
+        $this->assertMatchesRegularExpression('/do NOT say the payment (does not exist|cannot be found)/i',
+            $r['say'], 'the model must still be told never to deny a real payment');
+    }
+
+    /**
+     * And when the gateway's number DOES match something, directions are the wrong
+     * answer — we can just tell them.
+     *
+     * The old version of check_reference read the SHAPE and stopped, so a number
+     * Paystack put on the buyer's own receipt got a paragraph of homework. See
+     * PaymentLookup: it resolves now, so the tool answers instead of instructing.
+     */
+    public function test_a_gateway_number_we_can_actually_match_is_answered_not_deflected(): void
+    {
+        $ours = 'AFG-PVOTE-abcdef123456';
+        $id = (int) DB::table('gates_donations')->insertGetId([
+            'donor_name' => 'Ada', 'donor_email' => 'ada@example.com', 'amount_naira' => 1000,
+            'tier' => 'paid-vote', 'bonus_votes' => 5, 'votes_used' => 5,
+            'payment_ref' => $ours, 'status' => 'confirmed', 'created_at' => '2026-08-01 10:00:00',
+        ]);
+        DB::table('gates_donations')->where('id', $id)->update(['gateway_txn_id' => '6413965117']);
+
+        $r = $this->guest()->run('check_reference', ['reference' => '6413965117'])['data'];
+
+        $this->assertTrue($r['ok'], 'a number we can match must not be deflected');
+        $this->assertSame('resolved', $r['shape']);
+        $this->assertSame($ours, $r['reference'], 'and it hands back the reference the repair needs');
+        $this->assertStringContainsString($ours, $r['say']);
     }
 
     public function test_a_bare_transaction_number_is_also_recognised_as_theirs(): void

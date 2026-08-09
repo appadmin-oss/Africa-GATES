@@ -221,13 +221,72 @@ final class SupportAutoResolveTest extends TestCase
         $this->assertFalse($r->consider($id));
     }
 
-    public function test_nothing_happens_when_the_assistant_is_offline(): void
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * NO MODEL IS NO LONGER THE SAME AS NO QUEUE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * available() used to require an AI provider, so this class returned 0 from
+     * its first line on every site without an API key. The effect was that the
+     * platform's commonest repairable ticket — "I paid, no votes" — waited for a
+     * person on exactly the deployments least likely to have one watching, while
+     * the two-second fix sat there the whole time.
+     *
+     * `fix_payment` asks Paystack and credits the votes. There is no model in it.
+     * A model chose which tool to call and phrased the result, and SupportPlan
+     * plus the tools' own `say` strings do both without one.
+     */
+    public function test_a_repairable_ticket_is_worked_with_no_model_configured(): void
     {
+        // The default transcript: bought votes with OPay, nothing came, and the
+        // gateway's own reference — which is what people actually quote.
         $id = $this->ticket();
-        $r  = new SupportAutoResolver($this->agent('x', [], available: false), $this->tickets());
+        $r  = new SupportAutoResolver(
+            $this->agent('Re-checked it with the gateway — the payment was confirmed and the votes are on.',
+                [$this->toolResult('fix_payment', true, ['outcome' => 'CONFIRMED'])],
+                available: false),
+            $this->tickets()
+        );
+
+        $this->assertTrue($r->available(), 'the queue does not need a language model to be worked');
+        $this->assertTrue($r->consider($id), 'a repairable payment ticket must not wait for an API key');
+    }
+
+    /**
+     * And the line that replaced it: with no model, it acts only where there is
+     * something to DO.
+     *
+     * Rules doing the planning will happily plan one step for a vague ticket —
+     * read a Help Centre article — and that article comes back ok:true, satisfies
+     * worthSending(), and gets posted to somebody's inbox as though it were an
+     * answer, marking the ticket answered and burying it on the queue. So an
+     * unattended model-free pass requires a plan that can repair something.
+     */
+    public function test_with_no_model_a_ticket_it_cannot_act_on_is_left_alone(): void
+    {
+        $id = $this->ticket([
+            'subject'    => 'A question about the CPI',
+            'transcript' => 'User: I would like to understand how the CPI score is calculated.',
+            'severity'   => 'normal',
+        ]);
+        $r = new SupportAutoResolver(
+            $this->agent('The CPI is calculated from four signals.',
+                [$this->toolResult('help_article', true)], available: false),
+            $this->tickets()
+        );
+
+        $this->assertFalse($r->consider($id),
+            'an explanation with no repair behind it is a person\'s job, not a bot\'s');
+        $this->assertSame([], $this->messages($id), 'and nothing may be written to the thread');
+    }
+
+    /** A resolver with no ticket service cannot do anything at all. */
+    public function test_nothing_happens_without_the_pieces_it_needs(): void
+    {
+        $r = new SupportAutoResolver($this->agent('x'), null);
 
         $this->assertFalse($r->available());
-        $this->assertFalse($r->consider($id));
+        $this->assertFalse($r->consider($this->ticket()));
         $this->assertSame(0, $r->sweep());
     }
 

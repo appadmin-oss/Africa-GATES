@@ -28,7 +28,16 @@ namespace AfricaGates\Services;
  */
 interface SupportAnswerer
 {
-    /** False when no model is configured, or the gateway has been switched off. */
+    /**
+     * False when no model is configured, or the gateway has been switched off.
+     *
+     * Note what this is NOT: it is not "can you answer". A real answerer still
+     * runs its tools and still repairs payments with no model at all — see
+     * {@see SupportPlan} — so a caller that treats this as an on/off switch for
+     * the whole assistant is asking the wrong question. It reports which half is
+     * doing the planning and phrasing, which is a thing to display, not a thing
+     * to gate work on.
+     */
     public function available(): bool;
 
     /**

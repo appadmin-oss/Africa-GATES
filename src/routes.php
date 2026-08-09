@@ -266,6 +266,186 @@ return function(App $app) {
     });
 
     /**
+     * GET /__setup/assistant?token=… — "is the support assistant actually working?"
+     *
+     * ── WHY THIS EXISTS ──────────────────────────────────────────────────────
+     *
+     * "The assistant is not working" has at least six causes with one symptom, and
+     * from the outside they are indistinguishable:
+     *
+     *   · no AI provider key is configured anywhere
+     *   · a key is configured but expired, or its free quota is spent
+     *   · a key works but the circuit breaker is open after repeated failures
+     *   · everything works and the widget is being looked for on the wrong page
+     *   · the tools work and the model does not, so answers arrive but read flatly
+     *   · the unattended ticket queue is not being swept because cron is not running
+     *
+     * There is no shell on this host, so none of that can be checked from a log.
+     * This reads the live configuration and reports facts.
+     *
+     * ── AND IT DEMONSTRATES THE ROUTING, RATHER THAN DESCRIBING IT ────────────
+     *
+     * The last section runs {@see \AfricaGates\Services\SupportPlan} against real
+     * example questions and prints which tools each one would call. That is the
+     * part an operator cannot work out from the outside, and it is also the fastest
+     * way to see that the assistant does useful work with no AI key at all: the
+     * repair tools are deterministic code and the plan names them either way.
+     *
+     * Read-only by default. `&ping=1` makes ONE live model call, because "is the
+     * key still valid" cannot be answered without trying it — and it is opt-in
+     * because a link can be prefetched, retried and bookmarked, and each of those
+     * would otherwise spend quota.
+     */
+    $app->get('/__setup/assistant', function ($req, $res) use ($setupGuard) {
+        if (!$setupGuard($req)) return $res->withStatus(404);
+        $e = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+        $q = $req->getQueryParams();
+
+        $ai     = \AfricaGates\Services\AiService::boot();
+        $status = $ai->status();
+        $agent  = new \AfricaGates\Services\SupportAgentService($ai);
+        $hasAi  = $agent->available();
+
+        // ── the model half ──────────────────────────────────────────────────
+        $model = [];
+        foreach (['groq', 'gemini', 'anthropic', 'openai'] as $p) {
+            $on = (bool) ($status[$p] ?? false);
+            // Never the key itself, not even partially — this page is reachable by
+            // anybody holding the setup token, and a key is a bearer credential.
+            $model[] = [$on, ucfirst($p) . ' key', $on ? 'configured' : 'not configured'];
+        }
+        $model[] = [$hasAi, 'A model can plan and phrase',
+            $hasAi ? 'yes — ' . ($status['active'] ?? '?') . ', model ' . ($status['model'] ?? '?')
+                   : 'NO — answers will be composed from the tools\' own words instead (see below)'];
+
+        foreach (['groq', 'gemini', 'anthropic', 'openai'] as $p) {
+            if (!($status[$p] ?? false)) continue;
+            $open = \AfricaGates\Support\ProviderBreaker::isOpen($p);
+            $model[] = [!$open, 'Circuit breaker: ' . $p,
+                $open ? 'OPEN — recent calls failed, so this provider is being skipped. It closes by '
+                      . 'itself; a permanently open one means the key is wrong or the quota is spent.'
+                      : 'closed (healthy)'];
+        }
+
+        if (!empty($q['ping']) && $hasAi) {
+            $t0 = microtime(true);
+            $out = $ai->complete('Reply with the single word OK.', 'ping', 8);
+            $ms  = (int) round((microtime(true) - $t0) * 1000);
+            $model[] = [$out !== null, 'Live call to the provider',
+                $out !== null ? 'answered in ' . $ms . 'ms — the key is valid'
+                              : 'NO ANSWER after ' . $ms . 'ms — the key is rejected, out of quota, or blocked '
+                              . 'outbound by the host firewall'];
+        } elseif (!empty($q['ping'])) {
+            $model[] = [false, 'Live call to the provider', 'skipped — no key to test'];
+        }
+
+        // ── the half that needs no model ────────────────────────────────────
+        $ctx  = new \AfricaGates\Services\SupportContext(null, null);
+        $work = [];
+        try {
+            $tools  = $ctx->tools();
+            $work[] = [$tools !== [], 'Tools a visitor can reach', (string) count($tools) . ' available'];
+        } catch (\Throwable $ex) {
+            $tools  = [];
+            $work[] = [false, 'Tools', 'could not be listed: ' . $ex->getMessage()];
+        }
+
+        $cap = \Illuminate\Database\Capsule\Manager::class;
+        foreach ([
+            ['gates_support_tickets', 'Tickets table'],
+            ['gates_support_messages', 'Ticket replies table'],
+        ] as [$table, $label]) {
+            try { $has = $cap::schema()->hasTable($table); } catch (\Throwable) { $has = false; }
+            $work[] = [$has, $label, $has ? 'present' : 'MISSING — run /__setup/migrate'];
+        }
+
+        // The reference columns the assistant now looks payments up by.
+        foreach (['gateway_txn_id', 'gateway_ref'] as $col) {
+            try { $has = $cap::schema()->hasColumn('gates_donations', $col); } catch (\Throwable) { $has = false; }
+            $work[] = [$has, 'Column gates_donations.' . $col,
+                $has ? 'present — Paystack receipt numbers are searchable'
+                     : 'MISSING — run /__setup/migrate, or supporters quoting a Paystack number cannot be found'];
+        }
+
+        $resolver = new \AfricaGates\Services\SupportAutoResolver(
+            $agent, new \AfricaGates\Services\SupportTicketService()
+        );
+        $work[] = [$resolver->available(), 'Unattended ticket queue',
+            $resolver->available()
+                ? 'enabled — it repairs payment tickets by itself, with or without a model'
+                : 'unavailable'];
+
+        try {
+            $open = (int) $cap::table('gates_support_tickets')->where('status', 'open')->count();
+            $work[] = [true, 'Open tickets right now', (string) $open
+                . ($open > 0 ? ' — the queue is swept from maintenance, so confirm the cron job is running' : '')];
+        } catch (\Throwable) {}
+
+        // ── show the routing, do not describe it ────────────────────────────
+        $demo = [];
+        foreach ([
+            'I paid but my votes have not appeared, ref AFG-PVOTE-957ef35ed73d',
+            'my debit alert says 4738291042 and nothing came',
+            'I voted for my sister and it is not showing',
+            'my payment failed and the card was declined',
+            'my verification code never arrived at ada@gmial.com',
+            'why can I not pay when voting is still open?',
+            'how much is one vote?',
+        ] as $sample) {
+            try {
+                $names = array_column(\AfricaGates\Services\SupportPlan::steps($sample, $ctx), 'tool');
+            } catch (\Throwable $ex) {
+                $names = ['(failed: ' . $ex->getMessage() . ')'];
+            }
+            $demo[] = [$names !== [], $sample, $names ? implode(' → ', $names) : 'nothing — would answer from the Help Centre'];
+        }
+
+        $row = static function (array $r) use ($e): string {
+            [$ok, $label, $note] = $r;
+            return '<tr><td>' . ($ok ? '<span class="ok">✓</span>' : '<span class="err">✗</span>')
+                 . '</td><td>' . $e($label) . '</td><td class="n">' . $e($note) . '</td></tr>';
+        };
+
+        $blocked = in_array(false, array_column($work, 0), true);
+
+        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            . '<title>Africa GATES — support assistant</title>'
+            . '<style>body{font-family:system-ui,"Segoe UI",Roboto,sans-serif;background:#10292C;color:#bcd;margin:0;padding:30px 16px;line-height:1.6}'
+            . '.box{max-width:900px;margin:0 auto}h1{color:#fff;font-size:19px;margin:0 0 4px}h2{color:#fff;font-size:15px;margin:26px 0 8px}'
+            . 'table{width:100%;border-collapse:collapse;font-size:13.5px}td{padding:6px 8px;border-top:1px solid rgba(255,255,255,.08);vertical-align:top}'
+            . 'td:first-child{width:22px}.n{color:#8fa8a4;font-size:12.5px}'
+            . '.ok{color:#7FC87C;font-weight:700}.err{color:#ff9a9a;font-weight:700}'
+            . '.verdict{margin:14px 0 0;padding:12px 14px;border-radius:10px;font-weight:600}'
+            . '.good{background:rgba(127,200,124,.14);color:#9ee89b}.warn{background:rgba(255,206,120,.14);color:#ffdda1}'
+            . '.bad{background:rgba(255,154,154,.14);color:#ffbcbc}'
+            . 'a{color:#7FC87C}code{background:#06181a;padding:2px 5px;border-radius:4px;font-size:12.5px}</style>'
+            . '</head><body><div class="box"><h1>Support assistant</h1>'
+            . '<p class="n">Read-only. Add <code>&amp;ping=1</code> to make one live call to the AI provider.</p>'
+            . '<div class="verdict ' . ($blocked ? 'bad' : ($hasAi ? 'good' : 'warn')) . '">'
+            . ($blocked
+                ? 'Something the assistant needs is missing — every row marked ✗ under “The work” says which fix applies.'
+                : ($hasAi
+                    ? 'Fully operational: a model plans and phrases, and the tools do the work.'
+                    : 'Operational without an AI key. It reads payments, repairs them, resends receipts and opens '
+                    . 'tickets — all of that is ordinary code. What is missing is only the conversational phrasing, '
+                    . 'so answers are assembled from the tools\' own sentences. Paste a Groq or Gemini key in '
+                    . 'Admin → Settings → AI to add it; both have a free tier.'))
+            . '</div>'
+            . '<h2>The model (planning and phrasing)</h2><table>' . implode('', array_map($row, $model)) . '</table>'
+            . '<h2>The work (looking things up and fixing them)</h2><table>' . implode('', array_map($row, $work)) . '</table>'
+            . '<h2>What it would do with real questions, right now</h2>'
+            . '<p class="n">Chosen by rules, with no model involved — so this is exactly what happens when the '
+            . 'provider is down as well.</p><table>' . implode('', array_map($row, $demo)) . '</table>'
+            . '</div></body></html>';
+
+        $res->getBody()->write($html);
+        return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
+                   ->withHeader('Cache-Control', 'no-store')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    });
+
+    /**
      * GET /__setup/assets — build the CSS bundle without a shell.
      *
      * Same reason /__setup/migrate exists: this deploys to shared cPanel where there is

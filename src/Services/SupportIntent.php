@@ -138,8 +138,7 @@ final class SupportIntent
         if ($m === '') return false;
 
         if (preg_match(self::REFERENCE, $message) === 1) return true;
-        if (self::any($m, self::TROUBLE)) return true;
-        if (self::any($m, self::MINE) && self::any($m, self::NEGATIVE)) return true;
+        if (self::isTrouble($message)) return true;
 
         // ── STICKINESS ───────────────────────────────────────────────────────
         //
@@ -159,6 +158,26 @@ final class SupportIntent
     }
 
     /**
+     * Is something wrong, in this person's own words?
+     *
+     * The trouble half of {@see looksLikeSupport()}, without the stickiness — "has
+     * this message got a complaint in it", asked of one message on its own.
+     *
+     * Extracted because {@see looksLikeSupport()} and {@see wasSupport()} both had
+     * their own copy of the same three checks, and a vocabulary tuned this hard
+     * toward precision is worth nothing if half of it can drift out of the other
+     * half. Public so the same judgement is available to anything that needs it
+     * without a second list being written.
+     */
+    public static function isTrouble(string $message): bool
+    {
+        $m = self::norm($message);
+        if ($m === ' ' || $m === '') return false;
+        if (self::any($m, self::TROUBLE)) return true;
+        return self::any($m, self::MINE) && self::any($m, self::NEGATIVE);
+    }
+
+    /**
      * Did an earlier USER turn in this conversation look like support?
      *
      * Only user turns count. The assistant's own words are full of trouble
@@ -175,10 +194,7 @@ final class SupportIntent
             if (($h['role'] ?? 'user') !== 'user') continue;
             $text = (string) ($h['content'] ?? $h['text'] ?? '');
             if ($text === '') continue;
-            $t = self::norm($text);
-            if (preg_match(self::REFERENCE, $text) === 1
-                || self::any($t, self::TROUBLE)
-                || (self::any($t, self::MINE) && self::any($t, self::NEGATIVE))) {
+            if (preg_match(self::REFERENCE, $text) === 1 || self::isTrouble($text)) {
                 return true;
             }
         }

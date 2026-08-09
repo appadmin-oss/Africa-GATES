@@ -55,9 +55,31 @@ final class SupportAgentService implements SupportAnswerer
         private readonly ?SupportTicketService $tickets = null,
     ) {}
 
+    /**
+     * Is a language model available to plan and phrase?
+     *
+     * NOT "does the assistant work". It works either way — see
+     * {@see SupportPlan}. This answers the narrower question of whether a turn
+     * will be planned and phrased by a model or by rules, which is what the
+     * status panel and the admin diagnostics want to report.
+     */
     public function available(): bool
     {
         return $this->ai !== null && $this->ai->configured();
+    }
+
+    /**
+     * Can this assistant do useful work at all?
+     *
+     * True whenever the tools exist, which is always. The distinction matters
+     * because `available()` was being used as the answer to both questions, and
+     * the two are not the same: the tools are deterministic code that repairs
+     * payments, and gating them on an AI key meant a site with no key had a
+     * support desk that could only apologise.
+     */
+    public function usable(): bool
+    {
+        return true;
     }
 
     /**
@@ -82,31 +104,42 @@ final class SupportAgentService implements SupportAnswerer
         if ($message === '') {
             return $this->plain('Tell me what is going wrong and I will look into it.');
         }
-        if (!$this->available()) {
-            // ── NO PROVIDER, BUT NOT NOTHING ─────────────────────────────────
-            //
-            // This used to be an apology and an email address. It was the wrong
-            // answer twice over: the commonest support questions on this platform
-            // are already answered in the Help Centre, and the moments a provider
-            // is unreachable — an incident, a spent budget — are exactly the
-            // moments most people are asking one of them.
-            //
-            // Gee already quoted the written answer here, so the person who
-            // navigated all the way to the support page was getting the WORSE of
-            // the two floors. Same composer now, so they cannot drift again.
-            $written = HelpCentre::writtenAnswer($message);
-            if ($written !== null) {
-                return $this->plain($written . "\n\nIf that is not it, say so and I will pass this to the team.");
-            }
-            // Nothing matched — now an honest apology is the right answer.
-            return $this->plain(
-                "I cannot reach my assistant service right now. You can still reach a human: "
-                . "describe the problem and I will pass it on, or email " . $this->teamEmail() . " directly."
-            );
-        }
-
         $history = array_slice($history, -self::MAX_HISTORY);
         $facts   = [];
+
+        if (!$this->available()) {
+            // ── NO PROVIDER, BUT THE TOOLS STILL WORK ────────────────────────
+            //
+            // This branch used to be an apology and an email address, and later a
+            // Help-Centre article. Both were answers to the wrong question. The
+            // twenty-four tools behind this class are deterministic code: they
+            // re-check a payment against Paystack, credit the votes, resend a
+            // receipt, read the live deadlines. Not one of them needs a model.
+            //
+            // The model chooses which to run and then phrases the result. So when
+            // it is missing, {@see SupportPlan} chooses instead and
+            // fromFactsAlone() phrases from the `say` strings the tools already
+            // wrote. A site with no AI key configured now REPAIRS PAYMENTS.
+            //
+            // It also escalates, which the old early return could not: plain()
+            // hard-codes ticket:null, so somebody who wrote "I paid and got
+            // nothing, let me speak to a human" got an apology and their message
+            // was read by nobody, ever. Falling through to the shared tail below
+            // is what fixes that.
+            foreach (SupportPlan::steps($message, $ctx, $only) as $step) {
+                $key = $step['tool'] . ':' . json_encode($step['args']);
+                if (isset($facts[$key])) continue;
+                $result = $ctx->run($step['tool'], $step['args']);
+                $this->trace[] = ['tool' => $step['tool'], 'args' => $step['args'], 'ok' => (bool) $result['ok']];
+                $facts[$key] = $result;
+            }
+            // fromFactsAlone() is already the whole ladder: what the tools said,
+            // then the vetted written answer, then an offer of a human. Calling it
+            // here rather than writing a second ladder is what keeps the no-key
+            // floor and the provider-down floor identical.
+            return $this->finish(self::fromFactsAlone($facts, $message),
+                                 $message, $history, $ctx, $facts, $escalate);
+        }
 
         // ── the tool loop ────────────────────────────────────────────────────
         for ($round = 0; $round < self::MAX_ROUNDS; $round++) {
@@ -135,13 +168,46 @@ final class SupportAgentService implements SupportAnswerer
             $facts[$key] = $result;
         }
 
-        $reply = $this->compose($message, $history, $ctx, $facts);
+        // ── THE FAILURE THAT ACTUALLY HAPPENS ────────────────────────────────
+        //
+        // Not "no key" — an expired token, a spent free quota, a network fault, an
+        // open circuit breaker. available() says yes, because a key IS configured,
+        // and then every plan() call comes back null. No plan, no tools, no facts,
+        // and compose() lands on the dead end it has a long comment about.
+        //
+        // The rules can still choose. Reaching for them here means a provider
+        // outage costs fluency and nothing else — the repair still runs.
+        if ($facts === []) {
+            foreach (SupportPlan::steps($message, $ctx, $only) as $step) {
+                $key = $step['tool'] . ':' . json_encode($step['args']);
+                if (isset($facts[$key])) continue;
+                $result = $ctx->run($step['tool'], $step['args']);
+                $this->trace[] = ['tool' => $step['tool'], 'args' => $step['args'], 'ok' => (bool) $result['ok']];
+                $facts[$key] = $result;
+            }
+        }
 
-        // ── escalation ───────────────────────────────────────────────────────
-        // Decided in CODE from the conversation, not by the model asking to
-        // escalate. A model that can open tickets opens them to end conversations
-        // it finds hard; a rule that reads "the user asked for a human, or we
-        // failed to help twice" escalates when a person would.
+        return $this->finish($this->compose($message, $history, $ctx, $facts),
+                             $message, $history, $ctx, $facts, $escalate);
+    }
+
+    /**
+     * Escalate if a person would, and return the turn.
+     *
+     * Shared by the model path and the model-free one, deliberately: escalation is
+     * decided in CODE from the conversation, not by the model asking to escalate —
+     * a model that can open tickets opens them to end conversations it finds hard.
+     * Since the decision never involved the model, a turn with no model in it must
+     * reach exactly the same decision, and the only way to guarantee that is for
+     * both paths to run this same function.
+     *
+     * @param array<string,array<string,mixed>> $facts
+     * @return array{reply:string, escalated:bool, ticket:?string, used:list<string>,
+     *               results:list<array>, provider:?string}
+     */
+    private function finish(string $reply, string $message, array $history, SupportContext $ctx,
+                            array $facts, bool $escalate): array
+    {
         $ticketRef = null;
         if ($escalate && $this->tickets !== null && $this->shouldEscalate($message, $history, $facts)) {
             $ticketRef = $this->tickets->open($message, $history, $ctx, $this->trace);
@@ -163,6 +229,7 @@ final class SupportAgentService implements SupportAnswerer
             'provider'  => $this->ai?->lastProvider(),
         ];
     }
+
 
     /**
      * The Help Centre slugs this turn's answer was actually built from.
@@ -421,6 +488,25 @@ final class SupportAgentService implements SupportAnswerer
         foreach ($facts as $f) {
             $d = $f['data'] ?? null;
             if (!is_array($d)) continue;
+
+            // ── A LOOKUP THAT FOUND NOTHING HAS NO ANSWER IN IT ──────────────
+            //
+            // Caught by a test, and it is the exact failure this whole function
+            // exists to prevent, arriving from the other direction. help_article
+            // with no match returns:
+            //
+            //   "No written answer covers that. Answer from the tools and the
+            //    briefing instead, and do not invent a Help Centre link."
+            //
+            // That is a note to the writer. isDirection() below is anchored at
+            // position 0 and this one opens with "No written answer", so it sailed
+            // through and was shown to a person as the platform's reply.
+            //
+            // The rule is simpler than any list of phrases: if the tool reports
+            // found:false, there is nothing to relay. Only `found` counts here —
+            // NOT `ok`, because a repair that legitimately failed ("the money
+            // never arrived") writes an ok:false say that a person must read.
+            if (array_key_exists('found', $d) && $d['found'] === false) continue;
 
             // `say` is the contract: every tool that can produce a human-facing
             // outcome writes one. `message` is the older name the repair path

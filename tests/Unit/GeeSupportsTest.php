@@ -234,13 +234,68 @@ final class GeeSupportsTest extends TestCase
             'There IS an answer to this question — saying there is not is the bug.');
     }
 
-    /** With nothing to quote, an apology is the honest answer — and it stays. */
+    /**
+     * With nothing to quote and nothing to repair, an apology is the honest answer
+     * — and it stays, with a way to reach a person in it.
+     *
+     * The wording moved when the model-free path started running the real tools:
+     * the desk no longer says "I cannot reach my assistant service", because that
+     * was never the reader's problem and is not even true — the tools are up. What
+     * has to hold is that it admits it has no answer and offers a human, so this
+     * asserts those two things rather than a sentence.
+     */
     public function test_the_desk_still_says_so_when_the_corpus_has_nothing(): void
     {
         $desk = (new SupportAgentService())->ask('zzzz qqqq wwww', [], SupportContext::fromSession());
 
         $this->assertNull(HelpCentre::writtenAnswer('zzzz qqqq wwww'));
-        $this->assertStringContainsString('cannot reach my assistant service', $desk['reply']);
+        $this->assertStringContainsString('could not', $desk['reply'],
+            'it has to admit it has no answer rather than produce one');
+        $this->assertStringContainsString('human', $desk['reply'],
+            'and a dead end must always carry a way to reach a person');
+    }
+
+    /**
+     * THE THING THAT WAS WRONG: no model meant no repair, on a platform whose
+     * commonest support question is a payment it can fix in two seconds.
+     *
+     * A message with a reference in it and a complaint around it now runs
+     * fix_payment with no AI configured at all, and the answer is the repair
+     * tool's own sentence rather than a Help Centre article about paid voting.
+     */
+    public function test_the_desk_repairs_a_payment_with_no_model_configured(): void
+    {
+        $desk = new SupportAgentService();
+        $this->assertFalse($desk->available(), 'this test is meaningless with a provider configured');
+
+        $r = $desk->ask('I paid but my votes have not appeared, reference AFG-PVOTE-957ef35ed73d',
+                        [], SupportContext::fromSession());
+
+        $this->assertContains('fix_payment', $r['used'],
+            'the repair tool needs no model and must run without one');
+    }
+
+    /**
+     * And it escalates, which the old no-provider branch could not.
+     *
+     * That branch returned early through plain(), which hard-codes ticket:null. So
+     * somebody who wrote "I paid and got nothing, let me speak to a human" got an
+     * apology and their message was read by nobody, ever. Escalation was always
+     * decided in code rather than by the model, so there was never a reason for it
+     * to depend on one.
+     */
+    public function test_a_request_for_a_human_opens_a_ticket_with_no_model_configured(): void
+    {
+        $desk = new SupportAgentService(null, new \AfricaGates\Services\SupportTicketService());
+        $this->assertFalse($desk->available());
+
+        $r = $desk->ask('I paid and got nothing. I want to speak to a human.',
+                        [], SupportContext::fromSession());
+
+        $this->assertTrue($r['escalated'], 'a request for a person must reach a person');
+        $this->assertNotNull($r['ticket']);
+        $this->assertStringContainsString((string) $r['ticket'], $r['reply'],
+            'and they must be told the reference so they can follow it up');
     }
 
     public function test_a_browsing_question_is_not_answered_from_the_help_centre_tier(): void

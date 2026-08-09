@@ -179,11 +179,13 @@ final class SupportContext
             // be talked into moving money. It reports what the platform has
             // already decided by itself — see RefundService.
             ['name' => 'check_reference',
-             'description' => "Ask whether a string is one of OUR references before doing anything with it. Ours all begin "
-                            . "with AFG-. Wallet apps (OPay, PalmPay, Kuda) show their own transaction number instead, "
-                            . "which is real but cannot be looked up here. Use this the moment somebody gives you "
-                            . "something that does not start with AFG-, so you can point them at the right number "
-                            . "rather than telling them their payment does not exist.",
+             'description' => "Identify a reference somebody has given you. Ours begin with AFG-. Paystack and wallet "
+                            . "apps (OPay, PalmPay, Kuda) show their OWN transaction number instead — those now work "
+                            . "too, and this tool tells you our reference for the same payment. Use it the moment "
+                            . "somebody gives you something that does not start with AFG-: if it resolves, carry on "
+                            . "with the reference it returns; if it does not, you have directions to give rather than "
+                            . "a denial. Never tell anybody their payment does not exist because the number looked "
+                            . "unfamiliar.",
              'args' => ['reference' => 'whatever they gave you']],
             ['name' => 'free_vote_help',
              'description' => "Why a FREE vote might not be showing. Most votes on this platform are free and have no "
@@ -755,25 +757,54 @@ final class SupportContext
         return 'unknown';
     }
 
-    /** @return array{ok:bool, shape:string, say:string} */
+    /**
+     * @return array{ok:bool, shape:string, say:string, reference?:string}
+     *
+     * ── THIS USED TO GIVE DIRECTIONS WHERE IT CAN NOW GIVE AN ANSWER ─────────
+     *
+     * The old version read the SHAPE and stopped. A gateway-shaped number got
+     * "that is the wallet app's own number, ours begin with AFG-, tell them to
+     * find the confirmation page" — a paragraph of homework, given to somebody
+     * looking at a debit alert, because the platform could not match their number.
+     *
+     * {@see PaymentLookup} matches it now. So the number is tried FIRST and the
+     * directions survive only for the case where they are still true: a number
+     * that resolves to nothing at all.
+     */
     private function checkReference(string $reference): array
     {
         $shape = self::shapeOf($reference);
+        if ($shape === 'empty') {
+            return ['ok' => false, 'shape' => 'empty', 'say' => 'No reference given yet.'];
+        }
+
+        // Ours, exactly — no lookup needed to say so.
+        if ($shape === 'ours') {
+            return ['ok' => true, 'shape' => 'ours', 'reference' => trim($reference),
+                    'say' => 'That is one of our references. Look it up or repair it.'];
+        }
+
+        // Not our shape — but it may still BE a payment we hold, under the
+        // gateway's own number or a half-pasted form of ours.
+        $ours = \AfricaGates\Services\PaymentLookup::canonical(trim($reference));
+        if ($ours !== trim($reference)) {
+            return ['ok' => true, 'shape' => 'resolved', 'reference' => $ours,
+                    'say' => 'That is the payment gateway\'s own number for the order, and it does match a '
+                           . 'payment we hold. Our reference for it is ' . $ours . '.'];
+        }
 
         return match ($shape) {
-            'ours' => ['ok' => true, 'shape' => 'ours',
-                       'say' => 'That is one of our references. Look it up or repair it.'],
-            'empty' => ['ok' => false, 'shape' => 'empty',
-                        'say' => 'No reference given yet.'],
             'gateway' => ['ok' => false, 'shape' => 'gateway',
-                          'say' => 'That is the bank or wallet app\'s own transaction number, not ours — it is real, '
-                                 . 'it is just their record of paying us rather than our record of the order. Ours '
-                                 . 'always begin with AFG-, like AFG-PVOTE-. Tell them it is on the confirmation '
-                                 . 'page they landed on after paying and at the bottom of the receipt email. Do NOT '
-                                 . 'say the payment cannot be found — it can, once you have the right number.'],
+                          'say' => 'That looks like a bank or wallet app\'s own transaction number and it does not '
+                                 . 'match any payment here. It is a real number — it is their record of the '
+                                 . 'transfer, not ours of the order — so do NOT say the payment does not exist. '
+                                 . 'Our own reference begins with AFG- and is on the confirmation page they landed '
+                                 . 'on after paying and at the bottom of the receipt email. The email address they '
+                                 . 'paid with will also find it.'],
             default => ['ok' => false, 'shape' => 'unknown',
-                        'say' => 'That does not look like a payment reference at all. Ours begin with AFG-. '
-                               . 'Ask them to check the confirmation page or the receipt email.'],
+                        'say' => 'That does not match any payment here, and does not look like a reference. Ours '
+                               . 'begin with AFG-. Ask them to check the confirmation page or the receipt email, '
+                               . 'or give the email address they paid with.'],
         };
     }
 
@@ -781,14 +812,19 @@ final class SupportContext
     {
         $ref = trim($reference);
 
-        // Shape first. See checkReference(): a wallet's own number is real, and
-        // answering it with "no payment found" ends the conversation on a lie the
-        // reader can disprove by looking at their phone.
+        // Resolve, then shape. See checkReference(): a wallet's own number is real,
+        // and answering it with "no payment found" ends the conversation on a lie
+        // the reader can disprove by looking at their phone. What has changed is
+        // that a gateway number is no longer a dead end — it resolves to ours and
+        // the repair then runs on the right order, which is the entire point of
+        // being able to match it. Only a number that resolves to NOTHING gets
+        // directions instead of a repair.
         if ($ref !== '') {
             $shape = $this->checkReference($ref);
             if (!$shape['ok']) {
                 return ['ok' => false, 'outcome' => 'NOT_OUR_REFERENCE', 'say' => $shape['say']];
             }
+            $ref = (string) ($shape['reference'] ?? $ref);
         }
 
         if ($ref === '') {
