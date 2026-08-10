@@ -140,6 +140,35 @@ final class AssistantEndpointTest extends TestCase
     }
 
     /**
+     * The schedule is reported, and reported SEPARATELY from the assistant's own
+     * prerequisites.
+     *
+     * The page used to say "the queue is swept from maintenance, so confirm the cron
+     * job is running" — an instruction, where CronHealth could give a fact. But when
+     * that fact was first folded into the same list as the database checks, a missing
+     * cron job turned the headline into "Something the assistant needs is missing",
+     * which sends an operator to inspect columns that are perfectly fine.
+     *
+     * They are different faults with different reactions: one stops the assistant
+     * answering, the other stops the platform paying people.
+     */
+    public function test_the_schedule_is_reported_as_its_own_question(): void
+    {
+        $html = (string) $this->get('?token=' . self::TOKEN)->getBody();
+
+        $this->assertStringContainsString('Is any of it actually running?', $html);
+        $this->assertStringContainsString('Scheduled work', $html);
+        $this->assertStringContainsString('Runs from web traffic', $html);
+
+        // No cron rows exist in the fixture, so the schedule is a fault here — and
+        // it must NOT be described as the assistant lacking something.
+        $this->assertStringNotContainsString('Something the assistant needs is missing', $html,
+            'a missing cron job is being reported as a broken assistant');
+        $this->assertStringContainsString('more urgently', $html,
+            'and the schedule fault must still be said plainly in the verdict');
+    }
+
+    /**
      * A live provider call costs quota, and a URL can be prefetched, bookmarked and
      * retried on a flaky connection. So it happens only when asked for.
      */

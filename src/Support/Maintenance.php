@@ -244,6 +244,40 @@ final class Maintenance
      * lock. Enabled by the admin (webcron_auto) — off by default so it never
      * surprises a host that already has real cron.
      *
+     * ── AND IT TURNS ITSELF ON WHEN NOTHING ELSE IS RUNNING ──────────────────
+     *
+     * "Off by default so it never surprises a host that already has real cron" is
+     * the right default and the wrong outcome, because it assumes somebody
+     * configured cron. This platform is deployed by uploading a zip through cPanel
+     * File Manager; adding a cron job is a separate manual step in a different
+     * screen, and if it is skipped there is no symptom. Pages serve, votes are
+     * cast, checkouts complete.
+     *
+     * What silently does not happen is every automatic money decision on the
+     * platform: reconciliation confirming payments whose callback was dropped,
+     * the refund sweep returning money for votes that could not be minted, and the
+     * assistant repairing payment tickets. Supporters who are owed money are simply
+     * not paid, and it is discovered when they complain.
+     *
+     * {@see CronHealth} exists precisely because that failure is invisible, and it
+     * can answer the one question that makes this decision safe: has the schedule
+     * PROVABLY missed work? If it has, then whatever the operator intended, real
+     * cron is not running — so the fallback is not surprising anybody. It engages.
+     *
+     * Three things make that defensible rather than reckless:
+     *
+     *   · The work happens AFTER the response is flushed, and is skipped outright on
+     *     a SAPI where it cannot detach (see public/index.php). A visitor never
+     *     waits for it.
+     *   · An explicit `webcron_auto` of off/0/no always wins. An operator who has
+     *     decided against this keeps their decision.
+     *   · It LATCHES, by writing the setting once. Without that it would oscillate:
+     *     engaging on a stale schedule, running, thereby making the schedule fresh,
+     *     un-engaging, and going stale again six hours later — which is a run every
+     *     six hours dressed up as a run every fifteen minutes. Latching also makes
+     *     the decision visible in Admin → Settings and reversible there, rather than
+     *     being recomputed invisibly on every request.
+     *
      * @return array{skipped?:string, task?:string, ran?:array, runtime_ms?:int}
      */
     public static function tick(?ContainerInterface $container = null, int $intervalSec = 840): array
@@ -256,7 +290,9 @@ final class Maintenance
         if (is_file($sentinel) && ($now - (int) @filemtime($sentinel)) < $intervalSec) {
             return ['skipped' => 'throttled'];
         }
-        if (!self::autoEnabled()) return ['skipped' => 'disabled'];
+        if (!self::autoEnabled() && !self::adoptWhenNothingElseRuns()) {
+            return ['skipped' => 'disabled'];
+        }
 
         // Authoritative due-check against the cron log (the sentinel can lie if the
         // FS isn't writable or was cleared).
@@ -278,10 +314,125 @@ final class Maintenance
     /** Whether the admin has enabled opportunistic web-traffic maintenance. */
     public static function autoEnabled(): bool
     {
+        return self::settingIs(['1', 'true', 'on', 'yes']);
+    }
+
+    /**
+     * Has an operator explicitly said NO to opportunistic maintenance?
+     *
+     * Distinct from "not enabled". An unset setting is an absence of a decision,
+     * which {@see adoptWhenNothingElseRuns()} may act on; an explicit off is a
+     * decision, and it is final. Collapsing the two would mean a fallback that
+     * cannot be switched off, which is a worse fault than the one it fixes.
+     */
+    public static function autoRefused(): bool
+    {
+        return self::settingIs(['0', 'false', 'off', 'no']);
+    }
+
+    /** @param list<string> $truthy */
+    private static function settingIs(array $truthy): bool
+    {
         try {
             $v = DB::table('gates_settings')->where('key_name', 'webcron_auto')->value('value');
-            return in_array((string) $v, ['1', 'true', 'on', 'yes'], true);
+            return in_array(strtolower(trim((string) $v)), $truthy, true);
         } catch (\Throwable) { return false; }
+    }
+
+    /**
+     * Take over the schedule when nothing else is running it.
+     *
+     * Returns true when this request should go on to run maintenance despite the
+     * setting being unset — and, when it does, it PERSISTS the decision so the
+     * schedule keeps ticking rather than oscillating. See the note on {@see tick()}
+     * for why that latch is required and why this is safe.
+     *
+     * Never overrides an explicit refusal, and never fires on a fresh install:
+     * {@see CronHealth::neverRun()} is true on day zero before anything has had a
+     * chance to run, so it is paired with an installation old enough for a missed
+     * run to be real information rather than a race with the first cron tick.
+     */
+    private static function adoptWhenNothingElseRuns(): bool
+    {
+        if (!self::shouldAdopt()) return false;
+
+        try {
+            DB::table('gates_settings')->updateOrInsert(
+                ['key_name' => 'webcron_auto'],
+                ['value' => '1', 'updated_at' => Carbon::now()->toDateTimeString()]
+            );
+        } catch (\Throwable $e) {
+            // Could not latch. Still run this time — the work is more important than
+            // the bookkeeping — but say so, because an unlatched fallback will look
+            // like a schedule that runs every six hours.
+            error_log('[webcron tick] adopting the schedule but could not persist '
+                    . 'webcron_auto: ' . $e->getMessage());
+        }
+        error_log('[webcron tick] no completed maintenance run in the last '
+                . CronHealth::STALE_HOURS . 'h — running maintenance from web traffic '
+                . 'instead. Set webcron_auto=off in Settings to stop this.');
+        return true;
+    }
+
+    /**
+     * Should this site run its own schedule, given that nobody enabled it?
+     *
+     * The decision only — no writes, no logging — so it can be asked by a
+     * diagnostic page and asserted by a test without changing anything. The latch
+     * and the log live in {@see adoptWhenNothingElseRuns()}, which is the one place
+     * that acts on the answer.
+     */
+    public static function shouldAdopt(): bool
+    {
+        // An explicit decision by an operator is final. An UNSET setting is the
+        // absence of a decision, which is a different thing and the only case this
+        // acts on.
+        if (self::autoRefused() || self::autoEnabled()) return false;
+
+        if (CronHealth::isStale()) return true;
+
+        // Never run at all — but only once the installation is old enough that a
+        // working cron would certainly have fired. On day zero `neverRun()` is true
+        // simply because nothing has had its turn yet, and adopting then would be a
+        // race with the operator's first real cron tick rather than a diagnosis.
+        // STALE_HOURS is the platform's own definition of "work has provably been
+        // missed", so the same number answers both shapes of the question.
+        if (!CronHealth::neverRun()) return false;
+        $age = self::installAgeHours();
+        return $age !== null && $age >= CronHealth::STALE_HOURS;
+    }
+
+    /**
+     * How long this installation has existed, in hours, or null if unknowable.
+     *
+     * Read from the oldest installer-created row rather than a marker we would have
+     * to remember to write: the installer creates a programme, a cycle and an admin,
+     * and no ordinary operation deletes them. A database that cannot answer returns
+     * null, which reads as "do not adopt" — failing toward the previous behaviour
+     * rather than toward acting on a guess.
+     *
+     * Every source is a CREATION timestamp, deliberately. `gates_settings.updated_at`
+     * was the first choice and is wrong for exactly the reason its name gives: it
+     * moves. An operator who had just saved a setting would make a year-old
+     * installation read as minutes old, and adoption would be suppressed on the
+     * install that needed it most.
+     */
+    private static function installAgeHours(): ?float
+    {
+        foreach ([
+            ['gates_award_cycles', 'created_at'],
+            ['gates_award_programmes', 'created_at'],
+            ['gates_admins', 'created_at'],
+        ] as [$table, $col]) {
+            try {
+                $at = DB::table($table)->min($col);
+            } catch (\Throwable) { continue; }
+            if ($at === null) continue;
+            try {
+                return max(0.0, Carbon::parse((string) $at)->diffInMinutes(Carbon::now(), false) / 60);
+            } catch (\Throwable) { continue; }
+        }
+        return null;
     }
 
     private function purgeExpiredOtp(): int

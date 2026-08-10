@@ -377,9 +377,61 @@ return function(App $app) {
 
         try {
             $open = (int) $cap::table('gates_support_tickets')->where('status', 'open')->count();
+            $answered = (int) $cap::table('gates_support_messages')
+                ->where('author_type', 'agent')->count();
             $work[] = [true, 'Open tickets right now', (string) $open
-                . ($open > 0 ? ' — the queue is swept from maintenance, so confirm the cron job is running' : '')];
+                . ' open, ' . $answered . ' replies posted by the assistant so far'];
         } catch (\Throwable) {}
+
+        // ── IS ANY OF IT ACTUALLY RUNNING? ──────────────────────────────────
+        //
+        // The single most consequential question on this page, and it used to be
+        // answered with an instruction ("confirm the cron job is running") rather
+        // than a fact — while CronHealth, which exists precisely because a stalled
+        // schedule has no symptom, could read the answer in one indexed row.
+        //
+        // Everything automatic lives in the maintenance run: reconciliation
+        // confirming payments whose callback was dropped, the refund sweep, and the
+        // assistant working the ticket queue. If it stopped, nothing about the site
+        // looks wrong — supporters owed money are simply not paid.
+        //
+        // Kept in its OWN list rather than appended to $work, because the two answer
+        // different questions and the verdict is computed from $work. Folding a
+        // missing cron job in there made the headline read "Something the assistant
+        // needs is missing", which sends an operator to check database columns when
+        // the columns are fine and the scheduler is the thing to fix.
+        $sched = [];
+        $last  = \AfricaGates\Support\CronHealth::lastRunAt();
+        $hours = \AfricaGates\Support\CronHealth::hoursSinceLastRun();
+        $stale = \AfricaGates\Support\CronHealth::isStale();
+        $auto  = \AfricaGates\Support\Maintenance::autoEnabled();
+
+        if ($last === null) {
+            $sched[] = [false, 'Scheduled work',
+                'HAS NEVER RUN. Nothing automatic is happening: payments whose callback was '
+                . 'dropped are not being confirmed, refunds are not being sent, and tickets are '
+                . 'not being worked. Add a cPanel cron job for `php bin/console maintenance:run`, '
+                . 'or leave it — the site will start running it from ordinary web traffic by '
+                . 'itself once it is sure nothing else is.'];
+        } else {
+            $ago = $hours === null ? '?'
+                 : ($hours < 1 ? (string) (int) round($hours * 60) . ' minutes ago'
+                              : number_format($hours, 1) . ' hours ago');
+            $sched[] = [!$stale, 'Scheduled work',
+                'last completed ' . $ago . ' (' . $last->toDateTimeString() . ')'
+                . ($stale
+                    ? ' — OVERDUE. More than ' . \AfricaGates\Support\CronHealth::STALE_HOURS
+                      . ' hours means work has provably been missed, not merely delayed.'
+                    : ' — healthy.')];
+        }
+        $adopting = \AfricaGates\Support\Maintenance::shouldAdopt();
+        $sched[] = [true, 'Runs from web traffic',
+            $auto      ? 'on — maintenance runs after a page response is flushed, so no visitor '
+                       . 'waits for it. Set webcron_auto=off in Admin → Settings to stop it.'
+          : ($adopting ? 'about to switch itself on — nothing else is running the schedule, so the '
+                       . 'next page view on this site will take it over. Nothing to do.'
+                       : 'off — a real cron job is expected to do this. It switches itself on if '
+                       . 'the schedule is ever found to have stopped.')];
 
         // ── show the routing, do not describe it ────────────────────────────
         $demo = [];
@@ -406,7 +458,15 @@ return function(App $app) {
                  . '</td><td>' . $e($label) . '</td><td class="n">' . $e($note) . '</td></tr>';
         };
 
-        $blocked = in_array(false, array_column($work, 0), true);
+        $blocked   = in_array(false, array_column($work, 0), true);
+        $schedBad  = in_array(false, array_column($sched, 0), true);
+        // Said as its own sentence rather than mixed into the assistant's verdict:
+        // an unrun scheduler does not stop the assistant answering, it stops the
+        // platform paying people, and the two need different reactions.
+        $schedNote = $schedBad
+            ? ' <br><br>Separately, and more urgently: the scheduled work below is not running, '
+            . 'which is what confirms dropped payments and sends refunds.'
+            : '';
 
         $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -431,9 +491,15 @@ return function(App $app) {
                     . 'tickets — all of that is ordinary code. What is missing is only the conversational phrasing, '
                     . 'so answers are assembled from the tools\' own sentences. Paste a Groq or Gemini key in '
                     . 'Admin → Settings → AI to add it; both have a free tier.'))
+            . $schedNote
             . '</div>'
             . '<h2>The model (planning and phrasing)</h2><table>' . implode('', array_map($row, $model)) . '</table>'
             . '<h2>The work (looking things up and fixing them)</h2><table>' . implode('', array_map($row, $work)) . '</table>'
+            . '<h2>Is any of it actually running?</h2>'
+            . '<p class="n">Everything automatic — confirming payments whose gateway callback was '
+            . 'dropped, sending refunds, working the ticket queue — happens in the maintenance run, '
+            . 'never on a page view. If it stops, nothing about the site looks wrong.</p>'
+            . '<table>' . implode('', array_map($row, $sched)) . '</table>'
             . '<h2>What it would do with real questions, right now</h2>'
             . '<p class="n">Chosen by rules, with no model involved — so this is exactly what happens when the '
             . 'provider is down as well.</p><table>' . implode('', array_map($row, $demo)) . '</table>'
