@@ -77,6 +77,39 @@ class WebhookService
         }
     }
 
+    /** Queue name for outbound deliveries that must not block the caller. */
+    public const JOB_DISPATCH = 'webhook.dispatch';
+
+    /**
+     * Dispatch LATER, for callers that are on somebody else's clock.
+     *
+     * {@see dispatch()} sends synchronously, in a loop, one HTTP request per active
+     * integration — 5 seconds plus 3 to connect, each. That is fine on a page a
+     * human is waiting for, and wrong inside a Paystack webhook, which has about
+     * 30 seconds for the WHOLE handler before the delivery counts as failed and
+     * enters a 72-hour retry schedule.
+     *
+     * The multiplier is what makes it dangerous rather than merely slow: the number
+     * of outbound integrations is set by an admin in the console, with no reason to
+     * think it has anything to do with payments. Adding the second one is what
+     * would tip payment webhooks over the limit, and the symptom would appear in
+     * Paystack's dashboard rather than anywhere on this platform.
+     *
+     * Not deduped: two identical events are two real events, and an integration
+     * expecting one delivery per confirmation should get exactly that.
+     */
+    public static function dispatchLater(string $event, array $data): void
+    {
+        try {
+            (new QueueService())->push(self::JOB_DISPATCH, ['event' => $event, 'data' => $data]);
+        } catch (\Throwable $e) {
+            // Same reasoning as the receipt: an integration told late beats one never
+            // told, and this must never break the payment that triggered it.
+            error_log('[webhook] could not queue ' . $event . ', dispatching inline: ' . $e->getMessage());
+            self::dispatch($event, $data);
+        }
+    }
+
     /** Send a one-off test 'ping' to a single endpoint (admin "Send test event"). */
     public static function ping(int $webhookId): array
     {

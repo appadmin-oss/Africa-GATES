@@ -56,7 +56,16 @@ final class SupportTicketService
             // Tool NAMES, never their output — see the migration's note. Whoever
             // picks this up can look the data up properly and with an audit trail.
             'tools_used' => mb_substr(implode(', ', array_unique(array_column($trace, 'tool'))), 0, 250),
-            'severity'   => self::severity($message),
+            // Classified from the text UNLESS the caller states it. severity() reads a
+            // member's own words, which is the right default and the wrong tool for a
+            // ticket this platform opened itself: a machine-written body about a
+            // chargeback contains "money" and "refunded" and classifies as `high`, and
+            // only `urgent` is what stops SupportAutoResolver replying to it. A caller
+            // that KNOWS what it is holding should not have to smuggle a keyword into
+            // its own prose to be believed. Whitelisted, so a bad value cannot become a
+            // severity the queue does not understand.
+            'severity'   => in_array((string) ($meta['severity'] ?? ''), ['urgent', 'high', 'normal'], true)
+                                ? (string) $meta['severity'] : self::severity($message),
             'status'     => 'open',
             'page_url'   => mb_substr((string) ($meta['page_url'] ?? ''), 0, 490) ?: null,
             'user_agent' => mb_substr((string) ($meta['user_agent'] ?? ''), 0, 250) ?: null,

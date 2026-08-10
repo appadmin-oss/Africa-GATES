@@ -766,6 +766,26 @@ final class Maintenance
             $q->on(NominationTriageService::JOB_TRIAGE, function (array $p) {
                 NominationTriageService::generate((int)($p['nomination_id'] ?? 0));
             });
+            // ── the two jobs that keep a gateway webhook inside its budget ────
+            //
+            // Paystack allows roughly 30 seconds for a whole webhook delivery. Sending
+            // a receipt over SMTP (up to 12s) and posting to every configured outbound
+            // integration (up to 8s each) inside that budget is what its docs
+            // specifically tell you not to do. Both are idempotent, so a job that runs
+            // twice sends one email and re-notifies at most one integration.
+            $q->on(\AfricaGates\Services\CheckoutMailer::JOB_RECEIPT, function (array $p) {
+                \AfricaGates\Services\CheckoutMailer::receipt((int) ($p['donation_id'] ?? 0));
+            });
+            $q->on(WebhookService::JOB_DISPATCH, function (array $p) {
+                WebhookService::dispatch((string) ($p['event'] ?? ''),
+                                         is_array($p['data'] ?? null) ? $p['data'] : []);
+            });
+            // A chargeback, against a 16-hour deadline after which Paystack concedes it
+            // on your behalf and refunds from your balance. The mailer comes from the
+            // container here, which is why this cannot happen in the webhook.
+            $q->on(\AfricaGates\Services\DisputeAlert::JOB, function (array $p) {
+                \AfricaGates\Services\DisputeAlert::send($p, $this->container?->get(OtpService::class));
+            });
             $mailer = $this->container?->get(OtpService::class);
             $q->on('community.reply_email', function (array $p) use ($mailer) {
                 if (!$mailer) return;

@@ -447,7 +447,13 @@ class CheckoutMailerTest extends TestCase
             'src/Services/PaymentReconciler.php'     => 'the dropped-callback backstop',
         ] as $file => $what) {
             $src = (string) file_get_contents($root . '/' . $file);
-            $this->assertStringContainsString('CheckoutMailer::receipt(', $src,
+            // Either spelling counts. queueReceipt() is the same receipt sent off the
+            // request, which the gateway-webhook path must do: Paystack allows about 30
+            // seconds for a whole delivery and SMTP alone can take 12. What this test
+            // guards is that the path sends A receipt at all — that property is
+            // unchanged, and the distinction between now and shortly is not this
+            // test's business.
+            $this->assertMatchesRegularExpression('/CheckoutMailer::(queueReceipt|receipt)\(/', $src,
                 $what . ' confirms a paid-vote order but sends no receipt');
         }
     }

@@ -192,6 +192,62 @@ final class CheckoutMailer
         return self::receipt($donationId);
     }
 
+    /** Queue name for a receipt that must not be sent inside a gateway webhook. */
+    public const JOB_RECEIPT = 'checkout.receipt';
+
+    /**
+     * Send the receipt LATER, off the request that confirmed the payment.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A RECEIPT MUST NOT BE SENT INSIDE A PAYSTACK WEBHOOK
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Paystack allows roughly 30 seconds per webhook delivery attempt, and treats
+     * a slower response as a failed delivery: live mode then retries every three
+     * minutes for four attempts and hourly for up to 72 hours, and eventually
+     * stops. Their docs are explicit that SMTP, PDF generation and third-party
+     * calls belong on a queue rather than in the handler.
+     *
+     * Measured against this codebase, one webhook delivery could spend:
+     *
+     *     up to 15s   verifying the transaction with Paystack (PaymentService::TIMEOUT)
+     *   + up to  8s   PER active outbound integration (WebhookService, 5s + 3s connect)
+     *   + up to 12s   sending this receipt over SMTP (PHPMailer Timeout = 12)
+     *
+     * With no outbound integrations configured that is 27 seconds against a
+     * 30-second budget. Adding a single one — which an admin can do from the
+     * console, with no reason to connect it to payments — puts every payment
+     * webhook over the limit. Nothing would look broken: our confirmation is
+     * idempotent, so the retries would keep landing on an already-confirmed order
+     * and doing nothing, while Paystack's dashboard filled with failed deliveries.
+     *
+     * ── WHY QUEUEING IS SAFE HERE SPECIFICALLY ───────────────────────────────
+     *
+     * {@see receipt()} claims before it sends and gives the claim back if nothing
+     * reached a mail server, so running it twice sends one email and running it
+     * late sends the right one. The dedupe key makes a second enqueue a no-op.
+     *
+     * ── AND WHY IT FALLS BACK TO SENDING NOW ─────────────────────────────────
+     *
+     * A queued receipt is only as good as the thing that drains the queue. If the
+     * jobs table cannot be written to, sending inline is slower than we would like
+     * but a receipt that arrives late is infinitely better than one that never
+     * arrives — the buyer has paid either way.
+     */
+    public static function queueReceipt(int $donationId): void
+    {
+        if ($donationId < 1) return;
+        try {
+            (new QueueService())->push(self::JOB_RECEIPT, ['donation_id' => $donationId],
+                                       0, 'receipt:' . $donationId);
+            return;
+        } catch (\Throwable $e) {
+            error_log('[CheckoutMailer] could not queue receipt for #' . $donationId
+                    . ', sending inline instead: ' . $e->getMessage());
+        }
+        self::receipt($donationId);
+    }
+
     public static function receipt(int $donationId): array
     {
         try {

@@ -355,6 +355,7 @@ final class PaymentController
         $reversal = $this->webhookReversalKind($payload);
         if ($reversal !== null) {
             $ref = $this->webhookReversalReference($provider, $payload);
+            $d   = null;
             if ($ref !== '') {
                 $d = DB::table('gates_donations')->where('payment_ref', $ref)->first();
                 if ($d) {
@@ -363,6 +364,26 @@ final class PaymentController
                         'ref' => $ref, 'provider' => $provider, 'event' => $reversal, 'cleared' => $r['cleared'] ?? 0,
                     ]);
                 }
+            }
+            // ── A CHARGEBACK STARTS A 16-HOUR CLOCK ─────────────────────────
+            //
+            // Paystack gives a merchant 16 hours to respond to a dispute; if the window
+            // closes it accepts the dispute on your behalf and refunds the customer out
+            // of your balance. Until now this branch clawed back the votes and wrote a
+            // log line — and a log line on a host with no shell is not a notification,
+            // so the platform was in effect configured to concede every dispute and pay
+            // for it. The four-hourly `dispute.remind` events are deliberately ignored
+            // as step events, so there was no second chance either.
+            //
+            // OUTSIDE the reference guard on purpose, and outside the `$d` guard: a
+            // dispute we cannot tie to an order is MORE alarming than one we can, not
+            // less, and it is the case most in need of a human. Queued, not sent — see
+            // DisputeAlert.
+            if (str_contains($reversal, 'dispute') || str_contains($reversal, 'chargeback')) {
+                \AfricaGates\Services\DisputeAlert::queue(
+                    $ref, $reversal, $provider,
+                    isset($d->amount_naira) ? (int) $d->amount_naira : null
+                );
             }
             return $res->withStatus(200);   // ack either way so the gateway stops retrying
         }
@@ -483,9 +504,17 @@ final class PaymentController
 
         if ($changed > 0) {
             $this->log?->info('[payment] confirmed', ['src' => $source, 'ref' => $reference, 'amount' => $v['amount']]);
-            // Post-commit, best-effort (dispatch never throws) — additive to the
-            // audited payment path. Reference + amount only; no donor PII.
-            \AfricaGates\Services\WebhookService::dispatch('donation.confirmed', [
+            // Post-commit, best-effort — additive to the audited payment path.
+            // Reference + amount only; no donor PII.
+            //
+            // QUEUED, not sent here. This runs inside the Paystack webhook, which has
+            // about 30 seconds for the whole handler before the delivery is counted as
+            // failed and enters a 72-hour retry schedule — and dispatch() sends one
+            // HTTP request per active integration, 8 seconds each worst case, on top of
+            // the 15 seconds this method may already have spent verifying. The number
+            // of integrations is set by an admin who has no reason to connect the
+            // console to payment reliability. See WebhookService::dispatchLater().
+            \AfricaGates\Services\WebhookService::dispatchLater('donation.confirmed', [
                 'reference' => $reference,
                 'amount'    => $v['amount'] ?? null,
                 'source'    => $source,
@@ -516,13 +545,21 @@ final class PaymentController
         try {
             $row = DB::table('gates_donations')->where('payment_ref', $reference)->first(['id', 'tier', 'intent_nominee_id']);
             if ($row && ($row->tier ?? '') === 'paid-vote' && !empty($row->intent_nominee_id)) {
+                // MINTING STAYS INLINE, deliberately. It is a handful of indexed
+                // writes, and it is the thing the supporter is actually watching — a
+                // tally that updates on the next cron tick instead of now is the
+                // complaint this platform gets most. The slow work below is what moves.
+                //
                 // Guarded by the votes_used claim, so a second call credits nothing.
                 \AfricaGates\Services\PaidVoteService::mint((int) $row->id);
                 // The buyer's receipt — and the one path that NEEDS it, because a
                 // webhook confirm means the browser never came back, so the
-                // confirmation page was never seen. Claimed once per order, so
-                // whichever of {webhook, callback} lands second sends nothing.
-                \AfricaGates\Services\CheckoutMailer::receipt((int) $row->id);
+                // confirmation page was never seen. QUEUED: SMTP is up to 12 seconds
+                // and this method runs inside a gateway webhook with a ~30-second
+                // budget. Claimed once per order, so whichever of {webhook, callback}
+                // lands second sends nothing, and a job that runs twice sends one
+                // email. See CheckoutMailer::queueReceipt().
+                \AfricaGates\Services\CheckoutMailer::queueReceipt((int) $row->id);
             }
         } catch (\Throwable $e) {
             $this->log?->error('[payment] paid-vote delivery failed', ['ref' => $reference, 'err' => $e->getMessage()]);

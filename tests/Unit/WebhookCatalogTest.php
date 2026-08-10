@@ -25,7 +25,12 @@ final class WebhookCatalogTest extends TestCase
             foreach ($it as $file) {
                 if ($file->getExtension() !== 'php') continue;
                 $src = (string) file_get_contents($file->getPathname());
-                if (preg_match_all("/WebhookService::dispatch\\(\\s*'([a-z0-9_.]+)'/", $src, $m)) {
+                // dispatch() and dispatchLater() both count as a call site: the second
+                // is the same delivery queued rather than sent inline, which the payment
+                // webhook must do to stay inside Paystack's ~30-second budget. Without
+                // `Later` here, moving a caller onto the queue would read as the event
+                // having been withdrawn from the catalogue.
+                if (preg_match_all("/WebhookService::dispatch(?:Later)?\\(\\s*'([a-z0-9_.]+)'/", $src, $m)) {
                     foreach ($m[1] as $event) $found[$event] = true;
                 }
             }
