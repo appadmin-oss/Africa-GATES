@@ -76,11 +76,45 @@
       <div class="cl-eyebrow">Already claimed</div>
       <h1 class="cl-h1">This page has been claimed</h1>
       <p class="cl-lead">Somebody has already confirmed a code for
-        <strong>{{ nominee.name }}</strong>.</p>
-      <p class="cl-lead">If that was not you and this is your page, write to
-        <a href="mailto:{{ support_email }}">{{ support_email }}</a> quoting
-        <span class="cl-ref">{{ already }}</span>. A person will look into it, and a claim can
-        be undone. There is nothing to pay.</p>
+        <strong>{{ nominee.name }}</strong>{% if control.since %} on
+        <strong>{{ control.since|date('j F Y') }}</strong>{% endif %}.</p>
+
+      {#
+        WHY THE COOLING-OFF WINDOW IS SAID OUT LOUD HERE.
+
+        This block used to offer one thing: write to support and wait for a person.
+        That is the same promise-with-nothing-behind-it the claim EMAIL used to make
+        before it carried a freeze link, and it sends somebody whose page has been
+        taken to an inbox to sit.
+
+        The freeze link itself cannot appear on this page — it is a secret token sent
+        to the contacts on the nomination, and printing it publicly would let anybody
+        stop anybody's claim. But the fact that it EXISTS, and that the window is
+        still open, is what tells the reader where to actually look: the nomination's
+        own inbox and phone, which is faster than us.
+
+        The claimant is deliberately not named. Whoever is reading this is here
+        because they think the claim is wrong, and naming a person turns a dispute
+        into a confrontation without answering their question.
+      #}
+      {% if control and control.cooling_off %}
+        <p class="cl-lead"><strong>It is not final yet.</strong> A claim carries a
+          cooling-off period, and this one is still inside it — until
+          <strong>{{ control.until|date('j F Y') }}</strong>. Nothing has been paid out.</p>
+        <p class="cl-lead">If that was not you: everyone whose email or phone is on the
+          nomination was sent a link that stops this claim on its own, with no waiting.
+          Check that inbox — including its spam folder — and the messages on that phone.
+          That is the quickest way to undo it.</p>
+        <p class="cl-lead">If you cannot reach any of those, write to
+          <a href="mailto:{{ support_email }}">{{ support_email }}</a> quoting
+          <span class="cl-ref">{{ already }}</span> and a person will stop it for you.
+          There is nothing to pay.</p>
+      {% else %}
+        <p class="cl-lead">If that was not you and this is your page, write to
+          <a href="mailto:{{ support_email }}">{{ support_email }}</a> quoting
+          <span class="cl-ref">{{ already }}</span>. A person will look into it, and a claim can
+          still be undone. There is nothing to pay.</p>
+      {% endif %}
     </div>
 
   {% elseif channels is empty %}

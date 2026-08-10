@@ -274,6 +274,98 @@ final class ClaimSecurityTest extends TestCase
         $this->assertSame('active', (string) DB::table('gates_nominee_claims')->value('status'));
     }
 
+    // ── what an already-claimed page tells the person disputing it ───────────
+
+    /**
+     * The "already claimed" page names the window, and points at the inbox that can
+     * end this without us.
+     *
+     * ── WHAT IT USED TO SAY ──────────────────────────────────────────────────
+     *
+     * "Write to support@… quoting this reference. A person will look into it." That is
+     * the same promise-with-nothing-behind-it the claim EMAIL made before it carried a
+     * freeze link, and it sends somebody whose page has been taken to an inbox to sit
+     * and wait — while a link that would stop it instantly is already in the hands of
+     * everyone on the nomination.
+     *
+     * The link itself must NOT appear here: it is a secret token, and printing it on a
+     * public page would let anybody stop anybody's claim. Saying that it exists is
+     * free, and it is the fastest route the reader has.
+     */
+    public function test_an_already_claimed_page_says_the_claim_is_not_final_yet(): void
+    {
+        $id   = $this->claim();
+        $html = $this->getPage('/claim/' . self::NOM);
+
+        $this->assertStringContainsString('not final yet', $html,
+            'a claim inside its cooling-off period is reversible, and the page must say so');
+        $this->assertStringContainsString('spam folder', $html,
+            'and point at the inbox that was sent the link, which is faster than us');
+        // Still offers a person as the fallback — the window is not always open, and
+        // not everybody can reach the contacts on their own nomination.
+        $this->assertStringContainsString('mailto:', $html);
+    }
+
+    /**
+     * And it leaks NEITHER the freeze token nor who claimed the page.
+     *
+     * The token would make the page a universal claim-cancel button. The claimant's
+     * identity is not needed to answer the reader's question, and whoever is reading
+     * this is here because they think the claim is wrong — naming a person turns a
+     * dispute into a confrontation.
+     */
+    public function test_the_already_claimed_page_leaks_neither_the_token_nor_the_claimant(): void
+    {
+        $id  = $this->claim(['user_id' => 4242]);
+        $row = DB::table('gates_nominee_claims')->where('id', $id)->first();
+
+        $html = $this->getPage('/claim/' . self::NOM);
+
+        // Anchor first: a test made only of assertNotContains passes perfectly on a
+        // 404, an exception page, or an empty body, and would keep passing after the
+        // block it is guarding stopped rendering at all.
+        $this->assertStringContainsString('This page has been claimed', $html,
+            'the already-claimed block did not render, so the assertions below prove nothing');
+
+        $this->assertStringNotContainsString((string) $row->dispute_token, $html,
+            'the freeze token is on a public page — anybody could now stop this claim');
+        $this->assertStringNotContainsString('/claim/dispute/', $html,
+            'the freeze URL is on a public page');
+        $this->assertStringNotContainsString('4242', $html, 'the claimant is identified');
+        $this->assertStringNotContainsString((string) $row->channel_hint, $html,
+            'the contact the claim went to is disclosed, which narrows who the claimant is');
+    }
+
+    /** Once the window has passed, it must not still claim the claim is reversible for free. */
+    public function test_after_the_window_it_does_not_promise_a_self_service_undo(): void
+    {
+        $this->claim([
+            'activated_at'      => Carbon::now()->subDays(30)->toDateTimeString(),
+            'cooling_off_until' => Carbon::now()->subDays(23)->toDateTimeString(),
+        ]);
+
+        $html = $this->getPage('/claim/' . self::NOM);
+
+        $this->assertStringNotContainsString('not final yet', $html);
+        $this->assertStringContainsString('mailto:', $html, 'a person is still offered');
+    }
+
+    /** Render one page through the real router. */
+    private function getPage(string $path): string
+    {
+        $builder = new ContainerBuilder();
+        $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
+        AppFactory::setContainer($builder->build());
+        $app = AppFactory::create();
+        (require dirname(__DIR__, 2) . '/src/routes.php')($app);
+        $app->addRoutingMiddleware();
+        $app->addErrorMiddleware(false, false, false);
+
+        return (string) $app->handle(
+            (new ServerRequestFactory())->createServerRequest('GET', $path)
+        )->getBody();
+    }
+
     /**
      * THE MAIL-SCANNER TRAP. Gmail, Outlook and every link-safety scanner FETCH the URLs
      * in a message before a human sees them. A freeze on GET would fire automatically on

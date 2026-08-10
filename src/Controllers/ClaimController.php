@@ -82,6 +82,7 @@ final class ClaimController
             'nominee'          => ['id' => (int) $nominee->id, 'name' => (string) $nominee->name],
             'channels'         => $this->claims?->channels($nomineeId, $deviceFp, $ipHash) ?? [],
             'already'          => $this->activeReference($nomineeId),
+            'control'          => $this->controlNote($nomineeId),
             'support_email'    => Notifier::supportEmail(),
         // noindex: this URL is an invitation to prove an identity, and it has no
         // business in a search result next to the nominee's public profile.
@@ -244,6 +245,52 @@ final class ClaimController
     }
 
     /** The reference of the claim already holding this page, for the page to quote. */
+    /**
+     * What an already-claimed page may honestly say about its claim.
+     *
+     * ── WHY THIS IS SHAPED IN THE CONTROLLER ─────────────────────────────────
+     *
+     * {@see ClaimGuard::controlledBy()} returns the claimant's user id as well, and a
+     * template cannot leak what it was never handed. Whoever is reading this page is
+     * by definition NOT the person who claimed it — they are here because they think
+     * the claim is wrong — so naming the claimant would turn a dispute into a
+     * confrontation, and it is not needed to answer their question.
+     *
+     * ── WHAT IT ADDS, AND WHY IT MATTERS ─────────────────────────────────────
+     *
+     * The page used to say only: write to support quoting this reference, a person
+     * will look into it. That is the same promise-with-nothing-behind-it the claim
+     * EMAIL used to make before it carried a freeze link — and it sends somebody
+     * whose page has been taken to an inbox to wait.
+     *
+     * The freeze link cannot go here. It is a secret token sent to the contacts on
+     * the nomination, and putting it on a public page would let anybody stop
+     * anybody's claim. What this page CAN do is tell the reader the two facts that
+     * decide what they should do next: when it was claimed, and whether the claim is
+     * still inside the window where the people on the nomination can stop it
+     * themselves. If it is, the fastest route is that inbox — not us.
+     *
+     * @return array{since:?string, cooling_off:bool, until:?string}|null
+     */
+    private function controlNote(int $nomineeId): ?array
+    {
+        $c = \AfricaGates\Services\ClaimGuard::controlledBy($nomineeId);
+        if ($c === null) return null;
+
+        $until = $c['cooling_off_until'] ?? null;
+        $open  = false;
+        if (is_string($until) && $until !== '') {
+            try { $open = \Illuminate\Support\Carbon::parse($until)->isFuture(); }
+            catch (\Throwable) { $open = false; }
+        }
+
+        return [
+            'since'       => ($c['since'] ?? '') !== '' ? (string) $c['since'] : null,
+            'cooling_off' => $open,
+            'until'       => $open ? (string) $until : null,
+        ];
+    }
+
     private function activeReference(int $nomineeId): ?string
     {
         try {
