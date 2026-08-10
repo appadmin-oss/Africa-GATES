@@ -512,9 +512,22 @@ return function(App $app) {
                 foreach ($items as $it) {
                     $g = $it['gateway'] ?? [];
                     $why = isset($it['why']) ? ' — ' . implode('; ', (array) $it['why']) : '';
+                    // The PAYER and the CHANNEL, not just the amount. Whoever reads this
+                    // can only do two things about an orphan — contact the payer or refund
+                    // them — and both need the address. The channel is the diagnosis:
+                    // `dedicated_nuban` is a virtual-account transfer, `card` from a
+                    // payment page, and either way it names the door the money came
+                    // through, which is the thing to close.
+                    $who = trim((string) ($g['name'] ?? '')) ;
+                    $addr = trim((string) ($g['email'] ?? ($it['local']['email'] ?? '')));
+                    $chan = trim((string) ($g['channel'] ?? ''));
                     $li .= '<li><code>' . $e($g['reference'] ?? ($it['local']['reference'] ?? '?')) . '</code> · '
                          . $e($ngn($g['amount'] ?? ($it['local']['amount'] ?? 0))) . ' · '
-                         . $e($g['paid_at'] ?? ($it['local']['created_at'] ?? '')) . $e($why) . '</li>';
+                         . $e($g['paid_at'] ?? ($it['local']['created_at'] ?? ''))
+                         . ($addr !== '' ? ' · ' . $e($addr) : '')
+                         . ($who !== '' ? ' (' . $e($who) . ')' : '')
+                         . ($chan !== '' ? ' · via <code>' . $e($chan) . '</code>' : '')
+                         . $e($why) . '</li>';
                 }
                 $pullHtml .= '<h2>' . $e($heading) . '</h2><ul>' . $li . '</ul>';
             }
@@ -543,9 +556,14 @@ return function(App $app) {
             . '<li><strong>Paid but no votes credited</strong> — the same sweep credits these. '
             . '<code>/admin/payments</code> can also repair one order at a time.</li>'
             . '<li><strong>At Paystack, no record here</strong> — the payment was taken outside this site\'s '
-            . 'checkout (a Paystack Payment Page or link, a virtual account, a POS terminal). No sweep can '
-            . 'invent the order. Take the reference to <code>/admin/payments</code>, which looks one up against '
-            . 'the gateway and can attach it.</li>'
+            . 'checkout. The <code>via</code> label on each row says which door: <code>dedicated_nuban</code> '
+            . 'is a transfer to a virtual account, <code>card</code> is usually a Paystack Payment Page or '
+            . 'payment link. <strong>Nothing in this platform can adopt one of these.</strong> A paid vote '
+            . 'needs to know WHICH NOMINEE it is for, and a charge taken outside the ballot never carried '
+            . 'that — so there is no correct order to create, only a guess. Your two real options are to '
+            . 'refund it in the Paystack dashboard, or to email the payer (address shown above), ask who they '
+            . 'meant to support, and have them vote through the ballot. Then close the door: stop sharing that '
+            . 'payment link, because every charge through it arrives here as one of these.</li>'
             . '<li><strong>We disagree with Paystack</strong> — the amount or status differs. Never repair these '
             . 'in bulk; each one is a person and a number.</li>'
             . '</ul>'

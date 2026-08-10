@@ -189,8 +189,38 @@ final class PaymentsDiagnosticTest extends TestCase
         $this->assertStringContainsString('Payment Page', $html,
             'a charge with no record here is usually a payment taken outside this '
             . 'checkout, and the page must say so or somebody hunts for a bug that is not there');
-        $this->assertStringContainsString('invent the order', $html,
-            'and that no automatic sweep can conjure a missing order — only a person can attach it');
+        $this->assertStringContainsString('no correct order to create', $html,
+            'and that a missing order cannot simply be conjured from the charge');
+    }
+
+    /**
+     * IT MUST NOT PROMISE AN ADOPTION PATH THAT DOES NOT EXIST.
+     *
+     * The first draft of this page said to take an orphan reference to
+     * /admin/payments, "which looks one up against the gateway and can attach it".
+     * That was false. PaymentTriage::repair() only UPDATES rows that already exist
+     * (`where('id', …)->where('status','pending')`), nothing anywhere inserts a
+     * donation from a gateway transaction, and the admin data browser is read-only.
+     *
+     * And it cannot be fixed by adding a button, which is the important part: a paid
+     * vote has to know WHICH NOMINEE it is for, and a charge taken outside the ballot
+     * never carried that. There is no correct order to create from it — only a guess
+     * at who somebody meant to support. So the page must state the two things that
+     * are actually possible rather than invent a third.
+     */
+    public function test_it_does_not_promise_an_orphan_can_be_attached(): void
+    {
+        $html = $this->body();
+
+        $this->assertStringNotContainsString('can attach it', $html,
+            'the page promises an adoption path that does not exist in the code');
+        $this->assertStringContainsString('Nothing in this platform can adopt', $html,
+            'it must say plainly that this one cannot be automated');
+        $this->assertStringContainsString('WHICH NOMINEE', $html,
+            'and WHY — otherwise the next person just builds the button');
+        // The two things that really are available.
+        $this->assertStringContainsString('refund it in the Paystack dashboard', $html);
+        $this->assertStringContainsString('email the payer', $html);
     }
 
     /** READ-ONLY, asserted rather than assumed: this is a page about money. */
