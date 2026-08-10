@@ -2253,6 +2253,13 @@ return function(App $app) {
         // charge with NO row here can ever appear on a screen.
         $a->get('/payments/ledger',              \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':ledger');
         $a->post('/payments/ledger',             \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':pullLedger');
+        // Disputes. The GET loads the queue on view — unlike the ledger, which needs a
+        // button because it makes twenty calls — because the whole failure mode of a
+        // chargeback is that nobody looks until the 16 hours are gone. Resolving is a
+        // POST and never a link: it is irreversible and it moves money.
+        $a->get('/payments/disputes',            \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':disputes');
+        $a->post('/payments/disputes/resolve',   \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':resolveDispute');
+        $a->get('/payments/disputes/evidence',   \AfricaGates\Admin\Controllers\PaymentsTriageController::class.':disputeEvidence');
 
 
         // Member account actions (manual points adjustment — audited, admin+ gated in-controller).

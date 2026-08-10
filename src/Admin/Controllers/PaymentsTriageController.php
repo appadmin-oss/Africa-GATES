@@ -279,4 +279,115 @@ final class PaymentsTriageController
             'providers'  => (new PaymentTriage())->enabledProviders(),
         ], $extra));
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // DISPUTES — a 16-hour clock, and two buttons
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * The disputes waiting on us, soonest deadline first.
+     *
+     * GET reads Paystack, which is one call rather than the ledger's twenty, so
+     * unlike the ledger this can safely load on view — and it must, because the whole
+     * problem with disputes is that nobody looks until it is too late. A screen that
+     * needed a button pressed before it showed you the clock would be the same fault
+     * in a new place.
+     */
+    public function disputes(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $days = max(1, min(180, (int) ($req->getQueryParams()['days'] ?? 30)));
+        $r = (new \AfricaGates\Services\DisputeService())->queue($days);
+
+        return $this->view->render($res, 'admin/payments-disputes.twig', [
+            'page_title' => 'Disputes',
+            'admin_page' => 'payments-disputes',
+            'days'       => $days,
+            'hours'      => \AfricaGates\Services\DisputeService::RESPOND_WITHIN_HOURS,
+            'result'     => $r,
+        ]);
+    }
+
+    /**
+     * Contest or concede. POST, and never reachable by a link.
+     *
+     * Resolving a dispute is irreversible and moves money one way or the other, so it
+     * cannot be a GET: a prefetch, a shared URL or a back-button would answer somebody
+     * else's chargeback. Same reasoning as repair() above, with higher stakes — there
+     * is no second attempt at a resolution.
+     */
+    public function resolveDispute(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $b2     = (array) $req->getParsedBody();
+        $id     = trim((string) ($b2['dispute_id'] ?? ''));
+        $ref    = trim((string) ($b2['reference'] ?? ''));
+        $action = (string) ($b2['action'] ?? '');
+        $note   = trim((string) ($b2['message'] ?? ''));
+        $back   = '/admin/payments/disputes';
+
+        if ($id === '') {
+            $_SESSION['flash_error'] = 'No dispute was named.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $svc = new \AfricaGates\Services\DisputeService();
+
+        if ($action === 'contest') {
+            $r = $svc->contest($id, $ref, $note);
+            if ($r['ok']) {
+                $_SESSION['flash_ok'] = 'Dispute ' . $id . ' contested, receipt attached ('
+                                      . ($r['filename'] ?? 'evidence') . ').';
+            } else {
+                // The STEP is named, because "Paystack refused" is four different
+                // problems with four different fixes and the operator has hours, not
+                // days, to work out which one they have.
+                $_SESSION['flash_error'] = 'Could not contest ' . $id . ' at the "' . $r['step']
+                                         . '" step: ' . $r['message'];
+            }
+        } elseif ($action === 'concede') {
+            $amount = trim((string) ($b2['refund_naira'] ?? ''));
+            $r = $svc->concede($id, $amount === '' ? null : max(0, (int) $amount), $note);
+            $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['ok']
+                ? 'Dispute ' . $id . ' accepted; the customer is refunded.'
+                : ('Could not accept ' . $id . ': ' . $r['message']);
+        } else {
+            $_SESSION['flash_error'] = 'Choose either "contest" or "accept".';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        // Money either way, so it goes in the audit trail with a name against it.
+        try {
+            $this->audit?->log('dispute.' . $action, 'dispute', 0, [
+                'dispute_id' => $id, 'reference' => $ref, 'ok' => (bool) ($r['ok'] ?? false),
+            ]);
+        } catch (\Throwable) {}
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * The receipt we would upload, as the operator sees it.
+     *
+     * Shown before anybody presses contest, because submitting a document to a third
+     * party sight-unseen is how a receipt with "not recorded" on every line gets sent
+     * as a defence.
+     */
+    public function disputeEvidence(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $ref   = trim((string) ($req->getQueryParams()['ref'] ?? ''));
+        $bytes = \AfricaGates\Services\DisputeEvidence::jpeg($ref);
+        if ($bytes === null) {
+            $_SESSION['flash_error'] = 'No receipt could be produced for ' . ($ref ?: 'that reference') . '.';
+            return $res->withHeader('Location', '/admin/payments/disputes')->withStatus(302);
+        }
+        $res->getBody()->write($bytes);
+        return $res->withHeader('Content-Type', 'image/jpeg')
+                   ->withHeader('Cache-Control', 'no-store, private')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
 }

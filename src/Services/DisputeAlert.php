@@ -121,8 +121,12 @@ final class DisputeAlert
               . "If that deadline passes with no response, Paystack accepts the dispute for you "
               . "and refunds the customer from your balance. Doing nothing is not neutral — it is "
               . "how the money is lost.\n\n"
-              . "Where to do it: the Paystack dashboard, under Disputes. You will need the "
-              . "receipt for this transaction as evidence; the order above is the record of it.\n\n"
+              . "WHERE TO DO IT: " . rtrim((string) \AfricaGates\Support\Env::get('APP_URL', ''), '/')
+              . "/admin/payments/disputes\n\n"
+              . "That screen shows the hours remaining, what our own records say this payment "
+              . "delivered, and the exact receipt it would send as evidence — and it does the whole "
+              . "Paystack evidence flow in one press. The Paystack dashboard still works if you "
+              . "prefer it, but you would have to find and attach the receipt yourself.\n\n"
               . "The votes have already been removed, so the tally is correct either way. "
               . "Nothing here needs undoing if you win.\n";
 

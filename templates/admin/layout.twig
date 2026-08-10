@@ -161,6 +161,14 @@
         <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7 2 12l3 5 3-5-3-5z"/><path d="m19 7-3 5 3 5 3-5-3-5z"/><path d="M4 5h6l2-2 2 2h6"/></svg>
         Gateway Ledger
       </a>
+      {# Disputes get their own entry rather than living inside triage. A chargeback is
+         the one thing here with an external clock on it — 16 hours, after which
+         Paystack concedes it for us and refunds from our balance — so it must be
+         reachable without first knowing which screen to look behind. #}
+      <a class="ad-side__link {% if admin_page == 'payments-disputes' %}is-active{% endif %}" href="/admin/payments/disputes">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        Disputes
+      </a>
     </nav>
     {% endif %}
     {% if 'configuration' in admin_sections %}

@@ -779,4 +779,286 @@ class PaymentService
         // each method against the decoded body.
         return ['ok' => $code >= 200 && $code < 300, 'code' => $code, 'json' => $json, 'raw' => (string)$raw];
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // DISPUTES — chargebacks and fraud claims
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // Paystack gives a merchant 16 HOURS to answer a dispute. Miss it and Paystack
+    // accepts on your behalf and refunds the customer out of your balance, so this
+    // is the one part of the API where being slow costs money by default.
+    //
+    // Paystack only. Flutterwave's dispute handling is a dashboard-and-email process
+    // with no equivalent endpoints, and pretending otherwise would produce a screen
+    // that silently defends nothing.
+
+    /**
+     * Disputes needing an answer from us.
+     *
+     * `awaiting-merchant-feedback` is the only status with a clock on it. The others
+     * (resolved, archived, pending pre-arbitration) are history, and mixing them in
+     * would bury the two rows that have hours left.
+     *
+     * @param array{status?:string, from?:string, to?:string, perPage?:int, page?:int} $filter
+     * @return array{ok:bool, message:string, disputes:list<array>}
+     */
+    public function disputes(array $filter = []): array
+    {
+        if (!$this->isEnabled('paystack')) {
+            return ['ok' => false, 'message' => 'Paystack is not configured in this environment.', 'disputes' => []];
+        }
+        $query = ['perPage' => max(1, min(100, (int) ($filter['perPage'] ?? 50)))];
+        foreach (['status', 'from', 'to', 'page', 'transaction'] as $k) {
+            if (isset($filter[$k]) && (string) $filter[$k] !== '') $query[$k] = (string) $filter[$k];
+        }
+
+        try {
+            $res = $this->request('GET', 'https://api.paystack.co/dispute?' . http_build_query($query),
+                                  null, $this->paystackAuth());
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'Paystack could not be reached: ' . $e->getMessage(), 'disputes' => []];
+        }
+        $body = $res['json'];
+        if (!$res['ok'] || ($body['status'] ?? false) !== true || !is_array($body['data'] ?? null)) {
+            return ['ok' => false, 'message' => (string) ($body['message'] ?? 'Paystack would not list disputes.'),
+                    'disputes' => []];
+        }
+        return ['ok' => true, 'message' => '', 'disputes' => array_values(array_map(
+            [self::class, 'normaliseDispute'], array_filter($body['data'], 'is_array')
+        ))];
+    }
+
+    /** One dispute, normalised the same way as the list. */
+    public function dispute(string $id): array
+    {
+        if ($id === '' || !$this->isEnabled('paystack')) {
+            return ['ok' => false, 'message' => 'Unknown dispute.', 'dispute' => null];
+        }
+        try {
+            $res = $this->request('GET', 'https://api.paystack.co/dispute/' . rawurlencode($id),
+                                  null, $this->paystackAuth());
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => $e->getMessage(), 'dispute' => null];
+        }
+        $body = $res['json'];
+        if (!$res['ok'] || ($body['status'] ?? false) !== true || !is_array($body['data'] ?? null)) {
+            return ['ok' => false, 'message' => (string) ($body['message'] ?? 'Not found.'), 'dispute' => null];
+        }
+        return ['ok' => true, 'message' => '', 'dispute' => self::normaliseDispute($body['data'])];
+    }
+
+    /**
+     * A one-time URL to upload one evidence file to.
+     *
+     * The signed URL is valid for THIRTY MINUTES, so it must be fetched at the moment
+     * of upload rather than stored and reused later. `fileName` is what
+     * {@see disputeResolve()} has to be given as `uploaded_filename` — the signed URL
+     * itself is not the handle.
+     *
+     * @return array{ok:bool, message:string, url:string, filename:string}
+     */
+    public function disputeUploadUrl(string $id, string $filename): array
+    {
+        $fail = static fn(string $m): array => ['ok' => false, 'message' => $m, 'url' => '', 'filename' => ''];
+        if ($id === '' || $filename === '') return $fail('A dispute id and a filename are both required.');
+        if (!$this->isEnabled('paystack'))  return $fail('Paystack is not configured in this environment.');
+        // Paystack accepts .jpg, .jpeg and .pdf only. Refused here rather than at the
+        // upload, because a rejection there arrives as an opaque S3 error.
+        if (!preg_match('/\.(jpe?g|pdf)$/i', $filename)) {
+            return $fail('Evidence must be a .jpg, .jpeg or .pdf file.');
+        }
+
+        try {
+            $res = $this->request('GET', 'https://api.paystack.co/dispute/' . rawurlencode($id)
+                                       . '/upload_url?' . http_build_query(['upload_filename' => $filename]),
+                                  null, $this->paystackAuth());
+        } catch (\Throwable $e) {
+            return $fail('Paystack could not be reached: ' . $e->getMessage());
+        }
+        $body = $res['json'];
+        $d    = is_array($body['data'] ?? null) ? $body['data'] : [];
+        if (!$res['ok'] || ($body['status'] ?? false) !== true || ($d['signedUrl'] ?? '') === '') {
+            return $fail((string) ($body['message'] ?? 'Paystack would not issue an upload URL.'));
+        }
+        return ['ok' => true, 'message' => '',
+                'url' => (string) $d['signedUrl'],
+                'filename' => (string) ($d['fileName'] ?? $filename)];
+    }
+
+    /**
+     * PUT one evidence file to the signed URL.
+     *
+     * ── TWO THINGS THAT ARE EASY TO GET WRONG HERE ──────────────────────────
+     *
+     * 1. NO AUTHORIZATION HEADER. This URL is pre-signed and points at Paystack's
+     *    storage host, not their API. Sending `Authorization: Bearer sk_live_…` to it
+     *    would hand our secret key to a third party for no reason, and the signature
+     *    in the URL is the whole authentication. This is why it does not go through
+     *    request(), which always attaches auth and always sends JSON.
+     *
+     * 2. A SUCCESSFUL UPLOAD RETURNS AN EMPTY BODY. So success is judged on the HTTP
+     *    STATUS CODE alone. Code that looked for a `status: true` in the response —
+     *    the shape every other Paystack call returns — would treat every successful
+     *    upload as a failure and every dispute would go undefended.
+     *
+     * @return array{ok:bool, code:int, message:string}
+     */
+    public function putSignedFile(string $signedUrl, string $bytes, string $contentType): array
+    {
+        if ($signedUrl === '' || $bytes === '') {
+            return ['ok' => false, 'code' => 0, 'message' => 'Nothing to upload.'];
+        }
+        $ch = curl_init($signedUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_CUSTOMREQUEST  => 'PUT',
+            CURLOPT_POSTFIELDS     => $bytes,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,   // an image over a Nigerian uplink
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
+            // Content-Type only. No Authorization: see the note above.
+            CURLOPT_HTTPHEADER     => ['Content-Type: ' . $contentType, 'Content-Length: ' . strlen($bytes)],
+        ]);
+        $raw  = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+
+        if ($raw === false && $err !== '') {
+            return ['ok' => false, 'code' => 0, 'message' => 'Upload transport error: ' . $err];
+        }
+        $ok = $code >= 200 && $code < 300;
+        return ['ok' => $ok, 'code' => $code,
+                'message' => $ok ? '' : ('The upload was refused (HTTP ' . $code . ').')];
+    }
+
+    /**
+     * Extra evidence, required for FRAUD CLAIMS specifically.
+     *
+     * A chargeback is answered with a receipt; a fraud claim is answered with proof
+     * that a real person received something, so Paystack takes structured fields for
+     * it rather than a file.
+     *
+     * @param array{customer_email?:string, customer_name?:string, customer_phone?:string,
+     *              service_details?:string, delivery_address?:string, delivery_date?:string} $fields
+     * @return array{ok:bool, message:string, evidence_id:?int}
+     */
+    public function disputeAddEvidence(string $id, array $fields): array
+    {
+        if ($id === '' || !$this->isEnabled('paystack')) {
+            return ['ok' => false, 'message' => 'Paystack is not configured.', 'evidence_id' => null];
+        }
+        $payload = [];
+        foreach (['customer_email', 'customer_name', 'customer_phone', 'service_details',
+                  'delivery_address', 'delivery_date'] as $k) {
+            if (isset($fields[$k]) && trim((string) $fields[$k]) !== '') $payload[$k] = (string) $fields[$k];
+        }
+        if ($payload === []) {
+            return ['ok' => false, 'message' => 'No evidence fields were given.', 'evidence_id' => null];
+        }
+
+        try {
+            $res = $this->request('POST', 'https://api.paystack.co/dispute/' . rawurlencode($id) . '/evidence',
+                                  $payload, $this->paystackAuth());
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => $e->getMessage(), 'evidence_id' => null];
+        }
+        $body = $res['json'];
+        if (!$res['ok'] || ($body['status'] ?? false) !== true) {
+            return ['ok' => false, 'message' => (string) ($body['message'] ?? 'Evidence was refused.'),
+                    'evidence_id' => null];
+        }
+        $d = is_array($body['data'] ?? null) ? $body['data'] : [];
+        return ['ok' => true, 'message' => '',
+                'evidence_id' => isset($d['id']) ? (int) $d['id'] : null];
+    }
+
+    /**
+     * Answer the dispute. This is the irreversible step.
+     *
+     * `merchant-accepted` concedes and refunds. `declined` contests it, and Paystack
+     * requires `uploaded_filename` with it — a decline with no evidence attached is
+     * rejected, which is the API refusing to let you contest something with nothing.
+     *
+     * @param array{resolution:string, message:string, refund_amount?:int,
+     *              uploaded_filename?:string, evidence?:int} $payload
+     * @return array{ok:bool, message:string, status:string}
+     */
+    public function disputeResolve(string $id, array $payload): array
+    {
+        if ($id === '' || !$this->isEnabled('paystack')) {
+            return ['ok' => false, 'message' => 'Paystack is not configured.', 'status' => ''];
+        }
+        $resolution = (string) ($payload['resolution'] ?? '');
+        if (!in_array($resolution, ['merchant-accepted', 'declined'], true)) {
+            return ['ok' => false, 'message' => 'A resolution must be merchant-accepted or declined.', 'status' => ''];
+        }
+        if ($resolution === 'declined' && trim((string) ($payload['uploaded_filename'] ?? '')) === '') {
+            return ['ok' => false, 'status' => '',
+                    'message' => 'Paystack will not accept a declined dispute without an uploaded evidence file.'];
+        }
+
+        $body = ['resolution' => $resolution,
+                 'message'    => mb_substr(trim((string) ($payload['message'] ?? '')), 0, 1000)];
+        // Required by the endpoint even when conceding in full; 0 is a legitimate value
+        // for a decline and must not be dropped by an empty() check.
+        $body['refund_amount']     = (int) ($payload['refund_amount'] ?? 0);
+        if (($payload['uploaded_filename'] ?? '') !== '') $body['uploaded_filename'] = (string) $payload['uploaded_filename'];
+        if (($payload['evidence'] ?? null) !== null)      $body['evidence'] = (int) $payload['evidence'];
+
+        try {
+            $res = $this->request('PUT', 'https://api.paystack.co/dispute/' . rawurlencode($id) . '/resolve',
+                                  $body, $this->paystackAuth());
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => $e->getMessage(), 'status' => ''];
+        }
+        $j = $res['json'];
+        if (!$res['ok'] || ($j['status'] ?? false) !== true) {
+            return ['ok' => false, 'message' => (string) ($j['message'] ?? 'Paystack refused the resolution.'),
+                    'status' => ''];
+        }
+        $d = is_array($j['data'] ?? null) ? $j['data'] : [];
+        return ['ok' => true, 'message' => '', 'status' => (string) ($d['status'] ?? 'resolved')];
+    }
+
+    /** @return list<string> */
+    private function paystackAuth(): array
+    {
+        return ['Authorization: Bearer ' . $this->secret('paystack')];
+    }
+
+    /**
+     * One shape for a dispute, whatever the endpoint returned.
+     *
+     * `amount` is converted from kobo to naira here so nothing downstream has to
+     * remember which unit it is holding — the mistake that makes a ₦50,000 dispute
+     * read as ₦500.
+     *
+     * @param array<string,mixed> $r
+     */
+    private static function normaliseDispute(array $r): array
+    {
+        $tx = is_array($r['transaction'] ?? null) ? $r['transaction'] : [];
+        $cs = is_array($r['customer'] ?? null) ? $r['customer'] : [];
+        $kobo = (int) ($r['refund_amount'] ?? ($tx['amount'] ?? 0));
+
+        return [
+            'id'          => (string) ($r['id'] ?? ''),
+            'status'      => (string) ($r['status'] ?? ''),
+            'category'    => (string) ($r['category'] ?? ''),
+            // 'chargeback' | 'fraud' — decides whether structured evidence is needed
+            // on top of a file. Absent on some payloads, hence the category fallback.
+            'kind'        => str_contains(mb_strtolower((string) ($r['category'] ?? '')), 'fraud')
+                                ? 'fraud' : 'chargeback',
+            'reference'   => (string) ($tx['reference'] ?? ''),
+            'amount'      => (int) round($kobo / 100),
+            'currency'    => (string) ($r['currency'] ?? ($tx['currency'] ?? 'NGN')),
+            'email'       => (string) ($cs['email'] ?? ''),
+            'created_at'  => (string) ($r['createdAt'] ?? ($r['created_at'] ?? '')),
+            'due_at'      => (string) ($r['due_at'] ?? ''),
+            'resolution'  => (string) ($r['resolution'] ?? ''),
+            'note'        => (string) ($r['note'] ?? ($r['message'] ?? '')),
+        ];
+    }
 }
