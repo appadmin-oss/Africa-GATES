@@ -64,6 +64,7 @@ final class NominationAftercare
         string $baseUrl,
         ?OtpService $mailer = null,
         array $files = [],
+        ?GoogleSheetsService $sheets = null,
     ): array {
         // Normalised HERE, at the one place all doors pass through, so the reviewer
         // sees the tidy version and every surface downstream — ballot, registry,
@@ -97,6 +98,36 @@ final class NominationAftercare
 
         // Advisory AI triage (score / summary / duplicates) for the review desk.
         try { NominationTriageService::enqueue($nominationId); } catch (\Throwable) {}
+
+        // ── the operator's own spreadsheet ──────────────────────────────────
+        //
+        // GoogleSheetsService has had a pushNomination() since it was written and
+        // nothing ever called it, while pushRegistration() IS called from the registry
+        // form. So an operator who followed the setup note in that class — deploy the
+        // Apps Script, put its /exec URL in GAS_URL — watched registrations arrive and
+        // a `nominations` tab stay empty forever, with no error to explain it. The tab
+        // is declared in config/AfricaGATES_AppScript.gs; only the writer was missing.
+        //
+        // Six fields, not the whole submission. That is exactly what the deployed
+        // script reads for this sheet, so sending more would put the nominator's phone
+        // and address on the wire to be discarded on arrival. `reference` is included
+        // even though the current script ignores unknown keys and has no column for
+        // it — harmless today, and there if the operator ever adds the column.
+        //
+        // Nothing here is a new disclosure: the same facts already go to the operator's
+        // inbox in the brief above. This is the same audience, in the place they asked
+        // for it.
+        try {
+            $sheets?->pushNomination([
+                'programme_id'    => (int) ($data['programme_id'] ?? 0),
+                'nominee_name'    => $nomName,
+                'country_code'    => strtoupper((string) ($data['country_code'] ?? '')),
+                'reason'          => trim((string) ($data['reason'] ?? '')),
+                'nominator_name'  => $byName,
+                'nominator_email' => $byEmail,
+                'reference'       => $reference,
+            ]);
+        } catch (\Throwable) {}
 
         // ids + labels only, never raw contact details.
         try {

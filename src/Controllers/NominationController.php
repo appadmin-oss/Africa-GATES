@@ -124,7 +124,8 @@ class NominationController {
         $after = \AfricaGates\Services\NominationAftercare::run(
             $b, (int) $nominationId, \AfricaGates\Support\SiteUrl::base($req), $this->mailer,
             ['evidence' => trim(str_replace("\n\nEvidence: ", '', $evidenceNote)),
-             'photo'    => trim(str_replace("\n\nPhoto: ", '', $photoNote))]
+             'photo'    => trim(str_replace("\n\nPhoto: ", '', $photoNote))],
+            $this->sheets
         );
         $reference = $after['reference'];
         $nomName   = $after['nominee'];

@@ -182,6 +182,84 @@ final class NominationAftercareTest extends TestCase
             'nothing was enqueued, so the moderator sees an untriaged nomination');
     }
 
+    // ── the operator's own spreadsheet ──────────────────────────────────────
+
+    /**
+     * The `nominations` tab finally gets written to.
+     *
+     * GoogleSheetsService has had a pushNomination() since it was written and nothing
+     * ever called it, while pushRegistration() IS called from the registry form. An
+     * operator who followed the setup note in that class — deploy the Apps Script, put
+     * its /exec URL in GAS_URL — watched registrations arrive and the nominations tab
+     * stay empty forever, with no error to explain it. The tab is declared in
+     * config/AfricaGATES_AppScript.gs; only the writer was missing.
+     */
+    public function test_it_pushes_the_nomination_to_the_operators_sheet(): void
+    {
+        [$id, $data] = $this->nomination();
+        $spy = new class ('https://example.test/exec') extends \AfricaGates\Services\GoogleSheetsService {
+            public array $pushed = [];
+            public function push(string $sheet, array $row): bool
+            {
+                $this->pushed[] = ['sheet' => $sheet, 'row' => $row];
+                return true;   // never a real HTTPS call from a test
+            }
+        };
+
+        NominationAftercare::run($data, $id, 'https://example.test', null, [], $spy);
+
+        $this->assertCount(1, $spy->pushed);
+        $this->assertSame('nominations', $spy->pushed[0]['sheet'],
+            'the Apps Script routes on the sheet name');
+    }
+
+    /**
+     * And it sends only what the deployed script actually reads.
+     *
+     * config/AfricaGATES_AppScript.gs takes six fields for this sheet. Sending the
+     * whole submission would put the nominator's phone, address and age range on the
+     * wire to be discarded on arrival — a disclosure with no purpose. `reference` is
+     * the one extra: the script ignores unknown keys, so it is harmless today and
+     * there if the operator ever adds the column.
+     */
+    public function test_the_sheet_row_carries_no_more_than_the_script_reads(): void
+    {
+        [$id, $data] = $this->nomination([
+            'nominator_phone'     => '+2348031234567',
+            'nominator_age_range' => '25-34',
+            'nominee_phone'       => '+2348039999999',
+        ]);
+        $spy = new class ('https://example.test/exec') extends \AfricaGates\Services\GoogleSheetsService {
+            public array $pushed = [];
+            public function push(string $sheet, array $row): bool { $this->pushed[] = $row; return true; }
+        };
+
+        NominationAftercare::run($data, $id, 'https://example.test', null, [], $spy);
+
+        $row = $spy->pushed[0] ?? [];
+        $this->assertSame([
+            'programme_id', 'nominee_name', 'country_code', 'reason',
+            'nominator_name', 'nominator_email', 'reference',
+        ], array_keys($row));
+
+        // Spelled out, because a future field added to the form must not silently
+        // start travelling to a third party.
+        foreach (['nominator_phone', 'nominator_age_range', 'nominee_phone', 'nominee_email'] as $private) {
+            $this->assertArrayNotHasKey($private, $row, $private . ' is being sent to the sheet');
+        }
+        $this->assertSame('Ada Okonkwo', $row['nominee_name'], 'and it is the tidied name');
+    }
+
+    /** No sheet configured is the normal case, and must be silent. */
+    public function test_no_sheet_configured_is_not_an_error(): void
+    {
+        [$id, $data] = $this->nomination();
+
+        $out = NominationAftercare::run($data, $id, 'https://example.test', null, [], null);
+
+        $this->assertArrayHasKey('reference', $out);
+    }
+
     // ── it must never break a nomination that is already stored ─────────────
 
     /**

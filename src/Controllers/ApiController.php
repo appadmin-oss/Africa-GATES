@@ -399,7 +399,7 @@ HTML;
         // happened to look. The web form did all of it inline; now both doors call
         // the same service. See NominationAftercare.
         $after = \AfricaGates\Services\NominationAftercare::run(
-            $b, (int) $id, \AfricaGates\Support\SiteUrl::base($req), $this->otp
+            $b, (int) $id, \AfricaGates\Support\SiteUrl::base($req), $this->otp, [], $this->sheets
         );
         // The reference is returned, not just sent: an API caller has no inbox to
         // read a confirmation in, and without it there is nothing to quote to
