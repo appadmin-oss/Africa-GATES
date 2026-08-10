@@ -378,20 +378,38 @@ HTML;
     public function submitNomination(Request $req,Response $res):Response {
         $b=(array)$req->getParsedBody(); $ip=$this->ip($req); $fp=hash('sha256',$ip.strtolower(trim($b['nominator_email']??'')));
         if(!$this->rateLimit->check($fp,'nominate',5,86400)) return $this->err($res,'Daily nomination limit reached.','RATE_LIMITED',429);
-        foreach(['programme_id','nominee_name','country_code','reason','nominator_name','nominator_email'] as $f) if(empty(trim($b[$f]??''))) return $this->err($res,"Field '$f' is required.");
+        // (string) cast before trim(). Without it this endpoint returned a 500 for the
+        // most natural JSON body there is: `{"programme_id": 1, …}`. trim() rejects an
+        // int under PHP 8, so a caller who sent the id as a number — as JSON encodes
+        // numbers — got "An internal error occurred" instead of a nomination, while a
+        // caller who quoted it as a string succeeded. Found by POSTing to it.
+        foreach(['programme_id','nominee_name','country_code','reason','nominator_name','nominator_email'] as $f) if(empty(trim((string)($b[$f]??'')))) return $this->err($res,"Field '$f' is required.");
         if(!filter_var($b['nominator_email'],FILTER_VALIDATE_EMAIL)) return $this->err($res,'Invalid nominator email.');
         // Nominee contact: email OR phone — at least one; anything provided must validate.
         $ne=trim((string)($b['nominee_email']??'')); $np=trim((string)($b['nominee_phone']??''));
         if($ne==='' && $np==='') return $this->err($res,"Provide 'nominee_email' or 'nominee_phone' — at least one is required.");
         if($ne!=='' && !filter_var($ne,FILTER_VALIDATE_EMAIL)) return $this->err($res,'Invalid nominee email.');
         if($np!=='' && \AfricaGates\Support\Phone::normalize($np,(string)($b['country_code']??''))===null) return $this->err($res,'Invalid nominee phone — use E.164 (e.g. +2348031234567).');
-        try{ $this->awards->submitNomination($b,$ip); }catch(\RuntimeException $e){ return $this->err($res,$e->getMessage()); }
-        return $this->ok($res,['message'=>'Nomination submitted.']);
+        try{ $id=$this->awards->submitNomination($b,$ip); }catch(\RuntimeException $e){ return $this->err($res,$e->getMessage()); }
+        // Everything after the insert. This endpoint used to stop at the line above
+        // and return `ok`, so a nomination arriving here was invisible: no operator
+        // was told, the nominator got no confirmation and no reference, the nominee
+        // never learned they had been nominated, no AI triage was queued for the
+        // review desk and no webhook fired. It sat in the table until somebody
+        // happened to look. The web form did all of it inline; now both doors call
+        // the same service. See NominationAftercare.
+        $after = \AfricaGates\Services\NominationAftercare::run(
+            $b, (int) $id, \AfricaGates\Support\SiteUrl::base($req), $this->otp
+        );
+        // The reference is returned, not just sent: an API caller has no inbox to
+        // read a confirmation in, and without it there is nothing to quote to
+        // support or to look the nomination up by.
+        return $this->ok($res,['message'=>'Nomination submitted.','reference'=>$after['reference']]);
     }
     public function register(Request $req,Response $res):Response {
         $b=(array)$req->getParsedBody(); $ip=$this->ip($req); $fp=hash('sha256',$ip);
         if(!$this->rateLimit->check($fp,'register',3,3600)) return $this->err($res,'Too many registrations.','RATE_LIMITED',429);
-        foreach(['display_name','email','category','profile_type','country_code'] as $f) if(empty(trim($b[$f]??''))) return $this->err($res,"Field '$f' is required.");
+        foreach(['display_name','email','category','profile_type','country_code'] as $f) if(empty(trim((string)($b[$f]??'')))) return $this->err($res,"Field '$f' is required.");
         if(!filter_var($b['email'],FILTER_VALIDATE_EMAIL)) return $this->err($res,'Invalid email.');
         try{ $id=$this->profiles->register($b); }catch(\Exception $e){ return $this->err($res,str_contains($e->getMessage(),'Duplicate')?'Email already registered.':'Registration failed.'); }
         $this->cache->forgetByTag('registry');
