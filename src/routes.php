@@ -364,6 +364,200 @@ return function(App $app) {
     });
 
     /**
+     * GET /__setup/payments?token=… — "why is a transaction's status wrong, or missing?"
+     *
+     * ── THE REPORT THIS ANSWERS ──────────────────────────────────────────────
+     *
+     * "The status of the transactions on our site is either incorrect or the
+     * transaction does not exist at all." Those are two different faults with two
+     * different fixes, and from the outside they look identical:
+     *
+     *   STATUS WRONG   we have the row, and it says pending (or failed) for a payment
+     *                  that actually succeeded. Cause: nothing ever re-checked it. The
+     *                  browser callback is lost whenever somebody pays inside a wallet
+     *                  app and never returns, the webhook can be unconfigured or have
+     *                  been failing, and the sweep that exists to catch both only runs
+     *                  from the maintenance schedule. If that schedule is not running,
+     *                  every dropped payment stays wrong for ever.
+     *
+     *   NO ROW AT ALL  money at Paystack that this platform never recorded. Nothing
+     *                  that starts from our own tables can find it — there is nothing
+     *                  to iterate. It happens when a payment is taken outside the
+     *                  checkout this code owns: a Paystack Payment Page or payment
+     *                  link, a dedicated virtual account, a POS terminal, or an insert
+     *                  that failed after the charge.
+     *
+     * {@see \AfricaGates\Services\GatewayLedger} already answers the second one by
+     * walking the GATEWAY's list and asking our database about each transaction — the
+     * only direction of the comparison that can find a stranger. It has been reachable
+     * at /admin/payments/ledger. This page adds the local half (which decides whether
+     * the answer is "stale" or "missing" before any network call), and puts both behind
+     * the setup token so the question can be answered on a site where nobody can get
+     * into the admin console.
+     *
+     * READ-ONLY, including the pull. Confirming an order, minting votes or refunding a
+     * stranger's charge are decisions with money attached and they keep their own
+     * guarded paths. A page that reconciled and repaired in one motion would make "let
+     * me just look" a money-moving action.
+     */
+    $app->get('/__setup/payments', function ($req, $res) use ($setupGuard) {
+        if (!$setupGuard($req)) return $res->withStatus(404);
+        $e   = fn($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+        $q   = $req->getQueryParams();
+        $cap = \Illuminate\Database\Capsule\Manager::class;
+        $ngn = static fn($n) => '₦' . number_format((float) $n);
+
+        // ── our own books ───────────────────────────────────────────────────
+        $local = [];
+        try {
+            $byStatus = $cap::table('gates_donations')
+                ->select('status', $cap::raw('COUNT(*) as n'))->groupBy('status')->pluck('n', 'status')->all();
+            $local[] = [true, 'Payments on record',
+                implode(' · ', array_map(
+                    static fn($k, $v) => $v . ' ' . $k,
+                    array_keys($byStatus), array_values($byStatus)
+                )) ?: 'none at all'];
+
+            // The stale bucket, and its AGE. A pending row minutes old is a checkout in
+            // progress; one from last week is a payment nobody ever re-checked.
+            $pending = (int) ($byStatus['pending'] ?? 0);
+            $oldest  = $cap::table('gates_donations')->where('status', 'pending')->min('created_at');
+            $hours   = null;
+            if (is_string($oldest) && $oldest !== '') {
+                // (int), because Carbon 3's diffInHours returns a float and "144.00020017861h
+                // old" reads like a bug in the page rather than a fact about a payment.
+                try { $hours = (int) \Illuminate\Support\Carbon::parse($oldest)->diffInHours(\Illuminate\Support\Carbon::now()); }
+                catch (\Throwable) {}
+            }
+            $local[] = [$pending === 0 || ($hours !== null && $hours < 24), 'Stuck as pending',
+                $pending === 0 ? 'none'
+                    : $pending . ' pending, oldest ' . ($hours === null ? 'unknown age' : $hours . 'h old')
+                      . ($hours !== null && $hours >= 24
+                          ? ' — anything older than a day was never re-checked. That is the "status is wrong" fault.'
+                          : ' — normal; a fresh pending row is a checkout in progress.')];
+
+            // The worst bucket on the platform: money settled, votes never credited.
+            $owed = (int) $cap::table('gates_donations')
+                ->where('status', 'confirmed')->where('tier', 'paid-vote')
+                ->whereNull('refunded_at')->where('votes_used', 0)
+                ->whereNotNull('intent_nominee_id')->count();
+            $local[] = [$owed === 0, 'Paid but no votes credited',
+                $owed === 0 ? 'none' : $owed . ' order(s) — confirmed, not minted. Run the sweep below.'];
+        } catch (\Throwable $ex) {
+            $local[] = [false, 'Our books', 'could not be read: ' . $ex->getMessage()];
+        }
+
+        // ── the thing that fixes a wrong status, and whether it runs ────────
+        $last  = \AfricaGates\Support\CronHealth::lastRunAt();
+        $stale = \AfricaGates\Support\CronHealth::isStale();
+        $local[] = [$last !== null && !$stale, 'The re-check sweep',
+            $last === null
+                ? 'HAS NEVER RUN. Nothing has ever re-checked a dropped payment, which is the '
+                . 'single most likely reason a status is wrong. See /__setup/assistant.'
+                : ('last ran ' . $last->diffForHumans() . ($stale ? ' — OVERDUE' : ' — healthy'))];
+
+        $paystackOn = false;
+        try { $paystackOn = (new \AfricaGates\Services\PaymentService())->isEnabled('paystack'); } catch (\Throwable) {}
+        $local[] = [$paystackOn, 'Paystack configured here',
+            $paystackOn ? 'yes' : 'NO — without a secret key nothing can be compared against the gateway'];
+
+        // ── the gateway's books, on request ─────────────────────────────────
+        $days = max(1, min(\AfricaGates\Services\GatewayLedger::MAX_DAYS, (int) ($q['days'] ?? 14)));
+        $pull = null;
+        if (!empty($q['pull']) && $paystackOn) {
+            try { $pull = (new \AfricaGates\Services\GatewayLedger())->pull($days); }
+            catch (\Throwable $ex) { $pull = ['ok' => false, 'message' => $ex->getMessage()]; }
+        }
+
+        $row = static function (array $r) use ($e): string {
+            [$ok, $label, $note] = $r;
+            return '<tr><td>' . ($ok ? '<span class="ok">✓</span>' : '<span class="err">✗</span>')
+                 . '</td><td>' . $e($label) . '</td><td class="n">' . $e($note) . '</td></tr>';
+        };
+
+        $pullHtml = '';
+        if ($pull === null) {
+            $pullHtml = '<p class="n">Add <code>&amp;pull=1</code> (optionally <code>&amp;days=30</code>) to compare '
+                      . 'against Paystack\'s own list of successful transactions. That is the only check that can '
+                      . 'find money taken with no record here. It reads both sides and writes nothing.</p>';
+        } elseif (empty($pull['ok'])) {
+            $pullHtml = '<p class="verdict bad">Paystack would not answer: ' . $e($pull['message'] ?? 'unknown error') . '</p>';
+        } else {
+            $c = $pull['counts']; $n = $pull['naira'];
+            $buckets = [
+                ['agreed',   'Both sides agree',                 'nothing to do'],
+                ['mismatch', 'WE HAVE IT, AND WE DISAGREE',      'this is the "status is wrong" bucket'],
+                ['theirs',   'AT PAYSTACK, NO RECORD HERE',      'this is the "transaction does not exist" bucket'],
+                ['ours',     'Confirmed here, not in their list','confirmed by hand, or outside this window'],
+            ];
+            $rows = '';
+            foreach ($buckets as [$k, $label, $why]) {
+                $bad = ($k === 'mismatch' || $k === 'theirs') && (int) ($c[$k] ?? 0) > 0;
+                $rows .= $row([!$bad, $label,
+                    (int) ($c[$k] ?? 0) . ' transaction(s), ' . $ngn($n[$k] ?? 0) . ' — ' . $why]);
+            }
+            $pullHtml = '<p class="n">Paystack reported <strong>' . (int) ($c['gateway'] ?? 0)
+                . '</strong> successful transactions worth ' . $e($ngn($n['gateway'] ?? 0))
+                . ' between ' . $e($pull['from']) . ' and ' . $e($pull['to'])
+                . (!empty($pull['truncated']) ? ' <strong>(TRUNCATED — narrow the window with &amp;days=)</strong>' : '')
+                . '</p><table>' . $rows . '</table>';
+
+            // Name the actual references. A count tells somebody there is a problem; a
+            // reference is the thing they can take to the Paystack dashboard.
+            foreach (['theirs' => 'Money at Paystack with no record here',
+                      'mismatch' => 'On record here, but we disagree with Paystack'] as $k => $heading) {
+                $items = array_slice($pull['groups'][$k] ?? [], 0, 40);
+                if ($items === []) continue;
+                $li = '';
+                foreach ($items as $it) {
+                    $g = $it['gateway'] ?? [];
+                    $why = isset($it['why']) ? ' — ' . implode('; ', (array) $it['why']) : '';
+                    $li .= '<li><code>' . $e($g['reference'] ?? ($it['local']['reference'] ?? '?')) . '</code> · '
+                         . $e($ngn($g['amount'] ?? ($it['local']['amount'] ?? 0))) . ' · '
+                         . $e($g['paid_at'] ?? ($it['local']['created_at'] ?? '')) . $e($why) . '</li>';
+                }
+                $pullHtml .= '<h2>' . $e($heading) . '</h2><ul>' . $li . '</ul>';
+            }
+        }
+
+        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            . '<title>Africa GATES — payments</title>'
+            . '<style>body{font-family:system-ui,"Segoe UI",Roboto,sans-serif;background:#10292C;color:#bcd;margin:0;padding:30px 16px;line-height:1.6}'
+            . '.box{max-width:900px;margin:0 auto}h1{color:#fff;font-size:19px;margin:0 0 4px}h2{color:#fff;font-size:15px;margin:26px 0 8px}'
+            . 'table{width:100%;border-collapse:collapse;font-size:13.5px}td{padding:6px 8px;border-top:1px solid rgba(255,255,255,.08);vertical-align:top}'
+            . 'td:first-child{width:22px}.n{color:#8fa8a4;font-size:12.5px}'
+            . '.ok{color:#7FC87C;font-weight:700}.err{color:#ff9a9a;font-weight:700}'
+            . '.verdict{margin:14px 0 0;padding:12px 14px;border-radius:10px;font-weight:600}'
+            . '.bad{background:rgba(255,154,154,.14);color:#ffbcbc}'
+            . 'ul{padding-left:20px}li{margin:5px 0;font-size:13px}a{color:#7FC87C}'
+            . 'code{background:#06181a;padding:2px 5px;border-radius:4px;font-size:12.5px}</style>'
+            . '</head><body><div class="box"><h1>Payments — ours against Paystack\'s</h1>'
+            . '<p class="n">Read-only. Nothing on this page changes anything, including the comparison.</p>'
+            . '<h2>Our own books</h2><table>' . implode('', array_map($row, $local)) . '</table>'
+            . '<h2>Paystack\'s books</h2>' . $pullHtml
+            . '<h2>What to do with each answer</h2><ul>'
+            . '<li><strong>Stuck pending, older than a day</strong> — the re-check sweep is not running. '
+            . 'Open <code>/__setup/assistant</code>; it says whether scheduled work happens at all. Once it '
+            . 'runs, it works through the backlog by itself.</li>'
+            . '<li><strong>Paid but no votes credited</strong> — the same sweep credits these. '
+            . '<code>/admin/payments</code> can also repair one order at a time.</li>'
+            . '<li><strong>At Paystack, no record here</strong> — the payment was taken outside this site\'s '
+            . 'checkout (a Paystack Payment Page or link, a virtual account, a POS terminal). No sweep can '
+            . 'invent the order. Take the reference to <code>/admin/payments</code>, which looks one up against '
+            . 'the gateway and can attach it.</li>'
+            . '<li><strong>We disagree with Paystack</strong> — the amount or status differs. Never repair these '
+            . 'in bulk; each one is a person and a number.</li>'
+            . '</ul>'
+            . '</div></body></html>';
+
+        $res->getBody()->write($html);
+        return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
+                   ->withHeader('Cache-Control', 'no-store')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    });
+
+    /**
      * GET /__setup/assistant?token=… — "is the support assistant actually working?"
      *
      * ── WHY THIS EXISTS ──────────────────────────────────────────────────────
