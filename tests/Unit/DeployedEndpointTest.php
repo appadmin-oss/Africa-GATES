@@ -109,6 +109,42 @@ final class DeployedEndpointTest extends TestCase
         $this->assertStringContainsString('Table gates_vote_messages', $html);
         $this->assertStringContainsString('Where to look', $html);
 
+        // ── EVERY SHIPPED FEATURE, NOT JUST THE FIRST ONE ────────────────────
+        //
+        // This page was written for one release and then four more shipped behind
+        // it, and it went on reporting "Everything is in place" while checking none
+        // of them. That is the worst possible failure for a page whose whole job is
+        // to be believed: the operator opens the URL the upload notes point at, sees
+        // green, and still has no idea whether what they just uploaded is live.
+        //
+        // So each release has a heading here. A new one that forgets to add itself
+        // will not fail this test — nothing can assert the absence of a thing nobody
+        // wrote — but every release that HAS been added stays asserted, which is
+        // what stops them silently dropping out again.
+        foreach ([
+            'Comments on a vote, and sharing',
+            'The full nomination story, and every supporter',
+            'Profile claiming: the cooling-off period and the freeze link',
+            'Finding a payment by the number the supporter has',
+            'The support assistant, with or without an AI key',
+            'The Help Centre, and one door for nominations',
+        ] as $heading) {
+            $this->assertStringContainsString(htmlspecialchars($heading, ENT_QUOTES), $html,
+                'the deployment page no longer reports on: ' . $heading);
+        }
+
+        // And the columns each of those needs, because "the files landed but the
+        // migration was skipped" is the commonest half-done upload and it produces a
+        // feature that looks broken rather than absent.
+        foreach ([
+            'gates_nominees.story',
+            'gates_donations.gateway_txn_id',
+            'gates_nominee_claims.dispute_token',
+            'gates_nominee_claims.cooling_off_until',
+        ] as $col) {
+            $this->assertStringContainsString($col, $html, $col . ' is not checked');
+        }
+
         // And it found the real files, which is the whole point — a check that cannot
         // fail is not a check.
         $this->assertStringContainsString('present + current', $html);

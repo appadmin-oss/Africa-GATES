@@ -160,23 +160,66 @@ return function(App $app) {
             return [$has, $has ? 'present + current' : 'PRESENT BUT OLD (marker absent)'];
         };
 
+        // ── GROUPED BY FEATURE, AND WHY ─────────────────────────────────────
+        //
+        // This page was written for one release — the vote-message and share work —
+        // and then four more shipped behind it. It went on reporting "Everything is
+        // in place" while checking nothing about any of them, which is the worst
+        // possible answer for a page whose entire job is to be believed: the
+        // operator opens the URL the upload notes point at, sees green, and still
+        // has no idea whether the thing they just uploaded is live.
+        //
+        // Grouping by feature is what stops that happening again. Adding a release
+        // now means adding a heading, and a heading with nothing under it is
+        // obvious in a way that a missing row in a flat list of twelve is not.
+        $groups = [
+            'Comments on a vote, and sharing' => [
+                ['The message box on the paid form', 'templates/pages/vote-nominee.twig', 'id="pvMsg"'],
+                ['The message box on the free form', 'templates/pages/vote-nominee.twig', 'id="vnMsg"'],
+                ['One message, rendered',            'templates/partials/vote-message.twig', 'vmi__act'],
+                ['Cheer / Report behaviour',         'templates/partials/vote-message-assets.twig', 'vmItem'],
+                ['A nominee\'s full wall',           'templates/pages/vote-messages.twig', 'vmi-list'],
+                ['A message\'s own page',            'templates/pages/vote-message.twig', 'vm__quote'],
+                ['The share row',                    'templates/partials/share.twig', 'ag-share--grid'],
+                ['Message routes + card',            'src/Controllers/VoteMessageController.php', 'messageCard'],
+                ['The message card renderer',        'src/Services/FlierService.php', 'messageCard'],
+                ['Moderation queue rows',            'templates/admin/moderation/index.twig', 'vote_message'],
+                ['Quantity chips (deformity fix)',   'templates/pages/vote-nominee.twig', 'vn-qty'],
+                ['Poll options (deformity fix)',     'templates/partials/poll.twig', 'ag-poll__opt'],
+            ],
+            'The full nomination story, and every supporter' => [
+                ['The story and its “read the full nomination”', 'templates/pages/vote-nominee.twig', 'vn-story'],
+                ['The all-supporters page',                      'templates/pages/vote-supporters.twig', 'vsu__grid'],
+                ['Sentence-aware short lines',                   'src/Support/Text.php', 'firstSentence'],
+            ],
+            'Profile claiming: the cooling-off period and the freeze link' => [
+                ['The cooling-off rule, with code behind it', 'src/Services/ClaimGuard.php', 'payoutState'],
+                ['The one-tap freeze',                       'src/Services/ClaimDispute.php', 'function freeze'],
+                ['Risk signals that hold rather than refuse', 'src/Services/ClaimRisk.php', 'SHARED_CONTACT_NOMINEES'],
+                ['The confirm-then-freeze page',             'templates/pages/claim-dispute.twig', 'class="cdp"'],
+            ],
+            'Finding a payment by the number the supporter has' => [
+                ['Reference resolution',            'src/Services/PaymentLookup.php', 'function canonical'],
+                ['Gateway ids captured at confirm', 'src/Services/PaymentService.php', 'gateway_ref'],
+            ],
+            'The support assistant, with or without an AI key' => [
+                ['Model-free tool routing', 'src/Services/SupportPlan.php', 'function steps'],
+                ['The queue works with no model', 'src/Services/SupportAutoResolver.php', 'SupportPlan::canAct'],
+                ['The schedule takes itself over', 'src/Support/Maintenance.php', 'shouldAdopt'],
+            ],
+            'The Help Centre, and one door for nominations' => [
+                ['A page per topic',            'templates/pages/help-category.twig', 'hcc-list'],
+                ['Packed, capped topic cards',  'templates/pages/help.twig', 'hc-cats'],
+                ['Both nomination doors agree', 'src/Services/NominationAftercare.php', 'function run'],
+            ],
+        ];
+
         $checks = [];
-        foreach ([
-            ['The message box on the paid form', 'templates/pages/vote-nominee.twig', 'id="pvMsg"'],
-            ['The message box on the free form', 'templates/pages/vote-nominee.twig', 'id="vnMsg"'],
-            ['One message, rendered',            'templates/partials/vote-message.twig', 'vmi__act'],
-            ['Cheer / Report behaviour',         'templates/partials/vote-message-assets.twig', 'vmItem'],
-            ['A nominee\'s full wall',           'templates/pages/vote-messages.twig', 'vmi-list'],
-            ['A message\'s own page',            'templates/pages/vote-message.twig', 'vm__quote'],
-            ['The share row',                    'templates/partials/share.twig', 'ag-share--grid'],
-            ['Quantity chips (deformity fix)',   'templates/pages/vote-nominee.twig', 'vn-qty'],
-            ['Poll options (deformity fix)',     'templates/partials/poll.twig', 'ag-poll__opt'],
-            ['Message routes + card',            'src/Controllers/VoteMessageController.php', 'messageCard'],
-            ['The message card renderer',        'src/Services/FlierService.php', 'messageCard'],
-            ['Moderation queue rows',            'templates/admin/moderation/index.twig', 'vote_message'],
-        ] as [$label, $rel, $marker]) {
-            [$ok, $note] = $file($rel, $marker);
-            $checks[] = [$ok, $label, $rel . ' — ' . $note];
+        foreach ($groups as $heading => $rows) {
+            foreach ($rows as [$label, $rel, $marker]) {
+                [$ok, $note] = $file($rel, $marker);
+                $checks[$heading][] = [$ok, $label, $rel . ' — ' . $note];
+            }
         }
 
         // ── the database ────────────────────────────────────────────────────
@@ -197,6 +240,48 @@ return function(App $app) {
                     . (string) $cap::table('gates_vote_messages')->where('status', 'approved')->count() . ' approved and visible, '
                     . (string) $cap::table('gates_vote_messages')->whereIn('status', ['pending', 'quarantined'])->count() . ' waiting in /admin/moderation'];
             }
+
+            // ── the migrations that shipped after this page was written ──────
+            //
+            // Each is a column a live feature reads. Missing means the files
+            // landed and /__setup/migrate was skipped, which is the single most
+            // common half-done upload and produces a feature that looks broken
+            // rather than absent.
+            foreach ([
+                ['gates_nominees',   'story',             'the full “why X is nominated” text'],
+                ['gates_donations',  'gateway_txn_id',    'finding a payment by its Paystack number'],
+                ['gates_donations',  'gateway_ref',       'finding a payment by the gateway\'s reference'],
+                ['gates_orders',     'gateway_txn_id',    'the same, for shop orders'],
+                ['gates_nominee_claims', 'dispute_token',  'the “stop this claim” link'],
+                ['gates_nominee_claims', 'cooling_off_until', 'the 7-day cooling-off period'],
+            ] as [$table, $col, $what]) {
+                try {
+                    if (!$cap::schema()->hasTable($table)) {
+                        $dbRows[] = [false, $table . '.' . $col,
+                            'table ' . $table . ' is MISSING — run /__setup/migrate'];
+                        continue;
+                    }
+                    $has = $cap::schema()->hasColumn($table, $col);
+                } catch (\Throwable) { $has = false; }
+                $dbRows[] = [$has, $table . '.' . $col,
+                    $has ? 'present — powers ' . $what
+                         : 'MISSING — run /__setup/migrate, or ' . $what . ' will not work'];
+            }
+
+            // Restored stories, which is the one migration that repairs existing
+            // data rather than only adding a column. Worth a number: it is the
+            // difference between "the column exists" and "your nominees got their
+            // text back".
+            try {
+                if ($cap::schema()->hasColumn('gates_nominees', 'story')) {
+                    $filled = (int) $cap::table('gates_nominees')->whereNotNull('story')->where('story', '<>', '')->count();
+                    $total  = (int) $cap::table('gates_nominees')->count();
+                    $dbRows[] = [true, 'Nominees with their full story',
+                        $filled . ' of ' . $total . ($filled === 0 && $total > 0
+                            ? ' — none yet. The migration only restores a story where one nomination clearly matches the nominee; new nominations fill it from now on.'
+                            : '')];
+                }
+            } catch (\Throwable) {}
         } catch (\Throwable $ex) {
             $dbRows[] = [false, 'Database', 'could not be read: ' . $ex->getMessage()];
         }
@@ -227,7 +312,20 @@ return function(App $app) {
                  . '</td><td>' . $e($label) . '</td><td class="n">' . $e($note) . '</td></tr>';
         };
 
-        $allOk = !in_array(false, array_column(array_merge($checks, $dbRows), 0), true);
+        // $checks is now grouped by feature, so flatten for the verdict.
+        $flatChecks = [];
+        foreach ($checks as $rows) foreach ($rows as $r) $flatChecks[] = $r;
+        $allOk = !in_array(false, array_column(array_merge($flatChecks, $dbRows), 0), true);
+
+        // One table per feature, each headed by what it is FOR rather than by a
+        // release number an operator has no way to recognise.
+        $groupsHtml = '';
+        foreach ($checks as $heading => $rows) {
+            $bad = in_array(false, array_column($rows, 0), true);
+            $groupsHtml .= '<h2>' . $e($heading)
+                . ($bad ? ' <span class="err">— something is missing</span>' : '')
+                . '</h2><table>' . implode('', array_map($row, $rows)) . '</table>';
+        }
 
         $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -248,7 +346,7 @@ return function(App $app) {
                   . 'and if your host runs a page cache (LiteSpeed Cache on cPanel does), purge it.'
                 : 'Something is missing — every row marked ✗ below tells you which fix applies.')
             . '</div>'
-            . '<h2>Files on this server</h2><table>' . implode('', array_map($row, $checks)) . '</table>'
+            . $groupsHtml
             . '<h2>Database</h2><table>' . implode('', array_map($row, $dbRows)) . '</table>'
             . '<h2>Where to look, on THIS site\'s current settings</h2>'
             . '<p class="n">Paid voting: <strong>' . ($paid ? 'on' : 'off') . '</strong> · '
