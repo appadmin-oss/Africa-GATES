@@ -361,6 +361,65 @@ final class AiCapability
                     . 'replaced by placeholders. Nothing is sent unless you press the button.',
                 'data_purpose'    => 'To suggest clearer wording. You choose whether to keep it.',
             ]),
+            // ── the judging interview ────────────────────────────────────────
+            //
+            // Both of these read a nominee's own file, and the second reads a transcript of
+            // them speaking. That makes them the most personal text this platform sends
+            // anywhere, so both are declared `public_content` and appear in the visitor-facing
+            // AI notice — and the nominee is told, in the consent they give before the
+            // interview happens, that a machine will write the transcript and help the panel
+            // read it. Consent that omits the model is not consent to the model.
+            //
+            // FAIL_DEGRADE on both. The interview must be preparable and readable with no
+            // provider at all: {@see InterviewBrief} builds a grounded question pack from the
+            // rubric and the dossier, and {@see InterviewReview} still runs its figure and
+            // coverage checks. A panel opening the console on the morning of a sitting must
+            // never find an empty page because a free tier ran out overnight.
+            'interview.brief' => $c('interview.brief', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::PRIMARY[self::TIER_REASON],
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                // Six questions with follow-ups and a line of rationale each.
+                'max_tokens'      => 1200,
+                // An interview per nominee per cycle, rebuildable a few times. Nowhere near
+                // a hot path, so the budget is small on purpose: a runaway loop here would
+                // be spending on a queue nobody is watching.
+                'calls_per_day'   => 300,
+                'tokens_per_day'  => 300_000,
+                'timeout'         => 20,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'For a nominee being interviewed by the judging panel: their name, '
+                    . 'organisation and country, the award criteria, and what their file says about them — '
+                    . 'the nomination reason and any evidence added by the programme team. Contact details '
+                    . 'are replaced with placeholders first. Vote counts, rankings and scores are never sent.',
+                'data_purpose'    => 'To prepare the questions the panel will ask, so a nominee is asked about '
+                    . 'their own work rather than from a standard list. A person asks the questions and a '
+                    . 'person decides the score.',
+            ]),
+            'interview.review' => $c('interview.review', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::PRIMARY[self::TIER_REASON],
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                // A transcript sorted into four criteria with quotes is the longest output
+                // any capability here produces.
+                'max_tokens'      => 2000,
+                'calls_per_day'   => 300,
+                'tokens_per_day'  => 600_000,
+                'timeout'         => 30,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'The transcript of a judging interview — the nominee\'s own recorded '
+                    . 'words — and the award criteria. Only ever after the nominee has given permission for '
+                    . 'a transcript to be kept, and contact details are replaced with placeholders first.',
+                'data_purpose'    => 'To sort what was said by which criterion it relates to, quoting the '
+                    . 'nominee rather than summarising, so a judge reads the whole interview instead of '
+                    . 'remembering part of it. It produces no score, rating or ranking of any kind.',
+            ]),
             'nomination.suggest_category' => $c('nomination.suggest_category', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_FAST,

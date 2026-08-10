@@ -49,6 +49,14 @@ final class Permissions
     private const PATH_SECTIONS = [
         // moderation
         'profiles' => 'moderation', 'nominations' => 'moderation', 'nominees' => 'moderation', 'moderation' => 'moderation',
+        // Judging interviews are `moderation` rather than `configuration`, where /judges
+        // sits. Appointing a judge is a governance act; running an interview is programme
+        // work a moderator does. Mapping it also keeps the sidebar and the guard on one
+        // answer — an unmapped path fails closed to superadmin while the sidebar would
+        // still offer the link to an admin, which is the exact disagreement documented
+        // against the finance paths below. A viewer holds this section and may READ the
+        // schedule; InterviewsController separately refuses them every action that writes.
+        'interviews' => 'moderation',
         // programmes
         'programmes' => 'programmes', 'categories' => 'programmes', 'awards-page' => 'programmes',
         // content

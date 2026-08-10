@@ -1,0 +1,220 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  THE INTERVIEW SCHEDULE.
+
+  Ordered by time remaining among the sittings still expected, then by recency. Same
+  reasoning as the disputes screen: a list ordered by creation date buries the thing
+  happening this afternoon under the thing somebody typed this morning.
+
+  The three warnings across the top are the three ways an interview quietly fails —
+  no Meet link (nobody can join), no consent (nothing can reach the panel), and a sitting
+  whose time has passed with nobody marking what happened. All three are invisible unless
+  something counts them.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .iv-lede{ margin:0 0 16px; font-size:13px; line-height:1.65; color:#4a5256; max-width:88ch }
+  .iv-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));
+    gap:10px; margin-bottom:18px }
+  .iv-stat{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:12px; padding:13px 15px }
+  .iv-stat--warn{ border-color:#ecd9a0; background:#fff8df }
+  .iv-stat__k{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f }
+  .iv-stat__v{ font-size:22px; font-weight:700; color:#10292C; margin-top:7px }
+  .iv-stat__n{ font-size:11.5px; line-height:1.5; color:#67797b; margin-top:4px }
+
+  .iv-card{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:16px 18px; margin-bottom:10px; display:grid; gap:10px;
+    grid-template-columns:minmax(0,1fr) auto; align-items:start }
+  .iv-card--soon{ border-color:#ecd9a0; background:#fffdf5 }
+  .iv-card--now{ border-color:#f0c9c9; background:#fdf6f6 }
+  .iv-card--done{ opacity:.75 }
+  .iv-who{ font-size:15px; font-weight:650; color:#10292C }
+  .iv-who a{ color:inherit; text-decoration:none }
+  .iv-who a:hover{ text-decoration:underline }
+  .iv-meta{ font-size:12.5px; line-height:1.7; color:#5a6d6f; margin-top:3px }
+  .iv-tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px }
+  .iv-tag{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .iv-tag--no{ background:#fdeaea; color:#8a2020 }
+  .iv-tag--ok{ background:#eaf7ea; color:#1c5f1b }
+  .iv-acts{ display:flex; flex-direction:column; gap:6px; align-items:stretch; min-width:9rem }
+  .iv-btn{ display:block; text-align:center; text-decoration:none; cursor:pointer; font:650 12.5px/1 inherit;
+    border:none; padding:9px 14px; border-radius:999px; background:#10292C; color:#fff }
+  .iv-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+
+  .iv-new{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:20px }
+  .iv-new h2{ margin:0 0 4px; font-size:15px; color:#10292C }
+  .iv-grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));
+    margin-top:14px }
+  .iv-f label{ display:block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; margin-bottom:6px }
+  .iv-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px; padding:9px 11px;
+    border:1px solid rgba(16,41,44,.18); border-radius:9px; background:#fff; color:#10292C }
+  .iv-panel{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px }
+  .iv-panel label{ display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#3d5254;
+    background:#f6f9f6; border:1px solid rgba(16,41,44,.09); border-radius:999px; padding:6px 12px;
+    text-transform:none; letter-spacing:0; font-weight:500; margin:0 }
+  .iv-note{ font-size:12px; line-height:1.6; color:#67797b; margin-top:10px }
+  .iv-empty{ background:#f7fbf6; border:1px solid #bfe0bd; border-radius:14px; padding:20px;
+    font-size:13.5px; color:#2b5c2a }
+  @media (max-width:640px){ .iv-card{ grid-template-columns:minmax(0,1fr) } }
+</style>
+{% endblock %}
+
+{% block content %}
+{# The topbar in admin/layout.twig renders page_title — no second heading here. #}
+
+<p class="iv-lede">
+  The panel interviews a nominee over Google Meet, and what comes out of it is the only part
+  of a judge's dossier that is the nominee's <em>own words</em> — everything else is written by
+  the person who nominated them. The question pack is built from each nominee's own file and
+  mapped to the scoring criteria; after the call, the transcript is read and sorted by
+  criterion so a judge reads the whole interview rather than remembering part of it.
+  <strong>Nothing here writes a score.</strong> Scoring stays on the judge's ballot.
+</p>
+
+<div class="iv-stats">
+  <div class="iv-stat">
+    <div class="iv-stat__k">Waiting</div><div class="iv-stat__v">{{ summary.pending }}</div>
+    <div class="iv-stat__n">{{ summary.today }} in the next 24 hours</div>
+  </div>
+  <div class="iv-stat {{ summary.no_meet ? 'iv-stat--warn' : '' }}">
+    <div class="iv-stat__k">No Meet link</div><div class="iv-stat__v">{{ summary.no_meet }}</div>
+    <div class="iv-stat__n">Nobody can join these</div>
+  </div>
+  <div class="iv-stat {{ summary.no_consent ? 'iv-stat--warn' : '' }}">
+    <div class="iv-stat__k">No permission yet</div><div class="iv-stat__v">{{ summary.no_consent }}</div>
+    <div class="iv-stat__n">Nothing can reach the panel without it</div>
+  </div>
+  <div class="iv-stat {{ summary.overdue ? 'iv-stat--warn' : '' }}">
+    <div class="iv-stat__k">Time has passed</div><div class="iv-stat__v">{{ summary.overdue }}</div>
+    <div class="iv-stat__n">Held? No-show? Mark it</div>
+  </div>
+  <div class="iv-stat">
+    <div class="iv-stat__k">In dossiers</div><div class="iv-stat__v">{{ summary.published }}</div>
+    <div class="iv-stat__n">Transcripts the panel can read</div>
+  </div>
+</div>
+
+{% if unpublished|length %}
+  <div class="iv-stat iv-stat--warn" style="margin-bottom:18px">
+    <div class="iv-stat__k">Held, but the panel cannot see it</div>
+    <div class="iv-stat__n" style="font-size:13px; margin-top:8px">
+      {{ unpublished|length }} interview{{ unpublished|length == 1 ? '' : 's' }} took place and no
+      transcript was ever published, so as far as every judge is concerned the conversation never
+      happened:
+      {% for u in unpublished|slice(0,6) %}
+        <a href="/admin/interviews/{{ u.id }}">{{ u.nominee ?: 'nominee #' ~ u.id }}</a>{{ loop.last ? '' : ' · ' }}
+      {% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+{# ── schedule a new one ──────────────────────────────────────────────────── #}
+<form class="iv-new" method="post" action="/admin/interviews/new">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <h2>Schedule an interview</h2>
+  <div class="iv-note">Only approved nominees who have no interview waiting are listed.</div>
+
+  <div class="iv-grid">
+    <div class="iv-f">
+      <label for="nom">Nominee</label>
+      <select class="iv-in" id="nom" name="nominee_id" required>
+        <option value="">Choose…</option>
+        {% for c in candidates %}
+          <option value="{{ c.id }}">{{ c.name }}{{ c.category ? ' — ' ~ c.category : '' }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="iv-f">
+      <label for="when">Date and time</label>
+      <input class="iv-in" id="when" name="scheduled_at" type="datetime-local" required>
+    </div>
+    <div class="iv-f">
+      <label for="tz">Timezone</label>
+      <input class="iv-in" id="tz" name="timezone" type="text" value="Africa/Lagos"
+             placeholder="Africa/Lagos">
+    </div>
+    <div class="iv-f">
+      <label for="mins">Minutes</label>
+      <input class="iv-in" id="mins" name="duration_mins" type="number" min="10" max="180" value="30">
+    </div>
+  </div>
+
+  <div class="iv-f" style="margin-top:14px">
+    <label>Panel</label>
+    <div class="iv-panel">
+      {% for j in judges %}
+        <label><input type="checkbox" name="panel[]" value="{{ j.id }}"> {{ j.name }}</label>
+      {% else %}
+        <span class="iv-note">No active judges yet. You can add the panel later.</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="iv-grid" style="margin-top:14px">
+    <div class="iv-f">
+      <label for="meet">Google Meet link (optional)</label>
+      <input class="iv-in" id="meet" name="meet_url" type="text"
+             placeholder="https://meet.google.com/abc-defg-hij">
+    </div>
+    <div class="iv-f" style="align-self:end">
+      {% if auto_meet %}
+        <label><input type="checkbox" name="auto_meet" value="1" checked> Create the meeting in Google for me</label>
+      {% else %}
+        <div class="iv-note" style="margin:0">{{ meet_why }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <button class="iv-btn" style="margin-top:16px; max-width:16rem" type="submit">Open the interview</button>
+  <div class="iv-note">Nobody is emailed yet. You review it first, then press <em>Invite</em>.</div>
+</form>
+
+{# ── the schedule ────────────────────────────────────────────────────────── #}
+{% if rows is empty %}
+  <div class="iv-empty">
+    <strong>No interviews yet.</strong> Schedule one above. Until a nominee is interviewed, the
+    only thing in their dossier is the case their nominator wrote — which is why every judge
+    ballot currently reads “no interview on file”.
+  </div>
+{% else %}
+  {% for r in rows %}
+    {% set left = r.hours_away %}
+    {% set tone = not r.pending ? 'done'
+                 : (left is null ? '' : (left < 0 ? 'now' : (left <= 24 ? 'soon' : ''))) %}
+    <div class="iv-card {{ tone ? 'iv-card--' ~ tone : '' }}">
+      <div>
+        <div class="iv-who"><a href="/admin/interviews/{{ r.id }}">{{ r.nominee }}</a></div>
+        <div class="iv-meta">
+          {{ r.when_text }}{{ r.category ? ' · ' ~ r.category : '' }}
+          {%- if r.pending and left is not null %}
+            {% if left < 0 %} · <strong>the time has passed</strong>
+            {% elseif left == 0 %} · <strong>within the hour</strong>
+            {% else %} · in {{ left }}h{% endif %}
+          {%- endif %}
+        </div>
+        <div class="iv-tags">
+          <span class="iv-tag">{{ r.status }}</span>
+          {% if r.pending and not r.has_meet %}<span class="iv-tag iv-tag--no">no meet link</span>{% endif %}
+          {% if r.consented %}<span class="iv-tag iv-tag--ok">permission given</span>
+          {% elseif r.pending %}<span class="iv-tag iv-tag--no">no permission</span>{% endif %}
+          {% if r.has_brief %}<span class="iv-tag">questions ready</span>{% endif %}
+          {% if r.answers %}<span class="iv-tag">{{ r.answers }} answered</span>{% endif %}
+          {% if r.published %}<span class="iv-tag iv-tag--ok">in the dossier</span>{% endif %}
+        </div>
+      </div>
+      <div class="iv-acts">
+        {% if r.pending %}
+          <a class="iv-btn" href="/admin/interviews/{{ r.id }}/run">Run it</a>
+        {% endif %}
+        <a class="iv-btn iv-btn--ghost" href="/admin/interviews/{{ r.id }}">Open</a>
+      </div>
+    </div>
+  {% endfor %}
+{% endif %}
+{% endblock %}

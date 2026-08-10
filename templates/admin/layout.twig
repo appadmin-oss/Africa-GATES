@@ -57,6 +57,14 @@
         <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V5l-8-3z"/><path d="m9 11 2 2 4-4"/></svg>
         Moderation Queue
       </a>
+      {# Judging interviews. Here rather than under the superadmin-only Judges Panel:
+         appointing a judge is governance, running an interview is programme work. It is
+         also the only route by which a nominee's OWN words ever reach a judge — the
+         dossier is otherwise entirely what a nominator wrote about them. #}
+      <a class="ad-side__link {% if admin_page == 'interviews' %}is-active{% endif %}" href="/admin/interviews">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>
+        Interviews
+      </a>
       {# Tickets were stored here and answered in EMAIL — so a reply from an inbox
          never reached the member's own thread and nothing was ever closed. #}
       <a class="ad-side__link {% if admin_page == 'support' %}is-active{% endif %}" href="/admin/support">
@@ -221,6 +229,7 @@
         'programmes': 'Award programmes, their cycles, categories and editable terms.',
         'awards-page': 'Edit the content shown on the public Awards landing page.',
         'judges': 'Invite and manage the judging panel and their programme assignments.',
+        'interviews': 'Schedule and run the judging interviews over Google Meet, then publish the transcript to the panel.',
         'events': 'Create and customise events — schedule, ticket tiers and the early-bird banner.',
         'posts': 'Write and publish blog posts (audio and polls supported).',
         'legacy': 'Past-edition recaps shown in the Legacy Vault.',

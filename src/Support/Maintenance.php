@@ -786,6 +786,24 @@ final class Maintenance
             $q->on(\AfricaGates\Services\DisputeAlert::JOB, function (array $p) {
                 \AfricaGates\Services\DisputeAlert::send($p, $this->container?->get(OtpService::class));
             });
+            // ── the judging interview ──────────────────────────────────────────
+            //
+            // The question pack reads a nominee's whole dossier and may call a model, so it
+            // is built here rather than on the admin form submit that created the sitting.
+            // The reading of the transcript is the same shape and much heavier.
+            //
+            // Both are safe to run twice: each overwrites its own column.
+            $q->on(\AfricaGates\Services\InterviewBrief::JOB, function (array $p) {
+                \AfricaGates\Services\InterviewBrief::build((int) ($p['interview_id'] ?? 0));
+            });
+            $q->on(\AfricaGates\Services\InterviewReview::JOB, function (array $p) {
+                \AfricaGates\Services\InterviewReview::run((int) ($p['interview_id'] ?? 0));
+            });
+            $q->on(\AfricaGates\Services\InterviewService::JOB_REMIND, function (array $p) use ($sms) {
+                \AfricaGates\Services\InterviewService::remind(
+                    $p, $this->container?->get(OtpService::class), $sms);
+            });
+
             $mailer = $this->container?->get(OtpService::class);
             $q->on('community.reply_email', function (array $p) use ($mailer) {
                 if (!$mailer) return;

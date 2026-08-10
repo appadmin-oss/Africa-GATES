@@ -359,11 +359,16 @@ final class PaymentsTriageController
         }
 
         // Money either way, so it goes in the audit trail with a name against it.
-        try {
-            $this->audit?->log('dispute.' . $action, 'dispute', 0, [
-                'dispute_id' => $id, 'reference' => $ref, 'ok' => (bool) ($r['ok'] ?? false),
-            ]);
-        } catch (\Throwable) {}
+        //
+        // This called a `log()` method that AuditService does not have. The try/catch
+        // caught the resulting Error along with everything else, so resolving a dispute
+        // — the most irreversible money action on the platform — was silently never
+        // audited. Exactly the failure shape this codebase keeps finding: a control that
+        // looks configured, runs, and records nothing.
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'dispute.' . $action, 'dispute', null, [
+            'dispute_id' => $id, 'reference' => $ref, 'ok' => (bool) ($r['ok'] ?? false),
+            'step'       => (string) ($r['step'] ?? ''),
+        ]);
 
         return $res->withHeader('Location', $back)->withStatus(302);
     }

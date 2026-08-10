@@ -1,0 +1,348 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  ONE SITTING, at a desk. The console (/run) is the screen used during the call; this is
+  where the appointment is arranged and the transcript is dealt with afterwards.
+
+  Order follows the life of a sitting rather than importance: when → who → link → invite →
+  questions → transcript → what the model found. An operator opening this mid-process should
+  be able to read down and stop at the first thing that is not done.
+#}
+
+{% set row = iv.row %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .is-head{ display:flex; justify-content:space-between; align-items:baseline; gap:14px; flex-wrap:wrap }
+  .is-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .is-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px }
+  .is-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .is-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .is-grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));
+    margin-top:14px }
+  .is-f label{ display:block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; margin-bottom:6px }
+  .is-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px; padding:9px 11px;
+    border:1px solid rgba(16,41,44,.18); border-radius:9px; background:#fff; color:#10292C }
+  textarea.is-in{ min-height:160px; line-height:1.6; resize:vertical }
+  .is-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:10px 17px; border-radius:999px;
+    background:#10292C; color:#fff; text-decoration:none; display:inline-block }
+  .is-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .is-btn--warn{ background:#8a2020; color:#fff }
+  .is-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:14px }
+  .is-tag{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .is-tag--ok{ background:#eaf7ea; color:#1c5f1b }
+  .is-tag--no{ background:#fdeaea; color:#8a2020 }
+  .is-warn{ background:#fff8df; border:1px solid #ecd9a0; border-radius:10px; padding:12px 14px;
+    font-size:12.5px; line-height:1.7; color:#6b5312; margin-top:12px }
+  .is-link{ font-family:var(--ag-font-mono,monospace); font-size:12px; word-break:break-all;
+    background:#f6f9f6; border:1px solid rgba(16,41,44,.09); border-radius:8px; padding:9px 11px;
+    margin-top:10px; color:#3d5254 }
+  .is-q{ border-top:1px solid rgba(16,41,44,.08); padding:12px 0 }
+  .is-q:first-of-type{ border-top:none }
+  .is-q__k{ font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:#5a6d6f }
+  .is-q__q{ font-size:14px; line-height:1.6; color:#10292C; margin-top:5px; font-weight:600 }
+  .is-q__w{ font-size:12px; line-height:1.65; color:#67797b; margin-top:5px }
+  .is-q__p{ font-size:12px; color:#5a6d6f; margin-top:5px }
+  .is-quote{ border-left:3px solid rgba(16,41,44,.15); padding:2px 0 2px 12px; margin:9px 0;
+    font-size:13px; line-height:1.7; color:#3d5254 }
+  .is-fig{ display:grid; gap:8px; margin-top:10px }
+  .is-fig__r{ border-radius:10px; padding:11px 13px; font-size:12.5px; line-height:1.65 }
+  .is-fig--confirmed{ background:#f2faf2; border:1px solid #cbe6c9; color:#265825 }
+  .is-fig--differs{ background:#fff8df; border:1px solid #ecd9a0; color:#6b5312 }
+  .is-fig--unmentioned{ background:#f6f8f8; border:1px solid rgba(16,41,44,.09); color:#4a5256 }
+</style>
+{% endblock %}
+
+{# The nominee's name IS the title of this page, so it goes in the layout's topbar block
+   rather than being printed a second time underneath it. #}
+{% block topbar_title %}{{ iv.nominee }}{% endblock %}
+{% block topbar_actions %}
+  <a class="is-btn" href="/admin/interviews/{{ row.id }}/run">Open the console →</a>
+{% endblock %}
+
+{% block content %}
+<p class="is-sub">
+  Interview #{{ row.id }} · {{ iv.category ?: 'no category' }}{{ iv.org ? ' · ' ~ iv.org : '' }}
+  {{ iv.country ? ' · ' ~ iv.country : '' }} · <a href="/admin/interviews">back to the schedule</a>
+</p>
+
+<div class="is-row" style="margin:0 0 16px">
+  <span class="is-tag">{{ row.status }}</span>
+  {% if iv.consented %}<span class="is-tag is-tag--ok">permission given</span>
+  {% else %}<span class="is-tag is-tag--no">no permission to record</span>{% endif %}
+  {% if row.transcript_id %}<span class="is-tag is-tag--ok">in the judges' dossier</span>{% endif %}
+  {% if row.brief_source %}<span class="is-tag">questions: {{ row.brief_source }}</span>{% endif %}
+  {% if row.review_source %}<span class="is-tag">transcript read: {{ row.review_source }}</span>{% endif %}
+</div>
+
+{# ── when, who, where ───────────────────────────────────────────────────── #}
+<form class="is-sec" method="post" action="/admin/interviews/{{ row.id }}/schedule">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <h2>When, and who is on the panel</h2>
+  <p>{{ iv.when_text }}{% if iv.hours_away is not null %} —
+     {{ iv.hours_away < 0 ? 'that time has passed' : 'in ' ~ iv.hours_away ~ ' hours' }}{% endif %}.
+     Moving a confirmed sitting asks the nominee to confirm again, because their yes was for a
+     time. Their permission to be recorded is <em>not</em> reset — that was given for being
+     recorded, which a new time does not change.</p>
+
+  <div class="is-grid">
+    <div class="is-f">
+      <label for="when">Date and time</label>
+      <input class="is-in" id="when" name="scheduled_at" type="datetime-local"
+             value="{{ row.scheduled_at ? row.scheduled_at|replace({' ':'T'})|slice(0,16) : '' }}" required>
+    </div>
+    <div class="is-f">
+      <label for="tz">Timezone</label>
+      <input class="is-in" id="tz" name="timezone" type="text" value="{{ row.timezone }}">
+    </div>
+    <div class="is-f">
+      <label for="mins">Minutes</label>
+      <input class="is-in" id="mins" name="duration_mins" type="number" min="10" max="180"
+             value="{{ row.duration_mins }}">
+    </div>
+  </div>
+
+  <div class="is-f" style="margin-top:14px">
+    <label>Panel</label>
+    <div class="is-row" style="margin-top:0">
+      {% set onPanel = iv.panel|map(p => p.id) %}
+      {% for j in judges %}
+        <label style="font-weight:500; text-transform:none; letter-spacing:0; font-size:13px; color:#3d5254">
+          <input type="checkbox" name="panel[]" value="{{ j.id }}" {{ j.id in onPanel ? 'checked' : '' }}>
+          {{ j.name }}</label>
+      {% else %}
+        <span style="font-size:12.5px; color:#67797b">No active judges to choose from.</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="is-row"><button class="is-btn" type="submit">Save the time and panel</button></div>
+</form>
+
+{# ── the meet link ──────────────────────────────────────────────────────── #}
+<form class="is-sec" method="post" action="/admin/interviews/{{ row.id }}/meet">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <h2>The Google Meet room</h2>
+  {% if row.meet_url %}
+    <div class="is-link">{{ row.meet_url }}{% if row.meet_code %} — code {{ row.meet_code }}{% endif %}</div>
+    <p>{% if row.meet_code %}The code is what lets the transcript be matched back to this
+       interview afterwards.{% else %}This is not a meet.google.com link, so a transcript cannot
+       be fetched automatically — you can still paste one in below.{% endif %}</p>
+  {% else %}
+    <p><strong>There is no link yet, so nobody can join.</strong></p>
+  {% endif %}
+
+  <div class="is-grid">
+    <div class="is-f">
+      <label for="meet">Paste a link</label>
+      <input class="is-in" id="meet" name="meet_url" type="text"
+             placeholder="https://meet.google.com/abc-defg-hij">
+    </div>
+    <div class="is-f" style="align-self:end">
+      <button class="is-btn is-btn--ghost" type="submit">Save the pasted link</button>
+    </div>
+  </div>
+
+  {% if auto_meet %}
+    <div class="is-row">
+      <button class="is-btn" type="submit" name="create" value="1">Create it in Google for me</button>
+      <span style="font-size:12px; color:#67797b">Makes a calendar event with a Meet link and
+        invites the panel. Leave the paste box empty.</span>
+    </div>
+  {% else %}
+    <div class="is-warn">{{ meet_why }}</div>
+  {% endif %}
+</form>
+
+{# ── the invitation ─────────────────────────────────────────────────────── #}
+<div class="is-sec">
+  <h2>Telling the nominee</h2>
+  <p>The invitation goes to the address on their approved nomination — never one typed here,
+     the same rule the claim path follows. It carries their private page, which is where they
+     confirm and give permission to be recorded. Two reminders are queued automatically,
+     24 hours and 2 hours before.</p>
+  <div class="is-link">{{ iv.link }}</div>
+  <p>{{ row.invited_at ? 'Invited ' ~ row.invited_at : 'Not invited yet.' }}
+     {{ row.confirmed_at ? '· confirmed ' ~ row.confirmed_at : '' }}
+     {{ row.declined_at ? '· they asked to move it ' ~ row.declined_at : '' }}
+     {% if row.reschedule_note %}<br>They said: “{{ row.reschedule_note }}”{% endif %}</p>
+  <form method="post" action="/admin/interviews/{{ row.id }}/invite" class="is-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="is-btn" type="submit">{{ row.invited_at ? 'Send it again' : 'Send the invitation' }}</button>
+  </form>
+</div>
+
+{# ── the question pack ──────────────────────────────────────────────────── #}
+<div class="is-sec">
+  <h2>The questions</h2>
+  <p>Built from this nominee's own file and mapped to the scoring criteria.
+     {% if row.brief_source == 'ai' %}A model shaped these; the questions quoting a figure from
+     the nomination are generated from the record itself.{% else %}Built from the rubric and the
+     record with no model involved — which is the normal case when no AI key is set, and it
+     works.{% endif %}
+     The nominee is shown the <em>themes</em> only, never this wording.</p>
+
+  {% for w in iv.brief.warnings ?? [] %}<div class="is-warn">{{ w }}</div>{% endfor %}
+
+  {% for q in iv.brief.questions ?? [] %}
+    <div class="is-q">
+      <div class="is-q__k">{{ q.criterion }}{{ q.source == 'claim' ? ' · from the record' : '' }}</div>
+      <div class="is-q__q">{{ q.q }}</div>
+      <div class="is-q__w">{{ q.why }}</div>
+      {% if q.probe|length %}<div class="is-q__p">Follow up: {{ q.probe|join(' · ') }}</div>{% endif %}
+    </div>
+  {% else %}
+    <p>No pack has been built yet. It is built automatically on the maintenance run, or when
+       the console is opened.</p>
+  {% endfor %}
+
+  <form method="post" action="/admin/interviews/{{ row.id }}/rebuild" class="is-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="is-btn is-btn--ghost" type="submit">Rebuild the questions</button>
+    <span style="font-size:12px; color:#67797b">Do this after adding evidence to the nominee's file.</span>
+  </form>
+</div>
+
+{# ── the transcript ─────────────────────────────────────────────────────── #}
+<form class="is-sec" method="post" action="/admin/interviews/{{ row.id }}/transcript">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <h2>The transcript</h2>
+
+  {% if not iv.consented %}
+    <div class="is-warn">
+      <strong>The nominee has not given permission for a transcript to be kept.</strong>
+      Nothing can be published to the panel until they do — press the button on their own page,
+      or ask them on the call and have them do it from the link. This is not a setting that can
+      be overridden here, deliberately: it is their recorded voice being shown to the people
+      deciding their award.
+    </div>
+  {% endif %}
+
+  {% if row.transcript_id %}
+    <p><strong>Published.</strong> The panel can read this in {{ iv.nominee }}'s dossier
+       ({{ iv.transcript|length|number_format }} characters). Saving again replaces it rather
+       than adding a second copy.</p>
+  {% endif %}
+
+  <p>Paste it, or fetch it from Google when transcription was switched on during the call
+     (Activities → Transcripts — it is off by default and Google cannot make one afterwards).
+     A machine transcript is labelled as one for the judges, because a model mishears names and
+     numbers and those are the load-bearing facts in an impact claim.</p>
+
+  <div class="is-f" style="margin-top:12px">
+    <label for="tr">Transcript</label>
+    <textarea class="is-in" id="tr" name="transcript"
+              placeholder="Paste the transcript here…">{{ iv.transcript }}</textarea>
+  </div>
+
+  <div class="is-grid">
+    <div class="is-f">
+      <label for="src">Who transcribed it</label>
+      <select class="is-in" id="src" name="source">
+        <option value="machine">A machine (Meet, or another transcriber)</option>
+        <option value="human">A person, typing</option>
+        <option value="hybrid">A machine, then corrected by a person</option>
+      </select>
+    </div>
+    <div class="is-f">
+      <label for="lang">Language it is in</label>
+      <input class="is-in" id="lang" name="language" type="text" value="{{ row.language }}"
+             placeholder="en, yo, ha, ig, pcm">
+    </div>
+    <div class="is-f">
+      <label for="tfrom">Translated from (leave blank if not)</label>
+      <input class="is-in" id="tfrom" name="translated_from" type="text" placeholder="yo">
+    </div>
+  </div>
+
+  <div class="is-row">
+    <button class="is-btn" type="submit">Publish to the dossier</button>
+    <button class="is-btn is-btn--ghost" type="submit" name="fetch" value="1">Fetch from Google</button>
+    {% if row.transcript_id %}
+      <button class="is-btn is-btn--ghost" type="submit" formaction="/admin/interviews/{{ row.id }}/review">
+        Read it again</button>
+    {% endif %}
+  </div>
+</form>
+
+{# ── what the reading found ─────────────────────────────────────────────── #}
+{% if iv.review is not empty %}
+  <div class="is-sec">
+    <h2>What the transcript contains</h2>
+    <p>Sorted by criterion, quoting the nominee.
+      {% if iv.review.source == 'ai' %}Read by a model.{% else %}Matched on wording only — no model
+      read this, so read the quotes rather than trusting the selection.{% endif %}
+      {% if iv.review.machine %}The transcript itself was machine-written.{% endif %}
+      <strong>There is no score here and there will not be one</strong> — a suggested number would
+      anchor the judge who read it, and the panel's 55% would in practice be set by a model.</p>
+
+    {% if iv.review.figures|length %}
+      <h2 style="margin-top:18px">Figures claimed, and what was said</h2>
+      <div class="is-fig">
+        {% for f in iv.review.figures %}
+          <div class="is-fig__r is-fig--{{ f.status }}">
+            <strong>{{ f.figure }}</strong> — {{ f.status == 'confirmed' ? 'confirmed in the interview'
+              : (f.status == 'differs' ? 'the interview says ' ~ f.said : 'never mentioned') }}<br>
+            <span style="opacity:.85">“{{ f.claim }}”</span><br>{{ f.note }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% for c in iv.review.criteria ?? [] %}
+      <div class="is-q">
+        <div class="is-q__k">{{ c.criterion }}</div>
+        {% if c.summary %}<div class="is-q__w">{{ c.summary }}</div>{% endif %}
+        {% for q in c.quotes %}
+          <div class="is-quote">“{{ q.quote }}”{% if q.note %}<br><span style="font-size:12px; color:#67797b">{{ q.note }}</span>{% endif %}</div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+
+    {% if iv.review.unanswered|length %}
+      <div class="is-warn">
+        <strong>Prepared but never answered:</strong>
+        {% for u in iv.review.unanswered %}{{ u.criterion }} — “{{ u.q|slice(0,90) }}…”{{ loop.last ? '' : ' · ' }}{% endfor %}
+      </div>
+    {% endif %}
+
+    {% if iv.review.gaps|length %}
+      <div class="is-warn"><strong>Not established:</strong>
+        {{ iv.review.gaps|join(' · ') }}</div>
+    {% endif %}
+  </div>
+{% endif %}
+
+{# ── closing it out ─────────────────────────────────────────────────────── #}
+<div class="is-sec">
+  <h2>Close the sitting</h2>
+  <p>A no-show recorded as one is a fact the panel can see. A no-show left as “confirmed”
+     looks like an interview nobody bothered to write up.</p>
+  <div class="is-row">
+    <form method="post" action="/admin/interviews/{{ row.id }}/close">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="held" value="1">
+      <button class="is-btn" type="submit">It was held</button>
+    </form>
+    <form method="post" action="/admin/interviews/{{ row.id }}/close">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="held" value="0">
+      <button class="is-btn is-btn--ghost" type="submit">Nobody came</button>
+    </form>
+    {% if row.transcript_id %}
+      <form method="post" action="/admin/interviews/{{ row.id }}/withdraw">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="is-btn is-btn--warn" type="submit">Take it out of the dossier</button>
+      </form>
+    {% endif %}
+    <form method="post" action="/admin/interviews/{{ row.id }}/cancel">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="is-btn is-btn--ghost" type="submit">Cancel the interview</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

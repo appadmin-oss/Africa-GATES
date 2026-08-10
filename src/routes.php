@@ -212,6 +212,21 @@ return function(App $app) {
                 ['Packed, capped topic cards',  'templates/pages/help.twig', 'hc-cats'],
                 ['Both nomination doors agree', 'src/Services/NominationAftercare.php', 'function run'],
             ],
+            'A chargeback can be answered before the 16 hours run out' => [
+                ['The evidence flow, end to end', 'src/Services/DisputeService.php', 'function contest'],
+                ['The receipt it uploads',        'src/Services/DisputeEvidence.php', 'function jpeg'],
+                ['The screen with the clock',     'templates/admin/payments-disputes.twig', 'dp-clock'],
+                ['Somebody is told, twice',       'src/Services/DisputeAlert.php', 'RESPOND_WITHIN_HOURS'],
+            ],
+            'Judging interviews on Google Meet' => [
+                ['The sitting, from invite to transcript', 'src/Services/InterviewService.php', 'function publish'],
+                ['Questions built from the dossier',       'src/Services/InterviewBrief.php', 'function fromRules'],
+                ['The transcript read by criterion',       'src/Services/InterviewReview.php', 'function figureCheck'],
+                ['The nominee\'s own consent page',        'templates/pages/interview.twig', 'ivp__consent'],
+                ['The live panel console',                 'templates/admin/interviews/run.twig', 'rn-cov'],
+                ['The Meet + transcript door',             'src/Services/GoogleMeetService.php', 'function createSpace'],
+                ['Apps Script: calendar + transcript',     'config/AfricaGATES_AppScript.gs', 'function meetCreate'],
+            ],
         ];
 
         $checks = [];
@@ -254,6 +269,8 @@ return function(App $app) {
                 ['gates_orders',     'gateway_txn_id',    'the same, for shop orders'],
                 ['gates_nominee_claims', 'dispute_token',  'the “stop this claim” link'],
                 ['gates_nominee_claims', 'cooling_off_until', 'the 7-day cooling-off period'],
+                ['gates_interviews',     'invite_token',      'the nominee\'s own interview page'],
+                ['gates_interviews',     'consent_at',        'permission to show the panel a transcript'],
             ] as [$table, $col, $what]) {
                 try {
                     if (!$cap::schema()->hasTable($table)) {
@@ -1899,6 +1916,19 @@ return function(App $app) {
         $g->post('/claim/{id:[0-9]+}/code',    ClaimController::class.':send');
         $g->post('/claim/{id:[0-9]+}/confirm', ClaimController::class.':confirm');
 
+        // ── THE NOMINEE'S OWN INTERVIEW PAGE ─────────────────────────────────
+        //
+        // Guest-accessible with a 32-hex token as the whole credential, because a nominee
+        // has no account and demanding they make one to attend their own interview would
+        // gate the appointment on the thing the appointment leads to.
+        //
+        // GET renders and writes nothing; confirming, consenting and declining are all
+        // POST — same reasoning as the freeze link two blocks up. A mail scanner that
+        // fetches every URL in a message must not be able to record a person's permission
+        // to be recorded.
+        $g->get('/interview/{token:[a-f0-9]{32}}',  \AfricaGates\Controllers\InterviewController::class.':page');
+        $g->post('/interview/{token:[a-f0-9]{32}}', \AfricaGates\Controllers\InterviewController::class.':submit');
+
         // The Help Centre. One URL per answer, so support can paste one into a
         // reply, the assistant can cite one, a receipt email can point at the
         // exact paragraph and a search engine can index it — none of which a
@@ -2293,6 +2323,35 @@ return function(App $app) {
         $a->get('/partners',                     AdminPartnersController::class.':index');
         $a->post('/partners/{id:[0-9]+}/{status}', AdminPartnersController::class.':setStatus');
         $a->get('/partners/export.csv',          AdminPartnersController::class.':exportCsv');
+
+        // ── JUDGING INTERVIEWS ────────────────────────────────────────
+        //
+        // Not superadmin-gated like /judges below: appointing a judge is a governance act,
+        // while running an interview is programme work a moderator does. The controller
+        // gates on superadmin/admin/moderator.
+        //
+        // `/run` is a GET that marks the sitting live — the one write behind a GET here,
+        // and it is idempotent. Everything that changes a decision is a POST.
+        $a->group('/interviews', function (RouteCollectorProxy $s) {
+            $s->get('',                          \AfricaGates\Admin\Controllers\InterviewsController::class.':index');
+            $s->post('/new',                     \AfricaGates\Admin\Controllers\InterviewsController::class.':create');
+            // BEFORE /{id}: "new" is not a number so they cannot collide, but the
+            // ordering convention in this file is worth keeping.
+            $s->get('/{id:[0-9]+}/run',          \AfricaGates\Admin\Controllers\InterviewsController::class.':run');
+            $s->get('/{id:[0-9]+}',              \AfricaGates\Admin\Controllers\InterviewsController::class.':show');
+            $s->post('/{id:[0-9]+}/schedule',    \AfricaGates\Admin\Controllers\InterviewsController::class.':reschedule');
+            $s->post('/{id:[0-9]+}/meet',        \AfricaGates\Admin\Controllers\InterviewsController::class.':meet');
+            $s->post('/{id:[0-9]+}/invite',      \AfricaGates\Admin\Controllers\InterviewsController::class.':invite');
+            $s->post('/{id:[0-9]+}/rebuild',     \AfricaGates\Admin\Controllers\InterviewsController::class.':rebuild');
+            // The console's save button. Answers JSON, because it fires while a person is
+            // mid-sentence and a full page reload would lose the room.
+            $s->post('/{id:[0-9]+}/answer',      \AfricaGates\Admin\Controllers\InterviewsController::class.':answer');
+            $s->post('/{id:[0-9]+}/close',       \AfricaGates\Admin\Controllers\InterviewsController::class.':close');
+            $s->post('/{id:[0-9]+}/cancel',      \AfricaGates\Admin\Controllers\InterviewsController::class.':cancel');
+            $s->post('/{id:[0-9]+}/transcript',  \AfricaGates\Admin\Controllers\InterviewsController::class.':transcript');
+            $s->post('/{id:[0-9]+}/review',      \AfricaGates\Admin\Controllers\InterviewsController::class.':review');
+            $s->post('/{id:[0-9]+}/withdraw',    \AfricaGates\Admin\Controllers\InterviewsController::class.':withdraw');
+        });
 
         // ── superadmin-only areas (RBAC, Task B6) ─────────────────────
         $a->group('/judges', function (RouteCollectorProxy $s) {

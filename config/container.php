@@ -373,6 +373,19 @@ return [
         $c->get(Twig::class),
         $c->get(\AfricaGates\Admin\Services\AuditService::class)
     ),
+    // Judging interviews. Takes the mailer and the SMS gateway because an invitation that
+    // reaches nobody is the whole failure mode of an appointment — and the audit service,
+    // because publishing a nominee's recorded words to the panel is a decision with a
+    // person's name on it.
+    \AfricaGates\Admin\Controllers\InterviewsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\InterviewsController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Admin\Services\AuditService::class),
+        $c->get(OtpService::class),
+        \AfricaGates\Services\SmsService::boot()
+    ),
+    \AfricaGates\Controllers\InterviewController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\InterviewController(
+        $c->get(Twig::class)
+    ),
     \AfricaGates\Admin\Controllers\SupportController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\SupportController(
         $c->get(Twig::class),
         new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
