@@ -207,6 +207,77 @@
   </form>
 </div>
 
+{# ── live capture from inside the call ──────────────────────────────────── #}
+<div class="is-sec">
+  <h2>Capture the call as it happens (the browser extension)</h2>
+  <p>Google's own transcription needs a paid Workspace plan. Its <strong>live captions</strong> do
+     not — they are free on every account. The Africa GATES extension reads them from the call
+     as they appear, so the transcript writes itself, and it shows the question pack beside the
+     video with the criterion each question is testing. It also asks for a follow-up question
+     based on what the nominee just said.</p>
+  <p><strong>It cannot speak in the call.</strong> Putting a voice into a Meet call needs a
+     participant seat through Google's Meet Media API, which this kind of hosting cannot run.
+     The next question appears on your screen and you read it out.</p>
+
+  {% set L = iv.live %}
+  <div class="is-fig">
+    <div class="is-fig__r {{ L.live ? 'is-fig--confirmed' : (L.lines ? 'is-fig--differs' : 'is-fig--unmentioned') }}">
+      {% if L.live %}
+        <strong>Captions are arriving now</strong> — {{ L.lines }} lines captured.
+      {% elseif L.lines %}
+        <strong>{{ L.lines }} lines captured</strong>, last
+        {{ L.minutes is null ? 'unknown' : (L.minutes == 0 ? 'under a minute ago' : L.minutes ~ ' minutes ago') }}.
+        If the call is still running, check captions are still switched on in Meet.
+      {% else %}
+        <strong>Nothing captured yet.</strong> That is normal before a call. During one it means
+        either captions are off (press <em>CC</em> in Meet — Google needs a person to do that),
+        or the extension could not find them in the page.
+      {% endif %}
+    </div>
+  </div>
+
+  {% if not iv.consented %}
+    <div class="is-warn"><strong>Capture will not start.</strong> The nominee has not given
+      permission to be recorded, and the extension is told so rather than quietly collecting a
+      conversation nobody agreed to. Ask them on the call and have them press the button on
+      their own link — capture begins the moment they do.</div>
+  {% endif %}
+
+  <div class="is-f" style="margin-top:14px">
+    <label for="livekey">Live key for this interview — paste it into the extension</label>
+    {# data-ag-do, not onclick: an inline handler would need 'unsafe-inline' in script-src,
+       and CspTest fails the build for exactly this. Same convention the webhook secret and
+       the cron URL already use. #}
+    <input class="is-in" id="livekey" type="text" readonly value="{{ iv.live_key }}"
+           data-ag-do="select-all" style="font-family:var(--ag-font-mono,monospace)">
+  </div>
+  <p>One key per interview, and it opens nothing else: it can read this sitting's questions,
+     add caption lines to it, and close it. It cannot see the nominee's contact details, any
+     other interview, or anything else in this console.</p>
+
+  <div class="is-row">
+    <form method="post" action="/admin/interviews/{{ row.id }}/live/rotate">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="is-btn is-btn--ghost" type="submit">Replace this key</button>
+    </form>
+    {% if L.lines %}
+      <form method="post" action="/admin/interviews/{{ row.id }}/live/save">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="is-btn" type="submit">Save the captured captions as the transcript</button>
+      </form>
+    {% endif %}
+    <span style="font-size:12px; color:#67797b">Install: Chrome → Extensions → Developer mode →
+      Load unpacked → the <code>extension/</code> folder from the upload.</span>
+  </div>
+
+  {% if L.lines %}
+    <div class="is-f" style="margin-top:14px">
+      <label>What has been captured so far</label>
+      <div class="is-link" style="max-height:14rem; overflow:auto; white-space:pre-wrap">{{ iv.live_text }}</div>
+    </div>
+  {% endif %}
+</div>
+
 {# ── the transcript ─────────────────────────────────────────────────────── #}
 <form class="is-sec" method="post" action="/admin/interviews/{{ row.id }}/transcript">
   <input type="hidden" name="_token" value="{{ csrf_token }}">

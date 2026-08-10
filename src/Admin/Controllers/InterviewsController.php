@@ -433,6 +433,50 @@ final class InterviewsController
         return $this->back($res, '/admin/interviews/' . $id);
     }
 
+    /** Replace the extension's live key — pasted into the wrong browser, or shared. */
+    public function rotateLive(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+        $t  = \AfricaGates\Services\InterviewLive::rotate($id);
+        $_SESSION[$t !== '' ? 'flash' : 'flash_error'] = $t !== ''
+            ? 'A new live key has been issued. Paste it into the extension again — the old one no longer works.'
+            : 'The key could not be replaced just now.';
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'interview.live_rotate', 'interview', $id);
+        return $this->back($res, '/admin/interviews/' . $id);
+    }
+
+    /**
+     * Publish what the extension captured.
+     *
+     * Goes through InterviewService::publish() like every other route, so the consent gate,
+     * the machine labelling and the figure check all apply — there is no shortcut for having
+     * arrived through an extension.
+     */
+    public function saveLive(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id   = (int) ($args['id'] ?? 0);
+        $text = \AfricaGates\Services\InterviewLive::assemble($id);
+
+        if (trim($text) === '') {
+            $_SESSION['flash_error'] = 'Nothing has been captured for this interview yet.';
+            return $this->back($res, '/admin/interviews/' . $id);
+        }
+
+        $r = InterviewService::publish($id, $text, [
+            'source'      => 'machine',
+            'transcriber' => 'Google Meet live captions, captured by the Africa GATES extension',
+        ], (int) ($_SESSION['admin_id'] ?? 0) ?: null);
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        if ($r['ok'] ?? false) {
+            $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'interview.publish',
+                'interview', $id, ['transcript_id' => $r['transcript_id'] ?? 0, 'source' => 'captions']);
+        }
+        return $this->back($res, '/admin/interviews/' . $id);
+    }
+
     /** Take a published transcript back out of the judges' dossier. */
     public function withdraw(Request $req, Response $res, array $args): Response
     {

@@ -501,14 +501,76 @@ final class InterviewReview
                 $out[] = $n;
             }
         }
-        // Words, because people say numbers out loud and a transcriber writes them out.
-        $words = ['ten' => 10, 'twenty' => 20, 'thirty' => 30, 'forty' => 40, 'fifty' => 50,
-                  'sixty' => 60, 'seventy' => 70, 'eighty' => 80, 'ninety' => 90,
-                  'hundred' => 100, 'thousand' => 1000, 'million' => 1000000];
-        $low = mb_strtolower($text);
-        foreach ($words as $w => $n) {
-            if (str_contains($low, $w)) $out[] = $n;
+        // Spoken numbers, COMPOSED rather than matched word by word. See wordNumbers().
+        foreach (self::wordNumbers($text) as $n) $out[] = $n;
+
+        return array_values(array_unique($out));
+    }
+
+    /**
+     * Numbers written out in words, composed into their actual value.
+     *
+     * ── WHY THIS IS NOT A LOOKUP TABLE ───────────────────────────────────────
+     *
+     * It was. Each number word mapped to a value, and any word present in the transcript put
+     * its value in the pool. Run against a real captured interview, a nominee who said
+     * "about three hundred and twenty girls, across six schools" contributed 100 and 20 to
+     * the pool — and the figure check then reported the nomination's 320 as a DISCREPANCY,
+     * because 20 was the closest thing it could find.
+     *
+     * A false "this figure changed" against a nominee is the most damaging output this file
+     * can produce: it goes in front of the panel deciding their award, and it is precisely
+     * the row an operator would take seriously. So the words are parsed the way they are
+     * spoken — "three hundred and twenty" is one number, and it is 320.
+     *
+     * @return list<int>
+     */
+    public static function wordNumbers(string $text): array
+    {
+        $units = [
+            'zero' => 0, 'one' => 1, 'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5,
+            'six' => 6, 'seven' => 7, 'eight' => 8, 'nine' => 9, 'ten' => 10,
+            'eleven' => 11, 'twelve' => 12, 'thirteen' => 13, 'fourteen' => 14,
+            'fifteen' => 15, 'sixteen' => 16, 'seventeen' => 17, 'eighteen' => 18,
+            'nineteen' => 19, 'twenty' => 20, 'thirty' => 30, 'forty' => 40, 'fourty' => 40,
+            'fifty' => 50, 'sixty' => 60, 'seventy' => 70, 'eighty' => 80, 'ninety' => 90,
+        ];
+        $mult = ['hundred' => 100, 'thousand' => 1000, 'million' => 1000000];
+
+        $out     = [];
+        $total   = 0;      // accumulated thousands/millions
+        $current = 0;      // the group being built
+        $seen    = false;
+
+        $flush = static function () use (&$out, &$total, &$current, &$seen): void {
+            if ($seen) {
+                $n = $total + $current;
+                if ($n > 0) $out[] = $n;
+            }
+            $total = 0; $current = 0; $seen = false;
+        };
+
+        foreach (preg_split('/[^a-z]+/i', mb_strtolower($text)) ?: [] as $w) {
+            if ($w === '') continue;
+            if ($w === 'and' && $seen) continue;                 // "three hundred and twenty"
+            if (isset($units[$w])) { $current += $units[$w]; $seen = true; continue; }
+            if (isset($mult[$w])) {
+                $m = $mult[$w];
+                if ($m === 100) {
+                    $current = max($current, 1) * 100;
+                } else {
+                    $total += max($total + $current, 1) === 1 && $current === 0
+                        ? $m                                     // "a thousand"
+                        : max($current, 1) * $m;
+                    $current = 0;
+                }
+                $seen = true;
+                continue;
+            }
+            $flush();
         }
+        $flush();
+
         return array_values(array_unique($out));
     }
 

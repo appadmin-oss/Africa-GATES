@@ -227,6 +227,13 @@ return function(App $app) {
                 ['The Meet + transcript door',             'src/Services/GoogleMeetService.php', 'function createSpace'],
                 ['Apps Script: calendar + transcript',     'config/AfricaGATES_AppScript.gs', 'function meetCreate'],
             ],
+            'Capturing the call live (the browser extension)' => [
+                ['The token-gated live API',   'src/Services/InterviewLive.php', 'function append'],
+                ['Its three endpoints',        'src/Controllers/InterviewLiveController.php', 'function say'],
+                ['The panel inside the call',  'extension/content.js', 'agx__qt'],
+                ['Its network worker',         'extension/worker.js', 'interview/live/'],
+                ['The extension manifest',     'extension/manifest.json', 'meet.google.com'],
+            ],
         ];
 
         $checks = [];
@@ -271,6 +278,8 @@ return function(App $app) {
                 ['gates_nominee_claims', 'cooling_off_until', 'the 7-day cooling-off period'],
                 ['gates_interviews',     'invite_token',      'the nominee\'s own interview page'],
                 ['gates_interviews',     'consent_at',        'permission to show the panel a transcript'],
+                ['gates_interviews',     'live_token',        'the browser extension that captures the call'],
+                ['gates_interviews',     'live_json',         'the caption buffer it writes to'],
             ] as [$table, $col, $what]) {
                 try {
                     if (!$cap::schema()->hasTable($table)) {
@@ -2070,6 +2079,18 @@ return function(App $app) {
             $a->post('/guide',              GuideController::class.':chat');
             // Inbound Make.com agent bridge — bearer-authenticated, 404 until configured.
             $a->post('/agent/gee',          GuideController::class.':agent');
+            // ── LIVE INTERVIEW CAPTURE (the browser extension) ───────────────
+            //
+            // Not under /admin, because the caller is an extension service worker inside a
+            // Meet tab: no admin cookie is sent (SameSite=Lax, deliberately unchanged) and
+            // its Origin is chrome-extension://…, which can never be same-origin.
+            //
+            // Authenticated by a per-sitting live token checked in InterviewLive, and
+            // CSRF-exempt for the same reason /agent/gee is. Three verbs, one sitting, and
+            // no parameter that can name a different interview.
+            $a->post('/interview/live/hello',  \AfricaGates\Controllers\InterviewLiveController::class.':hello');
+            $a->post('/interview/live/say',    \AfricaGates\Controllers\InterviewLiveController::class.':say');
+            $a->post('/interview/live/finish', \AfricaGates\Controllers\InterviewLiveController::class.':finish');
         };
         $g->group('/api/v1', $apiRoutes)->add(new ApiVersionMiddleware('1'));
         $g->group('/api',    $apiRoutes)->add(new ApiVersionMiddleware('1', true));
@@ -2351,6 +2372,10 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/transcript',  \AfricaGates\Admin\Controllers\InterviewsController::class.':transcript');
             $s->post('/{id:[0-9]+}/review',      \AfricaGates\Admin\Controllers\InterviewsController::class.':review');
             $s->post('/{id:[0-9]+}/withdraw',    \AfricaGates\Admin\Controllers\InterviewsController::class.':withdraw');
+            // The browser extension's key, and publishing what it captured. The extension's
+            // own endpoints are under /api/interview/live/… — see the note there.
+            $s->post('/{id:[0-9]+}/live/rotate', \AfricaGates\Admin\Controllers\InterviewsController::class.':rotateLive');
+            $s->post('/{id:[0-9]+}/live/save',   \AfricaGates\Admin\Controllers\InterviewsController::class.':saveLive');
         });
 
         // ── superadmin-only areas (RBAC, Task B6) ─────────────────────

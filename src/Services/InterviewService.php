@@ -799,6 +799,12 @@ final class InterviewService
             'transcript' => self::transcriptOf($id),
             'consented'  => !empty($iv->consent_at),
             'hours_away' => self::hoursAway($iv),
+            // The live-capture half: the extension's key, and whether captions are actually
+            // arriving. `live` matters because "running" and "silently broken by a Google
+            // markup change" are indistinguishable from here without it.
+            'live'       => InterviewLive::status($id),
+            'live_key'   => InterviewLive::tokenFor($id),
+            'live_text'  => InterviewLive::assemble($id),
         ];
     }
 

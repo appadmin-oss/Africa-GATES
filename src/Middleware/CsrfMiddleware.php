@@ -29,7 +29,19 @@ class CsrfMiddleware {
     // SETUP_TOKEN in the query (checked in the route), so a CSRF token adds nothing.
     // /api/agent/gee is server-to-server (Make.com agent → Gee): no Origin
     // header, bearer-key authenticated in the controller — CSRF doesn't apply.
-    private const OTP_EXEMPT = ['/api/vote', '/api/otp/request', '/api/v1/vote', '/api/v1/otp/request', '/api/agent/gee', '/api/v1/agent/gee', '/pay/webhook', '/__setup/admin'];
+    // The live-interview endpoints are exempt for the same reason /api/agent/gee is: the
+    // caller is a browser EXTENSION's service worker, so its Origin is
+    // chrome-extension://… and can never be same-origin, it carries no cookie and no
+    // session, and it is authenticated by a per-sitting live token checked in
+    // InterviewLive. A synchronizer token protects a session; there is no session here to
+    // protect, and an attacker holding the live token has no need of CSRF.
+    //
+    // The admin session cookie is deliberately left SameSite=Lax rather than being
+    // loosened to make these work — that would weaken every form in the console to buy
+    // one feature.
+    private const OTP_EXEMPT = ['/api/vote', '/api/otp/request', '/api/v1/vote', '/api/v1/otp/request', '/api/agent/gee', '/api/v1/agent/gee', '/pay/webhook', '/__setup/admin',
+        '/api/interview/live/hello', '/api/interview/live/say', '/api/interview/live/finish',
+        '/api/v1/interview/live/hello', '/api/v1/interview/live/say', '/api/v1/interview/live/finish'];
 
     public function __invoke(Request $req, Handler $handler): Response {
         if (!in_array($req->getMethod(), self::MUTATING, true)) {

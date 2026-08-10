@@ -399,6 +399,35 @@ final class AiCapability
                     . 'their own work rather than from a standard list. A person asks the questions and a '
                     . 'person decides the score.',
             ]),
+            // ONE short question, while a person is waiting to ask it. FAST tier because a
+            // follow-up that arrives after the interviewer has moved on is worse than none —
+            // and one attempt only, for the same reason moderation on the nomination submit
+            // is capped: chaining providers here would spend twenty seconds of a live
+            // conversation on a suggestion nobody can still use.
+            'interview.followup' => $c('interview.followup', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_FAST,
+                'model'           => self::PRIMARY[self::TIER_FAST],
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 90,
+                // Roughly one per 40s per question, so a busy day of interviews cannot
+                // exhaust it — but bounded, because this is the only capability on the
+                // platform driven by a loop in somebody else's browser.
+                'calls_per_day'   => 1200,
+                'tokens_per_day'  => 200_000,
+                'timeout'         => 6,
+                'max_attempts'    => 1,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'During a judging interview, the last few sentences of what the '
+                    . 'nominee has just said — taken from Google Meet\'s live captions — and the '
+                    . 'question the panel had asked. Only while the nominee has given permission to '
+                    . 'be recorded, and contact details are replaced with placeholders first.',
+                'data_purpose'    => 'To suggest the next question for the panel to ask, so a nominee '
+                    . 'is followed up on what they actually said. A person decides whether to ask it, '
+                    . 'and it produces no score.',
+            ]),
             'interview.review' => $c('interview.review', [
                 'purpose'         => 'assist',
                 'tier'            => self::TIER_REASON,
