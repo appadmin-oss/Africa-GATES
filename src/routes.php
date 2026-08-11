@@ -244,6 +244,13 @@ return function(App $app) {
                 ['Its network worker',         'extension/worker.js', 'interview/live/'],
                 ['The extension manifest',     'extension/manifest.json', 'meet.google.com'],
             ],
+            'A dashboard that opens on the work, not on the totals' => [
+                ['What needs a person today',   'src/Admin/Services/AttentionBoard.php', 'function probes'],
+                ['A zero is never a card',      'src/Admin/Services/AttentionBoard.php', 'function items'],
+                ['No door a role cannot open',  'src/Admin/Services/AttentionBoard.php', 'function forRole'],
+                ['The board on the page',       'templates/admin/dashboard.twig', 'db-board'],
+                ['A questionnaire to rehearse', 'src/Services/QuestionnaireService.php', 'function openTest'],
+            ],
         ];
 
         $checks = [];

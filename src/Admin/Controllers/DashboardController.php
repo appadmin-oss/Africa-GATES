@@ -45,19 +45,16 @@ class DashboardController
             );
         }
 
-        $stats = [
-            'total_profiles'      => (int)DB::table('gates_profiles')->where('status','approved')->count(),
-            'pending_profiles'    => (int)DB::table('gates_profiles')->where('status','pending')->count(),
-            'total_votes'         => (int)DB::table('gates_votes')->count(),
-            'votes_24h'           => (int)DB::table('gates_votes')->where('voted_at','>=', date('Y-m-d H:i:s', strtotime('-1 day')))->count(),
-            'pending_nominations' => (int)DB::table('gates_nominations')->where('status','pending')->count(),
-            'approved_nominations'=> (int)DB::table('gates_nominations')->where('status','approved')->count(),
-            'legacy_events'       => (int)DB::table('gates_legacy_events')->where('is_published',1)->count(),
-            'opportunities'       => (int)DB::table('gates_opportunities')->where('status','active')->count(),
-            'partner_enquiries'   => (int)DB::table('gates_partner_enquiries')->whereIn('status',['new','in_review'])->count(),
-            'judges'              => (int)DB::table('gates_judges')->where('is_active',1)->count(),
-            'admins'              => (int)DB::table('gates_admins')->where('is_active',1)->count(),
-        ];
+        // ── WHAT NEEDS A PERSON, BEFORE ANYTHING THAT MERELY MEASURES ────────
+        //
+        // The dashboard used to open on eight counts and three charts. Every number was true
+        // and not one of them was a job — while a chargeback on a sixteen-hour clock, an
+        // interview held weeks ago whose transcript nobody published, and sixty nominees never
+        // told their questionnaire exists appeared nowhere on the first screen after login.
+        //
+        // Filtered by ROLE through the same resolver the section guard uses, so a card can
+        // never offer a screen that then bounces the person who clicked it.
+        $board = \AfricaGates\Admin\Services\AttentionBoard::forRole((string) ($_SESSION['admin_role'] ?? ''));
 
         // Region distribution
         $regionDist = DB::table('gates_profiles')->where('status','approved')
@@ -97,7 +94,11 @@ class DashboardController
         return $this->view->render($res, 'admin/dashboard.twig', [
             'page_title'  => 'Dashboard — Africa GATES Admin',
             'admin_page'  => 'dashboard',
-            'stats'       => $stats,
+            'board'       => $board,
+            'board_total' => \AfricaGates\Admin\Services\AttentionBoard::total($board),
+            // The counts that are worth knowing but are not jobs, rendered small and BELOW the
+            // work rather than across the top of it.
+            'pulse'       => \AfricaGates\Admin\Services\AttentionBoard::pulse(),
             'region_dist' => $regionDist,
             'tier_dist'   => $tierDist,
             'vote_series' => $voteSeries,
