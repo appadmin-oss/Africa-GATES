@@ -324,6 +324,109 @@ final class QuestionnaireService
                 'message' => 'Questionnaire #' . $id . ' opened for ' . $n->name . '.'];
     }
 
+    /**
+     * A questionnaire an administrator answers themselves, to see what a nominee sees.
+     *
+     * ── WHY THIS EXISTS ──────────────────────────────────────────────────────
+     *
+     * Before it, the only way to find out what this thing actually feels like was to open one
+     * against a real nominee: a live token, a row in the summary, a person the queue now shows
+     * as asked, and on submit a set of evidence rows written into that person's judging
+     * dossier. The only way to rehearse was to contaminate the record you were rehearsing for
+     * — so nobody rehearsed, and the first person to meet a confusing question was a nominee.
+     *
+     * A test behaves like the real thing in every way that is worth testing. It renders the
+     * same page, runs the same conversation, reads the same questions for the chosen
+     * programme, takes files, and can be submitted. Three things it cannot do:
+     *
+     *   • reach a judge — {@see publishEvidence()} refuses, so submitting writes nothing;
+     *   • be invited — there is no nominee, and {@see invite()} says so rather than mailing
+     *     somebody's address from the last thing an admin was looking at;
+     *   • be counted — {@see summary()} keeps it out of every real figure.
+     *
+     * @return array{ok:bool, id?:int, token?:string, message:string}
+     */
+    public static function openTest(?int $programmeId = null, ?int $adminId = null,
+                                    string $label = ''): array
+    {
+        $label = trim($label);
+        if ($label === '') $label = 'Test nominee';
+
+        $programme = null;
+        if ($programmeId !== null && $programmeId > 0) {
+            $exists = DB::table('gates_award_programmes')->where('id', $programmeId)->exists();
+            if (!$exists) return ['ok' => false, 'message' => 'That award programme could not be found.'];
+            $programme = $programmeId;
+        }
+
+        $now = Carbon::now()->toDateTimeString();
+        try {
+            $id = (int) DB::table('gates_nominee_submissions')->insertGetId([
+                // Zero, never a real id: the column is NOT NULL and auto-increment starts at
+                // one, so every reader that joins on it finds nothing. A test cannot attach
+                // itself to a person.
+                'nominee_id'   => 0,
+                'programme_id' => $programme,
+                // NULL so the UNIQUE (nominee_id, cycle_id) that protects real submissions does
+                // not have to be weakened to allow several tests: NULLs compare as distinct in
+                // a unique index on both drivers.
+                'cycle_id'     => null,
+                'invite_token' => bin2hex(random_bytes(16)),
+                'status'       => 'draft',
+                'is_test'      => 1,
+                'test_label'   => mb_substr($label, 0, 120),
+                'created_by'   => $adminId,
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[questionnaire] could not open a test: ' . $e->getMessage());
+            return ['ok' => false, 'message' => 'The test questionnaire could not be created just now. '
+                                              . 'If this deployment has not run the latest migration, '
+                                              . 'open /__setup/migrate first.'];
+        }
+
+        return ['ok' => true, 'id' => $id, 'token' => (string) self::tokenFor($id),
+                'message' => 'Test questionnaire #' . $id . ' created. Open the link and answer it as '
+                           . 'a nominee would — nothing you write in it reaches a judge.'];
+    }
+
+    /** True for a rehearsal. The one question every guard in here asks. */
+    public static function isTest(?object $s): bool
+    {
+        return $s !== null && (int) ($s->is_test ?? 0) === 1;
+    }
+
+    /**
+     * Delete a test outright, rows and all.
+     *
+     * Deletable in a way a real submission is not, and that asymmetry is the point: a real
+     * submission is somebody's account of their own work and is re-opened rather than
+     * destroyed, whereas a rehearsal left lying around is clutter on a screen whose whole job
+     * is to show what needs a person's attention.
+     *
+     * Refuses anything that is not a test, so a mistyped id cannot delete a nominee's answers.
+     *
+     * @return array{ok:bool, message:string}
+     */
+    public static function deleteTest(int $id): array
+    {
+        $s = self::byId($id);
+        if (!$s) return ['ok' => false, 'message' => 'That questionnaire could not be found.'];
+        if (!self::isTest($s)) {
+            return ['ok' => false, 'message' => 'That is a real nominee\'s questionnaire, not a test. '
+                                              . 'Re-open it if it needs changing; it is not deleted.'];
+        }
+
+        try {
+            DB::table('gates_nominee_submissions')->where('id', $id)->where('is_test', 1)->delete();
+        } catch (\Throwable $e) {
+            error_log('[questionnaire] could not delete test ' . $id . ': ' . $e->getMessage());
+            return ['ok' => false, 'message' => 'That test could not be deleted just now.'];
+        }
+        return ['ok' => true, 'message' => 'Test questionnaire #' . $id . ' deleted.'];
+    }
+
     public static function byId(int $id): ?object
     {
         try { return DB::table('gates_nominee_submissions')->where('id', $id)->first() ?: null; }
@@ -381,7 +484,13 @@ final class QuestionnaireService
         return [
             'id'         => (int) $s->id,
             'token'      => (string) $s->invite_token,
-            'nominee'    => (string) ($n->name ?? 'Nominee'),
+            'nominee'    => self::isTest($s)
+                ? (trim((string) ($s->test_label ?? '')) ?: 'Test nominee')
+                : (string) ($n->name ?? 'Nominee'),
+            // Rendered as a banner on the nominee's page, so that if a test link is ever pasted
+            // into a message by mistake the person who opens it is told what it is instead of
+            // being asked to describe work nobody will read.
+            'is_test'    => self::isTest($s),
             'category'   => (string) ($n->category ?? ''),
             'programme'  => $programme,
             'status'     => (string) $s->status,
@@ -499,6 +608,15 @@ final class QuestionnaireService
 
         $written = self::publishEvidence((int) $s->id);
 
+        // A test is submittable on purpose — the send step, the typed name and the "what
+        // happens next" screen are among the things most worth rehearsing — but it says what
+        // it did rather than claiming to have reached a panel that never saw it.
+        if (self::isTest($s)) {
+            return ['ok' => true, 'evidence' => 0,
+                    'message' => 'Submitted. This is a test questionnaire, so nothing was sent to a '
+                               . 'judging panel and no evidence was written.'];
+        }
+
         return ['ok' => true, 'evidence' => $written,
                 'message' => 'Thank you — this has gone to the judging panel.'];
     }
@@ -541,6 +659,12 @@ final class QuestionnaireService
     {
         $s = self::byId($id);
         if (!$s || $s->status !== 'submitted') return 0;
+
+        // A rehearsal never reaches a judge. This is the guard the whole test-questionnaire
+        // feature rests on, and it is HERE rather than in the controller for the reason every
+        // consent gate on this platform lives in the writer: a screen can be bypassed, and the
+        // next caller added six months from now will not remember to check.
+        if (self::isTest($s)) return 0;
 
         $nomineeId = (int) $s->nominee_id;
         $answers   = json_decode((string) ($s->answers_json ?? '{}'), true);
@@ -809,6 +933,14 @@ final class QuestionnaireService
     {
         $s = self::byId($id);
         if (!$s) return ['ok' => false, 'message' => 'That questionnaire could not be found.'];
+        if (self::isTest($s)) {
+            // There is no nominee behind a test, so there is no address to send to — and a
+            // "send" that quietly picked one up from somewhere would be the worst possible
+            // outcome of pressing a button on a rehearsal.
+            return ['ok' => false, 'message' => 'That is a test questionnaire, so there is nobody to '
+                                              . 'send it to. Open its link yourself and answer it as a '
+                                              . 'nominee would.'];
+        }
 
         $nominee = (string) (DB::table('gates_nominees')->where('id', (int) $s->nominee_id)->value('name') ?? '');
         $link    = self::url($id);
@@ -891,10 +1023,16 @@ final class QuestionnaireService
         foreach ($rows as $r) {
             $answers = json_decode((string) ($r->answers_json ?? '{}'), true);
             $works   = json_decode((string) ($r->works_json ?? '[]'), true);
+            $isTest = (int) ($r->is_test ?? 0) === 1;
             $out[] = [
                 'id'         => (int) $r->id,
                 'nominee_id' => (int) $r->nominee_id,
-                'nominee'    => (string) ($r->nominee ?? 'Unknown'),
+                // A test has no nominee to join to, so the row would read "Unknown" — which
+                // looks like a broken record rather than a rehearsal somebody made on purpose.
+                'nominee'    => $isTest
+                    ? (trim((string) ($r->test_label ?? '')) ?: 'Test nominee')
+                    : (string) ($r->nominee ?? 'Unknown'),
+                'is_test'    => $isTest,
                 'programme'  => (string) ($r->programme ?? ''),
                 'status'     => (string) $r->status,
                 'invited'    => !empty($r->invited_at),
@@ -910,14 +1048,29 @@ final class QuestionnaireService
         return $out;
     }
 
-    /** @return array<string,int> */
+    /**
+     * The counts on the queue screen.
+     *
+     * Tests are counted SEPARATELY and in nothing else. "Nine submitted" that silently
+     * includes an administrator's own rehearsal is the kind of number somebody plans a
+     * judging round around, and it would be wrong by one in the direction that matters.
+     *
+     * @return array<string,int>
+     */
     public static function summary(): array
     {
         $s = ['total' => 0, 'invited' => 0, 'started' => 0, 'submitted' => 0,
-              'not_invited' => 0, 'silent' => 0];
+              'not_invited' => 0, 'silent' => 0, 'tests' => 0];
+        // The column is read through OptionalColumn because a deployment that has uploaded this
+        // code but not yet run /__setup/migrate would otherwise get an SQL error on the queue
+        // screen — on this host the two are separate acts minutes apart, so "the new column is
+        // not there yet" is an ordinary state and not a fault.
+        $hasFlag = \AfricaGates\Support\OptionalColumn::on('gates_nominee_submissions', 'is_test');
         try {
             foreach (DB::table('gates_nominee_submissions')
-                        ->select('status', 'invited_at', 'started_at')->get() as $r) {
+                        ->select(array_merge(['status', 'invited_at', 'started_at'],
+                                             $hasFlag ? ['is_test'] : []))->get() as $r) {
+                if ((int) ($r->is_test ?? 0) === 1) { $s['tests']++; continue; }
                 $s['total']++;
                 if ((string) $r->status === 'submitted') { $s['submitted']++; continue; }
                 if (empty($r->invited_at)) { $s['not_invited']++; continue; }

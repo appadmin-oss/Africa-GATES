@@ -2422,6 +2422,11 @@ return function(App $app) {
         $a->group('/questionnaires', function (RouteCollectorProxy $s) {
             $s->get('',                            \AfricaGates\Admin\Controllers\QuestionnairesController::class.':index');
             $s->post('/open',                      \AfricaGates\Admin\Controllers\QuestionnairesController::class.':open');
+            // A questionnaire to rehearse on. Before this, seeing what a nominee sees meant
+            // opening one against a real person — a live token, a row in the counts, and on
+            // submit evidence rows in that person's dossier — so nobody rehearsed and the
+            // first person to meet a confusing question was always a nominee.
+            $s->post('/test',                      \AfricaGates\Admin\Controllers\QuestionnairesController::class.':openTest');
             $s->post('/invite-all',                \AfricaGates\Admin\Controllers\QuestionnairesController::class.':inviteAll');
             // BEFORE /{id}: "programme" is not a number, so they cannot collide — but the
             // ordering convention in this file is worth keeping.
@@ -2432,6 +2437,9 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/invite',        \AfricaGates\Admin\Controllers\QuestionnairesController::class.':invite');
             $s->post('/{id:[0-9]+}/reopen',        \AfricaGates\Admin\Controllers\QuestionnairesController::class.':reopen');
             $s->post('/{id:[0-9]+}/republish',     \AfricaGates\Admin\Controllers\QuestionnairesController::class.':republish');
+            // Only a test can be deleted; the service refuses anything else, so a mistyped id
+            // cannot take a nominee's own account of their work with it.
+            $s->post('/{id:[0-9]+}/delete-test',   \AfricaGates\Admin\Controllers\QuestionnairesController::class.':deleteTest');
         });
 
         // ── superadmin-only areas (RBAC, Task B6) ─────────────────────

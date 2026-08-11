@@ -187,6 +187,18 @@
   </div>
 
 {% else %}
+  {% if form.is_test|default(false) %}
+    {# On the nominee's own page, not only the admin one. If a test link is ever pasted into a
+       message by mistake, the person who opens it must be told what it is rather than spending
+       an evening describing work that nobody is going to read. #}
+    <div class="mw__tip">
+      <strong>This is a test page, not a real questionnaire.</strong> Somebody on the awards team
+      created it to check how these questions read. Nothing written here goes to a judging panel,
+      and it is not attached to any nomination. If you were expecting your own questionnaire,
+      write to <a href="mailto:{{ support_email }}">{{ support_email }}</a> and a person will send
+      you the right link.
+    </div>
+  {% endif %}
   <span class="mw__kick">📝 For the judging panel</span>
   <h1>{{ form.nominee }} — tell the judges about your work</h1>
   <p class="mw__lede">

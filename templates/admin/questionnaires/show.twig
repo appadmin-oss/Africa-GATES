@@ -60,9 +60,26 @@
    the difference matters: the earlier version is still in front of the judges. Showing
    "draft" beside "sent" with no explanation is a screen contradicting itself. #}
 {% set reopened = row.status == 'draft' and row.submitted_at %}
+{% set is_test = row.is_test|default(0) == 1 %}
+
+{% if is_test %}
+  {# Said at the top, before anything else on the screen, because every figure and every button
+     below means something different on a rehearsal — and somebody who scrolled straight to
+     "sent" would otherwise draw exactly the wrong conclusion. #}
+  <div class="qs-warn" style="margin:0 0 16px">
+    <strong>This is a test questionnaire.</strong> Answer it exactly as a nominee would — the
+    questions, the conversation, the uploads and the send button all behave the same. Nothing in
+    it reaches a judging panel, no evidence is written whatever you submit, it is counted in none
+    of the figures on the queue screen, and there is nobody to invite. Delete it when you have
+    finished with it.
+  </div>
+{% endif %}
+
 <div class="qs-row" style="margin:0 0 16px">
+  {% if is_test %}<span class="qs-tag" style="background:#10292c;color:#fff">test</span>{% endif %}
   <span class="qs-tag">{{ reopened ? 're-opened for changes' : row.status }}</span>
-  {% if row.invited_at %}<span class="qs-tag qs-tag--ok">invited</span>
+  {% if is_test %}{# "not invited" would read as an outstanding job. #}
+  {% elseif row.invited_at %}<span class="qs-tag qs-tag--ok">invited</span>
   {% else %}<span class="qs-tag qs-tag--no">not invited</span>{% endif %}
   {% if row.submitted_at %}
     <span class="qs-tag qs-tag--ok">{{ reopened ? 'last sent' : 'sent' }} {{ row.submitted_at }}</span>
@@ -72,23 +89,41 @@
 
 {# ── the link and the invitation ─────────────────────────────────────────── #}
 <div class="qs-sec">
-  <h2>Their link</h2>
-  <p>The invitation goes to the contact on their approved nomination — never one typed here, the
-     rule the claim path and the interview invitation both follow. Send this yourself if no
-     contact is on file.</p>
-  <div class="qs-link">{{ link }}</div>
-  <p>{{ row.invited_at ? 'Invited ' ~ row.invited_at : 'Nobody has been told yet.' }}
-     {{ row.started_at ? '· they opened it ' ~ row.started_at : '' }}</p>
-  <form method="post" action="/admin/questionnaires/{{ row.id }}/invite" class="qs-row">
-    <input type="hidden" name="_token" value="{{ csrf_token }}">
-    <button class="qs-btn" type="submit">{{ row.invited_at ? 'Send it again' : 'Send the invitation' }}</button>
-  </form>
+  {% if is_test %}
+    <h2>The link to try</h2>
+    <p>Open this in another tab — ideally on a phone, which is where most nominees will read it.
+       It is the same page a nominee gets, with the same conversation and the same questions for
+       this programme.</p>
+    <div class="qs-link">{{ link }}</div>
+    <div class="qs-row">
+      <a class="qs-btn" href="{{ link }}" target="_blank" rel="noopener noreferrer">Open the nominee's page</a>
+      <form method="post" action="/admin/questionnaires/{{ row.id }}/delete-test">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="qs-btn qs-btn--ghost" type="submit">Delete this test</button>
+      </form>
+    </div>
+  {% else %}
+    <h2>Their link</h2>
+    <p>The invitation goes to the contact on their approved nomination — never one typed here, the
+       rule the claim path and the interview invitation both follow. Send this yourself if no
+       contact is on file.</p>
+    <div class="qs-link">{{ link }}</div>
+    <p>{{ row.invited_at ? 'Invited ' ~ row.invited_at : 'Nobody has been told yet.' }}
+       {{ row.started_at ? '· they opened it ' ~ row.started_at : '' }}</p>
+    <form method="post" action="/admin/questionnaires/{{ row.id }}/invite" class="qs-row">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="qs-btn" type="submit">{{ row.invited_at ? 'Send it again' : 'Send the invitation' }}</button>
+    </form>
+  {% endif %}
 </div>
 
 {# ── what they wrote ─────────────────────────────────────────────────────── #}
 <div class="qs-sec">
   <h2>What they wrote</h2>
-  {% if reopened %}
+  {% if is_test %}
+    <div class="qs-warn">Whatever appears here is a rehearsal. It is stored so you can come back
+      to it, and it is written to no dossier at any point.</div>
+  {% elseif reopened %}
     <div class="qs-warn">This is <strong>re-opened for changes</strong>, and the version the
       nominee sent on {{ row.submitted_at }} is <strong>still in front of the judges</strong> —
       {{ row.evidence_count }} item(s). That is deliberate: withdrawing their work while they
@@ -133,6 +168,14 @@
 </div>
 
 {# ── what the judges actually see ────────────────────────────────────────── #}
+{% if is_test %}
+  <div class="qs-sec">
+    <h2>What the judges can see</h2>
+    <p><strong>Nothing, and nothing ever will.</strong> The refusal is in the writer rather than
+       on this screen: a test submission is turned away by the function that builds dossier rows,
+       so no route, no button and no future caller can put one in front of a panel.</p>
+  </div>
+{% else %}
 <div class="qs-sec">
   <h2>What the judges can see</h2>
   <p>These are the rows written into the dossier. Every one is labelled as the nominee's own
@@ -157,9 +200,10 @@
     {% endif %}
   </div>
 </div>
+{% endif %}
 
 {# ── letting them change it ──────────────────────────────────────────────── #}
-{% if row.status == 'submitted' or reopened %}
+{% if not is_test and (row.status == 'submitted' or reopened) %}
   <div class="qs-sec">
     <h2>Let them change it</h2>
     <p>Nothing here can edit a nominee's answers, deliberately: these rows are presented to the

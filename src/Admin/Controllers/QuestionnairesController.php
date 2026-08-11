@@ -146,6 +146,55 @@ final class QuestionnairesController
         return $this->back($res, '/admin/questionnaires');
     }
 
+    /**
+     * A questionnaire to rehearse on.
+     *
+     * The whole reason it exists: before it, seeing what a nominee sees meant opening one
+     * against a real person — a live token, a row in the counts, and on submit a set of
+     * evidence rows in that person's judging dossier. Nobody rehearses under those terms, so
+     * the first person to meet a confusing question was always a nominee.
+     */
+    public function openTest(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $body    = (array) $req->getParsedBody();
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0) ?: null;
+
+        $r = QuestionnaireService::openTest(
+            (int) ($body['programme_id'] ?? 0) ?: null,
+            $adminId,
+            (string) ($body['label'] ?? '')
+        );
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        if ($r['ok'] ?? false) {
+            $this->audit?->record($adminId, 'questionnaire.open_test', 'submission',
+                (int) ($r['id'] ?? 0), ['programme' => (int) ($body['programme_id'] ?? 0)]);
+            return $this->back($res, '/admin/questionnaires/' . (int) ($r['id'] ?? 0));
+        }
+        return $this->back($res, '/admin/questionnaires');
+    }
+
+    /**
+     * Delete a test, rows and all.
+     *
+     * Deletable in a way a real submission is not, and the asymmetry is deliberate: a real
+     * submission is somebody's account of their own work and gets re-opened rather than
+     * destroyed. The service refuses anything that is not flagged as a test, so a mistyped id
+     * cannot take a nominee's answers with it.
+     */
+    public function deleteTest(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+        $r  = QuestionnaireService::deleteTest($id);
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.delete_test',
+            'submission', $id, ['ok' => (bool) ($r['ok'] ?? false)]);
+        return $this->back($res, ($r['ok'] ?? false) ? '/admin/questionnaires'
+                                                    : '/admin/questionnaires/' . $id);
+    }
+
     public function invite(Request $req, Response $res, array $args): Response
     {
         if ($b = $this->blocked($res)) return $b;

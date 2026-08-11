@@ -106,8 +106,14 @@ final class QuestionnaireChat
 
         if (self::turns($s) !== []) return self::state($token);
 
-        $nominee = (string) (DB::table('gates_nominees')
-            ->where('id', (int) $s->nominee_id)->value('name') ?? '');
+        // A test questionnaire has no nominee to look up, so it is greeted by its made-up
+        // label. The greeting is one of the things most worth rehearsing — it is the first
+        // sentence a nominee ever reads from this platform — and "Hello there" would have
+        // rehearsed a version nobody receives.
+        $nominee = QuestionnaireService::isTest($s)
+            ? trim((string) ($s->test_label ?? ''))
+            : (string) (DB::table('gates_nominees')
+                ->where('id', (int) $s->nominee_id)->value('name') ?? '');
         $first = (explode(' ', trim($nominee))[0] ?? '') ?: 'there';
 
         $answers = self::answers($s);
