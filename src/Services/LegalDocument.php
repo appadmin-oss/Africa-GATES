@@ -55,6 +55,7 @@ final class LegalDocument
 
         if (($doc['slug'] ?? '') === 'privacy') {
             $html .= self::disclosureHtml();
+            $html .= self::voiceHtml();
         }
         return $html;
     }
@@ -125,6 +126,66 @@ final class LegalDocument
              . 'with an assurance we have not verified. If that matters to your decision to nominate, '
              . 'email <a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a> and '
              . 'we will tell you what we know.</p>';
+
+        return implode("\n", $h);
+    }
+
+    /**
+     * The voice section of the privacy notice.
+     *
+     * Its own heading rather than a bullet under the model providers, because it is the only
+     * place on this platform where a recording of somebody's VOICE leaves the server, and
+     * burying that under "automated processing (AI)" would be technically complete and
+     * practically misleading. Somebody deciding whether to press a microphone button is owed
+     * the answer in a place they will find it.
+     *
+     * @param array<string,mixed>|null $group
+     */
+    public static function voiceHtml(?array $group = null, ?bool $active = null): string
+    {
+        // Both parameters exist so the escaping and the on/off wording can be tested with a
+        // hostile string and with both states, without depending on whatever key happens to
+        // be configured on the machine running the suite.
+        $group  = $group ?? AiPrivacy::voiceDisclosure();
+        $active = $active ?? AiPrivacy::voiceActive();
+
+        $caps = (array) ($group['capabilities'] ?? []);
+        if ($caps === []) return '';
+
+        $e = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
+        $h = [];
+
+        $h[] = '<h2 id="voice">If you speak your answers instead of typing them</h2>';
+        $h[] = '<p>A nominee describing their own work can have each question <strong>read out '
+             . 'loud</strong>, and can <strong>answer by talking</strong> rather than typing. That is '
+             . 'there because a keyboard on a phone is a real barrier for some of the people these '
+             . 'awards exist to find, and losing a nomination to a barrier of ours would be our '
+             . 'failure and not theirs. It is entirely optional: the same questions can be typed, '
+             . 'and nothing is treated differently for having been spoken.</p>';
+        $h[] = '<p>To do it, ' . $e((string) ($group['label'] ?? '')) . ' is used as the speech '
+             . 'service, and this is what they receive:</p>';
+        $h[] = '<ul>';
+        foreach ($caps as $cap) {
+            $h[] = '<li><strong>' . $e((string) ($cap['purpose'] ?? '')) . '</strong><br>'
+                 . $e((string) ($cap['sends'] ?? '')) . '</li>';
+        }
+        $h[] = '</ul>';
+        $h[] = '<p><strong>Two promises about the words that end up in your submission.</strong> The '
+             . 'transcription is put on your screen, not into your answer &mdash; you read it, correct '
+             . 'anything it misheard, and press send yourself, so the sentences a judging panel reads '
+             . 'as yours are ones you approved. And we do not keep the recording: the audio is passed '
+             . 'straight from your request to the speech service and is never written to our server, '
+             . 'so there is no file of your voice here to lose, leak or hand to anybody.</p>';
+        $h[] = '<p>' . ($active
+                ? 'Spoken questions and answers are currently switched on.'
+                : 'Spoken questions and answers are currently switched off, so no audio and no '
+                . 'question text is being sent to any speech service right now.')
+             . ' Turning this off is a single setting, and the questionnaire works exactly the same '
+             . 'way without it.</p>';
+        $h[] = '<p>As with the model providers above, how long the speech service retains what it '
+             . 'receives is governed by their terms rather than ours. Email '
+             . '<a href="mailto:privacy@afrovanguard.org.ng">privacy@afrovanguard.org.ng</a> and we '
+             . 'will tell you what we know rather than what sounds reassuring.</p>';
 
         return implode("\n", $h);
     }

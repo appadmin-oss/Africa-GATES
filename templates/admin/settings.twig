@@ -432,7 +432,7 @@
     </div>
   </div>
 
-  <div class="ad-card" data-sec="ai" data-keys="ai providers api key groq gemini anthropic openai moderation heuristics test ai" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">AI providers<small>Free-tier moderation &amp; AI features. The platform runs on built-in heuristics until you add a key.</small></div></div><div class="ad-card__body">
+  <div class="ad-card" data-sec="ai" data-keys="ai providers api key groq gemini anthropic openai moderation heuristics test ai elevenlabs 11 labs voice speech audio microphone read aloud transcribe questionnaire" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">AI providers<small>Free-tier moderation &amp; AI features. The platform runs on built-in heuristics until you add a key.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="ai_settings" value="1">
     {# This paragraph used to read "the first configured provider is used, in order:
        Groq → Gemini → Anthropic → OpenAI", which was accurate and is no longer how
@@ -482,6 +482,32 @@
         </div>
         <div style="margin-top:8px"><label for="f-ai_groq_model_mod">Moderation model <small>defaults to the best available</small></label><input type="text" name="ai_groq_model_mod" id="f-ai_groq_model_mod" value="{{ values.ai_groq_model_mod|default('') }}" placeholder="{{ ai_mod_model }}"></div>
       </div>
+      {# ── ElevenLabs: the voice on the nominee's questionnaire ─────────────
+         Its own block rather than a fifth entry in the provider loop above, because it is not
+         a language model and cannot stand in for one: the four providers are interchangeable
+         and this is a different capability entirely. With no key here the questionnaire is
+         exactly the text conversation it was before — a nominee is never shown a microphone
+         the platform cannot use. #}
+      <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
+        <label style="font-weight:600">ElevenLabs — read the questionnaire aloud, and let a nominee answer by talking
+          {% if voice_status.configured %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">off — the questionnaire stays text-only</span>{% endif %}
+        </label>
+        <input type="password" name="voice_elevenlabs_key" aria-label="ElevenLabs API key" autocomplete="new-password" placeholder="{% if voice_status.configured %}•••••••••• (leave blank to keep){% else %}paste your ElevenLabs API key{% endif %}">
+        <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
+          <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c)">A nominee who can talk for an hour about the work of their life should not lose the nomination to a phone keyboard. With a key set, each question can be <strong>read out</strong> and an answer can be <strong>spoken</strong> — the transcription goes into the answer box for them to correct and send themselves, never straight into the record.</small>
+          {% if voice_status.configured %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[voice]" value="1"> remove</label>{% endif %}
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div><label for="f-voice_id">Voice <small>pick one your nominees will recognise</small></label><input type="text" name="voice_elevenlabs_voice" id="f-voice_id" value="{{ values.voice_elevenlabs_voice|default('') }}" placeholder="{{ voice_defaults.voice }}"></div>
+          <div><label for="f-voice_model">Voice model <small>optional</small></label><input type="text" name="voice_elevenlabs_model" id="f-voice_model" value="{{ values.voice_elevenlabs_model|default('') }}" placeholder="{{ voice_defaults.tts }}"></div>
+        </div>
+        <div style="margin-top:8px"><label for="f-voice_stt">Transcription model <small>for spoken answers</small></label><input type="text" name="voice_elevenlabs_stt_model" id="f-voice_stt" value="{{ values.voice_elevenlabs_stt_model|default('') }}" placeholder="{{ voice_defaults.stt }}"></div>
+        <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">
+          The default voice is a placeholder, not a recommendation — it is an American one. Copy a voice ID from your ElevenLabs library and paste it here; for a continental African panel the accent is not a cosmetic choice.
+          Currently reading with <code>{{ voice_status.tts }}</code> and transcribing with <code>{{ voice_status.stt }}</code>.
+        </p>
+      </div>
+
       <div class="row" style="margin-top:8px">
         <div>
           <label for="f-gee_make_url">Make.com agent URL <small>optional — lets Gee use an external agent &amp; its tools</small></label>

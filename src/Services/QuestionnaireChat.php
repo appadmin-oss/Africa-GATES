@@ -405,6 +405,35 @@ final class QuestionnaireChat
         return is_array($t) ? array_values(array_filter($t, 'is_array')) : [];
     }
 
+    /**
+     * The text of one AI turn, addressed by its position in this conversation.
+     *
+     * The whole reason the voice endpoint takes an INDEX rather than a string. A caller
+     * cannot ask the platform to speak text of its own choosing: it can only point at
+     * something this conversation already said, to this nominee. That closes an open
+     * text-to-speech proxy on the operator's ElevenLabs invoice, and it bounds the total
+     * possible spend per submission to "each of its own questions, once" — because the clip
+     * cache is keyed by the text itself. {@see VoiceService} for the arithmetic.
+     *
+     * Returns null for the nominee's own turns as well as for a bad index. Reading a
+     * person's own answer back to them in a synthetic voice is not a feature anybody asked
+     * for, and it would double the bill to provide it.
+     */
+    public static function spokenTurn(string $token, int $index): ?string
+    {
+        $s = QuestionnaireService::byToken($token);
+        if (!$s) return null;
+
+        $turns = self::turns($s);
+        if (!isset($turns[$index])) return null;
+
+        $t = $turns[$index];
+        if ((string) ($t['who'] ?? '') !== 'ai') return null;
+
+        $text = trim((string) ($t['text'] ?? ''));
+        return $text !== '' ? $text : null;
+    }
+
     /** The question the conversation is on: the one it was left on, else the next unanswered. */
     private static function currentQuestion(object $s, array $answers): ?array
     {

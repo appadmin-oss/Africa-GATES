@@ -194,6 +194,68 @@ final class AiPrivacy
     }
 
     /**
+     * The voice half of the notice: what ElevenLabs receives, and when.
+     *
+     * SEPARATE from {@see disclosure()} on purpose, and it is worth saying why rather than
+     * leaving somebody to wonder. That method is generated from the capability registry — a
+     * registry of LANGUAGE-model capabilities, with token budgets, provider ladders and
+     * reasoning tiers. Voice has none of those things: it is a different kind of processing
+     * with a different recipient, and forcing it into that shape would have meant inventing a
+     * fake capability with a fake model pin so a loop could find it. The disclosure would
+     * have been true; the code behind it would have been a lie about how the platform works.
+     *
+     * It is also the only place on this platform where a recording of somebody's VOICE leaves
+     * the server, which is a materially different disclosure from "some text was classified"
+     * and deserves its own heading in the notice rather than a bullet inside somebody else's.
+     *
+     * Returned in the same shape a disclosure group takes, so {@see LegalDocument} renders it
+     * with the same code and it cannot drift into a second style.
+     *
+     * @return array{provider:string, label:string, primary:bool, capabilities:list<array{name:string, purpose:string, sends:string, minimised:bool, advisory:bool}>}
+     */
+    public static function voiceDisclosure(): array
+    {
+        return [
+            'provider' => 'elevenlabs',
+            'label'    => self::providerLabel('elevenlabs'),
+            'primary'  => true,
+            'capabilities' => [
+                [
+                    'name'    => 'questionnaire.voice_out',
+                    'purpose' => 'Reading a questionnaire question out loud to a nominee',
+                    'sends'   => 'The text of the question itself — written by us, not by you — so it '
+                               . 'can be spoken back to you. Nothing you typed or said is sent for this.',
+                    // Nothing of the person's is in the payload, so there is nothing to minimise;
+                    // marked true so the notice does not print the administrator caveat, which
+                    // would be the wrong explanation here.
+                    'minimised' => true,
+                    'advisory'  => true,
+                ],
+                [
+                    'name'    => 'questionnaire.voice_in',
+                    'purpose' => 'Writing down an answer you chose to speak instead of type',
+                    'sends'   => 'The audio recording you made, so it can be turned into words. It is '
+                               . 'sent straight from your request and is never stored on our server. '
+                               . 'The words come back to your screen for you to correct, and nothing '
+                               . 'is saved to your submission until you press send yourself.',
+                    'minimised' => true,
+                    'advisory'  => true,
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * True when voice is actually configured. Like {@see currentlyActive()}, the notice is
+     * published either way — a section that appears and disappears with a settings toggle
+     * tells a reader something untrue about tomorrow.
+     */
+    public static function voiceActive(): bool
+    {
+        return VoiceService::boot()->configured();
+    }
+
+    /**
      * Human spelling of a provider id.
      *
      * `ucfirst()` renders "openai" as "Openai", which in a published legal notice
@@ -205,7 +267,8 @@ final class AiPrivacy
             'openai'    => 'OpenAI',
             'gemini'    => 'Google (Gemini)',
             'anthropic' => 'Anthropic',
-            'groq'      => 'Groq',
+            'groq'       => 'Groq',
+            'elevenlabs' => 'ElevenLabs',
         ][$provider] ?? ucfirst($provider);
     }
 

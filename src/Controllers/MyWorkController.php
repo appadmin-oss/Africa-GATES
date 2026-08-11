@@ -132,6 +132,91 @@ final class MyWorkController
                    ->withStatus(($r['ok'] ?? false) ? 200 : 422);
     }
 
+    /**
+     * Read one of the AI's questions aloud. Returns MP3 bytes, not JSON.
+     *
+     * Addressed by TURN INDEX, never by text: the page says "speak turn 4 of my own
+     * conversation", so this endpoint cannot be used to have the platform's ElevenLabs
+     * account read out a stranger's paragraph. {@see QuestionnaireVoice::say()} for why that
+     * shape also removes the need for a character quota.
+     */
+    public function speak(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $body  = (array) $req->getParsedBody();
+        $index = (int) ($body['turn'] ?? -1);
+
+        $r = \AfricaGates\Services\QuestionnaireVoice::say($token, $index);
+
+        if (!($r['ok'] ?? false)) {
+            // JSON on failure, audio on success. The page needs to be able to tell the
+            // nominee something ("the voice service did not answer — you can still read it")
+            // and it cannot read a message out of an empty audio body.
+            $res->getBody()->write((string) json_encode(['ok' => false,
+                'message' => (string) ($r['message'] ?? 'Voice is not available.')]));
+            return $res->withHeader('Content-Type', 'application/json')
+                       ->withHeader('X-Robots-Tag', 'noindex, nofollow')
+                       ->withStatus(422);
+        }
+
+        $res->getBody()->write((string) $r['audio']);
+        return $res
+            ->withHeader('Content-Type', (string) ($r['mime'] ?? 'audio/mpeg'))
+            ->withHeader('Content-Length', (string) strlen((string) $r['audio']))
+            // Private, because the URL is behind a token that is the whole credential and a
+            // shared cache holding a nominee's questionnaire audio would defeat that. Long,
+            // because the clip for a given turn never changes — a replay should not cost a
+            // round trip, let alone a character.
+            ->withHeader('Cache-Control', 'private, max-age=86400')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * Transcribe a spoken answer and hand the words back to the page.
+     *
+     * Writes nothing. The nominee reads the transcription, corrects whatever the recogniser
+     * misheard, and then sends it through the ordinary chat turn — so the answer stored
+     * against their name is still one they approved, which is the promise the whole
+     * questionnaire is built on.
+     */
+    public function listen(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $file  = $req->getUploadedFiles()['audio'] ?? null;
+
+        $fail = static function (Response $res, string $message, int $status = 422): Response {
+            $res->getBody()->write((string) json_encode(['ok' => false, 'message' => $message]));
+            return $res->withHeader('Content-Type', 'application/json')
+                       ->withHeader('X-Robots-Tag', 'noindex, nofollow')
+                       ->withStatus($status);
+        };
+
+        if ($file === null) return $fail($res, 'No recording arrived. Try the microphone again.');
+        if ($file->getError() !== UPLOAD_ERR_OK) {
+            return $fail($res, 'That recording did not finish uploading. On a weak connection, a '
+                             . 'shorter answer usually gets through.');
+        }
+
+        $size = (int) ($file->getSize() ?? 0);
+        if ($size > \AfricaGates\Services\VoiceService::MAX_AUDIO_BYTES) {
+            return $fail($res, 'That recording is too long. Say it in two or three shorter pieces.');
+        }
+
+        $bytes = (string) $file->getStream()->getContents();
+
+        $r = \AfricaGates\Services\QuestionnaireVoice::hear(
+            $token,
+            $bytes,
+            (string) ($file->getClientFilename() ?? 'answer.webm'),
+            (string) ($file->getClientMediaType() ?? 'audio/webm')
+        );
+
+        $res->getBody()->write((string) json_encode($r));
+        return $res->withHeader('Content-Type', 'application/json')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow')
+                   ->withStatus(($r['ok'] ?? false) ? 200 : 422);
+    }
+
     /** One file, attached to one listed work. */
     public function upload(Request $req, Response $res, array $args = []): Response
     {
@@ -175,6 +260,11 @@ final class MyWorkController
             'readiness'     => $form !== null
                 ? \AfricaGates\Services\QuestionnaireChat::readiness($token)
                 : ['ready' => false, 'missing' => [], 'thin' => [], 'works' => 0, 'files' => 0],
+            // Whether the page renders a speaker and a microphone at all. With no ElevenLabs
+            // key this is false and the questionnaire is exactly the working text conversation
+            // it was before voice existed — no disabled buttons, no "unavailable" notices. A
+            // nominee should never be shown the shape of a feature the operator has not bought.
+            'voice'         => $form !== null && \AfricaGates\Services\QuestionnaireVoice::enabled(),
             'support_email' => Notifier::supportEmail(),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }

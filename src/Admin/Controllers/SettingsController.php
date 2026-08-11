@@ -79,6 +79,16 @@ class SettingsController
             // default an operator is shown is the default the request will use —
             // they were four literals in the template, and the Gemini one was stale.
             'ai_default_models' => \AfricaGates\Services\AiService::DEFAULT_MODELS,
+            // ElevenLabs — the voice on the nominee's questionnaire. Booleans and defaults
+            // only; the key itself is write-only like every other provider key on this page.
+            'voice_status'    => (static function (): array {
+                $v = \AfricaGates\Services\VoiceService::boot();
+                return ['configured' => $v->configured(), 'voice' => $v->voiceId(),
+                        'tts' => $v->ttsModel(), 'stt' => $v->sttModel(), 'why' => $v->why()];
+            })(),
+            'voice_defaults'  => ['voice' => \AfricaGates\Services\VoiceService::DEFAULT_VOICE,
+                                  'tts'   => \AfricaGates\Services\VoiceService::TTS_MODEL,
+                                  'stt'   => \AfricaGates\Services\VoiceService::STT_MODEL],
             // Messaging channels configured state (booleans only — secrets never echoed).
             'sms_status'     => \AfricaGates\Services\SmsService::boot()->status(),
             // Email delivery health — recent sends with status/error so "links
@@ -272,6 +282,20 @@ class SettingsController
                 $url = trim((string) $b['gee_make_agent_url']);
                 if ($url === '' || str_starts_with($url, 'https://')) $this->settings->set('gee_make_agent_url', $url, $adminId);
             }
+            // ElevenLabs — the voice on the nominee's questionnaire. The key is WRITE-ONLY
+            // like every provider key above it; the voice and model ids are plain text and
+            // are echoed back, because an operator has to be able to see which voice their
+            // nominees are hearing without pasting it in again to find out.
+            if (!empty($clear['voice'])) $this->settings->set('voice_elevenlabs_key', '', $adminId);
+            else {
+                $vk = trim((string) ($b['voice_elevenlabs_key'] ?? ''));
+                if ($vk !== '') $this->settings->set('voice_elevenlabs_key', $vk, $adminId);
+            }
+            foreach (['voice_elevenlabs_voice', 'voice_elevenlabs_model',
+                      'voice_elevenlabs_stt_model'] as $vKey) {
+                if (array_key_exists($vKey, $b)) $this->settings->set($vKey, trim((string) $b[$vKey]), $adminId);
+            }
+
             if (!empty($clear['make_key'])) $this->settings->set('gee_make_agent_key', '', $adminId);
             else {
                 $mk = trim((string) ($b['gee_make_agent_key'] ?? ''));

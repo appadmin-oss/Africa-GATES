@@ -233,6 +233,9 @@ return function(App $app) {
                 ['Sending it out',                   'src/Admin/Controllers/QuestionnairesController.php', 'function inviteAll'],
                 ['Answering it as a conversation',    'src/Services/QuestionnaireChat.php', 'function probeFor'],
                 ['Chat, form and live progress',     'templates/pages/my-work.twig', 'mw__prog'],
+                ['Questions read aloud (ElevenLabs)', 'src/Services/VoiceService.php', 'function speak'],
+                ['Answering by talking',              'src/Services/QuestionnaireVoice.php', 'function hear'],
+                ['What the voice notice says',        'src/Services/LegalDocument.php', 'function voiceHtml'],
             ],
             'Capturing the call live (the browser extension)' => [
                 ['The token-gated live API',   'src/Services/InterviewLive.php', 'function append'],
@@ -1950,6 +1953,13 @@ return function(App $app) {
         // being asked the next question loses the thread — and the answer is already stored
         // by the time this responds, so a dropped connection costs the reply, not the work.
         $g->post('/my-work/{token:[a-f0-9]{32}}/chat',   \AfricaGates\Controllers\MyWorkController::class.':chat');
+        // Voice, both directions. `speak` returns MP3 bytes and is addressed by TURN INDEX,
+        // never by text, so it cannot be used to have the platform's ElevenLabs account read
+        // out a stranger's paragraph; `listen` transcribes a recording and hands the words
+        // back to the PAGE for the nominee to confirm, because an answer stored against
+        // somebody's name has to be one they approved.
+        $g->post('/my-work/{token:[a-f0-9]{32}}/speak',  \AfricaGates\Controllers\MyWorkController::class.':speak');
+        $g->post('/my-work/{token:[a-f0-9]{32}}/listen', \AfricaGates\Controllers\MyWorkController::class.':listen');
 
         // ── THE NOMINEE'S OWN INTERVIEW PAGE ─────────────────────────────────
         //
