@@ -101,6 +101,37 @@ final class MyWorkController
         return $res->withHeader('Location', $to)->withStatus(302);
     }
 
+    /**
+     * The conversation: one turn in, the next question out.
+     *
+     * JSON, because a page reload between "I typed my answer" and "here is the next question"
+     * loses the thread — and because the answer is already stored server-side by the time this
+     * responds, so a dropped connection costs the reply and not the answer.
+     */
+    public function chat(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $body  = (array) $req->getParsedBody();
+        $said  = trim((string) ($body['say'] ?? ''));
+
+        $r = $said === ''
+            ? \AfricaGates\Services\QuestionnaireChat::start($token)
+            : \AfricaGates\Services\QuestionnaireChat::say($token, $said);
+
+        // Told once per conversation, so the operator screen can say which engine built the
+        // record — the same disclosure the interview pack and the transcript reading carry.
+        if (($r['ok'] ?? false) && $said !== '') {
+            \AfricaGates\Services\QuestionnaireChat::noteSource(
+                $token, \AfricaGates\Services\AiGateway::available('questionnaire.chat') ? 'ai' : 'rules');
+        }
+
+        $r['readiness'] = \AfricaGates\Services\QuestionnaireChat::readiness($token);
+
+        $res->getBody()->write((string) json_encode($r));
+        return $res->withHeader('Content-Type', 'application/json')
+                   ->withStatus(($r['ok'] ?? false) ? 200 : 422);
+    }
+
     /** One file, attached to one listed work. */
     public function upload(Request $req, Response $res, array $args = []): Response
     {
@@ -125,6 +156,14 @@ final class MyWorkController
     private function render(Response $res, ?array $form, string $token,
                            string $notice, string $error, array $missing = []): Response
     {
+        // The conversation's state is rendered WITH the page rather than fetched after it. A
+        // nominee returning to a half-finished chat should see it already there — a panel that
+        // arrives a second later, after a spinner, reads as a different feature that has lost
+        // their place.
+        $chat = $form !== null
+            ? \AfricaGates\Services\QuestionnaireChat::state($token)
+            : ['turns' => [], 'question' => null, 'progress' => [], 'done' => false];
+
         return $this->view->render($res, 'pages/my-work.twig', [
             'page_title'    => $form !== null ? 'Tell the judges about your work' : 'Your work',
             'form'          => $form,
@@ -132,6 +171,10 @@ final class MyWorkController
             'notice'        => $notice,
             'error'         => $error,
             'missing'       => $missing,
+            'chat'          => $chat,
+            'readiness'     => $form !== null
+                ? \AfricaGates\Services\QuestionnaireChat::readiness($token)
+                : ['ready' => false, 'missing' => [], 'thin' => [], 'works' => 0, 'files' => 0],
             'support_email' => Notifier::supportEmail(),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }

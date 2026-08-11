@@ -399,6 +399,35 @@ final class AiCapability
                     . 'their own work rather than from a standard list. A person asks the questions and a '
                     . 'person decides the score.',
             ]),
+            // The nominee's own questionnaire, answered as a conversation. FAST tier and one
+            // attempt: somebody is sitting looking at a chat box waiting for a reply, and a
+            // follow-up that arrives after they have moved on is worse than none.
+            //
+            // The model NEVER authors an answer here — {@see QuestionnaireChat} stores the
+            // nominee's own words verbatim and asks the model only whether one follow-up is
+            // worth asking. That division is the point: the record says "supplied by the
+            // nominee", and a model that tidied their sentence would make that a lie.
+            'questionnaire.chat' => $c('questionnaire.chat', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_FAST,
+                'model'           => self::PRIMARY[self::TIER_FAST],
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 90,
+                'calls_per_day'   => 2000,
+                'tokens_per_day'  => 300_000,
+                'timeout'         => 6,
+                'max_attempts'    => 1,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'The question you were just asked about your own work, and the '
+                    . 'answer you typed. Contact details in your answer are replaced with '
+                    . 'placeholders first. Nothing else from your file is sent, and your answers are '
+                    . 'stored exactly as you wrote them.',
+                'data_purpose'    => 'To decide whether one short follow-up question would help the '
+                    . 'judges — for example asking for a number or who keeps a record. It never '
+                    . 'writes or changes your answer, and it produces no score.',
+            ]),
             // ONE short question, while a person is waiting to ask it. FAST tier because a
             // follow-up that arrives after the interviewer has moved on is worse than none —
             // and one attempt only, for the same reason moderation on the nomination submit

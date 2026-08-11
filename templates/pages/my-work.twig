@@ -1,48 +1,90 @@
 {% extends "layout/gates.twig" %}
 
-{# ── THE NOMINEE'S QUESTIONNAIRE ──────────────────────────────────────────────
+{# ── THE NOMINEE'S QUESTIONNAIRE, TWO WAYS ────────────────────────────────────
 
-   The person on this page has been nominated for an award by somebody else, has probably
-   never used this site, and is very likely on a phone. They may be a teacher with an hour
-   after school, not an applicant with an afternoon.
+   The first version of this page was a form nearly five thousand pixels tall: eleven
+   questions, each with help text, then a works list, then a submit panel. A reasonable form
+   and an intimidating one. The person reading it is a teacher with an hour after school, on a
+   phone, who has never used this site.
 
-   Everything follows from that:
+   So there are two modes over ONE saved draft:
 
-     • IT SAVES WITHOUT VALIDATING. Two buttons — "Save and finish later" and "Send to the
-       judges" — and only the second one checks anything. A form that refuses half a sentence
-       is a form that gets abandoned, and an abandoned questionnaire puts a judge back to
-       reading the nominator's paragraph.
+     • A CONVERSATION, which is the default. One question at a time, with a follow-up when an
+       answer has no number or no place in it. Whatever is said is stored verbatim — the model
+       chooses what to ask, never what the answer says.
 
-     • THE HELP TEXT IS THE FEATURE. Each question says what a good answer looks like, in
-       plain words, because "describe your impact" produces prose and "how many people, over
-       what period, and who keeps that record?" produces something a judge can weigh.
+     • THE FORM, for somebody who would rather see everything at once, or come back and edit
+       one line. Switching does not lose anything: both write the same answers.
 
-     • FAILURE IS EXPLICITLY SAFE. Two of the questions ask what went wrong. Somebody who
-       thinks an honest answer will cost them the award will write nothing useful, so the page
-       says outright that it never has.
+   Everything else follows from who is reading:
 
-     • AND IT SAYS, TWICE, THAT NOTHING COSTS MONEY. "You have reached the next round, pay a
-       fee" is the commonest way an awards scheme is impersonated, and this email lands in the
-       inboxes of exactly the people that is aimed at.
+     • PROGRESS IS ALWAYS VISIBLE. "3 of 5 needed" beats a scrollbar as an answer to "how much
+       longer is this".
+     • THE READINESS CHECK IS HELP, NOT A SCORE. Before sending, it names the answers a judge
+       will find thin — "this has no number in it" — so the fix happens now rather than after
+       the panel has read it.
+     • FAILURE IS EXPLICITLY SAFE, twice, because somebody who thinks an honest answer about
+       what went wrong will cost them the award writes nothing useful.
+     • AND NOTHING COSTS MONEY, said twice, because a fee demand is the commonest way an
+       awards scheme is impersonated and this email lands with exactly the people that is
+       aimed at.
 
-   Alpine is used only for adding and removing work rows. Every field is a plain form input
-   with a name, so the page works with JavaScript switched off — which for this audience is
-   not a hypothetical. #}
+   The form works with JavaScript off. The conversation cannot — so the form is always
+   reachable, never hidden behind a toggle that needs script to un-toggle. #}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  .mw{ max-width:760px; margin:0 auto; padding:38px 20px 80px }
+  .mw{ max-width:760px; margin:0 auto; padding:34px 20px 80px }
   .mw__kick{ display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700;
     letter-spacing:.09em; text-transform:uppercase; color:#1c5f1b; background:#eaf7ea;
     border-radius:999px; padding:6px 13px }
   .mw h1{ margin:14px 0 0; font-size:clamp(1.35rem, 1.1rem + 1.2vw, 1.9rem); letter-spacing:-.015em;
     color:#10292C; line-height:1.25 }
   .mw__lede{ margin:12px 0 0; font-size:15px; line-height:1.75; color:#3d5254 }
-  .mw__card{ margin-top:18px; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:18px;
-    padding:24px 22px; box-shadow:0 1px 2px rgba(16,41,44,.04), 0 14px 40px -30px rgba(16,41,44,.3) }
+  .mw__card{ margin-top:16px; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:18px;
+    padding:22px 20px; box-shadow:0 1px 2px rgba(16,41,44,.04), 0 14px 40px -30px rgba(16,41,44,.3) }
   .mw__card h2{ margin:0 0 4px; font-size:16px; color:#10292C }
   .mw__card p{ margin:9px 0 0; font-size:13.5px; line-height:1.7; color:#5a6d6f }
 
+  /* progress — sticky, because "how much longer" is the question people abandon over */
+  .mw__prog{ position:sticky; top:0; z-index:5; margin:16px 0 0; background:#10292c; color:#eaf2ec;
+    border-radius:14px; padding:12px 16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap }
+  .mw__bar{ flex:1 1 120px; height:7px; border-radius:99px; background:rgba(255,255,255,.18); overflow:hidden }
+  .mw__bar i{ display:block; height:100%; background:#8fd48c; border-radius:99px; transition:width .3s }
+  .mw__prog b{ font-size:13px; font-weight:700 }
+  .mw__prog span{ font-size:12px; color:#a8c4b3 }
+
+  /* mode switch */
+  .mw__modes{ display:flex; gap:8px; margin-top:14px }
+  .mw__mode{ cursor:pointer; flex:1 1 0; font:650 13.5px/1.3 inherit; padding:12px 10px;
+    border-radius:12px; border:1px solid rgba(16,41,44,.16); background:#fff; color:#3d5254 }
+  .mw__mode[aria-pressed="true"]{ background:#10292c; color:#fff; border-color:#10292c }
+  .mw__mode small{ display:block; font-weight:400; font-size:11.5px; margin-top:3px; opacity:.72 }
+  /* On the selected (dark) button the subtitle was washed out to near-invisible. Raised
+     rather than removed: it is the line that explains the choice somebody has just made. */
+  .mw__mode[aria-pressed="true"] small{ opacity:.92; color:#cfe6d3 }
+
+  /* the conversation */
+  .mw__chat{ margin-top:6px; display:flex; flex-direction:column; gap:10px; max-height:58vh;
+    overflow-y:auto; padding:4px 2px 2px }
+  .mw__msg{ max-width:88%; font-size:14.5px; line-height:1.65; border-radius:14px; padding:12px 14px;
+    white-space:pre-wrap; word-break:break-word }
+  .mw__msg--ai{ align-self:flex-start; background:#f1f6f1; color:#22332c; border:1px solid rgba(16,41,44,.08) }
+  .mw__msg--you{ align-self:flex-end; background:#237b22; color:#fff }
+  .mw__typing{ align-self:flex-start; font-size:12.5px; color:#67797b; padding:4px 6px }
+  .mw__ask{ display:flex; gap:9px; align-items:flex-end; margin-top:12px }
+  .mw__say{ flex:1 1 auto; box-sizing:border-box; font:inherit; font-size:15.5px; line-height:1.55;
+    color:#10292C; border:1px solid rgba(16,41,44,.2); border-radius:14px; padding:12px 13px;
+    min-height:52px; max-height:180px; resize:none }
+  .mw__say:focus{ outline:none; border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.12) }
+  .mw__send{ cursor:pointer; flex:0 0 auto; background:#237b22; color:#fff; border:none;
+    border-radius:14px; padding:0 18px; height:52px; font:700 14.5px/1 inherit }
+  .mw__send:disabled{ opacity:.5; cursor:default }
+  .mw__hint{ margin-top:8px; font-size:12px; color:#8a969a }
+  .mw__skip{ cursor:pointer; background:none; border:none; padding:0; font:600 12px/1 inherit;
+    color:#237b22; text-decoration:underline }
+
+  /* the form */
   .mw__q{ padding:18px 0; border-top:1px solid rgba(16,41,44,.08) }
   .mw__q:first-of-type{ border-top:none; padding-top:4px }
   .mw__lab{ display:block; font-size:15px; font-weight:600; line-height:1.5; color:#10292C }
@@ -54,9 +96,9 @@
   .mw__in{ width:100%; box-sizing:border-box; margin-top:10px; font:inherit; font-size:15px;
     line-height:1.6; color:#10292C; border:1px solid rgba(16,41,44,.2); border-radius:12px;
     padding:12px 13px; background:#fff }
-  textarea.mw__in{ min-height:110px; resize:vertical }
+  textarea.mw__in{ min-height:104px; resize:vertical }
   .mw__in:focus{ outline:none; border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.12) }
-  .mw__count{ font-size:11.5px; color:#8a969a; margin-top:5px }
+  .mw__done{ font-size:11.5px; font-weight:700; color:#237b22; margin-top:6px }
 
   /* works */
   .mw__work{ border:1px solid rgba(16,41,44,.13); border-radius:14px; padding:15px 15px 6px;
@@ -66,21 +108,20 @@
     text-transform:uppercase; color:#5a6d6f; margin:0 0 5px }
   .mw__file{ margin-top:10px; font-size:12.5px; color:#3d5254; background:#eef4ee;
     border-radius:9px; padding:9px 11px; display:flex; gap:8px; align-items:center; flex-wrap:wrap }
-  .mw__drop{ margin-top:9px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;
-    font-size:12.5px; color:#67797b }
+  .mw__drop{ margin-top:9px; font-size:12.5px; color:#67797b }
   .mw__x{ cursor:pointer; background:none; border:none; color:#8a2020; font:600 12.5px/1 inherit;
     text-decoration:underline; padding:6px 0; margin:0 0 8px }
+  .mw__add{ margin-top:12px; background:#fff; color:#10292C; border:1px dashed rgba(16,41,44,.3);
+    border-radius:12px; padding:12px; width:100%; font:600 13.5px/1 inherit; cursor:pointer }
+  .mw__mini{ cursor:pointer; background:#10292C; color:#fff; border:none; border-radius:999px;
+    padding:9px 15px; font:600 12.5px/1 inherit }
 
-  .mw__go{ margin-top:20px; width:100%; background:#237b22; color:#fff; border:none;
+  .mw__go{ margin-top:18px; width:100%; background:#237b22; color:#fff; border:none;
     border-radius:999px; padding:16px 24px; font:700 15.5px/1 inherit; cursor:pointer; min-height:50px }
   .mw__go:hover{ background:#1c631b }
   .mw__ghost{ margin-top:10px; width:100%; background:none; color:#10292C;
     border:1px solid rgba(16,41,44,.22); border-radius:999px; padding:13px 24px;
     font:600 14px/1 inherit; cursor:pointer; min-height:46px }
-  .mw__add{ margin-top:12px; background:#fff; color:#10292C; border:1px dashed rgba(16,41,44,.3);
-    border-radius:12px; padding:12px; width:100%; font:600 13.5px/1 inherit; cursor:pointer }
-  .mw__mini{ cursor:pointer; background:#10292C; color:#fff; border:none; border-radius:999px;
-    padding:8px 14px; font:600 12.5px/1 inherit }
 
   .mw__ok{ background:#f0fdf4; border:1px solid #b6e3b6; border-left:4px solid #237b22;
     border-radius:0 14px 14px 0; padding:15px 17px; margin-top:16px; font-size:14.5px;
@@ -88,11 +129,17 @@
   .mw__bad{ background:#fdf3f3; border:1px solid #f0c9c9; border-left:4px solid #b3261e;
     border-radius:0 14px 14px 0; padding:15px 17px; margin-top:16px; font-size:14.5px;
     line-height:1.7; color:#8a2020 }
-  .mw__bad ul{ margin:9px 0 0; padding-left:20px }
+  .mw__bad ul, .mw__tip ul{ margin:9px 0 0; padding-left:20px }
+  .mw__tip{ background:#fffdf5; border:1px solid #ecd9a0; border-radius:12px; padding:14px 16px;
+    margin-top:14px; font-size:13.5px; line-height:1.7; color:#6b5312 }
   .mw__free{ margin-top:22px; font-size:13px; line-height:1.75; color:#5a6d6f;
     border-top:1px solid rgba(16,41,44,.09); padding-top:18px }
   .mw__free b{ color:#10292c }
   .mw__sent{ background:#f0fdf4; border:1px solid #b6e3b6; border-radius:16px; padding:22px }
+  @media (max-width:520px){
+    .mw__modes{ flex-direction:column }
+    .mw__msg{ max-width:96% }
+  }
 </style>
 {% endblock %}
 
@@ -116,18 +163,15 @@
   <h1>{{ form.nominee }} — tell the judges about your work</h1>
   <p class="mw__lede">
     You have been nominated{% if form.category %} in <strong>{{ form.category }}</strong>{% endif %}.
-    Right now the judges have only what the person who nominated you wrote. This is your chance
-    to describe the work yourself, and to show them anything that exists — links, documents,
-    photographs, reports, letters.
+    Right now the judges have only what the person who nominated you wrote. This is where you
+    describe the work yourself and show them anything that exists.
     {% if form.deadline %}Please send it before <strong>{{ form.deadline }}</strong>.{% endif %}
   </p>
 
   {% if notice %}<div class="mw__ok">{{ notice }}</div>{% endif %}
   {% if error %}
     <div class="mw__bad">{{ error }}
-      {% if missing|length %}
-        <ul>{% for m in missing %}<li>{{ m }}</li>{% endfor %}</ul>
-      {% endif %}
+      {% if missing|length %}<ul>{% for m in missing %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}
     </div>
   {% endif %}
 
@@ -144,174 +188,298 @@
     <p class="mw__free"><b>Nothing about this costs money</b>, at any stage.</p>
 
   {% else %}
-    {# ── the questions ──────────────────────────────────────────────────── #}
-    <form method="post" action="/my-work/{{ token }}"
-          x-data='{ works: {{ (form.works ?: [])|json_encode }}, max: {{ form.max_works }},
-                    add(){ if(this.works.length < this.max)
-                             this.works.push({uid:"w"+Date.now().toString(36),title:"",kind:"",year:"",
-                                              link:"",description:"",confirm:"",file:"",file_name:""}) },
-                    drop(i){ this.works.splice(i,1) } }'>
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
+    {# ══ everything below shares ONE Alpine scope: the two modes, the chat, and the works
+         list. The form fields themselves are plain inputs with names, so the form still
+         submits with JavaScript switched off. ══ #}
+    <div x-data='{
+      mode: {{ (chat.turns|length > 0 ? "chat" : (readiness.missing|length == 0 and chat.progress.answered|default(0) > 0 ? "form" : "chat"))|json_encode }},
+      turns: {{ (chat.turns ?? [])|json_encode }},
+      progress: {{ (chat.progress ?? {})|json_encode }},
+      done: {{ (chat.done ?? false) ? "true" : "false" }},
+      say: "", busy: false, err: "",
+      started: {{ (chat.turns|length > 0) ? "true" : "false" }},
+      works: {{ (form.works ?: [])|json_encode }},
+      maxWorks: {{ form.max_works }},
+      /* Readiness is LIVE, not rendered once. The first version printed it server-side at
+         page load, so after three answers in the chat the progress bar said "you can send it
+         whenever you like" while the panel below still listed those same three as "still
+         needed" — the page contradicting itself in two places at once. The chat endpoint
+         returns readiness with every turn, so it is bound here and the server-rendered value
+         is only the starting point. */
+      ready: {{ (readiness ?? {})|json_encode }},
 
-      <div class="mw__card">
-        <h2>About the work</h2>
-        <p>Answers marked <span class="mw__req">*</span> are needed before you can send it. The rest
-          are optional and all of them are read. Write in whatever English you are comfortable with
-          — nobody is marking your grammar.</p>
+      init(){
+        this.$watch("mode", v => { if(v === "chat" && !this.started) this.begin() });
+        if(this.mode === "chat" && !this.started) this.begin();
+        this.scroll();
+      },
+      pct(){ const t = this.progress.total || 1; return Math.round((this.progress.answered || 0) / t * 100) },
+      async begin(){ this.started = true; await this.post("") },
+      async send(){
+        const t = this.say.trim(); if(!t || this.busy) return;
+        this.turns.push({who:"you", text:t}); this.say = ""; this.scroll();
+        await this.post(t);
+      },
+      async post(text){
+        this.busy = true; this.err = "";
+        try {
+          /* The CSRF token, because this is a same-origin POST from our own page with a
+             session behind it — which is precisely the case a synchronizer token protects.
+             It is not under /api/, so CsrfMiddleware requires it rather than accepting
+             X-Requested-With, and the first version of this got a 403 on every turn. */
+          const r = await fetch("/my-work/{{ token }}/chat", {
+            method:"POST",
+            headers:{"Content-Type":"application/json",
+                     "X-CSRF-Token": {{ csrf_token|json_encode }},
+                     "X-Requested-With":"XMLHttpRequest"},
+            body: JSON.stringify({ say: text })
+          });
+          const d = await r.json();
+          if(!d.ok){ this.err = d.message || "That did not go through."; }
+          else {
+            if(Array.isArray(d.turns)) this.turns = d.turns.filter(x => x.who !== "meta");
+            else (d.reply || []).forEach(x => this.turns.push({who:"ai", text:x}));
+            if(d.progress) this.progress = d.progress;
+            if(d.readiness) this.ready = d.readiness;
+            this.done = !!d.done;
+          }
+        } catch(e){ this.err = "No connection. What you have already answered is saved."; }
+        this.busy = false; this.scroll();
+      },
+      scroll(){ this.$nextTick(() => { const b = this.$refs.log; if(b) b.scrollTop = b.scrollHeight }) },
+      addWork(){ if(this.works.length < this.maxWorks)
+        this.works.push({uid:"w"+Date.now().toString(36),title:"",kind:"",year:"",link:"",
+                         description:"",confirm:"",file:"",file_name:""}) },
+      dropWork(i){ this.works.splice(i,1) }
+    }'>
 
-        {% for q in form.questions %}
-          <div class="mw__q">
-            <label class="mw__lab" for="q-{{ q.slug }}">
-              {{ q.label }}{% if q.is_required %} <span class="mw__req">*</span>{% endif %}
-            </label>
-            {% if q.help %}<p class="mw__help">{{ q.help }}</p>{% endif %}
-            {% if q.criterion %}<span class="mw__crit">Judged under: {{ q.criterion }}</span>{% endif %}
-
-            {% set val = form.answers[q.slug]|default('') %}
-            {% if q.kind == 'textarea' %}
-              <textarea class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
-                        maxlength="{{ q.max_len }}"
-                        placeholder="{{ q.placeholder }}">{{ val }}</textarea>
-            {% elseif q.kind == 'select' %}
-              <select class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]">
-                <option value="">Choose…</option>
-                {% for o in q.options %}
-                  <option value="{{ o }}" {{ val == o ? 'selected' : '' }}>{{ o }}</option>
-                {% endfor %}
-              </select>
-            {% else %}
-              <input class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
-                     type="{{ q.kind == 'url' ? 'url' : (q.kind == 'number' ? 'number' : (q.kind == 'date' ? 'date' : 'text')) }}"
-                     maxlength="{{ q.max_len }}" value="{{ val }}"
-                     placeholder="{{ q.placeholder ?: (q.kind == 'url' ? 'https://…' : '') }}">
-            {% endif %}
-          </div>
-        {% endfor %}
+      {# ── progress ─────────────────────────────────────────────────────── #}
+      <div class="mw__prog">
+        <b x-text="(progress.answered || 0) + ' of ' + (progress.total || 0) + ' answered'">
+          {{ chat.progress.answered|default(0) }} of {{ chat.progress.total|default(0) }} answered</b>
+        <div class="mw__bar"><i :style="'width:' + pct() + '%'"></i></div>
+        <span x-text="(progress.required_answered || 0) >= (progress.required || 0)
+                        ? 'You can send it whenever you like'
+                        : ((progress.required || 0) - (progress.required_answered || 0)) + ' still needed before you can send'"></span>
       </div>
 
-      {# ── your works ─────────────────────────────────────────────────── #}
-      <div class="mw__card">
-        <h2>Your works and evidence</h2>
-        <p>List anything that exists and can be looked at: a project, a publication, an award you
-          have received, a news article, a report, a photograph of the work, a letter from a school
-          or ministry. <strong>A judge trusts something they can check far more than a description
-          of it.</strong> Up to {{ form.max_works }} items, and up to {{ form.max_files }} files of
-          {{ form.max_file_mb }}MB each — use links for anything larger.</p>
-
-        <template x-for="(w, i) in works" :key="w.uid">
-          <div class="mw__work">
-            <input type="hidden" :name="'w['+i+'][uid]'" :value="w.uid">
-            <input type="hidden" :name="'w['+i+'][file_name]'" :value="w.file_name">
-
-            <div class="mw__grid">
-              <div>
-                <label class="mw__slab" :for="'wt'+i">What is it called?</label>
-                <input class="mw__in" style="margin-top:0" :id="'wt'+i" :name="'w['+i+'][title]'"
-                       type="text" maxlength="200" x-model="w.title"
-                       placeholder="e.g. Saturday Science Club">
-              </div>
-              <div>
-                <label class="mw__slab" :for="'wk'+i">What kind of thing is it?</label>
-                <select class="mw__in" style="margin-top:0" :id="'wk'+i" :name="'w['+i+'][kind]'" x-model="w.kind">
-                  <option value="">Choose…</option>
-                  <option value="document">A document or report</option>
-                  <option value="link">A website or page</option>
-                  <option value="media">A photograph or video</option>
-                  <option value="award">An award or prize</option>
-                  <option value="press">News or press coverage</option>
-                </select>
-              </div>
-              <div>
-                <label class="mw__slab" :for="'wy'+i">When?</label>
-                <input class="mw__in" style="margin-top:0" :id="'wy'+i" :name="'w['+i+'][year]'"
-                       type="text" maxlength="40" x-model="w.year" placeholder="e.g. 2024, or 2019–now">
-              </div>
-              <div>
-                <label class="mw__slab" :for="'wl'+i">A link, if there is one</label>
-                <input class="mw__in" style="margin-top:0" :id="'wl'+i" :name="'w['+i+'][link]'"
-                       type="text" maxlength="600" x-model="w.link" placeholder="https://…">
-              </div>
-            </div>
-
-            <div style="margin-top:10px">
-              <label class="mw__slab" :for="'wd'+i">What is it, in a sentence or two?</label>
-              <textarea class="mw__in" style="margin-top:0; min-height:70px" :id="'wd'+i"
-                        :name="'w['+i+'][description]'" maxlength="1500" x-model="w.description"></textarea>
-            </div>
-            <div style="margin-top:10px">
-              <label class="mw__slab" :for="'wc'+i">Who could confirm it?</label>
-              <input class="mw__in" style="margin-top:0" :id="'wc'+i" :name="'w['+i+'][confirm]'"
-                     type="text" maxlength="300" x-model="w.confirm"
-                     placeholder="A name and role — we only contact them if the panel asks">
-            </div>
-
-            <div class="mw__file" x-show="w.file">
-              <span>📎</span><span x-text="w.file_name || 'File attached'"></span>
-              <span style="color:#67797b">— attached</span>
-            </div>
-            <div class="mw__drop" x-show="!w.file">
-              <span>No file attached. Save this page first, then use the upload box below.</span>
-            </div>
-
-            <button type="button" class="mw__x" @click="drop(i)">Remove this item</button>
-          </div>
-        </template>
-
-        <button type="button" class="mw__add" @click="add()"
-                x-text="works.length ? '+ Add another item' : '+ Add your first item'">+ Add your first item</button>
+      {# ── mode ─────────────────────────────────────────────────────────── #}
+      <div class="mw__modes">
+        <button type="button" class="mw__mode" :aria-pressed="mode === 'chat'" @click="mode = 'chat'">
+          Answer by chatting
+          <small>One question at a time. Easiest on a phone.</small>
+        </button>
+        <button type="button" class="mw__mode" :aria-pressed="mode === 'form'" @click="mode = 'form'">
+          Fill in the whole form
+          <small>See everything at once, and edit anything.</small>
+        </button>
       </div>
+      <p class="mw__hint">Both save to the same place — switch whenever you like, nothing is lost.</p>
 
-      {# ── send it ────────────────────────────────────────────────────── #}
-      <div class="mw__card">
-        <h2>Send it to the judges</h2>
-        <p>Type your name to confirm these are your own words and that what you have attached is
-          yours to share. You can save and come back as often as you like before sending.</p>
+      {# ══ THE CONVERSATION ═══════════════════════════════════════════════ #}
+      <div class="mw__card" x-show="mode === 'chat'" x-cloak>
+        <div class="mw__chat" x-ref="log">
+          <template x-for="(t, i) in turns" :key="i">
+            <div class="mw__msg" :class="t.who === 'you' ? 'mw__msg--you' : 'mw__msg--ai'"
+                 x-text="t.text"></div>
+          </template>
+          <div class="mw__typing" x-show="busy">…</div>
+        </div>
 
-        <label class="mw__slab" for="dn" style="margin-top:14px">Your name</label>
-        <input class="mw__in" style="margin-top:0" id="dn" name="declared_name" type="text"
-               maxlength="160" autocomplete="name" value="{{ form.declared_name }}"
-               placeholder="Type your full name">
+        <div class="mw__bad" x-show="err" x-text="err" x-cloak></div>
 
-        <button class="mw__go" type="submit" name="action" value="submit">Send to the judges</button>
-        <button class="mw__ghost" type="submit" name="action" value="save">Save and finish later</button>
+        <div class="mw__ask" x-show="!done">
+          <textarea class="mw__say" x-model="say" rows="1"
+                    placeholder="Type your answer…"
+                    @keydown.enter.exact.prevent="send()"></textarea>
+          <button type="button" class="mw__send" @click="send()" :disabled="busy || !say.trim()">Send</button>
+        </div>
 
-        <p class="mw__free">
-          <b>Nothing here costs money.</b> We will never ask you to pay for a nomination, an
-          interview, a result or an award, and we will never ask for your bank details. If anybody
-          does, it is not us — tell us at
-          <a href="mailto:{{ support_email }}">{{ support_email }}</a>.<br><br>
-          <b>Answering honestly about what has not worked has never cost anybody an award.</b>
-          The panel is looking for real work, not a perfect record.
+        <p class="mw__hint" x-show="!done">
+          Enter sends. Not sure about a question?
+          <button type="button" class="mw__skip" @click="say = 'skip'; send()">say skip</button>
+          — the ones we truly need will be asked again.
+        </p>
+        <p class="mw__hint" x-show="done" x-cloak>
+          All the questions are answered. Add anything you can show the judges below, then send it.
         </p>
       </div>
-    </form>
 
-    {# ── uploads: a separate form, because a rejected file must not cost a page of typing ── #}
-    <div class="mw__card">
-      <h2>Attach a file</h2>
-      <p>Save the page above first so your items exist, then attach a file to one of them.
-        Documents, PDFs and photographs, up to {{ form.max_file_mb }}MB each.</p>
-      <form method="post" action="/my-work/{{ token }}/upload" enctype="multipart/form-data">
+      {# ══ THE FORM ══════════════════════════════════════════════════════ #}
+      <form method="post" action="/my-work/{{ token }}">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <div class="mw__grid" style="margin-top:12px">
-          <div>
-            <label class="mw__slab" for="uid">Attach it to</label>
-            <select class="mw__in" style="margin-top:0" id="uid" name="uid">
-              {% for w in form.works %}
-                <option value="{{ w.uid }}">{{ w.title ?: 'Item ' ~ loop.index }}{{ w.file ? ' (replace the current file)' : '' }}</option>
+
+        <div class="mw__card" x-show="mode === 'form'" x-cloak>
+          <h2>About the work</h2>
+          <p>Answers marked <span class="mw__req">*</span> are needed before you can send.
+            The rest are optional and all of them are read.</p>
+
+          {% for q in form.questions %}
+            {% set val = form.answers[q.slug]|default('') %}
+            <div class="mw__q">
+              <label class="mw__lab" for="q-{{ q.slug }}">
+                {{ q.label }}{% if q.is_required %} <span class="mw__req">*</span>{% endif %}
+              </label>
+              {% if q.help %}<p class="mw__help">{{ q.help }}</p>{% endif %}
+              {% if q.criterion %}<span class="mw__crit">Judged under: {{ q.criterion }}</span>{% endif %}
+
+              {% if q.kind == 'textarea' %}
+                <textarea class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
+                          maxlength="{{ q.max_len }}"
+                          placeholder="{{ q.placeholder }}">{{ val }}</textarea>
+              {% elseif q.kind == 'select' %}
+                <select class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]">
+                  <option value="">Choose…</option>
+                  {% for o in q.options %}
+                    <option value="{{ o }}" {{ val == o ? 'selected' : '' }}>{{ o }}</option>
+                  {% endfor %}
+                </select>
               {% else %}
-                <option value="">Add an item above and save first</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div>
-            <label class="mw__slab" for="file">Choose the file</label>
-            <input class="mw__in" style="margin-top:0" id="file" name="file" type="file"
-                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">
-          </div>
+                <input class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
+                       type="{{ q.kind == 'url' ? 'url' : (q.kind == 'number' ? 'number' : (q.kind == 'date' ? 'date' : 'text')) }}"
+                       maxlength="{{ q.max_len }}" value="{{ val }}"
+                       placeholder="{{ q.placeholder ?: (q.kind == 'url' ? 'https://…' : '') }}">
+              {% endif %}
+              {% if val %}<div class="mw__done">✓ answered</div>{% endif %}
+            </div>
+          {% endfor %}
         </div>
-        <button class="mw__mini" style="margin-top:12px" type="submit">Upload</button>
+
+        {# ── works: shown in BOTH modes, because this is the part a judge trusts most ── #}
+        <div class="mw__card">
+          <h2>Your works and evidence</h2>
+          <p>Anything that exists and can be looked at: a project, a report, an award, a news
+            article, a photograph of the work, a letter from a school or ministry.
+            <strong>A judge trusts something they can check far more than a description of it.</strong>
+            Up to {{ form.max_works }} items, and up to {{ form.max_files }} files of
+            {{ form.max_file_mb }}MB each — use links for anything larger.</p>
+
+          <template x-for="(w, i) in works" :key="w.uid">
+            <div class="mw__work">
+              <input type="hidden" :name="'w['+i+'][uid]'" :value="w.uid">
+              <input type="hidden" :name="'w['+i+'][file_name]'" :value="w.file_name">
+              <div class="mw__grid">
+                <div>
+                  <label class="mw__slab" :for="'wt'+i">What is it called?</label>
+                  <input class="mw__in" style="margin-top:0" :id="'wt'+i" :name="'w['+i+'][title]'"
+                         type="text" maxlength="200" x-model="w.title"
+                         placeholder="e.g. Saturday Science Club">
+                </div>
+                <div>
+                  <label class="mw__slab" :for="'wk'+i">What kind of thing is it?</label>
+                  <select class="mw__in" style="margin-top:0" :id="'wk'+i" :name="'w['+i+'][kind]'" x-model="w.kind">
+                    <option value="">Choose…</option>
+                    <option value="document">A document or report</option>
+                    <option value="link">A website or page</option>
+                    <option value="media">A photograph or video</option>
+                    <option value="award">An award or prize</option>
+                    <option value="press">News or press coverage</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="mw__slab" :for="'wy'+i">When?</label>
+                  <input class="mw__in" style="margin-top:0" :id="'wy'+i" :name="'w['+i+'][year]'"
+                         type="text" maxlength="40" x-model="w.year" placeholder="e.g. 2024, or 2019–now">
+                </div>
+                <div>
+                  <label class="mw__slab" :for="'wl'+i">A link, if there is one</label>
+                  <input class="mw__in" style="margin-top:0" :id="'wl'+i" :name="'w['+i+'][link]'"
+                         type="text" maxlength="600" x-model="w.link" placeholder="https://…">
+                </div>
+              </div>
+              <div style="margin-top:10px">
+                <label class="mw__slab" :for="'wd'+i">What is it, in a sentence or two?</label>
+                <textarea class="mw__in" style="margin-top:0; min-height:66px" :id="'wd'+i"
+                          :name="'w['+i+'][description]'" maxlength="1500" x-model="w.description"></textarea>
+              </div>
+              <div style="margin-top:10px">
+                <label class="mw__slab" :for="'wc'+i">Who could confirm it?</label>
+                <input class="mw__in" style="margin-top:0" :id="'wc'+i" :name="'w['+i+'][confirm]'"
+                       type="text" maxlength="300" x-model="w.confirm"
+                       placeholder="A name and role — we only contact them if the panel asks">
+              </div>
+              <div class="mw__file" x-show="w.file" x-cloak>
+                <span>📎</span><span x-text="w.file_name || 'File attached'"></span>
+              </div>
+              <div class="mw__drop" x-show="!w.file">Save this page, then attach a file below.</div>
+              <button type="button" class="mw__x" @click="dropWork(i)">Remove this item</button>
+            </div>
+          </template>
+
+          <button type="button" class="mw__add" @click="addWork()"
+                  x-text="works.length ? '+ Add another item' : '+ Add your first item'">+ Add your first item</button>
+        </div>
+
+        {# ── the readiness check, then send ───────────────────────────── #}
+        <div class="mw__card">
+          <h2>Send it to the judges</h2>
+
+          <div class="mw__tip" x-show="(ready.missing || []).length" x-cloak>
+            <strong>Still needed before you can send:</strong>
+            <ul><template x-for="m in (ready.missing || [])" :key="m"><li x-text="m"></li></template></ul>
+          </div>
+
+          {# Help, not a score. Naming what a judge will find thin BEFORE they send is the
+             difference between a fixable gap and a wasted claim. #}
+          <div class="mw__tip" x-show="(ready.thin || []).length" x-cloak>
+            <strong>These would carry more weight with a small addition:</strong>
+            <ul><template x-for="(t, i) in (ready.thin || [])" :key="i"><li x-text="t.why"></li></template></ul>
+            You can send it as it is — this is a suggestion, not a requirement.
+          </div>
+
+          <div class="mw__tip" x-show="!(ready.works > 0)" x-cloak>You have not added anything the
+            judges can look at yet. One document, photograph or link is worth more to a panel than
+            another paragraph.</div>
+
+          <p>Type your name to confirm these are your own words and that what you have attached is
+            yours to share.</p>
+
+          <label class="mw__slab" for="dn" style="margin-top:14px">Your name</label>
+          <input class="mw__in" style="margin-top:0" id="dn" name="declared_name" type="text"
+                 maxlength="160" autocomplete="name" value="{{ form.declared_name }}"
+                 placeholder="Type your full name">
+
+          <button class="mw__go" type="submit" name="action" value="submit">Send to the judges</button>
+          <button class="mw__ghost" type="submit" name="action" value="save">Save and finish later</button>
+
+          <p class="mw__free">
+            <b>Nothing here costs money.</b> We will never ask you to pay for a nomination, an
+            interview, a result or an award, and we will never ask for your bank details. If
+            anybody does, it is not us — tell us at
+            <a href="mailto:{{ support_email }}">{{ support_email }}</a>.<br><br>
+            <b>Answering honestly about what has not worked has never cost anybody an award.</b>
+            The panel is looking for real work, not a perfect record.
+          </p>
+        </div>
       </form>
+
+      {# ── uploads: their own form, so a rejected file never costs a page of typing ── #}
+      <div class="mw__card">
+        <h2>Attach a file</h2>
+        <p>Save the page first so your items exist, then attach a file to one of them.
+          Documents, PDFs and photographs, up to {{ form.max_file_mb }}MB each.</p>
+        <form method="post" action="/my-work/{{ token }}/upload" enctype="multipart/form-data">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div class="mw__grid" style="margin-top:12px">
+            <div>
+              <label class="mw__slab" for="uid">Attach it to</label>
+              <select class="mw__in" style="margin-top:0" id="uid" name="uid">
+                {% for w in form.works %}
+                  <option value="{{ w.uid }}">{{ w.title ?: 'Item ' ~ loop.index }}{{ w.file ? ' (replace the current file)' : '' }}</option>
+                {% else %}
+                  <option value="">Add an item above and save first</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="mw__slab" for="file">Choose the file</label>
+              <input class="mw__in" style="margin-top:0" id="file" name="file" type="file"
+                     accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">
+            </div>
+          </div>
+          <button class="mw__mini" style="margin-top:12px" type="submit">Upload</button>
+        </form>
+      </div>
     </div>
   {% endif %}
 {% endif %}

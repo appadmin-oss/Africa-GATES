@@ -231,6 +231,8 @@ return function(App $app) {
                 ['The questionnaire, per programme', 'src/Services/QuestionnaireService.php', 'function publishEvidence'],
                 ['The nominee\'s page',              'templates/pages/my-work.twig', 'mw__work'],
                 ['Sending it out',                   'src/Admin/Controllers/QuestionnairesController.php', 'function inviteAll'],
+                ['Answering it as a conversation',    'src/Services/QuestionnaireChat.php', 'function probeFor'],
+                ['Chat, form and live progress',     'templates/pages/my-work.twig', 'mw__prog'],
             ],
             'Capturing the call live (the browser extension)' => [
                 ['The token-gated live API',   'src/Services/InterviewLive.php', 'function append'],
@@ -287,6 +289,7 @@ return function(App $app) {
                 ['gates_interviews',     'live_json',         'the caption buffer it writes to'],
                 ['gates_nominee_submissions', 'invite_token',  'the nominee questionnaire link'],
                 ['gates_programme_questions', 'criterion_id',  'filing an answer against a scoring criterion'],
+                ['gates_nominee_submissions', 'chat_json',     'answering the questionnaire as a conversation'],
             ] as [$table, $col, $what]) {
                 try {
                     if (!$cap::schema()->hasTable($table)) {
@@ -1943,6 +1946,10 @@ return function(App $app) {
         $g->get('/my-work/{token:[a-f0-9]{32}}',         \AfricaGates\Controllers\MyWorkController::class.':page');
         $g->post('/my-work/{token:[a-f0-9]{32}}',        \AfricaGates\Controllers\MyWorkController::class.':save');
         $g->post('/my-work/{token:[a-f0-9]{32}}/upload', \AfricaGates\Controllers\MyWorkController::class.':upload');
+        // The conversational route. JSON, because a page reload between typing an answer and
+        // being asked the next question loses the thread — and the answer is already stored
+        // by the time this responds, so a dropped connection costs the reply, not the work.
+        $g->post('/my-work/{token:[a-f0-9]{32}}/chat',   \AfricaGates\Controllers\MyWorkController::class.':chat');
 
         // ── THE NOMINEE'S OWN INTERVIEW PAGE ─────────────────────────────────
         //
