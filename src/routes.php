@@ -227,6 +227,11 @@ return function(App $app) {
                 ['The Meet + transcript door',             'src/Services/GoogleMeetService.php', 'function createSpace'],
                 ['Apps Script: calendar + transcript',     'config/AfricaGATES_AppScript.gs', 'function meetCreate'],
             ],
+            'The nominee\'s own case, in their own words' => [
+                ['The questionnaire, per programme', 'src/Services/QuestionnaireService.php', 'function publishEvidence'],
+                ['The nominee\'s page',              'templates/pages/my-work.twig', 'mw__work'],
+                ['Sending it out',                   'src/Admin/Controllers/QuestionnairesController.php', 'function inviteAll'],
+            ],
             'Capturing the call live (the browser extension)' => [
                 ['The token-gated live API',   'src/Services/InterviewLive.php', 'function append'],
                 ['Its three endpoints',        'src/Controllers/InterviewLiveController.php', 'function say'],
@@ -280,6 +285,8 @@ return function(App $app) {
                 ['gates_interviews',     'consent_at',        'permission to show the panel a transcript'],
                 ['gates_interviews',     'live_token',        'the browser extension that captures the call'],
                 ['gates_interviews',     'live_json',         'the caption buffer it writes to'],
+                ['gates_nominee_submissions', 'invite_token',  'the nominee questionnaire link'],
+                ['gates_programme_questions', 'criterion_id',  'filing an answer against a scoring criterion'],
             ] as [$table, $col, $what]) {
                 try {
                     if (!$cap::schema()->hasTable($table)) {
@@ -1925,6 +1932,18 @@ return function(App $app) {
         $g->post('/claim/{id:[0-9]+}/code',    ClaimController::class.':send');
         $g->post('/claim/{id:[0-9]+}/confirm', ClaimController::class.':confirm');
 
+        // ── THE NOMINEE'S OWN QUESTIONNAIRE ──────────────────────────────────
+        //
+        // Third page on this platform with a token as its whole credential, after the claim
+        // link and the interview link, for the same reason each time: a nominee has no
+        // account, and requiring one to describe their own work would shut out exactly the
+        // population the awards exist to find.
+        //
+        // Uploads are their own POST: a rejected file must not cost a page of typing.
+        $g->get('/my-work/{token:[a-f0-9]{32}}',         \AfricaGates\Controllers\MyWorkController::class.':page');
+        $g->post('/my-work/{token:[a-f0-9]{32}}',        \AfricaGates\Controllers\MyWorkController::class.':save');
+        $g->post('/my-work/{token:[a-f0-9]{32}}/upload', \AfricaGates\Controllers\MyWorkController::class.':upload');
+
         // ── THE NOMINEE'S OWN INTERVIEW PAGE ─────────────────────────────────
         //
         // Guest-accessible with a 32-hex token as the whole credential, because a nominee
@@ -2376,6 +2395,26 @@ return function(App $app) {
             // own endpoints are under /api/interview/live/… — see the note there.
             $s->post('/{id:[0-9]+}/live/rotate', \AfricaGates\Admin\Controllers\InterviewsController::class.':rotateLive');
             $s->post('/{id:[0-9]+}/live/save',   \AfricaGates\Admin\Controllers\InterviewsController::class.':saveLive');
+        });
+
+        // ── NOMINEE QUESTIONNAIRES ────────────────────────────────────
+        //
+        // `moderation`, like interviews: asking a nominee about their own work is programme
+        // work, not governance. The controller lets a viewer read the queue and refuses them
+        // every write, so the sidebar and the guard agree.
+        $a->group('/questionnaires', function (RouteCollectorProxy $s) {
+            $s->get('',                            \AfricaGates\Admin\Controllers\QuestionnairesController::class.':index');
+            $s->post('/open',                      \AfricaGates\Admin\Controllers\QuestionnairesController::class.':open');
+            $s->post('/invite-all',                \AfricaGates\Admin\Controllers\QuestionnairesController::class.':inviteAll');
+            // BEFORE /{id}: "programme" is not a number, so they cannot collide — but the
+            // ordering convention in this file is worth keeping.
+            $s->get('/programme/{id:[0-9]+}',      \AfricaGates\Admin\Controllers\QuestionnairesController::class.':questions');
+            $s->post('/programme/{id:[0-9]+}',     \AfricaGates\Admin\Controllers\QuestionnairesController::class.':saveQuestions');
+            $s->post('/programme/{id:[0-9]+}/seed',\AfricaGates\Admin\Controllers\QuestionnairesController::class.':seed');
+            $s->get('/{id:[0-9]+}',                \AfricaGates\Admin\Controllers\QuestionnairesController::class.':show');
+            $s->post('/{id:[0-9]+}/invite',        \AfricaGates\Admin\Controllers\QuestionnairesController::class.':invite');
+            $s->post('/{id:[0-9]+}/reopen',        \AfricaGates\Admin\Controllers\QuestionnairesController::class.':reopen');
+            $s->post('/{id:[0-9]+}/republish',     \AfricaGates\Admin\Controllers\QuestionnairesController::class.':republish');
         });
 
         // ── superadmin-only areas (RBAC, Task B6) ─────────────────────

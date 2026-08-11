@@ -70,7 +70,7 @@ final class EvidenceService
      * The dossier for one nominee, safe to put in front of a judge.
      *
      * @return array{items:list<array<string,mixed>>, interviews:list<array<string,mixed>>,
-     *               coverage:array{has_interview:bool, has_verified:bool, items:int,
+     *               coverage:array{has_interview:bool, has_verified:bool, has_nominee:bool, items:int,
      *                              missing:list<string>, note:string}}
      */
     public function forJudge(int $nomineeId): array
@@ -330,26 +330,40 @@ final class EvidenceService
      *
      * @param list<array<string,mixed>> $items
      * @param list<array<string,mixed>> $interviews
-     * @return array{has_interview:bool, has_verified:bool, items:int, missing:list<string>, note:string}
+     * @return array{has_interview:bool, has_verified:bool, has_nominee:bool, items:int,
+     *               missing:list<string>, note:string}
      */
     private function coverage(array $items, array $interviews): array
     {
         $hasInterview = $interviews !== [];
         $hasVerified  = false;
         $hasIndep     = false;
+        $hasNominee   = false;
         foreach ($items as $i) {
             if (!empty($i['verified'])) $hasVerified = true;
             if (in_array($i['provenance'] ?? '', ['third_party', 'platform_verified'], true)) $hasIndep = true;
+            if (($i['provenance'] ?? '') === 'nominee_supplied') $hasNominee = true;
         }
 
         $missing = [];
         if (!$hasInterview) $missing[] = 'no interview on file';
-        if (!$hasIndep)     $missing[] = 'nothing from a source outside the nomination';
+        // WORDED CAREFULLY, and re-worded once. This used to read "nothing from a source
+        // outside the nomination", which became misleading the moment nominees could submit
+        // their own evidence: a dossier holding six things the NOMINEE sent is plainly not
+        // "nothing outside the nomination", and a judge reading that line would conclude we
+        // had gathered nothing. What is actually being tested is INDEPENDENCE — the nominee
+        // is a second interested party, not a neutral one — so that is what it now says.
+        if (!$hasIndep)     $missing[] = 'nothing from an independent source';
         if (!$hasVerified)  $missing[] = 'nothing independently checked';
+        // A separate fact, and a new one: whether the nominee has spoken for themselves at
+        // all. A dossier where they were never asked, or never answered, is a different
+        // thing from one where they did — and only one of those is about their work.
+        if (!$hasNominee)   $missing[] = 'the nominee has not sent anything themselves';
 
         return [
             'has_interview' => $hasInterview,
             'has_verified'  => $hasVerified,
+            'has_nominee'   => $hasNominee,
             'items'         => count($items),
             'missing'       => $missing,
             // Said out loud, because the alternative is a judge reading a short dossier

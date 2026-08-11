@@ -57,6 +57,9 @@ final class Permissions
         // against the finance paths below. A viewer holds this section and may READ the
         // schedule; InterviewsController separately refuses them every action that writes.
         'interviews' => 'moderation',
+        // The nominee questionnaire, for the same reason: asking somebody about their own
+        // work is programme work rather than governance.
+        'questionnaires' => 'moderation',
         // programmes
         'programmes' => 'programmes', 'categories' => 'programmes', 'awards-page' => 'programmes',
         // content

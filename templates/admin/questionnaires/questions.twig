@@ -1,0 +1,164 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  THE QUESTIONS FOR ONE PROGRAMME.
+
+  Until somebody presses "copy the defaults in", this programme has no rows of its own and the
+  default set — generated from its own scoring criteria — is what nominees see. That is
+  deliberate: a platform must be able to send a questionnaire on its first day without
+  designing one, and rows nobody asked for are rows nobody maintains.
+
+  Two things are stated on the screen rather than left to be discovered: emptying a label
+  deletes that question, and the criterion decides where the answer lands in a judge's dossier.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .qq-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .qq-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px }
+  .qq-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .qq-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .qq-q{ border:1px solid rgba(16,41,44,.13); border-radius:12px; padding:14px 15px;
+    margin-top:12px; background:#fbfdfb }
+  .qq-grid{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));
+    margin-top:10px }
+  .qq-lab{ display:block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; margin-bottom:5px }
+  .qq-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px; padding:9px 11px;
+    border:1px solid rgba(16,41,44,.18); border-radius:9px; background:#fff; color:#10292C }
+  textarea.qq-in{ min-height:60px; line-height:1.6; resize:vertical }
+  .qq-check{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#3d5254 }
+  .qq-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:10px 17px;
+    border-radius:999px; background:#10292C; color:#fff; text-decoration:none; display:inline-block }
+  .qq-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .qq-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:16px }
+  .qq-warn{ background:#fff8df; border:1px solid #ecd9a0; border-radius:10px; padding:12px 14px;
+    font-size:12.5px; line-height:1.7; color:#6b5312; margin-top:12px }
+</style>
+{% endblock %}
+
+{% block topbar_title %}Questions — {{ programme.title }}{% endblock %}
+
+{% block content %}
+<p class="qq-sub">
+  {{ questions|length }} question(s) ·
+  {{ has_own ? 'this programme\'s own set' : 'the shared default set' }} ·
+  <a href="/admin/questionnaires">back to questionnaires</a>
+</p>
+
+{% if not has_own %}
+  <div class="qq-sec">
+    <h2>This programme uses the default questions</h2>
+    <p>They are generated from this programme's own scoring criteria, so nominees can be asked
+       today without anybody designing a questionnaire. Nothing is stored until you copy them in
+       — and until then, editing the criteria changes the questions with them.</p>
+    <form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/seed" class="qq-row">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="qq-btn" type="submit">Copy them in so I can edit them</button>
+    </form>
+  </div>
+{% endif %}
+
+<form method="post" action="/admin/questionnaires/programme/{{ programme.id }}">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+  <div class="qq-sec">
+    <h2>{{ has_own ? 'Edit the questions' : 'What nominees are asked' }}</h2>
+    <p><strong>Judged under</strong> decides which scoring criterion an answer is filed against in
+       the judge's dossier — it is the reason this is a questionnaire rather than a form.
+       <strong>Becomes</strong> is what the answer turns into: a note, or a link a judge can follow.
+       {% if has_own %}Emptying a question's wording <strong>deletes it</strong>.{% endif %}</p>
+
+    {% if not has_own %}
+      <div class="qq-warn">These are read-only until you copy them in above.</div>
+    {% endif %}
+
+    {% for q in questions %}
+      <div class="qq-q">
+        <input type="hidden" name="q[{{ loop.index0 }}][id]" value="{{ q.id }}">
+        <input type="hidden" name="q[{{ loop.index0 }}][slug]" value="{{ q.slug }}">
+
+        <label class="qq-lab" for="l{{ loop.index0 }}">The question, as the nominee reads it</label>
+        <textarea class="qq-in" id="l{{ loop.index0 }}" name="q[{{ loop.index0 }}][label]"
+                  maxlength="300" {{ has_own ? '' : 'readonly' }}>{{ q.label }}</textarea>
+
+        <label class="qq-lab" style="margin-top:10px" for="h{{ loop.index0 }}">
+          What a good answer looks like (shown under the question)</label>
+        <textarea class="qq-in" id="h{{ loop.index0 }}" name="q[{{ loop.index0 }}][help]"
+                  maxlength="600" {{ has_own ? '' : 'readonly' }}>{{ q.help }}</textarea>
+
+        <div class="qq-grid">
+          <div>
+            <label class="qq-lab" for="k{{ loop.index0 }}">Answer type</label>
+            <select class="qq-in" id="k{{ loop.index0 }}" name="q[{{ loop.index0 }}][kind]" {{ has_own ? '' : 'disabled' }}>
+              {% for k in ['textarea','text','url','number','date','email'] %}
+                <option value="{{ k }}" {{ q.kind == k ? 'selected' : '' }}>{{ k }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="qq-lab" for="c{{ loop.index0 }}">Judged under</label>
+            <select class="qq-in" id="c{{ loop.index0 }}" name="q[{{ loop.index0 }}][criterion_id]" {{ has_own ? '' : 'disabled' }}>
+              <option value="">— none —</option>
+              {% for c in criteria %}
+                <option value="{{ c.id }}" {{ q.criterion_id == c.id ? 'selected' : '' }}>{{ c.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="qq-lab" for="e{{ loop.index0 }}">Becomes</label>
+            <select class="qq-in" id="e{{ loop.index0 }}" name="q[{{ loop.index0 }}][evidence_kind]" {{ has_own ? '' : 'disabled' }}>
+              {% for e in ['note','link','document','media','award','press'] %}
+                <option value="{{ e }}" {{ q.evidence_kind == e ? 'selected' : '' }}>{{ e }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="qq-lab" for="m{{ loop.index0 }}">Max characters</label>
+            <input class="qq-in" id="m{{ loop.index0 }}" name="q[{{ loop.index0 }}][max_len]"
+                   type="number" min="50" max="8000" value="{{ q.max_len }}" {{ has_own ? '' : 'readonly' }}>
+          </div>
+          <div style="align-self:end">
+            <label class="qq-check">
+              <input type="checkbox" name="q[{{ loop.index0 }}][is_required]" value="1"
+                     {{ q.is_required ? 'checked' : '' }} {{ has_own ? '' : 'disabled' }}>
+              Must be answered</label>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+
+    {% if has_own %}
+      {# One blank row, so adding a question needs no separate screen. #}
+      {% set n = questions|length %}
+      <div class="qq-q" style="border-style:dashed">
+        <input type="hidden" name="q[{{ n }}][id]" value="0">
+        <label class="qq-lab" for="new-l">Add another question</label>
+        <textarea class="qq-in" id="new-l" name="q[{{ n }}][label]" maxlength="300"
+                  placeholder="Leave blank if you are not adding one"></textarea>
+        <div class="qq-grid">
+          <div>
+            <label class="qq-lab" for="new-s">Short name (letters and underscores)</label>
+            <input class="qq-in" id="new-s" name="q[{{ n }}][slug]" type="text" maxlength="60"
+                   placeholder="e.g. partnerships">
+          </div>
+          <div>
+            <label class="qq-lab" for="new-c">Judged under</label>
+            <select class="qq-in" id="new-c" name="q[{{ n }}][criterion_id]">
+              <option value="">— none —</option>
+              {% for c in criteria %}<option value="{{ c.id }}">{{ c.label }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="qq-row">
+        <button class="qq-btn" type="submit">Save these questions</button>
+        <span style="font-size:12px; color:#67797b">Nominees who have already sent theirs keep the
+          answers they gave.</span>
+      </div>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

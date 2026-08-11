@@ -386,6 +386,17 @@ return [
     \AfricaGates\Controllers\InterviewController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\InterviewController(
         $c->get(Twig::class)
     ),
+    // The nominee questionnaire. Same shape as interviews: the mailer and SMS gateway,
+    // because a questionnaire nobody is told about is a table nobody fills in.
+    \AfricaGates\Admin\Controllers\QuestionnairesController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\QuestionnairesController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Admin\Services\AuditService::class),
+        $c->get(OtpService::class),
+        \AfricaGates\Services\SmsService::boot()
+    ),
+    \AfricaGates\Controllers\MyWorkController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\MyWorkController(
+        $c->get(Twig::class)
+    ),
     \AfricaGates\Admin\Controllers\SupportController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\SupportController(
         $c->get(Twig::class),
         new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))

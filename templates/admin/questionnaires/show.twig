@@ -1,0 +1,176 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  ONE SUBMISSION, read as a judge will read it.
+
+  There is deliberately NO editing of a nominee's answers here. Staff correcting what somebody
+  wrote about their own work — in rows labelled `nominee_supplied` and presented to a panel as
+  the nominee's own words — would make the provenance a lie. If something needs changing, the
+  submission is re-opened and the nominee changes it; their original link keeps working.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .qs-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .qs-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px }
+  .qs-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .qs-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .qs-a{ border-top:1px solid rgba(16,41,44,.08); padding:14px 0 }
+  .qs-a:first-of-type{ border-top:none }
+  .qs-q{ font-size:13px; font-weight:650; color:#10292C; line-height:1.5 }
+  .qs-crit{ display:inline-block; margin-left:6px; font-size:10px; font-weight:700;
+    letter-spacing:.06em; text-transform:uppercase; color:#1c5f1b; background:#eaf7ea;
+    border-radius:999px; padding:2px 8px }
+  .qs-v{ margin-top:7px; font-size:13.5px; line-height:1.75; color:#3d5254; white-space:pre-wrap }
+  .qs-v--none{ color:#98a5a7; font-style:italic }
+  .qs-work{ border:1px solid rgba(16,41,44,.13); border-radius:12px; padding:13px 15px;
+    margin-top:10px; background:#fbfdfb }
+  .qs-work h3{ margin:0; font-size:13.5px; color:#10292C }
+  .qs-work div{ font-size:12.5px; line-height:1.7; color:#5a6d6f; margin-top:5px }
+  .qs-work a{ color:#237b22; font-weight:600; word-break:break-all }
+  .qs-tag{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .qs-tag--ok{ background:#eaf7ea; color:#1c5f1b }
+  .qs-tag--no{ background:#fdeaea; color:#8a2020 }
+  .qs-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:14px }
+  .qs-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:10px 17px;
+    border-radius:999px; background:#10292C; color:#fff; text-decoration:none; display:inline-block }
+  .qs-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .qs-link{ font-family:var(--ag-font-mono,monospace); font-size:12px; word-break:break-all;
+    background:#f6f9f6; border:1px solid rgba(16,41,44,.09); border-radius:8px; padding:9px 11px;
+    margin-top:10px; color:#3d5254 }
+  .qs-warn{ background:#fff8df; border:1px solid #ecd9a0; border-radius:10px; padding:12px 14px;
+    font-size:12.5px; line-height:1.7; color:#6b5312; margin-top:12px }
+  .qs-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px; padding:9px 11px;
+    border:1px solid rgba(16,41,44,.18); border-radius:9px; background:#fff; color:#10292C }
+</style>
+{% endblock %}
+
+{% block topbar_title %}{{ form ? form.nominee : 'Questionnaire' }}{% endblock %}
+
+{% block content %}
+<p class="qs-sub">
+  Questionnaire #{{ row.id }}{% if form and form.programme %} · {{ form.programme }}{% endif %}
+  {%- if form and form.category %} · {{ form.category }}{% endif %} ·
+  <a href="/admin/questionnaires">back to the queue</a>
+</p>
+
+{# A submission back in draft AFTER being sent is a different state from one never sent, and
+   the difference matters: the earlier version is still in front of the judges. Showing
+   "draft" beside "sent" with no explanation is a screen contradicting itself. #}
+{% set reopened = row.status == 'draft' and row.submitted_at %}
+<div class="qs-row" style="margin:0 0 16px">
+  <span class="qs-tag">{{ reopened ? 're-opened for changes' : row.status }}</span>
+  {% if row.invited_at %}<span class="qs-tag qs-tag--ok">invited</span>
+  {% else %}<span class="qs-tag qs-tag--no">not invited</span>{% endif %}
+  {% if row.submitted_at %}
+    <span class="qs-tag qs-tag--ok">{{ reopened ? 'last sent' : 'sent' }} {{ row.submitted_at }}</span>
+  {% endif %}
+  {% if row.evidence_count %}<span class="qs-tag qs-tag--ok">{{ row.evidence_count }} in the dossier</span>{% endif %}
+</div>
+
+{# ── the link and the invitation ─────────────────────────────────────────── #}
+<div class="qs-sec">
+  <h2>Their link</h2>
+  <p>The invitation goes to the contact on their approved nomination — never one typed here, the
+     rule the claim path and the interview invitation both follow. Send this yourself if no
+     contact is on file.</p>
+  <div class="qs-link">{{ link }}</div>
+  <p>{{ row.invited_at ? 'Invited ' ~ row.invited_at : 'Nobody has been told yet.' }}
+     {{ row.started_at ? '· they opened it ' ~ row.started_at : '' }}</p>
+  <form method="post" action="/admin/questionnaires/{{ row.id }}/invite" class="qs-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="qs-btn" type="submit">{{ row.invited_at ? 'Send it again' : 'Send the invitation' }}</button>
+  </form>
+</div>
+
+{# ── what they wrote ─────────────────────────────────────────────────────── #}
+<div class="qs-sec">
+  <h2>What they wrote</h2>
+  {% if reopened %}
+    <div class="qs-warn">This is <strong>re-opened for changes</strong>, and the version the
+      nominee sent on {{ row.submitted_at }} is <strong>still in front of the judges</strong> —
+      {{ row.evidence_count }} item(s). That is deliberate: withdrawing their work while they
+      edit one answer would cost them everything if they never came back. When they send it
+      again, the new version <strong>replaces</strong> the old one rather than adding to it.</div>
+  {% elseif row.status == 'draft' %}
+    <div class="qs-warn">This is still a draft, so <strong>no judge can see any of it</strong>.
+      Nothing reaches a dossier until the nominee presses send on their own page.</div>
+  {% elseif row.status == 'withdrawn' %}
+    <div class="qs-warn">This questionnaire has been <strong>closed</strong>. The nominee's link
+      no longer accepts changes.</div>
+  {% endif %}
+
+  {% for q in (form.questions ?? []) %}
+    {% set v = form.answers[q.slug]|default('') %}
+    <div class="qs-a">
+      <div class="qs-q">{{ q.label }}{% if q.criterion %}<span class="qs-crit">{{ q.criterion }}</span>{% endif %}</div>
+      <div class="qs-v {{ v ? '' : 'qs-v--none' }}">{{ v ?: 'not answered' }}</div>
+    </div>
+  {% else %}
+    <p>No questions are configured for this programme.</p>
+  {% endfor %}
+</div>
+
+{# ── their works ─────────────────────────────────────────────────────────── #}
+<div class="qs-sec">
+  <h2>Their works and evidence</h2>
+  {% for w in (form.works ?? []) %}
+    <div class="qs-work">
+      <h3>{{ w.title ?: 'Untitled item' }}</h3>
+      <div>
+        {% if w.kind %}{{ w.kind }}{% endif %}{% if w.year %} · {{ w.year }}{% endif %}
+        {% if w.description %}<br>{{ w.description }}{% endif %}
+        {% if w.confirm %}<br><strong>Who can confirm it:</strong> {{ w.confirm }}{% endif %}
+        {% if w.link %}<br><a href="{{ w.link }}" target="_blank" rel="noopener noreferrer">{{ w.link }}</a>{% endif %}
+        {% if w.file %}<br>📎 <a href="{{ w.file }}" target="_blank" rel="noopener noreferrer">{{ w.file_name ?: 'attached file' }}</a>{% endif %}
+      </div>
+    </div>
+  {% else %}
+    <p>Nothing has been attached.</p>
+  {% endfor %}
+</div>
+
+{# ── what the judges actually see ────────────────────────────────────────── #}
+<div class="qs-sec">
+  <h2>What the judges can see</h2>
+  <p>These are the rows written into the dossier. Every one is labelled as the nominee's own
+     claim and <strong>none is marked verified</strong> — verification means somebody outside this
+     platform checked it, and a self-uploaded document is not that. The ballot shows a judge the
+     difference.</p>
+  {% for e in evidence %}
+    <div class="qs-a">
+      <div class="qs-q">{{ e.title }} <span class="qs-tag">{{ e.kind }}</span></div>
+      {% if e.source_url %}<div class="qs-v" style="font-size:12px">{{ e.source_url }}</div>{% endif %}
+    </div>
+  {% else %}
+    <p>Nothing yet. Rows appear here when the nominee sends the questionnaire.</p>
+  {% endfor %}
+
+  <div class="qs-row">
+    {% if row.status == 'submitted' %}
+      <form method="post" action="/admin/questionnaires/{{ row.id }}/republish">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="qs-btn qs-btn--ghost" type="submit">Rewrite these rows</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+{# ── letting them change it ──────────────────────────────────────────────── #}
+{% if row.status == 'submitted' or reopened %}
+  <div class="qs-sec">
+    <h2>Let them change it</h2>
+    <p>Nothing here can edit a nominee's answers, deliberately: these rows are presented to the
+       panel as the nominee's own words. Re-open it and they can correct or add to it using the
+       same link — and re-sending replaces the dossier rows rather than adding a second copy.</p>
+    <form method="post" action="/admin/questionnaires/{{ row.id }}/reopen">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input class="qs-in" name="note" type="text" maxlength="500" style="margin-top:12px"
+             placeholder="What should they change? (optional — for your own record)">
+      <div class="qs-row"><button class="qs-btn qs-btn--ghost" type="submit">Re-open for the nominee</button></div>
+    </form>
+  </div>
+{% endif %}
+{% endblock %}

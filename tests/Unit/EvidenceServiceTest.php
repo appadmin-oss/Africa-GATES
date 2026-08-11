@@ -308,11 +308,19 @@ final class EvidenceServiceTest extends TestCase
         $this->assertStringContainsString('Score what is here', $cov['note']);
     }
 
-    /** A full dossier stops apologising. */
+    /**
+     * A full dossier stops apologising.
+     *
+     * "Complete" now includes the nominee having sent something themselves. That became part
+     * of the definition when the questionnaire shipped: a dossier assembled entirely by other
+     * people, however well documented, is missing the one voice with first-hand knowledge —
+     * and a judge should be told which of those they are holding.
+     */
     public function test_a_complete_dossier_reports_itself_complete(): void
     {
         $this->evidence();                                     // platform_verified
         $this->evidence(['title' => 'Press', 'provenance' => 'third_party', 'verified' => 0]);
+        $this->evidence(['title' => 'Planting register', 'provenance' => 'nominee_supplied', 'verified' => 0]);
         $this->interview();
 
         $cov = (new EvidenceService())->forJudge($this->nomineeId)['coverage'];
@@ -320,6 +328,28 @@ final class EvidenceServiceTest extends TestCase
         $this->assertSame([], $cov['missing']);
         $this->assertTrue($cov['has_interview']);
         $this->assertTrue($cov['has_verified']);
+        $this->assertTrue($cov['has_nominee']);
+    }
+
+    /**
+     * The wording of this line matters. It used to read "nothing from a source outside the
+     * nomination", which became untrue the moment nominees could submit their own evidence —
+     * a dossier holding six things the nominee sent is plainly not "nothing outside the
+     * nomination", and a judge reading that would conclude nothing had been gathered.
+     */
+    public function test_a_nominees_own_evidence_is_not_reported_as_nothing_gathered(): void
+    {
+        $this->evidence(['title' => 'Planting register 2024', 'provenance' => 'nominee_supplied',
+                         'verified' => 0]);
+
+        $cov = (new EvidenceService())->forJudge($this->nomineeId)['coverage'];
+
+        $this->assertTrue($cov['has_nominee']);
+        $this->assertNotContains('the nominee has not sent anything themselves', $cov['missing']);
+        // Still not independent — the nominee is a second interested party, not a neutral one.
+        $this->assertContains('nothing from an independent source', $cov['missing']);
+        $this->assertNotContains('nothing from a source outside the nomination', $cov['missing'],
+            'the old wording is back, and it now misleads');
     }
 
     /** Evidence hidden by the programme team stays hidden. */

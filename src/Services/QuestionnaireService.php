@@ -1,0 +1,948 @@
+<?php
+declare(strict_types=1);
+
+namespace AfricaGates\Services;
+
+use AfricaGates\Support\SiteUrl;
+use Illuminate\Database\Capsule\Manager as DB;
+use Illuminate\Support\Carbon;
+
+/**
+ * The questionnaire a nominee answers about their own work, per award programme.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * WHY THIS IS THE MOST IMPORTANT THING IN A DOSSIER
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * A judge scores four criteria out of ten. Until the interview stage shipped, every word on
+ * their ballot was written by somebody else — a nominator's paragraph, a category, a
+ * photograph. The interview added what a nominee SAYS. This adds what they can SHOW: the
+ * letter from the ministry, the report with the numbers in it, the photograph of the borehole,
+ * the head teacher who will confirm it. Things that exist, that only they have, and that
+ * nobody has ever been able to ask them for.
+ *
+ * `gates_nominee_evidence` has had `provenance = 'nominee_supplied'` as a first-class value
+ * since the day it was created, and not one row has ever carried it, because the table has
+ * never had a writer. {@see publishEvidence()} is that writer.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * THE DEFAULT QUESTIONS ARE DERIVED FROM THE RUBRIC, NOT INVENTED
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * A platform running one programme must not have to design a questionnaire before it can send
+ * one — that is how a feature ships and is never used. So the default set is generated from
+ * `gates_judge_criteria`: one question per criterion, in the criterion's own words, plus the
+ * questions that apply to any award. A programme that wants its own overrides by slug,
+ * exactly as the rubric itself already supports per-programme overrides.
+ *
+ * Every default asks for something CHECKABLE. "Tell us about your impact" measures fluency;
+ * "how many people, over what period, and who keeps that record?" measures the work. The same
+ * principle {@see InterviewBrief} is built on, applied to writing rather than speech.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * WHAT IT REFUSES TO DO
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * MARK ANYTHING AS VERIFIED. Every row it writes lands with `verified = 0`, whatever the
+ * nominee attached. Verification means a person outside this platform checked it, and a
+ * self-uploaded PDF is not that. The dossier already distinguishes the two and a judge is
+ * shown which is which — writing `verified = 1` here would launder a claim into a finding.
+ *
+ * WRITE A SCORE. Answers do not touch `gates_judge_criteria_scores`. They arrive as evidence
+ * next to the nominator's case, labelled with who is asserting them, and a judge decides.
+ *
+ * ASK FOR MONEY, OR ANYTHING IRRELEVANT. No bank details, no payment, no ID numbers, no
+ * date of birth. The one thing an awards scheme is most often impersonated for is a fee, and
+ * the nominee's page says so in as many words.
+ */
+final class QuestionnaireService
+{
+    /** How many separate works a nominee may list. Enough for a career, short of a spreadsheet. */
+    public const MAX_WORKS = 12;
+
+    /** Files per submission, and the ceiling per file in megabytes. */
+    public const MAX_FILES   = 8;
+    public const MAX_FILE_MB = 10;
+
+    /**
+     * The default questionnaire, for a programme that has not written its own.
+     *
+     * Each entry: slug, kind, label, help, required, max_len, evidence_kind, criterion slug.
+     * The criterion slug is resolved to an id at read time, so a programme with its own
+     * rubric still gets its answers filed against the right criteria.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function defaults(): array
+    {
+        return [
+            ['slug' => 'summary', 'kind' => 'textarea', 'criterion' => '',
+             'label' => 'In your own words, what is the work you are being recognised for?',
+             'help'  => 'Two or three sentences. Write it as you would explain it to a neighbour, '
+                      . 'not as an application.',
+             'required' => 1, 'max_len' => 900, 'evidence_kind' => 'note'],
+
+            ['slug' => 'started', 'kind' => 'text', 'criterion' => '',
+             'label' => 'When did it start, and is it still running?',
+             'help'  => 'A month and year is enough. If it has stopped, say when and why — a '
+                      . 'finished piece of work is not a lesser one.',
+             'required' => 1, 'max_len' => 200, 'evidence_kind' => 'note'],
+
+            ['slug' => 'impact_numbers', 'kind' => 'textarea', 'criterion' => 'impact',
+             'label' => 'How many people has it reached, over what period — and who keeps that record?',
+             'help'  => 'Give the number you can stand behind rather than the largest one. Say how '
+                      . 'it is counted and who holds the register, list or file. A figure with a '
+                      . 'source behind it is worth far more to a judge than a bigger figure without one.',
+             'required' => 1, 'max_len' => 1200, 'evidence_kind' => 'note'],
+
+            ['slug' => 'impact_one', 'kind' => 'textarea', 'criterion' => 'impact',
+             'label' => 'Tell us about one person or one place that is different because of this work.',
+             'help'  => 'One story, with what changed and how you know. You may leave out names if '
+                      . 'they would rather not be named.',
+             'required' => 0, 'max_len' => 1200, 'evidence_kind' => 'note'],
+
+            ['slug' => 'originality', 'kind' => 'textarea', 'criterion' => 'originality',
+             'label' => 'What did you do differently from how it was being done before you started?',
+             'help'  => 'Including what you tried first that did not work. Judges read that as '
+                      . 'strength, not weakness.',
+             'required' => 0, 'max_len' => 1200, 'evidence_kind' => 'note'],
+
+            ['slug' => 'reach', 'kind' => 'textarea', 'criterion' => 'reach',
+             'label' => 'Where has this spread beyond where it began? Name the places.',
+             'help'  => 'Towns, states, countries, or other organisations that copied it. Say who '
+                      . 'runs it in each place now — if it continues without you, say so.',
+             'required' => 0, 'max_len' => 1200, 'evidence_kind' => 'note'],
+
+            ['slug' => 'integrity', 'kind' => 'textarea', 'criterion' => 'integrity',
+             'label' => 'Who holds you accountable, and how is the work funded?',
+             'help'  => 'A board, a community committee, a school, a partner, or simply your own '
+                      . 'records. If you fund it yourself, say that — most people in this position do.',
+             'required' => 0, 'max_len' => 1200, 'evidence_kind' => 'note'],
+
+            ['slug' => 'setback', 'kind' => 'textarea', 'criterion' => 'integrity',
+             'label' => 'Tell us about a time this work went wrong, or cost you something.',
+             'help'  => 'What you did about it, and who you told. Nobody has ever lost an award '
+                      . 'for answering this honestly.',
+             'required' => 0, 'max_len' => 1200, 'evidence_kind' => 'note'],
+
+            ['slug' => 'referees', 'kind' => 'textarea', 'criterion' => 'integrity',
+             'label' => 'Who outside your own organisation could confirm this work?',
+             'help'  => 'One or two people, with their role and how to reach them. We contact them '
+                      . 'only if the panel asks, and never without telling you first.',
+             'required' => 0, 'max_len' => 600, 'evidence_kind' => 'note'],
+
+            ['slug' => 'coverage', 'kind' => 'url', 'criterion' => 'reach',
+             'label' => 'A link to the work, or to coverage of it (optional)',
+             'help'  => 'A website, a news article, a video, a social media page, a published '
+                      . 'report. Add more of these below under “your works”.',
+             'required' => 0, 'max_len' => 500, 'evidence_kind' => 'link'],
+
+            ['slug' => 'anything_else', 'kind' => 'textarea', 'criterion' => '',
+             'label' => 'Anything the panel should know that we have not asked about?',
+             'help'  => 'Optional, and it is read.',
+             'required' => 0, 'max_len' => 1200, 'evidence_kind' => 'note'],
+        ];
+    }
+
+    // ══ 1. the questions ═════════════════════════════════════════════════════
+
+    /**
+     * The questionnaire for a programme: its own questions where it has them, the defaults
+     * otherwise, and never a mixture that asks the same thing twice.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function questions(int $programmeId): array
+    {
+        $criteria = self::criteriaBySlug($programmeId);
+
+        $rows = [];
+        try {
+            $rows = DB::table('gates_programme_questions')
+                ->where('is_active', 1)
+                ->where(function ($q) use ($programmeId) {
+                    $q->where('programme_id', $programmeId)->orWhereNull('programme_id');
+                })
+                ->orderBy('sort_order')->orderBy('id')
+                ->get()->map(fn ($r) => (array) $r)->all();
+        } catch (\Throwable $e) {
+            error_log('[questionnaire] could not read questions: ' . $e->getMessage());
+        }
+
+        // Programme-specific beats global on the same slug — the rule gates_judge_criteria
+        // already uses for the rubric, so an operator only has to learn it once.
+        $bySlug = [];
+        foreach ($rows as $r) {
+            $slug = (string) ($r['slug'] ?? '');
+            if ($slug === '') continue;
+            if (!isset($bySlug[$slug]) || !empty($r['programme_id'])) $bySlug[$slug] = $r;
+        }
+
+        if ($bySlug !== []) {
+            // The criterion's LABEL and the select options resolved here rather than in the
+            // template. Twig has no json_decode filter, and adding one so a template could
+            // parse a database column would put parsing in the layer least able to say
+            // anything useful when the value is malformed.
+            $byId = [];
+            foreach ($criteria as $c) $byId[(int) $c['id']] = (string) $c['label'];
+            foreach ($bySlug as $slug => $r) {
+                $opts = json_decode((string) ($r['options_json'] ?? ''), true);
+                $bySlug[$slug]['options']   = is_array($opts)
+                    ? array_values(array_map('strval', $opts)) : [];
+                $bySlug[$slug]['criterion'] = $byId[(int) ($r['criterion_id'] ?? 0)] ?? '';
+            }
+            return array_values($bySlug);
+        }
+
+        // Nothing stored: the defaults, resolved against this programme's rubric. Returned
+        // rather than inserted, so a platform that never opens the editor still has a
+        // working questionnaire and no rows nobody asked for.
+        $out = [];
+        foreach (self::defaults() as $i => $d) {
+            $critSlug = (string) $d['criterion'];
+            $out[] = [
+                'id'            => null,
+                'slug'          => (string) $d['slug'],
+                'kind'          => (string) $d['kind'],
+                'label'         => (string) $d['label'],
+                'help'          => (string) $d['help'],
+                'placeholder'   => '',
+                'options_json'  => null,
+                'criterion_id'  => $critSlug !== '' ? ($criteria[$critSlug]['id'] ?? null) : null,
+                'criterion'     => $critSlug !== '' ? (string) ($criteria[$critSlug]['label'] ?? '') : '',
+                'evidence_kind' => (string) $d['evidence_kind'],
+                'is_required'   => (int) $d['required'],
+                'max_len'       => (int) $d['max_len'],
+                'sort_order'    => $i + 1,
+                'options'       => [],
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Write the defaults into the table for one programme, so they can be edited.
+     *
+     * Only ever called from the admin editor, and only when that programme has nothing —
+     * seeding on read would fill the table on the first page view of a platform that may
+     * never want to change a word.
+     */
+    public static function seedDefaults(int $programmeId): int
+    {
+        $existing = DB::table('gates_programme_questions')->where('programme_id', $programmeId)->count();
+        if ($existing > 0) return 0;
+
+        $criteria = self::criteriaBySlug($programmeId);
+        $now = Carbon::now()->toDateTimeString();
+        $n = 0;
+        foreach (self::defaults() as $i => $d) {
+            $critSlug = (string) $d['criterion'];
+            DB::table('gates_programme_questions')->insert([
+                'programme_id'  => $programmeId,
+                'slug'          => (string) $d['slug'],
+                'kind'          => (string) $d['kind'],
+                'label'         => (string) $d['label'],
+                'help'          => (string) $d['help'],
+                'criterion_id'  => $critSlug !== '' ? ($criteria[$critSlug]['id'] ?? null) : null,
+                'evidence_kind' => (string) $d['evidence_kind'],
+                'is_required'   => (int) $d['required'],
+                'max_len'       => (int) $d['max_len'],
+                'sort_order'    => $i + 1,
+                'is_active'     => 1,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ]);
+            $n++;
+        }
+        return $n;
+    }
+
+    /** @return array<string, array{id:int,label:string}> */
+    private static function criteriaBySlug(int $programmeId): array
+    {
+        $out = [];
+        try {
+            foreach ((new \AfricaGates\Judge\Services\JudgeService())->criteria($programmeId) as $c) {
+                $slug = (string) ($c['slug'] ?? '');
+                if ($slug !== '') {
+                    $out[$slug] = ['id' => (int) ($c['id'] ?? 0), 'label' => (string) ($c['label'] ?? '')];
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[questionnaire] could not read the rubric: ' . $e->getMessage());
+        }
+        return $out;
+    }
+
+    // ══ 2. opening a submission ══════════════════════════════════════════════
+
+    /**
+     * Open (or find) a nominee's submission and return its id and token.
+     *
+     * @return array{ok:bool, id?:int, token?:string, message:string}
+     */
+    public static function open(int $nomineeId, ?int $adminId = null): array
+    {
+        $n = DB::table('gates_nominees as n')
+            ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+            ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+            ->where('n.id', $nomineeId)
+            ->select('n.id', 'n.name', 'n.merged_into', 'c.cycle_id', 'cy.programme_id')
+            ->first();
+        if (!$n) return ['ok' => false, 'message' => 'That nominee could not be found.'];
+        if (!empty($n->merged_into)) {
+            return ['ok' => false, 'message' => 'That nominee has been merged into another profile.'];
+        }
+
+        $existing = DB::table('gates_nominee_submissions')
+            ->where('nominee_id', $nomineeId)
+            ->where('cycle_id', $n->cycle_id)->first();
+        if ($existing) {
+            return ['ok' => true, 'id' => (int) $existing->id,
+                    'token' => (string) $existing->invite_token,
+                    'message' => 'This nominee already has a questionnaire (#' . $existing->id . ').'];
+        }
+
+        $now = Carbon::now()->toDateTimeString();
+        try {
+            $id = (int) DB::table('gates_nominee_submissions')->insertGetId([
+                'nominee_id'   => $nomineeId,
+                'programme_id' => $n->programme_id !== null ? (int) $n->programme_id : null,
+                'cycle_id'     => $n->cycle_id !== null ? (int) $n->cycle_id : null,
+                'invite_token' => bin2hex(random_bytes(16)),
+                'status'       => 'draft',
+                'created_by'   => $adminId,
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[questionnaire] could not open a submission for ' . $nomineeId . ': ' . $e->getMessage());
+            return ['ok' => false, 'message' => 'The questionnaire could not be created just now.'];
+        }
+
+        return ['ok' => true, 'id' => $id, 'token' => (string) self::tokenFor($id),
+                'message' => 'Questionnaire #' . $id . ' opened for ' . $n->name . '.'];
+    }
+
+    public static function byId(int $id): ?object
+    {
+        try { return DB::table('gates_nominee_submissions')->where('id', $id)->first() ?: null; }
+        catch (\Throwable) { return null; }
+    }
+
+    public static function byToken(string $token): ?object
+    {
+        $token = strtolower(trim($token));
+        if (!preg_match('/^[a-f0-9]{32}$/', $token)) return null;
+        try { return DB::table('gates_nominee_submissions')->where('invite_token', $token)->first() ?: null; }
+        catch (\Throwable) { return null; }
+    }
+
+    public static function tokenFor(int $id): ?string
+    {
+        $t = DB::table('gates_nominee_submissions')->where('id', $id)->value('invite_token');
+        return $t ? (string) $t : null;
+    }
+
+    public static function url(int $id, string $base = ''): string
+    {
+        $base = rtrim($base !== '' ? $base : SiteUrl::base(), '/');
+        $t = self::tokenFor($id);
+        return $t ? $base . '/my-work/' . $t : $base . '/my-work';
+    }
+
+    // ══ 3. the nominee's form ════════════════════════════════════════════════
+
+    /**
+     * Everything the nominee's page needs, from the token alone.
+     *
+     * Carries no other nominee, no scores, no judge, and no contact details beyond the name
+     * of the person whose page it is.
+     */
+    public static function formFor(string $token): ?array
+    {
+        $s = self::byToken($token);
+        if (!$s) return null;
+        $n = DB::table('gates_nominees as n')
+            ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+            ->where('n.id', (int) $s->nominee_id)
+            ->select('n.name', 'n.organisation', 'c.title as category')
+            ->first();
+
+        $programme = '';
+        if (!empty($s->programme_id)) {
+            $programme = (string) (DB::table('gates_award_programmes')
+                ->where('id', (int) $s->programme_id)->value('title') ?? '');
+        }
+
+        $answers = json_decode((string) ($s->answers_json ?? '{}'), true);
+        $works   = json_decode((string) ($s->works_json ?? '[]'), true);
+
+        return [
+            'id'         => (int) $s->id,
+            'token'      => (string) $s->invite_token,
+            'nominee'    => (string) ($n->name ?? 'Nominee'),
+            'category'   => (string) ($n->category ?? ''),
+            'programme'  => $programme,
+            'status'     => (string) $s->status,
+            'submitted'  => $s->status === 'submitted',
+            'submitted_at' => (string) ($s->submitted_at ?? ''),
+            'declared_name' => (string) ($s->declared_name ?? ''),
+            'questions'  => self::questions((int) ($s->programme_id ?? 0)),
+            'answers'    => is_array($answers) ? $answers : [],
+            'works'      => is_array($works) ? array_values(array_filter($works, 'is_array')) : [],
+            'max_works'  => self::MAX_WORKS,
+            'max_files'  => self::MAX_FILES,
+            'max_file_mb' => self::MAX_FILE_MB,
+            'deadline'   => self::deadline((int) ($s->cycle_id ?? 0)),
+        ];
+    }
+
+    /**
+     * When the answers stop being useful: the close of judging for this cycle.
+     *
+     * Shown to the nominee because "there is no rush" and "this closes on Friday" produce
+     * very different behaviour, and only one of them is true.
+     */
+    public static function deadline(int $cycleId): string
+    {
+        if ($cycleId <= 0) return '';
+        try {
+            $c = DB::table('gates_award_cycles')->where('id', $cycleId)
+                ->first(['results_date', 'voting_close', 'status']);
+            if (!$c) return '';
+            $raw = trim((string) ($c->results_date ?? $c->voting_close ?? ''));
+            if ($raw === '') return '';
+            // "15 October 2026", not "2026-10-15 18:00:00". A nominee reading a date with
+            // seconds on it is reading a database column, and the seconds are noise on a
+            // deadline that is really about which day.
+            try { return Carbon::parse($raw)->format('j F Y'); }
+            catch (\Throwable) { return $raw; }
+        } catch (\Throwable) { return ''; }
+    }
+
+    /**
+     * Save a draft. Never validates required fields — that is {@see submit()}'s job.
+     *
+     * A form that refuses to save half an answer is a form people abandon. The population
+     * here is filling this in on a phone, between other work, over several days.
+     *
+     * @param array<string,mixed> $answers
+     * @param list<array<string,mixed>> $works
+     * @return array{ok:bool, message:string}
+     */
+    public static function saveDraft(string $token, array $answers, array $works): array
+    {
+        $s = self::byToken($token);
+        if (!$s) return ['ok' => false, 'message' => 'That link is not valid.'];
+        if ($s->status === 'submitted') {
+            return ['ok' => false, 'message' => 'This has already been sent to the panel. '
+                                             . 'Write to us if something needs changing.'];
+        }
+        if ($s->status === 'withdrawn') {
+            return ['ok' => false, 'message' => 'This questionnaire has been closed.'];
+        }
+
+        $clean = self::cleanAnswers((int) ($s->programme_id ?? 0), $answers);
+        $keptWorks = self::cleanWorks($works, is_array($w = json_decode((string) ($s->works_json ?? '[]'), true)) ? $w : []);
+
+        DB::table('gates_nominee_submissions')->where('id', (int) $s->id)->update([
+            'answers_json' => json_encode($clean),
+            'works_json'   => json_encode($keptWorks),
+            'started_at'   => (string) ($s->started_at ?? Carbon::now()->toDateTimeString()),
+            'updated_at'   => Carbon::now()->toDateTimeString(),
+        ]);
+
+        return ['ok' => true, 'message' => 'Saved. You can come back to this link any time.'];
+    }
+
+    /**
+     * Send it to the panel: validate, store, and write the evidence rows.
+     *
+     * @return array{ok:bool, message:string, missing?:list<string>, evidence?:int}
+     */
+    public static function submit(string $token, string $declaredName, string $ip = ''): array
+    {
+        $s = self::byToken($token);
+        if (!$s) return ['ok' => false, 'message' => 'That link is not valid.'];
+        if ($s->status === 'submitted') {
+            return ['ok' => true, 'message' => 'This was already sent to the panel.'];
+        }
+
+        $answers = json_decode((string) ($s->answers_json ?? '{}'), true);
+        $answers = is_array($answers) ? $answers : [];
+
+        $missing = [];
+        foreach (self::questions((int) ($s->programme_id ?? 0)) as $q) {
+            if ((int) ($q['is_required'] ?? 0) !== 1) continue;
+            $v = trim((string) ($answers[(string) $q['slug']] ?? ''));
+            if ($v === '') $missing[] = (string) $q['label'];
+        }
+        if ($missing !== []) {
+            return ['ok' => false, 'missing' => $missing,
+                    'message' => 'A few answers are still needed before this can be sent.'];
+        }
+
+        $name = trim($declaredName);
+        if ($name === '') {
+            return ['ok' => false, 'message' => 'Please type your name to confirm these are your own words.'];
+        }
+
+        $now = Carbon::now()->toDateTimeString();
+        DB::table('gates_nominee_submissions')->where('id', (int) $s->id)->update([
+            'status'        => 'submitted',
+            'submitted_at'  => $now,
+            'submitted_ip'  => mb_substr($ip, 0, 45),
+            'declared_name' => mb_substr($name, 0, 160),
+            'updated_at'    => $now,
+        ]);
+
+        $written = self::publishEvidence((int) $s->id);
+
+        return ['ok' => true, 'evidence' => $written,
+                'message' => 'Thank you — this has gone to the judging panel.'];
+    }
+
+    /** Re-open a submitted questionnaire so a nominee can correct or add to it. */
+    public static function reopen(int $id, string $note = ''): array
+    {
+        $s = self::byId($id);
+        if (!$s) return ['ok' => false, 'message' => 'That questionnaire could not be found.'];
+        DB::table('gates_nominee_submissions')->where('id', $id)->update([
+            'status'      => 'draft',
+            'review_note' => $note !== '' ? mb_substr(trim($note), 0, 500) : null,
+            'updated_at'  => Carbon::now()->toDateTimeString(),
+        ]);
+        return ['ok' => true, 'message' => 'Re-opened. The nominee can use their original link again.'];
+    }
+
+    // ══ 4. into the judges' dossier ══════════════════════════════════════════
+
+    /**
+     * Turn a submitted questionnaire into evidence rows a judge can read.
+     *
+     * ── WHY IT REPLACES RATHER THAN APPENDS ──────────────────────────────────
+     *
+     * A nominee who corrects an answer and re-submits must not leave the panel reading two
+     * versions of the same claim, and a nominee whose file is re-published three times must
+     * not appear to have three times the evidence. So every row this function previously
+     * wrote for this nominee is removed first — identified by `provenance = 'nominee_supplied'`
+     * — and nothing else is touched. Staff notes, verified records and the nomination's own
+     * case are all somebody else's rows and survive untouched.
+     *
+     * ── AND WHY NOTHING IS EVER MARKED VERIFIED ──────────────────────────────
+     *
+     * `verified = 0` on every row, whatever was attached. Verification means somebody outside
+     * this platform checked it; a self-uploaded document is a claim, and the dossier is built
+     * to show a judge the difference. Writing `verified = 1` here would quietly promote every
+     * nominee's own assertion to the same standing as an independently checked record.
+     */
+    public static function publishEvidence(int $id): int
+    {
+        $s = self::byId($id);
+        if (!$s || $s->status !== 'submitted') return 0;
+
+        $nomineeId = (int) $s->nominee_id;
+        $answers   = json_decode((string) ($s->answers_json ?? '{}'), true);
+        $works     = json_decode((string) ($s->works_json ?? '[]'), true);
+        $answers   = is_array($answers) ? $answers : [];
+        $works     = is_array($works) ? $works : [];
+        $now       = Carbon::now()->toDateTimeString();
+
+        try {
+            DB::table('gates_nominee_evidence')
+                ->where('nominee_id', $nomineeId)
+                ->where('provenance', 'nominee_supplied')
+                ->delete();
+        } catch (\Throwable $e) {
+            error_log('[questionnaire] could not clear old nominee evidence: ' . $e->getMessage());
+        }
+
+        $rows  = [];
+        $order = 10;
+
+        foreach (self::questions((int) ($s->programme_id ?? 0)) as $q) {
+            $slug = (string) $q['slug'];
+            $val  = trim((string) ($answers[$slug] ?? ''));
+            if ($val === '') continue;
+
+            $isLink = (string) $q['kind'] === 'url' || (string) $q['evidence_kind'] === 'link';
+            $rows[] = [
+                'nominee_id'   => $nomineeId,
+                'kind'         => $isLink ? 'link' : (string) $q['evidence_kind'],
+                // The QUESTION is the title, so a judge reads the answer as an answer rather
+                // than as a paragraph that appeared from nowhere.
+                'title'        => mb_substr((string) $q['label'], 0, 250),
+                'body'         => $isLink ? null : mb_substr($val, 0, 8000),
+                'source_label' => 'The nominee\'s own questionnaire'
+                                . ((string) ($q['criterion'] ?? '') !== '' ? ' · ' . $q['criterion'] : ''),
+                'source_url'   => $isLink ? mb_substr($val, 0, 600) : null,
+                'provenance'   => 'nominee_supplied',
+                'verified'     => 0,
+                'visible_to_judges' => 1,
+                'sort_order'   => $order++,
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ];
+        }
+
+        foreach ($works as $w) {
+            if (!is_array($w)) continue;
+            $title = trim((string) ($w['title'] ?? ''));
+            if ($title === '') continue;
+            $link = trim((string) ($w['link'] ?? ''));
+            $file = trim((string) ($w['file'] ?? ''));
+            $body = trim((string) ($w['description'] ?? ''));
+            $when = trim((string) ($w['year'] ?? ''));
+            $who  = trim((string) ($w['confirm'] ?? ''));
+
+            $note = [];
+            if ($body !== '') $note[] = $body;
+            if ($when !== '') $note[] = 'When: ' . $when;
+            if ($who !== '')  $note[] = 'Who can confirm it: ' . $who;
+
+            $rows[] = [
+                'nominee_id'   => $nomineeId,
+                'kind'         => self::workKind((string) ($w['kind'] ?? ''), $link, $file),
+                'title'        => mb_substr($title, 0, 250),
+                'body'         => $note !== [] ? mb_substr(implode("\n", $note), 0, 8000) : null,
+                'source_label' => 'Submitted by the nominee',
+                'source_url'   => $file !== '' ? mb_substr($file, 0, 600)
+                                              : ($link !== '' ? mb_substr($link, 0, 600) : null),
+                'provenance'   => 'nominee_supplied',
+                'verified'     => 0,
+                'visible_to_judges' => 1,
+                'sort_order'   => $order++,
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ];
+        }
+
+        $written = 0;
+        foreach ($rows as $r) {
+            try { DB::table('gates_nominee_evidence')->insert($r); $written++; }
+            catch (\Throwable $e) {
+                error_log('[questionnaire] could not write evidence: ' . $e->getMessage());
+            }
+        }
+
+        DB::table('gates_nominee_submissions')->where('id', $id)->update([
+            'evidence_count' => $written,
+            'updated_at'     => $now,
+        ]);
+
+        return $written;
+    }
+
+    /** Which evidence kind a listed work is. */
+    private static function workKind(string $declared, string $link, string $file): string
+    {
+        $ok = ['document', 'link', 'media', 'award', 'press', 'note'];
+        if (in_array($declared, $ok, true)) return $declared;
+        if ($file !== '') {
+            return preg_match('/\.(jpe?g|png|webp|gif)$/i', $file) ? 'media' : 'document';
+        }
+        return $link !== '' ? 'link' : 'note';
+    }
+
+    // ══ 5. cleaning what arrives ═════════════════════════════════════════════
+
+    /**
+     * Keep only answers to questions that exist, trimmed to their declared length.
+     *
+     * A crafted POST cannot invent a question, and cannot store a megabyte against one that
+     * declares 1,200 characters. Unknown keys are dropped silently rather than rejected: a
+     * form that 400s because a browser sent an extra field helps nobody.
+     *
+     * @param array<string,mixed> $answers
+     * @return array<string,string>
+     */
+    private static function cleanAnswers(int $programmeId, array $answers): array
+    {
+        $out = [];
+        foreach (self::questions($programmeId) as $q) {
+            $slug = (string) $q['slug'];
+            if (!array_key_exists($slug, $answers)) continue;
+            $v = is_scalar($answers[$slug]) ? (string) $answers[$slug] : '';
+            $v = trim(str_replace(["\r\n", "\r"], "\n", $v));
+            if ($v === '') continue;
+
+            if ((string) $q['kind'] === 'url') {
+                if (!preg_match('~^https?://~i', $v)) $v = 'https://' . $v;
+                if (!filter_var($v, FILTER_VALIDATE_URL)) continue;
+            }
+            $out[$slug] = mb_substr($v, 0, max(50, (int) $q['max_len']));
+        }
+        return $out;
+    }
+
+    /**
+     * Normalise the listed works, keeping any file already attached to a row.
+     *
+     * The file path is NOT accepted from the form. It is carried over from what is already
+     * stored for that row, because a field holding a server path is a field somebody can
+     * type into — and pointing an evidence row at an arbitrary path on the server is not a
+     * mistake worth making possible.
+     *
+     * @param list<array<string,mixed>> $works
+     * @param list<array<string,mixed>> $stored
+     * @return list<array<string,mixed>>
+     */
+    private static function cleanWorks(array $works, array $stored): array
+    {
+        $files = [];
+        foreach ($stored as $i => $w) {
+            if (is_array($w) && trim((string) ($w['file'] ?? '')) !== '') {
+                $files[(string) ($w['uid'] ?? $i)] = (string) $w['file'];
+            }
+        }
+
+        $out = [];
+        foreach ($works as $i => $w) {
+            if (!is_array($w)) continue;
+            $title = trim((string) ($w['title'] ?? ''));
+            $link  = trim((string) ($w['link'] ?? ''));
+            $desc  = trim((string) ($w['description'] ?? ''));
+            $uid   = preg_replace('/[^a-z0-9]/i', '', (string) ($w['uid'] ?? '')) ?: ('w' . ($i + 1));
+
+            // A row with nothing in it is not an omission to complain about.
+            if ($title === '' && $link === '' && $desc === '' && !isset($files[$uid])) continue;
+
+            if ($link !== '') {
+                if (!preg_match('~^https?://~i', $link)) $link = 'https://' . $link;
+                if (!filter_var($link, FILTER_VALIDATE_URL)) $link = '';
+            }
+
+            $out[] = [
+                'uid'         => mb_substr($uid, 0, 20),
+                'title'       => mb_substr($title, 0, 200),
+                'kind'        => in_array((string) ($w['kind'] ?? ''), ['document', 'link', 'media', 'award', 'press'], true)
+                                    ? (string) $w['kind'] : '',
+                'year'        => mb_substr(trim((string) ($w['year'] ?? '')), 0, 40),
+                'link'        => mb_substr($link, 0, 600),
+                'description' => mb_substr($desc, 0, 1500),
+                'confirm'     => mb_substr(trim((string) ($w['confirm'] ?? '')), 0, 300),
+                'file'        => $files[$uid] ?? '',
+                'file_name'   => mb_substr(trim((string) ($w['file_name'] ?? '')), 0, 200),
+            ];
+            if (count($out) >= self::MAX_WORKS) break;
+        }
+        return $out;
+    }
+
+    /**
+     * Attach an uploaded file to one work row.
+     *
+     * Kept apart from saveDraft because an upload can fail on its own — a file too large, a
+     * type the platform will not store — and losing a page of typing to a rejected
+     * attachment is the kind of thing that stops somebody finishing.
+     *
+     * @return array{ok:bool, message:string}
+     */
+    public static function attachFile(string $token, string $uid, \Psr\Http\Message\UploadedFileInterface $file): array
+    {
+        $s = self::byToken($token);
+        if (!$s) return ['ok' => false, 'message' => 'That link is not valid.'];
+        if ($s->status === 'submitted') {
+            return ['ok' => false, 'message' => 'This has already been sent to the panel.'];
+        }
+
+        $works = json_decode((string) ($s->works_json ?? '[]'), true);
+        $works = is_array($works) ? $works : [];
+
+        $attached = 0;
+        foreach ($works as $w) {
+            if (is_array($w) && trim((string) ($w['file'] ?? '')) !== '') $attached++;
+        }
+        if ($attached >= self::MAX_FILES) {
+            return ['ok' => false, 'message' => 'That is the most files we can take ('
+                                             . self::MAX_FILES . '). Use links for the rest.'];
+        }
+
+        try {
+            // The same validated public path the nomination form's evidence upload uses: it
+            // reads the bytes rather than trusting the client's MIME type.
+            $up = (new \AfricaGates\Admin\Services\UploadService())
+                ->uploadDocument($file, 'nominee-evidence', self::MAX_FILE_MB, null, 'public',
+                                 'nominee', (int) $s->nominee_id);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'That file could not be accepted: ' . $e->getMessage()];
+        }
+
+        $uid   = preg_replace('/[^a-z0-9]/i', '', $uid) ?: 'w1';
+        $found = false;
+        foreach ($works as $i => $w) {
+            if (is_array($w) && (string) ($w['uid'] ?? '') === $uid) {
+                $works[$i]['file']      = (string) ($up['path'] ?? '');
+                $works[$i]['file_name'] = mb_substr((string) $file->getClientFilename(), 0, 200);
+                $found = true;
+                break;
+            }
+        }
+        if (!$found) {
+            $works[] = ['uid' => $uid, 'title' => mb_substr((string) $file->getClientFilename(), 0, 200),
+                        'kind' => '', 'year' => '', 'link' => '', 'description' => '', 'confirm' => '',
+                        'file' => (string) ($up['path'] ?? ''),
+                        'file_name' => mb_substr((string) $file->getClientFilename(), 0, 200)];
+        }
+
+        DB::table('gates_nominee_submissions')->where('id', (int) $s->id)->update([
+            'works_json' => json_encode(array_values($works)),
+            'updated_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        return ['ok' => true, 'message' => 'File attached.'];
+    }
+
+    // ══ 6. telling the nominee ═══════════════════════════════════════════════
+
+    /**
+     * Send the questionnaire to the nominee.
+     *
+     * The address comes from their approved nomination, never from the caller — the rule the
+     * claim path and the interview invitation both follow, for the same reason: an endpoint
+     * that accepted a destination would let anybody submit a case as anybody.
+     *
+     * @return array{ok:bool, message:string, sent?:list<string>}
+     */
+    public static function invite(int $id, ?OtpService $mailer = null, ?SmsService $sms = null): array
+    {
+        $s = self::byId($id);
+        if (!$s) return ['ok' => false, 'message' => 'That questionnaire could not be found.'];
+
+        $nominee = (string) (DB::table('gates_nominees')->where('id', (int) $s->nominee_id)->value('name') ?? '');
+        $link    = self::url($id);
+        $sent    = [];
+
+        $deadline = self::deadline((int) ($s->cycle_id ?? 0));
+        $body = "Dear " . ($nominee !== '' ? $nominee : 'Nominee') . ",\n\n"
+              . "You have been nominated for an Africa GATES award. The judges currently have only "
+              . "what the person who nominated you wrote about you — so we would like to hear about "
+              . "the work from you, and to see anything you can show us.\n\n"
+              . "YOUR PAGE: " . $link . "\n\n"
+              . "It is a short questionnaire, and you can add your own works: links, documents, "
+              . "photographs, reports, letters, press coverage — whatever exists. You do not have to "
+              . "finish it in one sitting; the page saves as you go and the link keeps working.\n\n"
+              . ($deadline !== '' ? 'Please send it before ' . $deadline . ".\n\n" : '')
+              . "Two things worth saying plainly:\n"
+              . "  - Nothing here costs money. We will never ask you to pay for a nomination, an "
+              . "interview, a result or an award. If anybody does, it is not us.\n"
+              . "  - Answering honestly about what has NOT worked has never cost anybody an award. "
+              . "The judges are looking for real work, not a perfect record.\n";
+
+        try {
+            foreach (ClaimIndependence::contactsFor((int) $s->nominee_id) as $c) {
+                if (($c['channel'] ?? '') !== 'email') continue;
+                $to = (string) $c['value'];
+                if (!filter_var($to, FILTER_VALIDATE_EMAIL)) continue;
+                if ($mailer) {
+                    $mailer->sendCustom($to, 'Tell the Africa GATES judges about your work', $body);
+                    $sent[] = $to;
+                }
+                break;
+            }
+            foreach (ClaimIndependence::contactsFor((int) $s->nominee_id) as $c) {
+                if (($c['channel'] ?? '') !== 'phone' || $sms === null || !$sms->configured()) continue;
+                $e164 = \AfricaGates\Support\Phone::normalize((string) $c['value'], (string) ($c['country'] ?? 'NG'));
+                if ($e164 === null) continue;
+                if ($sms->sendSms($e164, 'Africa GATES: the judges would like to hear about your work '
+                                       . 'in your own words. ' . $link . ' Nothing to pay.', 'questionnaire')) {
+                    $sent[] = $e164;
+                }
+                break;
+            }
+        } catch (\Throwable $e) {
+            error_log('[questionnaire] invite failed for ' . $id . ': ' . $e->getMessage());
+        }
+
+        DB::table('gates_nominee_submissions')->where('id', $id)->update([
+            'invited_at' => Carbon::now()->toDateTimeString(),
+            'updated_at' => Carbon::now()->toDateTimeString(),
+        ]);
+
+        if ($sent === []) {
+            return ['ok' => true, 'sent' => [],
+                    'message' => 'Marked as invited, but nothing could be sent — no contact is on '
+                               . 'the nomination, or no mail transport is configured. Send this link '
+                               . 'yourself: ' . $link];
+        }
+        return ['ok' => true, 'sent' => $sent,
+                'message' => 'Sent to ' . count($sent) . ' recipient(s).'];
+    }
+
+    // ══ 7. reading, for the admin screens ════════════════════════════════════
+
+    /** @return list<array<string,mixed>> */
+    public static function queue(int $limit = 200): array
+    {
+        try {
+            $rows = DB::table('gates_nominee_submissions as s')
+                ->leftJoin('gates_nominees as n', 'n.id', '=', 's.nominee_id')
+                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 's.programme_id')
+                ->orderByDesc('s.id')->limit($limit)
+                ->select('s.*', 'n.name as nominee', 'p.title as programme')
+                ->get();
+        } catch (\Throwable $e) {
+            error_log('[questionnaire] could not read the queue: ' . $e->getMessage());
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $r) {
+            $answers = json_decode((string) ($r->answers_json ?? '{}'), true);
+            $works   = json_decode((string) ($r->works_json ?? '[]'), true);
+            $out[] = [
+                'id'         => (int) $r->id,
+                'nominee_id' => (int) $r->nominee_id,
+                'nominee'    => (string) ($r->nominee ?? 'Unknown'),
+                'programme'  => (string) ($r->programme ?? ''),
+                'status'     => (string) $r->status,
+                'invited'    => !empty($r->invited_at),
+                'invited_at' => (string) ($r->invited_at ?? ''),
+                'submitted_at' => (string) ($r->submitted_at ?? ''),
+                'answers'    => is_array($answers) ? count($answers) : 0,
+                'works'      => is_array($works) ? count($works) : 0,
+                'evidence'   => (int) $r->evidence_count,
+                'started'    => !empty($r->started_at),
+                'link'       => self::url((int) $r->id),
+            ];
+        }
+        return $out;
+    }
+
+    /** @return array<string,int> */
+    public static function summary(): array
+    {
+        $s = ['total' => 0, 'invited' => 0, 'started' => 0, 'submitted' => 0,
+              'not_invited' => 0, 'silent' => 0];
+        try {
+            foreach (DB::table('gates_nominee_submissions')
+                        ->select('status', 'invited_at', 'started_at')->get() as $r) {
+                $s['total']++;
+                if ((string) $r->status === 'submitted') { $s['submitted']++; continue; }
+                if (empty($r->invited_at)) { $s['not_invited']++; continue; }
+                $s['invited']++;
+                if (!empty($r->started_at)) $s['started']++;
+                else $s['silent']++;
+            }
+        } catch (\Throwable) {}
+        return $s;
+    }
+
+    /** Approved nominees who have no questionnaire yet. */
+    public static function candidates(int $limit = 400): array
+    {
+        try {
+            $has = DB::table('gates_nominee_submissions')->pluck('nominee_id')
+                ->map(fn ($v) => (int) $v)->all();
+            $q = DB::table('gates_nominees as n')
+                ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
+                ->whereNull('n.merged_into')
+                ->orderBy('n.name')->limit($limit)
+                ->select('n.id', 'n.name', 'c.title as category');
+            if ($has) $q->whereNotIn('n.id', $has);
+            return $q->get()->map(fn ($r) => (array) $r)->all();
+        } catch (\Throwable) { return []; }
+    }
+}

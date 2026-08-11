@@ -1,0 +1,320 @@
+{% extends "layout/gates.twig" %}
+
+{# ── THE NOMINEE'S QUESTIONNAIRE ──────────────────────────────────────────────
+
+   The person on this page has been nominated for an award by somebody else, has probably
+   never used this site, and is very likely on a phone. They may be a teacher with an hour
+   after school, not an applicant with an afternoon.
+
+   Everything follows from that:
+
+     • IT SAVES WITHOUT VALIDATING. Two buttons — "Save and finish later" and "Send to the
+       judges" — and only the second one checks anything. A form that refuses half a sentence
+       is a form that gets abandoned, and an abandoned questionnaire puts a judge back to
+       reading the nominator's paragraph.
+
+     • THE HELP TEXT IS THE FEATURE. Each question says what a good answer looks like, in
+       plain words, because "describe your impact" produces prose and "how many people, over
+       what period, and who keeps that record?" produces something a judge can weigh.
+
+     • FAILURE IS EXPLICITLY SAFE. Two of the questions ask what went wrong. Somebody who
+       thinks an honest answer will cost them the award will write nothing useful, so the page
+       says outright that it never has.
+
+     • AND IT SAYS, TWICE, THAT NOTHING COSTS MONEY. "You have reached the next round, pay a
+       fee" is the commonest way an awards scheme is impersonated, and this email lands in the
+       inboxes of exactly the people that is aimed at.
+
+   Alpine is used only for adding and removing work rows. Every field is a plain form input
+   with a name, so the page works with JavaScript switched off — which for this audience is
+   not a hypothetical. #}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .mw{ max-width:760px; margin:0 auto; padding:38px 20px 80px }
+  .mw__kick{ display:inline-flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700;
+    letter-spacing:.09em; text-transform:uppercase; color:#1c5f1b; background:#eaf7ea;
+    border-radius:999px; padding:6px 13px }
+  .mw h1{ margin:14px 0 0; font-size:clamp(1.35rem, 1.1rem + 1.2vw, 1.9rem); letter-spacing:-.015em;
+    color:#10292C; line-height:1.25 }
+  .mw__lede{ margin:12px 0 0; font-size:15px; line-height:1.75; color:#3d5254 }
+  .mw__card{ margin-top:18px; background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:18px;
+    padding:24px 22px; box-shadow:0 1px 2px rgba(16,41,44,.04), 0 14px 40px -30px rgba(16,41,44,.3) }
+  .mw__card h2{ margin:0 0 4px; font-size:16px; color:#10292C }
+  .mw__card p{ margin:9px 0 0; font-size:13.5px; line-height:1.7; color:#5a6d6f }
+
+  .mw__q{ padding:18px 0; border-top:1px solid rgba(16,41,44,.08) }
+  .mw__q:first-of-type{ border-top:none; padding-top:4px }
+  .mw__lab{ display:block; font-size:15px; font-weight:600; line-height:1.5; color:#10292C }
+  .mw__req{ color:#8a2020; font-weight:700 }
+  .mw__help{ margin:7px 0 0; font-size:13px; line-height:1.65; color:#67797b }
+  .mw__crit{ display:inline-block; margin-top:8px; font-size:10.5px; font-weight:700;
+    letter-spacing:.06em; text-transform:uppercase; color:#1c5f1b; background:#eaf7ea;
+    border-radius:999px; padding:3px 9px }
+  .mw__in{ width:100%; box-sizing:border-box; margin-top:10px; font:inherit; font-size:15px;
+    line-height:1.6; color:#10292C; border:1px solid rgba(16,41,44,.2); border-radius:12px;
+    padding:12px 13px; background:#fff }
+  textarea.mw__in{ min-height:110px; resize:vertical }
+  .mw__in:focus{ outline:none; border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.12) }
+  .mw__count{ font-size:11.5px; color:#8a969a; margin-top:5px }
+
+  /* works */
+  .mw__work{ border:1px solid rgba(16,41,44,.13); border-radius:14px; padding:15px 15px 6px;
+    margin-top:12px; background:#fbfdfb }
+  .mw__grid{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr)) }
+  .mw__slab{ display:block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; margin:0 0 5px }
+  .mw__file{ margin-top:10px; font-size:12.5px; color:#3d5254; background:#eef4ee;
+    border-radius:9px; padding:9px 11px; display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+  .mw__drop{ margin-top:9px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    font-size:12.5px; color:#67797b }
+  .mw__x{ cursor:pointer; background:none; border:none; color:#8a2020; font:600 12.5px/1 inherit;
+    text-decoration:underline; padding:6px 0; margin:0 0 8px }
+
+  .mw__go{ margin-top:20px; width:100%; background:#237b22; color:#fff; border:none;
+    border-radius:999px; padding:16px 24px; font:700 15.5px/1 inherit; cursor:pointer; min-height:50px }
+  .mw__go:hover{ background:#1c631b }
+  .mw__ghost{ margin-top:10px; width:100%; background:none; color:#10292C;
+    border:1px solid rgba(16,41,44,.22); border-radius:999px; padding:13px 24px;
+    font:600 14px/1 inherit; cursor:pointer; min-height:46px }
+  .mw__add{ margin-top:12px; background:#fff; color:#10292C; border:1px dashed rgba(16,41,44,.3);
+    border-radius:12px; padding:12px; width:100%; font:600 13.5px/1 inherit; cursor:pointer }
+  .mw__mini{ cursor:pointer; background:#10292C; color:#fff; border:none; border-radius:999px;
+    padding:8px 14px; font:600 12.5px/1 inherit }
+
+  .mw__ok{ background:#f0fdf4; border:1px solid #b6e3b6; border-left:4px solid #237b22;
+    border-radius:0 14px 14px 0; padding:15px 17px; margin-top:16px; font-size:14.5px;
+    line-height:1.7; color:#22551f }
+  .mw__bad{ background:#fdf3f3; border:1px solid #f0c9c9; border-left:4px solid #b3261e;
+    border-radius:0 14px 14px 0; padding:15px 17px; margin-top:16px; font-size:14.5px;
+    line-height:1.7; color:#8a2020 }
+  .mw__bad ul{ margin:9px 0 0; padding-left:20px }
+  .mw__free{ margin-top:22px; font-size:13px; line-height:1.75; color:#5a6d6f;
+    border-top:1px solid rgba(16,41,44,.09); padding-top:18px }
+  .mw__free b{ color:#10292c }
+  .mw__sent{ background:#f0fdf4; border:1px solid #b6e3b6; border-radius:16px; padding:22px }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mw">
+
+{% if form is null %}
+  <div class="mw__card">
+    <h1>This link is not working</h1>
+    <p class="mw__lede">It may have been replaced by a newer one, or the questionnaire may have
+      closed. Nothing has gone wrong with your nomination.</p>
+    <p class="mw__lede">Write to
+      <a href="mailto:{{ support_email }}">{{ support_email }}</a> with your name and the award you
+      were nominated for, and a person will send you a fresh link.</p>
+    <p class="mw__free"><b>Nothing about being nominated costs money.</b> If anybody asks you to
+      pay a fee for a nomination, an interview or a result, it is not us.</p>
+  </div>
+
+{% else %}
+  <span class="mw__kick">📝 For the judging panel</span>
+  <h1>{{ form.nominee }} — tell the judges about your work</h1>
+  <p class="mw__lede">
+    You have been nominated{% if form.category %} in <strong>{{ form.category }}</strong>{% endif %}.
+    Right now the judges have only what the person who nominated you wrote. This is your chance
+    to describe the work yourself, and to show them anything that exists — links, documents,
+    photographs, reports, letters.
+    {% if form.deadline %}Please send it before <strong>{{ form.deadline }}</strong>.{% endif %}
+  </p>
+
+  {% if notice %}<div class="mw__ok">{{ notice }}</div>{% endif %}
+  {% if error %}
+    <div class="mw__bad">{{ error }}
+      {% if missing|length %}
+        <ul>{% for m in missing %}<li>{{ m }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% if form.submitted %}
+    <div class="mw__card mw__sent">
+      <h2>This has gone to the judging panel</h2>
+      <p>Sent on {{ form.submitted_at }}{% if form.declared_name %} by {{ form.declared_name }}{% endif %}.
+         The panel can now read your answers and see everything you attached, alongside the
+         nomination itself.</p>
+      <p>If something needs correcting, write to
+        <a href="mailto:{{ support_email }}">{{ support_email }}</a> and we will re-open it for you.
+        Nothing you send later is held against the earlier version.</p>
+    </div>
+    <p class="mw__free"><b>Nothing about this costs money</b>, at any stage.</p>
+
+  {% else %}
+    {# ── the questions ──────────────────────────────────────────────────── #}
+    <form method="post" action="/my-work/{{ token }}"
+          x-data='{ works: {{ (form.works ?: [])|json_encode }}, max: {{ form.max_works }},
+                    add(){ if(this.works.length < this.max)
+                             this.works.push({uid:"w"+Date.now().toString(36),title:"",kind:"",year:"",
+                                              link:"",description:"",confirm:"",file:"",file_name:""}) },
+                    drop(i){ this.works.splice(i,1) } }'>
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+      <div class="mw__card">
+        <h2>About the work</h2>
+        <p>Answers marked <span class="mw__req">*</span> are needed before you can send it. The rest
+          are optional and all of them are read. Write in whatever English you are comfortable with
+          — nobody is marking your grammar.</p>
+
+        {% for q in form.questions %}
+          <div class="mw__q">
+            <label class="mw__lab" for="q-{{ q.slug }}">
+              {{ q.label }}{% if q.is_required %} <span class="mw__req">*</span>{% endif %}
+            </label>
+            {% if q.help %}<p class="mw__help">{{ q.help }}</p>{% endif %}
+            {% if q.criterion %}<span class="mw__crit">Judged under: {{ q.criterion }}</span>{% endif %}
+
+            {% set val = form.answers[q.slug]|default('') %}
+            {% if q.kind == 'textarea' %}
+              <textarea class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
+                        maxlength="{{ q.max_len }}"
+                        placeholder="{{ q.placeholder }}">{{ val }}</textarea>
+            {% elseif q.kind == 'select' %}
+              <select class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]">
+                <option value="">Choose…</option>
+                {% for o in q.options %}
+                  <option value="{{ o }}" {{ val == o ? 'selected' : '' }}>{{ o }}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
+                     type="{{ q.kind == 'url' ? 'url' : (q.kind == 'number' ? 'number' : (q.kind == 'date' ? 'date' : 'text')) }}"
+                     maxlength="{{ q.max_len }}" value="{{ val }}"
+                     placeholder="{{ q.placeholder ?: (q.kind == 'url' ? 'https://…' : '') }}">
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+
+      {# ── your works ─────────────────────────────────────────────────── #}
+      <div class="mw__card">
+        <h2>Your works and evidence</h2>
+        <p>List anything that exists and can be looked at: a project, a publication, an award you
+          have received, a news article, a report, a photograph of the work, a letter from a school
+          or ministry. <strong>A judge trusts something they can check far more than a description
+          of it.</strong> Up to {{ form.max_works }} items, and up to {{ form.max_files }} files of
+          {{ form.max_file_mb }}MB each — use links for anything larger.</p>
+
+        <template x-for="(w, i) in works" :key="w.uid">
+          <div class="mw__work">
+            <input type="hidden" :name="'w['+i+'][uid]'" :value="w.uid">
+            <input type="hidden" :name="'w['+i+'][file_name]'" :value="w.file_name">
+
+            <div class="mw__grid">
+              <div>
+                <label class="mw__slab" :for="'wt'+i">What is it called?</label>
+                <input class="mw__in" style="margin-top:0" :id="'wt'+i" :name="'w['+i+'][title]'"
+                       type="text" maxlength="200" x-model="w.title"
+                       placeholder="e.g. Saturday Science Club">
+              </div>
+              <div>
+                <label class="mw__slab" :for="'wk'+i">What kind of thing is it?</label>
+                <select class="mw__in" style="margin-top:0" :id="'wk'+i" :name="'w['+i+'][kind]'" x-model="w.kind">
+                  <option value="">Choose…</option>
+                  <option value="document">A document or report</option>
+                  <option value="link">A website or page</option>
+                  <option value="media">A photograph or video</option>
+                  <option value="award">An award or prize</option>
+                  <option value="press">News or press coverage</option>
+                </select>
+              </div>
+              <div>
+                <label class="mw__slab" :for="'wy'+i">When?</label>
+                <input class="mw__in" style="margin-top:0" :id="'wy'+i" :name="'w['+i+'][year]'"
+                       type="text" maxlength="40" x-model="w.year" placeholder="e.g. 2024, or 2019–now">
+              </div>
+              <div>
+                <label class="mw__slab" :for="'wl'+i">A link, if there is one</label>
+                <input class="mw__in" style="margin-top:0" :id="'wl'+i" :name="'w['+i+'][link]'"
+                       type="text" maxlength="600" x-model="w.link" placeholder="https://…">
+              </div>
+            </div>
+
+            <div style="margin-top:10px">
+              <label class="mw__slab" :for="'wd'+i">What is it, in a sentence or two?</label>
+              <textarea class="mw__in" style="margin-top:0; min-height:70px" :id="'wd'+i"
+                        :name="'w['+i+'][description]'" maxlength="1500" x-model="w.description"></textarea>
+            </div>
+            <div style="margin-top:10px">
+              <label class="mw__slab" :for="'wc'+i">Who could confirm it?</label>
+              <input class="mw__in" style="margin-top:0" :id="'wc'+i" :name="'w['+i+'][confirm]'"
+                     type="text" maxlength="300" x-model="w.confirm"
+                     placeholder="A name and role — we only contact them if the panel asks">
+            </div>
+
+            <div class="mw__file" x-show="w.file">
+              <span>📎</span><span x-text="w.file_name || 'File attached'"></span>
+              <span style="color:#67797b">— attached</span>
+            </div>
+            <div class="mw__drop" x-show="!w.file">
+              <span>No file attached. Save this page first, then use the upload box below.</span>
+            </div>
+
+            <button type="button" class="mw__x" @click="drop(i)">Remove this item</button>
+          </div>
+        </template>
+
+        <button type="button" class="mw__add" @click="add()"
+                x-text="works.length ? '+ Add another item' : '+ Add your first item'">+ Add your first item</button>
+      </div>
+
+      {# ── send it ────────────────────────────────────────────────────── #}
+      <div class="mw__card">
+        <h2>Send it to the judges</h2>
+        <p>Type your name to confirm these are your own words and that what you have attached is
+          yours to share. You can save and come back as often as you like before sending.</p>
+
+        <label class="mw__slab" for="dn" style="margin-top:14px">Your name</label>
+        <input class="mw__in" style="margin-top:0" id="dn" name="declared_name" type="text"
+               maxlength="160" autocomplete="name" value="{{ form.declared_name }}"
+               placeholder="Type your full name">
+
+        <button class="mw__go" type="submit" name="action" value="submit">Send to the judges</button>
+        <button class="mw__ghost" type="submit" name="action" value="save">Save and finish later</button>
+
+        <p class="mw__free">
+          <b>Nothing here costs money.</b> We will never ask you to pay for a nomination, an
+          interview, a result or an award, and we will never ask for your bank details. If anybody
+          does, it is not us — tell us at
+          <a href="mailto:{{ support_email }}">{{ support_email }}</a>.<br><br>
+          <b>Answering honestly about what has not worked has never cost anybody an award.</b>
+          The panel is looking for real work, not a perfect record.
+        </p>
+      </div>
+    </form>
+
+    {# ── uploads: a separate form, because a rejected file must not cost a page of typing ── #}
+    <div class="mw__card">
+      <h2>Attach a file</h2>
+      <p>Save the page above first so your items exist, then attach a file to one of them.
+        Documents, PDFs and photographs, up to {{ form.max_file_mb }}MB each.</p>
+      <form method="post" action="/my-work/{{ token }}/upload" enctype="multipart/form-data">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <div class="mw__grid" style="margin-top:12px">
+          <div>
+            <label class="mw__slab" for="uid">Attach it to</label>
+            <select class="mw__in" style="margin-top:0" id="uid" name="uid">
+              {% for w in form.works %}
+                <option value="{{ w.uid }}">{{ w.title ?: 'Item ' ~ loop.index }}{{ w.file ? ' (replace the current file)' : '' }}</option>
+              {% else %}
+                <option value="">Add an item above and save first</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="mw__slab" for="file">Choose the file</label>
+            <input class="mw__in" style="margin-top:0" id="file" name="file" type="file"
+                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">
+          </div>
+        </div>
+        <button class="mw__mini" style="margin-top:12px" type="submit">Upload</button>
+      </form>
+    </div>
+  {% endif %}
+{% endif %}
+
+</div>
+{% endblock %}
