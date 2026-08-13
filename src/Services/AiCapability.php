@@ -428,6 +428,33 @@ final class AiCapability
                     . 'judges — for example asking for a number or who keeps a record. It never '
                     . 'writes or changes your answer, and it produces no score.',
             ]),
+            // Help WHILE an answer is being written, rather than a verdict after it is
+            // finished. FAST and one attempt, for the same reason as the follow-up above: a
+            // suggestion that arrives after somebody has moved to the next question is worse
+            // than none, and chaining providers would spend ten seconds of their attention on
+            // it. Every check that matters is mechanical and runs with no key at all — this
+            // only phrases the one specific thing a rule cannot see.
+            'questionnaire.coach' => $c('questionnaire.coach', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_FAST,
+                'model'           => self::PRIMARY[self::TIER_FAST],
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 70,
+                'calls_per_day'   => 3000,
+                'tokens_per_day'  => 300_000,
+                'timeout'         => 5,
+                'max_attempts'    => 1,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'The question you were asked and the answer you have typed so '
+                    . 'far. Contact details are replaced with placeholders first. Nothing else from '
+                    . 'your file is sent, and your answer is stored exactly as you wrote it.',
+                'data_purpose'    => 'To point out one fact that is missing — a number, a date, a '
+                    . 'place, or who could confirm it — while you are still writing. It never '
+                    . 'rewrites your answer, never comments on the work itself, and produces no '
+                    . 'score of any kind.',
+            ]),
             // ONE short question, while a person is waiting to ask it. FAST tier because a
             // follow-up that arrives after the interviewer has moved on is worse than none —
             // and one attempt only, for the same reason moderation on the nomination submit

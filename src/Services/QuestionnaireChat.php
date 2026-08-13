@@ -445,7 +445,7 @@ final class QuestionnaireChat
     {
         $slug = trim((string) ($s->chat_slug ?? ''));
         if ($slug !== '') {
-            foreach (QuestionnaireService::questions((int) ($s->programme_id ?? 0)) as $q) {
+            foreach (QuestionnaireService::questionsFor($s) as $q) {
                 if ((string) $q['slug'] === $slug) return $q;
             }
         }
@@ -460,7 +460,7 @@ final class QuestionnaireChat
      */
     private static function nextQuestion(object $s, array $answers): ?array
     {
-        $questions = QuestionnaireService::questions((int) ($s->programme_id ?? 0));
+        $questions = QuestionnaireService::questionsFor($s);
         $skipped   = self::skipped($s);
 
         foreach ([1, 0] as $wantRequired) {
@@ -489,7 +489,7 @@ final class QuestionnaireChat
     /** @return array<string,int> */
     public static function progress(object $s, array $answers): array
     {
-        $questions = QuestionnaireService::questions((int) ($s->programme_id ?? 0));
+        $questions = QuestionnaireService::questionsFor($s);
         $req = $reqDone = $done = 0;
         foreach ($questions as $q) {
             $has = trim((string) ($answers[(string) $q['slug']] ?? '')) !== '';
@@ -667,7 +667,7 @@ final class QuestionnaireChat
         $missing = [];
         $thin    = [];
 
-        foreach (QuestionnaireService::questions((int) ($s->programme_id ?? 0)) as $q) {
+        foreach (QuestionnaireService::questionsFor($s) as $q) {
             $v = trim((string) ($answers[(string) $q['slug']] ?? ''));
             if ($v === '') {
                 if ((int) ($q['is_required'] ?? 0) === 1) $missing[] = (string) $q['label'];

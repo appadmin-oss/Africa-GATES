@@ -1996,6 +1996,11 @@ return function(App $app) {
         // file lives outside the web root and `intro.audio` streams it, so a nominee can play
         // back their own recording without an account and nothing sits behind an unlisted URL.
         $g->post('/my-work/{token:[a-f0-9]{32}}/ready',  \AfricaGates\Controllers\MyWorkController::class.':ready');
+        // Help WHILE an answer is being written rather than a verdict after it is finished.
+        // Writes nothing, and resolves the question from the submission's own applicable set
+        // rather than from anything the caller sends — otherwise it is a free language-model
+        // endpoint on the operator's key.
+        $g->post('/my-work/{token:[a-f0-9]{32}}/coach',  \AfricaGates\Controllers\MyWorkController::class.':coach');
         $g->post('/my-work/{token:[a-f0-9]{32}}/intro',  \AfricaGates\Controllers\MyWorkController::class.':intro');
         $g->get('/my-work/{token:[a-f0-9]{32}}/intro.audio', \AfricaGates\Controllers\MyWorkController::class.':introAudio');
 

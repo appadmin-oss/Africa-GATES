@@ -124,6 +124,18 @@
     border-radius:12px; padding:14px 16px }
   .mw__consent p{ margin:0; font-size:13px; line-height:1.7; color:#6b5312 }
 
+  /* the form as a sequence */
+  .mw__steptop{ margin:0 0 14px }
+  .mw__steps{ display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-top:16px;
+    padding-top:14px; border-top:1px solid rgba(16,41,44,.08) }
+  .mw__seek{ margin:7px 0 0; font-size:12.5px; line-height:1.6; color:#1c5f1b;
+    background:#f2f9f2; border-radius:9px; padding:8px 11px }
+  /* Help, never a mark. No number, no percentage, no traffic light with a score behind it. */
+  .mw__coach{ margin-top:11px; font-size:12.5px; line-height:1.65; padding:11px 13px;
+    border-radius:11px; background:#fffdf5; border:1px solid #ecd9a0; color:#6b5312 }
+  .mw__coach--ok{ background:#f0fdf4; border-color:#b6e3b6; color:#1c5f1b }
+  .mw__coach b{ display:block; margin-bottom:3px }
+
   /* the form */
   .mw__q{ padding:18px 0; border-top:1px solid rgba(16,41,44,.08) }
   .mw__q:first-of-type{ border-top:none; padding-top:4px }
@@ -687,23 +699,70 @@
       <form method="post" action="/my-work/{{ token }}">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
 
-        <div class="mw__card" x-show="mode === 'form'" x-cloak>
-          <h2>About the work</h2>
-          <p>Answers marked <span class="mw__req">*</span> are needed before you can send.
-            The rest are optional and all of them are read.</p>
+        {# ── THE FORM, AS A SEQUENCE RATHER THAN A WALL ─────────────────────────
+             This was eleven questions stacked into a page nearly five thousand pixels tall,
+             which is a reasonable form and an intimidating one — and the shape people abandon.
+             It is now one question at a time with a step counter, forward and back, and a live
+             read on the answer beside the box. Same fields, same names, same POST.
+
+             THE FIELDS ALL STAY IN THE DOM. Only their VISIBILITY changes, so the form still
+             submits every answer in one go and still works with JavaScript switched off — a
+             stepper that only rendered the current step would have made the no-script path
+             submit one answer and silently drop ten. #}
+        <div class="mw__card" x-show="mode === 'form'" x-cloak
+             x-data='{ step: 0, total: {{ form.questions|length }},
+               coach: {}, busy: {},
+               go(n){ this.step = Math.max(0, Math.min(this.total - 1, n));
+                      this.$nextTick(() => { const el = this.$refs.stepTop;
+                                             if(el) el.scrollIntoView({ block: "start" }) }) },
+               /* One request per pause in typing, not per keystroke: this reads an answer, and
+                  reading it four times a second would be noise for the nominee and a bill for
+                  the operator. */
+               watch(slug, el){
+                 clearTimeout(this.busy[slug]);
+                 const text = el.value;
+                 this.busy[slug] = setTimeout(() => this.ask(slug, text), 900);
+               },
+               async ask(slug, text){
+                 if(!text || text.trim().length < 3){ this.coach[slug] = null; return }
+                 try{
+                   const r = await fetch("/my-work/{{ token }}/coach", {
+                     method:"POST",
+                     headers:{"Content-Type":"application/x-www-form-urlencoded",
+                              "X-CSRF-Token": {{ csrf_token|json_encode }},
+                              "X-Requested-With":"XMLHttpRequest"},
+                     body: new URLSearchParams({ slug: slug, text: text }) });
+                   const d = await r.json();
+                   this.coach[slug] = d.ok ? d : null;
+                 }catch(e){ /* a coach that cannot be reached simply says nothing */ }
+               }
+             }'>
+          <div class="mw__steptop" x-ref="stepTop">
+            <span class="mw__slab" x-text="'Question ' + (step + 1) + ' of ' + total"></span>
+            <div class="mw__bar" style="margin-top:8px">
+              <i :style="'width:' + Math.round((step + 1) / total * 100) + '%'"></i></div>
+          </div>
+          <p class="mw__hint">Answers marked <span class="mw__req">*</span> are needed before you
+            can send. The rest are optional and all of them are read. Nothing is submitted until
+            you press the button at the bottom.</p>
 
           {% for q in form.questions %}
             {% set val = form.answers[q.slug]|default('') %}
-            <div class="mw__q">
+            <div class="mw__q" x-show="step === {{ loop.index0 }}" x-cloak>
               <label class="mw__lab" for="q-{{ q.slug }}">
                 {{ q.label }}{% if q.is_required %} <span class="mw__req">*</span>{% endif %}
               </label>
               {% if q.help %}<p class="mw__help">{{ q.help }}</p>{% endif %}
+              {# What a judge is actually looking for, said under the question rather than
+                 discovered afterwards. Static text: it is the same for everybody and must be
+                 there with no AI key and no network. #}
+              <p class="mw__seek">{{ looking_for[q.slug]|default('') }}</p>
               {% if q.criterion %}<span class="mw__crit">Judged under: {{ q.criterion }}</span>{% endif %}
 
               {% if q.kind == 'textarea' %}
                 <textarea class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
                           maxlength="{{ q.max_len }}"
+                          @input="watch({{ q.slug|json_encode }}, $el)"
                           placeholder="{{ q.placeholder }}">{{ val }}</textarea>
               {% elseif q.kind == 'select' %}
                 <select class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]">
@@ -719,6 +778,27 @@
                        placeholder="{{ q.placeholder ?: (q.kind == 'url' ? 'https://…' : '') }}">
               {% endif %}
               {% if val %}<div class="mw__done">✓ answered</div>{% endif %}
+
+              {# The live read. Help, never a mark: there is no score in it, no percentage and
+                 no traffic light with a number behind it. A nominee being graded by the
+                 platform running the award, on the page they are typing into, would be the
+                 platform pre-judging the entry. #}
+              <template x-if="coach[{{ q.slug|json_encode }}]">
+                <div class="mw__coach"
+                     :class="coach[{{ q.slug|json_encode }}].state === 'good' ? 'mw__coach--ok' : ''">
+                  <b x-text="coach[{{ q.slug|json_encode }}].note"></b>
+                  <span x-show="coach[{{ q.slug|json_encode }}].nudge"
+                        x-text="coach[{{ q.slug|json_encode }}].nudge"></span>
+                </div>
+              </template>
+
+              <div class="mw__steps">
+                <button type="button" class="mw__mini" x-show="step > 0" @click="go(step - 1)">← Back</button>
+                <button type="button" class="mw__mini" x-show="step < total - 1"
+                        @click="go(step + 1)">{{ q.is_required ? 'Next' : 'Next — or skip' }} →</button>
+                <span class="mw__hint" x-show="step === total - 1" x-cloak
+                      style="margin:0">That is the last question.</span>
+              </div>
             </div>
           {% endfor %}
         </div>

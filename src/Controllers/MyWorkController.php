@@ -218,6 +218,54 @@ final class MyWorkController
     }
 
     /**
+     * Read one answer as it is being written, and say the single most useful thing about it.
+     *
+     * ── WHY THIS IS NOT THE READINESS PANEL ──────────────────────────────────
+     *
+     * The readiness panel makes the same observations at the END, which is the worst moment:
+     * the nominee has finished, they are ready to be done, and being sent back to four
+     * questions reads as rejection rather than help. The likeliest response is to send it
+     * anyway.
+     *
+     * Beside the box, while the thought is still in their head, "a number here would make this
+     * much stronger" is a suggestion somebody acts on in ten seconds.
+     *
+     * Writes NOTHING. It is a read on text the nominee has not even saved yet, and a coach
+     * that recorded its own opinions would be building a second, hidden assessment of a person
+     * next to the one the judges are making.
+     */
+    public function coach(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $body  = (array) $req->getParsedBody();
+        $slug  = trim((string) ($body['slug'] ?? ''));
+        $text  = (string) ($body['text'] ?? '');
+
+        $json = function (array $payload) use ($res): Response {
+            $res->getBody()->write((string) json_encode($payload));
+            return $res->withHeader('Content-Type', 'application/json')
+                       ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        };
+
+        $s = QuestionnaireService::byToken($token);
+        if (!$s) return $json(['ok' => false]);
+
+        // The question is resolved from the SUBMISSION's own applicable set, not from anything
+        // the caller sent: a coach that would read any slug against any text is a free
+        // language-model endpoint on the operator's key.
+        $question = null;
+        foreach (QuestionnaireService::questionsFor($s) as $q) {
+            if ((string) $q['slug'] === $slug) { $question = $q; break; }
+        }
+        if ($question === null) return $json(['ok' => false]);
+
+        $r = \AfricaGates\Services\QuestionnaireCoach::read($question, $text);
+
+        return $json(['ok' => true, 'state' => $r['state'], 'note' => $r['note'],
+                      'nudge' => $r['nudge']]);
+    }
+
+    /**
      * The brief has been read. Until this, the questions do not start.
      *
      * A POST rather than a query flag, because it is a record that a person saw something —
@@ -367,6 +415,15 @@ final class MyWorkController
             'intro'         => \AfricaGates\Services\QuestionnaireIntro::state(
                                 $form !== null ? QuestionnaireService::byToken($token) : null, $token),
             'intro_max'     => \AfricaGates\Services\QuestionnaireIntro::MAX_SECONDS,
+            // What a judge is looking for, per question. Resolved here rather than in the
+            // template because it is derived from the criterion and a template deciding that
+            // would put the rubric's logic in the layer least able to explain itself.
+            'looking_for'   => $form !== null
+                ? array_reduce($form['questions'], static function (array $c, array $q): array {
+                    $c[(string) $q['slug']] = \AfricaGates\Services\QuestionnaireCoach::lookingFor($q);
+                    return $c;
+                }, [])
+                : [],
             'support_email' => Notifier::supportEmail(),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }

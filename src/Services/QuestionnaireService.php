@@ -82,20 +82,30 @@ final class QuestionnaireService
                       . 'not as an application.',
              'required' => 1, 'max_len' => 900, 'evidence_kind' => 'note'],
 
+            // min_words 0: "Since 2021." is a complete answer, and nagging somebody for
+            // answering correctly is how a questionnaire loses their trust on question two.
             ['slug' => 'started', 'kind' => 'text', 'criterion' => '',
+             'min_words' => 0,
              'label' => 'When did it start, and is it still running?',
              'help'  => 'A month and year is enough. If it has stopped, say when and why — a '
                       . 'finished piece of work is not a lesser one.',
              'required' => 1, 'max_len' => 200, 'evidence_kind' => 'note'],
 
+            // wants_number: an impact claim without a figure cannot be weighed, and the coach
+            // says so beside the box rather than on the last screen.
             ['slug' => 'impact_numbers', 'kind' => 'textarea', 'criterion' => 'impact',
+             'wants_number' => 1,
              'label' => 'How many people has it reached, over what period — and who keeps that record?',
              'help'  => 'Give the number you can stand behind rather than the largest one. Say how '
                       . 'it is counted and who holds the register, list or file. A figure with a '
                       . 'source behind it is worth far more to a judge than a bigger figure without one.',
              'required' => 1, 'max_len' => 1200, 'evidence_kind' => 'note'],
 
+            // Asked ONLY when the figures answer had no number in it. Somebody who has already
+            // written "1,240 farmers across 8 states" has given a panel what it needs; asking
+            // them to also produce an anecdote is the form failing to read their answer.
             ['slug' => 'impact_one', 'kind' => 'textarea', 'criterion' => 'impact',
+             'show_if_slug' => 'impact_numbers', 'show_if' => 'no_number',
              'label' => 'Tell us about one person or one place that is different because of this work.',
              'help'  => 'One story, with what changed and how you know. You may leave out names if '
                       . 'they would rather not be named.',
@@ -108,12 +118,18 @@ final class QuestionnaireService
              'required' => 0, 'max_len' => 1200, 'evidence_kind' => 'note'],
 
             ['slug' => 'reach', 'kind' => 'textarea', 'criterion' => 'reach',
+             'wants_number' => 0,
              'label' => 'Where has this spread beyond where it began? Name the places.',
              'help'  => 'Towns, states, countries, or other organisations that copied it. Say who '
                       . 'runs it in each place now — if it continues without you, say so.',
              'required' => 0, 'max_len' => 1200, 'evidence_kind' => 'note'],
 
+            // Skipped when they have said the work has ended. Asking how a closed project is
+            // funded, in the present tense, is the clearest signal a form is not listening —
+            // and `reads()` deliberately treats an ambiguous answer as "ask", so a nominee
+            // whose school closed but whose clinic continues still gets the question.
             ['slug' => 'integrity', 'kind' => 'textarea', 'criterion' => 'integrity',
+             'show_if_slug' => 'started', 'show_if' => 'yes',
              'label' => 'Who holds you accountable, and how is the work funded?',
              'help'  => 'A board, a community committee, a school, a partner, or simply your own '
                       . 'records. If you fund it yourself, say that — most people in this position do.',
@@ -215,9 +231,48 @@ final class QuestionnaireService
                 'max_len'       => (int) $d['max_len'],
                 'sort_order'    => $i + 1,
                 'options'       => [],
+                // Branching and coaching hints travel with the defaults, so a platform that
+                // never opens the question editor still gets an adaptive questionnaire rather
+                // than the flat eleven. See QuestionnaireRules for the vocabulary.
+                'show_if_slug'  => $d['show_if_slug'] ?? null,
+                'show_if'       => $d['show_if'] ?? null,
+                'min_words'     => $d['min_words'] ?? null,
+                'wants_number'  => $d['wants_number'] ?? null,
             ];
         }
         return $out;
+    }
+
+    /**
+     * The questions that actually apply to ONE submission, given what it already says.
+     *
+     * ── WHY EVERY CALLER MUST GO THROUGH HERE ────────────────────────────────
+     *
+     * Branching is only safe if it is applied consistently. The chat asks the next question,
+     * the form renders them all, `submit()` decides which are required, `progress()` counts
+     * them and `publishEvidence()` files them — and if any one of those used the unfiltered
+     * list, the questionnaire would contradict itself in the worst possible place:
+     *
+     *   • submit() unfiltered → a required question that was never ASKED blocks sending, and
+     *     the nominee is told to answer something no screen will show them. A dead end with
+     *     no way out except support.
+     *   • progress() unfiltered → "4 of 11" that can never reach 11, so the bar promises a
+     *     finish line that does not exist.
+     *
+     * So the filtering lives in one method and the callers take a submission rather than a
+     * programme id. {@see QuestionnaireRules} holds the vocabulary.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function questionsFor(?object $s): array
+    {
+        if ($s === null) return [];
+        $all = self::questions((int) ($s->programme_id ?? 0));
+
+        $answers = json_decode((string) ($s->answers_json ?? '{}'), true);
+        $answers = is_array($answers) ? array_map('strval', $answers) : [];
+
+        return QuestionnaireRules::filter($all, $answers);
     }
 
     /**
@@ -500,7 +555,7 @@ final class QuestionnaireService
             'submitted'  => $s->status === 'submitted',
             'submitted_at' => (string) ($s->submitted_at ?? ''),
             'declared_name' => (string) ($s->declared_name ?? ''),
-            'questions'  => self::questions((int) ($s->programme_id ?? 0)),
+            'questions'  => self::questionsFor($s),
             'answers'    => is_array($answers) ? $answers : [],
             'works'      => is_array($works) ? array_values(array_filter($works, 'is_array')) : [],
             'max_works'  => self::MAX_WORKS,
@@ -585,7 +640,10 @@ final class QuestionnaireService
         $answers = is_array($answers) ? $answers : [];
 
         $missing = [];
-        foreach (self::questions((int) ($s->programme_id ?? 0)) as $q) {
+        // The FILTERED set. A required question that branching never showed them would
+        // otherwise block sending with an instruction to answer something no screen displays —
+        // a dead end whose only exit is support.
+        foreach (self::questionsFor($s) as $q) {
             if ((int) ($q['is_required'] ?? 0) !== 1) continue;
             $v = trim((string) ($answers[(string) $q['slug']] ?? ''));
             if ($v === '') $missing[] = (string) $q['label'];
@@ -688,7 +746,9 @@ final class QuestionnaireService
         $rows  = [];
         $order = 10;
 
-        foreach (self::questions((int) ($s->programme_id ?? 0)) as $q) {
+        // Filtered too: filing an unasked question as "not answered" would let a panel read
+        // a question the platform chose not to ask as a nominee declining to answer it.
+        foreach (self::questionsFor($s) as $q) {
             $slug = (string) $q['slug'];
             $val  = trim((string) ($answers[$slug] ?? ''));
             if ($val === '') continue;
