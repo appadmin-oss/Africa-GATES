@@ -84,7 +84,46 @@ use Illuminate\Support\Carbon;
 final class PaymentReconciler
 {
     /** Outcomes, in the order an operator cares about them. */
-    public const ACTIONS = ['confirmed', 'mismatch', 'failed', 'unverifiable', 'pending', 'expired'];
+    public const ACTIONS = ['confirmed', 'recovered', 'mismatch', 'failed', 'unverifiable',
+                            'pending', 'expired'];
+
+    /**
+     * ── THE RECOVERY PASS, AND THE HOLE IT CLOSES ────────────────────────────
+     *
+     * Everything above sweeps `status = 'pending'`. And this class itself writes
+     * `status = 'failed'` to a pending row nobody could verify for three days, so it can
+     * leave the queue instead of crowding it — which fixed the queue and made that row
+     * unreachable by every sweeper on the platform, permanently.
+     *
+     * The write-off is a GUESS. It is taken at the one moment the evidence was missing,
+     * and the reasons a gateway cannot be reached are systemic rather than per-row: a
+     * rotated key, a provider switched off in the environment, an outbound firewall. Any
+     * of those writes off every payment in the window — the successful ones included —
+     * and nothing goes back to look once the key is fixed.
+     *
+     * That is why the gateway ledger, which walks Paystack's own list, could report
+     * "Paystack took ₦12,000 and our row says failed" while triage and this sweep, which
+     * walk ours, reported a clean window. The votes were never minted and nobody could
+     * see why.
+     *
+     * So written-off rows are asked ONCE MORE, and the pass converges because
+     * `recovery_checked_at` is stamped only when the gateway actually ANSWERED. A row we
+     * could not reach stays unstamped and is retried next sweep — which matters, because
+     * the outage that caused the write-off is usually still going during the first
+     * attempt, and a stamp on "asked" rather than "answered" would burn the single
+     * chance at exactly the wrong moment.
+     */
+    private const RECOVER_LIMIT = 60;
+
+    /**
+     * How far back a written-off row is still worth re-asking.
+     *
+     * Paystack keeps transactions far longer than this; the ceiling is here because a
+     * two-year-old abandoned checkout is not a payment anybody is waiting on, and a
+     * recovery pass with no floor would re-ask the entire history of the platform every
+     * time somebody fixed a key.
+     */
+    private const RECOVER_WINDOW_DAYS = 120;
 
     /**
      * A checkout still pending after this long is treated as abandoned.
@@ -124,7 +163,7 @@ final class PaymentReconciler
      * @param int  $limit   per table, per run.
      *
      * @return array{
-     *   applied:bool, checked:int, confirmed:int, failed:int, mismatch:int,
+     *   applied:bool, checked:int, confirmed:int, recovered:int, failed:int, mismatch:int,
      *   unverifiable:int, pending:int, expired:int, naira:int,
      *   items:list<array{kind:string,ref:string,who:string,ours:string,gateway:string,
      *                    amount_ours:int,amount_gateway:int,action:string,note:string}>
@@ -138,19 +177,26 @@ final class PaymentReconciler
         $items = array_merge(
             $this->orders($cutoff, $limit, $apply),
             $this->donations($cutoff, $limit, $apply),
+            // Last, so a row that is still pending is handled by the ordinary sweep above
+            // and never reaches the recovery pass as well.
+            $this->recoverWrittenOff($apply),
         );
 
         $tally = array_fill_keys(self::ACTIONS, 0);
         $naira = 0;
         foreach ($items as $i) {
             $tally[$i['action']] = ($tally[$i['action']] ?? 0) + 1;
-            if ($i['action'] === 'confirmed') $naira += $i['amount_ours'];
+            // A recovered row is money that had been given up on, so it counts towards
+            // the total this run put back — the figure an operator reads to know whether
+            // pressing the button was worth anything.
+            if ($i['action'] === 'confirmed' || $i['action'] === 'recovered') $naira += $i['amount_ours'];
         }
 
         return [
             'applied'      => $apply,
             'checked'      => count($items),
             'confirmed'    => $tally['confirmed'],
+            'recovered'    => $tally['recovered'],
             'failed'       => $tally['failed'],
             'mismatch'     => $tally['mismatch'],
             'unverifiable' => $tally['unverifiable'],
@@ -528,6 +574,138 @@ final class PaymentReconciler
      * "we gave up after three days" is still distinguishable from "the bank said no",
      * and a support conversation about an old reference gets the honest answer.
      */
+    /**
+     * Ask the gateway about the rows we had given up on.
+     *
+     * See the note on {@see RECOVER_LIMIT} for why this pass has to exist at all. Three
+     * properties make it safe to run on every sweep:
+     *
+     *   IT ONLY LOOKS AT OUR OWN GUESSES. `expired_at IS NOT NULL` is the tombstone this
+     *   class writes when it could not reach the gateway. A row the GATEWAY declined
+     *   carries no tombstone and is left alone — that one is a verdict, and re-asking it
+     *   forever would be a bill with nothing at the end of it.
+     *
+     *   IT CONVERGES. `recovery_checked_at` is stamped when the gateway ANSWERS, whatever
+     *   the answer, so each row is asked at most once more. A row that could not be
+     *   reached is deliberately left unstamped, because the outage that caused the
+     *   write-off is usually still going during the first attempt.
+     *
+     *   IT CANNOT MINT ON THIN EVIDENCE. Amount parity and currency are checked exactly
+     *   as in the ordinary sweep, and the update is conditional on the row still being
+     *   `failed`, so a webhook that arrived in the meantime wins.
+     *
+     * Oldest-checked first: a row nobody has ever re-asked outranks one asked last week.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function recoverWrittenOff(bool $apply): array
+    {
+        // Nothing to distinguish a guess from a verdict without the tombstone, and
+        // nothing to converge on without the stamp. Rather than re-ask the entire failed
+        // history of the platform on every sweep, this pass simply does not run until
+        // 2026_08_07 and 2026_09_02 have been applied — and says so where an operator
+        // will see it, in the item list.
+        if (!OptionalColumn::on('gates_donations', 'expired_at')
+            || !OptionalColumn::on('gates_donations', 'recovery_checked_at')) {
+            return [];
+        }
+
+        $providers = $this->payments->enabledProviderIds();
+        if (!$providers) return [];
+
+        $floor = Carbon::now()->subDays(self::RECOVER_WINDOW_DAYS)->toDateTimeString();
+
+        try {
+            $rows = DB::table('gates_donations')
+                ->where('status', 'failed')
+                ->whereNotNull('expired_at')
+                ->whereNull('recovery_checked_at')
+                ->where('created_at', '>=', $floor)
+                ->orderByDesc('id')
+                ->limit(self::RECOVER_LIMIT)
+                ->get();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $d) {
+            $row = [
+                'kind' => $this->kindOf((string) ($d->tier ?? '')),
+                'ref'  => (string) $d->payment_ref,
+                'who'  => (string) ($d->donor_name ?: 'Supporter'),
+                'ours' => 'written off', 'gateway' => '—',
+                'amount_ours' => (int) $d->amount_naira, 'amount_gateway' => 0,
+                'action' => 'unverifiable',
+                'note' => 'written off ' . (string) $d->expired_at . ' — no gateway answered, will ask again',
+            ];
+
+            $answered = false;
+            foreach ($this->providersFor($d, $providers) as $provider) {
+                $v = $this->payments->verify($provider, (string) $d->payment_ref);
+                if (!($v['ok'] ?? false)) continue;   // could not reach it — no verdict, no stamp
+
+                $answered = true;
+                $status = (string) ($v['status'] ?? '');
+                $row['gateway'] = $status !== '' ? $status : 'unknown';
+
+                if ($status !== 'success') {
+                    // A real verdict at last, and it agrees with the write-off. The row
+                    // stays failed; the stamp stops it being asked a third time.
+                    $row['action'] = 'expired';
+                    $row['note']   = 'the gateway confirms this was never paid';
+                    break;
+                }
+
+                $row['amount_gateway'] = (int) ($v['amount'] ?? 0);
+
+                if ($row['amount_gateway'] < $row['amount_ours'] || !$this->currencyAgrees($v)) {
+                    $row['action'] = 'mismatch';
+                    $row['note']   = $this->currencyAgrees($v)
+                        ? 'WAS PAID, but ₦' . number_format($row['amount_gateway'])
+                          . ' against ₦' . number_format($row['amount_ours']) . ' expected — a person must decide'
+                        : 'WAS PAID, in ' . ((string) ($v['currency'] ?? '?')) . ' rather than NGN';
+                    break;
+                }
+
+                $row['action'] = 'recovered';
+                $row['note']   = $apply
+                    ? 'was paid all along — confirmed, and the tombstone removed'
+                    : 'WAS PAID ALL ALONG. This would be confirmed and its votes minted.';
+
+                if ($apply) {
+                    $changed = DB::table('gates_donations')->where('id', (int) $d->id)
+                        ->where('status', 'failed')
+                        ->update(OptionalColumn::filter('gates_donations', array_merge(
+                            $this->confirmPatch(),
+                            // The tombstone goes with the status. A confirmed row still
+                            // stamped "we gave up on this" is a record that argues with
+                            // itself, and the next person reading it during an incident
+                            // has to work out which half is lying.
+                            ['expired_at' => null, 'provider' => $provider]
+                        ), ['expired_at', 'provider']));
+                    $row['note'] = $changed > 0
+                        ? $this->afterConfirm($d)
+                        : 'already confirmed by another run';
+                }
+                break;
+            }
+
+            // Stamped on an ANSWER, not on an attempt — including the "mismatch" and
+            // "never paid" answers, which are verdicts too. Only an unreachable gateway
+            // leaves the row unstamped for the next sweep to try again.
+            if ($answered && $apply) {
+                try {
+                    DB::table('gates_donations')->where('id', (int) $d->id)
+                        ->update(['recovery_checked_at' => Carbon::now()->toDateTimeString()]);
+                } catch (\Throwable) {}
+            }
+
+            $out[] = $row;
+        }
+        return $out;
+    }
+
     private function expire(object $d): void
     {
         try {

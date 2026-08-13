@@ -83,8 +83,18 @@
     <div class="pt-stat__n">{{ counts.in_flight }}</div>
     <div class="pt-stat__s">normal — still at the gateway</div>
   </div>
+  {# Two different facts that were one number until now. A row the GATEWAY declined is a
+     verdict: nobody paid. A row WE wrote off after three days of being unable to reach the
+     gateway is a guess, taken at the one moment the evidence was missing — and it is the
+     bucket the gateway ledger could see money in while this screen reported a clean
+     window, because every sweeper on the platform filters on `pending`. #}
+  <div class="pt-stat {{ counts.written_off > 0 ? 'pt-stat--bad' : 'pt-stat--ok' }}">
+    <div class="pt-stat__k">Written off by us</div>
+    <div class="pt-stat__n">{{ counts.written_off }}</div>
+    <div class="pt-stat__s">₦{{ naira.written_off|number_format }} · <strong>never verified</strong></div>
+  </div>
   <div class="pt-stat">
-    <div class="pt-stat__k">Never started</div>
+    <div class="pt-stat__k">Declined by the gateway</div>
     <div class="pt-stat__n">{{ counts.failed }}</div>
     <div class="pt-stat__s">no charge was made</div>
   </div>
@@ -175,20 +185,29 @@
 
 {# ── The bucket nothing else watches ───────────────────────────────────────── #}
 <div class="pt-card">
-  <h2>{{ counts.stuck_pending }} order(s) stuck at pending</h2>
-  {% if counts.stuck_pending == 0 %}
+  {% set askable = counts.stuck_pending + counts.written_off %}
+  <h2>{{ askable }} order(s) the gateway has not been asked about</h2>
+  {% if askable == 0 %}
     <p class="pt-lede pt-ok">None. Charges the platform never noticed are not the problem in this window.</p>
   {% else %}
     <p class="pt-lede">
-      These are past their checkout window and were never confirmed. If the money left the buyer's
-      account they have no votes, no refund and no receipt. Only the gateway can say which of them were
-      really charged — our database says pending precisely because we never found out.
+      <strong>{{ counts.stuck_pending }} stuck at pending</strong> — past their checkout window and never
+      confirmed.
+      {% if counts.written_off > 0 %}
+        And <strong>{{ counts.written_off }} this platform wrote off itself</strong> after three days of
+        being unable to reach the gateway. That write-off is a guess taken at the one moment the evidence
+        was missing, and the reasons a gateway cannot be reached — a rotated key, a provider switched off,
+        an outbound firewall — take out every payment in the window at once, the successful ones included.
+      {% endif %}
+      If the money left the buyer's account they have no votes, no refund and no receipt. Only the gateway
+      can say which of these were really charged; our records say what they say precisely because we never
+      found out.
     </p>
 
     <form method="post" action="/admin/payments/verify" class="pt-row">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
       <input type="hidden" name="days" value="{{ days }}">
-      <button class="pt-btn pt-btn--go" type="submit">Ask the gateway about all {{ counts.stuck_pending }}</button>
+      <button class="pt-btn pt-btn--go" type="submit">Ask the gateway about all {{ askable }}</button>
       <span style="font-size:12px;color:#5a6d6f">Read-only. Makes outbound calls; nothing is changed.</span>
     </form>
 
@@ -256,7 +275,7 @@
     {% endif %}
 
     <table class="pt-table">
-      <thead><tr><th>Reference</th><th>Amount</th><th>Buyer</th><th>Started</th></tr></thead>
+      <thead><tr><th>Reference</th><th>Amount</th><th>Buyer</th><th>Started</th><th>Our record says</th></tr></thead>
       <tbody>
       {% for o in stuck %}
         <tr>
@@ -264,6 +283,10 @@
           <td>₦{{ o.amount_naira|number_format }}</td>
           <td>{{ o.donor_email }}</td>
           <td>{{ o.created_at }}</td>
+          {# Named, because "pending" and "we gave up on this" are different problems with
+             different histories, and an operator reading a mixed list needs to know which
+             one they are looking at before they ring the buyer. #}
+          <td>{% if o.status == 'failed' %}<strong>written off {{ o.expired_at ?? '' }}</strong>{% else %}{{ o.status }}{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>

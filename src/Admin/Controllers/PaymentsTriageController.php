@@ -77,7 +77,12 @@ final class PaymentsTriageController
 
         $days = max(1, (int) ((array) $req->getParsedBody())['days'] ?? 30);
         $t = new PaymentTriage();
-        $stuck = PaymentTriage::buckets($days)['buckets']['stuck_pending'];
+        // Not just `stuck_pending`. That excluded the two populations where the
+        // disagreement actually hides — rows our own three-day sweep wrote off as
+        // failed, and rows a generous checkout window still called "in flight" — which
+        // is why this screen could not find what the gateway ledger finds.
+        // {@see PaymentTriage::recoverable()}.
+        $stuck = PaymentTriage::recoverable($days);
 
         if (!$t->enabledProviders()) {
             $_SESSION['flash_error'] = 'No payment gateway is configured in this environment, so it cannot be '
@@ -132,10 +137,16 @@ final class PaymentsTriageController
         // Re-read the rows now: the stash carries the DECISION, the database carries
         // the current state, and an order confirmed by a webhook in the meantime must
         // not be touched again.
+        // 'failed' as well as 'pending': a row our own three-day sweep wrote off is one
+        // of the rows the gateway check just said was paid, and filtering it out here
+        // would drop it silently between looking and repairing. PaymentTriage::repair()
+        // makes the same widening on its conditional update, so a webhook that got
+        // there first still wins.
         $charged = [];
         foreach ($stash['charged'] as $c) {
             $row = \Illuminate\Database\Capsule\Manager::table('gates_donations')
-                ->where('id', (int) $c['id'])->where('status', 'pending')->first();
+                ->where('id', (int) $c['id'])
+                ->whereIn('status', ['pending', 'failed'])->first();
             if ($row) $charged[] = ['order' => $row, 'provider' => (string) $c['provider'], 'amount' => (int) $c['gateway']];
         }
 
@@ -273,7 +284,11 @@ final class PaymentsTriageController
             'days'       => $days,
             'counts'     => $data['counts'],
             'naira'      => $data['naira'],
-            'stuck'      => array_slice($data['buckets']['stuck_pending'], 0, 50),
+            // The list under the counters is the same set the "ask the gateway" button
+            // covers. It listed only `stuck_pending`, so an operator pressing a button
+            // that asked about 40 orders saw 12 of them — and the written-off rows, the
+            // ones the gateway ledger was reporting money against, appeared nowhere.
+            'stuck'      => PaymentTriage::recoverableFrom($data['buckets'], 50),
             'owed'       => array_slice($data['buckets']['refund_owed'], 0, 50),
             'health'     => PaymentTriage::health(),
             'providers'  => (new PaymentTriage())->enabledProviders(),

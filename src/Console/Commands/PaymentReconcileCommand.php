@@ -75,6 +75,11 @@ final class PaymentReconcileCommand extends Command
         foreach ($r['items'] as $it) {
             $mark = match ($it['action']) {
                 'confirmed'    => $dry ? '  [dry] would confirm' : '  ✓ confirmed',
+                // Named separately from `confirmed` because it is a different event with a
+                // different story: this is a payment the platform had already WRITTEN OFF,
+                // recovered because the gateway was finally reachable. Somebody should be
+                // able to see that happen rather than reading it as an ordinary confirm.
+                'recovered'    => $dry ? '  [dry] WAS PAID — would recover' : '  ✓ RECOVERED (was written off)',
                 'failed'       => '  · marked failed',
                 'mismatch'     => '  ! AMOUNT MISMATCH',
                 'unverifiable' => '  ? could not verify',
@@ -93,9 +98,10 @@ final class PaymentReconcileCommand extends Command
         PaymentReconciler::log($r, 'cron');
 
         $io->success(sprintf(
-            '%schecked %d · confirmed %d (₦%s) · failed %d · mismatch %d · unverifiable %d · expired %d',
+            '%schecked %d · confirmed %d · recovered %d (₦%s together) · failed %d · mismatch %d '
+            . '· unverifiable %d · expired %d',
             $dry ? '[dry-run] ' : '',
-            $r['checked'], $r['confirmed'], number_format($r['naira']),
+            $r['checked'], $r['confirmed'], $r['recovered'] ?? 0, number_format($r['naira']),
             $r['failed'], $r['mismatch'], $r['unverifiable'], $r['expired'] ?? 0
         ));
 

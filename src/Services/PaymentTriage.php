@@ -44,10 +44,44 @@ final class PaymentTriage
     /** An order still inside this many seconds of being created may just be at the gateway. */
     private const IN_FLIGHT_SECONDS = 3600;
 
+    /**
+     * Past this, an "in flight" order is asked about anyway.
+     *
+     * The in-flight test is a LOCAL CLOCK — `checkout_expires_at`, or an hour from
+     * creation — and it decides whether a row is offered to the gateway check at all.
+     * A row whose checkout window was set generously is therefore invisible to the
+     * repair queue for the whole of that window even when Paystack took the money
+     * twenty minutes ago, which is the exact shape of bug this file exists to fix,
+     * one layer up.
+     *
+     * Ten minutes is long enough that a live callback finishing its own request is
+     * never raced, and short enough that nobody waits out somebody else's expiry
+     * setting.
+     */
+    private const ASK_AFTER_SECONDS = 600;
+
     public function __construct(private readonly ?PaymentService $payments = null) {}
 
     /**
      * Every paid-vote order, grouped by where it actually stopped.
+     *
+     * ── `written_off` IS NOT A KIND OF `failed` ───────────────────────────────
+     *
+     * Both are `status = 'failed'` in the database and they are opposite facts.
+     *
+     * A row the GATEWAY declined is a verdict: nobody was charged and nothing is owed.
+     * A row WE wrote off after three days of being unable to reach the gateway is a
+     * guess, taken at the one moment when the evidence was missing — and the reasons a
+     * gateway cannot be reached are systemic, not per-row. A rotated key, a provider
+     * switched off in the environment, an outbound firewall: any of those writes off
+     * every payment in the window, the successful ones included, and once the key is
+     * fixed nothing goes back to look.
+     *
+     * Lumping them together is why this screen could not find what the gateway ledger
+     * finds. The ledger walks Paystack's list and reports "Paystack took ₦X and our row
+     * says failed"; triage walked ours, saw `failed`, and filed it under "nobody was
+     * charged" without ever asking. `expired_at` is the tombstone that tells them apart,
+     * and it is what {@see recoverable()} keys off.
      *
      * @return array{buckets: array<string, array<int,object>>, counts: array<string,int>, naira: array<string,int>}
      */
@@ -57,13 +91,21 @@ final class PaymentTriage
         if ($days !== null) $q->where('created_at', '>=', date('Y-m-d H:i:s', time() - $days * 86400));
 
         $b = ['delivered' => [], 'refunded' => [], 'refund_owed' => [],
-              'stuck_pending' => [], 'in_flight' => [], 'failed' => []];
+              'stuck_pending' => [], 'in_flight' => [], 'written_off' => [], 'failed' => []];
         $now = time();
+        // When the column is absent nothing can be distinguished, so nothing is claimed:
+        // every failed row is treated as ours to re-ask rather than as the gateway's
+        // verdict. Over-asking wastes calls; under-asking loses somebody's money.
+        $hasExpiry = OptionalColumn::on('gates_donations', 'expired_at');
 
         foreach ($q->orderByDesc('id')->get() as $o) {
             $status = (string) ($o->status ?? '');
 
-            if ($status === 'failed') { $b['failed'][] = $o; continue; }
+            if ($status === 'failed') {
+                $ourGuess = !$hasExpiry || ($o->expired_at ?? null) !== null;
+                $b[$ourGuess ? 'written_off' : 'failed'][] = $o;
+                continue;
+            }
 
             if ($status === 'pending') {
                 // Inside its own checkout window the buyer may simply be on the
@@ -91,6 +133,67 @@ final class PaymentTriage
                 static fn (array $rows): int => (int) array_sum(array_map(static fn ($r) => (int) $r->amount_naira, $rows)),
                 $b),
         ];
+    }
+
+    /**
+     * Every row whose story the gateway might contradict — the set worth asking about.
+     *
+     * ── WHY THIS EXISTS RATHER THAN JUST PASSING `stuck_pending` ──────────────
+     *
+     * The gateway check used to be handed `stuck_pending` and nothing else, which
+     * quietly excluded the two populations where the disagreement actually hides:
+     *
+     *   • `written_off` — status `failed`, but failed by OUR three-day guess rather
+     *     than by the gateway's verdict. See {@see buckets()}. This is the bucket the
+     *     gateway ledger reports and triage could not, and the one where votes are
+     *     never minted because every sweeper filters on `pending`.
+     *   • `in_flight` past {@see ASK_AFTER_SECONDS} — excluded by a LOCAL CLOCK. A
+     *     generous `checkout_expires_at` hid a genuinely-charged row from the repair
+     *     queue for the whole of its window.
+     *
+     * Newest first, because the person refreshing their inbox paid in the last hour and
+     * the row from six weeks ago is an abandoned checkout. Same reasoning as the
+     * reconciler's sweep order, and for the same reason: the cap has to fall on the
+     * rows nobody is waiting on.
+     *
+     * @return array<int,object>
+     */
+    public static function recoverable(?int $days = null, int $limit = 400): array
+    {
+        return self::recoverableFrom(self::buckets($days)['buckets'], $limit);
+    }
+
+    /**
+     * The same selection, from buckets the caller already has.
+     *
+     * The screen computes {@see buckets()} once to draw its counters and would otherwise
+     * run the whole query a second time to draw the list underneath them — on the page
+     * whose entire subject is an operator working through an incident.
+     *
+     * @param array<string, array<int,object>> $b
+     * @return array<int,object>
+     */
+    public static function recoverableFrom(array $b, int $limit = 400): array
+    {
+        $b += ['stuck_pending' => [], 'written_off' => [], 'in_flight' => []];
+        $now = time();
+
+        $inFlightWorthAsking = array_values(array_filter(
+            $b['in_flight'],
+            static function (object $o) use ($now): bool {
+                $created = strtotime((string) ($o->created_at ?? '')) ?: $now;
+                return $created < $now - self::ASK_AFTER_SECONDS;
+            }
+        ));
+
+        $all = array_merge($b['stuck_pending'], $b['written_off'], $inFlightWorthAsking);
+
+        // One row can only be in one bucket, so there is nothing to de-duplicate — but
+        // sort, because three concatenated lists are not in any useful order and the
+        // limit below decides who gets left out.
+        usort($all, static fn (object $a, object $c): int => (int) $c->id <=> (int) $a->id);
+
+        return array_slice($all, 0, max(1, $limit));
     }
 
     /**
@@ -412,7 +515,17 @@ final class PaymentTriage
                     continue;
                 }
 
-                $changed = DB::table('gates_donations')->where('id', $o->id)->where('status', 'pending')
+                // 'failed' is included deliberately, and it is the whole point of this
+                // change. A row our own three-day sweep wrote off — because it could not
+                // reach the gateway, which is a guess and not a verdict — is exactly the
+                // row the gateway has just said was paid. Leaving it out is what made the
+                // ledger able to see money the repair button could not touch.
+                //
+                // Still a CONDITIONAL update, so a webhook that confirmed it thirty
+                // seconds ago wins and this becomes a no-op rather than a second mint.
+                // Same widening, and the same reasoning, as PaymentReconciler::reclaim().
+                $changed = DB::table('gates_donations')->where('id', $o->id)
+                    ->whereIn('status', ['pending', 'failed'])
                     ->update(OptionalColumn::filter('gates_donations', [
                         'status'       => 'confirmed',
                         // The provider the gateway just answered on, not the one the
@@ -420,7 +533,12 @@ final class PaymentTriage
                         // and this one is the one that was actually checked.
                         'provider'     => $agree['provider'] ?? $c['provider'],
                         'confirmed_at' => date('Y-m-d H:i:s'),
-                    ], ['confirmed_at', 'provider']));
+                        // The tombstone is wrong now and has to go with the status. A
+                        // confirmed row still stamped "we gave up on this on the 14th"
+                        // is a record that argues with itself, and the next person
+                        // reading it during an incident has to work out which half lies.
+                        'expired_at'   => null,
+                    ], ['confirmed_at', 'provider', 'expired_at']));
                 if ($changed === 0) continue;   // somebody else got there first
                 $fixed++;
 

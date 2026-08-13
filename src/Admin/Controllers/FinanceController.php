@@ -172,13 +172,23 @@ class FinanceController
         $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'finance.reconcile', 'finance', 0);
 
         $_SESSION['recon_result'] = $result;
-        $_SESSION['flash_ok'] = $apply
+        // `recovered` is called out rather than folded into `confirmed`, because it is a
+        // materially different sentence: those are payments the platform had already given
+        // up on and written off as failed, which no sweeper could reach until now. An
+        // operator seeing a non-zero number there should know money came back from the dead.
+        $recovered = (int) ($result['recovered'] ?? 0);
+        $rec = $recovered > 0
+            ? sprintf(' %d had been WRITTEN OFF and %s recovered.',
+                $recovered, $apply ? 'were' : 'would be')
+            : '';
+
+        $_SESSION['flash_ok'] = ($apply
             ? sprintf('Reconciled: %d confirmed (₦%s), %d marked failed, %d need attention.',
-                $result['confirmed'], number_format($result['naira']),
+                $result['confirmed'] + $recovered, number_format($result['naira']),
                 $result['failed'], $result['mismatch'] + $result['unverifiable'])
-            : sprintf('Checked %d pending payment(s): %d would be confirmed (₦%s), %d need attention. Nothing was changed.',
-                $result['checked'], $result['confirmed'], number_format($result['naira']),
-                $result['mismatch'] + $result['unverifiable']);
+            : sprintf('Checked %d payment(s): %d would be confirmed (₦%s), %d need attention. Nothing was changed.',
+                $result['checked'], $result['confirmed'] + $recovered, number_format($result['naira']),
+                $result['mismatch'] + $result['unverifiable'])) . $rec;
 
         return $res->withHeader('Location', '/admin/finance')->withStatus(302);
     }
