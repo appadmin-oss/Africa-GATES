@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use Illuminate\Database\Capsule\Manager as DB;
+use Illuminate\Support\Carbon;
 
 /**
  * Paystack's books against ours, read from Paystack's side first.
@@ -151,6 +152,87 @@ final class GatewayLedger
             'from' => $from, 'to' => $till, 'days' => $days,
             'truncated' => (bool) $res['truncated'],
             'groups' => $groups, 'counts' => $counts, 'naira' => $naira,
+        ];
+    }
+
+    /** Where the last comparison is kept, so a screen can read it without asking Paystack. */
+    private const LAST_RUN_KEY = 'gateway_ledger_last';
+
+    /**
+     * Remember what the last comparison found.
+     *
+     * ── WHY THIS IS STORED AT ALL ────────────────────────────────────────────
+     *
+     * The one bucket the triage screen structurally CANNOT find is a charge at Paystack with
+     * no row on this side: there is nothing local to iterate, so no query we own will ever
+     * surface it. That is why "the ledger saw the misses and the triage did not" stayed true
+     * even after triage was taught to re-ask its own written-off rows — the last gap is
+     * money belonging to people this platform has no record of.
+     *
+     * Reaching it needs an outbound walk of Paystack's list, which is up to twenty paginated
+     * calls and therefore cannot happen on page load. So the RESULT is kept: triage can then
+     * say "3 charges at Paystack have no record here, found on the 14th" without making a
+     * single request, and — more importantly — can say "this has never been compared", which
+     * is the honest description of the state that made the misses invisible in the first
+     * place.
+     *
+     * Counts only. The rows are not stored: they contain customer email addresses, they go
+     * stale within minutes of being written, and a screen that presented a week-old list as
+     * current would be worse than one that admits it needs a fresh look.
+     *
+     * @param array<string,mixed> $result as returned by {@see pull()}
+     */
+    public static function remember(array $result): void
+    {
+        if (!($result['ok'] ?? false)) return;
+
+        $payload = [
+            'at'      => Carbon::now()->toDateTimeString(),
+            'days'    => (int) ($result['days'] ?? 0),
+            'counts'  => array_map('intval', (array) ($result['counts'] ?? [])),
+            'naira'   => array_map('intval', (array) ($result['naira'] ?? [])),
+            'truncated' => (bool) ($result['truncated'] ?? false),
+        ];
+
+        try {
+            DB::table('gates_settings')->updateOrInsert(
+                ['key_name' => self::LAST_RUN_KEY],
+                ['value' => json_encode($payload, JSON_UNESCAPED_SLASHES)]
+            );
+        } catch (\Throwable $e) {
+            error_log('[ledger] could not remember the last comparison: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * What the last comparison found, or null when there has never been one.
+     *
+     * Null is the interesting answer and the caller must say so out loud rather than
+     * rendering a row of zeroes: a platform that has never compared its books with the
+     * gateway does not have a clean window, it has an unexamined one.
+     *
+     * @return array{at:string, days:int, counts:array<string,int>, naira:array<string,int>,
+     *               truncated:bool, stale:bool}|null
+     */
+    public static function lastRun(): ?array
+    {
+        try {
+            $raw = DB::table('gates_settings')->where('key_name', self::LAST_RUN_KEY)->value('value');
+        } catch (\Throwable) { return null; }
+
+        $j = json_decode((string) $raw, true);
+        if (!is_array($j) || ($j['at'] ?? '') === '') return null;
+
+        $at = (string) $j['at'];
+        return [
+            'at'     => $at,
+            'days'   => (int) ($j['days'] ?? 0),
+            'counts' => array_map('intval', (array) ($j['counts'] ?? [])),
+            'naira'  => array_map('intval', (array) ($j['naira'] ?? [])),
+            'truncated' => (bool) ($j['truncated'] ?? false),
+            // A comparison older than a week is a fact about last week. Said rather than
+            // implied, because a stale clean bill reads exactly like a current one.
+            'stale'  => strtotime($at) < time() - 7 * 86400,
         ];
     }
 

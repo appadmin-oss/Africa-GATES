@@ -100,6 +100,69 @@
   </div>
 </div>
 
+{# ── THE BUCKET THIS SCREEN CANNOT REACH BY ITSELF ─────────────────────────────
+     Everything else here starts from OUR rows and asks the gateway about them. That finds a
+     payment we started and then mishandled, which is the common failure — and it structurally
+     cannot find the other one: a charge that exists at Paystack with NO row here at all. The
+     insert failed, the request died between initialise and insert, or the money came in
+     through a Payment Page or a POS terminal this codebase never knew about. There is nothing
+     local to iterate, so no query we own will ever surface it.
+
+     That is the last reason "the ledger saw the misses and the triage did not" stayed true.
+     Reaching it means walking PAYSTACK's list, which is up to twenty outbound calls and
+     therefore cannot happen on page load — so the result of the last walk is kept, and the
+     walk itself is one press from here. #}
+<div class="pt-card">
+  <h2>Paystack's own list, against ours</h2>
+
+  {% if ledger_last is null %}
+    <div class="pt-verdict pt-verdict--charged_unnoticed">
+      <strong>This has never been compared.</strong> Everything above starts from our records
+      and asks Paystack about them — which cannot find a charge Paystack has that we have no
+      record of at all. Those are the payments where somebody paid and nothing here knows they
+      exist, and they are invisible until this comparison runs.
+    </div>
+  {% else %}
+    {% set orphans = ledger_last.counts.theirs|default(0) %}
+    {% set mismatch = ledger_last.counts.mismatch|default(0) %}
+    <div class="pt-verdict {{ orphans > 0 or mismatch > 0 ? 'pt-verdict--charged_unnoticed' : (ledger_last.stale ? 'pt-verdict--refund_owed' : 'pt-verdict--delivered') }}">
+      {% if orphans > 0 %}
+        <strong>{{ orphans }} charge(s) at Paystack have no record here at all — ₦{{ ledger_last.naira.theirs|default(0)|number_format }}.</strong>
+        Nothing on this screen can repair those: there is no order to confirm. They need a
+        person, and usually a manual refund at the gateway.
+      {% elseif mismatch > 0 %}
+        <strong>{{ mismatch }} payment(s) told two different stories</strong> when this last ran.
+        Those ones ARE on this screen — press “Ask the gateway” above, then repair.
+      {% else %}
+        Compared {{ ledger_last.counts.gateway|default(0) }} successful Paystack charge(s) over
+        {{ ledger_last.days }} day(s) and every one of them matched a record here.
+      {% endif %}
+      <br><small>
+        Last compared <strong>{{ ledger_last.at }}</strong>{% if ledger_last.stale %} —
+        which is more than a week ago, so this describes last week rather than today{% endif %}.
+        {%- if ledger_last.truncated %} The window was cut short by Paystack's paging; a shorter
+        window sees all of it.{% endif %}
+      </small>
+    </div>
+  {% endif %}
+
+  <form method="post" action="/admin/payments/ledger" class="pt-row" style="margin-top:14px">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input type="hidden" name="back" value="triage">
+    <label for="pt-ldays" style="font-size:12.5px;color:#5a6d6f">Compare the last</label>
+    <input id="pt-ldays" name="days" type="number" min="1" max="{{ ledger_days }}" value="{{ days }}"
+           style="width:88px;padding:8px 10px;border:1px solid rgba(16,41,44,.2);border-radius:9px">
+    <span style="font-size:12.5px;color:#5a6d6f">days</span>
+    <button class="pt-btn pt-btn--go" type="submit">Compare with Paystack now</button>
+    <a class="pt-btn" href="/admin/payments/ledger?days={{ days }}"
+       style="background:none;border:1px solid rgba(16,41,44,.2);color:#10292C;text-decoration:none">See it line by line</a>
+  </form>
+  <p class="pt-lede" style="margin-top:8px">
+    Read-only, and it makes up to twenty calls to Paystack — which is why it is a button rather
+    than something this page does every time you open it.
+  </p>
+</div>
+
 {# ── Look one reference up against the gateway ─────────────────────────────── #}
 <div class="pt-card">
   <h2>Look up one payment</h2>

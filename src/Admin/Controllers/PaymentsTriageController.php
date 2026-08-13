@@ -244,12 +244,23 @@ final class PaymentsTriageController
         $days = max(1, (int) (((array) $req->getParsedBody())['days'] ?? 30));
         $days = min($days, \AfricaGates\Services\GatewayLedger::MAX_DAYS);
 
+        // Where to go back to. The triage screen has its own button for this now, because the
+        // bucket only this comparison can find — money at Paystack with no row here — was
+        // invisible from the screen with the repair buttons on it.
+        $back = ((string) (((array) $req->getParsedBody())['back'] ?? '')) === 'triage'
+            ? '/admin/payments?days=' . $days
+            : '/admin/payments/ledger?days=' . $days;
+
         $r = (new \AfricaGates\Services\GatewayLedger())->pull($days);
 
         if (!$r['ok']) {
             $_SESSION['flash_error'] = 'Paystack could not be read: ' . $r['message'];
-            return $res->withHeader('Location', '/admin/payments/ledger?days=' . $days)->withStatus(302);
+            return $res->withHeader('Location', $back)->withStatus(302);
         }
+
+        // Kept so the triage screen can report what was found without making twenty outbound
+        // calls of its own — and, more usefully, so it can say when this was last done at all.
+        \AfricaGates\Services\GatewayLedger::remember($r);
 
         // Rows are capped for the SCREEN, not for the counts — the totals above
         // each table are computed over everything pulled. A capped table that
@@ -269,9 +280,17 @@ final class PaymentsTriageController
             $_SESSION['flash_error'] = $r['counts']['theirs'] . ' successful charge(s) at Paystack have no record '
                 . 'on this platform at all — ₦' . number_format($r['naira']['theirs']) . ' collected from people '
                 . 'nothing here knows about.';
+        } elseif ($r['counts']['mismatch'] > 0) {
+            // Said out loud from the triage screen too. A mismatch here is a payment whose two
+            // stories disagree, and it is exactly what the repair queue above is for.
+            $_SESSION['flash_error'] = $r['counts']['mismatch'] . ' payment(s) tell two different stories. '
+                . 'Every one of them is on this screen as well — press "Ask the gateway" and then repair.';
+        } else {
+            $_SESSION['flash_notice'] = 'Compared ' . $r['counts']['gateway'] . ' successful Paystack '
+                . 'charge(s) over ' . $days . ' day(s): every one of them matches a record here.';
         }
 
-        return $res->withHeader('Location', '/admin/payments/ledger?days=' . $days)->withStatus(302);
+        return $res->withHeader('Location', $back)->withStatus(302);
     }
 
     private function render(Response $res, int $days, array $extra): Response
@@ -292,6 +311,12 @@ final class PaymentsTriageController
             'owed'       => array_slice($data['buckets']['refund_owed'], 0, 50),
             'health'     => PaymentTriage::health(),
             'providers'  => (new PaymentTriage())->enabledProviders(),
+            // What the last comparison with Paystack found — and null when there has never
+            // been one, which is the honest description of the state that made the missing
+            // money invisible. Read from a stored summary, so this page still makes no
+            // outbound calls on load.
+            'ledger_last' => \AfricaGates\Services\GatewayLedger::lastRun(),
+            'ledger_days' => \AfricaGates\Services\GatewayLedger::MAX_DAYS,
         ], $extra));
     }
 
