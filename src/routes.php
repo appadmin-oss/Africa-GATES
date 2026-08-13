@@ -1985,6 +1985,19 @@ return function(App $app) {
         // somebody's name has to be one they approved.
         $g->post('/my-work/{token:[a-f0-9]{32}}/speak',  \AfricaGates\Controllers\MyWorkController::class.':speak');
         $g->post('/my-work/{token:[a-f0-9]{32}}/listen', \AfricaGates\Controllers\MyWorkController::class.':listen');
+        // ── THE BRIEF, AND A MINUTE IN THEIR OWN VOICE ───────────────────────
+        //
+        // `ready` records that somebody read what is expected of them; the questions do not
+        // start before it, and it is a POST because a mail scanner fetching every URL in a
+        // message must not be able to make that record on their behalf.
+        //
+        // `intro` stores a spoken introduction — and unlike a spoken ANSWER, that recording is
+        // KEPT: it is the artefact a judge is meant to hear rather than a way of typing. The
+        // file lives outside the web root and `intro.audio` streams it, so a nominee can play
+        // back their own recording without an account and nothing sits behind an unlisted URL.
+        $g->post('/my-work/{token:[a-f0-9]{32}}/ready',  \AfricaGates\Controllers\MyWorkController::class.':ready');
+        $g->post('/my-work/{token:[a-f0-9]{32}}/intro',  \AfricaGates\Controllers\MyWorkController::class.':intro');
+        $g->get('/my-work/{token:[a-f0-9]{32}}/intro.audio', \AfricaGates\Controllers\MyWorkController::class.':introAudio');
 
         // ── THE NOMINEE'S OWN INTERVIEW PAGE ─────────────────────────────────
         //

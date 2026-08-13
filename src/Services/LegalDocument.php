@@ -170,12 +170,21 @@ final class LegalDocument
                  . $e((string) ($cap['sends'] ?? '')) . '</li>';
         }
         $h[] = '</ul>';
-        $h[] = '<p><strong>Two promises about the words that end up in your submission.</strong> The '
+        $h[] = '<p><strong>The words that end up in your submission are yours.</strong> A '
              . 'transcription is put on your screen, not into your answer &mdash; you read it, correct '
              . 'anything it misheard, and press send yourself, so the sentences a judging panel reads '
-             . 'as yours are ones you approved. And we do not keep the recording: the audio is passed '
-             . 'straight from your request to the speech service and is never written to our server, '
-             . 'so there is no file of your voice here to lose, leak or hand to anybody.</p>';
+             . 'as yours are ones you approved.</p>';
+        // Two different answers to "do you keep it", and printing only one of them would make
+        // the other a lie. The distinction is the whole point of saying anything here.
+        $h[] = '<p><strong>Whether the recording is kept depends on which recording it is.</strong> '
+             . 'An <em>answer</em> you speak is passed straight from your request to the speech '
+             . 'service and is never written to our server &mdash; there is no file of it here to '
+             . 'lose, leak or hand to anybody. The short <em>introduction</em> you may choose to '
+             . 'record of yourself is different: that recording IS the thing the judges are meant to '
+             . 'hear, so we keep it. It is stored on our own server rather than at a public web '
+             . 'address, you can delete it or record it again at any point before you send your '
+             . 'questionnaire, and it reaches a panel only after you have agreed that they may hear '
+             . 'it.</p>';
         $h[] = '<p>' . ($active
                 ? 'Spoken questions and answers are currently switched on.'
                 : 'Spoken questions and answers are currently switched off, so no audio and no '

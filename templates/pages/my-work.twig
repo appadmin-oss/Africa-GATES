@@ -112,6 +112,18 @@
   .mw__rec{ margin-top:8px; font-size:12.5px; font-weight:650; color:#b3261e }
   @media (prefers-reduced-motion: reduce){ .mw__mic--on{ animation:none } }
 
+  /* the spoken introduction */
+  .mw__intro{ border-color:rgba(35,123,34,.28) }
+  .mw__introrow{ display:flex; gap:12px; align-items:center; margin-top:14px }
+  .mw__introhint{ font-size:13px; line-height:1.6; color:#5a6d6f }
+  .mw__introtext{ margin:7px 0 0; font-size:14px; line-height:1.7; color:#3d5254;
+    background:#f6faf6; border:1px solid rgba(16,41,44,.09); border-radius:12px;
+    padding:12px 14px; white-space:pre-wrap }
+  .mw__introacts{ display:flex; gap:9px; flex-wrap:wrap; margin-top:12px }
+  .mw__consent{ margin-top:14px; background:#fffdf5; border:1px solid #ecd9a0;
+    border-radius:12px; padding:14px 16px }
+  .mw__consent p{ margin:0; font-size:13px; line-height:1.7; color:#6b5312 }
+
   /* the form */
   .mw__q{ padding:18px 0; border-top:1px solid rgba(16,41,44,.08) }
   .mw__q:first-of-type{ border-top:none; padding-top:4px }
@@ -226,6 +238,31 @@
         Nothing you send later is held against the earlier version.</p>
     </div>
     <p class="mw__free"><b>Nothing about this costs money</b>, at any stage.</p>
+
+  {% elseif not intro_ready %}
+    {# ══ THE BRIEF ═══════════════════════════════════════════════════════════
+         Before the first question, because the questionnaire used to open with a greeting
+         and then ask about impact — leaving somebody to guess how long it takes, what a
+         usable answer looks like, whether a half-finished draft is safe, and what happens
+         to any of it. The people worst served by not knowing are the ones who will never
+         ask. It costs twenty seconds and it changes what a panel receives.
+
+         A form POST, not a link: this records that a person read something, and a mail
+         scanner following every URL in a message must not be able to record it for them. #}
+    <div class="mw__card">
+      <h2 style="font-size:19px">Before you start — what this is, and what happens to it</h2>
+      {% for p in brief %}
+        <p class="mw__lede" style="margin-top:14px">{{ p }}</p>
+      {% endfor %}
+      <form method="post" action="/my-work/{{ token }}/ready">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="mw__go" type="submit">I have read this — let's start</button>
+      </form>
+      <p class="mw__hint" style="text-align:center">
+        You can come back to this link at any time. Nothing is sent to the judges until you
+        press the send button yourself.
+      </p>
+    </div>
 
   {% else %}
     {# ══ everything below shares ONE Alpine scope: the two modes, the chat, and the works
@@ -426,6 +463,148 @@
                         ? 'You can send it whenever you like'
                         : ((progress.required || 0) - (progress.required_answered || 0)) + ' still needed before you can send'"></span>
       </div>
+
+      {# ══ A MINUTE IN THEIR OWN VOICE ═════════════════════════════════════
+           A dossier has never contained the person. It has a nominator's paragraph, a
+           category, a photograph and some typed prose — none of which proves who wrote it.
+           This is the one item in it that cannot be ghost-written, and for somebody whose
+           work is oral it is the most accurate evidence available.
+
+           Optional, and said to be optional: making it compulsory would exclude anybody
+           without a quiet room, which is most people most of the time.
+
+           NOTE this recording is KEPT, unlike a spoken answer, and the card says so
+           unprompted. Consent to a panel hearing it is a separate press. #}
+      {% if voice %}
+      <div class="mw__card mw__intro" x-data='{
+        has: {{ (intro.has ?? false) ? "true" : "false" }},
+        secs: {{ intro.seconds|default(0) }},
+        text: {{ (intro.transcript ?? "")|json_encode }},
+        consented: {{ (intro.consented ?? false) ? "true" : "false" }},
+        url: {{ (intro.url ?? "")|json_encode }},
+        rec: null, chunks: [], tick: null, recording: false, busy: false, err: "", note: "",
+        max: {{ intro_max|default(120) }},
+
+        async mic(){
+          if(this.recording){ this.stop(); return }
+          this.err = ""; this.note = "";
+          if(!navigator.mediaDevices || !window.MediaRecorder){
+            this.err = "This browser cannot record sound. You can skip this — it is optional."; return }
+          try{
+            const stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+            const kind = ["audio/webm","audio/mp4","audio/ogg"].find(
+              t => window.MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t));
+            const rec = new MediaRecorder(stream, kind ? { mimeType: kind } : undefined);
+            this.chunks = [];
+            rec.addEventListener("dataavailable", e => { if(e.data && e.data.size) this.chunks.push(e.data) });
+            rec.addEventListener("stop", () => {
+              stream.getTracks().forEach(t => t.stop());
+              if(this.tick){ clearInterval(this.tick); this.tick = null }
+              this.recording = false;
+              this.send(new Blob(this.chunks, { type: rec.mimeType || "audio/webm" }));
+            });
+            this.rec = rec; rec.start(); this.recording = true; this.secs = 0;
+            /* Stopped AT the limit rather than letting somebody talk for six minutes and
+               then telling them it was too long. */
+            this.tick = setInterval(() => { this.secs++; if(this.secs >= this.max) this.stop() }, 1000);
+          }catch(e){
+            this.err = "We could not reach your microphone. Your phone may be asking for permission — "
+                     + "allow it, or skip this.";
+          }
+        },
+        stop(){ try{ if(this.rec && this.rec.state !== "inactive") this.rec.stop() }catch(e){} },
+
+        async send(blob){
+          if(!blob || !blob.size){ this.err = "That recording was empty."; return }
+          this.busy = true; this.err = "";
+          try{
+            const fd = new FormData();
+            fd.append("audio", blob, "intro." + ((blob.type||"").indexOf("mp4") >= 0 ? "m4a" : "webm"));
+            fd.append("seconds", String(this.secs));
+            const r = await fetch("/my-work/{{ token }}/intro", {
+              method:"POST",
+              headers:{"X-CSRF-Token": {{ csrf_token|json_encode }}, "X-Requested-With":"XMLHttpRequest"},
+              body: fd });
+            const d = await r.json();
+            if(!d.ok){ this.err = d.message || "That could not be saved."; }
+            else {
+              this.has = true; this.note = d.message || "Saved.";
+              this.text = (d.state && d.state.transcript) || "";
+              this.url = (d.state && d.state.url) || this.url;
+              /* Re-recording withdraws the old agreement: a panel agreed to hear one
+                 recording, not whichever one happens to be there later. */
+              this.consented = false;
+            }
+          }catch(e){ this.err = "No connection, so that could not be saved."; }
+          this.busy = false;
+        },
+
+        async act(action){
+          this.busy = true; this.err = ""; this.note = "";
+          try{
+            const r = await fetch("/my-work/{{ token }}/intro", {
+              method:"POST",
+              headers:{"Content-Type":"application/x-www-form-urlencoded",
+                       "X-CSRF-Token": {{ csrf_token|json_encode }}, "X-Requested-With":"XMLHttpRequest"},
+              body: new URLSearchParams({ action: action }) });
+            const d = await r.json();
+            if(!d.ok){ this.err = d.message || "That did not work."; }
+            else if(action === "delete"){ this.has = false; this.text = ""; this.consented = false;
+                                          this.secs = 0; this.note = d.message; }
+            else { this.consented = true; this.note = d.message; }
+          }catch(e){ this.err = "No connection."; }
+          this.busy = false;
+        },
+        clock(){ const m = Math.floor(this.secs/60), s = this.secs%60;
+                 return m + ":" + (s < 10 ? "0" : "") + s }
+      }'>
+        <h2>Introduce yourself out loud <small style="font-weight:400;color:#8a969a">— optional</small></h2>
+        <p>Up to {{ (intro_max|default(120)) // 60 }} minutes on who you are and what the work is.
+          The judges will <strong>hear this in your own voice</strong>, which is the one thing in a
+          dossier nobody can write for you. It is fine to skip it and type everything instead.</p>
+
+        <div class="mw__introrow" x-show="!has">
+          <button type="button" class="mw__mic" :class="recording ? 'mw__mic--on' : ''"
+                  :disabled="busy" @click="mic()"
+                  :aria-label="recording ? 'Stop recording' : 'Start recording'"
+                  x-text="recording ? '■' : (busy ? '…' : '🎙')"></button>
+          <span class="mw__introhint" x-text="recording
+                  ? 'Recording… ' + clock() + ' — press the red square when you have finished.'
+                  : (busy ? 'Saving…' : 'Press to start. Somewhere quiet, phone close.')"></span>
+        </div>
+
+        <div x-show="has" x-cloak>
+          <audio controls preload="none" :src="url" style="width:100%;margin-top:12px"></audio>
+          <p class="mw__hint" x-show="secs > 0" x-text="'Length: ' + clock() + '.'"></p>
+
+          {# The transcript is shown to the nominee BEFORE a panel sees it, because a
+             recogniser mishears names and places and this is the person's own name. #}
+          <div x-show="text" x-cloak style="margin-top:12px">
+            <span class="mw__slab">What we heard</span>
+            <p class="mw__introtext" x-text="text"></p>
+            <p class="mw__hint">Written down automatically and not corrected — the judges are told
+              that. If it is badly wrong, record it again.</p>
+          </div>
+
+          <div class="mw__introacts">
+            <button type="button" class="mw__mini" :disabled="busy" @click="act('delete')">Delete and start again</button>
+          </div>
+
+          {# Consent is its OWN press. Trying the microphone is not the same decision as
+             agreeing that a panel of strangers will listen to it. #}
+          <div class="mw__consent" x-show="!consented" x-cloak>
+            <p><strong>Shall the judges hear it?</strong> Nothing is shared until you say so, and
+              you can delete the recording at any time before you send the questionnaire.</p>
+            <button type="button" class="mw__go" style="margin-top:10px" :disabled="busy"
+                    @click="act('consent')">Yes — the panel may hear this</button>
+          </div>
+          <p class="mw__done" x-show="consented" x-cloak>✓ The panel will hear your introduction.</p>
+        </div>
+
+        <div class="mw__bad" x-show="err" x-text="err" x-cloak></div>
+        <p class="mw__done" x-show="note && !err" x-text="note" x-cloak></p>
+      </div>
+      {% endif %}
 
       {# ── mode ─────────────────────────────────────────────────────────── #}
       <div class="mw__modes">

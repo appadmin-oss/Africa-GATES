@@ -493,6 +493,9 @@ final class QuestionnaireService
             'is_test'    => self::isTest($s),
             'category'   => (string) ($n->category ?? ''),
             'programme'  => $programme,
+            // The id as well as the title: the brief is per programme, and a template cannot
+            // look one up from a name.
+            'programme_id' => (int) ($s->programme_id ?? 0),
             'status'     => (string) $s->status,
             'submitted'  => $s->status === 'submitted',
             'submitted_at' => (string) ($s->submitted_at ?? ''),
@@ -705,6 +708,51 @@ final class QuestionnaireService
                 'verified'     => 0,
                 'visible_to_judges' => 1,
                 'sort_order'   => $order++,
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ];
+        }
+
+        // ── THE SPOKEN INTRODUCTION ──────────────────────────────────────────
+        //
+        // First in the dossier, before the answers, because it is the one item in it that is
+        // unmistakably the person: a dossier otherwise contains a nominator's paragraph, a
+        // category and some typed prose, none of which proves who wrote it.
+        //
+        // Refused without consent — {@see QuestionnaireIntro::forDossier()} returns null —
+        // and the refusal is in that method rather than here so no future caller can route
+        // around it. Transcript in the body so a judge with no headphones can read it; the
+        // audio as the source, so one with headphones can hear it.
+        $intro = QuestionnaireIntro::forDossier($s);
+        if ($intro !== null) {
+            $mins = $intro['seconds'] > 0
+                ? ' (' . ($intro['seconds'] >= 60
+                    ? intdiv($intro['seconds'], 60) . 'm ' . ($intro['seconds'] % 60) . 's'
+                    : $intro['seconds'] . ' seconds') . ')'
+                : '';
+            $rows[] = [
+                'nominee_id'   => $nomineeId,
+                // 'media', not 'audio'. `kind` is a MySQL ENUM and 'audio' is not one of its
+                // values — under strict mode that insert fails and under a relaxed sql_mode it
+                // silently stores an empty string, which is how a whole class of evidence
+                // would have disappeared from a ballot with nothing in the logs.
+                'kind'         => 'media',
+                'title'        => 'The nominee introducing themselves, in their own voice' . $mins,
+                'body'         => $intro['transcript'] !== ''
+                    ? mb_substr($intro['transcript'], 0, 8000)
+                    : 'A recording with no transcript — no transcription service was configured '
+                    . 'when it was made. Play it rather than skipping it.',
+                'source_label' => 'Recorded by the nominee' . ($intro['transcript'] !== ''
+                    ? ' · transcript produced automatically and not corrected by them'
+                    : ''),
+                // The gated stream, not a public path. The recording lives outside the web
+                // root on purpose.
+                'source_url'   => '/my-work/' . (string) $s->invite_token . '/intro.audio',
+                'provenance'   => 'nominee_supplied',
+                'verified'     => 0,
+                'visible_to_judges' => 1,
+                // Deliberately BEFORE the answers, which start at 10.
+                'sort_order'   => 5,
                 'created_at'   => $now,
                 'updated_at'   => $now,
             ];

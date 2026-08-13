@@ -570,7 +570,12 @@ final class QuestionnaireVoiceTest extends TestCase
     public function test_both_voice_entries_describe_their_data_in_plain_words(): void
     {
         $caps = AiPrivacy::voiceDisclosure()['capabilities'];
-        $this->assertCount(2, $caps, 'both directions must be disclosed, not just the microphone');
+        // Three, not two: reading a question out, writing down a spoken answer, and the
+        // introduction — which is listed separately from the answer because the two are
+        // opposite on the only question a reader cares about, whether the recording is kept.
+        $this->assertCount(3, $caps, 'every direction must be disclosed, not just the microphone');
+        $this->assertSame(['questionnaire.voice_out', 'questionnaire.voice_in', 'questionnaire.voice_intro'],
+            array_column($caps, 'name'));
 
         foreach ($caps as $cap) {
             $this->assertGreaterThan(40, mb_strlen((string) $cap['sends']),

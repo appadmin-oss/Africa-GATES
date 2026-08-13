@@ -217,6 +217,96 @@ final class MyWorkController
                    ->withStatus(($r['ok'] ?? false) ? 200 : 422);
     }
 
+    /**
+     * The brief has been read. Until this, the questions do not start.
+     *
+     * A POST rather than a query flag, because it is a record that a person saw something —
+     * and a mail scanner fetching every URL in a message must not be able to make that record
+     * on their behalf. Same reasoning as the interview consent page.
+     */
+    public function ready(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        \AfricaGates\Services\QuestionnaireIntro::markSeen($token);
+        return $res->withHeader('Location', '/my-work/' . $token)->withStatus(302);
+    }
+
+    /**
+     * The spoken introduction: store it, transcribe it, hand back what we heard.
+     *
+     * Unlike a spoken ANSWER, this recording is KEPT — it is the artefact a judge is meant to
+     * hear, not a way of typing. So it goes to disk, outside the web root, and the transcript
+     * is a convenience alongside it rather than a replacement for it.
+     */
+    public function intro(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $body  = (array) $req->getParsedBody();
+        $file  = $req->getUploadedFiles()['audio'] ?? null;
+
+        $json = function (array $payload, int $code = 200) use ($res): Response {
+            $res->getBody()->write((string) json_encode($payload));
+            return $res->withHeader('Content-Type', 'application/json')
+                       ->withHeader('X-Robots-Tag', 'noindex, nofollow')
+                       ->withStatus($code);
+        };
+
+        $action = (string) ($body['action'] ?? 'record');
+
+        if ($action === 'delete') {
+            $r = \AfricaGates\Services\QuestionnaireIntro::remove($token);
+            return $json(['ok' => (bool) $r['ok'], 'message' => (string) $r['message']],
+                         ($r['ok'] ?? false) ? 200 : 422);
+        }
+        if ($action === 'consent') {
+            $r = \AfricaGates\Services\QuestionnaireIntro::consent($token);
+            return $json(['ok' => (bool) $r['ok'], 'message' => (string) $r['message']],
+                         ($r['ok'] ?? false) ? 200 : 422);
+        }
+
+        if ($file === null) {
+            return $json(['ok' => false, 'message' => 'No recording arrived. Try again.'], 422);
+        }
+
+        $r = \AfricaGates\Services\QuestionnaireIntro::record(
+            $token, $file, (int) ($body['seconds'] ?? 0)
+        );
+
+        $form = QuestionnaireService::byToken($token);
+        $r['state'] = \AfricaGates\Services\QuestionnaireIntro::state($form, $token);
+
+        return $json($r, ($r['ok'] ?? false) ? 200 : 422);
+    }
+
+    /**
+     * Play the recording back.
+     *
+     * Reachable with the submission's own token, because the nominee has no account and must
+     * be able to hear what they just recorded before agreeing that a panel will. A panel
+     * reaches the same file through the dossier, from a session.
+     *
+     * Streamed rather than redirected to a public path: the file is stored outside the web
+     * root on purpose, and a nominee's voice behind nothing but an unlisted URL is a
+     * confidentiality change nobody asked for.
+     */
+    public function introAudio(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $s     = QuestionnaireService::byToken($token);
+        $path  = \AfricaGates\Services\QuestionnaireIntro::fileFor($s);
+
+        if ($path === null) return $res->withStatus(404);
+
+        $res->getBody()->write((string) file_get_contents($path));
+        return $res
+            ->withHeader('Content-Type', \AfricaGates\Services\QuestionnaireIntro::mimeFor($path))
+            ->withHeader('Content-Length', (string) filesize($path))
+            // Private: the URL carries a token that is the whole credential, and a shared
+            // cache holding a nominee's voice would defeat that entirely.
+            ->withHeader('Cache-Control', 'private, max-age=600')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
     /** One file, attached to one listed work. */
     public function upload(Request $req, Response $res, array $args = []): Response
     {
@@ -265,6 +355,18 @@ final class MyWorkController
             // it was before voice existed — no disabled buttons, no "unavailable" notices. A
             // nominee should never be shown the shape of a feature the operator has not bought.
             'voice'         => $form !== null && \AfricaGates\Services\QuestionnaireVoice::enabled(),
+            // ── THE BRIEF AND THE SPOKEN INTRODUCTION ────────────────────────
+            //
+            // `intro_ready` gates the questions. Somebody who has not been told how long this
+            // takes, what a usable answer looks like, or that nothing is sent until they press
+            // the button is being asked to describe their life's work in the dark.
+            'brief'         => \AfricaGates\Services\QuestionnaireIntro::briefParagraphs(
+                                $form !== null ? (int) ($form['programme_id'] ?? 0) : 0),
+            'intro_ready'   => $form === null || \AfricaGates\Services\QuestionnaireIntro::seen(
+                                QuestionnaireService::byToken($token)),
+            'intro'         => \AfricaGates\Services\QuestionnaireIntro::state(
+                                $form !== null ? QuestionnaireService::byToken($token) : null, $token),
+            'intro_max'     => \AfricaGates\Services\QuestionnaireIntro::MAX_SECONDS,
             'support_email' => Notifier::supportEmail(),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }

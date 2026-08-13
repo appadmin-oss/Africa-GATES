@@ -241,6 +241,23 @@ final class AiPrivacy
                     'minimised' => true,
                     'advisory'  => true,
                 ],
+                [
+                    // Listed SEPARATELY from the answer above, and it must be, because the two
+                    // are opposite on the only question a reader actually cares about: whether
+                    // we keep the recording. "We never store your voice" and "we keep this
+                    // recording" cannot both be printed on one page without one of them being
+                    // a lie, and the honest version is the one that distinguishes them.
+                    'name'    => 'questionnaire.voice_intro',
+                    'purpose' => 'The short introduction you record of yourself, if you choose to',
+                    'sends'   => 'The recording, so it can be written down as well as heard. This one '
+                               . 'IS kept — unlike a spoken answer — because the recording itself is '
+                               . 'what the judges are meant to hear, and it is stored on our server '
+                               . 'rather than on a public web address. You can delete and re-record it '
+                               . 'at any point before you send your questionnaire, and it only reaches '
+                               . 'a panel after you have agreed that they may hear it.',
+                    'minimised' => true,
+                    'advisory'  => true,
+                ],
             ],
         ];
     }

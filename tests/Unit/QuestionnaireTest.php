@@ -403,9 +403,17 @@ final class QuestionnaireTest extends TestCase
 
     // ══ 5. the nominee's page, through the real router ═══════════════════════
 
+    /**
+     * The brief now stands in front of the questions, so this walks past it first.
+     *
+     * That gate is the point of it: somebody who has not been told how long this takes, what a
+     * usable answer looks like, or that nothing is sent until they press the button is being
+     * asked to describe their life's work in the dark. The test below asserts the brief itself.
+     */
     public function test_the_page_shows_the_questions_and_says_nothing_costs_money(): void
     {
         [, $token] = $this->open();
+        \AfricaGates\Services\QuestionnaireIntro::markSeen($token);
         $html = $this->getPage('/my-work/' . $token);
 
         $this->assertStringContainsString('Bola Adeyemi', $html);
@@ -415,6 +423,20 @@ final class QuestionnaireTest extends TestCase
         $this->assertStringContainsString('never ask you to pay', $html);
         // And the one that gets an honest answer to the hardest question.
         $this->assertStringContainsString('never cost anybody an award', $html);
+    }
+
+    /** And before any of that, the page says what is expected of them. */
+    public function test_the_page_opens_on_the_brief_and_not_on_a_question(): void
+    {
+        [, $token] = $this->open();
+        $html = $this->getPage('/my-work/' . $token);
+
+        $this->assertStringContainsString('what happens to it', $html);
+        $this->assertStringContainsString('saved as you go', $html);
+        $this->assertStringContainsString('I have read this', $html);
+        // The questions are NOT on this page yet — that is the whole gate.
+        $this->assertStringNotContainsString('who keeps that record', $html,
+            'the questions were shown before anybody had been told what this is');
     }
 
     public function test_the_deadline_is_a_date_and_not_a_database_column(): void
