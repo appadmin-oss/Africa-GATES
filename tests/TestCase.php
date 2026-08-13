@@ -63,6 +63,12 @@ abstract class TestCase extends BaseTestCase
 
         // Static per-process caches must never leak between tests.
         \AfricaGates\Services\SpamService::resetThresholdCache();
+        // What we learned about the SCHEMA is the sharpest of these, because the schema is
+        // rebuilt per test and the memo was not: one test that touched a table before a
+        // migration added a column taught OptionalColumn that the column does not exist, and
+        // every later test in the process then silently DROPPED that column from its writes.
+        // The failures land far from the cause and look like the feature is broken.
+        \AfricaGates\Support\OptionalColumn::forget();
         // A transport injected by one test must not send another test's mail — and
         // passing null also clears the "already booted" flag, so the next test either
         // injects its own fake or gets a freshly-built one.

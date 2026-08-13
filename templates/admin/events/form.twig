@@ -59,21 +59,48 @@
       <button type="button" @click="add()" style="margin-top:10px;border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add item</button>
     </div>
 
-    {# Ticket tiers repeater #}
-    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ tier_seed|json_encode|e('html_attr') }}, {name:'',price:0,perk:'',sold:false})">
-      <strong style="font-size:14px">Ticket tiers <small style="font-weight:400;color:#8a9a9c">(optional — leave empty for a simple free RSVP)</small></strong>
+    {# ── TICKET TIERS ─────────────────────────────────────────────────────────
+       These are real rows now, not a JSON blob the public page printed as prose. Each
+       carries its OWN attendee limit, which is what makes "40 early-bird, 40 standard, in
+       a hall of 60" expressible — the event's capacity above is still the ceiling for the
+       whole room and is checked on top of every tier's.
+
+       A tier with a price is CHARGED: the registration goes to the gateway and no ticket
+       exists until Paystack confirms it. Leave the price at 0 for a free RSVP, which is
+       confirmed on the spot. #}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ tier_seed|json_encode|e('html_attr') }}, {name:'',price:0,perk:'',cap:'',code:'',active:true,sold:0})">
+      <strong style="font-size:14px">Ticket tiers <small style="font-weight:400;color:#8a9a9c">(a price of 0 is a free RSVP — leave the list empty for one simple free ticket)</small></strong>
       <template x-for="r in rows" :key="r.id">
-        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
-          <input type="hidden" name="tier_soldout[]" :value="r.sold ? '1' : '0'">
-          <input name="tier_name[]" aria-label="Ticket tier name" x-model="r.name" maxlength="80" placeholder="Tier (e.g. VIP)" style="width:140px">
-          <input name="tier_price[]" aria-label="Ticket tier price" type="number" min="0" step="1" x-model.number="r.price" placeholder="0" style="width:100px">
-          <input name="tier_perk[]" aria-label="Ticket tier perk" x-model="r.perk" maxlength="120" placeholder="What's included" style="flex:1;min-width:120px">
-          <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap"><input type="checkbox" x-model="r.sold"> Sold out</label>
-          <button type="button" @click="rm(r.id)" aria-label="Remove row" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer">×</button>
+        <div style="border-top:1px solid var(--ad-line,#e2e8e6);margin-top:10px;padding-top:10px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="hidden" name="tier_id[]" :value="r.tid || ''">
+            <input type="hidden" name="tier_active[]" :value="r.active ? '1' : '0'">
+            <input name="tier_name[]" aria-label="Ticket tier name" x-model="r.name" maxlength="120" placeholder="Tier (e.g. VIP)" style="width:150px">
+            <input name="tier_price[]" aria-label="Ticket tier price in naira" type="number" min="0" step="1" x-model.number="r.price" placeholder="₦ 0" style="width:110px">
+            {# THE point of this change. Blank = as many as the room allows. #}
+            <input name="tier_capacity[]" aria-label="Seats available at this tier" type="number" min="0" step="1" x-model="r.cap" placeholder="Seats (blank = no limit)" style="width:170px">
+            <input name="tier_perk[]" aria-label="What this tier includes" x-model="r.perk" maxlength="500" placeholder="What's included" style="flex:1;min-width:140px">
+            <button type="button" @click="rm(r.id)" aria-label="Remove row" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer">×</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+            <input name="tier_from[]" aria-label="Sales open at" type="datetime-local" x-model="r.from" style="width:200px">
+            <input name="tier_until[]" aria-label="Sales close at" type="datetime-local" x-model="r.until" style="width:200px">
+            {# A code-gated tier is hidden from the public list and refused without the
+               code, which is how a sponsor or speaker allocation stays out of sight
+               without needing a second, secret event. #}
+            <input name="tier_code[]" aria-label="Access code" x-model="r.code" maxlength="60" placeholder="Access code (optional — hides the tier)" style="flex:1;min-width:180px">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap"><input type="checkbox" x-model="r.active"> On sale</label>
+            <span x-show="r.sold > 0" x-cloak style="font-size:12px;color:#1a6118;font-weight:700"
+                  x-text="r.sold + ' sold'"></span>
+          </div>
         </div>
       </template>
       <button type="button" @click="add()" style="margin-top:10px;border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add tier</button>
-      <p style="font-size:12px;color:#8a9a9c;margin:8px 0 0">Prices in ₦. "% sold" is computed automatically from registrations vs capacity.</p>
+      <p style="font-size:12px;color:#8a9a9c;margin:8px 0 0">
+        Prices in ₦. A tier is never deleted once anything has been sold against it — clearing
+        "On sale" takes it off the page and keeps the record straight for the people who bought one.
+        {% if row.id is defined %}<a href="/admin/events/{{ row.id }}/tickets" style="font-weight:600">See who is coming →</a>{% endif %}
+      </p>
     </div>
 
     <div class="ad-form__actions">

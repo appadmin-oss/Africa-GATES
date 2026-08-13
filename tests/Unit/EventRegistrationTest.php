@@ -74,7 +74,16 @@ class EventRegistrationTest extends TestCase
         $second = $this->post($slug, ['name' => 'Two', 'email' => 'two@example.com', 'phone' => '08087654321']);
         $this->assertFalse($second['success']);
         $this->assertTrue($second['full'] ?? false);
-        $this->assertSame(1, DB::table('gates_event_registrations')->count());
+
+        // CONFIRMED, not total. Overselling is now prevented by inserting the hold and then
+        // counting — both writers do the same thing and whichever one's count comes back over
+        // the line cancels itself, which is a race that resolves rather than one that
+        // oversells. The loser's row stays as `cancelled` on purpose: it is the only evidence
+        // that somebody tried, and on a paid tier it is the only place a payment reference
+        // lives if money turns out to have moved after all.
+        $this->assertSame(1, DB::table('gates_event_registrations')->where('status', 'confirmed')->count(),
+            'the capacity of 1 admitted two people');
+        $this->assertSame(1, DB::table('gates_event_registrations')->where('status', 'cancelled')->count());
     }
 
     public function test_past_event_registration_closed(): void

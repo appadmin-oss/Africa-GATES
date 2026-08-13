@@ -1415,6 +1415,24 @@ return function(App $app) {
         $g->get('/legacy/{slug}', LegacyController::class.':event');
         $g->get('/opportunities',  OpportunityController::class.':index');
         $g->get('/events',         EventsController::class.':index');
+        // ── PAID TICKETS ─────────────────────────────────────────────────────
+        //
+        // BEFORE `/events/{slug}`, and that ordering is load-bearing: Slim matches in
+        // registration order, so a `{slug}` route declared first would swallow
+        // `/events/redirect` and `/events/callback` and a buyer would come back from
+        // Paystack to a 404 instead of a ticket.
+        //
+        // `register` answers with a hand-off URL when the chosen tier costs money, and
+        // these are the rest of that journey. Same shape as the shop: an interstitial
+        // performs the redirect (a 302 straight to a gateway from inside a form POST is
+        // governed by `form-action`, and a CSP without the gateway hosts blocks it in the
+        // browser before any PHP runs), the callback re-verifies server-to-server rather
+        // than believing a query string, and the ticket page is reachable with the
+        // reference alone — an attendee has no account, and a login has no business
+        // standing between somebody and the door they are queueing at.
+        $g->get('/events/redirect',        EventsController::class.':redirect');
+        $g->get('/events/callback',        EventsController::class.':callback');
+        $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}', EventsController::class.':ticket');
         $g->get('/events/{slug}',  EventsController::class.':show');
         $g->post('/events/{slug}/register', EventsController::class.':register');
         $g->get('/blog',           BlogController::class.':index');
@@ -2317,6 +2335,12 @@ return function(App $app) {
         $a->get('/events/{id:[0-9]+}',           AdminEventsController::class.':form');
         $a->post('/events/{id:[0-9]+}',          AdminEventsController::class.':save');
         $a->post('/events/{id:[0-9]+}/delete',   AdminEventsController::class.':delete');
+        // Tickets, attendees and the door. Its own screen because an organiser reading a
+        // door list on the morning of an event is doing a different job from one editing a
+        // description, and check-in is the only thing they want on that page.
+        $a->get('/events/{id:[0-9]+}/tickets',   AdminEventsController::class.':tickets');
+        $a->post('/events/{id:[0-9]+}/check-in', AdminEventsController::class.':checkIn');
+        $a->get('/events/{id:[0-9]+}/attendees.csv', AdminEventsController::class.':exportAttendees');
 
         $a->get('/registrations',                AdminRegistrationsController::class.':index');
         $a->get('/registrations/export',         AdminRegistrationsController::class.':export');

@@ -1,0 +1,196 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  TICKETS, AND THE DOOR.
+
+  Two jobs on one page, and they belong together because they are the same question asked
+  a week apart: "how many have we sold at each price" before the day, and "is this person
+  on the list" on it.
+
+  The check-in box is FIRST and focused on load, because the person using it is standing at
+  a door with a queue behind them. Everything else on the page can be scrolled to.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .tx-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
+  .tx-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:14px }
+  .tx-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .tx-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+
+  .tx-door{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:14px }
+  .tx-door input{ flex:1 1 220px; font:700 20px/1 var(--ag-font-mono, monospace);
+    letter-spacing:.08em; text-transform:uppercase; padding:14px 16px;
+    border:2px solid rgba(16,41,44,.2); border-radius:12px; color:#10292C }
+  .tx-door input:focus{ outline:none; border-color:#237b22 }
+  .tx-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:12px 20px;
+    border-radius:999px; background:#10292C; color:#fff; text-decoration:none; display:inline-block }
+  .tx-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+
+  .tx-tiers{ width:100%; border-collapse:collapse; margin-top:12px; font-size:13px }
+  .tx-tiers th{ text-align:left; font:700 10px/1.3 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; padding:0 10px 8px 0 }
+  .tx-tiers td{ padding:10px 10px 10px 0; border-top:1px solid rgba(16,41,44,.08) }
+  .tx-bar{ height:7px; border-radius:99px; background:rgba(16,41,44,.1); overflow:hidden; min-width:80px }
+  .tx-bar i{ display:block; height:100%; background:#237b22; border-radius:99px }
+  .tx-bar i.is-tight{ background:#c79a3a }
+  .tx-bar i.is-full{ background:#b3261e }
+
+  .tx-stat{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr)) }
+  .tx-s{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:12px; padding:13px 15px }
+  .tx-s__k{ font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f }
+  .tx-s__v{ font-size:22px; font-weight:700; color:#10292C; margin-top:7px }
+  .tx-s__n{ font-size:11.5px; line-height:1.5; color:#67797b; margin-top:4px }
+
+  .tx-list{ width:100%; border-collapse:collapse; margin-top:12px; font-size:12.5px }
+  .tx-list th{ text-align:left; font:700 10px/1.3 var(--ag-font-body,inherit); letter-spacing:.08em;
+    text-transform:uppercase; color:#5a6d6f; padding:0 8px 8px 0 }
+  .tx-list td{ padding:9px 8px 9px 0; border-top:1px solid rgba(16,41,44,.07); vertical-align:top }
+  .tx-tag{ font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .tx-tag--ok{ background:#eaf7ea; color:#1c5f1b }
+  .tx-tag--wait{ background:#fff8df; color:#6b5312 }
+  .tx-tag--no{ background:#fdeaea; color:#8a2020 }
+  .tx-code{ font-family:var(--ag-font-mono, monospace); font-weight:700 }
+  .tx-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:12px }
+</style>
+{% endblock %}
+
+{% block topbar_title %}{{ event.title }}{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/events/{{ event.id }}">Edit event</a>
+{% endblock %}
+
+{% block content %}
+<p class="tx-sub">
+  {{ event.event_date }}{% if event.location %} · {{ event.location }}{% endif %} ·
+  <a href="/events/{{ event.slug }}" target="_blank" rel="noopener noreferrer">public page</a> ·
+  <a href="/admin/events">back to events</a>
+</p>
+
+{# ── the door ────────────────────────────────────────────────────────────── #}
+<div class="tx-sec">
+  <h2>Check somebody in</h2>
+  <p>Type the code from their ticket. It is refused if the payment never arrived, and it
+     says so if the code has already been used — a screenshot passed between two people
+     shows up here rather than at the door.</p>
+  <form method="post" action="/admin/events/{{ event.id }}/check-in" class="tx-door">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <input name="code" id="txCode" placeholder="ABCD-2468" autocomplete="off"
+           autocapitalize="characters" spellcheck="false" aria-label="Ticket code">
+    <button class="tx-btn" type="submit">Check in</button>
+  </form>
+</div>
+
+{# ── what is sold ────────────────────────────────────────────────────────── #}
+<div class="tx-stat" style="margin-bottom:14px">
+  <div class="tx-s">
+    <div class="tx-s__k">Seats taken</div>
+    <div class="tx-s__v">{{ summary.sold|number_format }}</div>
+    <div class="tx-s__n">{% if summary.capacity %}of {{ summary.capacity|number_format }} in the room{% else %}no overall limit set{% endif %}</div>
+  </div>
+  <div class="tx-s">
+    <div class="tx-s__k">Money taken</div>
+    <div class="tx-s__v">₦{{ summary.revenue|number_format }}</div>
+    <div class="tx-s__n">confirmed tickets only</div>
+  </div>
+  <div class="tx-s">
+    <div class="tx-s__k">Mid-checkout</div>
+    <div class="tx-s__v">{{ summary.pending }}</div>
+    <div class="tx-s__n">holding a seat for {{ hold_minutes|default(30) }} minutes</div>
+  </div>
+  <div class="tx-s">
+    <div class="tx-s__k">Checked in</div>
+    <div class="tx-s__v">{{ attendees|filter(a => a.checked_in_at)|length }}</div>
+    <div class="tx-s__n">through the door</div>
+  </div>
+</div>
+
+<div class="tx-sec">
+  <h2>Each ticket type, against its own limit</h2>
+  <p>A tier can sell out while the event has room, and the room can fill while a tier still
+     has seats — both limits are real and both are checked. A blank limit means "as many as
+     the room allows".</p>
+  <table class="tx-tiers">
+    <thead><tr><th>Ticket</th><th>Price</th><th>Sold</th><th style="width:28%">Against its limit</th><th>State</th></tr></thead>
+    <tbody>
+      {% for t in summary.tiers %}
+        {% set pct = t.capacity ? (100 * t.sold / t.capacity)|round : 0 %}
+        <tr>
+          <td><strong>{{ t.name }}</strong>{% if not t.active %} <span class="tx-tag">off sale</span>{% endif %}</td>
+          <td>{{ t.price_naira > 0 ? '₦' ~ t.price_naira|number_format : 'Free' }}</td>
+          <td>{{ t.sold }}{% if t.capacity %} / {{ t.capacity }}{% endif %}</td>
+          <td>
+            {% if t.capacity %}
+              <div class="tx-bar"><i class="{{ pct >= 100 ? 'is-full' : (pct >= 80 ? 'is-tight' : '') }}"
+                   style="width:{{ pct > 100 ? 100 : pct }}%"></i></div>
+            {% else %}
+              <span style="color:#8a9a9c">no limit</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if t.state == 'open' %}<span class="tx-tag tx-tag--ok">on sale</span>
+            {% elseif t.state == 'sold_out' %}<span class="tx-tag tx-tag--no">sold out</span>
+            {% else %}<span class="tx-tag tx-tag--wait">{{ t.state }}</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" style="padding:18px 0;color:#8a9a9c">
+          No ticket types yet. <a href="/admin/events/{{ event.id }}">Add one on the event</a> —
+          a price of 0 makes it a free RSVP.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ── who is coming ───────────────────────────────────────────────────────── #}
+<div class="tx-sec">
+  <h2>{{ attendees|length }} registration(s)</h2>
+  <div class="tx-row">
+    {% for f in [['', 'Everyone'], ['confirmed', 'Confirmed'], ['pending', 'Mid-checkout'], ['cancelled', 'Cancelled']] %}
+      <a class="tx-btn tx-btn--ghost" href="/admin/events/{{ event.id }}/tickets{{ f.0 ? '?status=' ~ f.0 : '' }}"
+         {% if filter == f.0 %}style="background:#10292C;color:#fff;border-color:#10292C"{% endif %}>{{ f.1 }}</a>
+    {% endfor %}
+    <a class="tx-btn tx-btn--ghost" href="/admin/events/{{ event.id }}/attendees.csv">Download CSV</a>
+  </div>
+
+  <table class="tx-list">
+    <thead><tr><th>Name</th><th>Contact</th><th>Ticket</th><th>Paid</th><th>Code</th><th>Status</th><th>Registered</th></tr></thead>
+    <tbody>
+      {% for a in attendees %}
+        <tr>
+          <td><strong>{{ a.name }}</strong>{% if (a.quantity|default(1)) > 1 %} <span class="tx-tag">{{ a.quantity }} seats</span>{% endif %}</td>
+          <td>{{ a.email }}{% if a.phone %}<br>{{ a.phone }}{% endif %}</td>
+          <td>{{ a.tier|default('—') }}</td>
+          <td>{{ (a.amount_naira|default(0)) > 0 ? '₦' ~ a.amount_naira|number_format : 'Free' }}</td>
+          <td class="tx-code">{{ a.ticket_code|default('—') }}</td>
+          <td>
+            {% if a.status == 'confirmed' %}<span class="tx-tag tx-tag--ok">confirmed</span>
+            {% elseif a.status == 'pending' %}<span class="tx-tag tx-tag--wait">mid-checkout</span>
+            {% elseif a.status == 'cancelled' %}<span class="tx-tag tx-tag--no">cancelled</span>
+            {% else %}<span class="tx-tag">{{ a.status|default('—') }}</span>{% endif %}
+            {% if a.checked_in_at %}<br><span class="tx-tag tx-tag--ok">arrived</span>{% endif %}
+          </td>
+          <td style="color:#67797b">{{ a.created_at }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" style="padding:20px 0;text-align:center;color:#8a9a9c">Nobody yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block foot_scripts %}
+{# Focus the code box on load. The person opening this page at a door has a queue in front
+   of them, and one tap saved per attendee is the difference between a moving line and a
+   stationary one. Nonced, and nothing on the page depends on it running. #}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var box = document.getElementById('txCode');
+  if (box && !('ontouchstart' in window)) box.focus();
+})();
+</script>
+{% endblock %}

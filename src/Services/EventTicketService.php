@@ -1,0 +1,712 @@
+<?php
+declare(strict_types=1);
+
+namespace AfricaGates\Services;
+
+use AfricaGates\Support\OptionalColumn;
+use Illuminate\Database\Capsule\Manager as DB;
+use Illuminate\Support\Carbon;
+
+/**
+ * Selling a seat at an event: tiers with their own limits, and money that arrives.
+ *
+ * ── WHAT THIS REPLACES ───────────────────────────────────────────────────────
+ *
+ * Registration was a free RSVP. It took a name, an email and a phone number, checked
+ * one capacity number for the whole event, and inserted a row. `gates_event_registrations`
+ * has carried `amount_naira`, `reference` and `tier` since the day it was created and
+ * nothing had ever written any of them — three columns describing a feature that did
+ * not exist. Ticket tiers were a JSON blob the detail page printed as prose.
+ *
+ * So there was nowhere for a per-tier limit to live and nothing to count against it,
+ * which is why "we cannot set an attendee limit per pricing tier" was a fact about the
+ * schema rather than a missing form field. {@see \AfricaGates\Services\EventTicketService}
+ * counts seats against tiers, and the tiers are rows.
+ *
+ * ── A SEAT IS TAKEN BY A HOLD, NOT BY A PAYMENT ──────────────────────────────
+ *
+ * The moment somebody starts a paid checkout their seat must stop being available, or a
+ * sold-out tier oversells itself to everybody who happened to be on the page. But a
+ * seat held by an abandoned checkout must come BACK, or one person closing a tab
+ * permanently shrinks the room.
+ *
+ * So a pending registration holds its seats for {@see HOLD_MINUTES} and then stops
+ * counting. Nothing needs to run for that to happen — {@see sold()} simply does not
+ * count a hold that has expired, which means the seat is available again even on a
+ * deployment whose cron has never fired. {@see releaseExpired()} exists to tidy the
+ * rows for the attendee list, not to make the arithmetic true.
+ *
+ * ── BOTH LIMITS ARE REAL ─────────────────────────────────────────────────────
+ *
+ * A tier's capacity and the event's own are checked together, and an organiser who
+ * sells 40 early-bird and 40 standard into a hall of 60 needs them both: the tiers say
+ * how the room may be divided, the event says how big the room is. Neither is derived
+ * from the other, because a real event's tiers routinely overlap on purpose.
+ *
+ * ── AND THE MONEY GOES THROUGH THE SAME DOOR AS EVERYTHING ELSE ──────────────
+ *
+ * `PaymentService::initialize()` and `verify()`, a reference this platform generates,
+ * amount parity checked at confirm time, and the row left `pending` until the gateway
+ * says otherwise. Identical to paid votes, the shop and donations — which also means
+ * the reconciler, the triage screen and the gateway ledger can all see event money for
+ * the first time, because they key off the same reference column that was always there
+ * and never filled in.
+ */
+final class EventTicketService
+{
+    /** How long a started checkout keeps its seats. */
+    public const HOLD_MINUTES = 30;
+
+    /** Nobody buys more than this in one go without talking to somebody. */
+    public const HARD_MAX_QTY = 50;
+
+    /** The prefix every event reference carries, so a support desk can tell them apart. */
+    public const REF_PREFIX = 'AFG-EVT-';
+
+    // ══ 1. reading tiers ═════════════════════════════════════════════════════
+
+    /**
+     * The tiers a visitor may see, each with its availability worked out.
+     *
+     * A tier with an `access_code` is hidden until the visitor supplies it — that is how
+     * a sponsor or speaker allocation stays out of the public list without needing a
+     * second, secret event. Comparison is case-insensitive and trimmed, because the code
+     * arrives from an email somebody has copied by hand.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function tiers(int $eventId, ?string $code = null): array
+    {
+        $code = strtolower(trim((string) $code));
+
+        self::ensureDefaultTier($eventId);
+
+        try {
+            $rows = DB::table('gates_event_tiers')
+                ->where('event_id', $eventId)->where('is_active', 1)
+                ->orderBy('sort_order')->orderBy('id')->get();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $t) {
+            $gate = strtolower(trim((string) ($t->access_code ?? '')));
+            if ($gate !== '' && $gate !== $code) continue;
+
+            $a = self::availability($t);
+            $out[] = [
+                'id'          => (int) $t->id,
+                'slug'        => (string) $t->slug,
+                'name'        => (string) $t->name,
+                'description' => (string) ($t->description ?? ''),
+                'price_naira' => (int) $t->price_naira,
+                'free'        => (int) $t->price_naira === 0,
+                'capacity'    => $t->capacity !== null ? (int) $t->capacity : null,
+                'perks'       => self::perks($t),
+                'min'         => max(1, (int) ($t->min_per_order ?? 1)),
+                'max'         => self::maxPerOrder($t),
+                'unlocked'    => $gate !== '',
+            ] + $a;
+        }
+        return $out;
+    }
+
+    /**
+     * An event with no ticket types gets one, silently.
+     *
+     * ── WHY A READ IS ALLOWED TO WRITE HERE ──────────────────────────────────
+     *
+     * Registration goes through a tier now, so an event with none is an event nobody can
+     * register for — and that is never what anybody meant. It is simply what you get when
+     * somebody creates an event, fills in the date and the venue, and does not think about
+     * ticketing because the event is free and always was.
+     *
+     * Before this, the same event took RSVPs happily. Requiring an organiser to go back and
+     * add a "General admission" row before their page worked again would be this feature
+     * breaking the ordinary case in order to serve the complicated one.
+     *
+     * So the default is created on first read: free, unlimited, one row, idempotent. It
+     * takes its price from the event's own legacy `price_naira` when that is set, because an
+     * event that has always advertised a price should not become free by upgrade.
+     *
+     * Deliberately NOT done in a migration alone. The migration covers every event that
+     * exists today; this covers every event created tomorrow by somebody who never opens the
+     * tier editor.
+     */
+    private static function ensureDefaultTier(int $eventId): void
+    {
+        try {
+            if (DB::table('gates_event_tiers')->where('event_id', $eventId)->exists()) return;
+
+            $event = DB::table('gates_site_events')->where('id', $eventId)->first();
+            if (!$event) return;
+
+            $price = (int) ($event->price_naira ?? 0);
+            $now   = Carbon::now()->toDateTimeString();
+
+            DB::table('gates_event_tiers')->insert([
+                'event_id'    => $eventId,
+                'slug'        => $price > 0 ? 'standard' : 'general',
+                'name'        => $price > 0 ? 'Standard' : 'General admission',
+                'price_naira' => $price,
+                // Unlimited: the event's own `capacity` is still checked on top, so the room
+                // is protected without inventing a per-tier limit nobody asked for.
+                'capacity'    => null,
+                'min_per_order' => 1,
+                'max_per_order' => 10,
+                'is_active'   => 1,
+                'sort_order'  => 0,
+                'created_at'  => $now, 'updated_at' => $now,
+            ]);
+        } catch (\Throwable $e) {
+            // A deployment that has uploaded this code and not yet run /__setup/migrate has
+            // no tier table. Registration falls back to the legacy JSON blob on the page and
+            // this stays quiet rather than turning a missing migration into a 500.
+            error_log('[event] could not create a default tier for ' . $eventId . ': ' . $e->getMessage());
+        }
+    }
+
+    /** @return list<string> */
+    private static function perks(object $t): array
+    {
+        $raw = json_decode((string) ($t->perks ?? '[]'), true);
+        if (!is_array($raw)) return [];
+        return array_values(array_filter(array_map(
+            static fn ($p): string => trim((string) $p),
+            $raw
+        ), static fn (string $p): bool => $p !== ''));
+    }
+
+    private static function maxPerOrder(object $t): int
+    {
+        $max = (int) ($t->max_per_order ?? 10);
+        return max(1, min(self::HARD_MAX_QTY, $max ?: 10));
+    }
+
+    public static function tier(int $tierId): ?object
+    {
+        try { return DB::table('gates_event_tiers')->where('id', $tierId)->first() ?: null; }
+        catch (\Throwable) { return null; }
+    }
+
+    /**
+     * How many seats of this tier are gone, and whether it can still be bought.
+     *
+     * `state` is the single word a template branches on, and each one is a different
+     * sentence to the visitor rather than a shade of "no": `open`, `sold_out`, `early`
+     * (sales have not started), `closed` (they have ended).
+     *
+     * @return array{sold:int, left:?int, state:string, why:string}
+     */
+    public static function availability(object $tier, ?string $now = null): array
+    {
+        $now  = $now ?? Carbon::now()->toDateTimeString();
+        $sold = self::sold((int) $tier->id);
+        $cap  = $tier->capacity !== null ? (int) $tier->capacity : null;
+        $left = $cap !== null ? max(0, $cap - $sold) : null;
+
+        $starts = trim((string) ($tier->sale_starts_at ?? ''));
+        $ends   = trim((string) ($tier->sale_ends_at ?? ''));
+
+        if ($starts !== '' && $starts > $now) {
+            return ['sold' => $sold, 'left' => $left, 'state' => 'early',
+                    'why' => 'Sales for this open on ' . Carbon::parse($starts)->format('j F, H:i') . '.'];
+        }
+        if ($ends !== '' && $ends < $now) {
+            return ['sold' => $sold, 'left' => $left, 'state' => 'closed',
+                    'why' => 'Sales for this closed on ' . Carbon::parse($ends)->format('j F') . '.'];
+        }
+        if ($left !== null && $left <= 0) {
+            return ['sold' => $sold, 'left' => 0, 'state' => 'sold_out',
+                    'why' => 'Every seat at this price has gone.'];
+        }
+        return ['sold' => $sold, 'left' => $left, 'state' => 'open', 'why' => ''];
+    }
+
+    /**
+     * Seats gone from one tier: confirmed, plus holds that have not expired.
+     *
+     * The expiry is applied HERE, in the arithmetic, rather than by a sweeper that flips
+     * statuses. That is deliberate: on a deployment whose cron has never run — and this
+     * platform ships a webcron precisely because that is common — a seat would otherwise
+     * stay held by an abandoned checkout forever, and the tier would sell out to nobody.
+     */
+    public static function sold(int $tierId): int
+    {
+        $now = Carbon::now()->toDateTimeString();
+        try {
+            return (int) DB::table('gates_event_registrations')
+                ->where('tier_id', $tierId)
+                ->where(static function ($q) use ($now): void {
+                    $q->where('status', 'confirmed')
+                      ->orWhere(static function ($h) use ($now): void {
+                          $h->where('status', 'pending')
+                            ->where(static function ($e) use ($now): void {
+                                // A hold with no expiry is a row from before this feature
+                                // existed; treat it as live rather than free, because
+                                // handing out a seat somebody may already hold is the
+                                // worse of the two mistakes.
+                                $e->whereNull('hold_expires_at')->orWhere('hold_expires_at', '>=', $now);
+                            });
+                      });
+                })
+                ->sum(DB::raw('COALESCE(quantity, 1)'));
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /** Seats gone from the whole event, across every tier. */
+    public static function soldForEvent(int $eventId): int
+    {
+        $now = Carbon::now()->toDateTimeString();
+        try {
+            return (int) DB::table('gates_event_registrations')
+                ->where('event_id', $eventId)
+                ->where(static function ($q) use ($now): void {
+                    $q->where('status', 'confirmed')
+                      ->orWhere(static function ($h) use ($now): void {
+                          $h->where('status', 'pending')
+                            ->where(static function ($e) use ($now): void {
+                                $e->whereNull('hold_expires_at')->orWhere('hold_expires_at', '>=', $now);
+                            });
+                      });
+                })
+                ->sum(DB::raw('COALESCE(quantity, 1)'));
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    // ══ 2. taking a seat ═════════════════════════════════════════════════════
+
+    /**
+     * Hold seats and, when they cost money, produce a reference to pay against.
+     *
+     * ── HOW OVERSELLING IS PREVENTED WITHOUT ROW LOCKS ───────────────────────
+     *
+     * Two people press the last seat at the same moment. Counting first and inserting
+     * second lets both through, and this codebase does not use `SELECT … FOR UPDATE`
+     * anywhere — MySQL and SQLite behave differently enough under it that a shared
+     * helper would be a lie on one of them.
+     *
+     * So: insert the hold FIRST, then count. If the count now exceeds the cap, the row
+     * that pushed it over cancels ITSELF and reports the tier as full. Both writers do
+     * the same thing, and whichever one's count comes back over the line loses — which
+     * is a race that resolves rather than a race that oversells. The loser has a
+     * cancelled row and a clear message; nobody has a seat that does not exist.
+     *
+     * @param array{name:string,email:string,phone:string} $who
+     * @return array{ok:bool, message:string, id?:int, reference?:string, amount?:int,
+     *                free?:bool, ticket_code?:string, state?:string}
+     */
+    public static function reserve(int $eventId, int $tierId, array $who, int $qty = 1,
+                                   ?string $code = null, ?int $userId = null): array
+    {
+        $event = DB::table('gates_site_events')->where('id', $eventId)
+            ->where('status', 'published')->first();
+        if (!$event) return ['ok' => false, 'message' => 'That event is not open for registration.'];
+
+        if ((string) $event->event_date < Carbon::now()->toDateTimeString()) {
+            return ['ok' => false, 'message' => 'Registration has closed for this event.'];
+        }
+
+        $tier = self::tier($tierId);
+        if (!$tier || (int) $tier->event_id !== $eventId || (int) ($tier->is_active ?? 0) !== 1) {
+            return ['ok' => false, 'message' => 'That ticket type is not available.'];
+        }
+
+        // A code-gated tier cannot be bought by guessing its id. The visible list hides
+        // it; this refuses it, because the id is in the page source for anybody who has
+        // the code and hiding alone is not a control.
+        $gate = strtolower(trim((string) ($tier->access_code ?? '')));
+        if ($gate !== '' && $gate !== strtolower(trim((string) $code))) {
+            return ['ok' => false, 'message' => 'That ticket type needs an access code.'];
+        }
+
+        $name  = trim($who['name'] ?? '');
+        $email = trim($who['email'] ?? '');
+        $phone = trim($who['phone'] ?? '');
+        if ($name === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return ['ok' => false, 'message' => 'Please enter your name and a valid email address.'];
+        }
+        // Required, and it always has been: an organiser needs to reach attendees about a
+        // venue change on the morning, and email alone does not reach anybody in a hurry.
+        if (strlen((string) preg_replace('/\D+/', '', $phone)) < 7) {
+            return ['ok' => false, 'message' => 'Please enter a valid phone number.'];
+        }
+
+        $min = max(1, (int) ($tier->min_per_order ?? 1));
+        $max = self::maxPerOrder($tier);
+        if ($qty < $min) return ['ok' => false, 'message' => 'This ticket is sold in ' . $min . 's or more.'];
+        if ($qty > $max) return ['ok' => false, 'message' => 'You can book at most ' . $max . ' of these at once.'];
+
+        $avail = self::availability($tier);
+        if ($avail['state'] !== 'open') {
+            return ['ok' => false, 'state' => $avail['state'], 'message' => $avail['why']];
+        }
+        if ($avail['left'] !== null && $qty > $avail['left']) {
+            return ['ok' => false, 'state' => 'sold_out',
+                    'message' => $avail['left'] === 1
+                        ? 'Only one seat is left at this price.'
+                        : 'Only ' . $avail['left'] . ' seats are left at this price.'];
+        }
+
+        $price  = (int) $tier->price_naira;
+        $amount = $price * $qty;
+        $free   = $price === 0;
+        $now    = Carbon::now();
+
+        // ── A LIVE HOLD IS THE SAME ATTEMPT, NOT A SECOND ONE ────────────────
+        //
+        // Somebody who presses the button twice, or comes back to the tab they left open,
+        // must not end up holding two lots of seats out of a limited tier — that is how a
+        // tier of 40 sells out at 20 buyers. Handing back the reference they already have
+        // is both the correct arithmetic and the better experience: they resume the
+        // checkout they abandoned instead of starting a new one.
+        //
+        // Only for the SAME tier and the same quantity. A different tier or a different
+        // number of seats is a genuinely different purchase.
+        if (!$free) {
+            $live = DB::table('gates_event_registrations')
+                ->where('event_id', $eventId)->where('tier_id', $tierId)
+                ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
+                ->where('status', 'pending')
+                ->where(static function ($q) use ($now): void {
+                    $q->whereNull('hold_expires_at')
+                      ->orWhere('hold_expires_at', '>=', $now->toDateTimeString());
+                })
+                ->orderByDesc('id')->first();
+
+            if ($live && (int) ($live->quantity ?? 1) === $qty) {
+                return ['ok' => true, 'id' => (int) $live->id, 'reference' => (string) $live->reference,
+                        'amount' => (int) ($live->amount_naira ?? $amount), 'free' => false,
+                        'ticket_code' => null, 'resumed' => true,
+                        'message' => 'Picking up the booking you already started.'];
+            }
+        }
+
+        $ref = self::REF_PREFIX . strtoupper(bin2hex(random_bytes(5)));
+
+        try {
+            $id = (int) DB::table('gates_event_registrations')->insertGetId(
+                OptionalColumn::filter('gates_event_registrations', [
+                    'event_id'     => $eventId,
+                    'tier_id'      => $tierId,
+                    // The tier NAME is copied as well as referenced. A tier can be renamed
+                    // after somebody has bought against it, and an attendee list that
+                    // silently restates history is worse than one that repeats itself.
+                    'tier'         => mb_substr((string) $tier->name, 0, 80),
+                    'name'         => mb_substr($name, 0, 160),
+                    'email'        => mb_substr($email, 0, 190),
+                    'phone'        => mb_substr($phone, 0, 40),
+                    'quantity'     => $qty,
+                    'amount_naira' => $amount,
+                    'reference'    => $ref,
+                    'user_id'      => $userId,
+                    // A free seat is confirmed on the spot: there is nothing to wait for,
+                    // and leaving it pending would hold a seat behind a payment nobody owes.
+                    'status'       => $free ? 'confirmed' : 'pending',
+                    'ticket_code'  => $free ? self::freshCode() : null,
+                    'confirmed_at' => $free ? $now->toDateTimeString() : null,
+                    'hold_expires_at' => $free ? null : $now->copy()->addMinutes(self::HOLD_MINUTES)->toDateTimeString(),
+                    'created_at'   => $now->toDateTimeString(),
+                ], ['tier_id', 'quantity', 'status', 'ticket_code', 'confirmed_at',
+                    'hold_expires_at', 'user_id'])
+            );
+        } catch (\Throwable $e) {
+            // UNIQUE(event_id, email) on the original table. Somebody registering twice is
+            // not an error worth an apology, but with paid tiers it is no longer safe to
+            // answer "you are already on the list" — they may be trying to buy a second,
+            // different ticket. Say what happened and let them use the desk.
+            error_log('[event] could not reserve for event ' . $eventId . ': ' . $e->getMessage());
+            return ['ok' => false, 'message' => 'You already have a registration for this event. '
+                                              . 'If you need another ticket, please contact us.'];
+        }
+
+        // ── the count, AFTER the insert. See the docblock. ───────────────────
+        $overTier  = $avail['left'] !== null && self::sold($tierId) > (int) $tier->capacity;
+        $eventCap  = $event->capacity !== null ? (int) $event->capacity : null;
+        $overEvent = $eventCap !== null && self::soldForEvent($eventId) > $eventCap;
+
+        if ($overTier || $overEvent) {
+            // rollBack(), not cancel(). A FREE tier is inserted as `confirmed` — there is
+            // nothing to wait for — and cancel() deliberately refuses to touch a confirmed
+            // row, because that is somebody's paid ticket. So a free registration that lost
+            // the race stayed confirmed and the capacity of 1 admitted two people.
+            self::rollBack($id, 'lost a race for the last seat');
+            return ['ok' => false, 'state' => 'sold_out',
+                    'message' => $overEvent && !$overTier
+                        ? 'The event filled up while you were booking. Nothing has been charged.'
+                        : 'Those seats went while you were booking. Nothing has been charged.'];
+        }
+
+        return [
+            'ok' => true, 'id' => $id, 'reference' => $ref, 'amount' => $amount, 'free' => $free,
+            'ticket_code' => $free ? (string) DB::table('gates_event_registrations')
+                ->where('id', $id)->value('ticket_code') : null,
+            'message' => $free
+                ? 'You are registered.'
+                : 'Seats held for ' . self::HOLD_MINUTES . ' minutes while you pay.',
+        ];
+    }
+
+    // ══ 3. money ═════════════════════════════════════════════════════════════
+
+    /**
+     * The gateway said it was paid — check that ourselves, then issue the ticket.
+     *
+     * Amount parity is refused for the reason every other confirm path on this platform
+     * refuses it: a gateway reporting success for less than the order does not mean this
+     * order was paid, and a ticket is a thing somebody gets into a room with.
+     *
+     * Idempotent. The conditional update means a webhook and a browser callback arriving
+     * together produce one confirmation and one ticket code, and the second caller is
+     * told the truth rather than an error.
+     *
+     * @return array{ok:bool, message:string, ticket_code?:string, already?:bool, id?:int}
+     */
+    public static function confirm(string $reference, ?PaymentService $payments = null): array
+    {
+        $reference = trim($reference);
+        $reg = self::byReference($reference);
+        if (!$reg) return ['ok' => false, 'message' => 'That registration could not be found.'];
+
+        if ((string) $reg->status === 'confirmed') {
+            return ['ok' => true, 'already' => true, 'id' => (int) $reg->id,
+                    'ticket_code' => (string) ($reg->ticket_code ?? ''),
+                    'message' => 'This registration is already confirmed.'];
+        }
+        if ((string) $reg->status === 'cancelled') {
+            return ['ok' => false, 'message' => 'That registration was cancelled.'];
+        }
+
+        $payments = $payments ?? new PaymentService();
+        $stored   = strtolower(trim((string) ($reg->provider ?? '')));
+        $order    = $stored !== '' ? array_merge([$stored], array_diff($payments->enabledProviderIds(), [$stored]))
+                                   : $payments->enabledProviderIds();
+
+        foreach ($order as $provider) {
+            $v = $payments->verify($provider, $reference);
+            if (!($v['ok'] ?? false) || (string) ($v['status'] ?? '') !== 'success') continue;
+
+            $paid = (int) ($v['amount'] ?? 0);
+            $owed = (int) ($reg->amount_naira ?? 0);
+            if ($paid < $owed) {
+                return ['ok' => false,
+                        'message' => 'The gateway shows ₦' . number_format($paid) . ' against a ticket of ₦'
+                                   . number_format($owed) . ', so nothing has been issued. Please contact us.'];
+            }
+            if (strtoupper((string) ($v['currency'] ?? 'NGN')) !== 'NGN') {
+                return ['ok' => false, 'message' => 'That payment was not in naira, so it could not be '
+                                                  . 'matched to this ticket. Please contact us.'];
+            }
+
+            $code = self::freshCode();
+            $changed = DB::table('gates_event_registrations')
+                ->where('id', (int) $reg->id)->where('status', 'pending')
+                ->update(OptionalColumn::filter('gates_event_registrations', [
+                    'status'       => 'confirmed',
+                    'provider'     => $provider,
+                    'provider_ref' => $reference,
+                    'ticket_code'  => $code,
+                    'confirmed_at' => Carbon::now()->toDateTimeString(),
+                    // The hold has done its job. Leaving it set would make a confirmed
+                    // seat look like one that expires.
+                    'hold_expires_at' => null,
+                ], ['status', 'provider', 'provider_ref', 'ticket_code', 'confirmed_at', 'hold_expires_at']));
+
+            if ($changed === 0) {
+                $fresh = self::byReference($reference);
+                return ['ok' => true, 'already' => true, 'id' => (int) $reg->id,
+                        'ticket_code' => (string) ($fresh->ticket_code ?? ''),
+                        'message' => 'This registration was confirmed a moment ago.'];
+            }
+
+            return ['ok' => true, 'id' => (int) $reg->id, 'ticket_code' => $code,
+                    'message' => 'Payment received — your ticket is confirmed.'];
+        }
+
+        return ['ok' => false, 'message' => 'The gateway does not show that payment as successful yet. '
+                                          . 'If your bank has debited you it can take a few minutes.'];
+    }
+
+    /**
+     * Give up a seat.
+     *
+     * `cancelled` rather than deleted, because a row is the only evidence that somebody
+     * tried — and on a paid tier it is the only place a reference lives, which the
+     * reconciler and the gateway ledger both need if money turns out to have moved after
+     * all.
+     */
+    public static function cancel(int $id, string $why = ''): bool
+    {
+        try {
+            return DB::table('gates_event_registrations')->where('id', $id)
+                ->whereIn('status', ['pending', 'waitlisted'])
+                ->update(OptionalColumn::filter('gates_event_registrations', [
+                    'status'       => 'cancelled',
+                    'cancelled_at' => Carbon::now()->toDateTimeString(),
+                    'notes'        => $why !== '' ? mb_substr($why, 0, 500) : null,
+                    'hold_expires_at' => null,
+                ], ['status', 'cancelled_at', 'notes', 'hold_expires_at'])) > 0;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Undo a row this same call created moments ago.
+     *
+     * Separate from {@see cancel()} and narrower in what it trusts: it matches on `id` alone
+     * and will therefore cancel a `confirmed` row, which cancel() refuses to do because a
+     * confirmed row is generally somebody's paid ticket.
+     *
+     * That refusal is right everywhere except here. A free tier is inserted as confirmed —
+     * there is no payment to wait for — so the one place that must be able to withdraw a
+     * confirmed row is the over-capacity check a few lines after the insert that created it.
+     * Private, and reachable only from {@see reserve()}, so the exception cannot spread.
+     */
+    private static function rollBack(int $id, string $why): void
+    {
+        try {
+            DB::table('gates_event_registrations')->where('id', $id)
+                ->update(OptionalColumn::filter('gates_event_registrations', [
+                    'status'       => 'cancelled',
+                    'cancelled_at' => Carbon::now()->toDateTimeString(),
+                    'notes'        => mb_substr($why, 0, 500),
+                    'ticket_code'  => null,
+                    'confirmed_at' => null,
+                    'hold_expires_at' => null,
+                ], ['status', 'cancelled_at', 'notes', 'ticket_code', 'confirmed_at', 'hold_expires_at']));
+        } catch (\Throwable $e) {
+            error_log('[event] could not roll back registration ' . $id . ': ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Tidy up holds nobody came back for.
+     *
+     * Housekeeping only — {@see sold()} already ignores an expired hold, so the seats are
+     * available whether or not this ever runs. What it fixes is the ATTENDEE LIST, where a
+     * fortnight of abandoned checkouts sitting at "pending" makes an organiser think half
+     * their room has not paid.
+     */
+    public static function releaseExpired(int $limit = 500): int
+    {
+        $now = Carbon::now()->toDateTimeString();
+        try {
+            $ids = DB::table('gates_event_registrations')
+                ->where('status', 'pending')->whereNotNull('hold_expires_at')
+                ->where('hold_expires_at', '<', $now)
+                ->limit($limit)->pluck('id')->all();
+        } catch (\Throwable) {
+            return 0;
+        }
+
+        $n = 0;
+        foreach ($ids as $id) {
+            if (self::cancel((int) $id, 'the checkout was never completed')) $n++;
+        }
+        return $n;
+    }
+
+    // ══ 4. the ticket itself ═════════════════════════════════════════════════
+
+    /**
+     * A code somebody reads out over a bad phone line.
+     *
+     * No `0`/`O`, no `1`/`I`, no `5`/`S`: the alphabet is the part of a ticket code that
+     * decides whether a door queue moves. Grouped in fours for the same reason.
+     */
+    public static function freshCode(): string
+    {
+        $alphabet = 'ABCDEFGHJKLMNPQRTUVWXY2346789';
+        for ($try = 0; $try < 12; $try++) {
+            $raw = '';
+            for ($i = 0; $i < 8; $i++) $raw .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+            $code = substr($raw, 0, 4) . '-' . substr($raw, 4, 4);
+            try {
+                $taken = DB::table('gates_event_registrations')->where('ticket_code', $code)->exists();
+            } catch (\Throwable) {
+                $taken = false;
+            }
+            if (!$taken) return $code;
+        }
+        // 29^8 is large enough that twelve collisions means something else is wrong; a
+        // longer code is a better answer than an exception on somebody's checkout.
+        return strtoupper(bin2hex(random_bytes(6)));
+    }
+
+    public static function byReference(string $reference): ?object
+    {
+        $reference = trim($reference);
+        if ($reference === '') return null;
+        try {
+            return DB::table('gates_event_registrations')->where('reference', $reference)->first() ?: null;
+        } catch (\Throwable) { return null; }
+    }
+
+    public static function byTicketCode(string $code): ?object
+    {
+        $code = strtoupper(trim($code));
+        if ($code === '') return null;
+        try {
+            return DB::table('gates_event_registrations')->where('ticket_code', $code)->first() ?: null;
+        } catch (\Throwable) { return null; }
+    }
+
+    // ══ 5. for the organiser ═════════════════════════════════════════════════
+
+    /**
+     * What is sold, tier by tier, plus the room's own total.
+     *
+     * @return array{tiers:list<array<string,mixed>>, sold:int, capacity:?int, left:?int,
+     *               revenue:int, pending:int}
+     */
+    public static function summary(int $eventId): array
+    {
+        $event = DB::table('gates_site_events')->where('id', $eventId)->first();
+        $cap   = $event && $event->capacity !== null ? (int) $event->capacity : null;
+        $sold  = self::soldForEvent($eventId);
+
+        $tiers = [];
+        try {
+            foreach (DB::table('gates_event_tiers')->where('event_id', $eventId)
+                        ->orderBy('sort_order')->orderBy('id')->get() as $t) {
+                $a = self::availability($t);
+                $tiers[] = [
+                    'id' => (int) $t->id, 'name' => (string) $t->name,
+                    'price_naira' => (int) $t->price_naira,
+                    'capacity' => $t->capacity !== null ? (int) $t->capacity : null,
+                    'active' => (int) ($t->is_active ?? 0) === 1,
+                ] + $a;
+            }
+        } catch (\Throwable) {}
+
+        $revenue = 0; $pending = 0;
+        try {
+            $revenue = (int) DB::table('gates_event_registrations')
+                ->where('event_id', $eventId)->where('status', 'confirmed')
+                ->sum(DB::raw('COALESCE(amount_naira, 0)'));
+            $pending = (int) DB::table('gates_event_registrations')
+                ->where('event_id', $eventId)->where('status', 'pending')->count();
+        } catch (\Throwable) {}
+
+        return ['tiers' => $tiers, 'sold' => $sold, 'capacity' => $cap,
+                'left' => $cap !== null ? max(0, $cap - $sold) : null,
+                'revenue' => $revenue, 'pending' => $pending];
+    }
+
+    /** @return list<array<string,mixed>> */
+    public static function attendees(int $eventId, string $status = '', int $limit = 500): array
+    {
+        try {
+            $q = DB::table('gates_event_registrations')->where('event_id', $eventId);
+            if ($status !== '') $q->where('status', $status);
+            return $q->orderByDesc('id')->limit($limit)->get()
+                ->map(static fn ($r): array => (array) $r)->all();
+        } catch (\Throwable) { return []; }
+    }
+}

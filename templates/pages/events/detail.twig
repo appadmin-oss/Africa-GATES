@@ -153,7 +153,7 @@
           <p class="ed-past">All {{ capacity }} places have been reserved. Join the <a href="/community" style="color:var(--ag-green);font-weight:600">community</a> to hear first about the next one — and any released places.</p>
         </div>
       {% else %}
-        <div class="ed-rsvp" id="ed-rsvp" x-data="evReg('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ reg_count }}, {{ tiers ? 'true' : 'false' }})">
+        <div class="ed-rsvp" id="ed-rsvp" x-data="evReg('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ reg_count }}, {{ tiers ? 'true' : 'false' }}, {{ access_code|default('')|json_encode }})">
           <div x-show="step==='form'">
             <div class="ed-rsvp__top">
               <span class="ed-rsvp__eyebrow">{{ tiers ? 'Tickets' : 'Free registration' }}</span>
@@ -166,18 +166,59 @@
             </div>
             {% endif %}
             {% if tiers %}
+            {# Tiers are rows now, each with its OWN attendee limit — so a tier can be sold
+               out while the event is not, and it says which of those it is rather than just
+               going grey. `state` is the one word the branch reads: open / sold_out / early
+               / closed, each a different sentence to somebody who wants to come. #}
             <div style="margin-top:8px">
               {% for t in tiers %}
-              <button type="button" class="ed-tier" :class="tier==='{{ t.name|e('js') }}' ? 'is-sel' : ''" {{ t.sold_out ? 'disabled' : '' }} @click="tier='{{ t.name|e('js') }}'">
-                <span class="ed-tier__radio"></span>
-                <span><span class="ed-tier__name">{{ t.name }}{% if t.sold_out %} · sold out{% endif %}</span>{% if t.perk %}<br><span class="ed-tier__perk">{{ t.perk }}</span>{% endif %}</span>
-                <span class="ed-tier__price">{{ t.price > 0 ? '₦' ~ (t.price|number_format) : 'Free' }}</span>
-              </button>
+                {% set shut = (t.state|default('open')) != 'open' %}
+                <button type="button" class="ed-tier"
+                        :class="tierId === {{ t.id|default(0) }} ? 'is-sel' : ''"
+                        {{ shut ? 'disabled' : '' }}
+                        @click="pick({{ t.id|default(0) }}, {{ t.price_naira|default(0) }}, {{ t.max|default(10) }}, {{ (t.min|default(1)) }})">
+                  <span class="ed-tier__radio"></span>
+                  <span>
+                    <span class="ed-tier__name">{{ t.name }}{% if t.state|default('open') == 'sold_out' %} · sold out{% endif %}</span>
+                    {% if t.description|default('') %}<br><span class="ed-tier__perk">{{ t.description }}</span>{% endif %}
+                    {% for p in t.perks|default([]) %}<br><span class="ed-tier__perk">✓ {{ p }}</span>{% endfor %}
+                    {% if shut and t.why|default('') %}<br><span class="ed-tier__perk">{{ t.why }}</span>
+                    {# The scarcity line is a FACT read off the tier's own remaining count,
+                       not a nudge: it appears when there are few enough left that somebody
+                       deciding today deserves to know, and never otherwise. #}
+                    {% elseif t.left is not null and t.left <= 10 %}<br><span class="ed-tier__perk" style="color:#8a2020;font-weight:700">Only {{ t.left }} left</span>
+                    {% endif %}
+                  </span>
+                  <span class="ed-tier__price">{{ (t.price_naira|default(0)) > 0 ? '₦' ~ (t.price_naira|number_format) : 'Free' }}</span>
+                </button>
               {% endfor %}
             </div>
+
+            {# Seats, only when the chosen tier allows more than one. A quantity box on a
+               one-per-person ticket is a question with a single legal answer. #}
+            <div x-show="maxQty > 1" x-cloak style="margin-top:12px">
+              <label class="ed-label" for="edQty">How many seats</label>
+              <select id="edQty" class="ed-input" x-model.number="qty">
+                <template x-for="n in seatOptions()" :key="n">
+                  <option :value="n" x-text="n"></option>
+                </template>
+              </select>
+            </div>
+
+            <p class="sub" x-show="price > 0" x-cloak style="margin-top:10px;font-weight:700;color:#10292C"
+               x-text="'Total: ₦' + (price * qty).toLocaleString()"></p>
             {% else %}
             <h2>Reserve your place</h2>
             <p class="sub">Register and we’ll email you the details and any updates.</p>
+            {% endif %}
+
+            {% if paid_tiers and not gateway_ready %}
+              {# Said out loud rather than discovered at the end. A buyer who fills in three
+                 fields and then meets "payments are unavailable" has been wasted; and the
+                 operator needs to know their own site cannot take money. #}
+              <p class="ed-err" style="margin-top:10px">Card payment is not available on this site
+                right now, so paid tickets cannot be bought here. Please contact us and we will
+                register you directly.</p>
             {% endif %}
             {% if spots_left is not null %}<p class="sub" style="color:#1a6118;font-weight:600;margin-top:9px">⚡ Only {{ spots_left }} {{ spots_left == 1 ? 'place' : 'places' }} left</p>{% endif %}
             {% include 'partials/member-autofill.twig' with {
@@ -195,13 +236,17 @@
             <label class="ed-label" for="edPhone">Phone</label>
             <input id="edPhone" class="ed-input" x-model="phone" type="tel" inputmode="tel" placeholder="+234…" autocomplete="tel" @keydown.enter="submit()">
             <p class="ed-err" x-show="error" x-cloak x-text="error"></p>
-            <button type="button" class="ed-cta" :disabled="busy || !valid" @click="submit()" x-text="busy ? 'Registering…' : (hasTiers ? 'Get tickets' : 'Register — free')"></button>
+            <button type="button" class="ed-cta" :disabled="busy || !valid" @click="submit()" x-text="cta"></button>
             <div class="ed-secure"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5a6d6f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Your details are kept private</div>
           </div>
           <div class="ed-done" x-show="step==='done'" x-cloak>
             <div class="ed-done__ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
             <h2 class="ed-card" style="border:0;padding:0;background:none;font-family:var(--ag-font-display);font-weight:700;font-size:1.2rem">You’re registered ✓</h2>
             <p class="sub" x-text="msg"></p>
+            {# The ticket, not just a thank-you. It is the thing they will need at the door,
+               and burying it in an email that may not arrive for ten minutes is how somebody
+               turns up with nothing to show. #}
+            <a class="ed-cta" x-show="ticketUrl" x-cloak :href="ticketUrl" style="margin-top:14px;display:block;text-align:center;text-decoration:none">View your ticket →</a>
             <a class="ed-ext" href="/events" style="margin-top:16px">Back to all events →</a>
           </div>
         </div>
@@ -224,24 +269,67 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-  function evReg(slug, csrf, count, hasTiers){
+  function evReg(slug, csrf, count, hasTiers, code){
     return {
-      step:'form', name:'', email:'', phone:'', tier:'', busy:false, error:'', msg:'', count: count || 0, hasTiers: !!hasTiers,
-      get valid(){ return this.name.trim() !== '' && /.+@.+\..+/.test(this.email) && this.phone.replace(/\D/g,'').length >= 7 && (!this.hasTiers || this.tier !== ''); },
+      step:'form', name:'', email:'', phone:'', busy:false, error:'', msg:'',
+      count: count || 0, hasTiers: !!hasTiers, code: code || '',
+      /* The tier is chosen by ID now, not by its NAME. A name is display text an organiser
+         may edit after somebody has bought against it, and matching on it is also how
+         "VIP" and "V.I.P." became two tiers sharing one limit. */
+      tierId: 0, price: 0, qty: 1, minQty: 1, maxQty: 1,
+      ticketUrl: '',
+
+      pick(id, price, max, min){
+        this.tierId = id; this.price = price;
+        this.minQty = min || 1;
+        this.maxQty = Math.max(this.minQty, max || 1);
+        /* Clamp rather than reset: somebody who picked 4 of one tier and switches to
+           another that allows 2 meant "as many as I can", not "start again". */
+        this.qty = Math.min(Math.max(this.qty, this.minQty), this.maxQty);
+      },
+      seatOptions(){
+        var out = [];
+        for (var n = this.minQty; n <= this.maxQty; n++) out.push(n);
+        return out;
+      },
+      get valid(){
+        return this.name.trim() !== '' && /.+@.+\..+/.test(this.email)
+          && this.phone.replace(/\D/g,'').length >= 7 && (!this.hasTiers || this.tierId > 0);
+      },
+      get cta(){
+        if (this.busy) return this.price > 0 ? 'Taking you to payment…' : 'Registering…';
+        if (this.price > 0) return 'Pay ₦' + (this.price * this.qty).toLocaleString();
+        return this.hasTiers ? 'Get my ticket' : 'Register — free';
+      },
+
       async submit(){
         if(this.name.trim()===''){ this.error='Please enter your name.'; return; }
         if(!/.+@.+\..+/.test(this.email)){ this.error='Please enter a valid email.'; return; }
         if(this.phone.replace(/\D/g,'').length < 7){ this.error='Please enter a valid phone number.'; return; }
-        if(this.hasTiers && this.tier===''){ this.error='Please choose a ticket tier.'; return; }
+        if(this.hasTiers && this.tierId === 0){ this.error='Please choose a ticket type.'; return; }
         this.busy=true; this.error='';
         try{
           var r = await fetch('/events/'+slug+'/register', {
             method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
-            body: new URLSearchParams({ _token: csrf, name:this.name, email:this.email, phone:this.phone, tier:this.tier })
+            body: new URLSearchParams({ _token: csrf, name:this.name, email:this.email,
+                                        phone:this.phone, tier_id:this.tierId,
+                                        quantity:this.qty, code:this.code })
           });
           var d = await r.json().catch(function(){ return {}; });
-          if(d.success){ this.msg = d.message || 'You’re registered.'; if(!d.duplicate) this.count++; this.step='done'; }
-          else { this.error = d.message || 'Could not register. Please try again.'; }
+
+          /* A paid tier answers with a hand-off URL instead of a confirmation. The seats
+             are already held server-side by then, so leaving the button spinning while the
+             browser navigates is honest: nothing more is asked of them here. */
+          if(d.success && d.pay){ window.location.href = d.pay; return; }
+
+          if(d.success){
+            this.msg = d.message || 'You’re registered.';
+            this.ticketUrl = d.ticket_url || '';
+            this.count += (this.qty || 1);
+            this.step='done';
+          } else {
+            this.error = d.message || 'Could not register. Please try again.';
+          }
         }catch(e){ this.error='Network error. Please try again.'; }
         finally{ this.busy=false; }
       }

@@ -1,0 +1,157 @@
+{% extends "layout/gates.twig" %}
+
+{# ── THE TICKET ───────────────────────────────────────────────────────────────
+
+   Reachable with the reference alone, which is the same doctrine as the claim link, the
+   interview page and the nominee questionnaire: an attendee has no account, and putting a
+   login between somebody and the door they are standing at is how a queue stops moving.
+
+   So the page is built for the worst realistic conditions, which is a phone with one bar
+   of signal in a car park at dusk:
+
+     • THE CODE IS THE PAGE. Large, monospaced, in groups of four, high contrast. Whoever
+       is on the door reads it off a screen held at arm's length.
+     • NO SCRIPT IS NEEDED to show any of it. A ticket that needs JavaScript to render is
+       a ticket that sometimes does not.
+     • IT PRINTS. Somebody will print it, and a printed ticket with a navigation bar and a
+       cookie banner across it wastes the half of the page that matters.
+     • AND IT SAYS WHAT IS STILL OWED, if anything, rather than looking valid regardless.
+       A pending payment shown as a ticket is an argument at a door.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .tk{ max-width:560px; margin:0 auto; padding:34px 20px 80px }
+  .tk__card{ background:#fff; border:1px solid rgba(16,41,44,.12); border-radius:20px;
+    overflow:hidden; box-shadow:0 1px 2px rgba(16,41,44,.04), 0 18px 50px -34px rgba(16,41,44,.4) }
+  .tk__top{ background:#10292c; color:#eaf2ec; padding:20px 22px }
+  .tk__top h1{ margin:0; font-size:19px; line-height:1.35; color:#fff }
+  .tk__when{ margin:7px 0 0; font-size:13px; color:#a8c4b3 }
+  .tk__body{ padding:22px }
+
+  /* the code, which is the whole point of the page */
+  .tk__code{ text-align:center; padding:18px 12px; border:2px dashed rgba(16,41,44,.25);
+    border-radius:14px; background:#f6faf6 }
+  .tk__code small{ display:block; font-size:10.5px; font-weight:700; letter-spacing:.1em;
+    text-transform:uppercase; color:#5a6d6f }
+  .tk__code b{ display:block; margin-top:8px; font-family:var(--ag-font-mono, monospace);
+    font-size:clamp(1.7rem, 1.2rem + 4vw, 2.4rem); font-weight:700; letter-spacing:.06em;
+    color:#10292C; word-break:break-all }
+
+  .tk__rows{ margin:20px 0 0; border-top:1px solid rgba(16,41,44,.08) }
+  .tk__row{ display:flex; justify-content:space-between; gap:14px; padding:11px 0;
+    border-bottom:1px solid rgba(16,41,44,.06); font-size:13.5px }
+  .tk__row span{ color:#67797b }
+  .tk__row b{ color:#10292C; text-align:right }
+  .tk__note{ margin:18px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+
+  .tk__flag{ border-radius:12px; padding:14px 16px; font-size:13px; line-height:1.7 }
+  .tk__flag--wait{ background:#fffdf5; border:1px solid #ecd9a0; color:#6b5312 }
+  .tk__flag--dead{ background:#fdf3f3; border:1px solid #f0c9c9; color:#7d2b24 }
+  .tk__flag--in{ background:#f0fdf4; border:1px solid #b6e3b6; color:#1c5f1b }
+
+  .tk__print{ margin-top:18px; text-align:center }
+  .tk__print a{ font-size:12.5px; color:#237b22; font-weight:600 }
+
+  @media print{
+    .tk{ padding:0 }
+    .tk__card{ box-shadow:none; border-color:#000 }
+    .tk__top{ background:#fff; color:#000 }
+    .tk__top h1, .tk__when{ color:#000 }
+    .tk__print, .ag-nav, .ag-footer, .ag-mobilebar{ display:none !important }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tk">
+
+{% if reg is null %}
+  <div class="tk__card"><div class="tk__body">
+    <h1 style="margin:0 0 10px;font-size:18px;color:#10292C">This ticket link is not working</h1>
+    <p class="tk__note">It may have been mistyped, or belong to a registration that was
+      cancelled. Nothing has gone wrong with any payment you made.</p>
+    <p class="tk__note">Write to <a href="mailto:{{ support_email|default('') }}">{{ support_email|default('the team') }}</a>
+      with the name and email you registered with and a person will find it.</p>
+  </div></div>
+
+{% else %}
+  {% set paid = (reg.amount_naira|default(0)) > 0 %}
+  <div class="tk__card">
+    <div class="tk__top">
+      <h1>{{ event.title|default('Africa GATES event') }}</h1>
+      <p class="tk__when">
+        {{ event.event_date|default('') }}{% if event.location|default('') %} · {{ event.location }}{% endif %}
+      </p>
+    </div>
+    <div class="tk__body">
+
+      {% if reg.status == 'confirmed' %}
+        <div class="tk__code">
+          <small>Show this at the door</small>
+          <b>{{ reg.ticket_code|default('—') }}</b>
+        </div>
+      {% elseif reg.status == 'pending' %}
+        {# Deliberately NOT a code. A pending payment rendered as a ticket is an argument
+           at a door, and the person having it is the attendee rather than us. #}
+        <div class="tk__flag tk__flag--wait">
+          <strong>We have not seen your payment yet.</strong> If your bank has debited you it
+          can take a few minutes to reach us — this page will show your ticket code as soon as
+          it does, so keep the link. Nothing further is needed from you.
+        </div>
+      {% elseif reg.status == 'cancelled' %}
+        <div class="tk__flag tk__flag--dead">
+          <strong>This registration was cancelled.</strong> If that is a surprise, it is
+          usually a checkout that was never completed — nothing was charged. You are welcome
+          to book again.
+        </div>
+      {% else %}
+        <div class="tk__flag tk__flag--wait">This registration is <strong>{{ reg.status|default('incomplete') }}</strong>.</div>
+      {% endif %}
+
+      {% if reg.checked_in_at|default('') %}
+        <div class="tk__flag tk__flag--in" style="margin-top:14px">
+          Checked in at {{ reg.checked_in_at }}. Welcome.
+        </div>
+      {% endif %}
+
+      <div class="tk__rows">
+        <div class="tk__row"><span>Name</span><b>{{ reg.name }}</b></div>
+        {% if reg.tier|default('') %}<div class="tk__row"><span>Ticket</span><b>{{ reg.tier }}</b></div>{% endif %}
+        {% if (reg.quantity|default(1)) > 1 %}
+          <div class="tk__row"><span>Seats</span><b>{{ reg.quantity }}</b></div>{% endif %}
+        <div class="tk__row"><span>{{ paid ? 'Paid' : 'Price' }}</span>
+          <b>{{ paid ? '₦' ~ reg.amount_naira|number_format : 'Free' }}</b></div>
+        <div class="tk__row"><span>Reference</span>
+          <b style="font-family:var(--ag-font-mono, monospace);font-size:12px">{{ reg.reference }}</b></div>
+      </div>
+
+      <p class="tk__note">
+        Keep this link — it is your ticket, and it works without signing in to anything.
+        {% if event.slug|default('') %}
+          Full details are on the <a href="/events/{{ event.slug }}">event page</a>.
+        {% endif %}
+      </p>
+      <p class="tk__note"><b>Nothing about attending costs more than the price above.</b>
+        If anybody asks you for a further payment to attend, it is not us.</p>
+    </div>
+  </div>
+
+  <div class="tk__print"><a href="#" data-ag-do="print">Print this ticket</a></div>
+{% endif %}
+
+</div>
+{% endblock %}
+
+{% block foot_scripts %}
+{# The only script on the page, and nothing depends on it: `data-ag-do` rather than an
+   inline onclick, because CspTest fails the build on an inline event handler. #}
+<script nonce="{{ csp_nonce }}">
+document.addEventListener('click', function (e) {
+  var el = e.target.closest('[data-ag-do="print"]');
+  if (!el) return;
+  e.preventDefault();
+  window.print();
+});
+</script>
+{% endblock %}
