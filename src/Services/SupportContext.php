@@ -298,6 +298,63 @@ final class SupportContext
                     'args' => []];
         }
 
+        // ── THE BUYING SPECIALIST ────────────────────────────────────────────
+        //
+        // Only when the shop actually has something on sale. Offering to help somebody choose
+        // from an empty catalogue is a promise the next sentence has to break, and a planner
+        // handed a tool that always answers "nothing" will keep calling it.
+        //
+        // Every one of these is DETERMINISTIC — see ShopAdvisor's class note. The model picks
+        // which to call and how to word the answer; it never decides what is in stock. That
+        // division is the whole design: asked "do you have this in navy, extra large", a model
+        // left to answer from memory says yes more often than the stock allows, because
+        // agreement is the likelier continuation of the sentence — and the cost of that is not
+        // a support ticket, it is a paid order somebody has to be telephoned about.
+        if (ShopAdvisor::open()) {
+            $t[] = ['name' => 'shop_suggest',
+                    'description' => 'Recommend products for a described need or a budget. Use for '
+                                   . '“what should I get for my mother”, “something under 20000”, '
+                                   . '“a gift for a graduation”. Returns a shortlist with a REASON for each — '
+                                   . 'say the reason, do not invent your own. The budget is respected: if nothing '
+                                   . 'is in range it says so rather than offering something dearer as though it fitted.',
+                    'args' => ['need' => 'what they described, in their own words',
+                               'budget' => 'the most they will spend, in naira, or omit',
+                               'category' => 'Apparel, Accessories, Home or Keepsakes, if they said']];
+            $t[] = ['name' => 'shop_availability',
+                    'description' => "Whether one exact thing can be bought: this product, in this colour, in this "
+                                   . "size. ALWAYS use this before telling anybody something is available — never "
+                                   . "answer from the description. It answers about the PAIR: a colour being in stock "
+                                   . "is not an answer about that colour in a particular size. When the answer is no "
+                                   . "it returns what CAN be bought instead.",
+                    'args' => ['product' => 'the product name they used',
+                               'option'  => 'a colour or size, if they said one',
+                               'option2' => 'the other one, if they said both']];
+            $t[] = ['name' => 'shop_quote',
+                    'description' => "What one thing costs DELIVERED — goods, delivery and total, for a quantity and a "
+                                   . "region. Use whenever somebody asks what something will cost them. Quoting a "
+                                   . "price without delivery is how you get contradicted at the last screen.",
+                    'args' => ['product' => 'the product name',
+                               'option' => 'colour or size, if chosen', 'option2' => 'the other, if chosen',
+                               'qty' => 'how many, default 1',
+                               'region' => 'their delivery region, if they said']];
+            $t[] = ['name' => 'shop_compare',
+                    'description' => "Two products side by side on the facts — price, category, options, availability. "
+                                   . "It does NOT pick a winner, because which is better depends on what they want it "
+                                   . "for; put the differences against what they told you.",
+                    'args' => ['first' => 'one product name', 'second' => 'the other']];
+            $t[] = ['name' => 'shop_delivery',
+                    'description' => 'The delivery rate card and the free-delivery threshold. Never state a delivery '
+                                   . 'charge without calling this — the charge is set by an admin and changes.',
+                    'args' => []];
+            $t[] = ['name' => 'shop_link',
+                    'description' => "A link that opens a product with the option already selected, so they do not "
+                                   . "retype it. Use to hand over once they have decided. You cannot add anything to a "
+                                   . "basket or take a payment — and should not offer to: they need to see the price, "
+                                   . "the delivery and the total on a page they control before they pay.",
+                    'args' => ['product' => 'the product name',
+                               'option' => 'colour or size', 'option2' => 'the other']];
+        }
+
         return $t;
     }
 
@@ -349,6 +406,30 @@ final class SupportContext
                 'my_tickets'       => $this->myTickets(),
                 'my_nominations'   => $this->myNominations(),
                 'ops_summary'      => $this->opsSummary(),
+                // ── the buying specialist. All deterministic; see ShopAdvisor. ──
+                'shop_suggest'     => ShopAdvisor::suggest([
+                                          'need'     => (string) ($args['need'] ?? ''),
+                                          'budget'   => isset($args['budget']) && trim((string) $args['budget']) !== ''
+                                                          ? (int) $args['budget'] : null,
+                                          'category' => (string) ($args['category'] ?? ''),
+                                      ]),
+                'shop_availability' => ShopAdvisor::availability(
+                                          (string) ($args['product'] ?? ''),
+                                          (string) ($args['option'] ?? ''),
+                                          (string) ($args['option2'] ?? '')),
+                'shop_quote'       => ShopAdvisor::quote(
+                                          (string) ($args['product'] ?? ''),
+                                          (string) ($args['option'] ?? ''),
+                                          (string) ($args['option2'] ?? ''),
+                                          (int) ($args['qty'] ?? 1),
+                                          (string) ($args['region'] ?? '')),
+                'shop_compare'     => ShopAdvisor::compare((string) ($args['first'] ?? ''),
+                                                           (string) ($args['second'] ?? '')),
+                'shop_delivery'    => ShopAdvisor::deliveryBrief(),
+                'shop_link'        => ShopAdvisor::handoff(
+                                          (string) ($args['product'] ?? ''),
+                                          (string) ($args['option'] ?? ''),
+                                          (string) ($args['option2'] ?? '')),
                 default            => null,
             };
             return ['ok' => true, 'tool' => $tool, 'data' => $data];
