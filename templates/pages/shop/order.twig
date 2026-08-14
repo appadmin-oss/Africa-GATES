@@ -1,0 +1,175 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  A BUYER'S OWN ORDER, REACHABLE WITH THE REFERENCE ALONE.
+
+  Same doctrine as an event ticket, a claim link and the nominee questionnaire: a shop buyer
+  has no account, and requiring one to see the order they just paid for would put a
+  registration between somebody and their own receipt. The reference is a twelve-hex secret
+  this platform generated, it is in their emailed receipt, and the page is noindex.
+
+  It exists because /shop/success only lived in the tab that came back from the gateway. Close
+  that tab and the order was unreachable — nothing anywhere could answer "did it go through"
+  or "has it shipped", so both questions arrived at a support inbox to be looked up by hand.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="shop"]{ background:#eef0ec; color:var(--ag-ink); }
+  .so{ max-width:760px; margin:0 auto; padding:26px var(--ag-gutter,32px) 70px; }
+  .so-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:clamp(1.5rem,4vw,2rem); }
+  .so-card + .so-card{ margin-top:16px; }
+  .so-kick{ font-size:11.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--ag-green); }
+  .so-h1{ margin:9px 0 0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.6rem,4vw,2.1rem); line-height:1.1; letter-spacing:-.015em; color:var(--ag-ink); }
+  .so-ref{ margin-top:12px; font-family:var(--ag-font-mono,monospace); font-size:15px; font-weight:700; letter-spacing:.06em; color:var(--ag-ink); background:#eef2ee; display:inline-block; padding:8px 14px; border-radius:10px; }
+  .so-sub{ margin:12px 0 0; font-size:14.5px; line-height:1.65; color:#3a4448; }
+
+  /* the two states an order is actually in, side by side */
+  .so-state{ display:grid; gap:12px; grid-template-columns:1fr 1fr; margin-top:18px; }
+  @media(max-width:560px){ .so-state{ grid-template-columns:1fr; } }
+  .so-s{ border:1px solid rgba(16,41,44,.1); border-radius:14px; padding:13px 15px; }
+  .so-s__k{ font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#8a9a9c; }
+  .so-s__v{ margin-top:6px; font-size:15.5px; font-weight:700; color:var(--ag-ink); }
+  .so-s__n{ margin-top:4px; font-size:12.5px; line-height:1.55; color:#67797b; }
+  .so-s--ok{ background:#f3fbf3; border-color:rgba(35,123,34,.24); }
+  .so-s--wait{ background:#fffbeb; border-color:rgba(212,154,14,.3); }
+  .so-s--no{ background:#fdf2f2; border-color:rgba(180,35,24,.22); }
+
+  .so-lines{ width:100%; border-collapse:collapse; margin-top:6px; font-size:14px; }
+  .so-lines td{ padding:11px 0; border-top:1px solid rgba(16,41,44,.07); vertical-align:top; }
+  .so-lines tr:first-child td{ border-top:0; }
+  .so-lines .n{ text-align:right; font-family:var(--ag-font-mono,monospace); font-weight:700; white-space:nowrap; }
+  .so-var{ display:inline-block; margin-left:7px; font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#4a5256; background:#eef2ee; padding:2px 8px; border-radius:999px; }
+  .so-sum{ margin-top:14px; padding-top:14px; border-top:1px solid rgba(16,41,44,.1); }
+  .so-row{ display:flex; justify-content:space-between; gap:12px; font-size:14px; color:#4a5256; }
+  .so-row + .so-row{ margin-top:7px; }
+  .so-row.tot{ margin-top:12px; padding-top:12px; border-top:1px solid rgba(16,41,44,.1); font-size:16px; font-weight:700; color:var(--ag-ink); }
+  .so-row .n{ font-family:var(--ag-font-mono,monospace); font-weight:700; }
+  .so-addr{ margin:6px 0 0; font-size:14px; line-height:1.7; color:#3a4448; white-space:pre-line; }
+  .so-cta{ display:inline-block; margin-top:18px; background:var(--ag-green); color:#fff; font-weight:600; font-size:14.5px; padding:12px 26px; border-radius:999px; text-decoration:none; }
+  .so-lnk{ color:var(--ag-green); font-weight:600; text-decoration:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="so">
+
+{% if order is null %}
+  {# No hint about whether the reference is unknown or merely not ours: the difference between
+     those two answers is a way to test references against this shop. #}
+  <div class="so-card">
+    <span class="so-kick">Not found</span>
+    <h1 class="so-h1">We can’t find that order</h1>
+    <p class="so-sub">
+      The link may be incomplete — references are easy to truncate when they are copied out of
+      an email. Check the receipt we sent you, or write to
+      <a class="so-lnk" href="mailto:{{ support_email }}">{{ support_email }}</a> with the
+      reference and we will look it up.
+    </p>
+    <a class="so-cta" href="/shop">Back to the shop</a>
+  </div>
+{% else %}
+  {% set paid = order.status == 'paid' %}
+  {% set ful  = order.fulfilment|default('unfulfilled') %}
+  <div class="so-card">
+    <span class="so-kick">Your order</span>
+    <h1 class="so-h1">
+      {% if paid and ful == 'delivered' %}Delivered
+      {% elseif paid and ful == 'shipped' %}On its way
+      {% elseif paid %}Paid and being prepared
+      {% elseif order.status == 'failed' %}Payment didn’t complete
+      {% else %}We’re confirming your payment{% endif %}
+    </h1>
+    <div class="so-ref">{{ order.reference }}</div>
+
+    <div class="so-state">
+      <div class="so-s {{ paid ? 'so-s--ok' : (order.status == 'failed' ? 'so-s--no' : 'so-s--wait') }}">
+        <div class="so-s__k">Payment</div>
+        <div class="so-s__v">{{ paid ? 'Received' : (order.status == 'failed' ? 'Not completed' : 'Pending') }}</div>
+        <div class="so-s__n">
+          {% if paid %}Paid {{ order.paid_at|default(order.created_at) }}.
+          {% elseif order.status == 'failed' %}Nothing was charged. You can order again whenever you like.
+          {% else %}
+            {# The honest answer, and the one a support inbox otherwise gives: a bank transfer
+               can settle after the browser has given up, and the reconciler finds it. #}
+            If your bank has debited you this will settle by itself, usually within minutes —
+            a receipt follows by email. If nothing was charged, nothing was taken.
+          {% endif %}
+        </div>
+      </div>
+      <div class="so-s {{ ful == 'delivered' ? 'so-s--ok' : (ful == 'shipped' ? 'so-s--ok' : '') }}">
+        <div class="so-s__k">Delivery</div>
+        <div class="so-s__v">
+          {% if ful == 'delivered' %}Delivered
+          {% elseif ful == 'shipped' %}Shipped
+          {% elseif ful == 'cancelled' %}Cancelled
+          {% elseif paid %}Being prepared
+          {% else %}Not started{% endif %}
+        </div>
+        <div class="so-s__n">
+          {% if order.tracking_note|default('') %}{{ order.tracking_note }}
+          {% elseif ful == 'shipped' %}On its way to you.
+          {% elseif paid %}We’ll email you the moment it leaves us.
+          {% else %}Delivery starts once payment is confirmed.{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="so-card">
+    <span class="so-kick">What you ordered</span>
+    <table class="so-lines">
+      <tbody>
+        {% for l in items %}
+        <tr>
+          <td>
+            {{ l.name }}{% if l.variant|default('') %}<span class="so-var">{{ l.variant }}</span>{% endif %}
+            <div style="font-size:12.5px;color:#8a9a9c;margin-top:3px">
+              {{ l.qty }} × ₦{{ (l.price_naira|default(0))|number_format }}
+            </div>
+          </td>
+          <td class="n">₦{{ (l.line_total|default(0))|number_format }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="2" style="color:#8a9a9c">No item detail was stored for this order.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="so-sum">
+      {# The breakdown, from the ROW rather than recomputed. A code can be edited or a price
+         changed after somebody bought against it, and a receipt that silently restated
+         history would make the money stop adding up. #}
+      {% if order.goods_naira is not null %}
+      <div class="so-row"><span>Goods</span><span class="n">₦{{ order.goods_naira|number_format }}</span></div>
+      {% if (order.discount_naira|default(0)) > 0 %}
+      <div class="so-row" style="color:#1a6118">
+        <span>Discount{% if order.discount_code %} ({{ order.discount_code }}){% endif %}</span>
+        <span class="n">−₦{{ order.discount_naira|number_format }}</span>
+      </div>
+      {% endif %}
+      <div class="so-row">
+        <span>Delivery</span>
+        <span class="n">{{ (order.shipping_naira|default(0)) > 0 ? '₦' ~ order.shipping_naira|number_format : 'Free' }}</span>
+      </div>
+      {% endif %}
+      <div class="so-row tot"><span>{{ paid ? 'Paid' : 'Total' }}</span><span class="n">₦{{ order.subtotal_naira|number_format }}</span></div>
+    </div>
+  </div>
+
+  <div class="so-card">
+    <span class="so-kick">Delivering to</span>
+    {# An explicit <br>, not a newline in the source: Twig swallows the first newline after a
+       block tag, so the phone number ran straight into the address. #}
+    <p class="so-addr">{{ order.name }}{% if order.phone %} · {{ order.phone }}{% endif %}<br>{{ order.address }}</p>
+    <p class="so-sub" style="font-size:13px;color:#67797b;margin-top:14px">
+      Something wrong with this order? Write to
+      <a class="so-lnk" href="mailto:{{ support_email }}?subject=Order%20{{ order.reference|url_encode }}">{{ support_email }}</a>
+      and quote the reference above — it is all we need to find it.
+    </p>
+    <a class="so-cta" href="/shop">Continue shopping</a>
+  </div>
+{% endif %}
+
+</div>
+{% endblock %}

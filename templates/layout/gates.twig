@@ -613,6 +613,15 @@ window.agAnnounce = function (msg) {
     document.cookie = el.dataset.cookie + '=' + encodeURIComponent(el.value) + ';path=/;max-age=31536000';
     location.reload();
   });
+  // A select inside a GET form that submits on choice — the shop's sort. The form works
+  // without this (there is a Search button beside it), so this is a convenience rather than
+  // the mechanism: CspTest forbids inline handlers, and a page that needed JS to be sortable
+  // would be a page that cannot be sorted from a link.
+  document.addEventListener('change', function (e) {
+    var el = e.target.closest('[data-ag-do="submit-form"]');
+    if (!el || !el.form) return;
+    el.form.submit();
+  });
 })();
 </script>
 {% block foot_scripts %}{% endblock %}

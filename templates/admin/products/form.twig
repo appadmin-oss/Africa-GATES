@@ -1,4 +1,11 @@
 {% extends "admin/layout.twig" %}
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .pv-shot{ width:160px; height:120px; object-fit:cover; border-radius:10px;
+    border:1px solid var(--ad-line,rgba(16,41,44,.12)); transition:opacity .15s; }
+  .pv-shot.is-dropped{ opacity:.3; filter:grayscale(1); }
+</style>
+{% endblock %}
 {% block topbar_title %}{{ is_new ? 'New product' : 'Edit · ' ~ row.name }}{% endblock %}
 {% block topbar_actions %}<a class="ad-btn" href="/admin/products">← Back</a>{% endblock %}
 {% block content %}
@@ -19,7 +26,31 @@
         <div><label for="f-stock">Stock <span style="font-weight:400;color:var(--ad-text-mute)">(blank = untracked)</span></label><input type="number" name="stock" id="f-stock" min="0" step="1" value="{{ row.stock|default('') }}"></div>
         <div><label for="f-sort_order">Sort order</label><input type="number" name="sort_order" id="f-sort_order" step="1" value="{{ row.sort_order|default(0) }}"></div>
       </div>
+      {% if shop_missing|default([])|length %}
+        <div style="border:1px solid #f3d38a;border-radius:12px;padding:13px 15px;background:#fffbeb">
+          <strong style="font-size:13.5px">Subtitle, details and featured need one more step</strong>
+          <div style="font-size:12.5px;color:#7a5a1a;margin-top:5px">
+            The database is missing <code>{{ shop_missing|join('</code>, <code>')|raw }}</code>.
+            Run <strong>/__setup/migrate</strong> and these fields appear. They are hidden rather
+            than shown-and-dropped, so nothing you type can vanish on save.
+          </div>
+        </div>
+      {% else %}
+        <div><label for="f-subtitle">Subtitle <span style="font-weight:400;color:var(--ad-text-mute)">(one line under the name, on the card and the page)</span></label><input type="text" name="subtitle" id="f-subtitle" maxlength="200" value="{{ row.subtitle|default('') }}" placeholder="Heavyweight cotton, embroidered gate mark."></div>
+      {% endif %}
       <div><label for="f-description">Description</label><textarea name="description" id="f-description" rows="4" placeholder="Materials, fit, what the purchase funds…">{{ row.description|default('') }}</textarea></div>
+      {% if not shop_missing|default([])|length %}
+      {# Materials, sizing, washing. The three questions a support inbox answers about apparel
+         forever — shown on the product page in a fold-out rather than in the description,
+         because somebody deciding whether to buy is not reading a care label yet. #}
+      <div><label for="f-details">Materials, sizing &amp; care <span style="font-weight:400;color:var(--ad-text-mute)">(folded away on the product page)</span></label><textarea name="details" id="f-details" rows="4" placeholder="100% combed cotton, 240gsm.&#10;Runs true to size.&#10;Cold wash inside out.">{{ row.details|default('') }}</textarea></div>
+      <div style="display:flex;gap:18px;flex-wrap:wrap">
+        <label class="checkbox"><input type="checkbox" name="is_featured" {% if row.is_featured|default(0) %}checked{% endif %}> Feature at the front of the shop</label>
+        {# Distinct from a delivery region: this says the PRICE includes postage, which is what
+           makes charging ₦3,500 to send a ₦1,800 sticker set avoidable. #}
+        <label class="checkbox"><input type="checkbox" name="ships_free" {% if row.ships_free|default(0) %}checked{% endif %}> Delivery included in the price</label>
+      </div>
+      {% endif %}
       <div>
         <label>Cover image</label>
         {% if row.cover_path %}<div style="margin-bottom:8px"><img src="{{ row.cover_path }}" alt="" style="width:90px;height:90px;object-fit:cover;border-radius:10px;border:1px solid var(--ad-line,rgba(16,41,44,.12))"></div>{% endif %}
@@ -37,9 +68,121 @@
       <div><label class="checkbox"><input type="checkbox" name="is_active" {% if is_new or row.is_active %}checked{% endif %}> Active — visible in the shop</label></div>
     </div>
   </div></div>
+
+  {# ── VARIANTS ────────────────────────────────────────────────────────────────
+     The reason this section exists: the shop's first category is Apparel, and you cannot sell
+     apparel without a size. Before this, a buyer picked a shirt, paid, and somebody had to
+     email them to ask what size they were — so the order was not actually complete when the
+     money arrived, and a "sold out" number counted shirts rather than shirts-in-a-size.
+
+     The price is a DELTA. An XXL costs ₦1,500 more; when the base price changes for a sale the
+     delta still holds, whereas eight absolute prices would silently keep the old ones. #}
+  {% if variants_ready|default(false) %}
+  <div class="ad-card"><div class="ad-card__body">
+    <div class="ad-form" x-data="pvRepeater({{ variant_seed|default([])|json_encode|e('html_attr') }}, {vid:0,label:'',sku:'',delta:0,stock:''})">
+      <div>
+        <strong style="font-size:14px">Sizes, colours and other options</strong>
+        <div style="font-size:12.5px;color:var(--ad-text-mute);margin-top:4px">
+          Leave this empty for a product with nothing to choose. Add rows and the shop asks the
+          buyer to pick one before it will let them add anything to a basket.
+        </div>
+      </div>
+      <div class="row">
+        <div><label for="f-axis">What are they choosing?</label>
+          <select name="variant_axis" id="f-axis">
+            <option value="">— no options —</option>
+            {% for a in axes %}<option value="{{ a }}" {% if row.variant_axis|default('') == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <template x-for="r in rows" :key="r.id">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--ad-line,rgba(16,41,44,.1));padding-top:10px">
+          <input type="hidden" name="var_id[]" :value="r.vid || ''">
+          <input name="var_label[]" aria-label="Option name" x-model="r.label" maxlength="80" placeholder="M" style="width:110px">
+          <input name="var_sku[]" aria-label="SKU" x-model="r.sku" maxlength="60" placeholder="SKU (optional)" style="width:150px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;font-weight:500">
+            <span>₦ more/less</span>
+            <input name="var_delta[]" aria-label="Price difference in naira" type="number" step="1" x-model.number="r.delta" style="width:110px">
+          </label>
+          {# '' is UNTRACKED and 0 is SOLD OUT. Two different statements, and flattening them
+             would turn every uncounted size into one nobody can buy. #}
+          <input name="var_stock[]" aria-label="Stock for this option" type="number" min="0" step="1" x-model="r.stock" placeholder="Stock (blank = untracked)" style="width:190px">
+          <button type="button" @click="rm(r.id)" aria-label="Remove option" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer">×</button>
+        </div>
+      </template>
+      <div>
+        <button type="button" @click="add()" style="border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add an option</button>
+        <div style="font-size:12px;color:var(--ad-text-mute);margin-top:8px">
+          An option is never deleted once somebody has bought one — it is taken off sale instead,
+          because an order line points at it for its name and the packing list would otherwise
+          show a shirt with no size. The stock number above is ignored for a product with
+          options: every unit lives in one of these rows.
+        </div>
+      </div>
+    </div>
+  </div></div>
+
+  {# ── GALLERY ─────────────────────────────────────────────────────────────────
+     The cover stays authoritative for the first image, so the grid — which reads only the
+     cover — can never disagree with the first thumbnail on the product page. #}
+  <div class="ad-card"><div class="ad-card__body">
+    <div class="ad-form">
+      <div>
+        <strong style="font-size:14px">More photographs</strong>
+        <div style="font-size:12.5px;color:var(--ad-text-mute);margin-top:4px">
+          The cover above is always the first image. These come after it, in this order.
+        </div>
+      </div>
+      {% if image_seed|default([]) %}
+      <div style="display:flex;flex-wrap:wrap;gap:14px">
+        {% for im in image_seed %}
+        <div x-data="{ keep:true }" style="width:160px">
+          {# :class, not :style. An Alpine :style REPLACES the style attribute when it runs, so
+             the sizing here would vanish the moment the component initialised —
+             AlpineStyleClobberTest fails the build on exactly that. #}
+          <img src="{{ im.path }}" alt="" class="pv-shot" :class="keep ? '' : 'is-dropped'">
+          <input type="hidden" name="img_id[]" :value="keep ? '{{ im.iid }}' : ''">
+          <input name="img_alt[]" value="{{ im.alt }}" maxlength="300" placeholder="Describe this photo"
+                 aria-label="Alt text for image {{ loop.index }}" style="margin-top:6px;font-size:12px">
+          <label class="checkbox" style="font-size:12px;margin-top:5px"><input type="checkbox" x-model="keep"> Keep</label>
+        </div>
+        {% endfor %}
+      </div>
+      <div style="font-size:12px;color:var(--ad-text-mute)">
+        Untick “keep” and the photo is removed when you save. Alt text describes THIS photo —
+        a gallery where every image is called the product name tells a screen-reader user
+        nothing about which one they are on.
+      </div>
+      {% endif %}
+      <div>
+        <label for="f-gallery">Add photographs</label>
+        <input type="file" name="gallery[]" id="f-gallery" accept="image/png,image/jpeg,image/webp" multiple>
+        <div style="font-size:12px;color:var(--ad-text-mute);margin-top:4px">PNG / JPG / WebP, min 300×300px. Validated and re-encoded exactly like the cover.</div>
+      </div>
+    </div>
+  </div></div>
+  {% endif %}
   <div style="display:flex;justify-content:flex-end;gap:10px">
     <a class="ad-btn" href="/admin/products">Cancel</a>
     <button class="ad-btn ad-btn--primary" type="submit">Save product</button>
   </div>
 </form>
+{% endblock %}
+
+{% block foot_scripts %}
+<script nonce="{{ csp_nonce }}">
+/* The same stable-id repeater the event forms use: a row keyed by its index loses focus on
+   every keystroke, because re-rendering the list replaces the input being typed into. `vid`
+   is the DATABASE id, carried separately so a save upserts rather than reissuing — the ids are
+   what an order line points at. */
+function pvRepeater(seed, blank){
+  let nextId = 1000;
+  const rows = (seed && seed.length) ? seed.map(r => Object.assign({}, r)) : [];
+  return {
+    rows,
+    add(){ this.rows.push(Object.assign({id: nextId++}, blank)); },
+    rm(id){ this.rows = this.rows.filter(r => r.id !== id); }
+  };
+}
+</script>
 {% endblock %}

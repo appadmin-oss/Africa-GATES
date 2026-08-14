@@ -13,6 +13,18 @@
   .sh-hero h1{ margin:16px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,5vw,2.6rem); line-height:1.04; letter-spacing:-.02em; }
   .sh-hero p{ margin:14px 0 0; font-size:15.5px; line-height:1.6; color:rgba(255,255,255,.85); max-width:460px; }
 
+  /* search + sort — a real form, so it works with JS off and the URL is shareable */
+  .sh-find{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:22px; }
+  .sh-search{ flex:1 1 260px; position:relative; display:flex; }
+  .sh-search input{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:999px; padding:11px 42px 11px 42px; font-family:inherit; font-size:14px; color:var(--ag-ink); background:var(--ag-surface,#fff); outline:none; }
+  .sh-search input:focus{ border-color:var(--ag-green); box-shadow:0 0 0 3px rgba(35,123,34,.1); }
+  .sh-search__i{ position:absolute; left:15px; top:50%; transform:translateY(-50%); color:#8a9a9c; pointer-events:none; }
+  .sh-search__go{ position:absolute; right:5px; top:5px; bottom:5px; cursor:pointer; border:none; background:var(--ag-ink); color:#fff; font-family:inherit; font-size:12.5px; font-weight:600; padding:0 15px; border-radius:999px; }
+  .sh-sort{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#4a5256; }
+  .sh-sort select{ border:1px solid rgba(16,41,44,.16); border-radius:999px; padding:9px 13px; font-family:inherit; font-size:13px; background:var(--ag-surface,#fff); color:var(--ag-ink); cursor:pointer; }
+  .sh-ship{ display:flex; align-items:center; gap:9px; background:#eafaf0; border:1px solid rgba(35,123,34,.2); border-radius:14px; padding:11px 16px; margin-top:16px; font-size:13.5px; color:#10292C; }
+  .sh-ship b{ font-weight:700; }
+
   .sh-bar{ display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-top:24px; }
   .sh-filters{ display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; }
   .sh-filters::-webkit-scrollbar{ display:none; }
@@ -37,8 +49,23 @@
   .sh-card__name{ font-weight:600; font-size:15.5px; color:var(--ag-ink); margin-top:4px; text-decoration:none; display:block; }
   .sh-card__row{ display:flex; align-items:center; justify-content:space-between; margin-top:14px; gap:10px; }
   .sh-card__price{ font:700 17px/1 var(--ag-font-mono); color:var(--ag-ink); }
-  .sh-add{ cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-size:13px; font-weight:600; padding:9px 15px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; }
+  .sh-add{ cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-size:13px; font-weight:600; padding:9px 15px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; }
   .sh-add:hover{ background:var(--ag-green-dark); }
+  .sh-add[disabled]{ background:#dfe4e3; color:#5b6669; cursor:not-allowed; }
+  /* stock, said out loud on the card — an "Add" button for something sold out is a promise
+     the checkout then has to break */
+  .sh-card__stock{ font-size:11.5px; font-weight:700; margin-top:6px; }
+  .sh-card__stock.is-low{ color:#8a2020; }
+  .sh-card__stock.is-gone{ color:#8a5a00; }
+  .sh-card__stock.is-opt{ color:#5a6d6f; font-weight:600; }
+  .sh-card__sub{ font-size:12.5px; line-height:1.5; color:#717a7e; margin-top:3px; }
+  .sh-card--gone .sh-card__cover{ filter:grayscale(.7) opacity(.65); }
+
+  /* paging */
+  .sh-pager{ display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap; margin-top:26px; }
+  .sh-pager a, .sh-pager span{ font-size:13px; font-weight:600; padding:9px 14px; border-radius:999px; border:1px solid rgba(16,41,44,.12); background:var(--ag-surface,#fff); color:#4a5256; text-decoration:none; }
+  .sh-pager .is-here{ background:var(--ag-ink); border-color:var(--ag-ink); color:#fff; }
+  .sh-pager .is-off{ opacity:.4; pointer-events:none; }
 
   .sh-mission{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:24px 28px; display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin-top:28px; }
   .sh-mission__i{ flex:none; width:48px; height:48px; border-radius:13px; background:#effaf0; color:#1a6118; display:flex; align-items:center; justify-content:center; }
@@ -72,13 +99,50 @@
     </div>
   </div>
 
+  {% set F = found|default({q:'', category:'', sort:'featured', total: products|length, page:1, pages:1}) %}
+
+  {# ── SEARCH AND SORT ─────────────────────────────────────────────────────────
+     A real GET form. Filtering happens in SQL now, so the URL describes what is on the
+     page — which means a category is shareable, the browser's back button works, and the
+     page stops carrying the whole catalogue to hide most of it. #}
+  <form class="sh-find" method="get" action="/shop">
+    <label class="sh-search">
+      <span class="sh-search__i" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
+      <span class="sr-only">Search the shop</span>
+      <input type="search" name="q" value="{{ F.q }}" placeholder="Search the shop…" autocomplete="off">
+      <button class="sh-search__go" type="submit">Search</button>
+    </label>
+    {% if F.category %}<input type="hidden" name="c" value="{{ F.category }}">{% endif %}
+    <label class="sh-sort">
+      <span>Sort</span>
+      <select name="sort" data-ag-do="submit-form">
+        {% for key, label in sorts|default({}) %}
+        <option value="{{ key }}" {% if key == F.sort %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </form>
+
+  {% if ship_active|default(false) and ship_free_over|default(0) %}
+  <div class="sh-ship">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 3h13v13H1zM14 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="1.5"/><circle cx="17.5" cy="18.5" r="1.5"/></svg>
+    <span><b>Free delivery</b> on orders over ₦{{ ship_free_over|number_format }}.</span>
+  </div>
+  {% endif %}
+
   {% if products is not empty %}
   <div class="sh-bar">
     <div class="sh-filters">
-      <button type="button" class="sh-chip" :class="filter==='All' ? 'is-on' : ''" @click="filter='All'" :aria-pressed="filter==='All'">All</button>
-      {% for c in categories %}<button type="button" class="sh-chip" :class="filter==='{{ c }}' ? 'is-on' : ''" @click="filter='{{ c }}'" :aria-pressed="filter==='{{ c }}'">{{ c }}</button>{% endfor %}
+      {# Links, not Alpine. The filter is a URL now — see the form above. #}
+      <a class="sh-chip {{ F.category == '' ? 'is-on' : '' }}" href="/shop{{ F.sort != 'featured' ? '?sort=' ~ F.sort : '' }}">All</a>
+      {% for c in categories %}
+      <a class="sh-chip {{ F.category == c ? 'is-on' : '' }}" href="/shop?c={{ c|url_encode }}{{ F.sort != 'featured' ? '&sort=' ~ F.sort : '' }}">{{ c }}</a>
+      {% endfor %}
     </div>
-    <span class="sh-count">{{ products|length }} item{{ products|length == 1 ? '' : 's' }}</span>
+    <span class="sh-count">
+      {{ F.total }} item{{ F.total == 1 ? '' : 's' }}{% if F.q %} for “{{ F.q }}”{% endif %}
+      {%- if F.pages > 1 %} · page {{ F.page }} of {{ F.pages }}{% endif %}
+    </span>
     {% if region_priced %}
     <label class="sh-region" title="Prices vary by delivery region">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -99,7 +163,7 @@
 
   <div class="sh-grid">
     {% for p in products %}
-    <article class="sh-card" x-show="filter==='All' || filter==='{{ p.category }}'" x-transition.opacity>
+    <article class="sh-card {{ p.sold_out|default(false) ? 'sh-card--gone' : '' }}">
       {# aria-hidden + tabindex=-1: this cover is a SECOND link to the same product as
          sh-card__name below, and it has no text, so a screen reader announced a
          nameless "link" and keyboard users hit an extra dead stop on every card.
@@ -110,16 +174,46 @@
       <div class="sh-card__body">
         <div class="sh-card__cat">{{ p.category }}</div>
         <a class="sh-card__name" href="/shop/{{ p.slug }}">{{ p.name }}</a>
+        {% if p.subtitle|default('') %}<div class="sh-card__sub">{{ p.subtitle }}</div>{% endif %}
+        {% if p.stock_note|default('') %}
+        <div class="sh-card__stock {{ p.sold_out|default(false) ? 'is-gone' : (p.choose|default(false) ? 'is-opt' : 'is-low') }}">{{ p.stock_note }}</div>
+        {% endif %}
         <div class="sh-card__row">
           <span class="sh-card__price">{{ p.price_label|default('₦' ~ (p.display_price|default(p.price_naira)|number_format)) }}</span>
-          <button type="button" class="sh-add" @click='$store.cart.add({slug:{{ p.slug|json_encode(15)|raw }}, name:{{ p.name|json_encode(15)|raw }}, price:{{ p.display_price|default(p.price_naira) }}, cover:{{ p.cover_path|default("")|json_encode(15)|raw }}})'>
-            <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add
-          </button>
+          {% if p.sold_out|default(false) %}
+            <button type="button" class="sh-add" disabled>Sold out</button>
+          {% elseif p.choose|default(false) %}
+            {# A product with sizes cannot be added from a grid: the buyer has not chosen one
+               yet, and picking for them is how somebody receives the wrong size. #}
+            <a class="sh-add" href="/shop/{{ p.slug }}">Choose {{ (p.variants.0.axis|default('option'))|lower }}</a>
+          {% else %}
+            <button type="button" class="sh-add" @click='$store.cart.add({slug:{{ p.slug|json_encode(15)|raw }}, name:{{ p.name|json_encode(15)|raw }}, price:{{ p.display_price|default(p.price_naira) }}, cover:{{ p.cover_path|default("")|json_encode(15)|raw }}})'>
+              <svg aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add
+            </button>
+          {% endif %}
         </div>
       </div>
     </article>
     {% endfor %}
   </div>
+
+  {% if F.pages > 1 %}
+  {% set qs = (F.q ? 'q=' ~ F.q|url_encode ~ '&' : '') ~ (F.category ? 'c=' ~ F.category|url_encode ~ '&' : '') ~ 'sort=' ~ F.sort %}
+  <nav class="sh-pager" aria-label="Shop pages">
+    <a class="{{ F.page <= 1 ? 'is-off' : '' }}" href="/shop?{{ qs }}&page={{ F.page - 1 }}" rel="prev">← Previous</a>
+    {% for n in 1..F.pages %}
+      {# Only the pages near where they are, plus the ends. Ninety products is eight pages;
+         nine hundred is seventy-five, and a row of seventy-five numbers is not navigation. #}
+      {% if n == 1 or n == F.pages or (n >= F.page - 2 and n <= F.page + 2) %}
+        <a class="{{ n == F.page ? 'is-here' : '' }}" href="/shop?{{ qs }}&page={{ n }}"
+           {% if n == F.page %}aria-current="page"{% endif %}>{{ n }}</a>
+      {% elseif n == F.page - 3 or n == F.page + 3 %}
+        <span aria-hidden="true">…</span>
+      {% endif %}
+    {% endfor %}
+    <a class="{{ F.page >= F.pages ? 'is-off' : '' }}" href="/shop?{{ qs }}&page={{ F.page + 1 }}" rel="next">Next →</a>
+  </nav>
+  {% endif %}
 
   {# Ad — in the natural break below the product grid. #}
   {% include 'partials/ad-slot.twig' %}
@@ -131,6 +225,17 @@
 
   {# Optional second ad (bottom). Renders only if a distinct slot is configured. #}
   {% if adsense_slot_2 %}{% include 'partials/ad-slot.twig' with { slot: adsense_slot_2 } %}{% endif %}
+  {% elseif F.q or F.category %}
+  {# Nothing MATCHED is a different thing from nothing existing, and answering a search with
+     "the shop is opening soon" tells somebody the site is broken. #}
+  <div class="sh-empty">
+    <h2>Nothing matched</h2>
+    <p>
+      {% if F.q %}No products match “{{ F.q }}”{% if F.category %} in {{ F.category }}{% endif %}.
+      {% else %}There is nothing in {{ F.category }} just yet.{% endif %}
+    </p>
+    <p style="margin-top:14px"><a href="/shop" style="color:var(--ag-green);font-weight:600">See everything in the shop →</a></p>
+  </div>
   {% else %}
   <div class="sh-empty">
     <h2>The shop is opening soon</h2>

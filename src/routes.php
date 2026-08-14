@@ -33,6 +33,7 @@ use AfricaGates\Admin\Controllers\{
     AwardsPageController as AdminAwardsPageController,
     MediaController as AdminMediaController,
     ProductsController as AdminProductsController,
+    ShopController as AdminShopController,
     WebhooksController as AdminWebhooksController
 };
 use AfricaGates\Admin\Middleware\AdminAuthMiddleware;
@@ -1547,9 +1548,16 @@ return function(App $app) {
         // ── Shop (storefront + gateway checkout; static routes before {slug}) ──
         $g->get('/shop',           ShopController::class.':index');
         $g->post('/shop/checkout', ShopCheckoutController::class.':checkout');
+        // Delivery + a discount code priced before anybody commits. A preview only — the same
+        // totals() the real checkout calls, so the two cannot disagree about what is owed.
+        $g->post('/shop/quote',    ShopCheckoutController::class.':quote');
         $g->get('/shop/redirect',  ShopCheckoutController::class.':handoff');  // see GatewayHandoff
         $g->get('/shop/callback',  ShopCheckoutController::class.':callback');
         $g->get('/shop/success',   ShopCheckoutController::class.':success');
+        // A buyer's own order, reachable with the reference alone — same doctrine as an event
+        // ticket. BEFORE `/shop/{slug}`: Slim matches in registration order, so a product
+        // called "order" is not what decides this.
+        $g->get('/shop/order/{ref:[A-Za-z0-9\-]{8,72}}', ShopCheckoutController::class.':order');
         $g->get('/shop/{slug}',    ShopController::class.':item');
 
         // ── Payments (Paystack / Flutterwave behind PaymentService) ──────────
@@ -2325,6 +2333,15 @@ return function(App $app) {
         $a->get('/products/{id:[0-9]+}',         AdminProductsController::class.':form');
         $a->post('/products/{id:[0-9]+}',        AdminProductsController::class.':save');
         $a->post('/products/{id:[0-9]+}/delete', AdminProductsController::class.':delete');
+        // Running the shop, as distinct from editing the catalogue: orders that get shipped,
+        // discount codes, and what delivery costs per region.
+        $a->get('/shop/orders',        AdminShopController::class.':orders');
+        $a->post('/shop/orders/fulfil',AdminShopController::class.':fulfil');
+        $a->get('/shop/codes',         AdminShopController::class.':codes');
+        $a->post('/shop/codes',        AdminShopController::class.':saveCode');
+        $a->post('/shop/codes/{id:[0-9]+}/delete', AdminShopController::class.':deleteCode');
+        $a->get('/shop/shipping',      AdminShopController::class.':shipping');
+        $a->post('/shop/shipping',     AdminShopController::class.':saveShipping');
 
         $a->get('/nominees',        AdminNomineesController::class.':index');
         $a->get('/nominees/duplicate-scan', AdminNomineesController::class.':duplicateScan');

@@ -33,6 +33,7 @@ use AfricaGates\Admin\Controllers\{
     AwardsPageController as AdminAwardsPageController,
     MediaController as AdminMediaController,
     ProductsController as AdminProductsController,
+    ShopController as AdminShopController,
     WebhooksController as AdminWebhooksController
 };
 
@@ -457,5 +458,9 @@ return [
     \AfricaGates\Admin\Controllers\LegalController::class    => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\LegalController($c->get(Twig::class), $c->get(AuditService::class)),
     \AfricaGates\Admin\Controllers\AiAssistController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AiAssistController($c->get(RateLimitService::class)),
     AdminProductsController::class     => fn(ContainerInterface $c)=>new AdminProductsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
+    // The mailer is the third argument and NOT optional in practice: marking an order shipped
+    // without it changes a status and tells the buyer nothing, which is the one state change
+    // they are actually waiting on.
+    AdminShopController::class         => fn(ContainerInterface $c)=>new AdminShopController($c->get(Twig::class), $c->get(AuditService::class), $c->get(OtpService::class)),
     \AfricaGates\Admin\Controllers\UsersController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\UsersController($c->get(AuditService::class)),
 ];

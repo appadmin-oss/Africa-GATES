@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\PromoCode;
 use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Support\Carbon;
 
 /**
  * Discount codes, and every limit that stops one becoming a story.
@@ -49,46 +49,32 @@ final class EventDiscount
     public static function apply(string $raw, int $eventId, int $tierId, int $lineTotal,
                                  string $email, int $quantity = 1): array
     {
-        $code = strtoupper(trim($raw));
+        $code = PromoCode::normalise($raw);
         if ($code === '') return ['ok' => false, 'message' => ''];
 
         $row = self::find($code, $eventId);
         if (!$row) {
             return ['ok' => false, 'message' => 'That code is not recognised for this event.'];
         }
-        if ((int) ($row->is_active ?? 0) !== 1) {
-            return ['ok' => false, 'message' => 'That code is no longer active.'];
-        }
 
-        $now = Carbon::now()->toDateTimeString();
-        if (($row->starts_at ?? null) !== null && (string) $row->starts_at > $now) {
-            return ['ok' => false, 'message' => 'That code is not usable yet.'];
-        }
-        if (($row->ends_at ?? null) !== null && (string) $row->ends_at < $now) {
-            return ['ok' => false, 'message' => 'That code has expired.'];
-        }
+        // Switched on, inside its window, not exhausted. {@see PromoCode} owns these because
+        // the shop asks exactly the same questions and two copies would not stay identical.
+        $no = PromoCode::refusal($row);
+        if ($no !== '') return ['ok' => false, 'message' => $no];
 
         // Which tiers. NULL means all; a list means exactly those.
-        $tiers = json_decode((string) ($row->tier_ids ?? ''), true);
-        if (is_array($tiers) && $tiers !== [] && !in_array($tierId, array_map('intval', $tiers), true)) {
+        if (!PromoCode::targets($row->tier_ids ?? null, $tierId)) {
             return ['ok' => false, 'message' => 'That code does not apply to this ticket type.'];
-        }
-
-        if (($row->max_uses ?? null) !== null
-            && (int) $row->used_count >= (int) $row->max_uses) {
-            return ['ok' => false, 'message' => 'That code has been used as many times as it allows.'];
         }
 
         // Per person, counted from the registrations themselves rather than from a counter, so
         // it cannot drift: the rows ARE the record of who used it.
         $perEmail = max(1, (int) ($row->max_per_email ?? 1));
         if (self::timesUsedBy($code, $eventId, $email) >= $perEmail) {
-            return ['ok' => false, 'message' => $perEmail === 1
-                ? 'That code has already been used with this email address.'
-                : 'That code has been used the maximum number of times with this email address.'];
+            return ['ok' => false, 'message' => PromoCode::perPersonRefusal($perEmail)];
         }
 
-        $off = self::amountOff($row, $lineTotal);
+        $off = PromoCode::amountOff($row, $lineTotal);
         if ($off <= 0) {
             return ['ok' => false, 'message' => 'That code takes nothing off this ticket.'];
         }
@@ -96,33 +82,7 @@ final class EventDiscount
         return ['ok' => true, 'id' => (int) $row->id, 'code' => $code,
                 'off' => $off, 'total' => max(0, $lineTotal - $off),
                 'label' => (string) ($row->label ?? ''),
-                'message' => self::says($row, $off)];
-    }
-
-    /**
-     * What this code takes off a line total.
-     *
-     * Applied to the LINE rather than per seat: a 15% discount on three ₦333 seats must not
-     * round three times and produce a total that is not three times anything.
-     */
-    private static function amountOff(object $row, int $lineTotal): int
-    {
-        $amount = max(0, (int) ($row->amount ?? 0));
-        if ($amount === 0 || $lineTotal <= 0) return 0;
-
-        $off = (string) ($row->kind ?? 'percent') === 'fixed'
-            ? $amount
-            : (int) floor($lineTotal * min(100, $amount) / 100);
-
-        // Never negative, and never more than the ticket. A ₦10,000 code against a ₦4,000
-        // ticket is a free ticket, not a refund.
-        return max(0, min($lineTotal, $off));
-    }
-
-    private static function says(object $row, int $off): string
-    {
-        $label = trim((string) ($row->label ?? ''));
-        return ($label !== '' ? $label . ': ' : '') . '₦' . number_format($off) . ' off.';
+                'message' => PromoCode::says($row, $off)];
     }
 
     /**

@@ -65,6 +65,13 @@ final class Permissions
         // content
         'events' => 'content', 'posts' => 'content', 'legacy' => 'content', 'opportunities' => 'content',
         'partners' => 'content', 'media' => 'content', 'products' => 'content', 'forms' => 'content',
+        // `shop` is running the shop — orders that get shipped, discount codes, delivery
+        // charges — and it sits with `products` because the people who merchandise a catalogue
+        // are the people who pack what sells from it. Mapped rather than left to fail closed:
+        // an unmapped path is superadmin-only while the sidebar still offers it to an editor,
+        // which is the exact sidebar-versus-guard disagreement documented on the finance paths
+        // below. Nothing here moves money — a refund is still the Finance section's.
+        'shop' => 'content',
         'legal' => 'content', 'ai' => 'content',
         // data / reports (operational + financial datasets — surfaced in the admin overhaul)
         'data' => 'data', 'votes' => 'data', 'donations' => 'data', 'orders' => 'data', 'users' => 'data',

@@ -40,11 +40,26 @@
   .sc-field input, .sc-field select, .sc-field textarea{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:11px; padding:12px 14px; font-family:inherit; font-size:14px; color:#10292C; outline:none; background:#fff; }
   .sc-field input:focus, .sc-field select:focus, .sc-field textarea:focus{ border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.1); }
   .sc-prov{ display:flex; gap:9px; flex-wrap:wrap; margin-top:6px; }
-  .sc-prov label{ flex:1; min-width:120px; display:flex; align-items:center; gap:8px; border:1.5px solid rgba(16,41,44,.14); border-radius:11px; padding:11px 13px; cursor:pointer; font-size:13.5px; font-weight:600; color:#10292C; }
-  .sc-prov input{ accent-color:#237b22; }
+  .sc-prov label{ flex:1; min-width:120px; display:flex; align-items:center; justify-content:flex-start; gap:9px; border:1.5px solid rgba(16,41,44,.14); border-radius:11px; padding:11px 13px; cursor:pointer; font-size:13.5px; font-weight:600; color:#10292C; }
+  /* `width:auto`, because `.sc-field input` sets width:100% and a radio button matched it —
+     the control stretched across the row and pushed its own label to the far right. */
+  .sc-prov input{ accent-color:#237b22; width:auto; flex:none; margin:0; }
   .sc-soon{ background:#fff8df; border:1px solid #ecdca0; color:#7a5a08; border-radius:12px; padding:14px 16px; font-size:13.5px; line-height:1.5; }
   .sc-soon a{ color:#237b22; font-weight:600; }
   .sc-toast{ position:fixed; left:50%; bottom:90px; transform:translateX(-50%); z-index:95; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:12px 20px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); }
+  /* the variant a line is for — the difference between two cart rows that look identical */
+  .sc-line__v{ display:inline-block; margin-top:3px; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#4a5256; background:#eef2ee; padding:2px 8px; border-radius:999px; }
+  /* discount code */
+  .sc-code{ display:flex; gap:8px; margin-top:6px; }
+  .sc-code input{ flex:1; min-width:0; text-transform:uppercase; letter-spacing:.04em; }
+  .sc-code button{ flex:none; cursor:pointer; border:1px solid rgba(16,41,44,.16); background:#fff; color:#10292C; font-family:inherit; font-size:13px; font-weight:600; padding:0 15px; border-radius:11px; }
+  .sc-code button:disabled{ opacity:.5; cursor:not-allowed; }
+  .sc-note{ font-size:12.5px; font-weight:600; margin-top:7px; }
+  .sc-note--ok{ color:#1a6118; }
+  .sc-note--no{ color:#8a5a00; }
+  .sc-warn{ background:#fff8df; border:1px solid #ecdca0; color:#7a5a08; border-radius:11px; padding:10px 13px; font-size:12.5px; line-height:1.55; margin-bottom:12px; }
+  .sc-warn ul{ margin:5px 0 0; padding-left:18px; }
+  .sc-nudge{ font-size:12px; color:#5a6d6f; margin-top:6px; }
   /* clear the full-width mobile bottom nav (same offset as the Gee launcher) */
   @media(max-width:560px){ .sc-fab{ left:18px; bottom:calc(84px + env(safe-area-inset-bottom,0px)); } }
 </style>
@@ -60,14 +75,20 @@
   <aside class="sc-drawer" @click.stop role="dialog" aria-modal="true" aria-labelledby="scCartTitle">
     <div class="sc-hd"><h2 id="scCartTitle">Your cart</h2><button class="sc-x" @click="$store.cart.open=false" aria-label="Close cart">×</button></div>
     <div class="sc-lines">
-      <template x-for="l in $store.cart.lines" :key="l.slug">
+      {# Keyed by `key`, not `slug`. A shirt in M and the same shirt in XL are two lines,
+         and keying on the slug made the second choice overwrite the first. #}
+      <template x-for="l in $store.cart.lines" :key="l.key">
         <div class="sc-line">
           <span class="sc-line__img" :style="l.cover ? 'background-image:url('+l.cover+')' : 'background:linear-gradient(135deg,#10292C,#1a6118)'"></span>
-          <div class="sc-line__b"><div class="sc-line__n" x-text="l.name"></div><div class="sc-line__p" x-text="$store.cart.ngn(l.price)"></div></div>
+          <div class="sc-line__b">
+            <div class="sc-line__n" x-text="l.name"></div>
+            <span class="sc-line__v" x-show="l.variant" x-cloak x-text="l.variant"></span>
+            <div class="sc-line__p" x-text="$store.cart.ngn(l.price)"></div>
+          </div>
           <div class="sc-qty">
-            <button @click="$store.cart.dec(l.slug)" aria-label="Decrease">−</button>
+            <button @click="$store.cart.dec(l.key)" aria-label="Decrease">−</button>
             <span x-text="l.qty"></span>
-            <button @click="$store.cart.inc(l.slug)" aria-label="Increase">+</button>
+            <button @click="$store.cart.inc(l.key)" aria-label="Increase">+</button>
           </div>
         </div>
       </template>
@@ -75,7 +96,15 @@
     </div>
     <div class="sc-ft" x-show="$store.cart.count>0" x-cloak>
       <div class="sc-sub"><span>Subtotal</span><b x-text="$store.cart.ngn($store.cart.subtotal)"></b></div>
-      <button class="sc-go" @click="$store.cart.open=false; $store.cart.checkoutOpen=true">Checkout →</button>
+      {% if ship_active|default(false) and ship_free_over|default(0) %}
+      {# The number that turns a delivery charge into a reason to add one more thing. Shown
+         from the cart's own subtotal so it updates as they change their mind, and the server
+         re-quotes it for real at checkout. #}
+      <p class="sc-nudge" x-show="$store.cart.subtotal < {{ ship_free_over }}" x-cloak
+         x-text="'Spend ' + $store.cart.ngn({{ ship_free_over }} - $store.cart.subtotal) + ' more for free delivery.'"></p>
+      <p class="sc-nudge" style="color:#1a6118;font-weight:600" x-show="$store.cart.subtotal >= {{ ship_free_over }}" x-cloak>✓ Free delivery on this order.</p>
+      {% endif %}
+      <button class="sc-go" @click="$store.cart.open=false; $store.cart.checkoutOpen=true; $store.cart.quote()">Checkout →</button>
     </div>
   </aside>
 </div>
@@ -85,12 +114,38 @@
   <div class="sc-modal" @click.stop role="dialog" aria-modal="true" aria-labelledby="scCheckoutTitle">
     <div class="sc-hd"><h2 id="scCheckoutTitle">Checkout</h2><button class="sc-x" @click="$store.cart.checkoutOpen=false" aria-label="Close checkout">×</button></div>
     <div class="sc-co">
+      {# What we changed while pricing it — a sold-out line dropped, a quantity trimmed.
+         Silence here is how a total stops matching the last screen somebody saw. #}
+      <div class="sc-warn" x-show="$store.cart.adjusted.length" x-cloak>
+        <strong>Your basket changed:</strong>
+        <ul><template x-for="a in $store.cart.adjusted" :key="a"><li x-text="a"></li></template></ul>
+      </div>
+
       <div class="sc-card" style="margin-bottom:14px">
-        <template x-for="l in $store.cart.lines" :key="l.slug">
-          <div class="sc-srow"><span><span x-text="l.name"></span> × <span x-text="l.qty"></span></span><span class="sc-mono" x-text="$store.cart.ngn(l.price*l.qty)"></span></div>
+        <template x-for="l in $store.cart.lines" :key="l.key">
+          <div class="sc-srow">
+            <span><span x-text="l.name"></span><span x-show="l.variant" x-text="' (' + l.variant + ')'"></span> × <span x-text="l.qty"></span></span>
+            <span class="sc-mono" x-text="$store.cart.ngn(l.price*l.qty)"></span>
+          </div>
         </template>
-        <div class="sc-srow tot"><span>Total</span><span class="sc-mono" x-text="$store.cart.ngn($store.cart.subtotal)"></span></div>
-        {% if currency is defined and currency != 'NGN' %}<div class="sc-srow" style="margin-top:8px;font-size:12px;color:#5a6d6f"><span>Charged in Naira</span><span class="sc-mono" x-text="$store.cart.ngnRaw($store.cart.subtotal)"></span></div>{% endif %}
+        {# The server's own breakdown once it has answered. Before that the goods line is the
+           browser's arithmetic, which is a preview — the charged figure is decided server-side
+           in ShopCheckoutController::totals() and re-decided there at checkout. #}
+        <div class="sc-srow" style="padding-top:10px;margin-top:10px;border-top:1px solid rgba(16,41,44,.08)">
+          <span>Goods</span><span class="sc-mono" x-text="$store.cart.ngn($store.cart.q.goods ?? $store.cart.subtotal)"></span>
+        </div>
+        <div class="sc-srow" x-show="($store.cart.q.discount || 0) > 0" x-cloak style="color:#1a6118">
+          <span>Discount<span x-show="$store.cart.q.code" x-text="' (' + $store.cart.q.code + ')'"></span></span>
+          <span class="sc-mono" x-text="'−' + $store.cart.ngn($store.cart.q.discount)"></span>
+        </div>
+        <div class="sc-srow" x-show="$store.cart.q.charged !== undefined" x-cloak>
+          <span>Delivery <span style="color:#8a9a9c" x-text="$store.cart.q.shipping_why || ''"></span></span>
+          <span class="sc-mono" x-text="($store.cart.q.shipping || 0) > 0 ? $store.cart.ngn($store.cart.q.shipping) : 'Free'"></span>
+        </div>
+        <div class="sc-srow tot"><span>Total</span><span class="sc-mono" x-text="$store.cart.ngn($store.cart.due)"></span></div>
+        {% if currency is defined and currency != 'NGN' %}<div class="sc-srow" style="margin-top:8px;font-size:12px;color:#5a6d6f"><span>Charged in Naira</span><span class="sc-mono" x-text="$store.cart.ngnRaw($store.cart.due)"></span></div>{% endif %}
+        <p class="sc-nudge" x-show="($store.cart.q.short_by || 0) > 0" x-cloak
+           x-text="'Add ' + $store.cart.ngn($store.cart.q.short_by) + ' more and delivery is free.'"></p>
       </div>
 
       {% if providers is empty %}
@@ -99,15 +154,30 @@
         <form method="post" action="/shop/checkout">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <input type="hidden" name="cart" :value="JSON.stringify($store.cart.items)">
+          <input type="hidden" name="discount" :value="$store.cart.code">
           <div class="sc-field"><label for="scCoName">Full name</label><input id="scCoName" type="text" name="name" required placeholder="Your name"></div>
-          <div class="sc-field"><label for="scCoEmail">Email</label><input id="scCoEmail" type="email" name="email" required placeholder="you@email.com"></div>
+          <div class="sc-field"><label for="scCoEmail">Email</label><input id="scCoEmail" type="email" name="email" required placeholder="you@email.com" x-model="$store.cart.email" @change="$store.cart.quote()"></div>
           <div class="sc-field"><label for="scCoPhone">Phone</label><input id="scCoPhone" type="tel" name="phone" required placeholder="+234…"></div>
           <div class="sc-field"><label for="scCoAddress">Delivery address</label><textarea id="scCoAddress" name="address" rows="2" required placeholder="Street, city, state, country"></textarea></div>
           <div class="sc-field"><label for="scCoRegion">Delivery region</label>
-            <select id="scCoRegion" name="region" required>
+            <select id="scCoRegion" name="region" required x-model="$store.cart.region" @change="$store.cart.quote()">
               <option value="" disabled>Select your region…</option>
               {% for r in shop_regions %}<option value="{{ r }}" {% if r == region %}selected{% endif %}>{{ r }}</option>{% endfor %}
             </select>
+          </div>
+          {# ── DISCOUNT CODE ───────────────────────────────────────────────────
+             A preview only: ShopCheckoutController::totals() prices it again from the code
+             row at checkout, so what is shown here cannot change what anybody is charged. #}
+          <div class="sc-field">
+            <label for="scCoCode">Discount code <span style="font-weight:400;color:#8a9a9c">(optional)</span></label>
+            <div class="sc-code">
+              <input id="scCoCode" x-model="$store.cart.code" placeholder="GATES10" autocomplete="off"
+                     @keydown.enter.prevent="$store.cart.quote()">
+              <button type="button" :disabled="$store.cart.quoting || !$store.cart.code.trim()"
+                      @click="$store.cart.quote()" x-text="$store.cart.quoting ? '…' : 'Apply'"></button>
+            </div>
+            <p class="sc-note sc-note--ok" x-show="$store.cart.q.applied" x-cloak x-text="$store.cart.q.note"></p>
+            <p class="sc-note sc-note--no" x-show="$store.cart.q.note && !$store.cart.q.applied" x-cloak x-text="$store.cart.q.note"></p>
           </div>
           <div class="sc-field"><label>Pay with</label>
             <div class="sc-prov">
@@ -117,7 +187,7 @@
             </div>
           </div>
           <button type="submit" class="sc-go" style="margin-top:16px" :disabled="$store.cart.count===0">
-            Pay <span x-text="$store.cart.ngn($store.cart.subtotal)"></span> securely →
+            Pay <span x-text="$store.cart.ngn($store.cart.due)"></span> securely →
           </button>
           <p style="margin:10px 0 0;text-align:center;font-size:11.5px;color:#5a6d6f">Secure payment via the gateway — your card details never touch our servers.</p>
         </form>
@@ -133,19 +203,79 @@ window.AG_FX = {{ {cur: currency|default('NGN'), rate: fx_rate|default(1), sym: 
 document.addEventListener('alpine:init', () => {
   Alpine.store('cart', {
     items: {}, open: false, checkoutOpen: false, toast: '', _t: null,
-    init(){ try { this.items = JSON.parse(localStorage.getItem('afg_cart') || '{}') || {}; } catch (e) { this.items = {}; } },
+    /* Discount + delivery state. `q` is the SERVER's answer and nothing here computes it:
+       ShopCheckoutController::totals() decides what is owed, and the same function runs again
+       at checkout, so a number edited in this object changes what somebody is SHOWN and never
+       what they are charged. */
+    code: '', email: '', region: {{ region|default('')|json_encode|raw }},
+    q: {}, quoting: false, adjusted: [], _qt: null,
+
+    init(){ try { this.items = JSON.parse(localStorage.getItem('afg_cart') || '{}') || {}; } catch (e) { this.items = {}; }
+      this.migrate(); },
     save(){ try { localStorage.setItem('afg_cart', JSON.stringify(this.items)); } catch (e) {} },
-    add(p){
-      const k = p.slug; if (!k) return;
-      if (this.items[k]) this.items[k].qty += (p.qty || 1);
-      else this.items[k] = { slug: k, name: p.name, price: +p.price || 0, cover: p.cover || '', qty: p.qty || 1 };
-      this.save(); this.ping((p.name || 'Item') + ' added to cart'); this.open = true;
+
+    /* A cart saved before variants existed is keyed by slug and has no `key`. Repaired in
+       place rather than discarded — somebody who added three things last week and comes back
+       to an empty basket has been robbed of the only state this shop keeps for them. */
+    migrate(){
+      var fixed = false;
+      for (var k in this.items) {
+        var l = this.items[k];
+        if (!l || typeof l !== 'object') { delete this.items[k]; fixed = true; continue; }
+        if (!l.key) { l.key = k; l.variant = l.variant || ''; l.variant_id = l.variant_id || 0; fixed = true; }
+      }
+      if (fixed) this.save();
     },
-    inc(k){ if (this.items[k]) { this.items[k].qty++; this.save(); } },
-    dec(k){ if (this.items[k]) { if (--this.items[k].qty <= 0) delete this.items[k]; this.save(); } },
+
+    /* `slug|variantId`, matching ShopCheckoutController::key() exactly. The server resolves
+       the pairing again and refuses a variant that belongs to another product, so this is a
+       convenience for the browser rather than something trusted. */
+    keyFor(slug, vid){ return (vid && +vid > 0) ? slug + '|' + (+vid) : slug; },
+
+    add(p){
+      if (!p || !p.slug) return;
+      const k = this.keyFor(p.slug, p.variant_id);
+      if (this.items[k]) this.items[k].qty += (p.qty || 1);
+      else this.items[k] = { key: k, slug: p.slug, variant_id: +p.variant_id || 0,
+                             variant: p.variant || '', name: p.name,
+                             price: +p.price || 0, cover: p.cover || '', qty: p.qty || 1 };
+      this.save();
+      this.ping((p.name || 'Item') + (p.variant ? ' (' + p.variant + ')' : '') + ' added to cart');
+      this.open = true;
+      /* The quote goes stale the moment the basket changes — a free-delivery threshold that
+         was met a second ago may not be now. Debounced so five taps make one request. */
+      this.requote();
+    },
+    inc(k){ if (this.items[k]) { this.items[k].qty++; this.save(); this.requote(); } },
+    dec(k){ if (this.items[k]) { if (--this.items[k].qty <= 0) delete this.items[k]; this.save(); this.requote(); } },
+
     get lines(){ return Object.values(this.items); },
     get count(){ return this.lines.reduce((a, i) => a + i.qty, 0); },
     get subtotal(){ return this.lines.reduce((a, i) => a + i.price * i.qty, 0); },
+    /* What the button says to pay. The server's figure when it has one, the browser's
+       arithmetic before that — never a mix of the two. */
+    get due(){ return this.q.charged !== undefined ? this.q.charged : this.subtotal; },
+
+    requote(){ clearTimeout(this._qt); this._qt = setTimeout(() => this.quote(), 400); },
+
+    async quote(){
+      if (this.count === 0) { this.q = {}; this.adjusted = []; return; }
+      this.quoting = true;
+      try {
+        var r = await fetch('/shop/quote', {
+          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ _token: {{ csrf_token|json_encode|raw }},
+                                      cart: JSON.stringify(this.items),
+                                      region: this.region || '',
+                                      discount: this.code.trim(), email: this.email })
+        });
+        var d = await r.json().catch(function(){ return {}; });
+        if (d && d.success) { this.q = d; this.adjusted = d.adjusted || []; }
+      } catch (e) { /* a failed preview must never block a checkout: the server prices it
+                       again on submit, and `due` falls back to the browser subtotal. */ }
+      finally { this.quoting = false; }
+    },
+
     ngn(n){ n = Number(n) || 0; var fx = window.AG_FX || {}; if (fx.cur && fx.cur !== 'NGN' && fx.rate) { var v = n * fx.rate; return (fx.sym || '') + v.toLocaleString(undefined, { maximumFractionDigits: v < 100 ? 2 : 0 }); } return '₦' + n.toLocaleString(); },
     ngnRaw(n){ return '₦' + (Number(n) || 0).toLocaleString(); },
     ping(m){ this.toast = m; clearTimeout(this._t); this._t = setTimeout(() => this.toast = '', 1800); },

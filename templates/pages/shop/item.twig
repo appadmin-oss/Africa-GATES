@@ -43,6 +43,33 @@
   .si-rcard__b{ padding:13px; }
   .si-rcard__n{ font-weight:600; font-size:14px; color:var(--ag-ink); }
   .si-rcard__p{ font:700 14px/1 var(--ag-font-mono); color:var(--ag-green); margin-top:5px; }
+
+  .si-gallery__img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+
+  /* ── gallery thumbnails ── */
+  .si-thumbs{ display:flex; gap:9px; margin-top:11px; flex-wrap:wrap; }
+  .si-thumb{ cursor:pointer; flex:none; width:64px; height:64px; border-radius:12px; border:2px solid transparent; background-size:cover; background-position:center; padding:0; }
+  .si-thumb.is-on{ border-color:var(--ag-green); }
+
+  /* ── the variant picker ── */
+  .si-opt{ margin-top:20px; }
+  .si-opt__h{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+  .si-opt__l{ font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#4a5256; }
+  .si-opt__pick{ font-size:13px; color:#5a6d6f; }
+  .si-opt__row{ display:flex; flex-wrap:wrap; gap:9px; margin-top:9px; }
+  .si-chip{ cursor:pointer; font-family:inherit; font-size:14px; font-weight:600; min-width:54px; padding:11px 16px; border-radius:12px; border:1.5px solid rgba(16,41,44,.16); background:var(--ag-surface,#fff); color:var(--ag-ink); }
+  .si-chip.is-on{ border-color:var(--ag-green); background:#f6fcf5; color:#10292C; }
+  .si-chip:disabled{ opacity:.45; cursor:not-allowed; text-decoration:line-through; }
+  .si-stock{ font-size:12.5px; font-weight:700; margin-top:9px; }
+  .si-stock.is-low{ color:#8a2020; } .si-stock.is-gone{ color:#8a5a00; } .si-stock.is-ok{ color:#1a6118; }
+  .si-buy:disabled, .si-add:disabled{ background:#dfe4e3; color:#5b6669; border-color:transparent; cursor:not-allowed; }
+
+  /* ── what the thing is made of, and how it gets to you ── */
+  .si-tabs{ margin-top:26px; border-top:1px solid rgba(16,41,44,.08); }
+  .si-tab{ border-bottom:1px solid rgba(16,41,44,.08); }
+  .si-tab__q{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; border:none; background:none; font-family:inherit; font-size:14px; font-weight:600; color:var(--ag-ink); padding:15px 2px; text-align:left; }
+  .si-tab__q span:last-child{ color:#8a9a9c; font-weight:400; }
+  .si-tab__a{ font-size:13.5px; line-height:1.7; color:#3a4448; padding:0 2px 15px; white-space:pre-line; }
 </style>
 {% endblock %}
 
@@ -51,39 +78,112 @@
 {% set COV = ['linear-gradient(135deg,#10292C,#1a6118)','linear-gradient(135deg,#a47306,#d49a0e)','linear-gradient(135deg,#1a2629,#5d7374)','linear-gradient(135deg,#237b22,#7FC87C)','linear-gradient(135deg,#2b373d,#4a5b60)','linear-gradient(135deg,#b97a12,#fbc329)'] %}
 {% set heroBg = p.cover_path ? "url('" ~ p.cover_path ~ "')" : 'radial-gradient(130% 130% at 70% 10%,#1d5b2a,#10292C 70%)' %}
 
-<div class="si" x-data="{ qty:1 }">
+{# ── THE PICKER'S STATE ────────────────────────────────────────────────────────
+   `variants` comes from the server already priced off the REGION-ADJUSTED base, so nothing
+   here adds a delta to the wrong number. `sel` is the chosen variant object, or null while
+   nothing is chosen — and every action is disabled until it is not, because picking a size on
+   somebody's behalf is how they receive the wrong one. #}
+{# The filter chain is INLINE, not stashed in a {% set %} first. Twig tracks escaping per
+   expression at compile time, so assigning `|e('html_attr')` output to a variable loses its
+   safe marker and autoescape escapes it a second time — the browser then hands Alpine a
+   string full of `&#x5B;` and every expression on the page fails. #}
+<div class="si" x-data="siItem({{ variants|default([])|json_encode|e('html_attr') }}, {{ gallery|default([])|json_encode|e('html_attr') }}, {{ p.display_price|default(p.price_naira) }})">
   <nav class="si-crumb" aria-label="Breadcrumb">
-    <a href="/shop">Shop</a> · <a href="/shop">{{ p.category }}</a> · <b>{{ p.name }}</b>
+    <a href="/shop">Shop</a> · <a href="/shop?c={{ p.category|url_encode }}">{{ p.category }}</a> · <b>{{ p.name }}</b>
   </nav>
 
   <div class="si-grid">
-    <div class="si-gallery" style="background-image:{{ heroBg }}">
-      {% if not p.cover_path %}<div class="si-gallery__orb" aria-hidden="true"></div>{% endif %}
-      {% if p.tag %}<span class="si-gallery__tag si-tag--{{ p.tag }}">{{ p.tag }}</span>{% endif %}
+    <div>
+      {# The chosen shot is an <img>, layered over the gradient fallback — NOT an Alpine
+         :style on this div. Two reasons: a :style REPLACES the style attribute when it runs,
+         so the gradient would vanish (AlpineStyleClobberTest fails the build on that), and a
+         CSS url() built inside a double-quoted attribute needs quotes of its own, which
+         terminate the attribute. An <img> also carries alt text, which a background cannot. #}
+      <div class="si-gallery" style="background-image:{{ heroBg }}">
+        {% if gallery|default([])|length %}
+        <img class="si-gallery__img" :src="shot" :alt="shotAlt" x-show="shot" alt="{{ p.name }}"
+             src="{{ gallery.0.path }}">
+        {% endif %}
+        {% if not p.cover_path %}<div class="si-gallery__orb" aria-hidden="true"></div>{% endif %}
+        {% if p.tag %}<span class="si-gallery__tag si-tag--{{ p.tag }}">{{ p.tag }}</span>{% endif %}
+      </div>
+      {# Thumbnails only when there is more than one image. A single-image gallery with one
+         thumbnail under it looks like something failed to load. #}
+      {% if gallery|default([])|length > 1 %}
+      <div class="si-thumbs">
+        {% for g in gallery %}
+        <button type="button" class="si-thumb" :class="shot === {{ g.path|json_encode(15)|raw }} ? 'is-on' : ''"
+                @click="shot = {{ g.path|json_encode(15)|raw }}"
+                style="background-image:url('{{ g.path }}')"
+                aria-label="View image {{ loop.index }}{% if g.alt %} — {{ g.alt }}{% endif %}"></button>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
 
     <div>
       <p class="si-cat">{{ p.category }}</p>
       <h1 class="si-name">{{ p.name }}</h1>
-      <div class="si-price">{{ p.price_label|default('₦' ~ (p.display_price|default(p.price_naira)|number_format)) }}</div>
-      {% if currency != 'NGN' %}<div style="font-size:12px;color:#5a6d6f;margin-top:2px">≈ ₦{{ p.display_price|default(p.price_naira)|number_format }} · charged in Naira</div>{% endif %}
+      {% if p.subtitle|default('') %}<p class="si-desc" style="margin-top:6px;color:#5a6d6f">{{ p.subtitle }}</p>{% endif %}
+      <div class="si-price" x-text="$store.cart.ngn(price)">{{ p.price_label|default('₦' ~ (p.display_price|default(p.price_naira)|number_format)) }}</div>
+      {% if currency != 'NGN' %}<div style="font-size:12px;color:#5a6d6f;margin-top:2px">charged in Naira · <span x-text="$store.cart.ngnRaw(price)"></span></div>{% endif %}
       {% if p.description %}<p class="si-desc">{{ p.description }}</p>{% endif %}
+
+      {% if variants|default([])|length %}
+      {# ── PICK ONE ──────────────────────────────────────────────────────────
+         A sold-out option is shown and disabled rather than hidden: somebody looking for
+         their size needs to know it exists and has gone, not wonder whether it is made. #}
+      <div class="si-opt">
+        <div class="si-opt__h">
+          <span class="si-opt__l">{{ axis|default('Option') }}</span>
+          <span class="si-opt__pick" x-show="!sel" x-cloak>Choose one to continue</span>
+        </div>
+        <div class="si-opt__row" role="group" aria-label="{{ axis|default('Option') }}">
+          {% for v in variants %}
+          <button type="button" class="si-chip" :class="sel && sel.id === {{ v.id }} ? 'is-on' : ''"
+                  {{ v.sold_out ? 'disabled' : '' }} @click="pick({{ v.id }})">{{ v.label }}</button>
+          {% endfor %}
+        </div>
+        <p class="si-stock" x-show="stockNote" x-cloak :class="stockClass" x-text="stockNote"></p>
+      </div>
+      {% elseif p.stock_note|default('') %}
+      <p class="si-stock {{ p.sold_out|default(false) ? 'is-gone' : 'is-low' }}" style="margin-top:16px">{{ p.stock_note }}</p>
+      {% endif %}
 
       <div class="si-actions">
         <div class="si-stepper">
           <button type="button" @click="qty=Math.max(1,qty-1)" aria-label="Decrease">−</button>
           <span x-text="qty"></span>
-          <button type="button" @click="qty=Math.min(20,qty+1)" aria-label="Increase">+</button>
+          <button type="button" @click="bump()" aria-label="Increase">+</button>
         </div>
-        <button type="button" class="si-buy"
-          @click='$store.cart.add({slug:{{ p.slug|json_encode(15)|raw }}, name:{{ p.name|json_encode(15)|raw }}, price:{{ p.display_price|default(p.price_naira) }}, cover:{{ p.cover_path|default("")|json_encode(15)|raw }}, qty:qty}); $store.cart.open=false; $store.cart.checkoutOpen=true;'>
-          Buy now · <span x-text="$store.cart.ngn({{ p.display_price|default(p.price_naira) }}*qty)"></span>
+        <button type="button" class="si-buy" :disabled="!ready"
+          @click="into(); $store.cart.open=false; $store.cart.checkoutOpen=true; $store.cart.quote();">
+          <span x-show="ready">Buy now · <span x-text="$store.cart.ngn(price*qty)"></span></span>
+          <span x-show="!ready" x-cloak x-text="blocked"></span>
         </button>
       </div>
-      <button type="button" class="si-add"
-        @click='$store.cart.add({slug:{{ p.slug|json_encode(15)|raw }}, name:{{ p.name|json_encode(15)|raw }}, price:{{ p.display_price|default(p.price_naira) }}, cover:{{ p.cover_path|default("")|json_encode(15)|raw }}, qty:qty})'>
-        Add to cart
-      </button>
+      <button type="button" class="si-add" :disabled="!ready" @click="into()">Add to cart</button>
+
+      {% if ship_active|default(false) and ship_free_over|default(0) %}
+      <p style="margin:12px 0 0;font-size:12.5px;color:#5a6d6f">
+        Free delivery on orders over ₦{{ ship_free_over|number_format }}{% if p.ships_free|default(0) %} — and delivery on this item is always included{% endif %}.
+      </p>
+      {% elseif p.ships_free|default(0) %}
+      <p style="margin:12px 0 0;font-size:12.5px;color:#1a6118;font-weight:600">Delivery included in the price.</p>
+      {% endif %}
+
+      {% if p.details|default('') %}
+      {# Materials, sizing, washing — the three questions a support inbox answers about
+         apparel forever. Closed by default so the page stays about the product. #}
+      <div class="si-tabs" x-data="{ open:false }">
+        <div class="si-tab">
+          <button type="button" class="si-tab__q" @click="open = !open" :aria-expanded="open">
+            <span>Materials, sizing &amp; care</span><span x-text="open ? '−' : '+'">+</span>
+          </button>
+          <div class="si-tab__a" x-show="open" x-cloak>{{ p.details }}</div>
+        </div>
+      </div>
+      {% endif %}
 
       <div class="si-assure">
         <div class="si-assure__row"><span class="si-assure__i" style="background:#effaf0;color:#1a6118"><svg aria-hidden="true" focusable="false" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg></span>Every order funds child leadership programmes</div>
@@ -99,7 +199,11 @@
       {% for r in related %}
       <a class="si-rcard" href="/shop/{{ r.slug }}">
         <div class="si-rcard__cover" style="{% if r.cover_path %}background-image:url('{{ r.cover_path }}'){% else %}background:{{ COV[loop.index0 % COV|length] }}{% endif %}"></div>
-        <div class="si-rcard__b"><div class="si-rcard__n">{{ r.name }}</div><div class="si-rcard__p">{{ r.price_label|default('₦' ~ (r.display_price|default(r.price_naira)|number_format)) }}</div></div>
+        <div class="si-rcard__b">
+          <div class="si-rcard__n">{{ r.name }}</div>
+          <div class="si-rcard__p">{{ r.price_label|default('₦' ~ (r.display_price|default(r.price_naira)|number_format)) }}</div>
+          {% if r.sold_out|default(false) %}<div style="font-size:11.5px;font-weight:700;color:#8a5a00;margin-top:4px">Sold out</div>{% endif %}
+        </div>
       </a>
       {% endfor %}
     </div>
@@ -108,4 +212,84 @@
 
   {% include 'partials/shop-cart.twig' %}
 </div>
+
+<script nonce="{{ csp_nonce }}">
+function siItem(variants, gallery, basePrice){
+  return {
+    variants: variants || [],
+    gallery: gallery || [],
+    qty: 1,
+    sel: null,
+    shot: (gallery && gallery.length) ? gallery[0].path : '',
+
+    /* The alt text of the image currently shown. A gallery where every image is described as
+       the product name tells a screen-reader user nothing about which one they are on. */
+    get shotAlt(){
+      var g = this.gallery.find((x) => x.path === this.shot);
+      return (g && g.alt) ? g.alt : '';
+    },
+
+    init(){
+      /* Preselect when there is exactly ONE option left that can be bought. That is not
+         choosing for somebody — it is the only choice — and making them tap it adds a step
+         with a single legal answer. With two or more, nothing is chosen: picking a size on a
+         buyer's behalf is how they receive the wrong one. */
+      var live = this.variants.filter(function(v){ return !v.sold_out; });
+      if (live.length === 1) this.sel = live[0];
+    },
+
+    pick(id){
+      var v = this.variants.find(function(x){ return x.id === id; });
+      if (!v || v.sold_out) return;
+      this.sel = v;
+      /* Clamp rather than reset. Somebody who asked for five and switches to a size with two
+         in it meant "as many as I can", not "start again". */
+      if (v.stock !== null && this.qty > v.stock) this.qty = Math.max(1, v.stock);
+    },
+
+    /* The price shown, which follows the chosen option. A size that costs ₦1,500 more must
+       change the number above the button before it changes the total in the cart. */
+    get price(){ return this.sel ? this.sel.price_naira : basePrice; },
+    get ceiling(){
+      if (this.sel && this.sel.stock !== null) return Math.min(20, Math.max(1, this.sel.stock));
+      return 20;
+    },
+    bump(){ this.qty = Math.min(this.ceiling, this.qty + 1); },
+
+    get ready(){ return this.variants.length === 0 || this.sel !== null; },
+    get blocked(){
+      var axis = (this.variants[0] && this.variants[0].axis) ? this.variants[0].axis.toLowerCase() : 'option';
+      return 'Choose a ' + axis;
+    },
+    get stockNote(){
+      if (!this.sel) return '';
+      if (this.sel.stock === null) return 'In stock';
+      if (this.sel.stock < 1) return this.sel.label + ' is sold out';
+      if (this.sel.stock <= 3) return 'Only ' + this.sel.stock + ' left in ' + this.sel.label;
+      return 'In stock';
+    },
+    get stockClass(){
+      if (!this.sel) return '';
+      if (this.sel.stock === null) return 'is-ok';
+      if (this.sel.stock < 1) return 'is-gone';
+      return this.sel.stock <= 3 ? 'is-low' : 'is-ok';
+    },
+
+    into(){
+      if (!this.ready) return;
+      /* this.$store, not a bare $store: the magic is only injected into Alpine expressions in
+         the markup, and a plain method on the data object reaches it through `this`. */
+      this.$store.cart.add({
+        slug: {{ p.slug|json_encode(15)|raw }},
+        name: {{ p.name|json_encode(15)|raw }},
+        cover: {{ p.cover_path|default("")|json_encode(15)|raw }},
+        variant_id: this.sel ? this.sel.id : 0,
+        variant: this.sel ? this.sel.label : '',
+        price: this.price,
+        qty: this.qty
+      });
+    }
+  };
+}
+</script>
 {% endblock %}
