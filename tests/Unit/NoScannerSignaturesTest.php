@@ -80,30 +80,51 @@ final class NoScannerSignaturesTest extends TestCase
         return $out;
     }
 
-    /** @return list<string> repo-relative paths of every tracked text file */
+    /**
+     * Every text file in the project, as repo-relative paths.
+     *
+     * A DIRECTORY WALK, NOT `git ls-files`. The first version shelled out to git — and shelling
+     * out meant this file contained a shell-execution call beside its own PHP open tag, so the
+     * verification scan flagged THIS TEST. The guard was the thing it was written to forbid,
+     * which is funny once and would be a wasted hour for whoever hit it next.
+     *
+     * Walking the filesystem is also better on its own merits: it works in an exported tree
+     * with no `.git` directory, which is exactly the situation a source download creates, and
+     * it cannot pass vacuously because git happens to be missing.
+     *
+     * @return list<string>
+     */
     private function trackedFiles(): array
     {
         $root = dirname(__DIR__, 2);
+        $out  = [];
 
-        // `git ls-files` is the right list, because it is exactly what a source download
-        // contains — not "everything on disk", which would flag build output nobody ships.
-        $out = [];
-        $cmd = 'cd ' . escapeshellarg($root) . ' && git ls-files -z 2>/dev/null';
-        $raw = (string) @shell_exec($cmd);
-        foreach (explode("\0", $raw) as $rel) {
-            $rel = trim($rel);
-            if ($rel === '') continue;
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($it as $f) {
+            $rel = str_replace($root . '/', '', $f->getPathname());
+
+            // `.git` itself holds compressed objects — packed bytes, not source anybody reads,
+            // and not what a source download contains either.
+            if ($rel === '.git' || str_starts_with($rel, '.git/')) continue;
 
             foreach (self::SKIP_PREFIXES as $skip) {
                 if (str_starts_with($rel, $skip)) continue 2;
             }
-            // Text only. A PNG that happens to contain those bytes is not a signature match
-            // any scanner would report, and reading binaries here would be noise.
+            if (!$f->isFile()) continue;
+
+            // Text only. A PNG that happens to contain those bytes is not a match any scanner
+            // would report, and reading binaries here would be noise.
             if (preg_match('/\.(php|twig|js|mjs|json|md|txt|ya?ml|sql|html?|css|sh|gs)$/i', $rel) !== 1) {
                 continue;
             }
             $out[] = $rel;
         }
+
+        sort($out);
         return $out;
     }
 
@@ -113,11 +134,11 @@ final class NoScannerSignaturesTest extends TestCase
         $files   = $this->trackedFiles();
         $needles = $this->needles();
 
-        // If git is unavailable the sweep would pass vacuously, and a guard with a hole
-        // exactly where the problem was is worse than no guard.
+        // A sweep that finds nothing passes forever, and a guard with a hole exactly where the
+        // problem was is worse than no guard at all.
         $this->assertGreaterThan(200, count($files),
-            'the file sweep found almost nothing — git ls-files failed, so this test is not '
-            . 'actually checking anything');
+            'the file sweep found almost nothing — the directory walk is broken, so this test '
+            . 'is not actually checking anything');
 
         // This file necessarily discusses the patterns, and HostileBytes holds the payload
         // encoded. Both are asserted about separately below.

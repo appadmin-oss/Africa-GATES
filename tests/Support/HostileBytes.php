@@ -40,27 +40,34 @@ namespace Tests\Support;
  *
  * ── WHY BASE64 RATHER THAN CONCATENATION ─────────────────────────────────────
  *
- * `'<?php echo ' . 'shell' . '_exec(...)'` would also break a naive substring match, but it
- * leaves the words legible and adjacent — so a slightly better scanner still matches, and the
- * next person to reformat the line for readability silently reintroduces the problem. An
- * encoded constant cannot be reassembled by accident, and the docblock says plainly what it
- * decodes to so nobody has to wonder.
+ * Splitting the payload across string concatenation would also break a naive substring match,
+ * but it leaves the words legible and adjacent — so a slightly better scanner still matches,
+ * and the next person to tidy the line for readability silently reassembles it. An encoded
+ * constant cannot be put back together by accident.
+ *
+ * The same care applies to comments. An earlier version of this file described the payload by
+ * quoting it, and `clamscan` found the signature in the very archive built to prove the fix
+ * had worked: a comment is bytes in a file like any other. So the constants are described in
+ * words, and the run-time checks below assemble their needles from fragments.
  */
 final class HostileBytes
 {
     /**
-     * A PHP web shell: `<?php echo shell_exec($_GET['c']); ?>` followed by a newline.
+     * A one-line PHP web shell, base64-encoded: an open tag, an echo, a shell-execution call
+     * taking a query-string parameter named `c`, a close tag, and a newline.
      *
-     * Encoded so this file carries no scanner signature — see the class note. Decoded at run
-     * time, it is exactly the string the upload tests used to embed as a literal.
+     * DESCRIBED RATHER THAN SPELLED OUT, and that is not fussiness — writing the payload in
+     * this comment put the signature back into the repository, and `clamscan` caught it in the
+     * very archive built to prove the fix worked. A comment is bytes in a file like any other;
+     * a scanner does not know it is a comment.
      */
     private const PHP_SHELL_B64 = 'PD9waHAgZWNobyBzaGVsbF9leGVjKCRfR0VUWydjJ10pOyA/Pgo=';
 
-    /** The same script with double quotes and no trailing newline, as the other test used. */
+    /** The same script with double quotes around the parameter name, and no trailing newline. */
     private const PHP_SHELL_B64_DQ = 'PD9waHAgZWNobyBzaGVsbF9leGVjKCRfR0VUWyJjIl0pOyA/Pg==';
 
     /**
-     * The web shell, single-quoted, newline-terminated.
+     * The web shell with a single-quoted parameter name, newline-terminated.
      *
      * Guarded rather than trusted: a mistyped constant would silently hand the tests something
      * that is NOT a PHP script, and the upload service would refuse it for the wrong reason —
