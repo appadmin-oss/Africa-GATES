@@ -10,6 +10,12 @@ use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Services\CacheService;
+use AfricaGates\Services\EventAgenda;
+use AfricaGates\Services\EventDiscount;
+use AfricaGates\Services\EventTicketService;
+use AfricaGates\Services\EventWaitlist;
+use AfricaGates\Support\OptionalColumn;
+use AfricaGates\Support\Slug;
 
 class EventsController
 {
@@ -17,6 +23,10 @@ class EventsController
         private readonly Twig $view,
         private readonly AuditService $audit,
         private readonly CacheService $cache,
+        // Optional, and the waiting list works without it: a promotion exists in the database
+        // whether or not the message got through, and the organiser's screen shows an
+        // outstanding offer either way. See EventWaitlist::tell().
+        private readonly ?\AfricaGates\Services\OtpService $mailer = null,
     ) {}
 
     public function index(Request $req, Response $res): Response
@@ -74,6 +84,26 @@ class EventsController
                                'from' => '', 'until' => '', 'code' => '', 'active' => true, 'sold' => 0];
             }
         }
+        // Sessions replace the run-of-show blob for anything with more than one room. Seeded
+        // with the SAME stable-id trick as the other repeaters, and drafts included: an
+        // organiser drafting an agenda must be able to see the rows they have not published.
+        $sessionSeed = [];
+        $j = 0;
+        foreach ($id ? EventAgenda::sessions($id, true) : [] as $s) {
+            $sessionSeed[] = [
+                'id'    => ++$j,
+                'sid'   => (int) $s['id'],
+                'title' => (string) $s['title'],
+                'body'  => (string) $s['description'],
+                'from'  => self::forInput((string) ($s['starts_at'] ?? '')),
+                'until' => self::forInput((string) ($s['ends_at'] ?? '')),
+                'room'  => (string) $s['room'],
+                'track' => (string) $s['track'],
+                'who'   => implode(', ', $s['speakers']),
+                'live'  => (bool) $s['published'],
+            ];
+        }
+
         return $this->view->render($res, 'admin/events/form.twig', [
             'page_title' => $id ? 'Edit Event — Admin' : 'New Event — Admin',
             'admin_page' => 'events',
@@ -81,6 +111,17 @@ class EventsController
             'is_new'     => !$id,
             'sched_seed' => $schedSeed,
             'tier_seed'  => $tierSeed,
+            'session_seed' => $sessionSeed,
+            // datetime-local wants its own format, and a raw timestamp in the box silently
+            // renders as empty — which reads as "no cutoff set" and quietly removes one.
+            'sales_close_input' => self::forInput((string) ($row['sales_close_at'] ?? '')),
+            // Which of these columns the database actually has. On a deployment that has
+            // uploaded this code and not yet run /__setup/migrate, showing the fields would
+            // take an organiser's work and drop it silently on save.
+            'extras_missing' => OptionalColumn::missing('gates_site_events', [
+                'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
+                'organiser_email', 'organiser_phone',
+            ]),
         ]);
     }
 
@@ -117,7 +158,24 @@ class EventsController
             'early_bird_text'     => trim((string)($b['early_bird_text'] ?? '')) ?: null,
             'early_bird_deadline' => trim((string)($b['early_bird_deadline'] ?? '')) ?: null,
             'early_bird_url'      => trim((string)($b['early_bird_url'] ?? '')) ?: null,
+            // ── the organiser's own operating rules ──────────────────────────
+            // Off unless ticked. A waiting list nobody works is worse than an honest
+            // "fully booked", because it costs somebody hope as well as a seat.
+            'waitlist_open'   => !empty($b['waitlist_open']) ? 1 : 0,
+            // A cutoff independent of the event date — catering, badges, a venue list.
+            'sales_close_at'  => self::fromInput($b['sales_close_at'] ?? ''),
+            'attendee_note'   => trim((string) ($b['attendee_note'] ?? '')) ?: null,
+            'refund_policy'   => mb_substr(trim((string) ($b['refund_policy'] ?? '')), 0, 1000) ?: null,
+            'organiser_email' => mb_substr(trim((string) ($b['organiser_email'] ?? '')), 0, 190) ?: null,
+            'organiser_phone' => mb_substr(trim((string) ($b['organiser_phone'] ?? '')), 0, 40) ?: null,
         ];
+        // Dropped rather than written when the migration has not run. An operator uploads the
+        // zip and runs /__setup/migrate as two separate acts, and a save that 500ed in
+        // between would look like the editor breaking rather than a step being outstanding.
+        $data = OptionalColumn::filter('gates_site_events', $data, [
+            'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
+            'organiser_email', 'organiser_phone',
+        ]);
         if ($data['title'] === '' || $data['slug'] === '') {
             $_SESSION['flash_error'] = 'Title and slug are required.';
             return $res->withHeader('Location', $id ? "/admin/events/{$id}" : '/admin/events/new')->withStatus(302);
@@ -132,6 +190,7 @@ class EventsController
         }
 
         $this->saveTiers($id, $b);
+        $this->saveSessions($id, $b);
         $this->cache->forget('events:upcoming');
         $this->cache->forget('events:past');
         $this->cache->forget('home:site_events');
@@ -266,6 +325,222 @@ class EventsController
     }
 
     /**
+     * Turn the agenda repeater into session rows.
+     *
+     * The parallel-array shape matches every other repeater on this form, and the writing
+     * itself is {@see EventAgenda::save()} — because the same upsert-by-id rule has to hold
+     * whether a session arrives from this screen or, later, from an import.
+     *
+     * @param array<string,mixed> $b
+     */
+    private function saveSessions(int $eventId, array $b): void
+    {
+        // Absent, not empty. A form posted from a deployment whose migration has not run has
+        // no session inputs at all, and treating that as "delete every session" would wipe an
+        // agenda the moment somebody edited an unrelated field.
+        if (!array_key_exists('ses_title', $b)) return;
+
+        $titles = (array) $b['ses_title'];
+        $ids    = (array) ($b['ses_id'] ?? []);
+        $bodies = (array) ($b['ses_body'] ?? []);
+        $from   = (array) ($b['ses_from'] ?? []);
+        $until  = (array) ($b['ses_until'] ?? []);
+        $rooms  = (array) ($b['ses_room'] ?? []);
+        $tracks = (array) ($b['ses_track'] ?? []);
+        $who    = (array) ($b['ses_who'] ?? []);
+        $live   = (array) ($b['ses_live'] ?? []);
+
+        $rows = [];
+        foreach ($titles as $i => $title) {
+            $rows[] = [
+                'id'          => (int) ($ids[$i] ?? 0),
+                'title'       => (string) $title,
+                'description' => (string) ($bodies[$i] ?? ''),
+                'starts_at'   => (string) ($from[$i] ?? ''),
+                'ends_at'     => (string) ($until[$i] ?? ''),
+                'room'        => (string) ($rooms[$i] ?? ''),
+                'track'       => (string) ($tracks[$i] ?? ''),
+                'speakers'    => (string) ($who[$i] ?? ''),
+                'sort_order'  => $i * 10,
+                'is_published'=> (string) ($live[$i] ?? '1') === '1' ? 1 : 0,
+            ];
+        }
+
+        EventAgenda::save($eventId, $rows);
+    }
+
+    // ══ discount codes ═══════════════════════════════════════════════════════
+
+    /**
+     * The codes screen. Its own page rather than a block on the edit form.
+     *
+     * A code is created and retired on a completely different rhythm from an event's title
+     * and venue — an organiser adds ALUMNI20 the afternoon they decide to, three weeks after
+     * the event page was written, and making them re-save the whole event to do it is how a
+     * description gets clobbered by a stale tab.
+     */
+    public function codes(Request $req, Response $res, array $args): Response
+    {
+        $id    = (int) ($args['id'] ?? 0);
+        $event = DB::table('gates_site_events')->where('id', $id)->first();
+        if (!$event) {
+            $_SESSION['flash_error'] = 'That event could not be found.';
+            return $res->withHeader('Location', '/admin/events')->withStatus(302);
+        }
+
+        return $this->view->render($res, 'admin/events/codes.twig', [
+            'page_title' => 'Discount codes — ' . (string) $event->title,
+            'admin_page' => 'events',
+            'event'      => (array) $event,
+            'codes'      => EventDiscount::forEvent($id),
+            'tiers'      => EventTicketService::summary($id)['tiers'],
+            'missing'    => OptionalColumn::missing('gates_event_registrations', ['discount_code']),
+        ]);
+    }
+
+    /**
+     * Create or edit one code.
+     *
+     * The letters are normalised to upper case here rather than at lookup time as well as:
+     * `alumni20` and `ALUMNI20` are the same promise, and storing both would let two rows
+     * exist for one code with the unique index none the wiser.
+     */
+    public function saveCode(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int) ($args['id'] ?? 0);
+        $b    = (array) $req->getParsedBody();
+        $back = '/admin/events/' . $id . '/codes';
+
+        $code = strtoupper(trim((string) ($b['code'] ?? '')));
+        // Folded to A–Z0–9 and a dash: a code is read off a poster and typed by hand, and a
+        // space or a curly apostrophe inside one is a support ticket waiting to happen.
+        $code = (string) preg_replace('/[^A-Z0-9\-]+/', '', $code);
+        if ($code === '') {
+            $_SESSION['flash_error'] = 'A code needs some letters.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $kind   = (string) ($b['kind'] ?? 'percent') === 'fixed' ? 'fixed' : 'percent';
+        $amount = max(0, (int) ($b['amount'] ?? 0));
+        if ($kind === 'percent' && $amount > 100) $amount = 100;
+        if ($amount === 0) {
+            $_SESSION['flash_error'] = 'A code that takes nothing off is not a discount.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        // An empty tier list means every tier. A list means exactly those, which is the
+        // control that stops a student discount applying to the ₦380,000 table.
+        $tierIds = array_values(array_filter(array_map('intval', (array) ($b['tier_ids'] ?? []))));
+
+        $row = [
+            'event_id'      => $id,
+            'code'          => mb_substr($code, 0, 40),
+            'label'         => mb_substr(trim((string) ($b['label'] ?? '')), 0, 120) ?: null,
+            'kind'          => $kind,
+            'amount'        => $amount,
+            'tier_ids'      => $tierIds !== [] ? json_encode($tierIds) : null,
+            'max_uses'      => trim((string) ($b['max_uses'] ?? '')) !== '' ? max(1, (int) $b['max_uses']) : null,
+            'max_per_email' => max(1, (int) ($b['max_per_email'] ?? 1)),
+            'starts_at'     => self::fromInput($b['starts_at'] ?? ''),
+            'ends_at'       => self::fromInput($b['ends_at'] ?? ''),
+            'is_active'     => !empty($b['is_active']) ? 1 : 0,
+            'updated_at'    => Carbon::now()->toDateTimeString(),
+        ];
+
+        $codeId = (int) ($b['code_id'] ?? 0);
+        try {
+            if ($codeId > 0 && DB::table('gates_event_codes')->where('id', $codeId)
+                    ->where('event_id', $id)->exists()) {
+                // `used_count` is deliberately not in $row: it is the record of what has
+                // happened, not a setting, and letting a save reset it would hand an
+                // exhausted code back its whole allowance.
+                DB::table('gates_event_codes')->where('id', $codeId)->update($row);
+                $_SESSION['flash_ok'] = 'Code ' . $code . ' updated.';
+            } else {
+                $row['created_at'] = $row['updated_at'];
+                $codeId = (int) DB::table('gates_event_codes')->insertGetId($row);
+                $_SESSION['flash_ok'] = 'Code ' . $code . ' created.';
+            }
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'event.code.save', 'event_code', $codeId);
+        } catch (\Throwable $e) {
+            error_log('[event] could not save code ' . $code . ': ' . $e->getMessage());
+            $_SESSION['flash_error'] = 'That code could not be saved — this event may already have one '
+                                     . 'with those letters.';
+        }
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * Retire a code.
+     *
+     * Deactivated rather than deleted once anything has been bought against it: the
+     * registrations carry the letters, and a receipt whose code no longer exists anywhere is
+     * a number nobody can explain six months later at a reconciliation.
+     */
+    public function deleteCode(Request $req, Response $res, array $args): Response
+    {
+        $id     = (int) ($args['id'] ?? 0);
+        $codeId = (int) ($args['code'] ?? 0);
+        $back   = '/admin/events/' . $id . '/codes';
+
+        $row = DB::table('gates_event_codes')->where('id', $codeId)->where('event_id', $id)->first();
+        if (!$row) {
+            $_SESSION['flash_error'] = 'That code could not be found on this event.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $used = (int) DB::table('gates_event_registrations')->where('event_id', $id)
+            ->whereRaw('UPPER(discount_code) = ?', [strtoupper((string) $row->code)])->count();
+
+        if ($used > 0) {
+            DB::table('gates_event_codes')->where('id', $codeId)->update(['is_active' => 0]);
+            $_SESSION['flash_ok'] = (string) $row->code . ' has been switched off. It is kept because '
+                . $used . ' booking(s) were made with it, and their receipts name it.';
+        } else {
+            DB::table('gates_event_codes')->where('id', $codeId)->delete();
+            $_SESSION['flash_ok'] = (string) $row->code . ' deleted.';
+        }
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'event.code.delete', 'event_code', $codeId);
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    // ══ the waiting list ═════════════════════════════════════════════════════
+
+    /**
+     * Offer the seats that have come back to the people who have been waiting longest.
+     *
+     * Deliberately a BUTTON rather than something the cron does on its own. Promoting sends
+     * mail to real people about a seat that is held for them for a fixed number of hours, and
+     * an organiser who has just cancelled ten bookings to move a venue needs to decide when
+     * that goes out — not discover it went out four minutes later.
+     */
+    public function promote(Request $req, Response $res, array $args): Response
+    {
+        $id     = (int) ($args['id'] ?? 0);
+        $back   = '/admin/events/' . $id . '/tickets';
+        $tierId = (int) (((array) $req->getParsedBody())['tier_id'] ?? 0);
+
+        $tier = EventTicketService::tier($tierId);
+        if (!$tier || (int) $tier->event_id !== $id) {
+            $_SESSION['flash_error'] = 'That ticket type is not on this event.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        // Offers nobody took are returned to the queue FIRST, so the seats they were holding
+        // are counted as free by the promotion that follows in the same press.
+        $expired = EventWaitlist::expireOffers();
+        $r = EventWaitlist::promote($tierId, 20, $this->mailer);
+
+        $_SESSION[$r['offered'] > 0 ? 'flash_ok' : 'flash_error'] = $r['message']
+            . ($expired > 0 ? ' ' . $expired . ' unclaimed offer(s) went back to the queue first.' : '');
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'event.waitlist.promote', 'event_tier', $tierId);
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
      * Who is coming, and what each tier has sold.
      *
      * Its own screen rather than a block on the edit form: an organiser looking at their
@@ -287,10 +562,18 @@ class EventsController
             'page_title' => 'Tickets — ' . (string) $event->title,
             'admin_page' => 'events',
             'event'      => (array) $event,
-            'summary'    => \AfricaGates\Services\EventTicketService::summary($id),
-            'attendees'  => \AfricaGates\Services\EventTicketService::attendees($id, $status),
+            'summary'    => EventTicketService::summary($id),
+            'attendees'  => EventTicketService::attendees($id, $status),
             'filter'     => $status,
-            'hold_minutes' => \AfricaGates\Services\EventTicketService::HOLD_MINUTES,
+            'hold_minutes' => EventTicketService::HOLD_MINUTES,
+            // The queue, and the outstanding offers — two different things an organiser has
+            // to be able to tell apart. A waitlisted row is somebody hoping; an offered row
+            // is a seat currently being held for somebody who has not answered yet.
+            'queue'       => EventWaitlist::forEvent($id),
+            'offers'      => $this->outstandingOffers($id),
+            'waitlist_open' => (int) ($event->waitlist_open ?? 0) === 1,
+            'offer_hours' => EventWaitlist::OFFER_HOURS,
+            'code_count'  => count(EventDiscount::forEvent($id)),
         ]);
     }
 
@@ -342,6 +625,57 @@ class EventsController
         return $res->withHeader('Location', $back)->withStatus(302);
     }
 
+    /**
+     * Take somebody off the list, on purpose.
+     *
+     * The other half of the waiting list. Seats come back because somebody says they cannot
+     * come — and until now there was no way to act on that: the seat stayed gone, the room
+     * read as full, and the queue had nothing to be promoted into.
+     */
+    public function releaseSeat(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int) ($args['id'] ?? 0);
+        $back = '/admin/events/' . $id . '/tickets';
+        $b    = (array) $req->getParsedBody();
+        $regId = (int) ($b['reg_id'] ?? 0);
+
+        $reg = DB::table('gates_event_registrations')->where('id', $regId)->first();
+        if (!$reg || (int) $reg->event_id !== $id) {
+            $_SESSION['flash_error'] = 'That registration is not on this event.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $r = EventTicketService::release($regId, trim((string) ($b['why'] ?? '')),
+                                        (int) ($_SESSION['admin_id'] ?? 0) ?: null);
+
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
+        if ($r['ok']) {
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'event.seat.release',
+                                 'event_registration', $regId);
+        }
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * Seats currently held by a waitlist offer nobody has answered.
+     *
+     * Separated from the ordinary pending list because the two need different actions: an
+     * ordinary pending row is somebody mid-checkout, an offered one is a seat an organiser
+     * has promised and may need to chase before it expires.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function outstandingOffers(int $eventId): array
+    {
+        try {
+            return DB::table('gates_event_registrations')
+                ->where('event_id', $eventId)->where('status', 'pending')
+                ->whereNotNull('offered_at')
+                ->orderBy('offer_expires_at')
+                ->get()->map(static fn ($r): array => (array) $r)->all();
+        } catch (\Throwable) { return []; }
+    }
+
     /** The door list as CSV, because on the day it is printed or opened on a laptop. */
     public function exportAttendees(Request $req, Response $res, array $args): Response
     {
@@ -354,13 +688,19 @@ class EventsController
 
         $out = fopen('php://temp', 'r+');
         fputcsv($out, ['Name', 'Email', 'Phone', 'Ticket', 'Seats', 'Status',
-                       'Amount (NGN)', 'Ticket code', 'Reference', 'Registered', 'Checked in']);
-        foreach (\AfricaGates\Services\EventTicketService::attendees($id, '', 5000) as $a) {
+                       'Amount (NGN)', 'Discount code', 'Discount (NGN)',
+                       'Ticket code', 'Reference', 'Registered', 'Waitlisted',
+                       'Offered', 'Offer expires', 'Checked in']);
+        foreach (EventTicketService::attendees($id, '', 5000) as $a) {
             fputcsv($out, [
                 $a['name'] ?? '', $a['email'] ?? '', $a['phone'] ?? '',
                 $a['tier'] ?? '', $a['quantity'] ?? 1, $a['status'] ?? '',
-                $a['amount_naira'] ?? 0, $a['ticket_code'] ?? '', $a['reference'] ?? '',
-                $a['created_at'] ?? '', $a['checked_in_at'] ?? '',
+                $a['amount_naira'] ?? 0,
+                $a['discount_code'] ?? '', $a['discount_naira'] ?? '',
+                $a['ticket_code'] ?? '', $a['reference'] ?? '',
+                $a['created_at'] ?? '', $a['waitlist_at'] ?? '',
+                $a['offered_at'] ?? '', $a['offer_expires_at'] ?? '',
+                $a['checked_in_at'] ?? '',
             ]);
         }
         rewind($out);

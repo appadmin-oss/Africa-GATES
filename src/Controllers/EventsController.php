@@ -9,7 +9,8 @@ use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Services\{CacheService, OtpService, Notifier, WebhookService,
-                         EventTicketService, GatewayHandoff, PaymentService};
+                         EventTicketService, EventDiscount, EventWaitlist, EventAgenda,
+                         GatewayHandoff, PaymentService};
 
 /**
  * Events, and — new — tickets somebody can actually buy.
@@ -88,8 +89,13 @@ class EventsController
         $isFull    = $capacity !== null && $regCount >= $capacity;
         $pctSold   = ($capacity !== null && $capacity > 0) ? min(100, (int) round($regCount * 100 / $capacity)) : null;
 
-        // Admin-driven rich sections (rendered only when present → no empty blocks).
-        $schedule = json_decode((string)($event['schedule'] ?? '[]'), true) ?: [];
+        // ── THE AGENDA ───────────────────────────────────────────────────────
+        //
+        // Sessions are rows now, grouped into days. The old JSON run of show is read only
+        // when there are none, so an organiser who moves to sessions does not see their
+        // agenda printed twice and one who never does keeps the page they had.
+        $agenda   = EventAgenda::days((int) $event['id']);
+        $schedule = $agenda === [] ? (json_decode((string) ($event['schedule'] ?? '[]'), true) ?: []) : [];
 
         // ── TIERS ARE ROWS NOW, EACH WITH ITS OWN LIMIT ──────────────────────
         //
@@ -129,8 +135,23 @@ class EventsController
             'is_full'          => $isFull,
             'pct_sold'         => $pctSold,
             'schedule'         => $schedule,
+            'agenda'           => $agenda,
             'tiers'            => $tiers,
             'event_sold'       => $eventSold,
+            // The waitlist is offered per TIER, because a tier is what sells out — somebody
+            // priced out of the ₦380,000 table is not waiting for it, they are waiting for a
+            // standard seat, and one queue for the whole event would mix them.
+            'waitlist_open'    => EventWaitlist::open((object) $event) && !$isPast,
+            'waitlist_counts'  => array_reduce($tiers, static function (array $c, array $t): array {
+                if (isset($t['id'])) $c[(int) $t['id']] = EventWaitlist::length((int) $t['id']);
+                return $c;
+            }, []),
+            // Shown BEFORE anybody pays, not in a confirmation email nobody reads twice.
+            'refund_policy'    => trim((string) ($event['refund_policy'] ?? '')),
+            'attendee_note'    => trim((string) ($event['attendee_note'] ?? '')),
+            'organiser_email'  => trim((string) ($event['organiser_email'] ?? '')),
+            'organiser_phone'  => trim((string) ($event['organiser_phone'] ?? '')),
+            'sales_closed'     => self::salesClosed($event, $now),
             // Whether anything on this page costs money, which decides whether the form
             // says "Register" or "Buy tickets" — and it is per-event rather than a site
             // setting, because a free community session and a paid gala are both events.
@@ -143,6 +164,103 @@ class EventsController
             'og_image'     => \AfricaGates\Support\Assets::absoluteOg($event['cover_image'] ?? null),
             'og_image_alt' => (string) $event['title'],
         ], fn($v) => $v !== null));
+    }
+
+    /**
+     * When registration closed, if it closed before the event itself did.
+     *
+     * Returned as the sentence rather than a boolean, because "closed" and "closed on Tuesday
+     * at 17:00 for catering" are different amounts of respect for somebody who arrived late.
+     */
+    private static function salesClosed(array $event, string $now): string
+    {
+        $closes = trim((string) ($event['sales_close_at'] ?? ''));
+        if ($closes === '' || $closes >= $now) return '';
+        try {
+            return 'Registration closed on ' . Carbon::parse($closes)->format('j F, H:i') . '.';
+        } catch (\Throwable) {
+            return 'Registration has closed for this event.';
+        }
+    }
+
+    /**
+     * Price a discount code before anybody commits to anything.
+     *
+     * ── WHY THIS EXISTS AS WELL AS THE CHECK INSIDE reserve() ────────────────
+     *
+     * A buyer who types a code and cannot see what it does has to complete a purchase to
+     * find out whether it worked — and if it did not, the first they learn of it is the
+     * amount on the gateway's page, which is where a booking gets abandoned.
+     *
+     * It is a PREVIEW and nothing else. {@see EventTicketService::reserve()} prices the row
+     * again from the tier and the code rows, so a forged response here changes what somebody
+     * is shown and not what they are charged. Nothing is created, nothing is counted, and
+     * `used_count` is untouched: a code exhausted by window shoppers would be a denial of
+     * service on the organiser's own promotion.
+     */
+    public function quote(Request $req, Response $res, array $args): Response
+    {
+        $json = function (array $payload) use ($res): Response {
+            $res->getBody()->write((string) json_encode($payload));
+            return $res->withHeader('Content-Type', 'application/json');
+        };
+
+        $event = DB::table('gates_site_events')
+            ->where('slug', (string) ($args['slug'] ?? ''))->where('status', 'published')->first();
+        if (!$event) return $json(['success' => false, 'message' => 'That event no longer exists.']);
+
+        $data   = (array) $req->getParsedBody();
+        $tierId = (int) ($data['tier_id'] ?? 0);
+        $qty    = max(1, (int) ($data['quantity'] ?? 1));
+        $code   = trim((string) ($data['discount'] ?? ''));
+        $email  = trim((string) ($data['email'] ?? ''));
+
+        $tier = EventTicketService::tier($tierId);
+        if (!$tier || (int) $tier->event_id !== (int) $event->id) {
+            return $json(['success' => false, 'message' => 'Please choose a ticket type first.']);
+        }
+
+        $gross = (int) $tier->price_naira * $qty;
+        if ($code === '') {
+            return $json(['success' => true, 'applied' => false, 'gross' => $gross,
+                          'total' => $gross, 'off' => 0, 'message' => '']);
+        }
+
+        $d = EventDiscount::apply($code, (int) $event->id, $tierId, $gross, $email, $qty);
+        return $json(['success' => true, 'applied' => (bool) $d['ok'], 'gross' => $gross,
+                      'off'     => (int) ($d['off'] ?? 0),
+                      'total'   => (int) ($d['total'] ?? $gross),
+                      'message' => (string) $d['message']]);
+    }
+
+    /**
+     * Ask to be told when a seat comes free.
+     *
+     * The answer to a sold-out tier used to be the words "fully booked", which throws away
+     * the most motivated person in the room — they wanted to come enough to arrive on a
+     * sold-out page. {@see EventWaitlist} is off by default per event, because a queue
+     * nobody works is worse than an honest no.
+     */
+    public function waitlist(Request $req, Response $res, array $args): Response
+    {
+        $json = function (array $payload) use ($res): Response {
+            $res->getBody()->write((string) json_encode($payload));
+            return $res->withHeader('Content-Type', 'application/json');
+        };
+
+        $event = DB::table('gates_site_events')
+            ->where('slug', (string) ($args['slug'] ?? ''))->where('status', 'published')->first();
+        if (!$event) return $json(['success' => false, 'message' => 'That event no longer exists.']);
+
+        $data = (array) $req->getParsedBody();
+        $r = EventWaitlist::join((int) $event->id, (int) ($data['tier_id'] ?? 0), [
+            'name'  => trim((string) ($data['name'] ?? '')),
+            'email' => trim((string) ($data['email'] ?? '')),
+            'phone' => trim((string) ($data['phone'] ?? '')),
+        ]);
+
+        return $json(['success' => (bool) $r['ok'], 'place' => (int) ($r['place'] ?? 0),
+                      'message' => (string) $r['message']]);
     }
 
     /**
@@ -202,11 +320,14 @@ class EventsController
 
         $r = EventTicketService::reserve(
             (int) $event->id, $tierId, $who, $qty, $code,
-            ((int) ($_SESSION['user_id'] ?? 0)) ?: null
+            ((int) ($_SESSION['user_id'] ?? 0)) ?: null,
+            trim((string) ($data['discount'] ?? '')) ?: null
         );
 
         if (!($r['ok'] ?? false)) {
             return $json(['success' => false, 'full' => ($r['state'] ?? '') === 'sold_out',
+                          'waitlist' => ($r['state'] ?? '') === 'sold_out'
+                                     && EventWaitlist::open($event),
                           'message' => (string) $r['message']]);
         }
 
@@ -216,7 +337,8 @@ class EventsController
                             (string) $r['reference']);
             return $json(['success' => true, 'ticket_code' => (string) ($r['ticket_code'] ?? ''),
                           'ticket_url' => $this->base($req) . '/events/ticket/' . urlencode((string) $r['reference']),
-                          'message' => 'You are registered — we have emailed you the details.']);
+                          'discount_note' => (string) ($r['discount_note'] ?? ''),
+                          'message' => (string) $r['message']]);
         }
 
         // ── paid: hand off ───────────────────────────────────────────────────
@@ -262,6 +384,8 @@ class EventsController
                 $this->base($req) . '/events/redirect', $provider
             ),
             'amount'  => (int) $r['amount'],
+            'discount' => (int) ($r['discount'] ?? 0),
+            'discount_note' => (string) ($r['discount_note'] ?? ''),
             'message' => 'Taking you to the payment page…',
         ]);
     }
@@ -349,6 +473,29 @@ class EventsController
     }
 
     /**
+     * The organiser's note to attendees, as one escaped block.
+     *
+     * Escaped and then given paragraph breaks, in that order: an organiser typing an ampersand
+     * or an angle bracket into a note about a venue must not be able to inject markup into an
+     * email that goes out over this platform's name.
+     */
+    private function noteHtml(?object $event): string
+    {
+        $note = trim((string) ($event->attendee_note ?? ''));
+        if ($note === '') return '';
+        $safe = htmlspecialchars($note, ENT_QUOTES, 'UTF-8');
+        $safe = str_replace(["\r\n", "\r"], "\n", $safe);
+        $safe = implode('</p><p style="margin:0 0 10px">',
+                        array_filter(array_map('trim', explode("\n\n", $safe))));
+        return '<table role="presentation" cellpadding="0" cellspacing="0" border="0"'
+             . ' style="margin:18px 0;background:#fffbeb;border-left:4px solid #f59e0b;'
+             . 'border-radius:0 8px 8px 0;padding:14px 18px"><tr><td'
+             . ' style="font-size:14px;color:#78350f;line-height:1.7">'
+             . '<strong>Before you come</strong><p style="margin:8px 0 10px">'
+             . nl2br($safe) . '</p></td></tr></table>';
+    }
+
+    /**
      * Tell the attendee, tell the team, tell the integrations.
      *
      * Best-effort throughout: a mail failure must never undo a confirmed ticket. The
@@ -402,15 +549,22 @@ class EventsController
               // not need an account they never made in a queue with no signal.
               . '<p style="text-align:center;margin:22px 0"><a href="' . $ticketUrl . '"'
               . ' style="display:inline-block;padding:12px 28px;background:#10292C;color:#fff;'
-              . 'border-radius:999px;font-weight:600;text-decoration:none;font-size:15px">Your ticket →</a></p>';
+              . 'border-radius:999px;font-weight:600;text-decoration:none;font-size:15px">Your ticket →</a></p>'
+              // The organiser's own note — joining links, parking, dress code. In the email
+              // because that is where somebody looks the morning of, and it is the difference
+              // between a support inbox answering the same question forty times and not.
+              . $this->noteHtml($event);
 
+        $note  = trim((string) ($event->attendee_note ?? ''));
         $plain = "Hi {$who['name']},\n\n"
                . ($amount > 0 ? "Your payment has been received and your ticket is confirmed.\n"
                               : "You are registered.\n")
                . 'Event: ' . (string) ($event->title ?? '') . "\n"
                . 'When: ' . (string) ($event->event_date ?? '') . "\n"
                . ($ticketCode !== '' ? "Ticket code: {$ticketCode}\n" : '')
-               . "\nYour ticket: {$ticketUrl}\n\n— Africa GATES";
+               . "\nYour ticket: {$ticketUrl}\n"
+               . ($note !== '' ? "\n" . $note . "\n" : '')
+               . "\n— Africa GATES";
 
         try {
             $this->mailer->sendBranded(

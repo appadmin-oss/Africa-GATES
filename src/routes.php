@@ -1435,6 +1435,10 @@ return function(App $app) {
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}', EventsController::class.':ticket');
         $g->get('/events/{slug}',  EventsController::class.':show');
         $g->post('/events/{slug}/register', EventsController::class.':register');
+        // A price preview for a typed discount code, and the queue for a tier that has gone.
+        // Both POST: the quote takes an email address, and a waitlist join creates a row.
+        $g->post('/events/{slug}/quote',    EventsController::class.':quote');
+        $g->post('/events/{slug}/waitlist', EventsController::class.':waitlist');
         $g->get('/blog',           BlogController::class.':index');
         $g->get('/blog/{slug}',    BlogController::class.':show');
         $g->get('/pulse',          PulseController::class.':index');
@@ -2359,6 +2363,16 @@ return function(App $app) {
         $a->get('/events/{id:[0-9]+}/tickets',   AdminEventsController::class.':tickets');
         $a->post('/events/{id:[0-9]+}/check-in', AdminEventsController::class.':checkIn');
         $a->get('/events/{id:[0-9]+}/attendees.csv', AdminEventsController::class.':exportAttendees');
+        // Discount codes get their own screen: a code is created and retired on a completely
+        // different rhythm from an event's title and venue.
+        $a->get('/events/{id:[0-9]+}/codes',              AdminEventsController::class.':codes');
+        $a->post('/events/{id:[0-9]+}/codes',             AdminEventsController::class.':saveCode');
+        $a->post('/events/{id:[0-9]+}/codes/{code:[0-9]+}/delete', AdminEventsController::class.':deleteCode');
+        // Promoting off the waiting list is a button, not a cron: it emails real people about
+        // a seat held for a fixed number of hours, and an organiser decides when that goes.
+        $a->post('/events/{id:[0-9]+}/promote', AdminEventsController::class.':promote');
+        // The other half of a waiting list: a seat only comes back if somebody can give it back.
+        $a->post('/events/{id:[0-9]+}/release', AdminEventsController::class.':releaseSeat');
 
         $a->get('/registrations',                AdminRegistrationsController::class.':index');
         $a->get('/registrations/export',         AdminRegistrationsController::class.':export');

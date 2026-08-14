@@ -298,11 +298,13 @@ final class EventTicketService
      * cancelled row and a clear message; nobody has a seat that does not exist.
      *
      * @param array{name:string,email:string,phone:string} $who
+     * @param string|null $discount a discount code typed by the buyer, or null
      * @return array{ok:bool, message:string, id?:int, reference?:string, amount?:int,
      *                free?:bool, ticket_code?:string, state?:string}
      */
     public static function reserve(int $eventId, int $tierId, array $who, int $qty = 1,
-                                   ?string $code = null, ?int $userId = null): array
+                                   ?string $code = null, ?int $userId = null,
+                                   ?string $discount = null): array
     {
         $event = DB::table('gates_site_events')->where('id', $eventId)
             ->where('status', 'published')->first();
@@ -310,6 +312,16 @@ final class EventTicketService
 
         if ((string) $event->event_date < Carbon::now()->toDateTimeString()) {
             return ['ok' => false, 'message' => 'Registration has closed for this event.'];
+        }
+
+        // A cutoff BEFORE the event date, which almost every organiser needs and none of them
+        // could express: catering is ordered on the Tuesday for a Saturday, and a badge printed
+        // on the Friday morning cannot include somebody who booked on the Friday night.
+        $closes = trim((string) ($event->sales_close_at ?? ''));
+        if ($closes !== '' && $closes < Carbon::now()->toDateTimeString()) {
+            return ['ok' => false, 'state' => 'closed',
+                    'message' => 'Registration for this event closed on '
+                               . Carbon::parse($closes)->format('j F, H:i') . '.'];
         }
 
         $tier = self::tier($tierId);
@@ -353,10 +365,40 @@ final class EventTicketService
                         : 'Only ' . $avail['left'] . ' seats are left at this price.'];
         }
 
-        $price  = (int) $tier->price_naira;
-        $amount = $price * $qty;
-        $free   = $price === 0;
-        $now    = Carbon::now();
+        $price = (int) $tier->price_naira;
+        $gross = $price * $qty;
+        $now   = Carbon::now();
+
+        // ── THE DISCOUNT IS PRICED HERE, NOT ON THE PAGE ─────────────────────
+        //
+        // The browser is told what a code takes off so the buyer can see it before they
+        // commit, but that preview is a courtesy. This is the only place the number that
+        // reaches the gateway is decided, because a discount computed client-side is a
+        // discount anybody can type into the request — and `confirm()` refuses a payment
+        // smaller than the amount on the row, so a forged discount would not merely
+        // undercharge, it would make the ticket unissuable and the money unmatched.
+        //
+        // A code that does not apply is NOT an error. Somebody typing a code that has
+        // expired still wants the ticket at full price far more often than they want their
+        // booking refused, so the reason is carried back alongside a successful hold.
+        $off = 0; $usedCode = null; $usedCodeId = null; $codeNote = '';
+        if (trim((string) $discount) !== '') {
+            $d = EventDiscount::apply((string) $discount, $eventId, $tierId, $gross, $email, $qty);
+            if ($d['ok']) {
+                $off        = (int) $d['off'];
+                $usedCode   = (string) $d['code'];
+                $usedCodeId = (int) $d['id'];
+                $codeNote   = (string) $d['message'];
+            } else {
+                $codeNote = (string) $d['message'];
+            }
+        }
+
+        $amount = max(0, $gross - $off);
+        // Free because it costs nothing NOW, whether the tier was free or a code took the
+        // whole price off. Either way there is no payment to wait for, and leaving the row
+        // pending would hold a seat behind money nobody owes.
+        $free = $amount === 0;
 
         // ── A LIVE HOLD IS THE SAME ATTEMPT, NOT A SECOND ONE ────────────────
         //
@@ -379,10 +421,18 @@ final class EventTicketService
                 })
                 ->orderByDesc('id')->first();
 
-            if ($live && (int) ($live->quantity ?? 1) === $qty) {
+            // The same quantity AND the same code. A buyer who went away, found a discount
+            // code and came back is making a different purchase to the one they abandoned,
+            // and handing them back the old reference would charge them the old price.
+            $sameCode = $live !== null
+                && strtoupper(trim((string) ($live->discount_code ?? '')))
+                   === strtoupper((string) ($usedCode ?? ''));
+
+            if ($live && (int) ($live->quantity ?? 1) === $qty && $sameCode) {
                 return ['ok' => true, 'id' => (int) $live->id, 'reference' => (string) $live->reference,
                         'amount' => (int) ($live->amount_naira ?? $amount), 'free' => false,
                         'ticket_code' => null, 'resumed' => true,
+                        'discount_note' => $codeNote,
                         'message' => 'Picking up the booking you already started.'];
             }
         }
@@ -403,6 +453,11 @@ final class EventTicketService
                     'phone'        => mb_substr($phone, 0, 40),
                     'quantity'     => $qty,
                     'amount_naira' => $amount,
+                    // What was used and what it took off, written on the ROW. A code can be
+                    // edited or deleted after somebody has bought against it, and a receipt
+                    // that silently restated history would make the money stop adding up.
+                    'discount_code'  => $usedCode,
+                    'discount_naira' => $off > 0 ? $off : null,
                     'reference'    => $ref,
                     'user_id'      => $userId,
                     // A free seat is confirmed on the spot: there is nothing to wait for,
@@ -413,7 +468,7 @@ final class EventTicketService
                     'hold_expires_at' => $free ? null : $now->copy()->addMinutes(self::HOLD_MINUTES)->toDateTimeString(),
                     'created_at'   => $now->toDateTimeString(),
                 ], ['tier_id', 'quantity', 'status', 'ticket_code', 'confirmed_at',
-                    'hold_expires_at', 'user_id'])
+                    'hold_expires_at', 'user_id', 'discount_code', 'discount_naira'])
             );
         } catch (\Throwable $e) {
             // UNIQUE(event_id, email) on the original table. Somebody registering twice is
@@ -424,6 +479,11 @@ final class EventTicketService
             return ['ok' => false, 'message' => 'You already have a registration for this event. '
                                               . 'If you need another ticket, please contact us.'];
         }
+
+        // Counted here rather than after the capacity check below, so that it is symmetrical
+        // with the release in rollBack(): a use that had not yet been counted when the
+        // rollback released one would take a use off somebody ELSE's live booking.
+        if ($usedCodeId !== null) EventDiscount::countUse($usedCodeId);
 
         // ── the count, AFTER the insert. See the docblock. ───────────────────
         $overTier  = $avail['left'] !== null && self::sold($tierId) > (int) $tier->capacity;
@@ -444,10 +504,14 @@ final class EventTicketService
 
         return [
             'ok' => true, 'id' => $id, 'reference' => $ref, 'amount' => $amount, 'free' => $free,
+            'gross' => $gross, 'discount' => $off, 'discount_code' => $usedCode,
+            'discount_note' => $codeNote,
             'ticket_code' => $free ? (string) DB::table('gates_event_registrations')
                 ->where('id', $id)->value('ticket_code') : null,
             'message' => $free
-                ? 'You are registered.'
+                ? ($off > 0 && $price > 0
+                    ? 'Your code covered the whole ticket — you are registered.'
+                    : 'You are registered.')
                 : 'Seats held for ' . self::HOLD_MINUTES . ' minutes while you pay.',
         ];
     }
@@ -543,7 +607,9 @@ final class EventTicketService
     public static function cancel(int $id, string $why = ''): bool
     {
         try {
-            return DB::table('gates_event_registrations')->where('id', $id)
+            $row = DB::table('gates_event_registrations')->where('id', $id)->first();
+
+            $done = DB::table('gates_event_registrations')->where('id', $id)
                 ->whereIn('status', ['pending', 'waitlisted'])
                 ->update(OptionalColumn::filter('gates_event_registrations', [
                     'status'       => 'cancelled',
@@ -551,9 +617,93 @@ final class EventTicketService
                     'notes'        => $why !== '' ? mb_substr($why, 0, 500) : null,
                     'hold_expires_at' => null,
                 ], ['status', 'cancelled_at', 'notes', 'hold_expires_at'])) > 0;
+
+            // The use goes back with the seat. Otherwise a code limited to fifty is exhausted
+            // by fifty abandoned checkouts, and the organiser's promotion quietly ends before
+            // a single person has been to their event.
+            if ($done && $row !== null) {
+                self::releaseDiscount($row);
+            }
+            return $done;
         } catch (\Throwable) {
             return false;
         }
+    }
+
+    /** Give a discount use back, once the row that consumed it is no longer holding a seat. */
+    private static function releaseDiscount(object $row): void
+    {
+        $code = trim((string) ($row->discount_code ?? ''));
+        if ($code === '') return;
+        EventDiscount::releaseUse($code, (int) $row->event_id);
+    }
+
+    /**
+     * An organiser withdraws somebody's seat, on purpose.
+     *
+     * ── WHY cancel() COULD NOT DO THIS ───────────────────────────────────────
+     *
+     * {@see cancel()} deliberately refuses a `confirmed` row, because everything that calls
+     * it is a MACHINE — an expired hold, a gateway that would not start, a lost race — and a
+     * machine must never withdraw somebody's paid ticket on its own.
+     *
+     * But a person has to be able to. Somebody emails to say they cannot come, a duplicate
+     * booking needs merging, a table of ten becomes a table of eight. Without this the seat
+     * stays gone: the waiting list has nothing to promote into, the room reads as full, and
+     * the organiser's answer to "can you take my name off" is "no".
+     *
+     * The ticket code is cleared, so a screenshot of a withdrawn ticket does not open a door.
+     * The row stays as `cancelled` with a reason, because on a paid tier it is the only place
+     * the reference lives and the reconciler needs it if a refund has to be traced. Refunding
+     * the money is a separate act on the refunds screen — deliberately not automatic, since
+     * a withdrawal and a refund are different decisions and one organiser in three will want
+     * to keep a deposit.
+     */
+    public static function release(int $id, string $why = '', ?int $byAdminId = null): array
+    {
+        $row = DB::table('gates_event_registrations')->where('id', $id)->first();
+        if (!$row) return ['ok' => false, 'message' => 'That registration could not be found.'];
+
+        if ((string) $row->status === 'cancelled') {
+            return ['ok' => false, 'message' => 'That registration was already cancelled.'];
+        }
+
+        $paid = (int) ($row->amount_naira ?? 0);
+        $note = trim($why) !== '' ? trim($why) : 'withdrawn by an organiser';
+
+        try {
+            $done = DB::table('gates_event_registrations')->where('id', $id)
+                ->whereIn('status', ['confirmed', 'pending', 'waitlisted'])
+                ->update(OptionalColumn::filter('gates_event_registrations', [
+                    'status'       => 'cancelled',
+                    'cancelled_at' => Carbon::now()->toDateTimeString(),
+                    'notes'        => mb_substr($note, 0, 500),
+                    // Cleared so a screenshot of the old ticket does not pass at the door.
+                    'ticket_code'  => null,
+                    'hold_expires_at'  => null,
+                    'offered_at'       => null,
+                    'offer_expires_at' => null,
+                ], ['status', 'cancelled_at', 'notes', 'ticket_code', 'hold_expires_at',
+                    'offered_at', 'offer_expires_at']));
+        } catch (\Throwable $e) {
+            error_log('[event] could not release registration ' . $id . ': ' . $e->getMessage());
+            return ['ok' => false, 'message' => 'That seat could not be released just now.'];
+        }
+
+        if ($done === 0) return ['ok' => false, 'message' => 'That registration could not be released.'];
+
+        self::releaseDiscount($row);
+
+        return ['ok' => true, 'seats' => (int) ($row->quantity ?? 1),
+                'tier_id' => (int) ($row->tier_id ?? 0),
+                'refund_due' => $paid > 0 && (string) $row->status === 'confirmed',
+                'amount' => $paid,
+                'message' => (string) $row->name . '’s seat'
+                    . ((int) ($row->quantity ?? 1) > 1 ? 's have' : ' has') . ' been released.'
+                    . ($paid > 0 && (string) $row->status === 'confirmed'
+                        ? ' ₦' . number_format($paid) . ' was paid — a refund is a separate '
+                        . 'decision and has NOT been issued.'
+                        : '')];
     }
 
     /**
@@ -571,6 +721,9 @@ final class EventTicketService
     private static function rollBack(int $id, string $why): void
     {
         try {
+            $row = DB::table('gates_event_registrations')->where('id', $id)->first();
+            if ($row !== null) self::releaseDiscount($row);
+
             DB::table('gates_event_registrations')->where('id', $id)
                 ->update(OptionalColumn::filter('gates_event_registrations', [
                     'status'       => 'cancelled',

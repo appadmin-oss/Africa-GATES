@@ -20,6 +20,10 @@ var/logs/
 var/shots/
 var/shots2/
 var/tmp/
+# Nominee voice recordings. These are people talking about themselves — the most personal
+# thing this platform stores — and a verification run left forty of them untracked in the
+# working tree. They belong on the server that received them and nowhere else.
+var/uploads/
 # Build/deploy archives written here for hand-off. They are outputs of the tree,
 # so committing them puts a copy of the tree inside the tree — the first attempt
 # produced a 26MB "changed files" zip containing the full-app zip.

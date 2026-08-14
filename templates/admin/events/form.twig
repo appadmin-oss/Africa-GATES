@@ -59,6 +59,41 @@
       <button type="button" @click="add()" style="margin-top:10px;border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add item</button>
     </div>
 
+    {# ── AGENDA (sessions as rows) ────────────────────────────────────────────
+       The run-of-show blob above still works and is still read by the public page when
+       there are no sessions. Sessions exist for the day an event has two rooms: a blob
+       cannot be grouped by day, filtered by track, or attached to — two parallel items at
+       14:00 read as a contradiction rather than a choice. #}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa" x-data="evRepeater({{ session_seed|default([])|json_encode|e('html_attr') }}, {sid:0,title:'',body:'',from:'',until:'',room:'',track:'',who:'',live:true})">
+      <strong style="font-size:14px">Agenda <small style="font-weight:400;color:#8a9a9c">(sessions — use this instead of the run of show for anything with tracks or more than one room)</small></strong>
+      <template x-for="r in rows" :key="r.id">
+        <div style="border-top:1px solid var(--ad-line,#e2e8e6);margin-top:10px;padding-top:10px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="hidden" name="ses_id[]" :value="r.sid || ''">
+            <input type="hidden" name="ses_live[]" :value="r.live ? '1' : '0'">
+            <input name="ses_title[]" aria-label="Session title" x-model="r.title" maxlength="200" placeholder="Session title" style="flex:1;min-width:180px">
+            <button type="button" @click="rm(r.id)" aria-label="Remove session" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer;flex:none">×</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+            <input name="ses_from[]" aria-label="Session starts" type="datetime-local" x-model="r.from" style="width:200px">
+            <input name="ses_until[]" aria-label="Session ends" type="datetime-local" x-model="r.until" style="width:200px">
+            <input name="ses_room[]" aria-label="Room" x-model="r.room" maxlength="120" placeholder="Room" style="width:130px">
+            <input name="ses_track[]" aria-label="Track" x-model="r.track" maxlength="80" placeholder="Track" style="width:130px">
+            <label style="display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap"><input type="checkbox" x-model="r.live"> Published</label>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <input name="ses_who[]" aria-label="Speakers" x-model="r.who" maxlength="500" placeholder="Speakers, comma separated" style="width:260px">
+            <input name="ses_body[]" aria-label="Session detail" x-model="r.body" maxlength="1000" placeholder="What happens in this session (optional)" style="flex:1;min-width:160px">
+          </div>
+        </div>
+      </template>
+      <button type="button" @click="add()" style="margin-top:10px;border:none;background:#eef7ee;color:#1a6118;font-weight:600;border-radius:999px;padding:8px 14px;cursor:pointer;font-size:13px">+ Add session</button>
+      <p style="font-size:12px;color:#8a9a9c;margin:8px 0 0">
+        Sessions with no time are kept and shown under “timings to be confirmed”, so you can
+        type the titles now and the times later. Leave this list empty to keep using the run of show above.
+      </p>
+    </div>
+
     {# ── TICKET TIERS ─────────────────────────────────────────────────────────
        These are real rows now, not a JSON blob the public page printed as prose. Each
        carries its OWN attendee limit, which is what makes "40 early-bird, 40 standard, in
@@ -103,9 +138,57 @@
       </p>
     </div>
 
+    {# ── HOW THIS EVENT IS RUN ────────────────────────────────────────────────
+       The settings an organiser changes without touching a word of the description: when
+       bookings stop, whether there is a queue for a sold-out ticket, what refunds are, and
+       who to ask about parking. #}
+    {% if extras_missing|default([])|length %}
+      <div style="border:1px solid #f3d38a;border-radius:12px;padding:14px 16px;margin-top:6px;background:#fffbeb">
+        <strong style="font-size:14px">Waiting list, cutoff and refund policy</strong>
+        <p style="font-size:13px;color:#7a5a1a;margin:6px 0 0">
+          These need one more step on the server: the database is missing
+          <code>{{ extras_missing|join('</code>, <code>')|raw }}</code>. Run
+          <strong>/__setup/migrate</strong> and this section appears. The fields are hidden
+          rather than shown-and-dropped, so nothing you type here can vanish on save.
+        </p>
+      </div>
+    {% else %}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa">
+      <strong style="font-size:14px">How this event is run</strong>
+      <div class="ad-form__row" style="margin-top:8px">
+        <label>Registration closes <small>(blank = when the event starts)</small>
+          <input type="datetime-local" name="sales_close_at" value="{{ sales_close_input|default('') }}"></label>
+        <label style="display:flex;align-items:center;gap:8px;align-self:end;padding-bottom:9px">
+          <input type="checkbox" name="waitlist_open" value="1" {% if row.waitlist_open|default(0) %}checked{% endif %}>
+          <span>Take names when a ticket sells out</span>
+        </label>
+      </div>
+      <p style="font-size:12px;color:#8a9a9c;margin:0 0 10px">
+        A waiting list is off unless you tick it, because a queue nobody works is worse than an
+        honest “fully booked”. When a seat comes back — a declined card, an expired checkout, a
+        cancellation — you offer it from the tickets screen and the person gets
+        {{ constant('AfricaGates\\Services\\EventWaitlist::OFFER_HOURS') }} hours to take it.
+      </p>
+      <label>Before you come <small>(shown on the page and added to every confirmation email — joining link, parking, dress code)</small>
+        <textarea name="attendee_note" rows="3">{{ row.attendee_note|default('') }}</textarea></label>
+      <label>Refunds &amp; transfers <small>(shown BEFORE anybody pays)</small>
+        <textarea name="refund_policy" rows="2" maxlength="1000">{{ row.refund_policy|default('') }}</textarea></label>
+      <div class="ad-form__row">
+        <label>Organiser email <small>(questions about this event go here, not to support)</small>
+          <input type="email" name="organiser_email" value="{{ row.organiser_email|default('') }}" maxlength="190"></label>
+        <label>Organiser phone
+          <input type="tel" name="organiser_phone" value="{{ row.organiser_phone|default('') }}" maxlength="40"></label>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="ad-form__actions">
       <button class="ad-btn ad-btn--primary" type="submit">Save event</button>
       <a class="ad-btn" href="/admin/events">Cancel</a>
+      {% if row.id is defined %}
+        <a class="ad-btn" href="/admin/events/{{ row.id }}/tickets">Who is coming</a>
+        <a class="ad-btn" href="/admin/events/{{ row.id }}/codes">Discount codes</a>
+      {% endif %}
     </div>
   </form>
 </div>

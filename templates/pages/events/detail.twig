@@ -59,19 +59,56 @@
   .ed-sched__t{ font-weight:600; font-size:14.5px; color:var(--ag-ink); }
   .ed-sched__b{ font-size:13px; color:#717a7e; margin-top:2px; }
   .ed-maplink{ display:inline-flex; align-items:center; gap:6px; margin-top:14px; font-size:13px; font-weight:600; color:var(--ag-green); text-decoration:none; }
+  /* agenda — sessions as rows, grouped by day */
+  .ed-ag__day + .ed-ag__day{ margin-top:22px; }
+  .ed-ag__dayh{ display:flex; align-items:center; gap:10px; font-size:12px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--ag-green); }
+  .ed-ag__dayh::after{ content:''; flex:1; height:1px; background:rgba(16,41,44,.1); }
+  .ed-ag__row{ display:flex; gap:16px; padding:14px 0; border-bottom:1px solid rgba(16,41,44,.06); }
+  .ed-ag__row:last-child{ border-bottom:0; padding-bottom:0; }
+  .ed-ag__time{ flex:none; width:104px; font-family:var(--ag-font-mono,monospace); font-size:12.5px; font-weight:700; line-height:1.5; color:#a47306; }
+  .ed-ag__t{ font-weight:600; font-size:15px; color:var(--ag-ink); }
+  .ed-ag__b{ font-size:13.5px; line-height:1.65; color:#717a7e; margin-top:4px; white-space:pre-line; }
+  .ed-ag__tags{ display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; }
+  .ed-ag__tag{ font-size:11px; font-weight:600; padding:3px 9px; border-radius:999px; background:#eef2ee; color:#4a5256; }
+  .ed-ag__tag.is-track{ background:#eafaf0; color:#1a6118; }
+  .ed-ag__who{ font-size:12.5px; color:#5a6d6f; margin-top:6px; }
+  .ed-ag__filter{ display:flex; flex-wrap:wrap; gap:7px; margin-bottom:16px; }
+  .ed-ag__fb{ cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; padding:6px 13px; border-radius:999px; border:1px solid rgba(16,41,44,.14); background:#fff; color:#4a5256; }
+  .ed-ag__fb.is-on{ background:var(--ag-green); border-color:var(--ag-green); color:#fff; }
+  /* the small print an organiser writes once */
+  .ed-fine dt{ font-size:12px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#92a6a7; margin-top:14px; }
+  .ed-fine dt:first-child{ margin-top:0; }
+  .ed-fine dd{ margin:5px 0 0; font-size:14px; line-height:1.7; color:#3a4448; white-space:pre-line; }
+  .ed-fine a{ color:var(--ag-green); font-weight:600; text-decoration:none; }
+  /* discount code */
+  .ed-disc{ display:flex; gap:8px; margin-top:6px; }
+  .ed-disc .ed-input{ text-transform:uppercase; letter-spacing:.04em; }
+  .ed-disc button{ flex:none; cursor:pointer; border:1px solid rgba(16,41,44,.16); background:#fff; color:#10292C; font-family:inherit; font-size:13px; font-weight:600; padding:0 15px; border-radius:11px; }
+  .ed-disc button:disabled{ opacity:.5; cursor:not-allowed; }
+  .ed-disc__ok{ font-size:12.5px; font-weight:600; color:#1a6118; margin-top:7px; }
+  .ed-disc__no{ font-size:12.5px; color:#8a5a00; margin-top:7px; }
+  .ed-was{ text-decoration:line-through; color:#92a6a7; font-weight:500; }
+  /* waitlist */
+  .ed-wl{ background:#fff8ec; border:1px solid rgba(212,154,14,.28); border-radius:14px; padding:14px 16px; margin-top:14px; }
+  .ed-wl__h{ font-weight:700; font-size:13.5px; color:#7a4d00; }
+  .ed-wl__p{ font-size:12.5px; line-height:1.6; color:#7a5a1a; margin:5px 0 0; }
+  .ed-wl__go{ width:100%; margin-top:10px; cursor:pointer; border:none; background:#a47306; color:#fff; font-family:inherit; font-weight:600; font-size:13.5px; padding:11px; border-radius:999px; }
+  .ed-wl__go:disabled{ opacity:.6; cursor:not-allowed; }
   /* tiers + sold bar */
   .ed-sold__top{ display:flex; justify-content:space-between; font-size:12px; color:#5a6d6f; }
   .ed-sold__bar{ height:7px; border-radius:5px; background:#eef2ee; overflow:hidden; margin:7px 0 4px; }
   .ed-sold__fill{ display:block; height:100%; border-radius:5px; background:linear-gradient(90deg,#d49a0e,#fbc329); }
-  .ed-tier{ width:100%; text-align:left; border:1.5px solid rgba(16,41,44,.12); background:#fff; border-radius:13px; padding:12px 14px; display:flex; align-items:center; gap:11px; cursor:pointer; margin-top:9px; font-family:inherit; }
+  /* align-items:flex-start, not center: a tier with three perks is a tall card, and a radio
+     floating halfway down one reads as belonging to whichever perk it happens to sit beside. */
+  .ed-tier{ width:100%; text-align:left; border:1.5px solid rgba(16,41,44,.12); background:#fff; border-radius:13px; padding:12px 14px; display:flex; align-items:flex-start; gap:11px; cursor:pointer; margin-top:9px; font-family:inherit; }
   .ed-tier.is-sel{ border-color:var(--ag-green); background:#f6fcf5; }
   .ed-tier:disabled{ opacity:.5; cursor:not-allowed; }
-  .ed-tier__radio{ flex:none; width:18px; height:18px; border-radius:50%; border:2px solid rgba(16,41,44,.25); display:flex; align-items:center; justify-content:center; }
+  .ed-tier__radio{ flex:none; width:18px; height:18px; margin-top:2px; border-radius:50%; border:2px solid rgba(16,41,44,.25); display:flex; align-items:center; justify-content:center; }
   .ed-tier.is-sel .ed-tier__radio{ border-color:var(--ag-green); }
   .ed-tier.is-sel .ed-tier__radio::after{ content:''; width:9px; height:9px; border-radius:50%; background:var(--ag-green); }
   .ed-tier__name{ font-weight:600; font-size:14px; color:var(--ag-ink); }
   .ed-tier__perk{ font-size:11.5px; color:#92a6a7; }
-  .ed-tier__price{ margin-left:auto; font:700 14px var(--ag-font-mono,monospace); color:var(--ag-ink); }
+  .ed-tier__price{ flex:none; margin-left:auto; padding-left:8px; font-family:var(--ag-font-mono,monospace); font-size:14px; font-weight:700; line-height:1.4; white-space:nowrap; color:var(--ag-ink); }
   /* share / calendar */
   .ed-share{ display:flex; gap:9px; margin-top:4px; }
   .ed-share button{ flex:1; cursor:pointer; border:1px solid rgba(16,41,44,.14); background:#fff; color:#10292C; font-family:inherit; font-size:13px; font-weight:600; padding:10px; border-radius:11px; display:flex; align-items:center; justify-content:center; gap:7px; }
@@ -114,7 +151,48 @@
       </div>
       {% endif %}
 
-      {% if schedule %}
+      {# ── AGENDA ─────────────────────────────────────────────────────────────
+         Sessions are rows now, grouped into days by EventAgenda so no date arithmetic
+         happens in a template — an undated session in Twig silently becomes 1 January
+         1970. The track filter is offered only when there is more than one track,
+         because a filter with one option is a control that cannot do anything. #}
+      {% if agenda|default([]) %}
+      {% set tracks = [] %}
+      {% for d in agenda %}{% for s in d.sessions %}{% if s.track and s.track not in tracks %}{% set tracks = tracks|merge([s.track]) %}{% endif %}{% endfor %}{% endfor %}
+      <div class="ed-card" x-data="{ track: '' }">
+        <h2>Agenda</h2>
+        {% if tracks|length > 1 %}
+        <div class="ed-ag__filter">
+          <button type="button" class="ed-ag__fb" :class="track === '' ? 'is-on' : ''" @click="track = ''">All tracks</button>
+          {% for t in tracks %}
+          <button type="button" class="ed-ag__fb" :class="track === {{ t|json_encode }} ? 'is-on' : ''" @click="track = {{ t|json_encode }}">{{ t }}</button>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% for d in agenda %}
+        <div class="ed-ag__day">
+          {% if agenda|length > 1 or d.key == '' %}<div class="ed-ag__dayh">{{ d.label }}</div>{% endif %}
+          {% for s in d.sessions %}
+          <div class="ed-ag__row" x-show="track === '' || track === {{ s.track|json_encode }}">
+            <span class="ed-ag__time">{{ s.when ?: '—' }}</span>
+            <div>
+              <div class="ed-ag__t">{{ s.title }}</div>
+              {% if s.description %}<div class="ed-ag__b">{{ s.description }}</div>{% endif %}
+              {% if s.speakers %}<div class="ed-ag__who">🎤 {{ s.speakers|join(', ') }}</div>{% endif %}
+              {% if s.track or s.room %}
+              <div class="ed-ag__tags">
+                {% if s.track %}<span class="ed-ag__tag is-track">{{ s.track }}</span>{% endif %}
+                {% if s.room %}<span class="ed-ag__tag">{{ s.room }}</span>{% endif %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      {% elseif schedule %}
+      {# The old JSON run of show, for an event that never moved to sessions. #}
       <div class="ed-card">
         <h2>Run of show</h2>
         <div class="ed-sched">
@@ -136,6 +214,32 @@
         {% if event.map_embed %}<a class="ed-maplink" href="{{ event.map_embed }}" target="_blank" rel="noopener">📍 View on map →</a>{% endif %}
       </div>
       {% endif %}
+
+      {# ── THE SMALL PRINT, BEFORE ANYBODY PAYS ───────────────────────────────
+         A refund policy discovered after a card has been charged is not a policy, it is a
+         complaint waiting to be made — and a question about parking that reaches this
+         platform's support desk instead of the organiser is a question nobody can answer. #}
+      {% if refund_policy|default('') or attendee_note|default('') or organiser_email|default('') or organiser_phone|default('') %}
+      <div class="ed-card">
+        <h2>Good to know</h2>
+        <dl class="ed-fine">
+          {% if attendee_note|default('') %}
+          <dt>Before you come</dt><dd>{{ attendee_note }}</dd>
+          {% endif %}
+          {% if refund_policy|default('') %}
+          <dt>Refunds &amp; transfers</dt><dd>{{ refund_policy }}</dd>
+          {% endif %}
+          {% if organiser_email|default('') or organiser_phone|default('') %}
+          <dt>Questions about this event</dt>
+          <dd>
+            {% if organiser_email|default('') %}<a href="mailto:{{ organiser_email }}">{{ organiser_email }}</a>{% endif %}
+            {% if organiser_email|default('') and organiser_phone|default('') %} · {% endif %}
+            {% if organiser_phone|default('') %}<a href="tel:{{ organiser_phone|replace({' ': ''}) }}">{{ organiser_phone }}</a>{% endif %}
+          </dd>
+          {% endif %}
+        </dl>
+      </div>
+      {% endif %}
     </div>
 
     {# ── RSVP rail ── #}
@@ -146,6 +250,16 @@
           <h2>This event has ended</h2>
           <p class="ed-past">Thanks to everyone who joined{% if reg_count %} — {{ reg_count }} registered{% endif %}. Catch the next one on the <a href="/events" style="color:var(--ag-green);font-weight:600">events calendar</a>.</p>
         </div>
+      {% elseif sales_closed|default('') %}
+        {# A cutoff BEFORE the event date, which almost every organiser needs for catering
+           and badges. Said with its date rather than as a bare "closed", because the two
+           are different amounts of respect for somebody who arrived a day late. #}
+        <div class="ed-rsvp">
+          <span class="ed-rsvp__eyebrow" style="color:#b42318">Registration closed</span>
+          <h2>Bookings have closed</h2>
+          <p class="ed-past">{{ sales_closed }} The event itself still goes ahead — if you need to come, please
+            {% if organiser_email|default('') %}email <a href="mailto:{{ organiser_email }}" style="color:var(--ag-green);font-weight:600">{{ organiser_email }}</a>{% else %}contact the organisers{% endif %}.</p>
+        </div>
       {% elseif is_full %}
         <div class="ed-rsvp">
           <span class="ed-rsvp__eyebrow" style="color:#b42318">Fully booked</span>
@@ -153,7 +267,7 @@
           <p class="ed-past">All {{ capacity }} places have been reserved. Join the <a href="/community" style="color:var(--ag-green);font-weight:600">community</a> to hear first about the next one — and any released places.</p>
         </div>
       {% else %}
-        <div class="ed-rsvp" id="ed-rsvp" x-data="evReg('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ reg_count }}, {{ tiers ? 'true' : 'false' }}, {{ access_code|default('')|json_encode }})">
+        <div class="ed-rsvp" id="ed-rsvp" x-data="evReg('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ reg_count }}, {{ tiers ? 'true' : 'false' }}, {{ access_code|default('')|json_encode }}, {{ waitlist_open|default(false) ? 'true' : 'false' }})">
           <div x-show="step==='form'">
             <div class="ed-rsvp__top">
               <span class="ed-rsvp__eyebrow">{{ tiers ? 'Tickets' : 'Free registration' }}</span>
@@ -172,17 +286,23 @@
                / closed, each a different sentence to somebody who wants to come. #}
             <div style="margin-top:8px">
               {% for t in tiers %}
-                {% set shut = (t.state|default('open')) != 'open' %}
+                {% set gone = (t.state|default('open')) == 'sold_out' %}
+                {# A sold-out tier stays PRESSABLE when there is a waiting list, because the
+                   thing to do about it is join that list — and a disabled button is a dead
+                   end for the most motivated person on the page. Without a list it is
+                   disabled, since there is genuinely nothing to press. #}
+                {% set shut = (t.state|default('open')) != 'open' and not (gone and waitlist_open|default(false)) %}
                 <button type="button" class="ed-tier"
                         :class="tierId === {{ t.id|default(0) }} ? 'is-sel' : ''"
                         {{ shut ? 'disabled' : '' }}
-                        @click="pick({{ t.id|default(0) }}, {{ t.price_naira|default(0) }}, {{ t.max|default(10) }}, {{ (t.min|default(1)) }})">
+                        @click="pick({{ t.id|default(0) }}, {{ t.price_naira|default(0) }}, {{ t.max|default(10) }}, {{ (t.min|default(1)) }}, {{ gone ? 'true' : 'false' }}, {{ waitlist_counts[t.id]|default(0) }})">
                   <span class="ed-tier__radio"></span>
                   <span>
-                    <span class="ed-tier__name">{{ t.name }}{% if t.state|default('open') == 'sold_out' %} · sold out{% endif %}</span>
+                    <span class="ed-tier__name">{{ t.name }}{% if gone %} · sold out{% endif %}</span>
                     {% if t.description|default('') %}<br><span class="ed-tier__perk">{{ t.description }}</span>{% endif %}
                     {% for p in t.perks|default([]) %}<br><span class="ed-tier__perk">✓ {{ p }}</span>{% endfor %}
-                    {% if shut and t.why|default('') %}<br><span class="ed-tier__perk">{{ t.why }}</span>
+                    {% if (t.state|default('open')) != 'open' and t.why|default('') %}<br><span class="ed-tier__perk">{{ t.why }}</span>
+                    {% if gone and waitlist_open|default(false) %}<br><span class="ed-tier__perk" style="color:#a47306;font-weight:700">Join the waiting list{% if waitlist_counts[t.id]|default(0) %} · {{ waitlist_counts[t.id] }} waiting{% endif %}</span>{% endif %}
                     {# The scarcity line is a FACT read off the tier's own remaining count,
                        not a nudge: it appears when there are few enough left that somebody
                        deciding today deserves to know, and never otherwise. #}
@@ -196,7 +316,7 @@
 
             {# Seats, only when the chosen tier allows more than one. A quantity box on a
                one-per-person ticket is a question with a single legal answer. #}
-            <div x-show="maxQty > 1" x-cloak style="margin-top:12px">
+            <div x-show="maxQty > 1 && !soldOut" x-cloak style="margin-top:12px">
               <label class="ed-label" for="edQty">How many seats</label>
               <select id="edQty" class="ed-input" x-model.number="qty">
                 <template x-for="n in seatOptions()" :key="n">
@@ -205,8 +325,44 @@
               </select>
             </div>
 
-            <p class="sub" x-show="price > 0" x-cloak style="margin-top:10px;font-weight:700;color:#10292C"
-               x-text="'Total: ₦' + (price * qty).toLocaleString()"></p>
+            {# ── DISCOUNT CODE ────────────────────────────────────────────────
+               A preview and nothing more: EventTicketService::reserve() prices the row
+               again from the tier and the code rows, so what is shown here cannot change
+               what anybody is charged. Offered only on a paid tier — a code on a free
+               ticket is a field with nothing to do. #}
+            <div x-show="price > 0 && !soldOut" x-cloak style="margin-top:12px">
+              <label class="ed-label" for="edDisc">Discount code <span style="font-weight:400;color:#92a6a7">(optional)</span></label>
+              <div class="ed-disc">
+                <input id="edDisc" class="ed-input" x-model="discount" placeholder="ALUMNI20"
+                       autocomplete="off" @keydown.enter.prevent="checkCode()">
+                <button type="button" :disabled="checking || !discount.trim()" @click="checkCode()"
+                        x-text="checking ? '…' : 'Apply'"></button>
+              </div>
+              <p class="ed-disc__ok" x-show="off > 0" x-cloak x-text="codeNote"></p>
+              <p class="ed-disc__no" x-show="codeNote && off === 0" x-cloak x-text="codeNote"></p>
+            </div>
+
+            <p class="sub" x-show="price > 0 && !soldOut" x-cloak style="margin-top:10px;font-weight:700;color:#10292C">
+              Total:
+              <span class="ed-was" x-show="off > 0" x-cloak x-text="'₦' + (price * qty).toLocaleString()"></span>
+              <span x-text="'₦' + Math.max(0, price * qty - off).toLocaleString()"></span>
+            </p>
+
+            {# ── THE WAITING LIST ─────────────────────────────────────────────
+               Shown when the chosen tier has gone and the organiser has opened a list.
+               A seat comes back often enough — a declined card, an expired hold, three
+               cancellations the week before — that re-selling them to whoever happens to
+               be looking is a lottery dressed as a queue. #}
+            <div class="ed-wl" x-show="soldOut" x-cloak>
+              <div class="ed-wl__h">This ticket has sold out</div>
+              <p class="ed-wl__p">
+                Leave your details and you will be emailed the moment a seat comes back — a
+                declined card, an expired checkout, a cancellation. You get
+                {{ constant('AfricaGates\\Services\\EventWaitlist::OFFER_HOURS') }} hours to take it
+                before it passes to the next person.
+                <span x-show="wlCount > 0" x-cloak x-text="' ' + wlCount + ' already waiting.'"></span>
+              </p>
+            </div>
             {% else %}
             <h2>Reserve your place</h2>
             <p class="sub">Register and we’ll email you the details and any updates.</p>
@@ -216,9 +372,12 @@
               {# Said out loud rather than discovered at the end. A buyer who fills in three
                  fields and then meets "payments are unavailable" has been wasted; and the
                  operator needs to know their own site cannot take money. #}
-              <p class="ed-err" style="margin-top:10px">Card payment is not available on this site
-                right now, so paid tickets cannot be bought here. Please contact us and we will
-                register you directly.</p>
+              {# Hidden in waitlist mode: joining a queue asks for no money, and warning
+                 somebody about card payment while they are giving you their name reads as
+                 a problem with the thing they are actually doing. #}
+              <p class="ed-err" style="margin-top:10px" x-show="!soldOut">Card payment is not
+                available on this site right now, so paid tickets cannot be bought here. Please
+                contact us and we will register you directly.</p>
             {% endif %}
             {% if spots_left is not null %}<p class="sub" style="color:#1a6118;font-weight:600;margin-top:9px">⚡ Only {{ spots_left }} {{ spots_left == 1 ? 'place' : 'places' }} left</p>{% endif %}
             {% include 'partials/member-autofill.twig' with {
@@ -241,7 +400,8 @@
           </div>
           <div class="ed-done" x-show="step==='done'" x-cloak>
             <div class="ed-done__ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#237b22" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
-            <h2 class="ed-card" style="border:0;padding:0;background:none;font-family:var(--ag-font-display);font-weight:700;font-size:1.2rem">You’re registered ✓</h2>
+            <h2 class="ed-card" style="border:0;padding:0;background:none;font-family:var(--ag-font-display);font-weight:700;font-size:1.2rem"
+                x-text="wlPlace ? 'You’re on the list ✓' : 'You’re registered ✓'"></h2>
             <p class="sub" x-text="msg"></p>
             {# The ticket, not just a thank-you. It is the thing they will need at the door,
                and burying it in an email that may not arrive for ten minutes is how somebody
@@ -269,7 +429,7 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-  function evReg(slug, csrf, count, hasTiers, code){
+  function evReg(slug, csrf, count, hasTiers, code, wlOpen){
     return {
       step:'form', name:'', email:'', phone:'', busy:false, error:'', msg:'',
       count: count || 0, hasTiers: !!hasTiers, code: code || '',
@@ -278,14 +438,35 @@
          "VIP" and "V.I.P." became two tiers sharing one limit. */
       tierId: 0, price: 0, qty: 1, minQty: 1, maxQty: 1,
       ticketUrl: '',
+      /* Discount state. `off` is what the SERVER said this code takes off — never computed
+         here, because a total worked out in the browser is a total anybody can edit, and
+         confirm() refuses a payment smaller than the amount on the row. */
+      discount: '', off: 0, codeNote: '', checking: false,
+      /* Sold out, and whether there is a queue to join about it. */
+      soldOut: false, wlOpen: !!wlOpen, wlCount: 0, wlPlace: 0,
 
-      pick(id, price, max, min){
+      init(){
+        /* A percentage code against three seats is not the same number as against one, so a
+           quantity change re-prices it. Re-asked rather than scaled here, because scaling in
+           the browser would reimplement the rounding rule and eventually disagree with the
+           server about what somebody owes. */
+        this.$watch('qty', () => { if (this.discount.trim() !== '') this.checkCode(); });
+      },
+
+      pick(id, price, max, min, soldOut, wlCount){
         this.tierId = id; this.price = price;
         this.minQty = min || 1;
         this.maxQty = Math.max(this.minQty, max || 1);
         /* Clamp rather than reset: somebody who picked 4 of one tier and switches to
            another that allows 2 meant "as many as I can", not "start again". */
         this.qty = Math.min(Math.max(this.qty, this.minQty), this.maxQty);
+        this.soldOut = !!soldOut && this.wlOpen;
+        this.wlCount = wlCount || 0;
+        /* A code priced against the old tier is not priced against this one. Dropping it
+           rather than re-checking it silently is the honest move: the number on screen must
+           never belong to a ticket they are no longer buying. */
+        this.off = 0; this.codeNote = '';
+        this.error = '';
       },
       seatOptions(){
         var out = [];
@@ -297,9 +478,32 @@
           && this.phone.replace(/\D/g,'').length >= 7 && (!this.hasTiers || this.tierId > 0);
       },
       get cta(){
-        if (this.busy) return this.price > 0 ? 'Taking you to payment…' : 'Registering…';
-        if (this.price > 0) return 'Pay ₦' + (this.price * this.qty).toLocaleString();
+        if (this.soldOut) return this.busy ? 'Adding you…' : 'Join the waiting list';
+        if (this.busy) return this.due > 0 ? 'Taking you to payment…' : 'Registering…';
+        if (this.due > 0) return 'Pay ₦' + this.due.toLocaleString();
+        if (this.price > 0) return 'Get my ticket — free with code';
         return this.hasTiers ? 'Get my ticket' : 'Register — free';
+      },
+      get due(){
+        return Math.max(0, this.price * this.qty - this.off);
+      },
+
+      /* Ask the server what a code does. A preview only — see the panel comment. */
+      async checkCode(){
+        var typed = this.discount.trim();
+        if(typed === '' || this.tierId === 0){ return; }
+        this.checking = true;
+        try{
+          var r = await fetch('/events/'+slug+'/quote', {
+            method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({ _token: csrf, tier_id:this.tierId,
+                                        quantity:this.qty, discount:typed, email:this.email })
+          });
+          var d = await r.json().catch(function(){ return {}; });
+          this.off = d.applied ? (d.off || 0) : 0;
+          this.codeNote = d.message || (d.applied ? '' : 'That code could not be applied.');
+        }catch(e){ this.off = 0; this.codeNote = 'We could not check that code just now.'; }
+        finally{ this.checking = false; }
       },
 
       async submit(){
@@ -307,13 +511,15 @@
         if(!/.+@.+\..+/.test(this.email)){ this.error='Please enter a valid email.'; return; }
         if(this.phone.replace(/\D/g,'').length < 7){ this.error='Please enter a valid phone number.'; return; }
         if(this.hasTiers && this.tierId === 0){ this.error='Please choose a ticket type.'; return; }
+        if(this.soldOut){ return this.joinList(); }
         this.busy=true; this.error='';
         try{
           var r = await fetch('/events/'+slug+'/register', {
             method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
             body: new URLSearchParams({ _token: csrf, name:this.name, email:this.email,
                                         phone:this.phone, tier_id:this.tierId,
-                                        quantity:this.qty, code:this.code })
+                                        quantity:this.qty, code:this.code,
+                                        discount:this.discount.trim() })
           });
           var d = await r.json().catch(function(){ return {}; });
 
@@ -328,7 +534,33 @@
             this.count += (this.qty || 1);
             this.step='done';
           } else {
-            this.error = d.message || 'Could not register. Please try again.';
+            /* The seats went while they were filling the form in. If there is a list, offer
+               it here rather than making them find the tier button again — the answer to
+               "it sold out just now" is the queue, and they are already typed in. */
+            if(d.full && d.waitlist){ this.soldOut = true; this.error = d.message || ''; }
+            else { this.error = d.message || 'Could not register. Please try again.'; }
+          }
+        }catch(e){ this.error='Network error. Please try again.'; }
+        finally{ this.busy=false; }
+      },
+
+      async joinList(){
+        this.busy=true; this.error='';
+        try{
+          var r = await fetch('/events/'+slug+'/waitlist', {
+            method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+            body: new URLSearchParams({ _token: csrf, name:this.name, email:this.email,
+                                        phone:this.phone, tier_id:this.tierId })
+          });
+          var d = await r.json().catch(function(){ return {}; });
+          if(d.success){
+            this.wlPlace = d.place || 0;
+            this.msg = (d.message || 'You are on the list.')
+                     + (d.place ? ' You are number ' + d.place + ' in the queue.' : '');
+            this.ticketUrl = '';
+            this.step='done';
+          } else {
+            this.error = d.message || 'Could not add you to the list. Please try again.';
           }
         }catch(e){ this.error='Network error. Please try again.'; }
         finally{ this.busy=false; }

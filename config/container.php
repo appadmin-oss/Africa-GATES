@@ -439,7 +439,10 @@ return [
     AdminNomineesController::class     => fn(ContainerInterface $c)=>new AdminNomineesController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
     AdminLegacyController::class       => fn(ContainerInterface $c)=>new AdminLegacyController($c->get(Twig::class), $c->get(AuditService::class), $c->get(UploadService::class)),
     AdminOpportunitiesController::class=> fn(ContainerInterface $c)=>new AdminOpportunitiesController($c->get(Twig::class), $c->get(AuditService::class)),
-    AdminEventsController::class       => fn(ContainerInterface $c)=>new AdminEventsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class)),
+    // The mailer is the fourth argument and it is NOT optional in practice: without it, a
+    // waiting-list promotion silently offers seats and tells nobody, so the organiser sees
+    // four outstanding offers and four people who never heard from them.
+    AdminEventsController::class       => fn(ContainerInterface $c)=>new AdminEventsController($c->get(Twig::class), $c->get(AuditService::class), $c->get(CacheService::class), $c->get(OtpService::class)),
     AdminRegistrationsController::class => fn(ContainerInterface $c)=>new AdminRegistrationsController($c->get(Twig::class)),
     AdminDataController::class          => fn(ContainerInterface $c)=>new AdminDataController($c->get(Twig::class)),
     AdminFormsController::class         => fn(ContainerInterface $c)=>new AdminFormsController($c->get(Twig::class), $c->get(AuditService::class)),
