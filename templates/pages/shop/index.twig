@@ -88,7 +88,11 @@
   @media(max-width:620px){
     .sh-hero{ margin-top:14px; padding:20px 18px 22px; border-radius:18px; }
     .sh-hero h1{ margin-top:11px; font-size:1.6rem; line-height:1.1; }
-    .sh-hero p{ margin-top:9px; font-size:14px; line-height:1.5; }
+    /* Two lines, not three. The third line is "across the continent" — the sentence still
+       says what the shop is and where the money goes without it, and forty pixels at the top
+       of a phone screen are the most expensive forty on the page. */
+    .sh-hero p{ margin-top:9px; font-size:14px; line-height:1.5;
+      display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
     .sh-hero__orb{ width:200px; height:200px; right:-70px; bottom:-90px; }
     .sh-badge{ font-size:10px; padding:5px 11px; }
     .sh-find{ margin-top:14px; }
@@ -110,10 +114,34 @@
     border:1px solid rgba(16,41,44,.14); border-radius:999px; padding:8px 13px;
     background:var(--ag-surface,#fff); white-space:nowrap; }
   .sh-ask__l a:hover{ border-color:var(--ag-green); color:var(--ag-green); }
+  /* ── ON A PHONE, THIS CARD WAS COSTING THE SHOP ITS FIRST SCREEN ──────────
+     Measured at 390×844: hero, search, this card at three stacked full-width buttons, the
+     delivery banner, the filter and the count came to about 1,200px before the first product.
+     Somebody opening a shop scrolled a screen and a half of furniture to see anything for sale.
+
+     The card is worth keeping — the assistant can check real stock and quote a delivered
+     total, which is genuinely the thing a hesitant buyer wants. What it is not worth is a
+     third of the opening screen. So on a phone the explanatory sentence goes (the heading
+     already says it) and the three starting points become one horizontally scrollable strip
+     instead of three stacked full-width buttons. About 110px instead of 350. */
   @media(max-width:620px){
-    .sh-ask{ margin-top:11px; padding:12px 14px; gap:10px; }
-    .sh-ask__l{ width:100%; }
-    .sh-ask__l a{ flex:1; text-align:center; }
+    .sh-ask{ margin-top:11px; padding:11px 13px; gap:9px; align-items:center; }
+    .sh-ask__i{ width:32px; height:32px; border-radius:9px; }
+    .sh-ask__b{ min-width:0; }
+    .sh-ask__b b{ font-size:13.5px; }
+    .sh-ask__b span{ display:none; }
+    /* Its own line, scrolling sideways. Nowrap so the three stay one row; the scrollbar is
+       hidden because a 3px bar under three chips reads as damage rather than as a control. */
+    .sh-ask__l{ order:3; width:100%; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
+      padding-bottom:1px;
+      /* The third chip is cut by the card's edge, and a chip sliced clean through reads as a
+         rendering fault rather than as "there is more this way". The fade says it scrolls.
+         Right-hand only: the strip starts at its left edge, so nothing is ever hidden there
+         on arrival, and a symmetric mask would dim the first chip for no reason. */
+      -webkit-mask-image:linear-gradient(to right,#000 86%,transparent);
+      mask-image:linear-gradient(to right,#000 86%,transparent); }
+    .sh-ask__l::-webkit-scrollbar{ display:none; }
+    .sh-ask__l a{ flex:none; padding:8px 12px; }
   }
 
   /* ── THE RAIL, AND THE TWO-COLUMN PAGE ──────────────────────────────────────
@@ -133,7 +161,12 @@
      and still fully usable with no script because <details> is the browser's own. */
   .sh-rail{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08);
     border-radius:18px; padding:4px 16px 16px; position:sticky; top:84px; }
-  @media(max-width:900px){ .sh-rail{ position:static; padding:0 14px 14px; } }
+  @media(max-width:900px){
+    .sh-rail{ position:static; padding:0 14px 14px; }
+    /* Closed, the bottom padding pads nothing — it just makes a one-line control into a
+       110px card sitting between the delivery banner and the first product. */
+    .sh-rail:not([open]){ padding-bottom:0; }
+  }
   .sh-rail__sum{ cursor:pointer; list-style:none; display:flex; align-items:center; gap:9px;
     padding:14px 0 12px; font-size:13px; font-weight:700; color:var(--ag-ink); }
   .sh-rail__sum::-webkit-details-marker{ display:none; }
@@ -192,10 +225,18 @@
   @media(max-width:900px){
     .sh-top{ position:static; backdrop-filter:none; background:none; padding:6px 0 2px; }
     /* One row rather than two: the count and the sort are both one short line, and stacking
-       them costs another 40px above the grid on the screen with least of it to spare. */
+       them costs another 40px above the grid on the screen with least of it to spare.
+
+       The first attempt let the count wrap and capped the select at 46vw, which produced
+       "14 items · page 1 of" over two lines beside a select reading "What we are showin" with
+       the rest cut off — both halves of the row damaged to fit. The count is the half that can
+       give way: the page number is repeated by the pager under the grid, and the search term is
+       already shown as a removable pill, so on a phone the count says only how many. */
     .sh-top{ flex-wrap:nowrap; }
-    .sh-count{ min-width:0; overflow-wrap:anywhere; }
-    .sh-sort select{ max-width:46vw; }
+    .sh-count{ flex:none; min-width:0; }
+    .sh-count__more{ display:none; }
+    .sh-sort{ flex:1; min-width:0; justify-content:flex-end; }
+    .sh-sort select{ min-width:0; max-width:100%; }
   }
 
   /* Which filters are on, as removable pills. A rail can be scrolled past; these cannot,
@@ -423,10 +464,9 @@
     <div>
   {% if products is not empty %}
     <div class="sh-top">
-      <span class="sh-count">
-        {{ F.total }} item{{ F.total == 1 ? '' : 's' }}{% if F.q %} for “{{ F.q }}”{% endif %}
-        {%- if F.pages > 1 %} · page {{ F.page }} of {{ F.pages }}{% endif %}
-      </span>
+      {# The bracketed part is hidden on a phone — see .sh-count__more. Both facts are said
+         again elsewhere on the page (the pager, and the search pill), so nothing is lost. #}
+      <span class="sh-count">{{ F.total }} item{{ F.total == 1 ? '' : 's' }}<span class="sh-count__more">{% if F.q %} for “{{ F.q }}”{% endif %}{% if F.pages > 1 %} · page {{ F.page }} of {{ F.pages }}{% endif %}</span></span>
       {# Sort is its own tiny form, carrying every filter as hidden inputs. Re-ordering must
          not silently drop what somebody chose on the left. #}
       <form method="get" action="/shop" class="sh-sort">

@@ -20,6 +20,39 @@
   .si-name{ margin:8px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.7rem,4vw,2.1rem); letter-spacing:-.01em; color:var(--ag-ink); }
   .si-price{ margin-top:10px; font:700 24px/1 var(--ag-font-mono); color:var(--ag-ink); }
   .si-desc{ margin:16px 0 0; font-size:14.5px; line-height:1.65; color:#3a4448; }
+  .si-sub{ margin-top:6px; color:#5a6d6f; }
+  .si-cur{ font-size:12px; color:#5a6d6f; margin-top:2px; }
+
+  /* ── THE PHONE ORDER ──────────────────────────────────────────────────────
+     Measured on a 390×844 screen: the square hero image is 710px of the 844, so a buyer
+     arrived at a photograph and nothing else. Price was below the fold, the colour swatches
+     were at the very bottom edge, and "Buy now" was two more screens down past the
+     description — on a page whose entire job is to sell one object.
+
+     Two changes, both phone-only.
+
+     THE IMAGE IS CAPPED at half the viewport. `aspect-ratio` still governs the shape; the cap
+     only stops it eating the screen, and `object-fit:cover` crops rather than squashing.
+
+     AND THE DESCRIPTION MOVES BELOW THE CONTROLS, so the sequence is what somebody actually
+     does: see it, see the price, pick a colour and a size, buy — and then read about it if
+     they are still deciding. Desktop keeps the source order, where there is room for both.
+
+     This is the one place in this codebase where visual order and DOM order differ. It is safe
+     precisely because the thing that moves is a PARAGRAPH: nothing to focus, nothing to tab
+     into, no control whose keyboard order would stop matching what is on screen. The rule this
+     is not breaking is "never reorder interactive elements with CSS". */
+  @media(max-width:780px){
+    .si-gallery{ max-height:50vh; }
+    .si-info{ display:flex; flex-direction:column; }
+    .si-info > *{ order:7; }
+    .si-cat, .si-name, .si-sub, .si-price, .si-cur{ order:1; }
+    .si-opt{ order:2; }
+    .si-stock{ order:3; }
+    .si-actions{ order:4; }
+    .si-add, .si-back{ order:5; }
+    .si-desc--long{ order:6; }
+  }
 
   .si-actions{ display:flex; gap:12px; margin-top:22px; align-items:center; }
   .si-stepper{ display:flex; align-items:center; gap:14px; border:1px solid rgba(16,41,44,.14); border-radius:12px; padding:10px 14px; }
@@ -193,13 +226,13 @@
       {% endif %}
     </div>
 
-    <div>
+    <div class="si-info">
       <p class="si-cat">{{ p.category }}</p>
       <h1 class="si-name">{{ p.name }}</h1>
-      {% if p.subtitle|default('') %}<p class="si-desc" style="margin-top:6px;color:#5a6d6f">{{ p.subtitle }}</p>{% endif %}
+      {% if p.subtitle|default('') %}<p class="si-desc si-sub">{{ p.subtitle }}</p>{% endif %}
       <div class="si-price" x-text="$store.cart.ngn(price)">{{ p.price_label|default('₦' ~ (p.display_price|default(p.price_naira)|number_format)) }}</div>
-      {% if currency != 'NGN' %}<div style="font-size:12px;color:#5a6d6f;margin-top:2px">charged in Naira · <span x-text="$store.cart.ngnRaw(price)"></span></div>{% endif %}
-      {% if p.description %}<p class="si-desc">{{ p.description }}</p>{% endif %}
+      {% if currency != 'NGN' %}<div class="si-cur">charged in Naira · <span x-text="$store.cart.ngnRaw(price)"></span></div>{% endif %}
+      {% if p.description %}<p class="si-desc si-desc--long">{{ p.description }}</p>{% endif %}
 
       {% if axes|default([])|length %}
       {# ── PICK ONE, OR TWO ──────────────────────────────────────────────────
