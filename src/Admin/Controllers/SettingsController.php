@@ -36,6 +36,11 @@ class SettingsController
             'admin_settings' => $adminSettings,
             'smtp_configured'=> $this->mailer?->smtpConfigured() ?? false,
             // Flash renders from the Twig globals via the layout — do not shadow them.
+            // Where each revenue stream settles. Resolved, so the screen shows the code that
+            // WILL be used rather than a raw setting somebody has to interpret.
+            'payouts'        => \AfricaGates\Services\PaymentDestination::all(),
+            'payout_bearers' => \AfricaGates\Services\PaymentDestination::BEARERS,
+            'payouts_routed' => \AfricaGates\Services\PaymentDestination::anyRouted(),
             'shop_regions'   => \AfricaGates\Services\ShopPricing::regions(),
             'shop_mults'     => \AfricaGates\Services\ShopPricing::multipliers(),
             // The EFFECTIVE per-order maximum, not the raw setting — it is the lower of
@@ -166,6 +171,41 @@ class SettingsController
         if (array_key_exists('disposable_domains_extra', $b)) {
             $this->settings->set('disposable_domains_extra', trim((string)$b['disposable_domains_extra']), $adminId);
             $this->settings->set('disposable_require_mx', !empty($b['disposable_require_mx']) ? '1' : '0', $adminId);
+        }
+
+        // ── WHERE EACH KIND OF MONEY SETTLES ────────────────────────────────
+        //
+        // Ticket money, shop money and vote money are three kinds of money to whoever has to
+        // account for them, and a subaccount answers "how much of this is ticket income" at the
+        // BANK rather than from our own records. See PaymentDestination.
+        //
+        // A marker field gates the block, so a save from any other section cannot clear the
+        // routing. And a malformed code is REFUSED and reported rather than stored: Paystack
+        // rejects an initialise with a bad subaccount, so a typo here would take that stream's
+        // payments offline with no visible cause. Refusing to route is recoverable; refusing to
+        // sell is not.
+        if (array_key_exists('payout_settings', $b)) {
+            $codes = [];
+            $bearers = [];
+            foreach (array_keys(\AfricaGates\Services\PaymentDestination::STREAMS) as $stream) {
+                if (array_key_exists('sub_' . $stream, $b)) {
+                    $codes[$stream] = (string) $b['sub_' . $stream];
+                }
+                $bearers[$stream] = (string) ($b['bearer_' . $stream] ?? 'account');
+            }
+            $r = \AfricaGates\Services\PaymentDestination::save($codes, $bearers);
+
+            if ($r['refused'] !== []) {
+                $names = [];
+                foreach ($r['refused'] as $stream => $raw) {
+                    $names[] = \AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream;
+                }
+                // Said out loud, with what a good value looks like, and the old value kept. An
+                // admin who pasted a bank account number needs to know that is what happened.
+                $_SESSION['flash_error'] = 'Not saved for ' . implode(' and ', $names)
+                    . ' — a Paystack subaccount code looks like ACCT_xxxxxxxx. '
+                    . 'The previous setting has been kept.';
+            }
         }
 
         // Admin-configurable settings (gates_admin_settings table)

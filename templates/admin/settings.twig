@@ -38,6 +38,17 @@
   .st-tab[aria-pressed="true"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
   .st-search{flex:1;min-width:170px;max-width:280px;padding:7px 12px;border:1px solid var(--ad-line,#e5eae8);border-radius:999px;font-size:12.5px;background:var(--ad-surface,#fff);color:inherit}
   .st-hint{margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#8a9a9c)}
+  /* ── one revenue stream's routing ──────────────────────────────────────────
+     Boxed per stream rather than as six loose fields, because the pairing is the whole point:
+     a code belongs to a fee-bearer choice, and reading them as two separate lists is how
+     somebody sets the shop's bearer against the event's account. */
+  .pay-route{border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--ad-surface,#fff)}
+  .pay-route__h{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+  .pay-route__h strong{font-size:13.5px}
+  .pay-route__on,.pay-route__off{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:3px 9px}
+  .pay-route__on{background:#eef7ee;color:#1a6118}
+  .pay-route__off{background:#f2f4f3;color:#6b7679}
+  .pay-route input,.pay-route select{box-sizing:border-box;max-width:100%}
   .st-tier{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px}
   .st-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#D8A33C;margin-left:6px;vertical-align:middle}
   .st-tab[aria-pressed="true"] .st-dot{background:#fff}
@@ -213,6 +224,71 @@
       <p style="margin:6px 0 0;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">Redeemed votes count toward the public tally only — they never affect judged/CPI rank.</p>
     </div>
   </div></div>
+  {# ── WHERE THE MONEY SETTLES ─────────────────────────────────────────────────
+     Ticket money, shop money and vote money are three different kinds of money to whoever has
+     to account for them. Settling all three into one bank account means the first question
+     anybody asks at month end — "how much of this is ticket income" — can only be answered by
+     exporting our own records and hoping they agree with the bank. A subaccount answers it AT
+     the bank, which is the only place the answer is unarguable.
+
+     Blank = today's behaviour exactly: no `subaccount` field is sent, so an operator who never
+     opens this card sees no change to their settlements. #}
+  <div class="ad-card" data-sec="money" data-keys="paystack subaccount subaccounts payout payouts settlement split bearer fees where money settles events shop votes bank account" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Where the money settles<small>Send ticket, shop and vote income to different Paystack subaccounts. Leave blank to settle everything to the main account, as now.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="payout_settings" value="1">
+    <div class="ad-form">
+      {% for p in payouts|default([]) %}
+      <div class="pay-route">
+        <div class="pay-route__h">
+          <strong>{{ p.label }}</strong>
+          {% if p.routed %}<span class="pay-route__on">routed</span>
+          {% else %}<span class="pay-route__off">main account</span>{% endif %}
+        </div>
+        <div class="row">
+          <div>
+            <label for="sub-{{ p.stream }}">Paystack subaccount code</label>
+            <input type="text" id="sub-{{ p.stream }}" name="sub_{{ p.stream }}"
+                   value="{{ p.code }}" placeholder="ACCT_xxxxxxxxxx" spellcheck="false"
+                   autocomplete="off" style="font-family:var(--ag-font-mono,monospace)">
+          </div>
+          <div>
+            <label for="bearer-{{ p.stream }}">Who pays the transaction fee</label>
+            <select id="bearer-{{ p.stream }}" name="bearer_{{ p.stream }}">
+              {% for key, label in payout_bearers|default({}) %}
+              <option value="{{ key }}" {% if p.bearer == key %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+      <p class="st-hint">
+        Paste the code from Paystack → Subaccounts. A whole dashboard URL works too — the code
+        is taken out of it. <strong>Clearing a field stops routing that stream</strong> and it
+        settles to the main account again.
+      </p>
+      <p class="st-hint">
+        A code that is not in Paystack's format is <strong>refused rather than saved</strong>,
+        and the previous setting is kept. That is deliberate: Paystack rejects a payment set up
+        with a bad subaccount, so a typo here would stop that stream selling with nothing on
+        screen to explain why.
+      </p>
+      <p class="st-hint">
+        <strong>The fee bearer is worth a thought.</strong> Paystack's default is that the main
+        account pays the transaction charge even when the money settles elsewhere — which is
+        rarely what is intended when revenue is being separated, and it is invisible until a
+        settlement arrives short.
+      </p>
+      {% if payouts_routed|default(false) %}
+      <p class="st-hint">
+        Which subaccount each payment used is recorded against that payment, <strong>once</strong>,
+        when it is taken. Changing a code here affects future payments only — history keeps
+        matching the bank.
+      </p>
+      {% endif %}
+    </div>
+  </div></div>
+
   <div class="ad-card" data-sec="money" data-keys="paid voting buy votes price per vote discount tier percentage chips bulk maximum per order paystack flutterwave checkout free otp" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Paid voting<small>Make voting a paid action — supporters buy votes for a nominee. Off = classic free OTP voting.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="paid_vote_settings" value="1">
     <div class="ad-form">

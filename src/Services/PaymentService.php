@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use AfricaGates\Support\Env;
+use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -475,6 +476,29 @@ class PaymentService
             'currency'     => 'NGN',
             'metadata'     => $meta,
         ];
+
+        // ── WHICH SUBACCOUNT THIS MONEY SETTLES INTO ─────────────────────────
+        //
+        // Ticket money, shop money and vote money are three different kinds of money to whoever
+        // has to account for them, and settling all three into one account means "how much of
+        // this is ticket income" can only be answered from our own records and hoped to agree
+        // with the bank. See PaymentDestination.
+        //
+        // The stream is read from the REFERENCE rather than passed down through five call sites,
+        // so the attribution cannot disagree with the reference the gateway knows the payment by.
+        // Unconfigured returns an EMPTY ARRAY, so merging it changes nothing about the request
+        // that goes out — an operator who never opens that screen sees no change at all.
+        $stream = PaymentDestination::streamForReference($reference);
+        $route  = $stream !== '' ? PaymentDestination::initFields($stream) : [];
+        $payload += $route;
+
+        if ($route !== []) {
+            // Recorded on the row, not derived later from the settings — settings change, and an
+            // order that silently re-attributed itself the moment somebody edited the field would
+            // stop matching the bank. Same doctrine as money columns being written once.
+            $this->rememberDestination($reference, $stream, (string) $route['subaccount'],
+                                       (string) ($route['bearer'] ?? 'account'), $amountNaira);
+        }
         $res = $this->request(
             'POST',
             'https://api.paystack.co/transaction/initialize',
@@ -490,6 +514,46 @@ class PaymentService
         $msg = (string)($body['message'] ?? 'Paystack initialization failed.');
         $this->log?->warning('[payment] paystack init failed', ['ref' => $reference, 'http' => $res['code'], 'msg' => $msg]);
         return ['ok' => false, 'checkout_url' => null, 'message' => $msg];
+    }
+
+    /**
+     * Note where a payment was routed, in `gates_payment_routes`.
+     *
+     * ── ITS OWN TABLE, KEYED BY REFERENCE ────────────────────────────────────
+     *
+     * References live in three different tables with three different shapes — `gates_orders`,
+     * `gates_event_registrations` and `gates_votes` — so there is no single row to write a column
+     * onto. The reference is the one identifier all three share and the one the gateway knows the
+     * payment by, so it is the key. (The first attempt wrote to a `gates_payments` table that
+     * does not exist; running the migration said so.)
+     *
+     * ── BEST EFFORT, DELIBERATELY ────────────────────────────────────────────
+     *
+     * A failure to record the attribution must never stop the payment. The money moving is what
+     * matters, and a missing route row still has a defined meaning — settled to the main account
+     * — whereas a buyer who cannot pay because a bookkeeping insert failed is a far worse outcome
+     * than a bookkeeping row that is absent.
+     *
+     * Upserted rather than inserted: a buyer who abandons checkout and starts again re-initialises
+     * the same reference, and two rows for one payment would make a per-stream total double.
+     */
+    private function rememberDestination(string $reference, string $stream, string $subaccount,
+                                        string $bearer, int $amountNaira): void
+    {
+        try {
+            if (!DB::schema()->hasTable('gates_payment_routes')) {
+                return;                     // not migrated yet — see the migration's note
+            }
+            DB::table('gates_payment_routes')->updateOrInsert(
+                ['reference' => $reference],
+                ['revenue_stream' => $stream, 'subaccount' => $subaccount,
+                 'fee_bearer' => $bearer, 'amount_naira' => $amountNaira,
+                 'created_at' => \Illuminate\Support\Carbon::now()->toDateTimeString()]
+            );
+        } catch (\Throwable $e) {
+            $this->log?->warning('[payment] could not record destination',
+                                 ['ref' => $reference, 'err' => $e->getMessage()]);
+        }
     }
 
     private function verifyPaystack(string $reference): array
