@@ -1558,7 +1558,11 @@ return function(App $app) {
         // ticket. BEFORE `/shop/{slug}`: Slim matches in registration order, so a product
         // called "order" is not what decides this.
         $g->get('/shop/order/{ref:[A-Za-z0-9\-]{8,72}}', ShopCheckoutController::class.':order');
+        // One click to come off the back-in-stock list, no account — same doctrine as a ticket.
+        // BEFORE `/shop/{slug}`, like the others: Slim matches in registration order.
+        $g->get('/shop/back-in-stock/stop/{token:[a-f0-9]{32}}', ShopController::class.':stopAlert');
         $g->get('/shop/{slug}',    ShopController::class.':item');
+        $g->post('/shop/{slug}/notify-me', ShopController::class.':notifyMe');
 
         // ── Payments (Paystack / Flutterwave behind PaymentService) ──────────
         //   /pay/init     first-party form post (CSRF-protected) → hosted checkout

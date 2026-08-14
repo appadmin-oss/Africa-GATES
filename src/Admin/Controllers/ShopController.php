@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Admin\Controllers;
 
 use AfricaGates\Admin\Services\AuditService;
-use AfricaGates\Services\{OtpService, ShopDiscount, ShopPricing, ShopShipping};
+use AfricaGates\Services\{OtpService, ShopDiscount, ShopPricing, ShopShipping, StockAlert};
 use AfricaGates\Support\{OptionalColumn, PromoCode};
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -102,6 +102,10 @@ final class ShopController
             'fulfilments' => self::FULFILMENTS,
             'summary'     => $this->summary(),
             'has_ful'     => $hasFul,
+            // The most actionable list in the shop, and one nothing has ever been able to
+            // show: a restock order written by the people who wanted to pay. It sits on the
+            // orders screen because it is the same job — what to do next about stock.
+            'demand'      => StockAlert::demand(20),
         ]);
     }
 

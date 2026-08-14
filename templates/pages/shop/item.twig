@@ -60,9 +60,25 @@
   .si-chip{ cursor:pointer; font-family:inherit; font-size:14px; font-weight:600; min-width:54px; padding:11px 16px; border-radius:12px; border:1.5px solid rgba(16,41,44,.16); background:var(--ag-surface,#fff); color:var(--ag-ink); }
   .si-chip.is-on{ border-color:var(--ag-green); background:#f6fcf5; color:#10292C; }
   .si-chip:disabled{ opacity:.45; cursor:not-allowed; text-decoration:line-through; }
+  /* Sold out but still pressable — the thing to do about it is ask to be told. */
+  .si-chip.is-gone{ text-decoration:line-through; color:#8a5a00; border-style:dashed; }
+  .si-chip.is-gone.is-on{ border-color:#a47306; border-style:solid; background:#fff8ec; }
   .si-stock{ font-size:12.5px; font-weight:700; margin-top:9px; }
   .si-stock.is-low{ color:#8a2020; } .si-stock.is-gone{ color:#8a5a00; } .si-stock.is-ok{ color:#1a6118; }
   .si-buy:disabled, .si-add:disabled{ background:#dfe4e3; color:#5b6669; border-color:transparent; cursor:not-allowed; }
+
+  /* ── tell me when it's back ── */
+  .si-back{ background:#fff8ec; border:1px solid rgba(212,154,14,.28); border-radius:14px; padding:15px 17px; margin-top:16px; }
+  .si-back__h{ font-weight:700; font-size:14px; color:#7a4d00; }
+  .si-back__p{ font-size:12.5px; line-height:1.6; color:#7a5a1a; margin:5px 0 0; }
+  .si-back__row{ display:flex; gap:8px; margin-top:11px; flex-wrap:wrap; }
+  .si-back__row input{ flex:1 1 170px; min-width:0; border:1px solid rgba(16,41,44,.18); border-radius:11px; padding:11px 13px; font-family:inherit; font-size:14px; color:var(--ag-ink); background:#fff; outline:none; }
+  .si-back__row input:focus{ border-color:#a47306; }
+  .si-back__go{ flex:none; cursor:pointer; border:none; background:#a47306; color:#fff; font-family:inherit; font-weight:600; font-size:13.5px; padding:0 20px; border-radius:11px; }
+  .si-back__go:disabled{ opacity:.55; cursor:not-allowed; }
+  .si-back__said{ font-size:13px; font-weight:600; margin-top:9px; }
+  .si-back__said.is-ok{ color:#1a6118; }
+  .si-back__said.is-no{ color:#8a2020; }
 
   /* ── what the thing is made of, and how it gets to you ── */
   .si-tabs{ margin-top:26px; border-top:1px solid rgba(16,41,44,.08); }
@@ -87,7 +103,7 @@
    expression at compile time, so assigning `|e('html_attr')` output to a variable loses its
    safe marker and autoescape escapes it a second time — the browser then hands Alpine a
    string full of `&#x5B;` and every expression on the page fails. #}
-<div class="si" x-data="siItem({{ variants|default([])|json_encode|e('html_attr') }}, {{ gallery|default([])|json_encode|e('html_attr') }}, {{ p.display_price|default(p.price_naira) }})">
+<div class="si" x-data="siItem({{ variants|default([])|json_encode|e('html_attr') }}, {{ gallery|default([])|json_encode|e('html_attr') }}, {{ p.display_price|default(p.price_naira) }}, {{ p.slug|json_encode }}, {{ csrf_token|json_encode }}, {{ waiting|default({})|json_encode|e('html_attr') }}, {{ p.sold_out|default(false) ? 'true' : 'false' }})">
   <nav class="si-crumb" aria-label="Breadcrumb">
     <a href="/shop">Shop</a> · <a href="/shop?c={{ p.category|url_encode }}">{{ p.category }}</a> · <b>{{ p.name }}</b>
   </nav>
@@ -112,8 +128,12 @@
       {% if gallery|default([])|length > 1 %}
       <div class="si-thumbs">
         {% for g in gallery %}
-        <button type="button" class="si-thumb" :class="shot === {{ g.path|json_encode(15)|raw }} ? 'is-on' : ''"
-                @click="shot = {{ g.path|json_encode(15)|raw }}"
+        {# Plain |json_encode, NOT json_encode(15)|raw. Flag 15 hex-escapes quotes INSIDE a
+           string but leaves the delimiters as real `"` — which closes a double-quoted attribute
+           and takes the rest of the expression with it. Autoescaping to &quot; is what works
+           here; json_encode(15)|raw is for single-quoted attributes and script blocks. #}
+        <button type="button" class="si-thumb" :class="shot === {{ g.path|json_encode }} ? 'is-on' : ''"
+                @click="shot = {{ g.path|json_encode }}"
                 style="background-image:url('{{ g.path }}')"
                 aria-label="View image {{ loop.index }}{% if g.alt %} — {{ g.alt }}{% endif %}"></button>
         {% endfor %}
@@ -140,8 +160,12 @@
         </div>
         <div class="si-opt__row" role="group" aria-label="{{ axis|default('Option') }}">
           {% for v in variants %}
-          <button type="button" class="si-chip" :class="sel && sel.id === {{ v.id }} ? 'is-on' : ''"
-                  {{ v.sold_out ? 'disabled' : '' }} @click="pick({{ v.id }})">{{ v.label }}</button>
+          {# A sold-out size is SELECTABLE, not disabled. The thing to do about it is ask to be
+             told when it returns, and a dead button is a dead end for the person most likely
+             to buy one. It is struck through so nobody mistakes it for available. #}
+          <button type="button" class="si-chip"
+                  :class="(sel && sel.id === {{ v.id }} ? 'is-on' : '') + '{{ v.sold_out ? " is-gone" : "" }}'"
+                  @click="pick({{ v.id }})">{{ v.label }}</button>
           {% endfor %}
         </div>
         <p class="si-stock" x-show="stockNote" x-cloak :class="stockClass" x-text="stockNote"></p>
@@ -150,7 +174,7 @@
       <p class="si-stock {{ p.sold_out|default(false) ? 'is-gone' : 'is-low' }}" style="margin-top:16px">{{ p.stock_note }}</p>
       {% endif %}
 
-      <div class="si-actions">
+      <div class="si-actions" x-show="!gone" x-cloak>
         <div class="si-stepper">
           <button type="button" @click="qty=Math.max(1,qty-1)" aria-label="Decrease">−</button>
           <span x-text="qty"></span>
@@ -162,7 +186,31 @@
           <span x-show="!ready" x-cloak x-text="blocked"></span>
         </button>
       </div>
-      <button type="button" class="si-add" :disabled="!ready" @click="into()">Add to cart</button>
+      <button type="button" class="si-add" :disabled="!ready" @click="into()" x-show="!gone" x-cloak>Add to cart</button>
+
+      {# ── TELL ME WHEN IT'S BACK ────────────────────────────────────────────
+         Shown when the thing they are looking at has actually gone — a chosen size that is
+         sold out, or a whole product that is. Before this, a sold-out page's entire answer was
+         a greyed-out button, and stock comes back far more often than an event seat does. #}
+      <div class="si-back" x-show="gone" x-cloak>
+        <div class="si-back__h" x-text="goneLabel">This has sold out</div>
+        <p class="si-back__p">
+          Leave your email and we will write to you the moment it is back — one message, and you
+          are not joining a mailing list.
+          <span x-show="waitingHere > 0" x-cloak x-text="waitingHere === 1
+            ? ' One other person is waiting for this.'
+            : ' ' + waitingHere + ' other people are waiting for this.'"></span>
+        </p>
+        <div class="si-back__row">
+          <input x-model="alertEmail" type="email" placeholder="you@email.com"
+                 autocomplete="email" aria-label="Your email, to be told when this is back"
+                 @keydown.enter.prevent="tellMe()">
+          <button type="button" class="si-back__go" :disabled="alerting || !alertEmail.trim()"
+                  @click="tellMe()" x-text="alerting ? 'Adding…' : 'Tell me'"></button>
+        </div>
+        <p class="si-back__said" :class="alertOk ? 'is-ok' : 'is-no'" x-show="alertSaid" x-cloak
+           x-text="alertSaid"></p>
+      </div>
 
       {% if ship_active|default(false) and ship_free_over|default(0) %}
       <p style="margin:12px 0 0;font-size:12.5px;color:#5a6d6f">
@@ -214,13 +262,16 @@
 </div>
 
 <script nonce="{{ csp_nonce }}">
-function siItem(variants, gallery, basePrice){
+function siItem(variants, gallery, basePrice, slug, csrf, waiting, productGone){
   return {
     variants: variants || [],
     gallery: gallery || [],
     qty: 1,
     sel: null,
     shot: (gallery && gallery.length) ? gallery[0].path : '',
+    /* "Tell me when it's back" state. Kept here rather than in its own component so the panel
+       knows WHICH size is being asked about — that is the whole point of the feature. */
+    alertEmail: '', alerting: false, alertOk: false, alertSaid: '',
 
     /* The alt text of the image currently shown. A gallery where every image is described as
        the product name tells a screen-reader user nothing about which one they are on. */
@@ -236,15 +287,22 @@ function siItem(variants, gallery, basePrice){
          buyer's behalf is how they receive the wrong one. */
       var live = this.variants.filter(function(v){ return !v.sold_out; });
       if (live.length === 1) this.sel = live[0];
+      /* Every option gone: select the first anyway, so the page shows "tell me when it's back"
+         instead of asking somebody to choose between things none of which exist. */
+      else if (live.length === 0 && this.variants.length > 0) this.sel = this.variants[0];
     },
 
     pick(id){
       var v = this.variants.find(function(x){ return x.id === id; });
-      if (!v || v.sold_out) return;
+      if (!v) return;
+      /* A sold-out size IS selectable — see the note on the chips. Selecting one switches the
+         panel from "buy" to "tell me when it's back", which is the only useful thing left to
+         do about it. */
       this.sel = v;
+      this.alertSaid = '';
       /* Clamp rather than reset. Somebody who asked for five and switches to a size with two
          in it meant "as many as I can", not "start again". */
-      if (v.stock !== null && this.qty > v.stock) this.qty = Math.max(1, v.stock);
+      if (v.stock !== null && v.stock > 0 && this.qty > v.stock) this.qty = Math.max(1, v.stock);
     },
 
     /* The price shown, which follows the chosen option. A size that costs ₦1,500 more must
@@ -256,10 +314,50 @@ function siItem(variants, gallery, basePrice){
     },
     bump(){ this.qty = Math.min(this.ceiling, this.qty + 1); },
 
-    get ready(){ return this.variants.length === 0 || this.sel !== null; },
+    /* Three states, not two. `gone` is "the thing in front of you cannot be bought", which is
+       different from `!ready` ("you have not chosen yet") — and they need different panels:
+       one asks for a choice, the other asks for an email address. */
+    get gone(){
+      if (this.variants.length === 0) return productGone;
+      return this.sel !== null && this.sel.sold_out === true;
+    },
+    get ready(){
+      if (this.gone) return false;
+      return this.variants.length === 0 || this.sel !== null;
+    },
     get blocked(){
       var axis = (this.variants[0] && this.variants[0].axis) ? this.variants[0].axis.toLowerCase() : 'option';
       return 'Choose a ' + axis;
+    },
+    get goneLabel(){
+      return this.sel ? (this.sel.label + ' has sold out') : 'This has sold out';
+    },
+    get waitingHere(){
+      var k = this.sel ? String(this.sel.id) : '0';
+      return waiting[k] || 0;
+    },
+
+    /* Ask to be told. The server answers identically whether or not this address was already
+       on the list — saying "you are already signed up" would be a way to test which addresses
+       are, and this list is a record of what somebody wanted to buy. */
+    async tellMe(){
+      var mail = this.alertEmail.trim();
+      if (mail === '') return;
+      this.alerting = true; this.alertSaid = '';
+      try {
+        var r = await fetch('/shop/' + slug + '/notify-me', {
+          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ _token: csrf, email: mail,
+                                      variant_id: this.sel ? this.sel.id : 0 })
+        });
+        var d = await r.json().catch(function(){ return {}; });
+        this.alertOk = !!d.success;
+        this.alertSaid = d.message || 'We could not save that just now.';
+        if (d.success) this.alertEmail = '';
+      } catch (e) {
+        this.alertOk = false;
+        this.alertSaid = 'Network error — please try again.';
+      } finally { this.alerting = false; }
     },
     get stockNote(){
       if (!this.sel) return '';

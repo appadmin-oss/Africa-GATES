@@ -76,6 +76,123 @@ class MemberActivityService
     }
 
     /**
+     * Shop orders this member has placed.
+     *
+     * ── WHY THIS WAS MISSING, AND WHY IT MATTERS NOW ─────────────────────────
+     *
+     * The dashboard showed votes, nominations, points and community activity — an accurate
+     * picture of everything a member had CONTRIBUTED, and nothing at all about what they had
+     * BOUGHT. That was defensible when the shop took a name and an address and emailed a
+     * receipt. It is not defensible now that an order has a delivery state: the only route to
+     * "has it shipped" was the reference link in an email, so a member who lost that email had
+     * no way in and a support inbox answered it by hand.
+     *
+     * ── MATCHED BY EMAIL, WHICH IS THE HONEST JOIN ───────────────────────────
+     *
+     * `gates_orders` has no `user_id`, because checkout does not require an account and adding
+     * one would put a registration between somebody and a t-shirt. The email on the order is
+     * the only link and it is the right one: it is the address the receipt went to, so it is
+     * the address the buyer proved they could read.
+     *
+     * Compared case-insensitively — an order typed `Ada@Example.com` at a checkout and an
+     * account registered `ada@example.com` are the same person, and an exact match would
+     * silently show them nothing.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function ordersFor(string $email, int $limit = 20): array
+    {
+        $email = mb_strtolower(trim($email));
+        if ($email === '') return [];
+
+        try {
+            $rows = DB::table('gates_orders')
+                ->whereRaw('LOWER(email) = ?', [$email])
+                // `pending` is shown: it is the order a member is most likely to be asking
+                // about, and hiding it leaves somebody who was charged looking at an empty
+                // list. `failed` is hidden — nothing was taken and nothing is coming.
+                ->whereIn('status', ['paid', 'pending'])
+                ->orderByDesc('id')->limit($limit)->get();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        return $rows->map(static function ($o): array {
+            $lines = json_decode((string) ($o->items_json ?? '[]'), true) ?: [];
+            return [
+                'reference' => (string) $o->reference,
+                'status'    => (string) $o->status,
+                'total'     => (int) ($o->subtotal_naira ?? 0),
+                'items'     => (int) array_sum(array_column($lines, 'qty')),
+                // Named, not just referenced. "Order AFG-SHP-9f2c…" tells a member nothing
+                // about which of their three orders they are looking at.
+                'what'      => (string) ($lines[0]['name'] ?? 'Your order')
+                             . (count($lines) > 1 ? ' + ' . (count($lines) - 1) . ' more' : ''),
+                'fulfilment'=> ((string) ($o->fulfilment ?? '')) ?: 'unfulfilled',
+                'tracking'  => (string) ($o->tracking_note ?? ''),
+                'placed'    => (string) ($o->created_at ?? ''),
+                'url'       => '/shop/order/' . rawurlencode((string) $o->reference),
+            ];
+        })->all();
+    }
+
+    /**
+     * Event tickets this member holds.
+     *
+     * Same join and the same reason as {@see ordersFor()}: registration does not require an
+     * account either. A `pending` registration is included and labelled, because an offer from
+     * a waiting list IS pending — it is a seat held for a fixed number of hours, and it is the
+     * most time-critical thing this platform can put in front of anybody.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function ticketsFor(string $email, int $limit = 20): array
+    {
+        $email = mb_strtolower(trim($email));
+        if ($email === '') return [];
+
+        try {
+            $rows = DB::table('gates_event_registrations as r')
+                ->leftJoin('gates_site_events as e', 'e.id', '=', 'r.event_id')
+                ->whereRaw('LOWER(r.email) = ?', [$email])
+                ->whereIn('r.status', ['confirmed', 'pending', 'waitlisted'])
+                ->orderByDesc('r.id')->limit($limit)
+                ->select('r.*', 'e.title as event_title', 'e.slug as event_slug',
+                         'e.event_date', 'e.location')
+                ->get();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        return $rows->map(static function ($r): array {
+            $offered = ($r->offered_at ?? null) !== null;
+            $status  = (string) $r->status;
+            return [
+                'event'     => (string) ($r->event_title ?? 'An event'),
+                'slug'      => (string) ($r->event_slug ?? ''),
+                'when'      => (string) ($r->event_date ?? ''),
+                'where'     => (string) ($r->location ?? ''),
+                'tier'      => (string) ($r->tier ?? ''),
+                'seats'     => (int) ($r->quantity ?? 1),
+                'code'      => (string) ($r->ticket_code ?? ''),
+                'status'    => $status,
+                // Four states a reader must be able to tell apart, and one of them has a clock
+                // on it: a held offer expires and the seat passes to the next person waiting.
+                'state'     => $status === 'confirmed' ? 'confirmed'
+                             : ($status === 'waitlisted' ? 'waiting'
+                             : ($offered ? 'offered' : 'unpaid')),
+                'expires'   => (string) ($r->offer_expires_at ?? ''),
+                'reference' => (string) ($r->reference ?? ''),
+                // A waitlisted row has no reference to link to, so it points at the event.
+                'url'       => trim((string) ($r->reference ?? '')) !== ''
+                    ? '/events/ticket/' . rawurlencode((string) $r->reference)
+                    : (trim((string) ($r->event_slug ?? '')) !== ''
+                        ? '/events/' . rawurlencode((string) $r->event_slug) : '/events'),
+            ];
+        })->all();
+    }
+
+    /**
      * Share links this member created (live ones first), with open counts.
      *
      * @return list<array{nominee:string,url:string,hits:int,expires_at:string,expired:bool}>

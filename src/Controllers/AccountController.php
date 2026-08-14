@@ -355,6 +355,11 @@ class AccountController
             'my_votes'       => $votes,
             'my_nominations' => $nominations,
             'my_links'       => $shareLinks,
+            // What they BOUGHT — absent until now. The dashboard was an accurate picture of
+            // everything a member had contributed and said nothing about anything they had
+            // paid for, so the only route to "has my order shipped" was a link in an email.
+            'my_orders'      => \AfricaGates\Services\MemberActivityService::ordersFor((string) $user->email, 10),
+            'my_tickets'     => \AfricaGates\Services\MemberActivityService::ticketsFor((string) $user->email, 10),
             'community_counts' => $communityC,
             'completeness'   => \AfricaGates\Services\MemberActivityService::completeness($user),
             'checklist'      => \AfricaGates\Services\MemberActivityService::checklist($user, $votes, $nominations, $communityC),

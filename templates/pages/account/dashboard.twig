@@ -100,6 +100,94 @@
     </div>
   </div>
 
+  {# ── WHAT YOU BOUGHT ────────────────────────────────────────────────────────
+     Placed ABOVE votes and nominations, and that ordering is the point. This dashboard was an
+     accurate picture of everything a member had contributed and said nothing about anything
+     they had paid for — so the only route to "has my order shipped" or "where is my ticket"
+     was a link in an email, and losing that email meant asking a human.
+
+     Shown only when there is something to show: an empty "your orders" card on the account of
+     somebody who has never bought anything is an advertisement dressed as a record. #}
+  {% if my_orders|default([]) or my_tickets|default([]) %}
+  <div class="ac-grid" style="margin-top:18px">
+
+    {% if my_orders|default([]) %}
+    <section class="ac-card" aria-labelledby="ac-orders-h">
+      <h2 id="ac-orders-h">Your orders</h2>
+      <p style="font-size:13px;color:#5a6d6f;margin:4px 0 8px">Everything you have bought from the shop, and where each one has got to.</p>
+      <ul style="list-style:none;margin:0;padding:0">
+        {% for o in my_orders %}
+        {% set fb = {
+          'unfulfilled': ['#5a6d6f', '#f4f5f5', 'Being prepared'],
+          'packed':      ['#8a6d1a', '#fdf6e3', 'Packed'],
+          'shipped':     ['#166534', '#f0fdf4', 'Shipped'],
+          'delivered':   ['#166534', '#f0fdf4', 'Delivered'],
+          'cancelled':   ['#7f1d1d', '#fef2f2', 'Cancelled']
+        }[o.fulfilment]|default(['#5a6d6f', '#f4f5f5', 'Being prepared']) %}
+        <li style="padding:11px 0;border-top:1px solid rgba(16,41,44,.07)">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <a href="{{ o.url }}" style="font-weight:600;font-size:14px;color:var(--ag-ink,#10292c);text-decoration:none">{{ o.what }}</a>
+            {% if o.status == 'pending' %}
+              {# Its own badge, ahead of the delivery one: an unpaid order has not started
+                 being prepared, and showing "being prepared" would be a promise. #}
+              <span style="font-size:11px;font-weight:700;color:#8a6d1a;background:#fdf6e3;border-radius:99px;padding:3px 9px">Confirming payment</span>
+            {% else %}
+              <span style="font-size:11px;font-weight:700;color:{{ fb[0] }};background:{{ fb[1] }};border-radius:99px;padding:3px 9px">{{ fb[2] }}</span>
+            {% endif %}
+          </div>
+          <div style="font-size:12px;color:#5a6d6f;margin-top:3px">
+            ₦{{ o.total|number_format }} · {{ o.items }} item{{ o.items == 1 ? '' : 's' }} ·
+            <time datetime="{{ o.placed }}">{{ o.placed|date('j M Y') }}</time>
+          </div>
+          {% if o.tracking %}<div style="font-size:12px;color:#1a6118;font-weight:600;margin-top:3px">{{ o.tracking }}</div>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    {% if my_tickets|default([]) %}
+    <section class="ac-card" aria-labelledby="ac-tickets-h">
+      <h2 id="ac-tickets-h">Your tickets</h2>
+      <p style="font-size:13px;color:#5a6d6f;margin:4px 0 8px">Events you are registered for — the code is what gets you in.</p>
+      <ul style="list-style:none;margin:0;padding:0">
+        {% for t in my_tickets %}
+        {% set tb = {
+          'confirmed': ['#166534', '#f0fdf4', 'Confirmed'],
+          'offered':   ['#7a4d00', '#fff8ec', 'Seat held for you'],
+          'waiting':   ['#7a4d00', '#fff8ec', 'On the waiting list'],
+          'unpaid':    ['#8a6d1a', '#fdf6e3', 'Payment not completed']
+        }[t.state]|default(['#5a6d6f', '#f4f5f5', t.state|capitalize]) %}
+        <li style="padding:11px 0;border-top:1px solid rgba(16,41,44,.07)">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <a href="{{ t.url }}" style="font-weight:600;font-size:14px;color:var(--ag-ink,#10292c);text-decoration:none">{{ t.event }}</a>
+            <span style="font-size:11px;font-weight:700;color:{{ tb[0] }};background:{{ tb[1] }};border-radius:99px;padding:3px 9px">{{ tb[2] }}</span>
+          </div>
+          <div style="font-size:12px;color:#5a6d6f;margin-top:3px">
+            {% if t.when %}<time datetime="{{ t.when }}">{{ t.when|date('j M Y') }}</time>{% endif %}
+            {%- if t.tier %} · {{ t.tier }}{% endif %}
+            {%- if t.seats > 1 %} · {{ t.seats }} seats{% endif %}
+            {%- if t.where %} · {{ t.where }}{% endif %}
+          </div>
+          {% if t.code %}
+          <div style="font-family:var(--ag-font-mono,monospace);font-weight:700;font-size:13.5px;letter-spacing:.05em;color:var(--ag-ink,#10292c);margin-top:5px">{{ t.code }}</div>
+          {% endif %}
+          {% if t.state == 'offered' and t.expires %}
+          {# The one line on this page with a clock on it: an unclaimed offer expires and the
+             seat passes to the next person waiting. #}
+          <div style="font-size:12px;color:#8a2020;font-weight:700;margin-top:4px">
+            Take it by {{ t.expires|date('j M, H:i') }} or it goes to the next person.
+          </div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+  </div>
+  {% endif %}
+
   {# ── Your activity: votes cast + nominations made ── #}
   <div class="ac-grid" style="margin-top:18px">
     <section class="ac-card" aria-labelledby="ac-votes-h">

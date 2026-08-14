@@ -7,7 +7,8 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
-use AfricaGates\Services\{PaymentService, ShopPricing, ShopCatalogue, ShopShipping, CurrencyService};
+use AfricaGates\Services\{PaymentService, ShopPricing, ShopCatalogue, ShopShipping,
+                         StockAlert, CurrencyService};
 
 /**
  * Public storefront. Products come straight from gates_products (admin-managed) —
@@ -117,6 +118,63 @@ class ShopController
         ]);
     }
 
+    /**
+     * POST /shop/{slug}/notify-me — ask to be told when a sold-out thing is back.
+     *
+     * ── THE SAME DEAD END THE EVENT WAITLIST CLOSED ──────────────────────────
+     *
+     * A sold-out product page's entire answer was a greyed-out button. Stock comes back far
+     * more often than a seat does, and somebody who wanted a Large enough to arrive on the page
+     * the week it ran out is the easiest sale this shop will ever make.
+     *
+     * The answer is deliberately identical whether or not the address was already on the list.
+     * Saying "you are already signed up" would be a way to test which addresses are — and this
+     * list is a record of what somebody wanted to buy.
+     */
+    public function notifyMe(Request $req, Response $res, array $args): Response
+    {
+        $json = function (array $payload) use ($res): Response {
+            $res->getBody()->write((string) json_encode($payload));
+            return $res->withHeader('Content-Type', 'application/json');
+        };
+
+        $product = DB::table('gates_products')
+            ->where('slug', (string) ($args['slug'] ?? ''))->where('is_active', 1)->first();
+        if (!$product) return $json(['success' => false, 'message' => 'That product is not available.']);
+
+        $b  = (array) $req->getParsedBody();
+        $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
+
+        $r = StockAlert::want(
+            (int) $product->id,
+            max(0, (int) ($b['variant_id'] ?? 0)),
+            trim((string) ($b['email'] ?? '')),
+            trim((string) ($b['name'] ?? '')),
+            $ip !== '' ? hash('sha256', $ip) : ''
+        );
+
+        return $json(['success' => (bool) $r['ok'], 'message' => (string) $r['message']]);
+    }
+
+    /**
+     * GET /shop/back-in-stock/stop/{token} — one click, no account.
+     *
+     * Same doctrine as an event ticket: the person who asked has no login, and requiring one to
+     * STOP receiving mail would be the worst possible place to put a registration wall. The
+     * page never says whether the token was real — it confirms either way, because the
+     * difference is a way to test tokens and the outcome for the reader is identical.
+     */
+    public function stopAlert(Request $req, Response $res, array $args): Response
+    {
+        StockAlert::stop((string) ($args['token'] ?? ''));
+
+        return $this->view->render($res, 'pages/shop/alert-stopped.twig', [
+            'page_title' => 'You are off that list — Africa GATES',
+            'gates_page' => 'shop',
+            'has_hero'   => false,
+        ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
     public function item(Request $req, Response $res, array $args): Response
     {
         $slug    = (string)($args['slug'] ?? '');
@@ -165,6 +223,10 @@ class ShopController
 
         return $this->view->render($res, 'pages/shop/item.twig', [
             'variants'  => $variants,
+            // How many people are already waiting on each option. Shown as a plain fact next
+            // to a sold-out size: "you and eleven others" is a different thing to be told than
+            // "sold out", and it is also the number that tells an organiser what to restock.
+            'waiting'   => StockAlert::waitingByVariant((int) $product['id']),
             'axis'      => $variants !== [] ? ((string) ($variants[0]['axis'] ?? '') ?: 'Option') : '',
             'gallery'   => ShopCatalogue::images(
                 (int) $product['id'], $product['cover_path'] ?? null, (string) $product['name']

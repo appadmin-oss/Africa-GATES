@@ -103,6 +103,40 @@
 </div>
 {% endif %}
 
+{# ── WHAT PEOPLE WANT AND CANNOT BUY ─────────────────────────────────────────
+   A restock order written by the people who wanted to pay. Shown only when somebody is
+   actually waiting — a permanent empty section is one an operator learns to scroll past.
+
+   You do not press anything here: saving the product with a stock number above zero emails
+   everybody waiting for that exact size, because that save is the one moment the fact
+   becomes true. #}
+{% if demand|default([]) %}
+<div class="so-sec">
+  <h2>Waiting to be told it is back</h2>
+  <p>
+    Raise the stock on one of these and save — everybody waiting for that exact option is
+    emailed once, automatically. Nothing to press here.
+  </p>
+  <table class="so-list">
+    <thead><tr><th>Product</th><th>Option</th><th>People waiting</th><th>Most recent ask</th><th></th></tr></thead>
+    <tbody>
+      {% for d in demand %}
+      <tr>
+        <td><strong>{{ d.name }}</strong></td>
+        <td>{{ d.variant ?: '—' }}</td>
+        <td><strong style="font-size:14px">{{ d.waiting }}</strong></td>
+        <td style="color:#67797b">{{ d.latest }}</td>
+        <td>
+          <a class="so-btn so-btn--ghost so-btn--tiny" href="/admin/products/{{ d.product_id }}">Restock</a>
+          <a class="so-btn so-btn--ghost so-btn--tiny" href="/shop/{{ d.slug }}" target="_blank" rel="noopener noreferrer">View</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 <div class="so-sec">
   <form class="so-find" method="get" action="/admin/shop/orders">
     <input type="search" name="q" value="{{ q }}" placeholder="Reference, name or email…" style="flex:1 1 200px">

@@ -23,6 +23,9 @@ class ProductsController
         private readonly Twig          $view,
         private readonly AuditService  $audit,
         private readonly UploadService $uploads,
+        // Optional in the signature and NOT optional in practice: restocking something without
+        // it changes a number and tells the people who asked to be told nothing at all.
+        private readonly ?\AfricaGates\Services\OtpService $mailer = null,
     ) {}
 
     public function index(Request $req, Response $res): Response
@@ -48,11 +51,16 @@ class ProductsController
         // and the DATABASE id carried separately so a save upserts rather than reissuing.
         $variantSeed = [];
         $i = 0;
+        // How many people are waiting on each option, shown beside its stock box — which is
+        // where somebody is standing when they decide what number to type.
+        $waiting = $id ? \AfricaGates\Services\StockAlert::waitingByVariant($id) : [];
+
         foreach ($id ? \AfricaGates\Services\ShopCatalogue::variants($id) : [] as $v) {
             $variantSeed[] = [
                 'id' => ++$i, 'vid' => (int) $v['id'], 'label' => (string) $v['label'],
                 'sku' => (string) $v['sku'], 'delta' => (int) $v['delta'],
                 'stock' => $v['stock'] === null ? '' : (string) (int) $v['stock'],
+                'waiting' => (int) ($waiting[(int) $v['id']] ?? 0),
                 'live' => true,
             ];
         }
@@ -81,6 +89,8 @@ class ProductsController
             'sel_regions'=> !empty($row['delivery_regions']) ? (json_decode((string)$row['delivery_regions'], true) ?: []) : [],
             'variant_seed' => $variantSeed,
             'image_seed'   => $imageSeed,
+            // For a product with no options at all, the count lives on the product itself.
+            'waiting_here' => $id ? \AfricaGates\Services\StockAlert::waiting($id, 0) : 0,
             // Hidden rather than shown-and-dropped when the migration has not run: an editor
             // that silently discards an organiser's work is worse than one missing a section.
             'shop_missing' => \AfricaGates\Support\OptionalColumn::missing('gates_products', [
@@ -101,6 +111,11 @@ class ProductsController
             $_SESSION['flash_error'] = 'Product name is required.';
             return $res->withHeader('Location', '/admin/products' . ($id ? '/' . $id : '/new'))->withStatus(302);
         }
+
+        // What was sold out BEFORE anything is written. Read HERE, at the very top: "stock
+        // rose" is a comparison, and both halves of it are gone the moment the update below
+        // lands. See StockAlert for why a save is the only honest place to notice.
+        $wasEmpty = $this->soldOutBefore($id);
 
         $stockRaw = trim((string)($b['stock'] ?? ''));
         $data = [
@@ -158,7 +173,81 @@ class ProductsController
         $this->saveGalleryFiles($req, $id, $adminId);
 
         if (empty($_SESSION['flash_error'])) $_SESSION['flash_ok'] = 'Product saved.';
+
+        // AFTER the flash above, which it appends to rather than replaces — both things
+        // happened, and the emails are the half the operator did not press a button for.
+        $this->tellTheWaiting($id, $wasEmpty, $req);
         return $res->withHeader('Location', '/admin/products')->withStatus(302);
+    }
+
+    /**
+     * Which things this product could not sell a moment ago.
+     *
+     * Keyed by variant id, with 0 meaning the product itself. Read before anything is written,
+     * because "it is back" is a comparison between two states and the earlier one is destroyed
+     * by the save. An empty array for a new product: nothing can have been waiting for
+     * something that did not exist.
+     *
+     * @return array<int,true>
+     */
+    private function soldOutBefore(int $id): array
+    {
+        if ($id <= 0) return [];
+
+        $out = [];
+        try {
+            $product = DB::table('gates_products')->where('id', $id)->first();
+            if (!$product) return [];
+
+            $variants = DB::table('gates_product_variants')->where('product_id', $id)->get();
+            if (count($variants) > 0) {
+                foreach ($variants as $v) {
+                    // NULL is untracked, which is never sold out. Only a real 0 counts.
+                    if ($v->stock !== null && (int) $v->stock < 1) $out[(int) $v->id] = true;
+                }
+                return $out;
+            }
+
+            if ($product->stock !== null && (int) $product->stock < 1) $out[0] = true;
+        } catch (\Throwable) {}
+
+        return $out;
+    }
+
+    /**
+     * Anything that was sold out and is not any more: tell the people who asked.
+     *
+     * Only for things that WERE empty. A product going from 4 to 40 is a restock nobody was
+     * waiting on, and emailing about it would spend the single message each person agreed to
+     * receive on news they did not ask for.
+     *
+     * @param array<int,true> $wasEmpty
+     */
+    private function tellTheWaiting(int $id, array $wasEmpty, Request $req): void
+    {
+        if ($id <= 0 || $wasEmpty === []) return;
+
+        $base = \AfricaGates\Support\SiteUrl::base($req);
+        $told = 0; $left = 0;
+
+        foreach (array_keys($wasEmpty) as $variantId) {
+            // release() re-checks that the thing is genuinely available before writing to
+            // anybody, so a variant that was deleted or is still empty simply sends nothing.
+            $r = \AfricaGates\Services\StockAlert::release($id, (int) $variantId, $this->mailer, $base);
+            $told += (int) $r['sent'];
+            $left += (int) $r['left'];
+        }
+
+        if ($told === 0) return;
+
+        // Appended rather than replacing "Product saved", because both things happened and the
+        // second is the one an operator did not press a button for.
+        $note = $told . ' ' . ($told === 1 ? 'person was' : 'people were')
+            . ' emailed that this is back in stock.'
+            . ($left > 0 ? ' ' . $left . ' still waiting — save again to send the next batch.' : '');
+        $_SESSION['flash_ok'] = trim((string) ($_SESSION['flash_ok'] ?? '')) !== ''
+            ? $_SESSION['flash_ok'] . ' ' . $note
+            : $note;
     }
 
     /**

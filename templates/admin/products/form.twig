@@ -23,7 +23,17 @@
       </div>
       <div class="row">
         <div><label for="f-tag">Tag</label><select name="tag" id="f-tag"><option value="">None</option>{% for t in tags %}<option value="{{ t }}" {% if row.tag == t %}selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
-        <div><label for="f-stock">Stock <span style="font-weight:400;color:var(--ad-text-mute)">(blank = untracked)</span></label><input type="number" name="stock" id="f-stock" min="0" step="1" value="{{ row.stock|default('') }}"></div>
+        <div><label for="f-stock">Stock <span style="font-weight:400;color:var(--ad-text-mute)">(blank = untracked)</span></label>
+          <input type="number" name="stock" id="f-stock" min="0" step="1" value="{{ row.stock|default('') }}">
+          {% if waiting_here|default(0) %}
+          {# Said where the decision is made. Raising this above zero and saving emails all of
+             them, once — the save is the one moment "it is back" becomes true. #}
+          <div style="font-size:12px;color:#8a5a00;font-weight:600;margin-top:5px">
+            {{ waiting_here }} {{ waiting_here == 1 ? 'person is' : 'people are' }} waiting to be told
+            this is back. Save with a stock above 0 and they are emailed.
+          </div>
+          {% endif %}
+        </div>
         <div><label for="f-sort_order">Sort order</label><input type="number" name="sort_order" id="f-sort_order" step="1" value="{{ row.sort_order|default(0) }}"></div>
       </div>
       {% if shop_missing|default([])|length %}
@@ -79,7 +89,7 @@
      delta still holds, whereas eight absolute prices would silently keep the old ones. #}
   {% if variants_ready|default(false) %}
   <div class="ad-card"><div class="ad-card__body">
-    <div class="ad-form" x-data="pvRepeater({{ variant_seed|default([])|json_encode|e('html_attr') }}, {vid:0,label:'',sku:'',delta:0,stock:''})">
+    <div class="ad-form" x-data="pvRepeater({{ variant_seed|default([])|json_encode|e('html_attr') }}, {vid:0,label:'',sku:'',delta:0,stock:'',waiting:0})">
       <div>
         <strong style="font-size:14px">Sizes, colours and other options</strong>
         <div style="font-size:12.5px;color:var(--ad-text-mute);margin-top:4px">
@@ -107,6 +117,11 @@
           {# '' is UNTRACKED and 0 is SOLD OUT. Two different statements, and flattening them
              would turn every uncounted size into one nobody can buy. #}
           <input name="var_stock[]" aria-label="Stock for this option" type="number" min="0" step="1" x-model="r.stock" placeholder="Stock (blank = untracked)" style="width:190px">
+          {# The demand for THIS size, beside the box where somebody decides what to type.
+             Raising it above zero and saving emails every one of them, once. #}
+          <span x-show="r.waiting > 0" x-cloak
+                style="font-size:12px;font-weight:700;color:#8a5a00;white-space:nowrap"
+                x-text="r.waiting + ' waiting'"></span>
           <button type="button" @click="rm(r.id)" aria-label="Remove option" style="border:none;background:#fbeaea;color:#a4243a;font-weight:700;border-radius:8px;width:34px;height:34px;cursor:pointer">×</button>
         </div>
       </template>
