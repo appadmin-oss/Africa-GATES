@@ -380,9 +380,12 @@ class EventsController
         // governs it and a CSP without the gateway's hosts blocks the POST in the browser
         // before any of this runs.
         return $json([
+            // The event's slug travels with the handoff URL, so that when a session has
+            // expired by the time somebody comes back, the bounce lands them on the event they
+            // were buying rather than on the list — which is where the "try again" button is.
             'success' => true, 'pay' => GatewayHandoff::remember(
                 $reference, (string) $init['checkout_url'],
-                $this->base($req) . '/events/redirect', $provider
+                $this->base($req) . '/events/redirect?event=' . rawurlencode($slug), $provider
             ),
             'amount'  => (int) $r['amount'],
             'discount' => (int) ($r['discount'] ?? 0),
@@ -392,9 +395,49 @@ class EventsController
     }
 
     /** The interstitial that performs the actual hand-off. Mirrors /shop/redirect. */
+    /**
+     * GET /events/redirect — the same-origin hop to the payment gateway.
+     *
+     * ── THIS WAS A 500 ON EVERY EVENT PAYMENT, AND NOTHING CAUGHT IT ─────────
+     *
+     * It called `GatewayHandoff::render($this->view, $req, $res, '/events')`. There is no
+     * `render()` on that class and there never was: the method was invented at the call site and
+     * the call was never once executed, so PHP raised an undefined-method fatal the first time a
+     * real buyer came back from the gateway — which is to say, on every paid ticket this feature
+     * has ever been asked to sell.
+     *
+     * The shape below is the one the vote flow and the shop checkout both already use, and the
+     * reason it is three steps rather than one is worth keeping in view:
+     *
+     *   • THE REFERENCE COMES FROM THE REQUEST, not from the session alone, so a buyer who
+     *     completes payment in a second tab still lands on their own handoff.
+     *   • take() IS ONE-SHOT. It reads the stored checkout URL and forgets it, so a back button
+     *     or a shared link cannot re-open somebody else's gateway session.
+     *   • AND A MISSING URL BOUNCES rather than erroring. A stale tab, an expired session or a
+     *     link somebody kept overnight is an ordinary thing, not an exception — and an error page
+     *     at this exact moment reads as "my money is gone".
+     *
+     * Guarded now by EventPaymentHandoffTest, which asserts the method exists before asserting
+     * anything about its behaviour — because "does this method exist" is precisely the question
+     * nothing was asking.
+     */
     public function redirect(Request $req, Response $res): Response
     {
-        return GatewayHandoff::render($this->view, $req, $res, '/events');
+        $reference = GatewayHandoff::reference($req);
+        $url       = GatewayHandoff::take($reference);
+
+        if ($url === null) {
+            // Back to the event they were buying from when we know it, and to the list when we
+            // do not. Either is better than an error: they have not been charged, and the page
+            // they came from is where the "try again" button is.
+            $slug = trim((string) ($req->getQueryParams()['event'] ?? ''));
+            $back = $slug !== '' && preg_match('/^[a-z0-9-]{1,160}$/i', $slug) === 1
+                ? '/events/' . rawurlencode($slug) . '?pay=restart'
+                : '/events?pay=restart';
+            return $this->goTo($res, $back);
+        }
+
+        return GatewayHandoff::page($res, $url, GatewayHandoff::providerLabel(), $reference);
     }
 
     /**
