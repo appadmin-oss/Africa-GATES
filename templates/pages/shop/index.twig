@@ -95,6 +95,27 @@
     .sh-ship{ margin-top:11px; padding:9px 13px; font-size:12.5px; }
   }
 
+  /* "Not sure what to get?" — a link row, not a chat widget. A floating bubble is a thing
+     people close; a line in the flow of the page is a thing they read. */
+  .sh-ask{ display:flex; align-items:center; gap:13px; flex-wrap:wrap; margin-top:14px;
+    background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08);
+    border-radius:16px; padding:14px 17px; }
+  .sh-ask__i{ flex:none; width:38px; height:38px; border-radius:11px; background:#eef4ff;
+    color:#2b4f8a; display:flex; align-items:center; justify-content:center; }
+  .sh-ask__b{ flex:1; min-width:190px; }
+  .sh-ask__b b{ display:block; font-size:14.5px; color:var(--ag-ink); }
+  .sh-ask__b span{ display:block; font-size:12.5px; color:#626a6e; margin-top:2px; }
+  .sh-ask__l{ display:flex; gap:8px; flex-wrap:wrap; }
+  .sh-ask__l a{ font-size:12.5px; font-weight:600; text-decoration:none; color:#10292C;
+    border:1px solid rgba(16,41,44,.14); border-radius:999px; padding:8px 13px;
+    background:var(--ag-surface,#fff); white-space:nowrap; }
+  .sh-ask__l a:hover{ border-color:var(--ag-green); color:var(--ag-green); }
+  @media(max-width:620px){
+    .sh-ask{ margin-top:11px; padding:12px 14px; gap:10px; }
+    .sh-ask__l{ width:100%; }
+    .sh-ask__l a{ flex:1; text-align:center; }
+  }
+
   /* ── THE RAIL, AND THE TWO-COLUMN PAGE ──────────────────────────────────────
      A shop whose only filter was a row of category chips could answer one question at a
      time. The rail answers several at once and keeps them all in the URL, so a filtered
@@ -250,6 +271,29 @@
     {% if F.featured %}<input type="hidden" name="feat" value="1">{% endif %}
     {% if F.sort != 'featured' %}<input type="hidden" name="sort" value="{{ F.sort }}">{% endif %}
   </form>
+
+  {# ── HELP ME CHOOSE ──────────────────────────────────────────────────────────
+     Where somebody who does not know what they want actually is: on the shop, not on the
+     help page. The assistant can look up real stock, quote a delivered total and compare two
+     products, so this is a shortcut to a useful conversation rather than a chat bubble.
+
+     A plain link with the opening question in the URL — no script, and it survives being
+     opened in a new tab. Three starting points rather than one box, because "how can I help"
+     is a harder question to answer than it looks and a blank prompt is where people give up. #}
+  <div class="sh-ask">
+    <span class="sh-ask__i" aria-hidden="true">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3V13"/><path d="M12 16h.01"/></svg>
+    </span>
+    <div class="sh-ask__b">
+      <b>Not sure what to get?</b>
+      <span>Ask for a recommendation, check whether your size is in, or get a delivered total.</span>
+    </div>
+    <div class="sh-ask__l">
+      <a href="/support/assistant?q={{ 'Help me choose a gift — what would you suggest?'|url_encode }}">Help me choose</a>
+      <a href="/support/assistant?q={{ 'Is my size in stock?'|url_encode }}">Is my size in?</a>
+      <a href="/support/assistant?q={{ 'What will delivery cost me?'|url_encode }}">Delivery cost</a>
+    </div>
+  </div>
 
   {% if ship_active|default(false) and ship_free_over|default(0) %}
   <div class="sh-ship">
