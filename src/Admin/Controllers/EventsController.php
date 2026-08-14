@@ -12,6 +12,7 @@ use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Services\CacheService;
 use AfricaGates\Services\EventAgenda;
 use AfricaGates\Services\EventDiscount;
+use AfricaGates\Services\EventTicketDesign;
 use AfricaGates\Services\EventTicketService;
 use AfricaGates\Services\EventWaitlist;
 use AfricaGates\Support\OptionalColumn;
@@ -122,6 +123,17 @@ class EventsController
                 'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
                 'organiser_email', 'organiser_phone',
             ]),
+            // The ticket's appearance, same treatment: hidden until migrated rather than
+            // shown and dropped.
+            'design_missing' => OptionalColumn::missing('gates_site_events', [
+                'ticket_accent', 'ticket_theme', 'ticket_image', 'ticket_note',
+                'ticket_rows', 'ticket_show_qr',
+            ]),
+            // Resolved, not raw: the form shows the colour that WILL be used, so an
+            // organiser is never looking at an empty box beside a ticket that is clearly
+            // not colourless.
+            'design'      => EventTicketDesign::forEvent($row ?: null),
+            'design_rows' => EventTicketDesign::ROWS,
         ]);
     }
 
@@ -176,6 +188,16 @@ class EventsController
             'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
             'organiser_email', 'organiser_phone',
         ]);
+        // The ticket's appearance. Validated in the service rather than here, because the
+        // accent colour reaches a `style` attribute and the same value has to be checked
+        // again on the way out — see EventTicketDesign's note on validating twice.
+        //
+        // Only merged when the panel was actually on screen: a save from a deployment that
+        // has not migrated yet posts none of these fields, and treating that as "the
+        // organiser cleared everything" would wipe a design somebody had already set.
+        if (!empty($b['ticket_design_posted'])) {
+            $data = array_merge($data, EventTicketDesign::fromForm($b));
+        }
         if ($data['title'] === '' || $data['slug'] === '') {
             $_SESSION['flash_error'] = 'Title and slug are required.';
             return $res->withHeader('Location', $id ? "/admin/events/{$id}" : '/admin/events/new')->withStatus(302);
@@ -574,6 +596,10 @@ class EventsController
             'waitlist_open' => (int) ($event->waitlist_open ?? 0) === 1,
             'offer_hours' => EventWaitlist::OFFER_HOURS,
             'code_count'  => count(EventDiscount::forEvent($id)),
+            // Hide the seat boxes rather than offer a field that cannot store what is typed
+            // into it. An organiser labelling thirty tables and then finding none of it saved
+            // is a worse outcome than not seeing the feature until the migration has run.
+            'seat_missing' => OptionalColumn::missing('gates_event_registrations', ['seat_label']) !== [],
         ]);
     }
 
@@ -657,6 +683,54 @@ class EventsController
     }
 
     /**
+     * Write a seat or table label onto one registration.
+     *
+     * Per attendee rather than per event, because that is what it is: "Table 12" belongs to
+     * the four people sitting at it and not to the gala. Free text and not an integer,
+     * because organisers use "Table 12", "Row C Seat 7" and "Balcony left" interchangeably,
+     * and a schema that insists on a number gets "12" typed into some other column instead.
+     *
+     * Clearing it is a legitimate save, so an empty box writes NULL rather than being read as
+     * "no change" — otherwise a seat assigned by mistake could never be taken off.
+     */
+    public function seat(Request $req, Response $res, array $args): Response
+    {
+        $id    = (int) ($args['id'] ?? 0);
+        $back  = '/admin/events/' . $id . '/tickets';
+        $b     = (array) $req->getParsedBody();
+        $regId = (int) ($b['reg_id'] ?? 0);
+
+        $reg = DB::table('gates_event_registrations')->where('id', $regId)->first();
+        if (!$reg || (int) $reg->event_id !== $id) {
+            // Checked against the event in the URL, not just the row id: without it, an
+            // organiser with rights to one event could relabel a seat on another.
+            $_SESSION['flash_error'] = 'That registration is not on this event.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $label = mb_substr(trim((string) preg_replace('/\s+/u', ' ', (string) ($b['seat_label'] ?? ''))), 0, 60);
+        $data  = OptionalColumn::filter('gates_event_registrations',
+                                       ['seat_label' => $label !== '' ? $label : null],
+                                       ['seat_label']);
+
+        if ($data === []) {
+            // The column is not there yet. Said out loud rather than silently succeeding —
+            // an organiser who typed a table number and saw "Saved" would find out at the
+            // door that it was never stored.
+            $_SESSION['flash_error'] = 'Seat labels need one more step: run /__setup/migrate.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        DB::table('gates_event_registrations')->where('id', $regId)->update($data);
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'event.seat.label',
+                             'event_registration', $regId);
+        $_SESSION['flash_ok'] = $label !== ''
+            ? 'Seat set to ' . $label . ' for ' . (string) $reg->name . '.'
+            : 'Seat cleared for ' . (string) $reg->name . '.';
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
      * Seats currently held by a waitlist offer nobody has answered.
      *
      * Separated from the ordinary pending list because the two need different actions: an
@@ -687,14 +761,19 @@ class EventsController
         }
 
         $out = fopen('php://temp', 'r+');
-        fputcsv($out, ['Name', 'Email', 'Phone', 'Ticket', 'Seats', 'Status',
+        fputcsv($out, ['Name', 'Email', 'Phone', 'Ticket', 'Seat', 'Seats', 'Status',
                        'Amount (NGN)', 'Discount code', 'Discount (NGN)',
                        'Ticket code', 'Reference', 'Registered', 'Waitlisted',
                        'Offered', 'Offer expires', 'Checked in']);
         foreach (EventTicketService::attendees($id, '', 5000) as $a) {
             fputcsv($out, [
                 $a['name'] ?? '', $a['email'] ?? '', $a['phone'] ?? '',
-                $a['tier'] ?? '', $a['quantity'] ?? 1, $a['status'] ?? '',
+                $a['tier'] ?? '',
+                // The seat label, next to the tier rather than at the far right: a printed
+                // seating plan is read across the row, and a column nobody scrolls to is a
+                // column that gets retyped by hand instead.
+                $a['seat_label'] ?? '',
+                $a['quantity'] ?? 1, $a['status'] ?? '',
                 $a['amount_naira'] ?? 0,
                 $a['discount_code'] ?? '', $a['discount_naira'] ?? '',
                 $a['ticket_code'] ?? '', $a['reference'] ?? '',

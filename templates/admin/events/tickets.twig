@@ -32,6 +32,15 @@
      style attribute when it runs, so the padding above would vanish the moment Alpine
      initialised. AlpineStyleClobberTest fails the build on that. */
   .tx-btn--sure{ border-color:#8a2020; color:#8a2020; font-weight:700 }
+  /* The inline seat box. Deliberately quiet until focused — thirty of these down a column
+     would otherwise read as the loudest thing on a page whose job is the code box at the top. */
+  .tx-seat{ margin:4px 0 0 }
+  .tx-seat input{ width:100%; max-width:120px; padding:3px 6px; font-size:11.5px;
+    font-family:inherit; border:1px dashed rgba(16,41,44,.22); border-radius:6px;
+    background:transparent; color:#10292C }
+  .tx-seat input:focus{ border-style:solid; border-color:#237b22; background:#fff;
+    outline:2px solid rgba(35,123,34,.15) }
+  .tx-seat input::placeholder{ color:#a9b7b8 }
 
   .tx-tiers{ width:100%; border-collapse:collapse; margin-top:12px; font-size:13px }
   .tx-tiers th{ text-align:left; font:700 10px/1.3 var(--ag-font-body,inherit); letter-spacing:.08em;
@@ -271,7 +280,25 @@
                 {%- if a.discount_naira|default(0) %} −₦{{ a.discount_naira|number_format }}{% endif %}</span>
             {% endif %}
           </td>
-          <td class="tx-code">{{ a.ticket_code|default('—') }}</td>
+          <td class="tx-code">{{ a.ticket_code|default('—') }}
+            {# The seat or table label. Inline and saved on blur rather than behind an edit
+               screen, because assigning a room full of tables is thirty of these in a row and
+               a page load between each one is the difference between doing it and not.
+
+               `seat_missing` rather than hiding it silently: an organiser who typed a table
+               number into a field that was never going to store it would find out at the
+               door. #}
+            {% if not seat_missing %}
+              <form method="post" action="/admin/events/{{ event.id }}/seat" class="tx-seat">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="reg_id" value="{{ a.id }}">
+                <input type="text" name="seat_label" value="{{ a.seat_label|default('') }}"
+                       maxlength="60" placeholder="Seat / table"
+                       aria-label="Seat or table for {{ a.name }}"
+                       data-ag-do="submit-form">
+              </form>
+            {% endif %}
+          </td>
           <td>
             {% if a.status == 'confirmed' %}<span class="tx-tag tx-tag--ok">confirmed</span>
             {% elseif a.status == 'pending' %}<span class="tx-tag tx-tag--wait">{{ a.offered_at|default('') ? 'offered a seat' : 'mid-checkout' }}</span>
@@ -317,6 +344,20 @@
   // person about to press "Scan a ticket" does not want a keyboard.
   if (box && !('ontouchstart' in window)) box.focus();
 })();
+
+// ── the seat boxes ─────────────────────────────────────────────────────────
+// `change` rather than `input`: on a text input it fires on BLUR and only when the value
+// actually changed, which is exactly "save when you move to the next one" and never a POST
+// per keystroke. Enter submits natively because each box is alone in its form, so this adds
+// nothing that the form did not already do — it just removes the need to press it.
+//
+// A delegated listener with `data-ag-do`, not an inline handler: CspTest fails the build on
+// an inline event handler.
+document.addEventListener('change', function (e) {
+  var el = e.target.closest('[data-ag-do="submit-form"]');
+  if (!el || !el.form) return;
+  el.form.submit();
+});
 </script>
 
 {# ── SCANNING A TICKET ────────────────────────────────────────────────────────

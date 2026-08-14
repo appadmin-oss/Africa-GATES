@@ -6,76 +6,193 @@
    interview page and the nominee questionnaire: an attendee has no account, and putting a
    login between somebody and the door they are standing at is how a queue stops moving.
 
-   So the page is built for the worst realistic conditions, which is a phone with one bar
-   of signal in a car park at dusk:
+   ── WHY IT WAS REBUILT ─────────────────────────────────────────────────────
 
-     • THE CODE IS THE PAGE. Large, monospaced, in groups of four, high contrast. Whoever
-       is on the door reads it off a screen held at arm's length.
-     • NO SCRIPT IS NEEDED to show any of it. A ticket that needs JavaScript to render is
-       a ticket that sometimes does not.
-     • IT PRINTS. Somebody will print it, and a printed ticket with a navigation bar and a
-       cookie banner across it wastes the half of the page that matters.
-     • AND IT SAYS WHAT IS STILL OWED, if anything, rather than looking valid regardless.
-       A pending payment shown as a ticket is an argument at a door.
+   The old version was a correct white card. Everything on it was true and none of it was
+   RECOGNISABLE — held up at a door it read as a receipt, and the only thing identifying
+   whose event it was was a line of text. `gates_site_events.cover_image` had existed the
+   whole time and the ticket never looked at it.
+
+   So this has the anatomy people already know how to read, because a ticket is one of the
+   few documents where convention IS the usability:
+
+     • A HEADER CARRYING THE EVENT'S OWN IMAGE, with the title over a scrim so the text
+       stays legible whatever the photograph is doing underneath.
+     • A STUB, divided by a real perforation, holding the QR and the code. That is where a
+       hand goes and where a scanner is pointed.
+     • A DETAIL GRID rather than a list of rows, so the holder, the tier and the seat are
+       findable at arm's length instead of read in order.
+     • AND THE REFERENCE ALONG THE FOOT, small, monospaced, the way a serial number sits on
+       a real ticket.
+
+   ── WHAT DID NOT CHANGE, BECAUSE IT MUST NOT ────────────────────────────────
+
+     • THE CODE IS STILL THE POINT. Large, monospaced, in groups of four, high contrast.
+     • QR AND PRINTED CODE, ALWAYS BOTH — never one or the other. A camera fails; a printed
+       code does not. They carry the same string so they cannot disagree.
+     • NO SCRIPT IS NEEDED to show any of it. A ticket that needs JavaScript to render is a
+       ticket that sometimes does not.
+     • IT PRINTS, and prints without the site's navigation across it.
+     • IT SAYS WHAT IS STILL OWED. A pending payment shows NO CODE AT ALL, because a pending
+       payment rendered as a scannable ticket is an argument at a door.
+
+   ── AND WHY THE COLOURS COME FROM PHP ───────────────────────────────────────
+
+   `design` is resolved by {@see \AfricaGates\Services\EventTicketDesign}, which refuses
+   anything that is not a hex colour rather than escaping it. The accent lands inside a
+   `style` attribute, which makes it the one value on the organiser's form that is executed
+   rather than displayed — so the template is handed a colour it can trust and does no
+   validation of its own. `ink` and `accent_soft` are derived there too: an organiser who
+   picks a pale accent gets dark text handed back automatically, because the alternative is
+   a ticket nobody can read and no explanation of why.
 #}
+
+{% set D = design %}
+{% set dark = D.theme == 'dark' %}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  .tk{ max-width:560px; margin:0 auto; padding:34px 20px 80px }
-  .tk__card{ background:#fff; border:1px solid rgba(16,41,44,.12); border-radius:20px;
-    overflow:hidden; box-shadow:0 1px 2px rgba(16,41,44,.04), 0 18px 50px -34px rgba(16,41,44,.4) }
-  .tk__top{ background:#10292c; color:#eaf2ec; padding:20px 22px }
-  .tk__top h1{ margin:0; font-size:19px; line-height:1.35; color:#fff }
-  .tk__when{ margin:7px 0 0; font-size:13px; color:#a8c4b3 }
-  .tk__body{ padding:22px }
+  /* The event's own accent, resolved and validated in PHP. Everything below is expressed
+     against these three values so a single colour choice reaches every part of the ticket. */
+  .tk{ --tk-accent:{{ D.accent }}; --tk-ink:{{ D.ink }}; --tk-soft:{{ D.accent_soft }};
+    --tk-card:#fff; --tk-line:rgba(16,41,44,.10); --tk-text:#10292C; --tk-mute:#5a6d6f;
+    max-width:600px; margin:0 auto; padding:30px 16px 90px }
+  .tk--dark{ --tk-card:#0f1c1e; --tk-line:rgba(255,255,255,.12); --tk-text:#eef5f0;
+    --tk-mute:#9fb3ad }
 
-  /* the code, which is the whole point of the page */
-  .tk__code{ text-align:center; padding:18px 12px; border:2px dashed rgba(16,41,44,.25);
-    border-radius:14px; background:#f6faf6 }
-  .tk__code small{ display:block; font-size:10.5px; font-weight:700; letter-spacing:.1em;
-    text-transform:uppercase; color:#5a6d6f }
-  .tk__code b{ display:block; margin-top:8px; font-family:var(--ag-font-mono, monospace);
-    font-size:clamp(1.7rem, 1.2rem + 4vw, 2.4rem); font-weight:700; letter-spacing:.06em;
-    color:#10292C; word-break:break-all }
-  /* The QR, on white and with room around it. A code printed onto the card's tinted background
-     loses contrast, and one flush against the code text below loses its quiet zone — which is
-     what a scanner uses to find the symbol's edge. */
-  .tk__qr{ display:inline-block; margin:12px auto 4px; padding:10px; background:#fff;
-    border-radius:12px; box-shadow:0 2px 10px -4px rgba(16,41,44,.3); line-height:0 }
-  .tk__qr svg{ display:block; width:clamp(150px, 44vw, 200px); height:auto }
-  .tk__qrnote{ display:block; margin-top:6px; font-size:11.5px; color:#5a6d6f }
+  /* ── the card ─────────────────────────────────────────────────────────── */
+  .tk__card{ background:var(--tk-card); border-radius:22px; overflow:hidden;
+    border:1px solid var(--tk-line);
+    box-shadow:0 1px 2px rgba(16,41,44,.05), 0 30px 60px -40px rgba(16,41,44,.55) }
 
-  .tk__rows{ margin:20px 0 0; border-top:1px solid rgba(16,41,44,.08) }
-  .tk__row{ display:flex; justify-content:space-between; gap:14px; padding:11px 0;
-    border-bottom:1px solid rgba(16,41,44,.06); font-size:13.5px }
-  .tk__row span{ color:#67797b }
-  .tk__row b{ color:#10292C; text-align:right }
-  .tk__note{ margin:18px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  /* ── header: the event's image, with the title legible over it ─────────── */
+  .tk__head{ position:relative; background:var(--tk-accent); color:var(--tk-ink);
+    padding:22px 22px 20px; overflow:hidden }
+  .tk__shot{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+    /* No opacity on the image itself — a scrim above it keeps the text contrast
+       predictable regardless of how light or dark the photograph happens to be. */ }
+  .tk__scrim{ position:absolute; inset:0 }
+  .tk__headin{ position:relative }
+  /* Hierarchy by OPACITY is safe here only because the scrim above the image is nearly
+     opaque (see .tk__scrim). At the alpha this started with, the trophy illustration showed
+     through and an 0.85-opacity eyebrow over a mid-tone blue was, measurably, unreadable —
+     which is the whole point of putting the date on the ticket. */
+  .tk__eyebrow{ display:flex; align-items:center; gap:8px; margin:0 0 10px;
+    font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    opacity:.9 }
+  .tk__eyebrow span{ display:inline-block; width:16px; height:1px; background:currentColor;
+    opacity:.6 }
+  .tk__card h1{ margin:0; font-size:clamp(1.15rem, .95rem + 1.4vw, 1.5rem); line-height:1.28;
+    font-weight:800; color:inherit; text-wrap:balance }
+  .tk__when{ margin:9px 0 0; font-size:13px; line-height:1.6; opacity:.95 }
+  .tk__when b{ font-weight:700; opacity:1 }
 
-  .tk__flag{ border-radius:12px; padding:14px 16px; font-size:13px; line-height:1.7 }
+  /* ── the perforation ──────────────────────────────────────────────────────
+     Two notches and a dashed rule, which is the shape that says "tear here" without a
+     word of explanation. The notches are drawn with the PAGE colour rather than white so
+     they still read as holes on the dark theme and on paper. */
+  .tk__tear{ position:relative; height:24px; background:var(--tk-card) }
+  .tk__tear::before, .tk__tear::after{ content:""; position:absolute; top:50%;
+    width:22px; height:22px; border-radius:50%; transform:translateY(-50%);
+    background:var(--ag-bg, #f4f7f4); border:1px solid var(--tk-line) }
+  .tk--dark .tk__tear::before, .tk--dark .tk__tear::after{ background:#0a1315 }
+  .tk__tear::before{ left:-12px }
+  .tk__tear::after{ right:-12px }
+  .tk__tear i{ position:absolute; left:16px; right:16px; top:50%; height:0;
+    border-top:2px dashed var(--tk-line) }
+
+  /* ── the stub: QR + code ─────────────────────────────────────────────── */
+  .tk__stub{ padding:4px 22px 22px; text-align:center }
+  .tk__stublabel{ display:block; font-size:10.5px; font-weight:700; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--tk-mute) }
+  /* The QR sits on white and with room around it in EVERY theme. A code printed onto a
+     tinted or dark background loses contrast, and one flush against the text below loses
+     its quiet zone — which is what a scanner uses to find the symbol's edge. */
+  .tk__qr{ display:inline-block; margin:12px auto 2px; padding:10px; background:#fff;
+    border-radius:14px; box-shadow:0 2px 12px -4px rgba(16,41,44,.35); line-height:0 }
+  .tk__qr svg{ display:block; width:clamp(148px, 42vw, 190px); height:auto }
+  .tk__code{ margin:10px auto 0; display:inline-block; padding:9px 16px; border-radius:12px;
+    background:var(--tk-soft); border:1px solid var(--tk-line) }
+  .tk__code b{ display:block; font-family:var(--ag-font-mono, monospace);
+    font-size:clamp(1.5rem, 1.1rem + 3.4vw, 2.1rem); font-weight:700; letter-spacing:.08em;
+    color:var(--tk-text); word-break:break-all; line-height:1.15 }
+  .tk__qrnote{ display:block; margin-top:9px; font-size:11.5px; color:var(--tk-mute) }
+  .tk__stubnote{ margin:14px 0 0; font-size:12px; font-weight:600; color:var(--tk-text);
+    letter-spacing:.01em }
+
+  /* ── the details, as a grid rather than a list ─────────────────────────── */
+  .tk__body{ padding:0 22px 22px }
+  /* The detail grid. The lines are BORDERS ON THE CELLS, not a 1px gap over a
+     line-coloured container — because with `auto-fit` the number of columns varies with the
+     viewport, so an odd number of cells leaves a hole, and with the gap technique that hole
+     rendered as a solid grey rectangle. A ticket with a grey block on it looks broken.
+     Drawn this way, an unfilled position is simply the card colour, i.e. invisible. */
+  .tk__grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+    background:var(--tk-card); border:1px solid var(--tk-line);
+    border-radius:14px; overflow:hidden }
+  .tk__cell{ background:var(--tk-card); padding:11px 13px; min-width:0;
+    border-right:1px solid var(--tk-line); border-bottom:1px solid var(--tk-line) }
+  .tk__cell small{ display:block; font-size:10px; font-weight:700; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--tk-mute) }
+  .tk__cell b{ display:block; margin-top:3px; font-size:14px; color:var(--tk-text);
+    font-weight:700; overflow-wrap:anywhere }
+  .tk__cell--wide{ grid-column:1 / -1 }
+
+  /* The reference along the foot, the way a serial number sits on a real ticket. The brand
+     is on the LEFT and the reference on the right: the floating help button sits over the
+     bottom-right of the viewport, and the reference is the half somebody may need to read
+     out to support — so it is the half that must not end up underneath a button. */
+  .tk__foot{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+    gap:10px; margin:14px 0 0; padding-top:12px; border-top:1px dashed var(--tk-line) }
+  .tk__ref{ font-family:var(--ag-font-mono, monospace); font-size:11.5px; color:var(--tk-mute);
+    letter-spacing:.04em; order:2 }
+  .tk__brand{ font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--tk-mute); order:1 }
+
+  .tk__note{ margin:16px 0 0; font-size:12.5px; line-height:1.7; color:var(--tk-mute) }
+  .tk__note b{ color:var(--tk-text) }
+
+  .tk__flag{ border-radius:14px; padding:14px 16px; font-size:13px; line-height:1.7;
+    margin:16px 22px 0 }
   .tk__flag--wait{ background:#fffdf5; border:1px solid #ecd9a0; color:#6b5312 }
   .tk__flag--dead{ background:#fdf3f3; border:1px solid #f0c9c9; color:#7d2b24 }
   .tk__flag--in{ background:#f0fdf4; border:1px solid #b6e3b6; color:#1c5f1b }
 
-  .tk__print{ margin-top:18px; text-align:center }
-  .tk__print a{ font-size:12.5px; color:#237b22; font-weight:600 }
+  /* ── actions, outside the card so they never print ────────────────────── */
+  .tk__acts{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:18px
+    }
+  .tk__act{ display:inline-flex; align-items:center; gap:7px; padding:9px 15px;
+    border-radius:999px; border:1px solid rgba(16,41,44,.16); background:#fff;
+    font-size:12.5px; font-weight:700; color:#10292C; text-decoration:none }
+  .tk__act:hover{ border-color:var(--tk-accent); color:var(--tk-accent) }
+  .tk__act svg{ width:14px; height:14px; flex:none }
 
+  @media (max-width:420px){
+    .tk{ padding:18px 12px 70px }
+    .tk__head, .tk__stub, .tk__body{ padding-left:16px; padding-right:16px }
+  }
+
+  /* ── print ────────────────────────────────────────────────────────────────
+     Somebody will print this, and a printed ticket with a navigation bar and a cookie
+     banner across it wastes the half of the page that matters. `print-color-adjust`
+     because otherwise the header fill — which is what makes it recognisable as a ticket —
+     is dropped by the browser's ink-saving default. */
   @media print{
-    .tk{ padding:0 }
-    .tk__card{ box-shadow:none; border-color:#000 }
-    .tk__top{ background:#fff; color:#000 }
-    .tk__top h1, .tk__when{ color:#000 }
-    .tk__print, .ag-nav, .ag-footer, .ag-mobilebar{ display:none !important }
+    .tk{ padding:0; max-width:none }
+    .tk__card{ box-shadow:none; border:1px solid #999; break-inside:avoid }
+    .tk__head{ -webkit-print-color-adjust:exact; print-color-adjust:exact }
+    .tk__acts, .ag-nav, .ag-footer, .ag-mobilebar, .ag-cookie{ display:none !important }
+    .tk__tear::before, .tk__tear::after{ background:#fff }
   }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="tk">
+<div class="tk{{ dark ? ' tk--dark' : '' }}">
 
 {% if reg is null %}
-  <div class="tk__card"><div class="tk__body">
-    <h1 style="margin:0 0 10px;font-size:18px;color:#10292C">This ticket link is not working</h1>
+  <div class="tk__card"><div class="tk__body" style="padding-top:22px">
+    <h1 style="margin:0 0 10px;font-size:18px">This ticket link is not working</h1>
     <p class="tk__note">It may have been mistyped, or belong to a registration that was
       cancelled. Nothing has gone wrong with any payment you made.</p>
     <p class="tk__note">Write to <a href="mailto:{{ support_email|default('') }}">{{ support_email|default('the team') }}</a>
@@ -85,66 +202,134 @@
 {% else %}
   {% set paid = (reg.amount_naira|default(0)) > 0 %}
   <div class="tk__card">
-    <div class="tk__top">
-      <h1>{{ event.title|default('Africa GATES event') }}</h1>
-      <p class="tk__when">
-        {{ event.event_date|default('') }}{% if event.location|default('') %} · {{ event.location }}{% endif %}
-      </p>
-    </div>
-    <div class="tk__body">
 
-      {% if reg.status == 'confirmed' %}
-        <div class="tk__code">
-          <small>Show this at the door</small>
-          {# ── THE QR, AND THE CODE UNDER IT ────────────────────────────────
-             Both, always — never one or the other. A scanner turns a nine-character retype per
-             attendee into a half-second, which at three hundred people is twenty minutes of
-             queue that need not exist. But a camera fails: a cracked screen, a dead battery
-             lending somebody else's phone, low light, an organiser on a device whose browser
-             has no barcode support. The printed code is what the door falls back to, and it is
-             the same string the QR contains, so the two can never disagree.
+    {# ── header ───────────────────────────────────────────────────────────── #}
+    <div class="tk__head">
+      {% if D.image %}
+        {# A real <img> rather than a background-image: it is content, it needs an alt, and
+           a static `style` beside an Alpine `:style` is what AlpineStyleClobberTest fails
+           the build over — so nothing here is bound. #}
+        <img class="tk__shot" src="{{ D.image }}" alt=""
+             loading="lazy" decoding="async" aria-hidden="true">
+        {# The scrim. Built from the validated accent so the header still reads as the
+           organiser's colour rather than as a grey photograph.
 
-             {@see \AfricaGates\Support\Qr} returns null for anything it cannot encode, and
-             this renders the code alone in that case rather than a broken image. #}
-          {% if qr %}
-          <div class="tk__qr">{{ qr|raw }}</div>
+           NEARLY OPAQUE, deliberately — F0 to FC, not the D9 this started at. The image is
+           TEXTURE, not the subject: it is there so the ticket is recognisably this event's,
+           and the text over it has to stay legible whatever the photograph happens to be
+           doing underneath. At D9 a light illustration showed through and the date became
+           unreadable, which defeats the reason the date is on a ticket. Keeping the accent
+           dominant also means EventTicketDesign::contrastInk's guarantee still holds — it
+           computes readable ink for the ACCENT, and that promise is only true if the accent
+           is what is actually behind the words. #}
+        <span class="tk__scrim" style="background:linear-gradient(180deg,{{ D.accent }}F0,{{ D.accent }}FC)"></span>
+      {% endif %}
+      <div class="tk__headin">
+        <p class="tk__eyebrow"><span></span>{{ paid ? 'Admit one · paid' : 'Admit one' }}</p>
+        <h1>{{ event.title|default('Africa GATES event') }}</h1>
+        {# The date, WRITTEN OUT. `2026-09-28 09:00:00` is a database value, and a person
+           holding a phone at a door reads a day and a time — not an ISO stamp. It was
+           printed raw here, which is the kind of thing that looks fine to whoever built it
+           and looks broken to everybody else.
+
+           The day name is included on purpose: "Friday" is what somebody checks against
+           their own week, and it is the single most useful word on the line. #}
+        <p class="tk__when">
+          {% if event.event_date|default('') %}
+            <b>{{ event.event_date|date('l j F Y') }}</b><br>
+            {{ event.event_date|date('g:i a') }}
+            {%- if event.end_date|default('') %} – {{ event.end_date|date('g:i a') }}{% endif %}
           {% endif %}
-          <b>{{ reg.ticket_code|default('—') }}</b>
-          {% if qr %}<span class="tk__qrnote">Scan it, or read the code out</span>{% endif %}
-        </div>
-      {% elseif reg.status == 'pending' %}
-        {# Deliberately NOT a code. A pending payment rendered as a ticket is an argument
-           at a door, and the person having it is the attendee rather than us. #}
-        <div class="tk__flag tk__flag--wait">
-          <strong>We have not seen your payment yet.</strong> If your bank has debited you it
-          can take a few minutes to reach us — this page will show your ticket code as soon as
-          it does, so keep the link. Nothing further is needed from you.
-        </div>
-      {% elseif reg.status == 'cancelled' %}
-        <div class="tk__flag tk__flag--dead">
-          <strong>This registration was cancelled.</strong> If that is a surprise, it is
-          usually a checkout that was never completed — nothing was charged. You are welcome
-          to book again.
-        </div>
-      {% else %}
-        <div class="tk__flag tk__flag--wait">This registration is <strong>{{ reg.status|default('incomplete') }}</strong>.</div>
-      {% endif %}
+          {%- set where = [event.venue|default(''), event.location|default('')]|filter(v => v) -%}
+          {%- if where|length %}<br>{{ where|join(', ') }}{% endif -%}
+        </p>
+      </div>
+    </div>
 
-      {% if reg.checked_in_at|default('') %}
-        <div class="tk__flag tk__flag--in" style="margin-top:14px">
-          Checked in at {{ reg.checked_in_at }}. Welcome.
-        </div>
-      {% endif %}
+    {% if reg.status == 'confirmed' %}
+      <div class="tk__tear"><i></i></div>
 
-      <div class="tk__rows">
-        <div class="tk__row"><span>Name</span><b>{{ reg.name }}</b></div>
-        {% if reg.tier|default('') %}<div class="tk__row"><span>Ticket</span><b>{{ reg.tier }}</b></div>{% endif %}
-        {% if (reg.quantity|default(1)) > 1 %}
-          <div class="tk__row"><span>Seats</span><b>{{ reg.quantity }}</b></div>{% endif %}
-        <div class="tk__row"><span>{{ paid ? 'Paid' : 'Price' }}</span>
-          <b>{{ paid ? '₦' ~ reg.amount_naira|number_format : 'Free' }}</b></div>
-        <div class="tk__row"><span>Reference</span>
-          <b style="font-family:var(--ag-font-mono, monospace);font-size:12px">{{ reg.reference }}</b></div>
+      {# ── the stub ─────────────────────────────────────────────────────────
+         QR and code, always both — never one or the other. A camera fails: a cracked
+         screen, a dead battery lending somebody else's phone, low light, an organiser on a
+         device whose browser has no barcode support. The printed code is the fallback, and
+         it is the same string the QR contains, so the two can never disagree.
+
+         {@see \AfricaGates\Support\Qr} returns null for anything it cannot encode, and this
+         renders the code alone in that case rather than a broken image. #}
+      <div class="tk__stub">
+        <span class="tk__stublabel">Show this at the door</span>
+        {% if qr %}<div class="tk__qr">{{ qr|raw }}</div>{% endif %}
+        <div class="tk__code"><b>{{ reg.ticket_code|default('—') }}</b></div>
+        {% if qr %}<span class="tk__qrnote">Scan it, or read the code out</span>{% endif %}
+        {% if D.note %}<p class="tk__stubnote">{{ D.note }}</p>{% endif %}
+      </div>
+
+    {% elseif reg.status == 'pending' %}
+      {# Deliberately NOT a code. A pending payment rendered as a ticket is an argument at a
+         door, and the person having it is the attendee rather than us. #}
+      <div class="tk__flag tk__flag--wait">
+        <strong>We have not seen your payment yet.</strong> If your bank has debited you it
+        can take a few minutes to reach us — this page will show your ticket code as soon as
+        it does, so keep the link. Nothing further is needed from you.
+      </div>
+    {% elseif reg.status == 'cancelled' %}
+      <div class="tk__flag tk__flag--dead">
+        <strong>This registration was cancelled.</strong> If that is a surprise, it is
+        usually a checkout that was never completed — nothing was charged. You are welcome
+        to book again.
+      </div>
+    {% elseif reg.status == 'waitlisted' %}
+      <div class="tk__flag tk__flag--wait">
+        <strong>You are on the waiting list.</strong> This tier is full. If a seat comes free
+        the longest-waiting person is offered it first, and you will be emailed — keep this
+        link, because the offer appears here too.
+      </div>
+    {% else %}
+      <div class="tk__flag tk__flag--wait">This registration is <strong>{{ reg.status|default('incomplete') }}</strong>.</div>
+    {% endif %}
+
+    {% if reg.checked_in_at|default('') %}
+      <div class="tk__flag tk__flag--in">Checked in at {{ reg.checked_in_at }}. Welcome.</div>
+    {% endif %}
+
+    {# ── the details ───────────────────────────────────────────────────────
+       Which optional cells appear is the organiser's choice — `D.rows` — because an
+       organiser running a free community day does not want a "Paid ₦0" cell, and one
+       running a gala very much wants the table number. Holder and reference are not
+       switchable: a ticket without them is not a ticket. #}
+    <div class="tk__body">
+      <div class="tk__grid">
+        <div class="tk__cell{{ reg.tier|default('') ? '' : ' tk__cell--wide' }}">
+          <small>Ticket holder</small><b>{{ reg.name }}</b>
+        </div>
+        {% if reg.tier|default('') %}
+          <div class="tk__cell"><small>Ticket</small><b>{{ reg.tier }}</b></div>
+        {% endif %}
+        {% if 'seat' in D.rows and reg.seat_label|default('') %}
+          <div class="tk__cell"><small>Seat</small><b>{{ reg.seat_label }}</b></div>
+        {% endif %}
+        {% if 'seats' in D.rows and (reg.quantity|default(1)) > 1 %}
+          <div class="tk__cell"><small>Seats</small><b>{{ reg.quantity }}</b></div>
+        {% endif %}
+        {% if 'price' in D.rows %}
+          <div class="tk__cell"><small>{{ paid ? 'Paid' : 'Price' }}</small>
+            <b>{{ paid ? '₦' ~ reg.amount_naira|number_format : 'Free' }}</b></div>
+        {% endif %}
+        {% if 'phone' in D.rows and reg.phone|default('') %}
+          <div class="tk__cell"><small>Phone</small><b>{{ reg.phone }}</b></div>
+        {% endif %}
+        {% if 'email' in D.rows and reg.email|default('') %}
+          <div class="tk__cell tk__cell--wide"><small>Email</small><b>{{ reg.email }}</b></div>
+        {% endif %}
+        {% if 'bought' in D.rows and reg.created_at|default('') %}
+          <div class="tk__cell"><small>Booked</small><b>{{ reg.created_at|slice(0, 10) }}</b></div>
+        {% endif %}
+      </div>
+
+      <div class="tk__foot">
+        <span class="tk__ref">{{ reg.reference }}</span>
+        <span class="tk__brand">Africa GATES</span>
       </div>
 
       <p class="tk__note">
@@ -158,7 +343,23 @@
     </div>
   </div>
 
-  <div class="tk__print"><a href="#" data-ag-do="print">Print this ticket</a></div>
+  {# ── actions ──────────────────────────────────────────────────────────────
+     Outside the card, so `@media print` can drop them without leaving a gap in the
+     ticket. The calendar link is a real download rather than a script: a paid seat that
+     goes unused is usually somebody who meant to write the date down and did not. #}
+  <div class="tk__acts">
+    {% if event.event_date|default('') %}
+      <a class="tk__act" href="/events/ticket/{{ reg.reference|url_encode }}/calendar.ics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/>
+        </svg>Add to calendar</a>
+    {% endif %}
+    <a class="tk__act" href="#" data-ag-do="print">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M7 8V3h10v5M7 18H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/>
+        <rect x="7" y="14" width="10" height="7"/>
+      </svg>Print this ticket</a>
+  </div>
 {% endif %}
 
 </div>

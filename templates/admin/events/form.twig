@@ -1,5 +1,70 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}{{ is_new ? 'New Event' : 'Edit Event' }}{% endblock %}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  /* ── the ticket preview ──────────────────────────────────────────────────
+     A sketch of templates/pages/events/ticket.twig, not a copy of it. It exists so a
+     colour can be judged before saving; the real ticket is rendered server-side from
+     validated values. Everything the accent touches is bound in Alpine, so no rule here
+     may set a `style` on the same tags — AlpineStyleClobberTest fails the build on a tag
+     carrying both a static `style` and a bound `:style`. */
+  .tkp{ --tkp-card:#fff; --tkp-line:rgba(16,41,44,.10); --tkp-text:#10292C; --tkp-mute:#5a6d6f;
+    background:var(--tkp-card); border:1px solid var(--tkp-line); border-radius:14px;
+    overflow:hidden; box-shadow:0 12px 30px -22px rgba(16,41,44,.5) }
+  .tkp--dark{ --tkp-card:#0f1c1e; --tkp-line:rgba(255,255,255,.14); --tkp-text:#eef5f0;
+    --tkp-mute:#9fb3ad }
+  .tkp__head{ position:relative; padding:12px 13px 13px; overflow:hidden }
+  .tkp__shot{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover }
+  .tkp__scrim{ position:absolute; inset:0 }
+  .tkp__headin{ position:relative }
+  .tkp__eyebrow{ display:block; font-size:8px; font-weight:700; letter-spacing:.14em;
+    text-transform:uppercase; opacity:.85 }
+  .tkp__title{ display:block; margin-top:5px; font-size:13px; font-weight:800; line-height:1.25 }
+  .tkp__when{ display:block; margin-top:4px; font-size:9.5px; opacity:.9 }
+  .tkp__tear{ position:relative; height:14px; background:var(--tkp-card) }
+  .tkp__tear::before, .tkp__tear::after{ content:""; position:absolute; top:50%; width:13px;
+    height:13px; border-radius:50%; transform:translateY(-50%); background:#f4f7f4;
+    border:1px solid var(--tkp-line) }
+  .tkp--dark .tkp__tear::before, .tkp--dark .tkp__tear::after{ background:#0a1315 }
+  .tkp__tear::before{ left:-7px } .tkp__tear::after{ right:-7px }
+  .tkp__tear i{ position:absolute; left:9px; right:9px; top:50%; height:0;
+    border-top:1.5px dashed var(--tkp-line) }
+  .tkp__stub{ padding:2px 13px 12px; text-align:center }
+  /* A placeholder grid, not a real symbol: generating one per keystroke would be a request
+     per keystroke, and what is being judged here is the colour rather than the code. */
+  .tkp__qr{ display:block; width:52px; height:52px; margin:4px auto 7px; border-radius:6px;
+    background:
+      repeating-linear-gradient(90deg,#10292C 0 4px,#fff 4px 8px),
+      repeating-linear-gradient(0deg,#10292C 0 4px,#fff 4px 8px);
+    background-blend-mode:difference; background-color:#fff;
+    box-shadow:0 0 0 4px #fff, 0 1px 6px -2px rgba(16,41,44,.4) }
+  .tkp__code{ display:inline-block; font-family:var(--ag-font-mono,monospace); font-size:15px;
+    font-weight:700; letter-spacing:.05em; color:var(--tkp-text) }
+  .tkp__note{ display:block; margin-top:6px; font-size:9px; font-weight:600; color:var(--tkp-text) }
+  .tkp__rows{ display:flex; gap:1px; background:var(--tkp-line); border-top:1px solid var(--tkp-line) }
+  .tkp__rows span{ flex:1; background:var(--tkp-card); padding:7px 9px; font-size:9.5px;
+    font-weight:700; color:var(--tkp-text) }
+  /* The panel's two columns. `min-width:0` is also set on each child inline — a grid item's
+     default `min-width:auto` is its content's minimum, and the form's inputs are width:100%
+     of that, so without it the left column grew past its track and slid under the preview. */
+  .tk-des{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,236px); gap:18px;
+    align-items:start }
+  /* `box-sizing:border-box` on the fields, because the admin stylesheet's inputs are
+     content-box: a `width:100%` input came out exactly 30px wider than its column (measured
+     — 472px track, 502px input), which is its 14px padding and 1px border on each side. In
+     the single-column forms elsewhere that overflow is invisible; beside a preview it puts
+     the field under the card. Scoped here rather than fixed globally, because every other
+     admin form is laid out against the current widths. */
+  .tk-des input, .tk-des select, .tk-des textarea{ box-sizing:border-box; max-width:100% }
+  @media (max-width:720px){
+    /* One column, preview first: on a phone the point of the preview is to be seen at all. */
+    .tk-des{ grid-template-columns:minmax(0,1fr) }
+    .tkp{ max-width:236px }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="ad-card" style="max-width:760px">
   <form method="post" action="{{ is_new ? '/admin/events/new' : '/admin/events/' ~ row.id }}" class="ad-form">
@@ -182,6 +247,153 @@
     </div>
     {% endif %}
 
+    {# ── THE TICKET'S APPEARANCE ─────────────────────────────────────────────
+       Per event, not per site: this platform runs an awards ceremony, a summit and a
+       training day in the same year, and they do not share a look. A site-wide ticket
+       theme would mean every event after the first wears somebody else's clothes.
+
+       The preview is live but it is a PREVIEW — the real ticket is rendered by
+       templates/pages/events/ticket.twig from values EventTicketDesign has validated. The
+       colour is the one field here whose value ends up inside a `style` attribute, so it is
+       refused rather than escaped on save AND again on render.
+
+       `x-data` sits on a wrapper with no static `style`, and every bound style below is on
+       a tag that has none of its own — AlpineStyleClobberTest fails the build otherwise. #}
+    {% if design_missing is not empty %}
+      <div style="border:1px solid #ecd9a0;border-radius:12px;padding:14px 16px;margin-top:6px;background:#fffdf5">
+        <strong style="font-size:14px">Ticket design needs one more step</strong>
+        <p style="font-size:12.5px;color:#6b5312;margin:6px 0 0;line-height:1.7">
+          These columns are not in the database yet:
+          <code>{{ design_missing|join('</code>, <code>')|raw }}</code>. Run
+          <strong>/__setup/migrate</strong> and this section appears. Until then tickets use
+          the standard design, which is exactly what they did before.
+        </p>
+      </div>
+    {% else %}
+    <div style="border:1px solid var(--ad-line,#e2e8e6);border-radius:12px;padding:14px 16px;margin-top:6px;background:#fafcfa"
+         x-data="tkDesign({{ {
+            accent: design.accent,
+            theme: design.theme,
+            note: design.note,
+            image: design.image,
+            title: row.title|default('Your event'),
+            when: row.event_date|default(''),
+            venue: row.venue|default(''),
+            showQr: design.show_qr
+         }|json_encode }})">
+      <input type="hidden" name="ticket_design_posted" value="1">
+      <strong style="font-size:14px">The ticket <small style="font-weight:400;color:#8a9a9c">(what an attendee shows at the door)</small></strong>
+      <p style="font-size:12px;color:#8a9a9c;margin:6px 0 12px">
+        {% if design.customised %}This event has its own ticket design.{% else %}Using the
+        standard design. Change anything below and only this event's tickets change.{% endif %}
+      </p>
+
+      {# `min-width:0` on the CHILD, not only `minmax(0,…)` on the track. A grid item's
+         default `min-width:auto` is its content's minimum, and the form's inputs are
+         `width:100%` of that — so the left column grew past its track and slid under the
+         preview. The track sizing alone does not prevent it. #}
+      <div class="tk-des">
+        <div style="min-width:0">
+          <div class="ad-form__row">
+            <label>Accent colour
+              {# Two inputs, one value: the picker is unusable for typing a brand hex and the
+                 text box is unusable for choosing one by eye. They are kept in step in
+                 Alpine, and only `ticket_accent` is submitted. #}
+              <span style="display:flex;gap:8px;align-items:center">
+                <input type="color" x-model="accent" aria-label="Accent colour picker"
+                       style="width:44px;height:38px;padding:2px;flex:none;cursor:pointer">
+                <input type="text" name="ticket_accent" x-model="accent" maxlength="7"
+                       placeholder="#10292C" spellcheck="false"
+                       style="font-family:var(--ag-font-mono,monospace)">
+              </span>
+            </label>
+            <label>Card
+              <select name="ticket_theme" x-model="theme">
+                <option value="dark">Dark card</option>
+                <option value="light">Light card</option>
+              </select>
+            </label>
+          </div>
+
+          <label>Ticket image <small>(blank = the event's cover image)</small>
+            <input type="text" name="ticket_image" x-model="image"
+                   placeholder="/uploads/ticket-art.jpg or https://…"></label>
+          <p style="font-size:12px;color:#8a9a9c;margin:-2px 0 10px">
+            A wide cover photograph often crops badly into a ticket header, so this is
+            separate — you do not have to choose between a good event page and a good ticket.
+          </p>
+
+          <label>Line on the stub <small>(printed — “Doors 5pm · Black tie”)</small>
+            <input type="text" name="ticket_note" x-model="note" maxlength="160"></label>
+
+          <fieldset style="border:1px solid var(--ad-line,#e2e8e6);border-radius:10px;padding:10px 12px;margin:10px 0 0">
+            <legend style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a9a9c;padding:0 4px">Show on the ticket</legend>
+            <div style="display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:4px">
+              {% for key, label in design_rows %}
+                <label style="display:flex;align-items:center;gap:7px;font-size:13px;margin:0">
+                  <input type="checkbox" name="ticket_rows[]" value="{{ key }}"
+                         {% if key in design.rows %}checked{% endif %}
+                         style="width:auto;flex:none;margin:0">
+                  <span>{{ label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+            <p style="font-size:12px;color:#8a9a9c;margin:10px 0 0">
+              The holder's name, the ticket type and the reference always show — a ticket
+              without them is not a ticket. A row with nothing in it is skipped, so ticking
+              “Seat” costs nothing on events that do not use one.
+            </p>
+          </fieldset>
+
+          <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
+            <input type="checkbox" name="ticket_show_qr" value="1" x-model="showQr"
+                   style="width:auto;flex:none;margin:0">
+            <span>Print a QR code on the ticket</span>
+          </label>
+          <p style="font-size:12px;color:#8a9a9c;margin:4px 0 0">
+            Leave this on unless your door checks names against a printed list. Typing nine
+            characters per attendee is what makes a queue stationary — at three hundred people
+            it is about twenty minutes of queue that need not exist. The code is printed
+            either way, so a phone with a dead battery is never locked out.
+          </p>
+        </div>
+
+        {# ── the preview ────────────────────────────────────────────────────
+           Not the real template — it is a sketch at a quarter of the detail, and it exists
+           so a colour choice can be judged before saving. The QR is a placeholder grid
+           rather than a real symbol: generating one per keystroke would be a request per
+           keystroke, and what is being judged here is the colour, not the code. #}
+        <div style="min-width:0">
+          <span style="display:block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a9a9c;margin-bottom:7px">Preview</span>
+          <div :class="theme === 'dark' ? 'tkp tkp--dark' : 'tkp'">
+            <div class="tkp__head" :style="'background:' + accent + ';color:' + ink()">
+              <template x-if="image">
+                <img class="tkp__shot" :src="image" alt="" aria-hidden="true">
+              </template>
+              <template x-if="image">
+                <span class="tkp__scrim" :style="'background:linear-gradient(180deg,' + accent + 'F0,' + accent + 'FC)'"></span>
+              </template>
+              <div class="tkp__headin">
+                <span class="tkp__eyebrow">Admit one</span>
+                <strong class="tkp__title" x-text="title || 'Your event'"></strong>
+                <span class="tkp__when" x-text="[when, venue].filter(Boolean).join(' · ')"></span>
+              </div>
+            </div>
+            <div class="tkp__tear"><i></i></div>
+            <div class="tkp__stub">
+              <template x-if="showQr"><span class="tkp__qr" aria-hidden="true"></span></template>
+              <span class="tkp__code">ABCD-2468</span>
+              <template x-if="note"><span class="tkp__note" x-text="note"></span></template>
+            </div>
+            <div class="tkp__rows">
+              <span>Ada Obi</span><span>Ceremony</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="ad-form__actions">
       <button class="ad-btn ad-btn--primary" type="submit">Save event</button>
       <a class="ad-btn" href="/admin/events">Cancel</a>
@@ -200,6 +412,38 @@ function evRepeater(seed, blank){
     rows,
     add(){ this.rows.push(Object.assign({id: nextId++}, blank)); },
     rm(id){ this.rows = this.rows.filter(r => r.id !== id); if(!this.rows.length) this.add(); }
+  };
+}
+
+/* ── the ticket preview ─────────────────────────────────────────────────────
+   Presentation only. Nothing here validates anything: the server refuses a non-colour on
+   save and again on render (EventTicketDesign::colour), so a malformed value typed here
+   shows as a broken preview and is then simply not stored. Doing the validation twice in
+   two languages would mean two places to disagree.
+
+   `ink()` mirrors EventTicketDesign::contrastInk so the preview picks the same readable
+   text colour the real ticket will. Same relative-luminance formula and the same 0.36
+   threshold — a naive channel average hands white text to a bright green header. */
+function tkDesign(seed){
+  return {
+    accent: seed.accent || '#10292C',
+    theme:  seed.theme  || 'dark',
+    note:   seed.note   || '',
+    image:  seed.image  || '',
+    title:  seed.title  || '',
+    when:   (seed.when || '').slice(0, 16).replace('T', ' '),
+    venue:  seed.venue  || '',
+    showQr: seed.showQr !== false,
+
+    ink(){
+      const h = String(this.accent || '').trim().replace(/^#/, '');
+      if (!/^[0-9a-f]{6}$/i.test(h)) return '#FFFFFF';
+      const lin = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+      const l = 0.2126 * lin(parseInt(h.slice(0, 2), 16))
+              + 0.7152 * lin(parseInt(h.slice(2, 4), 16))
+              + 0.0722 * lin(parseInt(h.slice(4, 6), 16));
+      return l > 0.36 ? '#10292C' : '#FFFFFF';
+    }
   };
 }
 </script>

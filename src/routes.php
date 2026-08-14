@@ -1433,7 +1433,13 @@ return function(App $app) {
         // standing between somebody and the door they are queueing at.
         $g->get('/events/redirect',        EventsController::class.':redirect');
         $g->get('/events/callback',        EventsController::class.':callback');
+        // The calendar files. Registered BEFORE `/events/{slug}`, because `{slug}` would
+        // otherwise swallow `calendar.ics` as a slug and answer 404 for a real event — the
+        // same ordering trap the back-in-stock stop link hit in the shop.
+        $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/calendar.ics',
+                EventsController::class.':ticketCalendar');
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}', EventsController::class.':ticket');
+        $g->get('/events/{slug}/calendar.ics', EventsController::class.':calendar');
         $g->get('/events/{slug}',  EventsController::class.':show');
         $g->post('/events/{slug}/register', EventsController::class.':register');
         // A price preview for a typed discount code, and the queue for a tier that has gone.
@@ -2394,6 +2400,9 @@ return function(App $app) {
         $a->post('/events/{id:[0-9]+}/promote', AdminEventsController::class.':promote');
         // The other half of a waiting list: a seat only comes back if somebody can give it back.
         $a->post('/events/{id:[0-9]+}/release', AdminEventsController::class.':releaseSeat');
+        // A seat or table label on one attendee — what a gala with numbered tables needs, and
+        // what the ticket prints when the organiser has ticked "Seat" on the ticket design.
+        $a->post('/events/{id:[0-9]+}/seat',    AdminEventsController::class.':seat');
 
         $a->get('/registrations',                AdminRegistrationsController::class.':index');
         $a->get('/registrations/export',         AdminRegistrationsController::class.':export');

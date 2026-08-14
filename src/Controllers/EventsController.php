@@ -10,6 +10,7 @@ use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Services\{CacheService, OtpService, Notifier, WebhookService,
                          EventTicketService, EventDiscount, EventWaitlist, EventAgenda,
+                         EventTicketDesign,
                          GatewayHandoff, PaymentService};
 
 /**
@@ -451,28 +452,191 @@ class EventsController
             // difference is a way to test references.
             return $this->view->render($res->withStatus(404), 'pages/events/ticket.twig', [
                 'page_title' => 'Ticket', 'gates_page' => 'events', 'has_hero' => false,
-                'reg' => null, 'event' => null,
+                'reg' => null, 'event' => null, 'lite_page' => true, 'task_page' => true,
+                // The template reads `design` unconditionally, including on this branch —
+                // a "we cannot find this ticket" page that throws because there is no event
+                // to take a colour from would turn a mistyped link into a 500.
+                'design' => EventTicketDesign::forEvent(null),
             ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
         }
 
-        $event = DB::table('gates_site_events')->where('id', (int) $reg->event_id)->first();
+        $event  = DB::table('gates_site_events')->where('id', (int) $reg->event_id)->first();
+        $design = EventTicketDesign::forEvent($event);
 
         return $this->view->render($res, 'pages/events/ticket.twig', [
             'page_title'   => 'Your ticket — ' . (string) ($event->title ?? 'Africa GATES'),
             'gates_page'   => 'events',
             'has_hero'     => false,
+            // LITE. This page uses none of the heavy stack — no map, no carousel, no video
+            // player, no scroll cinema — and it is the one page in the site whose whole
+            // design premise is that it renders on a phone with one bar of signal at a door.
+            // Every library it does not fetch is a request that cannot time out there.
+            'lite_page'    => true,
+            // And no entrance animation. Somebody is holding this up at a door with a queue
+            // behind them; a logo drawing itself is an obstacle wearing a brand.
+            'task_page'    => true,
             'reg'          => (array) $reg,
             'event'        => $event ? (array) $event : null,
             'support_email'=> Notifier::supportEmail(),
+            // Colours, image, which rows show — resolved and VALIDATED in PHP, because the
+            // accent lands inside a style attribute. See EventTicketDesign.
+            'design'       => $design,
             // The code as a QR, so a door reads it in half a second instead of nine keystrokes.
             // Only for a confirmed ticket: a pending payment rendered as a scannable ticket is
             // an argument at a door. Null when the code cannot be encoded, and the template
             // shows the code alone in that case — see AfricaGates\Support\Qr.
-            'qr' => (string) $reg->status === 'confirmed' && trim((string) ($reg->ticket_code ?? '')) !== ''
+            'qr' => $design['show_qr']
+                && (string) $reg->status === 'confirmed'
+                && trim((string) ($reg->ticket_code ?? '')) !== ''
                 ? \AfricaGates\Support\Qr::svg((string) $reg->ticket_code, 6,
                     'Ticket code ' . (string) $reg->ticket_code)
                 : null,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * The event as a calendar file: `/events/{slug}/calendar.ics`.
+     *
+     * Public, because the reason to offer it is that somebody who has not booked yet wants
+     * the date held before they decide — and a login between them and that is how the date
+     * gets forgotten instead.
+     */
+    public function calendar(Request $req, Response $res, array $args): Response
+    {
+        $slug  = trim((string) ($args['slug'] ?? ''));
+        $event = DB::table('gates_site_events')
+            ->where('slug', $slug)->where('status', 'published')->first();
+
+        if (!$event) {
+            return $res->withStatus(404);
+        }
+
+        $ics = \AfricaGates\Support\Ics::event([
+            'uid'         => \AfricaGates\Support\Ics::uid('event-' . (int) $event->id . '-' . $slug),
+            'title'       => (string) ($event->title ?? 'Africa GATES event'),
+            'description' => $this->calendarBlurb($event, null),
+            'location'    => $this->calendarWhere($event),
+            'url'         => $this->base($req) . '/events/' . rawurlencode($slug),
+            'starts_at'   => (string) ($event->event_date ?? ''),
+            'ends_at'     => (string) ($event->end_date ?? ''),
+        ]);
+
+        if ($ics === null) {
+            return $res->withStatus(404);
+        }
+        return $this->serveIcs($res, $ics, (string) ($event->slug ?? 'event'));
+    }
+
+    /**
+     * A confirmed ticket as a calendar file: `/events/ticket/{ref}/calendar.ics`.
+     *
+     * The reference alone, same doctrine as the ticket page itself — and `noindex` for the
+     * same reason. It carries the ticket code in the description, because the calendar entry
+     * is the thing that will be open on the phone on the day.
+     *
+     * A pending or cancelled registration gets the event's dates and NO code. The date is
+     * still worth holding; a code is not a thing to hand out before the money has arrived.
+     */
+    public function ticketCalendar(Request $req, Response $res, array $args): Response
+    {
+        $ref = trim((string) ($args['ref'] ?? ''));
+        $reg = EventTicketService::byReference($ref);
+        if (!$reg) {
+            return $res->withStatus(404)->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        }
+
+        $event = DB::table('gates_site_events')->where('id', (int) $reg->event_id)->first();
+        if (!$event) {
+            return $res->withStatus(404)->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        }
+
+        $ics = \AfricaGates\Support\Ics::event([
+            // Keyed on the REFERENCE, not the code: a transfer or a reissue changes the code,
+            // and re-downloading must update the attendee's existing entry rather than leave
+            // them holding two entries with different codes on them.
+            'uid'         => \AfricaGates\Support\Ics::uid('ticket-' . (string) $reg->reference),
+            'title'       => (string) ($event->title ?? 'Africa GATES event'),
+            'description' => $this->calendarBlurb($event, $reg),
+            'location'    => $this->calendarWhere($event),
+            'url'         => $this->base($req) . '/events/ticket/' . rawurlencode((string) $reg->reference),
+            'starts_at'   => (string) ($event->event_date ?? ''),
+            'ends_at'     => (string) ($event->end_date ?? ''),
+        ]);
+
+        if ($ics === null) {
+            return $res->withStatus(404)->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        }
+        return $this->serveIcs($res, $ics, (string) ($event->slug ?? 'event') . '-ticket')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * What the calendar entry says once it is open on somebody's phone on the day.
+     *
+     * Plain text, with the things a person standing outside a venue actually needs: the code,
+     * the organiser's note, who to ring. Not marketing copy — they already came.
+     */
+    private function calendarBlurb(object $event, ?object $reg): string
+    {
+        $parts = [];
+
+        $tagline = trim((string) ($event->tagline ?? ''));
+        if ($tagline !== '') $parts[] = $tagline;
+
+        if ($reg !== null && (string) $reg->status === 'confirmed'
+            && trim((string) ($reg->ticket_code ?? '')) !== '') {
+            $line = 'Ticket code: ' . (string) $reg->ticket_code;
+            if (trim((string) ($reg->tier ?? '')) !== '') {
+                $line .= ' (' . (string) $reg->tier . ')';
+            }
+            if ((int) ($reg->quantity ?? 1) > 1) {
+                $line .= ' — ' . (int) $reg->quantity . ' seats';
+            }
+            $parts[] = $line;
+        } elseif ($reg !== null) {
+            $parts[] = 'Your registration is ' . (string) ($reg->status ?? 'incomplete')
+                . '. Open your ticket page for the current position.';
+        }
+
+        $note = trim((string) ($event->attendee_note ?? ''));
+        if ($note !== '') $parts[] = 'Before you come: ' . $note;
+
+        $who = array_filter([
+            trim((string) ($event->organiser_email ?? '')),
+            trim((string) ($event->organiser_phone ?? '')),
+        ]);
+        if ($who !== []) $parts[] = 'Questions: ' . implode(' · ', $who);
+
+        return implode("\n\n", $parts);
+    }
+
+    /** Venue and town as one line, without a dangling separator when only one is set. */
+    private function calendarWhere(object $event): string
+    {
+        return implode(', ', array_filter([
+            trim((string) ($event->venue ?? '')),
+            trim((string) ($event->location ?? '')),
+        ]));
+    }
+
+    /**
+     * Serve the file so that a phone opens it in a calendar.
+     *
+     * `attachment` with a `.ics` name matters: served inline, iOS Mail and several Android
+     * browsers render the raw text instead of offering "Add to Calendar". The filename is
+     * built by {@see \AfricaGates\Support\Ics::filename()}, which strips everything that
+     * could break out of the header.
+     */
+    private function serveIcs(Response $res, string $ics, string $stem): Response
+    {
+        $res->getBody()->write($ics);
+        return $res
+            ->withHeader('Content-Type', \AfricaGates\Support\Ics::MIME)
+            ->withHeader('Content-Disposition',
+                'attachment; filename="' . \AfricaGates\Support\Ics::filename($stem) . '"')
+            // Short, not long: an organiser who corrects a start time needs the corrected
+            // file to be what the next person downloads.
+            ->withHeader('Cache-Control', 'public, max-age=300');
     }
 
     private function goTo(Response $res, string $path): Response
@@ -555,9 +719,19 @@ class EventsController
               // The ticket page, not the event page. This is the link somebody opens at the
               // door, and it is reachable with the reference alone precisely so that they do
               // not need an account they never made in a queue with no signal.
-              . '<p style="text-align:center;margin:22px 0"><a href="' . $ticketUrl . '"'
+              . '<p style="text-align:center;margin:22px 0 8px"><a href="' . $ticketUrl . '"'
               . ' style="display:inline-block;padding:12px 28px;background:#10292C;color:#fff;'
               . 'border-radius:999px;font-weight:600;text-decoration:none;font-size:15px">Your ticket →</a></p>'
+              // And the date, as a file their calendar understands. A seat that goes unused is
+              // usually not a change of mind — it is somebody who read the date here, meant to
+              // write it down, and did not. One link is the whole fix, and it has to be in the
+              // email because the email is what they have open when they think of it.
+              . ($reference !== ''
+                  ? '<p style="text-align:center;margin:0 0 20px;font-size:13px">'
+                    . '<a href="' . $ticketUrl . '/calendar.ics"'
+                    . ' style="color:#237b22;font-weight:600;text-decoration:none">'
+                    . 'Add it to your calendar</a></p>'
+                  : '')
               // The organiser's own note — joining links, parking, dress code. In the email
               // because that is where somebody looks the morning of, and it is the difference
               // between a support inbox answering the same question forty times and not.
@@ -571,6 +745,7 @@ class EventsController
                . 'When: ' . (string) ($event->event_date ?? '') . "\n"
                . ($ticketCode !== '' ? "Ticket code: {$ticketCode}\n" : '')
                . "\nYour ticket: {$ticketUrl}\n"
+               . ($reference !== '' ? "Add to your calendar: {$ticketUrl}/calendar.ics\n" : '')
                . ($note !== '' ? "\n" . $note . "\n" : '')
                . "\n— Africa GATES";
 

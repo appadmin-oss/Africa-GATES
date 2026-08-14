@@ -168,8 +168,35 @@ final class SplashScreenTest extends TestCase
             $this->assertContains($page, $exempt,
                 "gates_page '{$page}' is somewhere people arrive with a problem.");
         }
-        $this->assertMatchesRegularExpression('~TASK\.indexOf\(page\) === -1~', $l,
-            'The list has to actually gate the decision.');
+        // The list has to actually gate the decision. It now does so through `task`, which
+        // ORs it with the explicit `task_page` flag — so both halves are asserted rather
+        // than just the shape of the old expression.
+        $this->assertMatchesRegularExpression('~var task = .*TASK\.indexOf\(page\) !== -1~', $l,
+            'The exempt list no longer feeds the decision.');
+        $this->assertMatchesRegularExpression('~&&\s*!task\b~', $l,
+            'The splash is no longer gated on `task`.');
+    }
+
+    /**
+     * A page can opt out by name, not only by section.
+     *
+     * The list is keyed on `gates_page`, which is ALSO what highlights the navigation — so a
+     * page that belongs to a section could not exempt itself without lying about which nav
+     * item it sits under. The ticket page found it: it belongs to "events", and somebody was
+     * standing at a door with a queue behind them watching a logo draw itself.
+     */
+    public function test_a_controller_can_exempt_a_page_explicitly(): void
+    {
+        $l = $this->layout();
+
+        $this->assertStringContainsString('task_page', $l,
+            'the explicit per-page exemption has been removed — a ticket page cannot opt out '
+            . 'through the section list without changing which nav item it highlights');
+
+        // And the ticket page — the case this exists for — must actually pass it.
+        $ctrl = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Controllers/EventsController.php');
+        $this->assertSame(2, preg_match_all("~'task_page'\s*=>\s*true~", $ctrl),
+            'both ticket branches (found, and not-found) must be exempt');
     }
 
     public function test_it_stays_mobile_only_once_per_session_and_motion_safe(): void

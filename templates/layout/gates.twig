@@ -244,15 +244,28 @@
      TASK PAGES ARE EXEMPT. A brand moment is for somebody arriving at the front
      door. Support, help, the account area, a payment and the proof page are
      places people arrive at BECAUSE something is wrong or something is owed, and
-     an animation there is an obstacle wearing a logo. #}
+     an animation there is an obstacle wearing a logo.
+
+     `task_page` EXISTS BECAUSE THE LIST WAS NOT ENOUGH. The exemption was keyed
+     only on `gates_page`, which is also what highlights the navigation — so a page
+     that belongs to a section (a ticket belongs to "events") could not opt out
+     without lying about which nav item it sits under. The ticket page was the
+     case that found it: somebody standing at a door, phone held up, a queue behind
+     them, watching a logo draw itself. That is the same mistake as the support
+     link from the missing-money email, one category further along.
+
+     A controller sets `task_page: true` for any page somebody arrives at with a
+     job to finish. It is checked BEFORE the media queries so it cannot be
+     accidentally re-enabled by a viewport change. #}
   <script nonce="{{ csp_nonce }}">
   (function(){try{
     var TASK = ['support','help','account','verify','pay','checkout','form','status'];
     var page = {{ (gates_page|default(''))|json_encode|raw }};
+    var task = {{ task_page|default(false) ? 'true' : 'false' }} || TASK.indexOf(page) !== -1;
     var mobile = window.matchMedia('(max-width:879px)').matches;
     var motion = window.matchMedia('(prefers-reduced-motion: no-preference)').matches;
     var first  = !sessionStorage.getItem('ag_intro');
-    if (mobile && motion && first && TASK.indexOf(page) === -1) {
+    if (mobile && motion && first && !task) {
       document.documentElement.classList.add('ag-loading');
     }
     /* Stamped whatever we decided, so a task page does not merely postpone the
@@ -399,9 +412,26 @@
 {% include 'partials/site-search.twig' %}
 
 {# ── Library stack — deferred where safe ────────────────────────── #}
-{# jQuery — kept lightweight as a vendor compatibility shim #}
-<script defer src="https://code.jquery.com/jquery-3.7.1.slim.min.js"
-        integrity="sha256-kmHvs0B+OpCW5GVHUNjv9rOmY0IvSIRcf7zGUDTDQM8=" crossorigin="anonymous"></script>
+{# jQuery IS GONE, and it was never used.
+   It was here as "a vendor compatibility shim" and nothing on this site called it. The
+   evidence, which is worth writing down so it is not re-added on the same reasoning:
+
+     • `public/assets/js/main.js` line 12 defines its OWN `$` as `querySelector`, and every
+       `$('#afgNav')` in that file is that local helper — not jQuery. So the `$(…)` calls
+       that make it LOOK used are the thing that made it look used.
+     • The Chrome extension's two files each define their own `$` as well, for the same
+       reason and independently.
+     • No `$.ajax`, `$.each`, `$.fn`, `.ready(`, or any other jQuery-only API appears
+       anywhere outside `public/assets/js/vendor/` (which is other people's code and does
+       not use it either).
+
+   So every page load paid a cross-origin DNS + TCP + TLS round trip plus 70KB for code
+   nothing executed. On the TICKET page that is worse than wasteful: it is a request that
+   fails, slowly, on a phone with one bar of signal in a car park — which is the exact
+   condition that page is designed for.
+
+   This is the same finding as the Popper/Tippy note further down: a remote copy of
+   something the site did not need remotely. #}
 {# Shared social primitives (like / comment / save / share), used by the Pulse
    feed, the community thread page and the registry profiles.
 

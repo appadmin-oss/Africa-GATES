@@ -227,15 +227,20 @@ class CspHostCoverageTest extends TestCase
         $styles  = $this->referencedHosts('style');
 
         $this->assertArrayHasKey('unpkg.com', $scripts);
-        $this->assertArrayHasKey('code.jquery.com', $scripts);
         $this->assertArrayHasKey('challenges.cloudflare.com', $scripts);
         // cdn.jsdelivr.net used to be asserted here. It is deliberately gone: every
         // script it served is vendored now, so a scan that still found it would mean
         // a CDN dependency had crept back in.
         $this->assertArrayNotHasKey('cdn.jsdelivr.net', $scripts);
         $this->assertArrayNotHasKey('cdn.plyr.io', $scripts);
+        // And code.jquery.com, for a different reason: jQuery was not vendored, it was
+        // DELETED. Nothing on the site called it — main.js defines its own `$` as
+        // querySelector, which is what made it look used — so every page load paid a
+        // cross-origin round trip for code that never ran. Asserted absent so it cannot
+        // come back on the same "compatibility shim" reasoning.
+        $this->assertArrayNotHasKey('code.jquery.com', $scripts);
         $this->assertArrayHasKey('fonts.googleapis.com', $styles);
-        $this->assertGreaterThanOrEqual(3, count($scripts));
+        $this->assertGreaterThanOrEqual(2, count($scripts));
         $this->assertGreaterThanOrEqual(2, count($styles));
     }
 

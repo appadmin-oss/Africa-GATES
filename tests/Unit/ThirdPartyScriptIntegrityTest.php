@@ -159,7 +159,10 @@ final class ThirdPartyScriptIntegrityTest extends TestCase
         $urls = array_column($this->externalScripts(), 'url');
 
         foreach ([
-            'https://code.jquery.com/',            // jQuery, pinned
+            // code.jquery.com used to be asserted here. It is deliberately gone: jQuery was
+            // loaded on every page and called by NOTHING — main.js and the extension each
+            // define their own local `$` as querySelector, which is what made it look used.
+            // The site paid a cross-origin round trip and 70KB per page load for dead code.
             'https://unpkg.com/leaflet@',          // Leaflet, pinned
             'https://challenges.cloudflare.com/',  // Turnstile, unpinnable
             'https://pagead2.googlesyndication.com/', // AdSense, unpinnable
