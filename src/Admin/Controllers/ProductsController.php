@@ -105,6 +105,11 @@ class ProductsController
                 'subtitle', 'details', 'variant_axis', 'ships_free', 'is_featured',
             ]),
             'variants_ready' => DB::schema()->hasTable('gates_product_variants'),
+            // Its own flag, because the gallery lives in its own table. The editor used to gate
+            // the whole photographs section on `variants_ready`, so a deployment that had run the
+            // images migration but not the variants one showed no gallery at all — for no reason
+            // either the operator or the code could point at.
+            'images_ready' => DB::schema()->hasTable('gates_product_images'),
             // Swatches and the second axis are behind their own migration, so the editor
             // hides those inputs on their own rather than hiding the whole options section —
             // a deployment mid-upgrade can still edit sizes.

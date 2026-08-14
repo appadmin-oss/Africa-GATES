@@ -26,6 +26,18 @@
    (body.ad-auth), whose full-bleed backgrounds were otherwise inset on every edge. */
 body { margin: 0; }
 
+/* ─── border-box ──────────────────────────────────────────────────
+   The public site gets this from main.css, which admin pages do not load — so every admin
+   input has been overflowing its container by its own padding and border since the admin was
+   written. Measured on the product editor: a `.row` of two 1fr columns with a 14px gap put
+   the second field's left edge SIXTEEN PIXELS INSIDE the first field's right edge, because
+   `width:100%` plus 28px of padding plus 2px of border is 30px wider than the column.
+
+   That is why paired fields never looked paired, why several tables push a horizontal
+   scrollbar, and why the phone breakpoints have needed hand-tuned widths. One line, and the
+   declared width becomes the width. */
+*, *::before, *::after { box-sizing: border-box; }
+
 body[data-page-admin] {
   background: var(--ad-bg);
   color: var(--ad-text);
@@ -116,9 +128,13 @@ body[data-page-admin] {
 
 /* ─── Main ───────────────────────────────────────────────────── */
 .ad-main { padding: 28px 36px; min-width: 0; }
+/* The actions wrapped internally but the topbar itself did not, so a page whose title and
+   button together exceed the width — Opportunities at 390px, found by sweeping every admin
+   page at phone width — pushed a horizontal scrollbar onto the WHOLE page rather than putting
+   the button on its own line. */
 .ad-topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  margin-bottom: 22px;
+  flex-wrap: wrap; margin-bottom: 22px;
 }
 .ad-h1 { font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 1.85rem; line-height: 1.1; color: var(--ad-text); }
 .ad-h1 small { display: block; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ad-text-mute); margin-bottom: 6px; }
@@ -260,6 +276,12 @@ body[data-page-admin] {
 .ad-form { display: grid; gap: 14px; }
 .ad-form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 720px) { .ad-form .row { grid-template-columns: 1fr; } }
+/* Two forms wrote `ad-form__row` instead, which was never a selector here — so their paired
+   fields had been stacking since they were written. They now use `.row`; this alias means a
+   template that reaches for the BEM spelling gets the layout rather than silence. */
+.ad-form .ad-form__row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 720px) { .ad-form .ad-form__row { grid-template-columns: 1fr; } }
+.ad-form__actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .ad-form label { display: block; font-weight: 600; font-size: 12.5px; color: var(--ad-text); margin-bottom: 6px; }
 .ad-form .hint { font-size: 12px; color: var(--ad-text-soft); margin-top: 4px; }
 .ad-form input[type=text], .ad-form input[type=email], .ad-form input[type=url], .ad-form input[type=tel], .ad-form input[type=password], .ad-form input[type=number], .ad-form input[type=date], .ad-form input[type=datetime-local], .ad-form select, .ad-form textarea {
@@ -380,6 +402,9 @@ body[data-page-admin] {
 .ad-pager a:hover { background: var(--ad-line-soft); color: var(--ad-text); }
 .ad-pager .is-current { background: var(--ad-primary); color: #fff; border-color: var(--ad-primary); }
 .ad-pager .is-disabled { opacity: 0.4; }
+/* The "…" between distant page numbers. It is not a destination, so it should not be drawn as
+   one: no box, no border, nothing to aim a click at. */
+.ad-pager__gap { border-color: transparent !important; background: none !important; }
 
 /* Avatar pill */
 .ad-avatar { width: 28px; height: 28px; border-radius: 50%; background-size: cover; background-position: center; background-color: var(--ad-line); display: inline-block; vertical-align: middle; margin-right: 8px; }

@@ -17,8 +17,11 @@ var/logs/
 # Screenshots and other throwaway artefacts written under var/ by tooling. `var/`
 # is the project's scratch directory, and 6.8MB of PNGs got committed from a
 # verification run because only its named subdirectories were ignored.
-var/shots/
-var/shots2/
+#
+# A glob rather than another named line: the last two verification runs each invented
+# the next number, and `var/shots3/` turned up untracked for exactly the reason the
+# paragraph above already describes.
+var/shots*/
 var/tmp/
 # Nominee voice recordings. These are people talking about themselves — the most personal
 # thing this platform stores — and a verification run left forty of them untracked in the

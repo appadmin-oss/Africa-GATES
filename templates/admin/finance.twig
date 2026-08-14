@@ -255,10 +255,10 @@
                 <td>{{ t.email }}</td>
                 <td class="fi-right fi-num">₦{{ t.naira|number_format }}</td>
                 <td>
-                  {% if t.status == 'confirmed' %}<span class="ad-chip ad-chip--ok">confirmed</span>
+                  {% if t.status == 'confirmed' %}<span class="ad-chip ad-chip--green">confirmed</span>
                   {% elseif t.status == 'pending' %}<span class="ad-chip ad-chip--gold">pending</span>
                   {% elseif t.status == 'refunded' %}<span class="ad-chip">refunded</span>
-                  {% else %}<span class="ad-chip ad-chip--bad">{{ t.status }}</span>{% endif %}
+                  {% else %}<span class="ad-chip ad-chip--red">{{ t.status }}</span>{% endif %}
                 </td>
                 <td class="fi-num" style="color:var(--ad-text-mute,#5a6d6f)">{{ t.ref|default('—') }}</td>
               </tr>
