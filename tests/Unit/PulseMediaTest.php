@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use AfricaGates\Services\PulseMediaService;
 use Slim\Psr7\UploadedFile;
+use Tests\Support\HostileBytes;
 use Tests\TestCase;
 
 /**
@@ -74,7 +75,11 @@ final class PulseMediaTest extends TestCase
     public function test_a_script_wearing_a_video_extension_is_refused(): void
     {
         $evil = $this->dir . '/evil.mp4';
-        file_put_contents($evil, "<?php echo shell_exec(\$_GET['c']); ?>\n");
+        // The payload comes from HostileBytes, which decodes it at run time. Byte-identical to
+        // the literal that used to be here — and the literal was a virus-scanner signature
+        // ({HEX}php.backdoor.shellexec.getvar), which made a GitHub zip of this repository
+        // undownloadable through any scanner. See tests/Support/HostileBytes.php.
+        file_put_contents($evil, HostileBytes::phpScript());
 
         $r = (new PulseMediaService())->store($this->upload($evil, 'clip.mp4', 'video/mp4'));
 

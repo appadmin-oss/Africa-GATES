@@ -133,7 +133,21 @@ final class ShopCatalogueTest extends TestCase
 
         // Two sizes, not twelve shirts. The number a buyer is deciding about is how many
         // choices remain, not how many units exist across sizes they do not wear.
-        $this->assertSame('2 sizes available', C::stockNote($row));
+        //
+        // BOTH numbers when some have gone. The grid card now draws a dot for every option the
+        // product comes in, dimming the sold-out ones — and "2 sizes available" beside three
+        // dots reads as one of the two being wrong. Saying "2 of 3" makes the dim dot explain
+        // itself, and is the more useful fact anyway.
+        $this->assertSame('2 of 3 sizes in stock', C::stockNote($row));
+
+        // With nothing gone there is no second number to give, so it stays the shorter phrase.
+        // Its own slug: product() defaults to a fixed one, and gates_products.slug is unique.
+        $all = $this->product(['slug' => 'tee-all-in-stock']);
+        $this->variant((int) $all->id, ['label' => 'S', 'stock' => 3, 'sort_order' => 0]);
+        $this->variant((int) $all->id, ['label' => 'M', 'stock' => 1, 'sort_order' => 1]);
+        $full = (array) $all;
+        $full['variants'] = C::variants((int) $all->id);
+        $this->assertSame('2 sizes available', C::stockNote($full));
     }
 
     public function test_every_option_sold_out_reads_as_sold_out(): void

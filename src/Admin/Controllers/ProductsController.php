@@ -10,6 +10,8 @@ use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Admin\Services\{AuditService, UploadService};
+use AfricaGates\Support\OptionalColumn;
+use AfricaGates\Support\Swatch;
 
 /** Admin CRUD for shop products (gates_products). Prices are whole naira. */
 class ProductsController
@@ -61,6 +63,12 @@ class ProductsController
                 'sku' => (string) $v['sku'], 'delta' => (int) $v['delta'],
                 'stock' => $v['stock'] === null ? '' : (string) (int) $v['stock'],
                 'waiting' => (int) ($waiting[(int) $v['id']] ?? 0),
+                // The second answer, the swatch and the per-variant photograph. Seeded as
+                // strings because they are bound straight to inputs, and a null in an
+                // x-model turns the box into the literal text "null".
+                'label2' => (string) ($v['label2'] ?? ''),
+                'swatch' => (string) ($v['swatch'] ?? ''),
+                'image'  => (string) ($v['image'] ?? ''),
                 'live' => true,
             ];
         }
@@ -97,6 +105,12 @@ class ProductsController
                 'subtitle', 'details', 'variant_axis', 'ships_free', 'is_featured',
             ]),
             'variants_ready' => DB::schema()->hasTable('gates_product_variants'),
+            // Swatches and the second axis are behind their own migration, so the editor
+            // hides those inputs on their own rather than hiding the whole options section —
+            // a deployment mid-upgrade can still edit sizes.
+            'swatches_ready' => DB::schema()->hasTable('gates_product_variants')
+                && OptionalColumn::missing('gates_product_variants',
+                       ['swatch', 'swatch_image', 'axis2', 'label2']) === [],
         ]);
     }
 
@@ -137,6 +151,8 @@ class ProductsController
             // apparel forever.
             'details'      => trim((string) ($b['details'] ?? '')) ?: null,
             'variant_axis' => mb_substr(trim((string) ($b['variant_axis'] ?? '')), 0, 40) ?: null,
+            // The second question, e.g. Colour beside Size. NULL when the product asks one.
+            'variant_axis2'=> mb_substr(trim((string) ($b['variant_axis2'] ?? '')), 0, 40) ?: null,
             'ships_free'   => !empty($b['ships_free']) ? 1 : 0,
             'is_featured'  => !empty($b['is_featured']) ? 1 : 0,
         ];
@@ -144,7 +160,7 @@ class ProductsController
         // zip and runs /__setup/migrate as two separate acts, and a save that 500ed in between
         // would read as the editor breaking rather than a step being outstanding.
         $data = \AfricaGates\Support\OptionalColumn::filter('gates_products', $data, [
-            'subtitle', 'details', 'variant_axis', 'ships_free', 'is_featured',
+            'subtitle', 'details', 'variant_axis', 'variant_axis2', 'ships_free', 'is_featured',
         ]);
 
         // Optional cover image — validated + re-encoded; keeps the old one if none sent.
@@ -279,6 +295,12 @@ class ProductsController
         $deltas = (array) ($b['var_delta'] ?? []);
         $stocks = (array) ($b['var_stock'] ?? []);
         $axis   = mb_substr(trim((string) ($b['variant_axis'] ?? '')), 0, 40) ?: null;
+        // The second question, and the per-row swatch and photograph. All optional: a product
+        // with one axis and no colours posts these empty and behaves exactly as before.
+        $labels2 = (array) ($b['var_label2'] ?? []);
+        $swatches = (array) ($b['var_swatch'] ?? []);
+        $shots    = (array) ($b['var_image'] ?? []);
+        $axis2  = mb_substr(trim((string) ($b['variant_axis2'] ?? '')), 0, 40) ?: null;
 
         $now = Carbon::now()->toDateTimeString();
         $kept = [];
@@ -302,6 +324,22 @@ class ProductsController
                 'sort_order' => $order++,
                 'updated_at' => $now,
             ];
+
+            // The second axis, the swatch and the per-variant photograph, dropped whole if
+            // this deployment has not migrated — so an editor that is ahead of the database
+            // saves the sizes it can rather than throwing on the columns it cannot.
+            $row += OptionalColumn::filter('gates_product_variants', [
+                'label2' => mb_substr(trim((string) ($labels2[$i] ?? '')), 0, 80) ?: null,
+                // NULL when there is no second answer, not the axis name: `axis2` set with
+                // `label2` empty would make ShopCatalogue::axes() offer a question with no
+                // choices in it.
+                'axis2'  => trim((string) ($labels2[$i] ?? '')) !== '' ? $axis2 : null,
+                // Validated on the way in as well as on the way out — it reaches a `style`
+                // attribute, and a row can also arrive from a restored backup. Anything that
+                // is not a hex colour is stored as NULL, and the page shows the label alone.
+                'swatch' => Swatch::store((string) ($swatches[$i] ?? '')),
+                'swatch_image' => self::variantImage((string) ($shots[$i] ?? '')),
+            ], ['label2', 'axis2', 'swatch', 'swatch_image']);
 
             $vid = (int) ($ids[$i] ?? 0);
             try {
@@ -346,6 +384,30 @@ class ProductsController
      *
      * @param array<string,mixed> $b
      */
+    /**
+     * A per-variant photograph path, or NULL.
+     *
+     * Only a same-site path or an absolute http(s) URL. `//host/x` is protocol-relative — i.e.
+     * somebody else's server — and is refused rather than stripped to a local path, because a
+     * stripped one 404s and reads as "the field did not save" instead of "that was refused".
+     * `data:` and `javascript:` are refused for the obvious reason.
+     *
+     * Validated on the way IN so a value that would be dropped at render time is never
+     * stored: a field that appears to save and then shows nothing looks like a broken editor.
+     */
+    private static function variantImage(string $raw): ?string
+    {
+        $v = trim($raw);
+        if ($v === '') return null;
+        if (preg_match('#^https?://#i', $v) === 1) return mb_substr($v, 0, 500);
+        if (str_starts_with($v, '//')) return null;
+        if (str_starts_with($v, '/')) return mb_substr($v, 0, 500);
+        if (preg_match('#^[A-Za-z0-9._/\-]+$#', $v) === 1 && !str_contains($v, '..')) {
+            return mb_substr('/' . ltrim($v, '/'), 0, 500);
+        }
+        return null;
+    }
+
     private function saveImages(int $productId, array $b): void
     {
         if (!DB::schema()->hasTable('gates_product_images')) return;

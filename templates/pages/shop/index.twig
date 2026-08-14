@@ -47,9 +47,13 @@
   .sh-card__body{ padding:16px; }
   .sh-card__cat{ font-size:11px; color:#5a6d6f; text-transform:uppercase; letter-spacing:.05em; }
   .sh-card__name{ font-weight:600; font-size:15.5px; color:var(--ag-ink); margin-top:4px; text-decoration:none; display:block; }
-  .sh-card__row{ display:flex; align-items:center; justify-content:space-between; margin-top:14px; gap:10px; }
+  .sh-card__row{ display:flex; align-items:center; justify-content:space-between; margin-top:14px; gap:10px; flex-wrap:wrap; }
   .sh-card__price{ font:700 17px/1 var(--ag-font-mono); color:var(--ag-ink); }
-  .sh-add{ cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-size:13px; font-weight:600; padding:9px 15px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; }
+  /* `white-space:nowrap` and `flex:none`, because "Choose colour" was breaking across two
+     lines inside the pill and dragging the card's height with it — a grid of cards at four
+     different heights reads as a broken layout. The row wraps instead, which puts the price
+     on its own line on a narrow card and keeps every button one line. */
+  .sh-add{ cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-size:13px; font-weight:600; padding:9px 15px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; text-decoration:none; white-space:nowrap; flex:none; }
   .sh-add:hover{ background:var(--ag-green-dark); }
   .sh-add[disabled]{ background:#dfe4e3; color:#5b6669; cursor:not-allowed; }
   /* stock, said out loud on the card — an "Add" button for something sold out is a promise
@@ -77,6 +81,130 @@
   .sh-empty h3{ margin:0 0 .4rem; font-family:var(--ag-font-display); font-weight:700; font-size:1.4rem; }
   .sh-empty p{ margin:0; color:#4a5256; }
 
+  /* On a phone the hero was ~460px of the first 900, so the first product sat at 660px —
+     below the fold on the page whose entire job is showing products. Trimmed rather than
+     removed: it still says whose shop this is and where the money goes, which is the reason
+     it exists, in about half the height. */
+  @media(max-width:620px){
+    .sh-hero{ margin-top:14px; padding:20px 18px 22px; border-radius:18px; }
+    .sh-hero h1{ margin-top:11px; font-size:1.6rem; line-height:1.1; }
+    .sh-hero p{ margin-top:9px; font-size:14px; line-height:1.5; }
+    .sh-hero__orb{ width:200px; height:200px; right:-70px; bottom:-90px; }
+    .sh-badge{ font-size:10px; padding:5px 11px; }
+    .sh-find{ margin-top:14px; }
+    .sh-ship{ margin-top:11px; padding:9px 13px; font-size:12.5px; }
+  }
+
+  /* ── THE RAIL, AND THE TWO-COLUMN PAGE ──────────────────────────────────────
+     A shop whose only filter was a row of category chips could answer one question at a
+     time. The rail answers several at once and keeps them all in the URL, so a filtered
+     shop can be bookmarked, sent to somebody, and reopened by the back button.
+
+     It is a PLAIN GET FORM. Not decoration: a rail that needs JavaScript is a rail that
+     does not work on the phone where the script did not load, and one the server never
+     validates. The `data-ag-do="submit-form"` handlers make it instant where script runs;
+     the Apply button is what makes it work where it does not. */
+  .sh-layout{ display:grid; grid-template-columns:236px minmax(0,1fr); gap:26px; margin-top:22px;
+    align-items:start; }
+  @media(max-width:900px){ .sh-layout{ grid-template-columns:minmax(0,1fr); gap:16px; } }
+
+  /* On a phone the rail is a <details> — closed, so it costs one line rather than a screen,
+     and still fully usable with no script because <details> is the browser's own. */
+  .sh-rail{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08);
+    border-radius:18px; padding:4px 16px 16px; position:sticky; top:84px; }
+  @media(max-width:900px){ .sh-rail{ position:static; padding:0 14px 14px; } }
+  .sh-rail__sum{ cursor:pointer; list-style:none; display:flex; align-items:center; gap:9px;
+    padding:14px 0 12px; font-size:13px; font-weight:700; color:var(--ag-ink); }
+  .sh-rail__sum::-webkit-details-marker{ display:none; }
+  .sh-rail__sum b{ margin-left:auto; font-size:11px; font-weight:700; letter-spacing:.04em;
+    background:#effaf0; color:#1a6118; border-radius:999px; padding:3px 9px; }
+  .sh-rail__chev{ transition:transform .18s; }
+  .sh-rail[open] .sh-rail__chev{ transform:rotate(180deg); }
+  /* ── OPEN ON DESKTOP, CLOSED ON A PHONE, WITHOUT SCRIPT ────────────────────
+     `open` is a single boolean attribute, so it cannot be responsive in the markup — and
+     rendering it open meant 520px of rail before the first product on a 390px screen
+     (measured, not guessed). So the element ships CLOSED and desktop forces it open in CSS.
+
+     Both spellings, because engines implement the hiding differently: `::details-content` is
+     the modern one, and overriding `display` on the non-summary children is what works in
+     engines that predate it. If neither applies, a desktop visitor gets a collapsed rail with
+     a "Filter" button that works — a smaller cost than a phone with no visible products. */
+  @media(min-width:901px){
+    .sh-rail__sum{ pointer-events:none; }
+    .sh-rail__chev{ display:none; }
+    .sh-rail::details-content{ content-visibility:visible; block-size:auto; }
+    .sh-rail:not([open]) > form{ display:block; }
+  }
+
+  .sh-fs{ border:none; margin:0; padding:14px 0 0; border-top:1px solid rgba(16,41,44,.08); }
+  .sh-fs__l{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+    color:#8a9a9c; padding:0; margin-bottom:9px; }
+  .sh-opt{ display:flex; align-items:center; gap:9px; font-size:13.5px; color:#3a4448;
+    padding:5px 0; cursor:pointer; }
+  .sh-opt input{ width:auto; flex:none; margin:0; accent-color:var(--ag-green); }
+  .sh-opt span{ min-width:0; overflow-wrap:anywhere; }
+  .sh-opt__n{ margin-left:auto; font-size:11.5px; color:#9aa6a8; font-variant-numeric:tabular-nums; }
+
+  .sh-money{ display:flex; align-items:center; gap:7px; }
+  .sh-money input{ min-width:0; width:100%; border:1px solid rgba(16,41,44,.16);
+    border-radius:10px; padding:8px 10px; font-family:var(--ag-font-mono,monospace);
+    font-size:12.5px; color:var(--ag-ink); background:var(--ag-surface,#fff);
+    box-sizing:border-box; }
+  .sh-money span{ color:#9aa6a8; font-size:12px; flex:none; }
+  .sh-hint{ font-size:11.5px; color:#9aa6a8; margin:7px 0 0; }
+
+  .sh-apply{ display:flex; gap:8px; margin-top:16px; }
+  .sh-apply button{ flex:1; cursor:pointer; border:none; background:var(--ag-ink); color:#fff;
+    font-family:inherit; font-size:13px; font-weight:700; padding:11px; border-radius:999px; }
+  .sh-apply a{ flex:none; display:inline-flex; align-items:center; padding:0 13px;
+    border-radius:999px; border:1px solid rgba(16,41,44,.14); font-size:12.5px;
+    font-weight:600; color:#4a5256; text-decoration:none; }
+  .sh-apply a:hover{ border-color:rgba(16,41,44,.3); color:var(--ag-ink); }
+
+  /* The bar above the grid: what is on the page, and how it is ordered. Sticky, because
+     scrolling three pages of products and then wanting a different order should not mean
+     scrolling back up. */
+  .sh-top{ position:sticky; top:74px; z-index:2; display:flex; align-items:center;
+    justify-content:space-between; gap:14px; flex-wrap:wrap;
+    background:rgba(238,240,236,.92); backdrop-filter:blur(8px);
+    padding:10px 0; margin-bottom:4px; }
+  @media(max-width:900px){
+    .sh-top{ position:static; backdrop-filter:none; background:none; padding:6px 0 2px; }
+    /* One row rather than two: the count and the sort are both one short line, and stacking
+       them costs another 40px above the grid on the screen with least of it to spare. */
+    .sh-top{ flex-wrap:nowrap; }
+    .sh-count{ min-width:0; overflow-wrap:anywhere; }
+    .sh-sort select{ max-width:46vw; }
+  }
+
+  /* Which filters are on, as removable pills. A rail can be scrolled past; these cannot,
+     so nobody wonders why the shop looks half empty. */
+  .sh-on{ display:flex; flex-wrap:wrap; gap:7px; margin:0 0 12px; }
+  .sh-on__p{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600;
+    background:#fff; border:1px solid rgba(16,41,44,.14); border-radius:999px;
+    padding:5px 7px 5px 11px; color:#3a4448; text-decoration:none; }
+  .sh-on__p:hover{ border-color:#8a2020; color:#8a2020; }
+  .sh-on__x{ font-size:14px; line-height:1; color:#9aa6a8; }
+  .sh-on__p:hover .sh-on__x{ color:#8a2020; }
+
+  /* ── colour dots on a card ──────────────────────────────────────────────────
+     The grid reads the cover image only, so a shirt in four colours looked like one shirt
+     and the buyer had to open it to find out. Small, because on a card this is a signal
+     rather than a control — the choosing happens on the product page. */
+  .sh-dots{ display:flex; align-items:center; gap:5px; margin-top:8px; }
+  .sh-dots__d{ width:13px; height:13px; border-radius:50%; flex:none;
+    box-shadow:inset 0 0 0 1px rgba(16,41,44,.2); }
+  .sh-dots__d.is-gone{ opacity:.4; }
+  .sh-dots__m{ font-size:11px; font-weight:700; color:#8a9a9c; margin-left:2px; }
+  .sh-card__from{ font-size:11px; font-weight:600; color:#8a9a9c; margin-right:4px; }
+
+  /* The alternate colourway, on hover. Free — it is a variant photograph already loaded for
+     the stock note, so no extra query. Not on touch, where there is no hover and the image
+     would either never show or stick after a tap. */
+  .sh-card__alt{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+    opacity:0; transition:opacity .22s; }
+  @media (hover:hover){ .sh-card:hover .sh-card__alt{ opacity:1; } }
+
   /* Ad units — clean, labeled, and height-reserved so they never shift the layout. */
   .ad-slot{ margin:28px 0 0; padding:14px; background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; text-align:center; min-height:128px; overflow:hidden; }
   .ad-slot__label{ display:block; font-size:10px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:#9aa6a8; margin-bottom:8px; }
@@ -101,10 +229,13 @@
 
   {% set F = found|default({q:'', category:'', sort:'featured', total: products|length, page:1, pages:1}) %}
 
-  {# ── SEARCH AND SORT ─────────────────────────────────────────────────────────
-     A real GET form. Filtering happens in SQL now, so the URL describes what is on the
-     page — which means a category is shareable, the browser's back button works, and the
-     page stops carrying the whole catalogue to hide most of it. #}
+  {# ── SEARCH ──────────────────────────────────────────────────────────────────
+     A real GET form. Filtering happens in SQL, so the URL describes what is on the page —
+     which means a search is shareable, the browser's back button works, and the page stops
+     carrying the whole catalogue in order to hide most of it.
+
+     The hidden inputs carry the rail's current answers, so searching NARROWS what is on
+     screen instead of silently discarding the filters somebody just set. #}
   <form class="sh-find" method="get" action="/shop">
     <label class="sh-search">
       <span class="sh-search__i" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></span>
@@ -113,14 +244,11 @@
       <button class="sh-search__go" type="submit">Search</button>
     </label>
     {% if F.category %}<input type="hidden" name="c" value="{{ F.category }}">{% endif %}
-    <label class="sh-sort">
-      <span>Sort</span>
-      <select name="sort" data-ag-do="submit-form">
-        {% for key, label in sorts|default({}) %}
-        <option value="{{ key }}" {% if key == F.sort %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </label>
+    {% if F.min is not null %}<input type="hidden" name="min" value="{{ F.min }}">{% endif %}
+    {% if F.max is not null %}<input type="hidden" name="max" value="{{ F.max }}">{% endif %}
+    {% if F.in_stock %}<input type="hidden" name="stock" value="1">{% endif %}
+    {% if F.featured %}<input type="hidden" name="feat" value="1">{% endif %}
+    {% if F.sort != 'featured' %}<input type="hidden" name="sort" value="{{ F.sort }}">{% endif %}
   </form>
 
   {% if ship_active|default(false) and ship_free_over|default(0) %}
@@ -130,36 +258,182 @@
   </div>
   {% endif %}
 
+  {# How many filters are narrowing the list — the count on the rail's own summary, so a
+     phone with the rail collapsed still knows something is being hidden. #}
+  {% set onCount = (F.category ? 1 : 0) + (F.in_stock ? 1 : 0) + (F.featured ? 1 : 0)
+                 + ((F.min is not null or F.max is not null) ? 1 : 0) %}
+
+  <div class="sh-layout">
+
+    {# ── THE RAIL ─────────────────────────────────────────────────────────────
+       One GET form for every filter, so Apply answers all of them at once and the URL that
+       results describes the page exactly. `<details open>` on desktop via CSS and closed on
+       a phone: on a small screen a rail that occupies the first screenful means the shop
+       appears to have no products in it.
+
+       No JavaScript is required for any of it. The selects and checkboxes carry
+       `data-ag-do="submit-form"` so it is instant where script runs, and the Apply button is
+       what makes it work where it does not. #}
+    {# Not `open` in the markup — see the CSS note. Desktop opens it there; a phone keeps it
+       one line, with the count of active filters on the summary so nothing is hidden
+       silently. #}
+    <details class="sh-rail" id="shopRail">
+      <summary class="sh-rail__sum">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        Filter
+        {% if onCount %}<b>{{ onCount }} on</b>{% endif %}
+        <svg class="sh-rail__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </summary>
+
+      <form method="get" action="/shop">
+        {# Search and sort travel with the filters rather than being reset by them. #}
+        {% if F.q %}<input type="hidden" name="q" value="{{ F.q }}">{% endif %}
+        {% if F.sort != 'featured' %}<input type="hidden" name="sort" value="{{ F.sort }}">{% endif %}
+
+        <fieldset class="sh-fs">
+          <legend class="sh-fs__l">Category</legend>
+          {# Radios rather than links: a link would carry only its own value and drop whatever
+             else is set. Every category, not only the ones on this page — paging to page 2
+             would otherwise make categories disappear. #}
+          <label class="sh-opt">
+            <input type="radio" name="c" value="" {% if F.category == '' %}checked{% endif %}
+                   data-ag-do="submit-form">
+            <span>Everything</span>
+          </label>
+          {% for c in categories %}
+          <label class="sh-opt">
+            <input type="radio" name="c" value="{{ c }}" {% if F.category == c %}checked{% endif %}
+                   data-ag-do="submit-form">
+            <span>{{ c }}</span>
+          </label>
+          {% endfor %}
+        </fieldset>
+
+        {% if price_range|default(null) and price_range.max > price_range.min %}
+        <fieldset class="sh-fs">
+          <legend class="sh-fs__l">Price</legend>
+          {# Two boxes rather than a slider. A slider needs script, cannot be typed into, and
+             is very hard to operate accurately on a phone — and the two numbers are exactly
+             what somebody has in mind. The placeholders are the real bounds of the catalogue,
+             so the range widens by itself when a dearer product is added. #}
+          <div class="sh-money">
+            <span>₦</span>
+            <input type="number" name="min" inputmode="numeric" min="0" step="500"
+                   value="{{ F.min is not null ? F.min : '' }}"
+                   placeholder="{{ price_range.min }}" aria-label="Lowest price">
+            <span>–</span>
+            <input type="number" name="max" inputmode="numeric" min="0" step="500"
+                   value="{{ F.max is not null ? F.max : '' }}"
+                   placeholder="{{ price_range.max }}" aria-label="Highest price">
+          </div>
+          <p class="sh-hint">Leave either blank for no limit.</p>
+        </fieldset>
+        {% endif %}
+
+        <fieldset class="sh-fs">
+          <legend class="sh-fs__l">Show only</legend>
+          <label class="sh-opt">
+            <input type="checkbox" name="stock" value="1" {% if F.in_stock %}checked{% endif %}
+                   data-ag-do="submit-form">
+            <span>In stock</span>
+          </label>
+          <label class="sh-opt">
+            <input type="checkbox" name="feat" value="1" {% if F.featured %}checked{% endif %}
+                   data-ag-do="submit-form">
+            <span>Featured</span>
+          </label>
+        </fieldset>
+
+        {% if region_priced or currency_enabled %}
+        <fieldset class="sh-fs">
+          <legend class="sh-fs__l">Prices shown</legend>
+          {# Cookies, not query parameters: a region and a currency are how somebody wants to
+             be shown the whole site, not a filter on this page — and putting them in the URL
+             would mean every shared link carried somebody else's currency. #}
+          {% if region_priced %}
+          <label class="sh-opt" title="Prices vary by delivery region">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            <select aria-label="Pricing region" data-ag-do="set-cookie-reload" data-cookie="ag_region">
+              {% for r in regions %}<option value="{{ r }}" {% if r == region %}selected{% endif %}>{{ r }}</option>{% endfor %}
+            </select>
+          </label>
+          {% endif %}
+          {% if currency_enabled %}
+          <label class="sh-opt" title="Show prices in your currency">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.6.5M14.5 14.5A2.5 2.5 0 0 1 10 14M12 7v10"/></svg>
+            <select aria-label="Display currency" data-ag-do="set-cookie-reload" data-cookie="ag_currency">
+              {% for code, sym in currencies %}<option value="{{ code }}" {% if code == currency %}selected{% endif %}>{{ code }}</option>{% endfor %}
+            </select>
+          </label>
+          {% endif %}
+        </fieldset>
+        {% endif %}
+
+        <div class="sh-apply">
+          <button type="submit">Apply</button>
+          {% if F.filtered %}<a href="/shop">Clear</a>{% endif %}
+        </div>
+      </form>
+    </details>
+
+    <div>
   {% if products is not empty %}
-  <div class="sh-bar">
-    <div class="sh-filters">
-      {# Links, not Alpine. The filter is a URL now — see the form above. #}
-      <a class="sh-chip {{ F.category == '' ? 'is-on' : '' }}" href="/shop{{ F.sort != 'featured' ? '?sort=' ~ F.sort : '' }}">All</a>
-      {% for c in categories %}
-      <a class="sh-chip {{ F.category == c ? 'is-on' : '' }}" href="/shop?c={{ c|url_encode }}{{ F.sort != 'featured' ? '&sort=' ~ F.sort : '' }}">{{ c }}</a>
-      {% endfor %}
+    <div class="sh-top">
+      <span class="sh-count">
+        {{ F.total }} item{{ F.total == 1 ? '' : 's' }}{% if F.q %} for “{{ F.q }}”{% endif %}
+        {%- if F.pages > 1 %} · page {{ F.page }} of {{ F.pages }}{% endif %}
+      </span>
+      {# Sort is its own tiny form, carrying every filter as hidden inputs. Re-ordering must
+         not silently drop what somebody chose on the left. #}
+      <form method="get" action="/shop" class="sh-sort">
+        {% if F.q %}<input type="hidden" name="q" value="{{ F.q }}">{% endif %}
+        {% if F.category %}<input type="hidden" name="c" value="{{ F.category }}">{% endif %}
+        {% if F.min is not null %}<input type="hidden" name="min" value="{{ F.min }}">{% endif %}
+        {% if F.max is not null %}<input type="hidden" name="max" value="{{ F.max }}">{% endif %}
+        {% if F.in_stock %}<input type="hidden" name="stock" value="1">{% endif %}
+        {% if F.featured %}<input type="hidden" name="feat" value="1">{% endif %}
+        <label for="shSort">Sort</label>
+        <select id="shSort" name="sort" data-ag-do="submit-form">
+          {% for key, label in sorts|default({}) %}
+          <option value="{{ key }}" {% if key == F.sort %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit" class="sh-chip">Go</button></noscript>
+      </form>
     </div>
-    <span class="sh-count">
-      {{ F.total }} item{{ F.total == 1 ? '' : 's' }}{% if F.q %} for “{{ F.q }}”{% endif %}
-      {%- if F.pages > 1 %} · page {{ F.page }} of {{ F.pages }}{% endif %}
-    </span>
-    {% if region_priced %}
-    <label class="sh-region" title="Prices vary by delivery region">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-      <select aria-label="Pricing region" data-ag-do="set-cookie-reload" data-cookie="ag_region">
-        {% for r in regions %}<option value="{{ r }}" {% if r == region %}selected{% endif %}>{{ r }}</option>{% endfor %}
-      </select>
-    </label>
+
+    {# What is currently on, as pills that remove themselves. The rail can be scrolled past
+       or collapsed, and a shop that looks half empty for a reason nobody can see is a shop
+       somebody leaves. Each pill's href is the current URL MINUS that one filter. #}
+    {% if F.filtered %}
+    {% set keep = {
+      q: F.q, c: F.category, sort: (F.sort != 'featured' ? F.sort : ''),
+      min: (F.min is not null ? F.min : ''), max: (F.max is not null ? F.max : ''),
+      stock: (F.in_stock ? '1' : ''), feat: (F.featured ? '1' : '')
+    } %}
+    <div class="sh-on">
+      {% for k, label in {
+        q: (F.q ? '“' ~ F.q ~ '”' : ''),
+        c: F.category,
+        min: (F.min is not null ? 'From ₦' ~ F.min|number_format : ''),
+        max: (F.max is not null ? 'Up to ₦' ~ F.max|number_format : ''),
+        stock: (F.in_stock ? 'In stock' : ''),
+        feat: (F.featured ? 'Featured' : '')
+      } %}
+        {% if label %}
+          {% set without = [] %}
+          {% for kk, vv in keep %}
+            {% if kk != k and vv != '' %}{% set without = without|merge([kk ~ '=' ~ vv|url_encode]) %}{% endif %}
+          {% endfor %}
+          <a class="sh-on__p" href="/shop{{ without ? '?' ~ without|join('&') : '' }}">
+            {{ label }}<span class="sh-on__x" aria-hidden="true">×</span>
+            <span class="sr-only">— remove this filter</span>
+          </a>
+        {% endif %}
+      {% endfor %}
+      <a class="sh-on__p" href="/shop"><b>Clear all</b></a>
+    </div>
     {% endif %}
-    {% if currency_enabled %}
-    <label class="sh-region" title="Show prices in your currency">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.6.5M14.5 14.5A2.5 2.5 0 0 1 10 14M12 7v10"/></svg>
-      <select aria-label="Display currency" data-ag-do="set-cookie-reload" data-cookie="ag_currency">
-        {% for code, sym in currencies %}<option value="{{ code }}" {% if code == currency %}selected{% endif %}>{{ code }}</option>{% endfor %}
-      </select>
-    </label>
-    {% endif %}
-  </div>
 
   <div class="sh-grid">
     {% for p in products %}
@@ -169,6 +443,13 @@
          nameless "link" and keyboard users hit an extra dead stop on every card.
          Hiding the decorative duplicate leaves exactly one named link per product. #}
       <a class="sh-card__cover" aria-hidden="true" tabindex="-1" href="/shop/{{ p.slug }}" style="{% if p.cover_path %}background-image:url('{{ p.cover_path }}'){% else %}background:{{ COV[loop.index0 % COV|length] }}{% endif %}">
+        {# The alternate colourway, revealed on hover. Free: it is a variant photograph
+           already loaded for the stock note, so there is no extra query — and it answers
+           "what else does this come in" without a click. Only where hover exists; on a
+           touch screen it would either never appear or stick after a tap. #}
+        {% set alt = (p.variants|default([])|filter(v => v.image)|first) %}
+        {% if alt %}<img class="sh-card__alt" src="{{ alt.image }}" alt="" loading="lazy"
+                         decoding="async" aria-hidden="true">{% endif %}
         {% if p.tag %}<span class="sh-card__tag sh-tag--{{ p.tag }}">{{ p.tag }}</span>{% endif %}
       </a>
       <div class="sh-card__body">
@@ -178,8 +459,28 @@
         {% if p.stock_note|default('') %}
         <div class="sh-card__stock {{ p.sold_out|default(false) ? 'is-gone' : (p.choose|default(false) ? 'is-opt' : 'is-low') }}">{{ p.stock_note }}</div>
         {% endif %}
+        {# The colours it comes in. Before this, the grid showed one cover image, so a shirt
+           in four colours looked like one shirt and the only way to find out was to open it.
+           The names are on the dots' own titles and in a hidden list, because a row of
+           coloured circles announces nothing to a screen reader. #}
+        {% if p.dots|default(null) and p.dots.dots|length %}
+        <div class="sh-dots">
+          {% for d in p.dots.dots %}
+            <span class="sh-dots__d{{ d.gone ? ' is-gone' : '' }}" style="background:{{ d.css }}"
+                  title="{{ d.name }}{{ d.gone ? ' — sold out' : '' }}"></span>
+          {% endfor %}
+          {% if p.dots.more %}<span class="sh-dots__m">+{{ p.dots.more }}</span>{% endif %}
+          <span class="sr-only">Colours:
+            {% for d in p.dots.dots %}{{ d.name }}{{ d.gone ? ' (sold out)' : '' }}{{ not loop.last ? ', ' : '' }}{% endfor %}
+            {%- if p.dots.more %} and {{ p.dots.more }} more{% endif %}.</span>
+        </div>
+        {% endif %}
         <div class="sh-card__row">
-          <span class="sh-card__price">{{ p.price_label|default('₦' ~ (p.display_price|default(p.price_naira)|number_format)) }}</span>
+          <span class="sh-card__price">
+            {# "from" when the options are priced differently. A single number on a card whose
+               XXL costs ₦1,500 more is a number the product page then contradicts. #}
+            {% if p.price_from|default(false) %}<span class="sh-card__from">from</span>{% endif %}
+            {{ p.price_label|default('₦' ~ (p.display_price|default(p.price_naira)|number_format)) }}</span>
           {% if p.sold_out|default(false) %}
             <button type="button" class="sh-add" disabled>Sold out</button>
           {% elseif p.choose|default(false) %}
@@ -225,16 +526,29 @@
 
   {# Optional second ad (bottom). Renders only if a distinct slot is configured. #}
   {% if adsense_slot_2 %}{% include 'partials/ad-slot.twig' with { slot: adsense_slot_2 } %}{% endif %}
-  {% elseif F.q or F.category %}
+
+  {% elseif F.filtered %}
   {# Nothing MATCHED is a different thing from nothing existing, and answering a search with
-     "the shop is opening soon" tells somebody the site is broken. #}
+     "the shop is opening soon" tells somebody the site is broken.
+
+     And it says WHICH filters produced nothing, with a way to loosen each one — because "no
+     results" with no explanation leaves somebody guessing which of four things to change.
+     `F.filtered` rather than a test on q and category alone: a price range or an in-stock tick
+     can empty the grid just as easily, and the old wording called that an empty shop. #}
   <div class="sh-empty">
     <h2>Nothing matched</h2>
     <p>
       {% if F.q %}No products match “{{ F.q }}”{% if F.category %} in {{ F.category }}{% endif %}.
-      {% else %}There is nothing in {{ F.category }} just yet.{% endif %}
+      {% elseif F.category %}There is nothing in {{ F.category }} that also matches the rest of your filters.
+      {% else %}Nothing in the shop matches all of those filters.{% endif %}
     </p>
-    <p style="margin-top:14px"><a href="/shop" style="color:var(--ag-green);font-weight:600">See everything in the shop →</a></p>
+    <p style="margin-top:10px;font-size:13.5px;color:#626a6e">
+      {% if F.min is not null or F.max is not null %}Try widening the price range{% if F.in_stock or F.featured %}, or{% endif %}{% endif %}
+      {%- if F.in_stock %} include out-of-stock items{% if F.featured %}, or{% endif %}{% endif %}
+      {%- if F.featured %} include products that are not featured{% endif %}
+      {%- if F.min is null and F.max is null and not F.in_stock and not F.featured %}Try a different word, or a wider category{% endif %}.
+    </p>
+    <p style="margin-top:14px"><a href="/shop" style="color:var(--ag-green);font-weight:600">Clear every filter and see the whole shop →</a></p>
   </div>
   {% else %}
   <div class="sh-empty">
@@ -242,6 +556,8 @@
     <p>We’re lining up the first drop of Africa GATES apparel and keepsakes. Check back shortly.</p>
   </div>
   {% endif %}
+    </div>{# /grid column #}
+  </div>{# /sh-layout #}
 
   {% include 'partials/shop-cart.twig' %}
 </div>

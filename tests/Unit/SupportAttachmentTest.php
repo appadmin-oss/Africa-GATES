@@ -7,6 +7,7 @@ use AfricaGates\Services\{SupportAttachmentService, TicketLinkService};
 use Illuminate\Database\Capsule\Manager as DB;
 use Slim\Psr7\Factory\StreamFactory;
 use Slim\Psr7\UploadedFile;
+use Tests\Support\HostileBytes;
 use Tests\TestCase;
 
 /**
@@ -113,7 +114,10 @@ final class SupportAttachmentTest extends TestCase
     public function test_a_script_renamed_as_an_image_is_refused(): void
     {
         $r = SupportAttachmentService::store(
-            $this->upload('<?php echo shell_exec($_GET["c"]); ?>', 'receipt.png', 'image/png'),
+            // From HostileBytes — byte-identical to the literal that used to be inline here.
+            // The literal matched a virus-scanner signature and got the whole repository
+            // quarantined on download. See tests/Support/HostileBytes.php.
+            $this->upload(HostileBytes::phpScriptDoubleQuoted(), 'receipt.png', 'image/png'),
             $this->ticketId);
 
         $this->assertFalse($r['ok']);

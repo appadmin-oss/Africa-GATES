@@ -89,7 +89,7 @@
      delta still holds, whereas eight absolute prices would silently keep the old ones. #}
   {% if variants_ready|default(false) %}
   <div class="ad-card"><div class="ad-card__body">
-    <div class="ad-form" x-data="pvRepeater({{ variant_seed|default([])|json_encode|e('html_attr') }}, {vid:0,label:'',sku:'',delta:0,stock:'',waiting:0})">
+    <div class="ad-form" x-data="pvRepeater({{ variant_seed|default([])|json_encode|e('html_attr') }}, {vid:0,label:'',label2:'',sku:'',delta:0,stock:'',waiting:0,swatch:'',image:''})">
       <div>
         <strong style="font-size:14px">Sizes, colours and other options</strong>
         <div style="font-size:12.5px;color:var(--ad-text-mute);margin-top:4px">
@@ -104,12 +104,66 @@
             {% for a in axes %}<option value="{{ a }}" {% if row.variant_axis|default('') == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
           </select>
         </div>
+        {# ── THE SECOND QUESTION ──────────────────────────────────────────────
+           You could always express a combination by naming a row "M · Navy". It falls apart
+           the moment you want it shown properly: twelve buttons instead of three colours and
+           four sizes, a colour that cannot be a swatch because the label is not a colour any
+           more, and no way to say "Navy is sold out in M" — every combination is an unrelated
+           string, so the page cannot grey out a size once a colour is picked.
+
+           Each ROW is still one sellable combination, which is right: stock, price and SKU
+           all belong to the combination and not to the colour. #}
+        {% if swatches_ready|default(false) %}
+        <div><label for="f-axis2">And a second thing? <small style="font-weight:400;color:var(--ad-text-mute)">(optional)</small></label>
+          <select name="variant_axis2" id="f-axis2">
+            <option value="">— just the one —</option>
+            {% for a in axes %}<option value="{{ a }}" {% if row.variant_axis2|default('') == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
       </div>
+      {% if swatches_ready|default(false) %}
+      <div style="font-size:12.5px;color:var(--ad-text-mute)">
+        With two questions, <strong>every row is one combination</strong> — a row for “M, Navy”
+        and another for “M, Cream” — because the stock, the price and the SKU belong to the
+        pair. The shop shows two sets of buttons and works out which pairs are still available.
+      </div>
+      {% endif %}
       <template x-for="r in rows" :key="r.id">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--ad-line,rgba(16,41,44,.1));padding-top:10px">
           <input type="hidden" name="var_id[]" :value="r.vid || ''">
-          <input name="var_label[]" aria-label="Option name" x-model="r.label" maxlength="80" placeholder="M" style="width:110px">
-          <input name="var_sku[]" aria-label="SKU" x-model="r.sku" maxlength="60" placeholder="SKU (optional)" style="width:150px">
+          <input name="var_label[]" aria-label="Option name" x-model="r.label" maxlength="80" placeholder="M" style="width:96px">
+          {% if swatches_ready|default(false) %}
+          <input name="var_label2[]" aria-label="Second option name" x-model="r.label2" maxlength="80"
+                 placeholder="Navy" style="width:96px" x-show="hasSecond()" x-cloak>
+          {# ── THE SWATCH ─────────────────────────────────────────────────────
+             A colour picker beside the word, not instead of it. The word is what a screen
+             reader announces, what anybody who cannot tell two of these greens apart relies
+             on, and what the packing list and the receipt say — "you bought the ■" is not a
+             receipt. The swatch is an accelerator on top of the name.
+
+             Two boxes for one value, same as the ticket's accent: the picker is unusable for
+             typing a brand hex and the text box is unusable for choosing one by eye. Only
+             `var_swatch[]` is submitted. Type two hex values separated by a slash for a
+             two-tone item — striped and panelled goods are common, and one flat square
+             misrepresents them, which is a return. #}
+          <span style="display:inline-flex;align-items:center;gap:5px" x-show="wantsSwatch()" x-cloak>
+            <input type="color" :value="r.swatch.split('/')[0] || '#10292C'"
+                   @input="r.swatch = $event.target.value"
+                   :aria-label="'Colour for ' + (r.label || 'this option')"
+                   style="width:38px;height:34px;padding:2px;flex:none;cursor:pointer">
+            <input name="var_swatch[]" x-model="r.swatch" maxlength="20" placeholder="#1B2A4A"
+                   :aria-label="'Colour value for ' + (r.label || 'this option')"
+                   spellcheck="false" style="width:120px;font-family:var(--ag-font-mono,monospace);font-size:12px">
+          </span>
+          {# A photograph of THIS colour. Choosing it switches the gallery, which is the only
+             honest way to show a fabric — a hex square cannot tell somebody what a wax print
+             looks like. #}
+          <input name="var_image[]" x-model="r.image" maxlength="500"
+                 :aria-label="'Photo for ' + (r.label || 'this option')"
+                 placeholder="Photo for this one (optional)" style="width:200px" x-show="wantsSwatch()" x-cloak>
+          {% endif %}
+          <input name="var_sku[]" aria-label="SKU" x-model="r.sku" maxlength="60" placeholder="SKU (optional)" style="width:130px">
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;font-weight:500">
             <span>₦ more/less</span>
             <input name="var_delta[]" aria-label="Price difference in naira" type="number" step="1" x-model.number="r.delta" style="width:110px">
@@ -196,7 +250,29 @@ function pvRepeater(seed, blank){
   return {
     rows,
     add(){ this.rows.push(Object.assign({id: nextId++}, blank)); },
-    rm(id){ this.rows = this.rows.filter(r => r.id !== id); }
+    rm(id){ this.rows = this.rows.filter(r => r.id !== id); },
+
+    /* Whether either axis select currently names a second question. Read from the DOM rather
+       than mirrored into state: the selects are plain <select name=…> so the form still works
+       with no JavaScript, and duplicating their value into Alpine would give two sources of
+       truth for the same field. */
+    hasSecond(){
+      const el = document.getElementById('f-axis2');
+      return !!(el && el.value);
+    },
+
+    /* Show the colour inputs when EITHER question is about colour. Not "the first axis is
+       Colour": a shirt is commonly Size + Colour, where the colour is the SECOND question, and
+       a check that only looked at the first would hide the swatches on the most ordinary
+       product in the shop.
+
+       Substring match on purpose — an organiser typing "Colour / Shade" or "Color" gets the
+       swatches rather than silently not getting them. */
+    wantsSwatch(){
+      const v = id => (document.getElementById(id)?.value || '').toLowerCase();
+      const looksColour = s => s.includes('colour') || s.includes('color');
+      return looksColour(v('f-axis')) || looksColour(v('f-axis2'));
+    }
   };
 }
 </script>

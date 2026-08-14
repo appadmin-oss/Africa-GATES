@@ -53,6 +53,20 @@ class ShopController
         return $sym . number_format($v, $v < 100 ? 2 : 0);
     }
 
+    /**
+     * Whether a product's options are priced differently, so the card can say "from ₦X".
+     *
+     * A single price on a card whose XXL costs ₦1,500 more is a number the product page then
+     * contradicts — and the buyer who noticed reasonably wonders which one is true.
+     */
+    private function varies(array $variants): bool
+    {
+        if (count($variants) < 2) return false;
+        $seen = [];
+        foreach ($variants as $v) $seen[(int) $v['price_naira']] = true;
+        return count($seen) > 1;
+    }
+
     /** Enabled gateways for the checkout UI ([] → show "checkout opening soon"). */
     private function providers(): array
     {
@@ -71,11 +85,24 @@ class ShopController
         $mults  = ShopPricing::multipliers();
         [$cur, $curEnabled, $rate, $sym] = $this->currencyContext($req);
 
+        // The multiplier this region actually applies, so the price rail's numbers and the SQL
+        // it drives are talking about the same money. Derived from one product rather than
+        // reaching into the multiplier table: whatever ShopPricing does to a price is what the
+        // rail has to divide back out, and asking it is the only way to stay in step with it.
+        $mult = ShopPricing::adjust(1000, $region, $mults) / 1000;
+
         $found = ShopCatalogue::browse([
             'q'        => (string) ($q['q'] ?? ''),
             'category' => (string) ($q['c'] ?? ''),
             'sort'     => (string) ($q['sort'] ?? ''),
             'page'     => (int) ($q['page'] ?? 1),
+            // Absent means "not filtering", which is different from 0 — hence the isset()
+            // rather than a cast of a missing key. A blank box must not become "under ₦0".
+            'min'      => isset($q['min']) && trim((string) $q['min']) !== '' ? (int) $q['min'] : null,
+            'max'      => isset($q['max']) && trim((string) $q['max']) !== '' ? (int) $q['max'] : null,
+            'in_stock' => !empty($q['stock']),
+            'featured' => !empty($q['feat']),
+            'mult'     => $mult,
         ]);
 
         $products = $found['rows'];
@@ -88,6 +115,14 @@ class ShopController
             $p['stock_note'] = ShopCatalogue::stockNote($p);
             $p['sold_out']   = $p['stock_note'] === 'Sold out';
             $p['choose']     = $p['variants'] !== [];
+            // The colours, as dots on the card. Built from the variants already loaded above —
+            // a second query per card would be an N+1 on the busiest page in the shop. Before
+            // this, a shirt in four colours looked like one shirt and the buyer had to open it
+            // to find out otherwise.
+            $p['dots']       = ShopCatalogue::swatchDots($p['variants']);
+            // "from ₦18,500" when the options are priced differently. A single price on a card
+            // whose XXL costs ₦1,500 more is a number the product page then contradicts.
+            $p['price_from'] = $this->varies($p['variants']);
         }
         unset($p);
 
@@ -103,6 +138,10 @@ class ShopController
             'categories'       => ShopCatalogue::categories(),
             'found'            => $found,
             'sorts'            => ShopCatalogue::SORTS,
+            // The rail's own bounds, read from the catalogue rather than hard-coded: a shop of
+            // ₦2,000 keyrings should not offer a ₦500,000 ceiling, and the range widens by
+            // itself when somebody adds a dearer product.
+            'price_range'      => ShopCatalogue::priceRange($mult),
             'providers'        => $this->providers(),
             'region'           => $region,
             'regions'          => ShopPricing::regions(),
@@ -228,6 +267,11 @@ class ShopController
             // "sold out", and it is also the number that tells an organiser what to restock.
             'waiting'   => StockAlert::waitingByVariant((int) $product['id']),
             'axis'      => $variants !== [] ? ((string) ($variants[0]['axis'] ?? '') ?: 'Option') : '',
+            // The QUESTIONS, inverted out of the combination rows: a buyer answers "which
+            // colour" and "which size", not "which of these twelve". Resolved server-side
+            // because working out whether a colour is available in any size at all is the
+            // same arithmetic the checkout has to agree with. See ShopCatalogue::axes().
+            'axes'      => ShopCatalogue::axes((int) $product['id'], (int) $product['display_price']),
             'gallery'   => ShopCatalogue::images(
                 (int) $product['id'], $product['cover_path'] ?? null, (string) $product['name']
             ),

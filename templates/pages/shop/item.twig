@@ -63,6 +63,52 @@
   /* Sold out but still pressable — the thing to do about it is ask to be told. */
   .si-chip.is-gone{ text-decoration:line-through; color:#8a5a00; border-style:dashed; }
   .si-chip.is-gone.is-on{ border-color:#a47306; border-style:solid; background:#fff8ec; }
+  /* Which answer is currently chosen, echoed beside the heading. On a swatch row this is the
+     only place the colour's NAME appears once one is picked, and a buyer who cannot tell two
+     of them apart has to be able to read which they have. */
+  .si-opt__chosen{ font-size:13px; font-weight:700; color:#10292C; }
+
+  /* ── swatches ──────────────────────────────────────────────────────────────
+     A colour, drawn as a colour. Bigger than a chip's text because the target IS the
+     information: a 20px square is a decision made by squinting.
+
+     The name is still in the DOM (`.si-sw__t`), visually hidden rather than removed — a
+     screen reader has nothing to announce for a coloured square, and `title` is not read by
+     most of them. */
+  .si-opt__row--sw{ gap:11px; }
+  .si-sw{ position:relative; cursor:pointer; width:44px; height:44px; padding:3px;
+    border-radius:50%; border:2px solid rgba(16,41,44,.14); background:var(--ag-surface,#fff);
+    font-family:inherit; line-height:0; }
+  .si-sw__fill{ display:block; width:100%; height:100%; border-radius:50%;
+    /* An inner hairline, so a white or cream swatch is still a disc on a white card rather
+       than an empty ring. */
+    box-shadow:inset 0 0 0 1px rgba(16,41,44,.18); }
+  .si-sw__t{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%);
+    white-space:nowrap; }
+  .si-sw.is-on{ border-color:var(--ag-green); }
+  /* The tick goes INSIDE the swatch. A ring around a 44px target is indistinguishable from a
+     hover state, and on a row of similar tones "which one did I pick" is the only question
+     that matters. Its colour is computed from the swatch's own luminance in PHP
+     (AfricaGates\Support\Swatch::isLight) — a white tick on cream is invisible. */
+  .si-sw.is-on::after{ content:""; position:absolute; left:50%; top:47%; width:11px; height:6px;
+    border-left:2.5px solid #fff; border-bottom:2.5px solid #fff; border-radius:1px;
+    transform:translate(-50%,-50%) rotate(-45deg);
+    /* A halo in the opposite direction, because `is-light` is computed from the FIRST colour
+       and the tick sits at the CENTRE — which on a two-tone swatch is exactly where the two
+       colours meet. A white tick over the cream half of a navy-and-cream disc disappeared
+       (seen in a screenshot, not predicted). The halo means the tick reads on either half
+       without needing to know which half it landed on. */
+    filter:drop-shadow(0 0 1.5px rgba(16,41,44,.85)); }
+  .si-sw.is-on.is-light::after{ border-color:#10292C;
+    filter:drop-shadow(0 0 1.5px rgba(255,255,255,.9)); }
+  /* Sold out, but still pressable. A diagonal bar rather than a strike-through, because there
+     is no text to strike — and dashed, matching the chips, so the two read as one system. */
+  .si-sw.is-gone{ border-style:dashed; border-color:#c89a3a; }
+  .si-sw.is-gone .si-sw__fill{ opacity:.55; }
+  .si-sw.is-gone::before{ content:""; position:absolute; inset:6px; border-radius:50%;
+    background:linear-gradient(135deg, transparent 45%, #8a5a00 45%, #8a5a00 55%, transparent 55%); }
+  .si-sw:focus-visible{ outline:3px solid rgba(35,123,34,.35); outline-offset:2px; }
+
   .si-stock{ font-size:12.5px; font-weight:700; margin-top:9px; }
   .si-stock.is-low{ color:#8a2020; } .si-stock.is-gone{ color:#8a5a00; } .si-stock.is-ok{ color:#1a6118; }
   .si-buy:disabled, .si-add:disabled{ background:#dfe4e3; color:#5b6669; border-color:transparent; cursor:not-allowed; }
@@ -116,9 +162,15 @@
          CSS url() built inside a double-quoted attribute needs quotes of its own, which
          terminate the attribute. An <img> also carries alt text, which a background cannot. #}
       <div class="si-gallery" style="background-image:{{ heroBg }}">
-        {% if gallery|default([])|length %}
+        {# Rendered when there is a gallery OR when any option carries its own photograph.
+           The second half matters: a product with no cover and no gallery can still have a
+           picture per colour now, and gating the <img> on the gallery alone meant `shot` was
+           set to that photograph with no element to show it in — the swatch switched an image
+           that was not on the page. Found by reading `shot` in the browser after a click. #}
+        {% set option_shots = variants|default([])|filter(v => v.image)|length > 0 %}
+        {% if gallery|default([])|length or option_shots %}
         <img class="si-gallery__img" :src="shot" :alt="shotAlt" x-show="shot" alt="{{ p.name }}"
-             src="{{ gallery.0.path }}">
+             {% if gallery|default([])|length %}src="{{ gallery.0.path }}"{% endif %}>
         {% endif %}
         {% if not p.cover_path %}<div class="si-gallery__orb" aria-hidden="true"></div>{% endif %}
         {% if p.tag %}<span class="si-gallery__tag si-tag--{{ p.tag }}">{{ p.tag }}</span>{% endif %}
@@ -149,27 +201,56 @@
       {% if currency != 'NGN' %}<div style="font-size:12px;color:#5a6d6f;margin-top:2px">charged in Naira · <span x-text="$store.cart.ngnRaw(price)"></span></div>{% endif %}
       {% if p.description %}<p class="si-desc">{{ p.description }}</p>{% endif %}
 
-      {% if variants|default([])|length %}
-      {# ── PICK ONE ──────────────────────────────────────────────────────────
-         A sold-out option is shown and disabled rather than hidden: somebody looking for
-         their size needs to know it exists and has gone, not wonder whether it is made. #}
+      {% if axes|default([])|length %}
+      {# ── PICK ONE, OR TWO ──────────────────────────────────────────────────
+         One group per question, because that is what a buyer answers. A shirt is a colour AND
+         a size; presenting the twelve combinations as one list makes them hunt for their pair.
+
+         A sold-out option is shown and struck through rather than hidden: somebody looking for
+         their size needs to know it exists and has gone, not wonder whether it is made. And it
+         stays SELECTABLE — the useful thing left to do about it is ask to be told when it
+         returns, and a dead button is a dead end for the person most likely to buy one.
+
+         `goneFor()` is recomputed in the browser against the OTHER question's current answer,
+         because "Navy is sold out in M" is a statement about a PAIR and the server cannot know
+         the pair before it is chosen. #}
+      {% for g in axes %}
       <div class="si-opt">
         <div class="si-opt__h">
-          <span class="si-opt__l">{{ axis|default('Option') }}</span>
-          <span class="si-opt__pick" x-show="!sel" x-cloak>Choose one to continue</span>
+          <span class="si-opt__l">{{ g.name }}</span>
+          <span class="si-opt__chosen" x-show="pickOf('{{ g.key }}')" x-cloak
+                x-text="pickOf('{{ g.key }}')"></span>
+          <span class="si-opt__pick" x-show="!pickOf('{{ g.key }}')" x-cloak>Choose one</span>
         </div>
-        <div class="si-opt__row" role="group" aria-label="{{ axis|default('Option') }}">
-          {% for v in variants %}
-          {# A sold-out size is SELECTABLE, not disabled. The thing to do about it is ask to be
-             told when it returns, and a dead button is a dead end for the person most likely
-             to buy one. It is struck through so nobody mistakes it for available. #}
-          <button type="button" class="si-chip"
-                  :class="(sel && sel.id === {{ v.id }} ? 'is-on' : '') + '{{ v.sold_out ? " is-gone" : "" }}'"
-                  @click="pick({{ v.id }})">{{ v.label }}</button>
+        <div class="si-opt__row{{ g.kind == 'swatch' ? ' si-opt__row--sw' : '' }}"
+             role="group" aria-label="{{ g.name }}">
+          {% for c in g.choices %}
+            {% if g.kind == 'swatch' %}
+            {# A SWATCH, with the name still present — as the accessible label, as the tooltip,
+               and echoed beside the heading once chosen. Roughly one man in twelve cannot tell
+               two of these apart, a screen reader has nothing to announce for a coloured
+               square, and a receipt reading "you bought the ■" is not a receipt. The colour is
+               validated in PHP (AfricaGates\Support\Swatch) because it lands in a `style`
+               attribute. #}
+            <button type="button" class="si-sw"
+                    :class="swClass('{{ g.key }}', {{ c.value|json_encode }}, {{ c.swatch_light ? 'true' : 'false' }})"
+                    @click="choose('{{ g.key }}', {{ c.value|json_encode }}, {{ c.image|json_encode }})"
+                    :aria-pressed="pickOf('{{ g.key }}') === {{ c.value|json_encode }} ? 'true' : 'false'"
+                    title="{{ c.value }}">
+              <span class="si-sw__fill" style="background:{{ c.swatch_css }}"></span>
+              <span class="si-sw__t">{{ c.value }}</span>
+            </button>
+            {% else %}
+            <button type="button" class="si-chip"
+                    :class="chipClass('{{ g.key }}', {{ c.value|json_encode }})"
+                    @click="choose('{{ g.key }}', {{ c.value|json_encode }}, {{ c.image|json_encode }})"
+                    :aria-pressed="pickOf('{{ g.key }}') === {{ c.value|json_encode }} ? 'true' : 'false'">{{ c.value }}</button>
+            {% endif %}
           {% endfor %}
         </div>
-        <p class="si-stock" x-show="stockNote" x-cloak :class="stockClass" x-text="stockNote"></p>
       </div>
+      {% endfor %}
+      <p class="si-stock" x-show="stockNote" x-cloak :class="stockClass" x-text="stockNote"></p>
       {% elseif p.stock_note|default('') %}
       <p class="si-stock {{ p.sold_out|default(false) ? 'is-gone' : 'is-low' }}" style="margin-top:16px">{{ p.stock_note }}</p>
       {% endif %}
@@ -267,7 +348,6 @@ function siItem(variants, gallery, basePrice, slug, csrf, waiting, productGone){
     variants: variants || [],
     gallery: gallery || [],
     qty: 1,
-    sel: null,
     shot: (gallery && gallery.length) ? gallery[0].path : '',
     /* "Tell me when it's back" state. Kept here rather than in its own component so the panel
        knows WHICH size is being asked about — that is the whole point of the feature. */
@@ -280,29 +360,121 @@ function siItem(variants, gallery, basePrice, slug, csrf, waiting, productGone){
       return (g && g.alt) ? g.alt : '';
     },
 
-    init(){
-      /* Preselect when there is exactly ONE option left that can be bought. That is not
-         choosing for somebody — it is the only choice — and making them tap it adds a step
-         with a single legal answer. With two or more, nothing is chosen: picking a size on a
-         buyer's behalf is how they receive the wrong one. */
-      var live = this.variants.filter(function(v){ return !v.sold_out; });
-      if (live.length === 1) this.sel = live[0];
-      /* Every option gone: select the first anyway, so the page shows "tell me when it's back"
-         instead of asking somebody to choose between things none of which exist. */
-      else if (live.length === 0 && this.variants.length > 0) this.sel = this.variants[0];
+    /* ── THE TWO ANSWERS ─────────────────────────────────────────────────────
+       `a` and `b` are what the buyer picked on each question; `sel` is DERIVED from them
+       rather than stored. That is the whole reason two axes work: a variant row is one
+       sellable combination (stock, price and SKU all belong to the pair), so the pair is the
+       input and the row is the result. Storing `sel` directly would give two sources of truth
+       and they would drift the first time somebody changed one answer. */
+    a: '', b: '',
+
+    /* Every distinct answer this product offers on each axis, in row order. */
+    get valuesA(){ return this.distinct('label'); },
+    get valuesB(){ return this.distinct('label2'); },
+    distinct(k){
+      var out = [];
+      this.variants.forEach(function(v){
+        var x = v[k] || '';
+        if (x !== '' && out.indexOf(x) === -1) out.push(x);
+      });
+      return out;
+    },
+    get twoAxis(){ return this.valuesB.length > 0; },
+
+    /* The row for the current pair, or null while a question is unanswered. */
+    get sel(){
+      if (this.a === '') return null;
+      if (this.twoAxis && this.b === '') return null;
+      var a = this.a, b = this.b, two = this.twoAxis;
+      return this.variants.find(function(v){
+        return (v.label || '') === a && (!two || (v.label2 || '') === b);
+      }) || null;
     },
 
-    pick(id){
-      var v = this.variants.find(function(x){ return x.id === id; });
-      if (!v) return;
-      /* A sold-out size IS selectable — see the note on the chips. Selecting one switches the
-         panel from "buy" to "tell me when it's back", which is the only useful thing left to
-         do about it. */
-      this.sel = v;
+    pickOf(key){ return key === 'a' ? this.a : this.b; },
+
+    init(){
+      /* Answer a question that has only ONE possible answer. That is not choosing for
+         somebody — it is the only choice — and making them tap it adds a step with a single
+         legal answer. A question with two or more is left blank: picking a size on a buyer's
+         behalf is how they receive the wrong one. */
+      if (this.valuesA.length === 1) this.a = this.valuesA[0];
+      if (this.twoAxis && this.valuesB.length === 1) this.b = this.valuesB[0];
+
+      /* Everything gone: answer both anyway, so the page offers "tell me when it's back"
+         instead of asking somebody to choose between things none of which exist. */
+      var live = this.variants.filter(function(v){ return !v.sold_out; });
+      if (live.length === 0 && this.variants.length > 0) {
+        this.a = this.variants[0].label || '';
+        this.b = this.variants[0].label2 || '';
+      }
+      this.followImage();
+    },
+
+    choose(key, value, image){
+      if (key === 'a') this.a = value; else this.b = value;
       this.alertSaid = '';
+
+      /* If the other answer is now impossible, clear it rather than leave the page showing a
+         pair that does not exist. NOT auto-corrected to a different one: silently moving
+         somebody from M to L because they changed colour is how they receive the wrong size. */
+      if (this.twoAxis) {
+        var other = key === 'a' ? 'b' : 'a';
+        if (this.pickOf(other) !== '' && !this.pairExists()) this[other] = '';
+      }
+
+      /* A photograph of THIS colour, when there is one. A hex square cannot tell somebody what
+         a wax print looks like, so the gallery follows the choice. */
+      if (image) this.shot = image;
+      else this.followImage();
+
       /* Clamp rather than reset. Somebody who asked for five and switches to a size with two
          in it meant "as many as I can", not "start again". */
-      if (v.stock !== null && v.stock > 0 && this.qty > v.stock) this.qty = Math.max(1, v.stock);
+      var v = this.sel;
+      if (v && v.stock !== null && v.stock > 0 && this.qty > v.stock) this.qty = Math.max(1, v.stock);
+    },
+
+    pairExists(){
+      var a = this.a, b = this.b;
+      return !!this.variants.find(function(v){
+        return (v.label || '') === a && (v.label2 || '') === b;
+      });
+    },
+
+    /* Switch the gallery to the chosen combination's own photograph, if it has one. */
+    followImage(){
+      var v = this.sel;
+      if (v && v.image) this.shot = v.image;
+    },
+
+    /* ── WHICH ANSWERS ARE STILL POSSIBLE ────────────────────────────────────
+       An answer is `gone` when every combination containing it — GIVEN the other question's
+       current answer — is sold out. Computed against the current pick, not once on the
+       server, because "Navy is sold out in M" is a statement about a pair: a colour that is
+       in stock in one size only must not read as unavailable before a size is chosen. */
+    goneFor(key, value){
+      var other = key === 'a' ? this.b : this.a;
+      var lk = key === 'a' ? 'label' : 'label2';
+      var ok = key === 'a' ? 'label2' : 'label';
+      var two = this.twoAxis;
+      var rows = this.variants.filter(function(v){
+        if ((v[lk] || '') !== value) return false;
+        /* Only narrow by the other answer once it exists. Before that the question is "is this
+           available at all", which is the honest thing to show. */
+        if (two && other !== '' && (v[ok] || '') !== other) return false;
+        return true;
+      });
+      if (rows.length === 0) return true;   // that pair is not made at all
+      return rows.every(function(v){ return v.sold_out === true; });
+    },
+
+    chipClass(key, value){
+      return (this.pickOf(key) === value ? 'is-on ' : '') + (this.goneFor(key, value) ? 'is-gone' : '');
+    },
+    swClass(key, value, light){
+      return (this.pickOf(key) === value ? 'is-on ' : '')
+           + (this.goneFor(key, value) ? 'is-gone ' : '')
+           + (light ? 'is-light' : '');
     },
 
     /* The price shown, which follows the chosen option. A size that costs ₦1,500 more must
@@ -319,18 +491,35 @@ function siItem(variants, gallery, basePrice, slug, csrf, waiting, productGone){
        one asks for a choice, the other asks for an email address. */
     get gone(){
       if (this.variants.length === 0) return productGone;
-      return this.sel !== null && this.sel.sold_out === true;
+      /* Fully answered and the pair is sold out — or fully answered and the pair is not made
+         at all, which for a buyer is the same dead end and deserves the same panel. */
+      if (this.a === '' || (this.twoAxis && this.b === '')) return false;
+      var v = this.sel;
+      return v === null || v.sold_out === true;
     },
     get ready(){
       if (this.gone) return false;
       return this.variants.length === 0 || this.sel !== null;
     },
+    /* Name the question that is actually still open, not the first one. "Choose a size" while
+       a colour is missing is the sentence somebody reads, picks the size, presses the button
+       and gets again. */
     get blocked(){
-      var axis = (this.variants[0] && this.variants[0].axis) ? this.variants[0].axis.toLowerCase() : 'option';
-      return 'Choose a ' + axis;
+      var v0 = this.variants[0] || {};
+      var need = [];
+      if (this.a === '') need.push((v0.axis || 'option').toLowerCase());
+      if (this.twoAxis && this.b === '') need.push((v0.axis2 || 'option').toLowerCase());
+      if (need.length === 0) return 'Choose an option';
+      return 'Choose a ' + need.join(' and a ');
+    },
+    /* Both answers in the sentence — "Navy · M has sold out" — because on a two-axis product
+       "Navy has sold out" is wrong: it is sold out in that size. */
+    get chosenLabel(){
+      return [this.a, this.b].filter(Boolean).join(' · ');
     },
     get goneLabel(){
-      return this.sel ? (this.sel.label + ' has sold out') : 'This has sold out';
+      var l = this.chosenLabel;
+      return l !== '' ? (l + ' has sold out') : 'This has sold out';
     },
     get waitingHere(){
       var k = this.sel ? String(this.sel.id) : '0';
@@ -360,17 +549,19 @@ function siItem(variants, gallery, basePrice, slug, csrf, waiting, productGone){
       } finally { this.alerting = false; }
     },
     get stockNote(){
-      if (!this.sel) return '';
-      if (this.sel.stock === null) return 'In stock';
-      if (this.sel.stock < 1) return this.sel.label + ' is sold out';
-      if (this.sel.stock <= 3) return 'Only ' + this.sel.stock + ' left in ' + this.sel.label;
+      var v = this.sel;
+      if (!v) return '';
+      if (v.stock === null) return 'In stock';
+      if (v.stock < 1) return this.chosenLabel + ' is sold out';
+      if (v.stock <= 3) return 'Only ' + v.stock + ' left in ' + this.chosenLabel;
       return 'In stock';
     },
     get stockClass(){
-      if (!this.sel) return '';
-      if (this.sel.stock === null) return 'is-ok';
-      if (this.sel.stock < 1) return 'is-gone';
-      return this.sel.stock <= 3 ? 'is-low' : 'is-ok';
+      var v = this.sel;
+      if (!v) return '';
+      if (v.stock === null) return 'is-ok';
+      if (v.stock < 1) return 'is-gone';
+      return v.stock <= 3 ? 'is-low' : 'is-ok';
     },
 
     into(){
@@ -382,7 +573,11 @@ function siItem(variants, gallery, basePrice, slug, csrf, waiting, productGone){
         name: {{ p.name|json_encode(15)|raw }},
         cover: {{ p.cover_path|default("")|json_encode(15)|raw }},
         variant_id: this.sel ? this.sel.id : 0,
-        variant: this.sel ? this.sel.label : '',
+        /* BOTH answers on the line. The server re-derives this from the variant id anyway
+           (ShopCatalogue::describe), but the cart shows it before the server sees it, and a
+           basket row reading "Navy" for a shirt that comes in four sizes is a row somebody
+           checks out without noticing the size is missing. */
+        variant: this.chosenLabel,
         price: this.price,
         qty: this.qty
       });
