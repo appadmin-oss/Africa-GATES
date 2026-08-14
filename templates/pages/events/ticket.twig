@@ -37,6 +37,13 @@
   .tk__code b{ display:block; margin-top:8px; font-family:var(--ag-font-mono, monospace);
     font-size:clamp(1.7rem, 1.2rem + 4vw, 2.4rem); font-weight:700; letter-spacing:.06em;
     color:#10292C; word-break:break-all }
+  /* The QR, on white and with room around it. A code printed onto the card's tinted background
+     loses contrast, and one flush against the code text below loses its quiet zone — which is
+     what a scanner uses to find the symbol's edge. */
+  .tk__qr{ display:inline-block; margin:12px auto 4px; padding:10px; background:#fff;
+    border-radius:12px; box-shadow:0 2px 10px -4px rgba(16,41,44,.3); line-height:0 }
+  .tk__qr svg{ display:block; width:clamp(150px, 44vw, 200px); height:auto }
+  .tk__qrnote{ display:block; margin-top:6px; font-size:11.5px; color:#5a6d6f }
 
   .tk__rows{ margin:20px 0 0; border-top:1px solid rgba(16,41,44,.08) }
   .tk__row{ display:flex; justify-content:space-between; gap:14px; padding:11px 0;
@@ -89,7 +96,21 @@
       {% if reg.status == 'confirmed' %}
         <div class="tk__code">
           <small>Show this at the door</small>
+          {# ── THE QR, AND THE CODE UNDER IT ────────────────────────────────
+             Both, always — never one or the other. A scanner turns a nine-character retype per
+             attendee into a half-second, which at three hundred people is twenty minutes of
+             queue that need not exist. But a camera fails: a cracked screen, a dead battery
+             lending somebody else's phone, low light, an organiser on a device whose browser
+             has no barcode support. The printed code is what the door falls back to, and it is
+             the same string the QR contains, so the two can never disagree.
+
+             {@see \AfricaGates\Support\Qr} returns null for anything it cannot encode, and
+             this renders the code alone in that case rather than a broken image. #}
+          {% if qr %}
+          <div class="tk__qr">{{ qr|raw }}</div>
+          {% endif %}
           <b>{{ reg.ticket_code|default('—') }}</b>
+          {% if qr %}<span class="tk__qrnote">Scan it, or read the code out</span>{% endif %}
         </div>
       {% elseif reg.status == 'pending' %}
         {# Deliberately NOT a code. A pending payment rendered as a ticket is an argument

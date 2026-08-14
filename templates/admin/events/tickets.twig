@@ -60,6 +60,14 @@
   .tx-tag--no{ background:#fdeaea; color:#8a2020 }
   .tx-code{ font-family:var(--ag-font-mono, monospace); font-weight:700 }
   .tx-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:12px }
+
+  /* the camera */
+  #txScan{ margin-top:14px }
+  #txVideo{ display:block; width:100%; max-width:420px; aspect-ratio:1/1; object-fit:cover;
+    background:#0b1416; border-radius:14px }
+  .tx-scan__bar{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    flex-wrap:wrap; max-width:420px; margin-top:9px; font-size:12.5px; color:#5a6d6f }
+  .tx-scan__bar span{ flex:1 1 200px }
 </style>
 {% endblock %}
 
@@ -82,12 +90,25 @@
   <p>Type the code from their ticket. It is refused if the payment never arrived, and it
      says so if the code has already been used — a screenshot passed between two people
      shows up here rather than at the door.</p>
-  <form method="post" action="/admin/events/{{ event.id }}/check-in" class="tx-door">
+  <form method="post" action="/admin/events/{{ event.id }}/check-in" class="tx-door" id="txForm">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <input name="code" id="txCode" placeholder="ABCD-2468" autocomplete="off"
            autocapitalize="characters" spellcheck="false" aria-label="Ticket code">
     <button class="tx-btn" type="submit">Check in</button>
+    {# ── THE CAMERA ─────────────────────────────────────────────────────────
+       Hidden until the script confirms this browser can actually decode a barcode. Shown
+       unconditionally it would be a button that does nothing on iOS Safari and on any desktop
+       Chromium built without the feature — and a door control that sometimes does nothing is
+       worse than one that is not offered. The typed box above always works. #}
+    <button class="tx-btn tx-btn--ghost" type="button" id="txScanBtn" hidden>Scan a ticket</button>
   </form>
+  <div id="txScan" hidden>
+    <video id="txVideo" playsinline muted></video>
+    <div class="tx-scan__bar">
+      <span id="txScanSaid">Point the camera at the QR code on their ticket.</span>
+      <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="button" id="txScanStop">Stop</button>
+    </div>
+  </div>
 </div>
 
 {# ── what is sold ────────────────────────────────────────────────────────── #}
@@ -292,7 +313,96 @@
 <script nonce="{{ csp_nonce }}">
 (function () {
   var box = document.getElementById('txCode');
+  // Not on a touch device: focusing there opens the on-screen keyboard over the page, and the
+  // person about to press "Scan a ticket" does not want a keyboard.
   if (box && !('ontouchstart' in window)) box.focus();
+})();
+</script>
+
+{# ── SCANNING A TICKET ────────────────────────────────────────────────────────
+   The whole feature is behind a capability check. BarcodeDetector is absent on iOS Safari and
+   on desktop Chromium builds without it, and a door control that silently does nothing is
+   worse than one that was never offered — so the button stays hidden unless the browser both
+   HAS the API and reports that it can read qr_code specifically.
+
+   On a hit it fills the existing form and submits it. The scanner does not check anybody in by
+   itself: the server has always been the thing that decides whether a code is valid, already
+   paid and not already used, and giving the camera its own path would mean two implementations
+   of the one question that matters at a door. #}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var btn   = document.getElementById('txScanBtn');
+  var panel = document.getElementById('txScan');
+  var video = document.getElementById('txVideo');
+  var said  = document.getElementById('txScanSaid');
+  var stop  = document.getElementById('txScanStop');
+  var form  = document.getElementById('txForm');
+  var box   = document.getElementById('txCode');
+  if (!btn || !panel || !video || !form || !box) return;
+
+  // A camera needs a secure context. Said out loud rather than failing on the first tap.
+  var secure = window.isSecureContext || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if (!('BarcodeDetector' in window) || !navigator.mediaDevices || !secure) return;
+
+  var detector = null, stream = null, timer = null, busy = false;
+
+  BarcodeDetector.getSupportedFormats().then(function (formats) {
+    if (formats.indexOf('qr_code') === -1) return;   // present but cannot read QR
+    detector = new BarcodeDetector({ formats: ['qr_code'] });
+    btn.hidden = false;
+  }).catch(function () { /* no scanner: the typed box is the door */ });
+
+  function shut() {
+    clearInterval(timer); timer = null;
+    if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; }
+    panel.hidden = true; btn.hidden = false; busy = false;
+  }
+
+  async function open() {
+    btn.hidden = true; panel.hidden = false;
+    said.textContent = 'Point the camera at the QR code on their ticket.';
+    try {
+      // The rear camera, because the person scanning is holding the phone and the ticket is
+      // in front of them.
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } }, audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+    } catch (e) {
+      said.textContent = 'The camera could not be opened — type the code instead.';
+      btn.hidden = false;
+      return;
+    }
+
+    timer = setInterval(async function () {
+      if (busy || video.readyState < 2) return;
+      busy = true;
+      try {
+        var found = await detector.detect(video);
+        if (found.length) {
+          var value = String(found[0].rawValue || '').trim().toUpperCase();
+          // Only a ticket-code shape. A QR on somebody's lanyard from another conference should
+          // not submit the door form, and the server would refuse it anyway — but a pointless
+          // round trip at a door costs the queue.
+          if (/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(value)) {
+            said.textContent = 'Read ' + value + ' — checking in…';
+            box.value = value;
+            shut();
+            form.submit();
+            return;
+          }
+          said.textContent = 'That is not a ticket from this platform. Try again, or type the code.';
+        }
+      } catch (e) { /* a frame that could not be read is not an error worth showing */ }
+      busy = false;
+    }, 220);
+  }
+
+  btn.addEventListener('click', open);
+  stop.addEventListener('click', shut);
+  // Leaving the page with the camera on drains a battery an organiser needs all evening.
+  window.addEventListener('pagehide', shut);
 })();
 </script>
 {% endblock %}

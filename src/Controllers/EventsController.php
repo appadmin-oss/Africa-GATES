@@ -464,6 +464,14 @@ class EventsController
             'reg'          => (array) $reg,
             'event'        => $event ? (array) $event : null,
             'support_email'=> Notifier::supportEmail(),
+            // The code as a QR, so a door reads it in half a second instead of nine keystrokes.
+            // Only for a confirmed ticket: a pending payment rendered as a scannable ticket is
+            // an argument at a door. Null when the code cannot be encoded, and the template
+            // shows the code alone in that case — see AfricaGates\Support\Qr.
+            'qr' => (string) $reg->status === 'confirmed' && trim((string) ($reg->ticket_code ?? '')) !== ''
+                ? \AfricaGates\Support\Qr::svg((string) $reg->ticket_code, 6,
+                    'Ticket code ' . (string) $reg->ticket_code)
+                : null,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
