@@ -1606,6 +1606,18 @@ return function(App $app) {
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/calendar.ics',
                 EventsController::class.':ticketCalendar');
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}', EventsController::class.':ticket');
+        // ── SELF-SERVICE ON A TICKET, WITH NO ACCOUNT ───────────────────────
+        //
+        // Same doctrine as the ticket page itself: an attendee has none. Resending is safe on
+        // the reference alone because it can only ever send to the address already on the
+        // booking. CHANGING a ticket — renaming the holder, handing it to somebody else —
+        // needs a code emailed to that address first, because the reference travels in a QR
+        // that gets photographed, and a bearer token that can also transfer the thing it
+        // bears is a ticket anybody who glanced at a screen can steal.
+        $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/resend',   EventsController::class.':resend');
+        $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/code',     EventsController::class.':selfCode');
+        $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/rename',   EventsController::class.':rename');
+        $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/transfer', EventsController::class.':transfer');
         $g->get('/events/{slug}/calendar.ics', EventsController::class.':calendar');
         $g->get('/events/{slug}',  EventsController::class.':show');
         $g->post('/events/{slug}/register', EventsController::class.':register');
@@ -1613,6 +1625,22 @@ return function(App $app) {
         // Both POST: the quote takes an email address, and a waitlist join creates a row.
         $g->post('/events/{slug}/quote',    EventsController::class.':quote');
         $g->post('/events/{slug}/waitlist', EventsController::class.':waitlist');
+
+        // ── THE DOOR ─────────────────────────────────────────────────────────
+        //
+        // A time-boxed link an organiser creates on the event's own admin screen and sends to
+        // whoever is working the gate. Public by URL and gated entirely by the token, because
+        // a door is staffed by volunteers and venue staff who must not be holding admin
+        // accounts on a platform that runs an awards cycle and moves money.
+        //
+        // The POST is CSRF-EXEMPT and deliberately so: there is no session and no login, the
+        // token IS the credential, and the only thing the endpoint can do is check a code
+        // against one event. See CsrfMiddleware.
+        //
+        // Registered outside the `/events` prefix so `{slug}` can never swallow it, and short
+        // because somebody types it into a phone at a venue.
+        $g->get('/door/{token:[a-f0-9]{64}}',        \AfricaGates\Controllers\DoorController::class.':page');
+        $g->post('/door/{token:[a-f0-9]{64}}/check', \AfricaGates\Controllers\DoorController::class.':check');
         $g->get('/blog',           BlogController::class.':index');
         $g->get('/blog/{slug}',    BlogController::class.':show');
         $g->get('/pulse',          PulseController::class.':index');
@@ -2556,6 +2584,11 @@ return function(App $app) {
         // description, and check-in is the only thing they want on that page.
         $a->get('/events/{id:[0-9]+}/tickets',   AdminEventsController::class.':tickets');
         $a->post('/events/{id:[0-9]+}/check-in', AdminEventsController::class.':checkIn');
+        // Door passes: minted and revoked on the event's own tickets screen, because a door
+        // belongs to an event and the person who needs one is already on that page an hour
+        // before the gates open. See EventScanPass.
+        $a->post('/events/{id:[0-9]+}/door',        AdminEventsController::class.':issueDoorPass');
+        $a->post('/events/{id:[0-9]+}/door/revoke', AdminEventsController::class.':revokeDoorPass');
         $a->get('/events/{id:[0-9]+}/attendees.csv', AdminEventsController::class.':exportAttendees');
         // Discount codes get their own screen: a code is created and retired on a completely
         // different rhythm from an event's title and venue.

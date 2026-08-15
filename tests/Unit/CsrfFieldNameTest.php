@@ -121,6 +121,24 @@ final class CsrfFieldNameTest extends TestCase
      * mistake: a template that POSTs, mentions no `/api/` path anywhere, and carries
      * no token, cannot possibly be sending one.
      */
+    /**
+     * Pages that POST with no session at all, and therefore no token to carry.
+     *
+     * ── WHY THE DOOR IS ON THIS LIST, AND WHAT PAYS FOR IT ───────────────────
+     *
+     * `/door/<token>` is worked by volunteers on a link, with no login. A CSRF token would
+     * come from a PHP session — and the door page is opened once and left up for the whole
+     * evening, so a session that rotates or expires would start refusing scans mid-event, at a
+     * gate, with a queue. That is a worse failure than the one CSRF prevents here, and CSRF
+     * prevents very little: the 32-byte door token IS the credential, and anybody holding it
+     * can call the endpoint directly.
+     *
+     * An entry here is a claim that the middleware genuinely exempts the path, so
+     * {@see test_every_no_session_page_is_actually_exempt()} checks that rather than trusting
+     * it — an unproven exemption is how a page ends up silently rejected in production.
+     */
+    private const NO_SESSION = ['pages/events/door.twig'];
+
     public function test_a_template_that_posts_by_fetch_carries_a_token(): void
     {
         $root = dirname(__DIR__, 2) . '/templates';
@@ -138,7 +156,8 @@ final class CsrfFieldNameTest extends TestCase
             $hasToken = str_contains($body, 'X-CSRF-Token') || str_contains($body, '_token');
             $usesApi  = str_contains($body, '/api/');   // exempt namespace
 
-            if (!$hasToken && !$usesApi) {
+            if (!$hasToken && !$usesApi && !in_array(
+                    str_replace($root . '/', '', $file->getPathname()), self::NO_SESSION, true)) {
                 $bad[] = str_replace($root . '/', '', $file->getPathname());
             }
         }
@@ -147,6 +166,67 @@ final class CsrfFieldNameTest extends TestCase
             "These templates POST from JavaScript with no CSRF token and no /api/ path, "
             . "so every one of those requests is rejected and the button silently does "
             . "nothing:\n  " . implode("\n  ", $bad));
+    }
+
+    /**
+     * An exemption claimed above must actually exist in the middleware.
+     *
+     * The list is a promise that a page is allowed to POST without a token. If the middleware
+     * disagrees, the page is silently rejected in production and the test that should have
+     * caught it is the very thing waving it through — so the claim is checked against the
+     * real middleware, with a real request, rather than believed.
+     */
+    public function test_every_no_session_page_is_actually_exempt(): void
+    {
+        $mw = new \AfricaGates\Middleware\CsrfMiddleware();
+
+        // The door, at a path shaped exactly as the route matches: 64 hex characters.
+        $req = (new \Slim\Psr7\Factory\ServerRequestFactory())
+            ->createServerRequest('POST', '/door/' . str_repeat('a', 64) . '/check');
+
+        $passed = false;
+        $handler = new class ($passed) implements \Psr\Http\Server\RequestHandlerInterface {
+            public function __construct(private bool &$hit) {}
+            public function handle(\Psr\Http\Message\ServerRequestInterface $r): \Psr\Http\Message\ResponseInterface
+            {
+                $this->hit = true;
+                return (new \Slim\Psr7\Factory\ResponseFactory())->createResponse(200);
+            }
+        };
+
+        $_SESSION['csrf_token'] = 'a-token-the-door-will-never-send';
+        $mw($req, $handler);
+
+        $this->assertTrue($passed,
+            'The door claims a CSRF exemption it does not have — every scan at a live gate '
+            . 'would be rejected with no visible reason.');
+    }
+
+    /** And the exemption is anchored, so a crafted path cannot widen it. */
+    public function test_the_door_exemption_cannot_be_widened_by_a_crafted_path(): void
+    {
+        $mw = new \AfricaGates\Middleware\CsrfMiddleware();
+        $factory = new \Slim\Psr7\Factory\ServerRequestFactory();
+        $_SESSION['csrf_token'] = 'real-token';
+
+        foreach ([
+            '/admin/settings?x=/door/' . str_repeat('a', 64) . '/check',
+            '/door/' . str_repeat('a', 64) . '/check/../../admin/settings',
+            '/door/' . str_repeat('a', 63) . '/check',      // one character short
+            '/door/' . str_repeat('a', 64) . '/revoke',     // a verb it must not cover
+        ] as $path) {
+            $hit = false;
+            $handler = new class ($hit) implements \Psr\Http\Server\RequestHandlerInterface {
+                public function __construct(private bool &$hit) {}
+                public function handle(\Psr\Http\Message\ServerRequestInterface $r): \Psr\Http\Message\ResponseInterface
+                {
+                    $this->hit = true;
+                    return (new \Slim\Psr7\Factory\ResponseFactory())->createResponse(200);
+                }
+            };
+            $mw($factory->createServerRequest('POST', $path), $handler);
+            $this->assertFalse($hit, 'CSRF was skipped for ' . $path);
+        }
     }
 
     /**

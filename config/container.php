@@ -315,7 +315,7 @@ return [
     LeaderboardController::class => fn(ContainerInterface $c)=>new LeaderboardController($c->get(Twig::class), $c->get(CacheService::class), $c->get(ProfileService::class)),
     LegacyController::class      => fn(ContainerInterface $c)=>new LegacyController($c->get(Twig::class), $c->get(CacheService::class), $c->get(LegacyService::class), $c->get(CommunityService::class)),
     OpportunityController::class => fn(ContainerInterface $c)=>new OpportunityController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OpportunityService::class)),
-    EventsController::class      => fn(ContainerInterface $c)=>new EventsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OtpService::class)),
+    EventsController::class      => fn(ContainerInterface $c)=>new EventsController($c->get(Twig::class), $c->get(CacheService::class), $c->get(OtpService::class), $c->get(PaymentService::class), $c->get(RateLimitService::class)),
     BlogController::class        => fn(ContainerInterface $c)=>new BlogController($c->get(Twig::class), $c->get(CacheService::class), $c->get(CommunityService::class)),
     GatedFormController::class   => fn(ContainerInterface $c)=>new GatedFormController($c->get(Twig::class)),
     FormController::class        => fn(ContainerInterface $c)=>new FormController($c->get(Twig::class), $c->get(RateLimitService::class)),

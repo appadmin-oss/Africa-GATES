@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
 use AfricaGates\Services\{CacheService, OtpService, Notifier,
                          EventTicketService, EventTicketMailer, EventDiscount, EventWaitlist,
                          EventAgenda, EventTicketDesign,
-                         GatewayHandoff, PaymentService};
+                         GatewayHandoff, PaymentService, RateLimitService};
 
 /**
  * Events, and — new — tickets somebody can actually buy.
@@ -36,6 +36,11 @@ class EventsController
         private readonly CacheService $cache,
         private readonly ?OtpService $mailer = null,
         private readonly ?PaymentService $payments = null,
+        // Self-service resends and confirmation codes both send email on a public endpoint,
+        // so they are throttled. Optional, like the mailer, so nothing that constructs this
+        // controller without one breaks — the services treat null as "no limit" and the
+        // container supplies the real one.
+        private readonly ?RateLimitService $rateLimit = null,
     ) {}
 
     private function payments(): PaymentService
@@ -564,6 +569,64 @@ class EventsController
                     'Ticket code ' . (string) $reg->ticket_code)
                 : null,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    // ══ SELF-SERVICE ═════════════════════════════════════════════════════════
+    //
+    // Four endpoints, all JSON, all reachable with the reference alone — because an attendee
+    // has no account and never will. What separates them is CONSEQUENCE, not convenience:
+    // resending can only ever mail the address already on the booking, so it needs nothing;
+    // changing the ticket needs a code sent to that address first. See TicketSelfService.
+
+    /** POST /events/ticket/{ref}/resend — send the ticket to the address already on it. */
+    public function resend(Request $req, Response $res, array $args): Response
+    {
+        $r = \AfricaGates\Services\TicketSelfService::resend(
+            (string) ($args['ref'] ?? ''), $this->mailer, $this->rateLimit);
+        return $this->jsonOut($res, $r);
+    }
+
+    /** POST /events/ticket/{ref}/code — email a 6-digit code before a change. */
+    public function selfCode(Request $req, Response $res, array $args): Response
+    {
+        $r = \AfricaGates\Services\TicketSelfService::sendCode(
+            (string) ($args['ref'] ?? ''), $this->mailer, $this->rateLimit);
+        return $this->jsonOut($res, $r);
+    }
+
+    /** POST /events/ticket/{ref}/rename — change the name on the ticket. */
+    public function rename(Request $req, Response $res, array $args): Response
+    {
+        $b = (array) $req->getParsedBody();
+        $r = \AfricaGates\Services\TicketSelfService::rename(
+            (string) ($args['ref'] ?? ''),
+            (string) ($b['code'] ?? ''),
+            (string) ($b['name'] ?? ''));
+        return $this->jsonOut($res, $r);
+    }
+
+    /** POST /events/ticket/{ref}/transfer — hand it to somebody else, with a fresh code. */
+    public function transfer(Request $req, Response $res, array $args): Response
+    {
+        $b = (array) $req->getParsedBody();
+        $r = \AfricaGates\Services\TicketSelfService::transfer(
+            (string) ($args['ref'] ?? ''),
+            (string) ($b['code'] ?? ''),
+            (string) ($b['name'] ?? ''),
+            (string) ($b['email'] ?? ''),
+            $this->mailer);
+        return $this->jsonOut($res, $r);
+    }
+
+    /** One JSON shape for all four, so the page can handle every reply the same way. */
+    private function jsonOut(Response $res, array $r): Response
+    {
+        $res->getBody()->write((string) json_encode([
+            'success' => (bool) ($r['ok'] ?? false),
+            'message' => (string) ($r['message'] ?? ''),
+        ] + (isset($r['sent_to']) ? ['sent_to' => (string) $r['sent_to']] : [])));
+        return $res->withHeader('Content-Type', 'application/json')
+                   ->withHeader('Cache-Control', 'no-store');
     }
 
     /**

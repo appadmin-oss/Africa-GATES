@@ -1,0 +1,294 @@
+{% extends "layout/gates.twig" %}
+
+{#
+  THE DOOR.
+
+  Used one-handed, outdoors, at night, by somebody who has never seen it before, with a queue
+  behind them. Three rules drive every choice here:
+
+    1. The verdict is a WORD before it is a colour. Colour alone fails WCAG 1.4.1 and fails
+       harder in sunlight and colour blindness, so ADMIT / ALREADY IN / REFUSE carry an icon
+       and a word, and the colour is confirmation rather than information.
+    2. The typed box is the door, not the fallback. BarcodeDetector does not exist on iOS
+       Safari and a camera fails on a wet lens — so manual entry is always present and holds
+       focus, and the camera is the addition.
+    3. Nothing reloads. A page load per attendee IS the queue.
+#}
+
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+  .dr{ max-width:560px; margin:0 auto; padding:16px 14px 40px }
+  .dr__head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+    flex-wrap:wrap; margin-bottom:14px }
+  .dr__ev{ font-size:16px; font-weight:700; color:#10292C; margin:0 }
+  .dr__gate{ font-size:12.5px; color:#5a6d6f }
+  .dr__count{ font-variant-numeric:tabular-nums; font-size:12.5px; color:#5a6d6f }
+
+  /* ── THE VERDICT ────────────────────────────────────────────────────────────
+     min-height so the panel does not jump between states — a layout shift at a
+     door is a mis-read. clamp() so it is large on a phone held at arm's length. */
+  .dr__v{ min-height:168px; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; text-align:center; gap:6px; border-radius:14px; padding:20px 16px;
+    border:2px solid #d9e2e0; background:#f3f6f5; color:#3d5457 }
+  .dr__v b{ font-size:clamp(26px, 8vw, 40px); line-height:1.05; letter-spacing:-0.01em }
+  .dr__v .dr__who{ font-size:17px; font-weight:600 }
+  .dr__v .dr__sub{ font-size:13.5px; opacity:.85; max-width:34ch }
+  .dr__mark{ font-size:34px; line-height:1 }
+
+  .dr__v--admit{ background:#eaf7ec; border-color:#237b22; color:#14531a }
+  .dr__v--dup  { background:#fff4e5; border-color:#b4671a; color:#7a3f0b }
+  .dr__v--refuse{ background:#fdeceb; border-color:#a32b1f; color:#7d1d14 }
+  .dr__v--closed{ background:#fdeceb; border-color:#a32b1f; color:#7d1d14 }
+
+  .dr__form{ margin-top:14px; display:flex; gap:8px }
+  /* 16px minimum, or iOS zooms the whole page on focus and the operator loses the queue. */
+  .dr__form input{ flex:1; min-width:0; font-size:19px; font-family:ui-monospace,monospace;
+    letter-spacing:.06em; text-transform:uppercase; padding:14px 12px; min-height:52px;
+    border:2px solid #cfdad8; border-radius:10px; background:#fff; color:#10292C }
+  .dr__form input:focus{ outline:3px solid #237b22; outline-offset:1px; border-color:#237b22 }
+  /* 52px: comfortably past the 44×44 touch recommendation, one-handed, in the dark. */
+  .dr__form button{ min-height:52px; min-width:88px; padding:0 18px; font-size:16px;
+    font-weight:700; border:0; border-radius:10px; background:#10292C; color:#fff; cursor:pointer }
+  .dr__form button:disabled{ opacity:.55; cursor:default }
+
+  .dr__cam{ margin-top:10px }
+  .dr__cam button{ width:100%; min-height:48px; font-size:15px; font-weight:600;
+    border:2px solid #cfdad8; border-radius:10px; background:#fff; color:#10292C; cursor:pointer }
+  .dr__video{ width:100%; margin-top:10px; border-radius:12px; background:#000; display:none }
+  .dr__video.on{ display:block }
+
+  .dr__log{ margin:18px 0 0; padding:0; list-style:none; border-top:1px solid #e3eae9 }
+  .dr__log li{ display:flex; gap:10px; align-items:baseline; padding:9px 2px;
+    border-bottom:1px solid #eef3f2; font-size:13.5px }
+  .dr__log .t{ font-variant-numeric:tabular-nums; color:#7d8f90; font-size:12px }
+  .dr__log .v{ font-weight:700; font-size:12px; letter-spacing:.04em; text-transform:uppercase }
+  .dr__log .v--admit{ color:#237b22 } .dr__log .v--dup{ color:#b4671a }
+  .dr__log .v--refuse{ color:#a32b1f }
+
+  .dr__note{ font-size:12.5px; color:#5a6d6f; line-height:1.6; margin-top:16px }
+  @media (prefers-reduced-motion: no-preference){
+    .dr__v{ transition: background-color .12s linear, border-color .12s linear }
+  }
+</style>
+
+<div class="dr">
+
+{% if not ok %}
+  {# A refused pass still gets a page. The holder is standing at a door, and "opens at 18:00"
+     is the difference between waiting two minutes and ringing an organiser mid-event. #}
+  <div class="dr__v dr__v--closed" role="status">
+    <span class="dr__mark" aria-hidden="true">✕</span>
+    <b>Door closed</b>
+    <span class="dr__sub">{{ message }}</span>
+    {% if reason == 'early' and opens_at %}
+      <span class="dr__sub">It opens at <strong>{{ opens_at|slice(0, 16)|replace({'-': '/'}) }}</strong>.</span>
+    {% elseif reason == 'expired' and closes_at %}
+      <span class="dr__sub">It closed at <strong>{{ closes_at|slice(0, 16)|replace({'-': '/'}) }}</strong>.</span>
+    {% endif %}
+  </div>
+  <p class="dr__note">Ask whoever sent you this link for a new one. Nothing you scan here will
+    be recorded.</p>
+
+{% else %}
+  <div class="dr__head">
+    <div>
+      <p class="dr__ev">{{ event.title }}</p>
+      <span class="dr__gate">{{ label ?: 'Door' }} · closes {{ closes_at|slice(11, 5) }}</span>
+    </div>
+    <span class="dr__count" id="drCount" aria-live="polite">{{ admitted }} in{% if expected %} / {{ expected }}{% endif %}</span>
+  </div>
+
+  {#
+    aria-live="assertive": the verdict is the entire purpose of the page and it replaces
+    itself faster than a screen-reader user could go looking for it. This is one of the few
+    places assertive is the correct choice rather than the rude one.
+  #}
+  <div class="dr__v" id="drV" role="status" aria-live="assertive">
+    <span class="dr__mark" aria-hidden="true">⌁</span>
+    <b>Ready</b>
+    <span class="dr__sub">Scan a ticket, or type the code below.</span>
+  </div>
+
+  <form class="dr__form" id="drForm" autocomplete="off">
+    <label for="drCode" class="sr-only">Ticket code</label>
+    <input id="drCode" name="code" inputmode="latin" autocapitalize="characters"
+           spellcheck="false" placeholder="ABCD-2468" required
+           aria-describedby="drHelp">
+    <button type="submit" id="drGo">Check</button>
+  </form>
+
+  <div class="dr__cam" id="drCamWrap" hidden>
+    <button type="button" id="drCam">Use the camera</button>
+    <video id="drVideo" class="dr__video" playsinline muted></video>
+  </div>
+
+  {# The running list. Not decoration: it is how somebody proves what happened when an
+     attendee disputes being turned away ten minutes later. #}
+  <ul class="dr__log" id="drLog" aria-label="Recent scans"></ul>
+
+  <p class="dr__note" id="drHelp">
+    Codes are not case sensitive. This link works until
+    <strong>{{ closes_at|slice(0, 16)|replace({'-': '/'}) }}</strong> and then stops by itself —
+    it cannot be used for any other event, and it cannot show you the guest list.
+  </p>
+{% endif %}
+</div>
+
+{% if ok %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var form  = document.getElementById('drForm');
+  var input = document.getElementById('drCode');
+  var go    = document.getElementById('drGo');
+  var panel = document.getElementById('drV');
+  var logEl = document.getElementById('drLog');
+  var count = document.getElementById('drCount');
+  var url   = {{ ('/door/' ~ token ~ '/check')|json_encode|raw }};
+  if (!form || !input || !panel) return;
+
+  var MARK = { admit: '✓', duplicate: '!', refuse: '✕', closed: '✕' };
+  var CLS  = { admit: 'admit', duplicate: 'dup', refuse: 'refuse', closed: 'closed' };
+
+  function paint(v) {
+    var kind = CLS[v.verdict] || 'refuse';
+    panel.className = 'dr__v dr__v--' + kind;
+    panel.innerHTML = '';
+
+    var mark = document.createElement('span');
+    mark.className = 'dr__mark'; mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = MARK[v.verdict] || '✕';
+
+    var title = document.createElement('b');
+    title.textContent = v.title || '';
+
+    panel.appendChild(mark);
+    panel.appendChild(title);
+
+    // The NAME is the second thing on the panel, because the person on the door is about to
+    // say it out loud. textContent throughout — an attendee's name is user input and this
+    // string is being written into the DOM.
+    if (v.name) {
+      var who = document.createElement('span');
+      who.className = 'dr__who';
+      who.textContent = v.name + (v.seats > 1 ? ' · ' + v.seats + ' seats' : '');
+      panel.appendChild(who);
+    }
+    if (v.detail) {
+      var sub = document.createElement('span');
+      sub.className = 'dr__sub'; sub.textContent = v.detail;
+      panel.appendChild(sub);
+    }
+
+    if (typeof v.admitted === 'number' && count) {
+      count.textContent = v.admitted + ' in' + ({{ expected|default(0) }} ? ' / {{ expected|default(0) }}' : '');
+    }
+
+    // A short buzz on anything that is not a clean admit. The operator is looking at the
+    // queue, not the screen, and this is the cheapest way to make them look down.
+    if (v.verdict !== 'admit' && navigator.vibrate) { try { navigator.vibrate(180); } catch (e) {} }
+  }
+
+  function remember(v) {
+    if (!logEl) return;
+    var li = document.createElement('li');
+    var t  = document.createElement('span');
+    t.className = 't';
+    t.textContent = new Date().toTimeString().slice(0, 5);
+    var k = document.createElement('span');
+    k.className = 'v v--' + (CLS[v.verdict] || 'refuse');
+    k.textContent = v.verdict === 'duplicate' ? 'again' : (v.verdict === 'admit' ? 'in' : 'no');
+    var n = document.createElement('span');
+    n.textContent = v.name || v.code || '—';
+    li.appendChild(t); li.appendChild(k); li.appendChild(n);
+    logEl.insertBefore(li, logEl.firstChild);
+    while (logEl.children.length > 12) logEl.removeChild(logEl.lastChild);
+  }
+
+  var busy = false;
+  async function check(code) {
+    code = (code || '').trim();
+    if (!code || busy) return;
+    busy = true; go.disabled = true;
+    try {
+      var r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ code: code })
+      });
+      var v = await r.json();
+      paint(v); remember(v);
+    } catch (e) {
+      // The network died mid-queue. Say so plainly and — this is the important half — do NOT
+      // clear the box, so the operator can press Check again rather than re-read the code off
+      // somebody's cracked screen.
+      paint({ verdict: 'refuse', title: 'No connection',
+              detail: 'The code was not checked. Press Check to try again.' });
+      busy = false; go.disabled = false;
+      return;
+    }
+    input.value = '';
+    input.focus();
+    busy = false; go.disabled = false;
+  }
+
+  form.addEventListener('submit', function (e) { e.preventDefault(); check(input.value); });
+  input.focus();
+
+  // ── THE CAMERA, WHICH IS THE ADDITION AND NOT THE DOOR ───────────────────
+  //
+  // Shown only where it can actually work: BarcodeDetector is absent on iOS Safari, and
+  // getUserMedia needs a secure context. Offering a button that cannot function is worse than
+  // not offering one, because the operator spends the queue tapping it.
+  var wrap = document.getElementById('drCamWrap');
+  var vid  = document.getElementById('drVideo');
+  var camBtn = document.getElementById('drCam');
+  var secure = window.isSecureContext || location.hostname === 'localhost';
+  if (!wrap || !vid || !camBtn || !secure) return;
+  if (!('BarcodeDetector' in window) || !navigator.mediaDevices) return;
+
+  var detector = null, stream = null, timer = null;
+  BarcodeDetector.getSupportedFormats().then(function (f) {
+    if (f.indexOf('qr_code') === -1) return;
+    detector = new BarcodeDetector({ formats: ['qr_code'] });
+    wrap.hidden = false;
+  }).catch(function () { /* no scanner: the typed box is the door */ });
+
+  var last = '', lastAt = 0;
+  camBtn.addEventListener('click', async function () {
+    if (stream) {
+      stream.getTracks().forEach(function (t) { t.stop(); });
+      stream = null; clearInterval(timer); vid.classList.remove('on');
+      camBtn.textContent = 'Use the camera';
+      input.focus();
+      return;
+    }
+    try {
+      // The REAR camera: the operator holds the phone and the ticket is in front of it.
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } }, audio: false });
+      vid.srcObject = stream; await vid.play();
+      vid.classList.add('on'); camBtn.textContent = 'Stop the camera';
+    } catch (e) {
+      camBtn.textContent = 'Camera unavailable — type the code';
+      return;
+    }
+    timer = setInterval(async function () {
+      if (busy || vid.readyState < 2 || !detector) return;
+      try {
+        var found = await detector.detect(vid);
+        if (!found || !found.length) return;
+        var raw = String(found[0].rawValue || '').trim();
+        // A camera pointed at one ticket fires many times a second. Same code inside three
+        // seconds is the same person, and re-sending it would report them as a duplicate of
+        // themselves — the one wrong answer that looks like fraud.
+        var now = Date.now();
+        if (raw === last && now - lastAt < 3000) return;
+        last = raw; lastAt = now;
+        check(raw);
+      } catch (e) { /* a bad frame is not an error */ }
+    }, 350);
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

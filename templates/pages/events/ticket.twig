@@ -184,6 +184,32 @@
     .tk__acts, .ag-nav, .ag-footer, .ag-mobilebar, .ag-cookie{ display:none !important }
     .tk__tear::before, .tk__tear::after{ background:#fff }
   }
+  /* ── SELF-SERVICE ────────────────────────────────────────────────────────
+     Collapsed by default and dropped from print. This page opens at a door; a form must
+     never be between somebody and their QR code. */
+  .tk__self{ max-width:520px; margin:18px auto 0 }
+  .tk__d{ border:1px solid #dde5e4; border-radius:12px; background:#fff }
+  .tk__d summary{ cursor:pointer; padding:14px 16px; min-height:48px; display:flex;
+    align-items:center; font-size:14.5px; font-weight:600; color:#10292C; border-radius:12px }
+  .tk__d summary:focus-visible{ outline:3px solid #237b22; outline-offset:2px }
+  .tk__dbody{ padding:2px 16px 18px; border-top:1px solid #eef3f2 }
+  .tk__dnote{ font-size:12.5px; line-height:1.65; color:#5a6d6f; margin:12px 0 }
+  .tk__act2{ margin:10px 0 }
+  .tk__lab{ display:block; font-size:12px; font-weight:600; color:#3d5457; margin:12px 0 4px }
+  /* 16px: anything smaller and iOS zooms the page on focus. */
+  .tk__in{ width:100%; box-sizing:border-box; font-size:16px; padding:11px 12px; min-height:46px;
+    border:1px solid #cfdad8; border-radius:9px; background:#fff; color:#10292C }
+  .tk__in:focus{ outline:3px solid #237b22; outline-offset:1px; border-color:#237b22 }
+  .tk__btn{ margin-top:12px; min-height:46px; padding:0 20px; font-size:14.5px; font-weight:650;
+    border:0; border-radius:999px; background:#10292C; color:#fff; cursor:pointer }
+  .tk__btn--ghost{ background:#fff; color:#10292C; border:1px solid #cfdad8; width:100%; margin-top:0 }
+  .tk__btn:disabled{ opacity:.55; cursor:default }
+  .tk__fs{ border:0; border-top:1px solid #eef3f2; margin:18px 0 0; padding:14px 0 0 }
+  .tk__fs legend{ font-size:13.5px; font-weight:700; color:#10292C; padding:0 }
+  .tk__said{ margin:14px 0 0; font-size:13.5px; line-height:1.6; min-height:1.2em }
+  .tk__said.is-ok{ color:#1c5f1b } .tk__said.is-no{ color:#a32b1f }
+  @media print { .tk__self{ display:none } }
+
 </style>
 {% endblock %}
 
@@ -360,6 +386,63 @@
         <rect x="7" y="14" width="10" height="7"/>
       </svg>Print this ticket</a>
   </div>
+
+  {# ── SELF-SERVICE ────────────────────────────────────────────────────────
+     The three things that otherwise arrive in a support inbox as free text and get done by
+     hand. Collapsed behind <details> rather than laid out: this page's job is to open at a
+     door, and a form is the last thing somebody wants between them and their QR code.
+
+     Not a cancel button. Giving a seat up is a money decision — the organiser may hold a
+     deposit, the tier may be non-refundable — and a self-service cancel that silently did
+     neither would be the worst of both. That one stays a conversation. #}
+  {% if reg.status == 'confirmed' and not reg.checked_in_at|default('') %}
+  <div class="tk__self">
+    <details class="tk__d">
+      <summary>Manage this ticket</summary>
+      <div class="tk__dbody">
+
+        <p class="tk__dnote">Changes are confirmed with a code sent to the email this ticket
+          was booked with, so somebody who has only seen your QR code cannot alter it.</p>
+
+        <div class="tk__act2">
+          <button type="button" class="tk__btn tk__btn--ghost" data-tk="resend">Email me this ticket again</button>
+        </div>
+
+        <div class="tk__act2">
+          <button type="button" class="tk__btn tk__btn--ghost" data-tk="code">Send me a code to make a change</button>
+        </div>
+
+        <div id="tkChange" hidden>
+          <label class="tk__lab" for="tkCode">6-digit code</label>
+          <input class="tk__in" id="tkCode" inputmode="numeric" autocomplete="one-time-code"
+                 maxlength="6" placeholder="123456">
+
+          <fieldset class="tk__fs">
+            <legend>Change the name on the ticket</legend>
+            <label class="tk__lab" for="tkName">Name</label>
+            <input class="tk__in" id="tkName" maxlength="160" value="{{ reg.name }}">
+            <button type="button" class="tk__btn" data-tk="rename">Save the new name</button>
+          </fieldset>
+
+          <fieldset class="tk__fs">
+            <legend>Give this ticket to somebody else</legend>
+            <label class="tk__lab" for="tkTName">Their name</label>
+            <input class="tk__in" id="tkTName" maxlength="160" placeholder="Who is coming instead">
+            <label class="tk__lab" for="tkTMail">Their email</label>
+            <input class="tk__in" id="tkTMail" type="email" placeholder="them@example.com">
+            <p class="tk__dnote">We email them the ticket with a new code, and
+              <strong>this one stops working at the door</strong>.</p>
+            <button type="button" class="tk__btn" data-tk="transfer">Transfer the ticket</button>
+          </fieldset>
+        </div>
+
+        {# One live region for every reply, so a screen reader hears the outcome wherever it
+           came from, and sighted users are not hunting for which form answered. #}
+        <p class="tk__said" id="tkSaid" role="status" aria-live="polite"></p>
+      </div>
+    </details>
+  </div>
+  {% endif %}
 {% endif %}
 
 </div>
@@ -375,5 +458,79 @@ document.addEventListener('click', function (e) {
   e.preventDefault();
   window.print();
 });
+
+/* ── SELF-SERVICE ──────────────────────────────────────────────────────────
+   One handler for four endpoints, because the reply shape is identical and the only thing
+   that differs is which fields go up. Every outcome lands in ONE live region: a screen
+   reader hears it wherever it came from, and nobody has to work out which form answered. */
+(function () {
+  var wrap = document.getElementById('tkSaid');
+  if (!wrap) return;
+  var base = {{ ('/events/ticket/' ~ reg.reference ~ '/')|json_encode|raw }};
+  var change = document.getElementById('tkChange');
+
+  function say(ok, msg) {
+    wrap.className = 'tk__said ' + (ok ? 'is-ok' : 'is-no');
+    wrap.textContent = msg || '';
+  }
+
+  async function post(path, payload, btn) {
+    var label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Working…'; }
+    say(true, '');
+    try {
+      var r = await fetch(base + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+                   /* These endpoints CHANGE the ticket, so they go through CSRF like every
+                      other write on the platform. The door is the exception, not this. */
+                   'X-CSRF-Token': {{ csrf_token|json_encode|raw }} },
+        body: JSON.stringify(payload || {})
+      });
+      var j = await r.json();
+      say(!!j.success, j.message || '');
+      return j;
+    } catch (e) {
+      say(false, 'That did not go through. Check your connection and try again.');
+      return null;
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+    }
+  }
+
+  document.addEventListener('click', async function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-tk]') : null;
+    if (!btn) return;
+    e.preventDefault();
+    var what = btn.getAttribute('data-tk');
+    var code = (document.getElementById('tkCode') || {}).value || '';
+
+    if (what === 'resend')   { await post('resend', {}, btn); return; }
+    if (what === 'code') {
+      var j = await post('code', {}, btn);
+      /* The change fields appear only once a code is actually on its way. Showing them up
+         front would invite somebody to fill in a transfer and then be told to go and fetch
+         a code — which is the point at which they email support instead. */
+      if (j && j.success && change) { change.hidden = false;
+        var f = document.getElementById('tkCode'); if (f) f.focus(); }
+      return;
+    }
+    if (what === 'rename') {
+      await post('rename', { code: code, name: (document.getElementById('tkName') || {}).value || '' }, btn);
+      return;
+    }
+    if (what === 'transfer') {
+      var nm = (document.getElementById('tkTName') || {}).value || '';
+      var em = (document.getElementById('tkTMail') || {}).value || '';
+      /* Confirmed in the browser as well as refused on the server, because this is the one
+         action on the page that cannot be undone by the person taking it: after it, their
+         own code stops working. */
+      if (!window.confirm('Transfer this ticket to ' + (nm || 'them') + '? Your own code will stop working at the door.')) return;
+      var t = await post('transfer', { code: code, name: nm, email: em }, btn);
+      if (t && t.success) { setTimeout(function () { location.reload(); }, 2500); }
+      return;
+    }
+  });
+})();
 </script>
 {% endblock %}

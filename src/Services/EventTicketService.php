@@ -869,6 +869,121 @@ final class EventTicketService
         return $n;
     }
 
+    /**
+     * The decision at the door: admit, already in, or refuse.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS A SERVICE AND NOT A CONTROLLER METHOD
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * It lived inside the admin controller, which meant the only way to check somebody in was
+     * to be logged in as an administrator. That is the wrong shape for the act: a door is
+     * worked by volunteers, and the platform now issues time-boxed door passes
+     * ({@see EventScanPass}) precisely so it need not hand out admin accounts at a gala. Two
+     * callers, one decision — the alternative is two implementations of "is this ticket good",
+     * disagreeing at the one moment there is a queue.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THREE OUTCOMES, NOT TWO
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `admit` · `duplicate` · `refuse`. The middle one is the whole reason this is not a
+     * boolean. A code presented twice is the single most interesting event at a door — a
+     * shared screenshot, a family arriving in two groups, or a mistake — and folding it into
+     * either success or failure destroys the only information that makes it actionable. It
+     * carries WHEN the first entry was, because that is what the person on the door asks.
+     *
+     * The `pending` case gets its own sentence for the same reason: a ticket whose payment
+     * never arrived is not a forgery, and somebody standing in the rain deserves to be told
+     * which of those it is.
+     *
+     * ── THE ADMISSION IS A CONDITIONAL UPDATE ────────────────────────────────
+     *
+     * Two volunteers scanning the same family at two doors is an ordinary Saturday. The
+     * `whereNull('checked_in_at')` means exactly one of them admits and the other is told
+     * `duplicate` — rather than both being told "admitted" and the count reading double.
+     *
+     * @param string $by A short note for the audit trail: 'admin #4', 'door: Main gate'.
+     * @return array{verdict:'admit'|'duplicate'|'refuse', title:string, detail:string,
+     *                name:string, tier:string, seats:int, code:string, at:string}
+     */
+    public static function checkIn(string $code, int $eventId, string $by = '',
+                                   ?int $adminId = null): array
+    {
+        $code = strtoupper(trim($code));
+        $no = static fn (string $title, string $detail): array => [
+            'verdict' => 'refuse', 'title' => $title, 'detail' => $detail,
+            'name' => '', 'tier' => '', 'seats' => 0, 'code' => $code, 'at' => '',
+        ];
+
+        if ($code === '') return $no('No code', 'Nothing was scanned or typed.');
+
+        $reg = self::byTicketCode($code);
+        if (!$reg || ($eventId > 0 && (int) $reg->event_id !== $eventId)) {
+            // The same answer for "no such code" and "a code for another event". Splitting
+            // them would turn a door into an oracle for which codes exist.
+            return $no('Not a ticket for this event', 'No ticket here has the code ' . $code . '.');
+        }
+
+        $name  = (string) $reg->name;
+        $seats = max(1, (int) ($reg->quantity ?? 1));
+        $tier  = (string) ($reg->tier ?? '');
+
+        if ((string) $reg->status !== 'confirmed') {
+            return [
+                'verdict' => 'refuse',
+                'title'   => (string) $reg->status === 'pending' ? 'Payment not received' : 'Cancelled ticket',
+                'detail'  => (string) $reg->status === 'pending'
+                    ? 'This booking was never paid for. Do not admit on this alone — send them to the desk.'
+                    : 'This ticket was cancelled or refunded. Send them to the desk.',
+                'name' => $name, 'tier' => $tier, 'seats' => $seats, 'code' => $code, 'at' => '',
+            ];
+        }
+
+        if (($reg->checked_in_at ?? null) !== null) {
+            return [
+                'verdict' => 'duplicate', 'title' => 'Already checked in',
+                'detail'  => $name . ' was admitted at ' . self::clock((string) $reg->checked_in_at) . '.',
+                'name' => $name, 'tier' => $tier, 'seats' => $seats,
+                'code' => $code, 'at' => (string) $reg->checked_in_at,
+            ];
+        }
+
+        $now = Carbon::now()->toDateTimeString();
+        $won = DB::table('gates_event_registrations')->where('id', (int) $reg->id)
+            ->whereNull('checked_in_at')
+            ->update(OptionalColumn::filter('gates_event_registrations', [
+                'checked_in_at'  => $now,
+                'checked_in_by'  => $adminId ?: null,
+                'checked_in_via' => $by !== '' ? mb_substr($by, 0, 60) : null,
+            ], ['checked_in_by', 'checked_in_via'])) > 0;
+
+        if (!$won) {
+            // Lost the race to another scanner in the last few milliseconds. Honest answer.
+            $fresh = self::byTicketCode($code);
+            return [
+                'verdict' => 'duplicate', 'title' => 'Already checked in',
+                'detail'  => $name . ' was admitted at '
+                           . self::clock((string) ($fresh->checked_in_at ?? $now)) . '.',
+                'name' => $name, 'tier' => $tier, 'seats' => $seats,
+                'code' => $code, 'at' => (string) ($fresh->checked_in_at ?? $now),
+            ];
+        }
+
+        return [
+            'verdict' => 'admit', 'title' => 'Admit',
+            'detail'  => $seats > 1 ? $seats . ' seats on this ticket.' : '',
+            'name' => $name, 'tier' => $tier, 'seats' => $seats, 'code' => $code, 'at' => $now,
+        ];
+    }
+
+    /** 'HH:MM' from a stored timestamp — a door reads a clock, not a date. */
+    private static function clock(string $stamp): string
+    {
+        try { return Carbon::parse($stamp)->format('H:i'); }
+        catch (\Throwable) { return $stamp; }
+    }
+
     // ══ 4. the ticket itself ═════════════════════════════════════════════════
 
     /**

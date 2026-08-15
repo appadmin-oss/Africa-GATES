@@ -585,6 +585,18 @@ class EventsController
             'admin_page' => 'events',
             'event'      => (array) $event,
             'summary'    => EventTicketService::summary($id),
+            // ── DOOR PASSES ──────────────────────────────────────────────
+            //
+            // Created here rather than on a settings screen because a door belongs to an
+            // EVENT, and the person who needs one is already on this page counting seats an
+            // hour before the gates open.
+            'passes'      => \AfricaGates\Services\EventScanPass::forEvent($id),
+            'door_live'   => \AfricaGates\Services\EventScanPass::anyOpen($id),
+            // Shown once, immediately after creation, and never again — only the hash is
+            // stored. Read-and-cleared so a refresh does not leave a live credential sitting
+            // on a screen in an office.
+            'new_pass'    => $this->takeNewPass(),
+            'door_hours'  => \AfricaGates\Services\EventScanPass::DEFAULT_HOURS,
             'attendees'  => EventTicketService::attendees($id, $status),
             'filter'     => $status,
             'hold_minutes' => EventTicketService::HOLD_MINUTES,
@@ -610,43 +622,101 @@ class EventsController
      * door and reading a code off an attendee's screen — not scrolling a list of four
      * hundred names looking for a button.
      */
+    /**
+     * Check somebody in from the admin screen.
+     *
+     * The DECISION moved to {@see EventTicketService::checkIn()} so the door pass — worked by
+     * volunteers with no account — reaches exactly the same rules. Two implementations of "is
+     * this ticket good" would disagree at the one moment there is a queue.
+     */
     public function checkIn(Request $req, Response $res, array $args): Response
     {
         $id   = (int) ($args['id'] ?? 0);
-        $code = strtoupper(trim((string) (((array) $req->getParsedBody())['code'] ?? '')));
+        $code = (string) (((array) $req->getParsedBody())['code'] ?? '');
+        $back = '/admin/events/' . $id . '/tickets';
+        $admin = (int) ($_SESSION['admin_id'] ?? 0);
+
+        $v = \AfricaGates\Services\EventTicketService::checkIn($code, $id, 'admin #' . $admin, $admin);
+
+        if ($v['verdict'] === 'admit') {
+            $_SESSION['flash_ok'] = 'Checked in: ' . $v['name']
+                . ($v['seats'] > 1 ? ' (' . $v['seats'] . ' seats)' : '') . '.';
+            $this->audit->record($admin, 'event.check_in', 'event_registration', null);
+        } else {
+            // A duplicate is not a success and not quite a failure, but on a redirect-and-flash
+            // screen there are only two channels — and of the two, the one that makes somebody
+            // look is right for a code presented twice.
+            $_SESSION['flash_error'] = $v['title'] . ($v['detail'] !== '' ? ' — ' . $v['detail'] : '');
+        }
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    // ══ DOOR PASSES ══════════════════════════════════════════════════════════
+
+    /** Read-and-clear the freshly minted token, so a refresh does not re-display it. */
+    private function takeNewPass(): string
+    {
+        $t = (string) ($_SESSION['new_door_pass'] ?? '');
+        unset($_SESSION['new_door_pass']);
+        return $t;
+    }
+
+    /**
+     * POST /admin/events/{id}/door — mint a scanning link.
+     *
+     * The token is put in the session and shown exactly once on the next render. Only its
+     * SHA-256 is stored, so there is no second chance to read it — which is deliberate, and
+     * is why the screen says so beside it.
+     */
+    public function issueDoorPass(Request $req, Response $res, array $args): Response
+    {
+        $id   = (int) ($args['id'] ?? 0);
+        $b    = (array) $req->getParsedBody();
         $back = '/admin/events/' . $id . '/tickets';
 
-        $reg = \AfricaGates\Services\EventTicketService::byTicketCode($code);
-
-        if (!$reg || (int) $reg->event_id !== $id) {
-            $_SESSION['flash_error'] = 'No ticket for this event has the code ' . ($code !== '' ? $code : '—') . '.';
-            return $res->withHeader('Location', $back)->withStatus(302);
-        }
-        if ((string) $reg->status !== 'confirmed') {
-            $_SESSION['flash_error'] = 'That ticket is "' . (string) $reg->status . '", not confirmed. '
-                . ((string) $reg->status === 'pending'
-                    ? 'The payment has not reached us — do not admit on this alone.'
-                    : 'It was cancelled.');
-            return $res->withHeader('Location', $back)->withStatus(302);
-        }
-        if (($reg->checked_in_at ?? null) !== null) {
-            // Said plainly rather than silently accepted a second time: the same code used
-            // twice is either a friend sharing a screenshot or a mistake, and both want a
-            // person to look up.
-            $_SESSION['flash_error'] = (string) $reg->name . ' was already checked in at '
-                . (string) $reg->checked_in_at . '.';
-            return $res->withHeader('Location', $back)->withStatus(302);
+        $event = DB::table('gates_site_events')->where('id', $id)->first();
+        if (!$event) {
+            $_SESSION['flash_error'] = 'That event could not be found.';
+            return $res->withHeader('Location', '/admin/events')->withStatus(302);
         }
 
-        DB::table('gates_event_registrations')->where('id', (int) $reg->id)
-            ->whereNull('checked_in_at')
-            ->update(['checked_in_at' => Carbon::now()->toDateTimeString(),
-                      'checked_in_by' => (int) ($_SESSION['admin_id'] ?? 0) ?: null]);
+        $token = \AfricaGates\Services\EventScanPass::issue(
+            $id,
+            (string) ($b['closes_at'] ?? ''),
+            (string) ($b['opens_at'] ?? ''),
+            trim((string) ($b['label'] ?? '')),
+            (int) ($_SESSION['admin_id'] ?? 0)
+        );
 
-        $seats = (int) ($reg->quantity ?? 1);
-        $_SESSION['flash_ok'] = 'Checked in: ' . (string) $reg->name
-            . ($seats > 1 ? ' (' . $seats . ' seats)' : '') . '.';
-        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'event.check_in', 'event_registration', (int) $reg->id);
+        if ($token === null) {
+            // The one mistake worth naming: a window that closes before it opens can never
+            // admit anybody, and the form is the cheapest place to catch it.
+            $_SESSION['flash_error'] = 'That door pass could not be created. Check that the '
+                . 'closing time is after the opening time.';
+            return $res->withHeader('Location', $back)->withStatus(302);
+        }
+
+        $_SESSION['new_door_pass'] = $token;
+        $_SESSION['flash_ok'] = 'Door pass created. Copy the link now — it is not shown again.';
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'event.door_pass.issue', 'event', $id);
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /** POST /admin/events/{id}/door/revoke — turn one off immediately. */
+    public function revokeDoorPass(Request $req, Response $res, array $args): Response
+    {
+        $id     = (int) ($args['id'] ?? 0);
+        $passId = (int) (((array) $req->getParsedBody())['pass_id'] ?? 0);
+        $back   = '/admin/events/' . $id . '/tickets';
+
+        if (\AfricaGates\Services\EventScanPass::revoke($passId, $id)) {
+            $_SESSION['flash_ok'] = 'That scanning link stopped working immediately.';
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'event.door_pass.revoke', 'event', $id);
+        } else {
+            $_SESSION['flash_error'] = 'That pass could not be revoked — it may already be off.';
+        }
 
         return $res->withHeader('Location', $back)->withStatus(302);
     }

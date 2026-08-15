@@ -56,6 +56,21 @@ class CsrfMiddleware {
             }
         }
 
+        // ── THE DOOR ────────────────────────────────────────────────────────
+        //
+        // The one exemption that cannot be an exact string, because the credential is IN the
+        // path. `/door/<64 hex>/check` is worked by volunteers with no account and no session,
+        // so there is no CSRF token to hold and nothing a session-riding attack could take
+        // over — the 32-byte token is the whole authority, and anybody who has it can already
+        // call the endpoint directly.
+        //
+        // Anchored end to end, with the token's exact shape and length spelled out, so this
+        // cannot be widened by a crafted path. `/check` is the only verb it covers: the page
+        // itself is a GET and needs no exemption, and no other door route may ever ride this.
+        if (preg_match('~^/door/[a-f0-9]{64}/check$~', $path) === 1) {
+            return $handler->handle($req);
+        }
+
         if (str_contains($path, '/api/')) {
             return $this->sameOrigin($req)
                 ? $handler->handle($req)

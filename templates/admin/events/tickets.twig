@@ -120,6 +120,111 @@
   </div>
 </div>
 
+{# ── DOOR PASSES ───────────────────────────────────────────────────────────
+   A link that lets somebody work the gate with no account, for one event, between two
+   times. It exists because a door is staffed by volunteers and venue staff who must not
+   end up holding admin accounts on a platform that runs an awards cycle and moves money —
+   and because the alternative, creating and deleting logins by hand around a gala, is the
+   part that never happens. #}
+<div class="ad-card" style="margin-bottom:14px">
+  <div class="ad-card__head"><div class="ad-card__title">
+    Door passes
+    <small>A scanning link for whoever is on the gate. Works only between the times you set,
+      then stops by itself. It cannot see the guest list, the money, or any other event.</small>
+  </div></div>
+  <div class="ad-card__body">
+
+    {% if new_pass %}
+    {# Shown ONCE. Only the hash is stored, so there is no second chance — said plainly
+       rather than letting somebody navigate away and discover it later. #}
+    <div style="margin-bottom:14px;padding:12px 14px;border-radius:8px;background:#eaf7ec;
+                border-left:4px solid #237b22">
+      <strong style="font-size:13.5px;color:#14531a">Copy this now — it is not shown again</strong>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <input id="dpLink" readonly value="{{ site_url|default('') }}/door/{{ new_pass }}"
+               style="flex:1 1 320px;min-width:0;font-family:var(--ag-font-mono,monospace);
+                      font-size:12.5px;padding:10px;min-height:44px;border:1px solid #b6d8bb;
+                      border-radius:6px;background:#fff"
+               aria-label="Door scanning link">
+        <button class="tx-btn" type="button" id="dpCopy" style="min-height:44px">Copy link</button>
+      </div>
+      <p style="margin:8px 0 0;font-size:12.5px;color:#2c5c31">
+        Send it to whoever is on the gate. Anyone with the link can check tickets in, so treat
+        it like a key — and revoke it below the moment the door closes.
+      </p>
+    </div>
+    {% endif %}
+
+    <form method="post" action="/admin/events/{{ event.id }}/door" class="ad-form">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="row">
+        <div>
+          <label for="dpLabel">Which door <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
+          <input type="text" id="dpLabel" name="label" maxlength="60" placeholder="Main gate">
+        </div>
+        <div>
+          <label for="dpOpens">Opens <span style="font-weight:400;color:#5a6d6f">(optional)</span></label>
+          {# Blank means "works now" — an organiser standing at the door with a queue already
+             forming should not have to fill in a start time to get moving. #}
+          <input type="datetime-local" id="dpOpens" name="opens_at">
+        </div>
+        <div>
+          <label for="dpCloses">Closes</label>
+          <input type="datetime-local" id="dpCloses" name="closes_at">
+        </div>
+      </div>
+      <p class="st-hint" style="margin:6px 0 10px">
+        Leave both times blank for a pass that works now and stops in {{ door_hours }} hours.
+      </p>
+      <button class="tx-btn" type="submit" style="min-height:44px">Create a scanning link</button>
+    </form>
+
+    {% if passes %}
+    <table class="ad-table" style="margin-top:14px">
+      <thead><tr>
+        <th scope="col">Door</th><th scope="col">Window</th>
+        <th scope="col">State</th><th scope="col" class="fi-right">Scans</th><th scope="col"></th>
+      </tr></thead>
+      <tbody>
+        {% for p in passes %}
+        <tr>
+          <td><strong>{{ p.label ?: 'Door' }}</strong></td>
+          <td style="font-size:12.5px;color:#5a6d6f">
+            {{ p.opens_at ? p.opens_at|slice(0, 16)|replace({'-': '/'}) : 'now' }}
+            → {{ p.closes_at|slice(0, 16)|replace({'-': '/'}) }}
+          </td>
+          <td>
+            {# A word, not a colour: this table is read to decide whether a gate is live. #}
+            {% if p.state == 'open' %}<span class="tx-tag tx-tag--ok">open now</span>
+            {% elseif p.state == 'scheduled' %}<span class="tx-tag tx-tag--wait">not yet</span>
+            {% elseif p.state == 'revoked' %}<span class="tx-tag tx-tag--no">revoked</span>
+            {% else %}<span class="tx-tag">closed</span>{% endif %}
+          </td>
+          <td class="fi-right fi-num">{{ p.scans }}</td>
+          <td class="fi-right">
+            {% if not p.revoked and p.state != 'closed' %}
+            <form method="post" action="/admin/events/{{ event.id }}/door/revoke" style="display:inline">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <input type="hidden" name="pass_id" value="{{ p.id }}">
+              <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit"
+                      style="min-height:32px">Turn off</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    {# Empty state: what this is, why it is empty, what fills it. #}
+    <p class="st-hint" style="margin-top:12px">
+      No scanning links yet. Create one shortly before the doors open and send it to whoever
+      is working the gate — they will not need an account.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
 {# ── what is sold ────────────────────────────────────────────────────────── #}
 <div class="tx-stat" style="margin-bottom:14px">
   <div class="tx-s">
@@ -337,6 +442,21 @@
 {# Focus the code box on load. The person opening this page at a door has a queue in front
    of them, and one tap saved per attendee is the difference between a moving line and a
    stationary one. Nonced, and nothing on the page depends on it running. #}
+<script nonce="{{ csp_nonce }}">
+/* The one-shot door link. Copy-to-clipboard because the alternative is somebody
+   hand-transcribing 64 hex characters into WhatsApp, and the token is shown exactly once. */
+(function () {
+  var btn = document.getElementById('dpCopy');
+  var box = document.getElementById('dpLink');
+  if (!btn || !box) return;
+  btn.addEventListener('click', function () {
+    box.select(); box.setSelectionRange(0, 99999);
+    var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy link'; }, 2000); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(box.value).then(done, done); }
+    else { try { document.execCommand('copy'); done(); } catch (e) {} }
+  });
+})();
+</script>
 <script nonce="{{ csp_nonce }}">
 (function () {
   var box = document.getElementById('txCode');
