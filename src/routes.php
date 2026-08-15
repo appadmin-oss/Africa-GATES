@@ -2593,6 +2593,11 @@ return function(App $app) {
         // before the gates open. See EventScanPass.
         $a->post('/events/{id:[0-9]+}/door',        AdminEventsController::class.':issueDoorPass');
         $a->post('/events/{id:[0-9]+}/door/revoke', AdminEventsController::class.':revokeDoorPass');
+        // Refunds that did not land. On the tickets screen and not on finance, because a
+        // failed refund is an attendee owed money rather than an accounting entry — and the
+        // person who will hear from them is the organiser already reading this page.
+        $a->post('/events/{id:[0-9]+}/refunds/retry',  AdminEventsController::class.':retryRefund');
+        $a->post('/events/{id:[0-9]+}/refunds/settle', AdminEventsController::class.':settleRefund');
         $a->get('/events/{id:[0-9]+}/attendees.csv', AdminEventsController::class.':exportAttendees');
         // Discount codes get their own screen: a code is created and retired on a completely
         // different rhythm from an event's title and venue.

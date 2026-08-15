@@ -918,6 +918,195 @@ final class EventTicketService
     }
 
     /**
+     * Refunds on this event that a person still has to look at.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS A SCREEN AND NOT JUST AN EMAIL
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A failed refund is the worst state this platform can produce: the seat has been given
+     * up, the ticket code is dead, and the money is still in the organiser's account. Nothing
+     * holds it, nothing retries it, and the only trace was one alert email — which is the same
+     * "a log line on a host with no shell is not a notification" problem this codebase keeps
+     * finding, one layer up.
+     *
+     * So they are listed where the organiser already is. FAILED first, because that is a debt;
+     * PENDING after, because that is a fact. A pending refund needs nothing from anybody
+     * unless it has been pending too long, which is what `stale` marks — Paystack settles in
+     * hours, so days means something went wrong quietly.
+     *
+     * Ordered failed-then-oldest rather than by date alone: a list sorted purely by time
+     * buries the one row costing somebody money under a week of ones that are not.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function refunds(int $eventId, int $limit = 100): array
+    {
+        if (!OptionalColumn::on('gates_event_registrations', 'refund_status')) return [];
+
+        try {
+            $rows = DB::table('gates_event_registrations')
+                ->where('event_id', $eventId)
+                ->whereIn('refund_status', ['failed', 'pending', 'refunded'])
+                ->orderByDesc('id')->limit(max(1, min(500, $limit)))->get();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        // Paystack settles a refund in hours. Three days means it did not, and the organiser
+        // is the only one who can chase it — so it stops being information and becomes a task.
+        $staleBefore = Carbon::now()->subDays(3)->toDateTimeString();
+
+        $out = [];
+        foreach ($rows as $r) {
+            $status = (string) ($r->refund_status ?? '');
+            $when   = (string) ($r->cancelled_at ?? ($r->created_at ?? ''));
+            $out[] = [
+                'id'          => (int) $r->id,
+                'reference'   => (string) $r->reference,
+                'name'        => (string) $r->name,
+                'email'       => (string) $r->email,
+                'naira'       => (int) ($r->refund_naira ?? 0),
+                'paid'        => (int) ($r->amount_naira ?? 0),
+                'status'      => $status,
+                'by'          => (string) ($r->cancelled_by ?? ''),
+                'when'        => $when,
+                'settled'     => (string) ($r->refunded_at ?? ''),
+                'gateway_ref' => (string) ($r->refund_ref ?? ''),
+                'stale'       => $status === 'pending' && $when !== '' && $when < $staleBefore,
+            ];
+        }
+
+        usort($out, static function (array $a, array $b): int {
+            $rank = ['failed' => 0, 'pending' => 1, 'refunded' => 2];
+            $ra = $rank[$a['status']] ?? 3;
+            $rb = $rank[$b['status']] ?? 3;
+            // Within a status, oldest first — the longest-outstanding debt is the most urgent.
+            return $ra <=> $rb ?: strcmp((string) $a['when'], (string) $b['when']);
+        });
+
+        return $out;
+    }
+
+    /** Just the counts, for the stat row and for deciding whether to draw the panel at all. */
+    public static function refundTally(int $eventId): array
+    {
+        $t = ['failed' => 0, 'pending' => 0, 'refunded' => 0, 'owed' => 0, 'stale' => 0];
+        foreach (self::refunds($eventId, 500) as $r) {
+            $t[$r['status']] = ($t[$r['status']] ?? 0) + 1;
+            // What is actually outstanding. A pending refund is money already committed; a
+            // failed one has NOT moved, and that is the figure that matters.
+            if ($r['status'] === 'failed') $t['owed'] += (int) $r['naira'];
+            if ($r['stale']) $t['stale']++;
+        }
+        return $t;
+    }
+
+    /**
+     * Record that a refund was settled outside the platform — a transfer, cash, a swap.
+     *
+     * ── WHY THIS EXISTS BESIDE "TRY AGAIN" ───────────────────────────────────
+     *
+     * A gateway refund can be permanently impossible: the transaction is past the refundable
+     * age, the card is gone, the balance never covers it. Without this the row sits at
+     * `failed` forever, the organiser's list never empties, and the one screen that says
+     * "money is owed here" stops being believed because it is always red.
+     *
+     * It does NOT move money. It records that a person did, which is why it takes who said so.
+     */
+    public static function settleRefundByHand(int $regId, int $eventId, int $adminId): bool
+    {
+        try {
+            return DB::table('gates_event_registrations')
+                ->where('id', $regId)->where('event_id', $eventId)
+                ->where('refund_status', 'failed')
+                ->update(OptionalColumn::filter('gates_event_registrations', [
+                    'refund_status' => 'refunded',
+                    'refunded_at'   => Carbon::now()->toDateTimeString(),
+                    'refund_ref'    => 'by-hand:admin#' . $adminId,
+                ], ['refund_status', 'refunded_at', 'refund_ref'])) > 0;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Ask the gateway again for a refund that failed.
+     *
+     * Guarded on `refund_status = failed`, and the row is CLAIMED to `pending` before the
+     * network call — so two admins pressing at the same moment send one request rather than
+     * two, which on a refund endpoint is the difference between paying somebody once and
+     * paying them twice.
+     *
+     * The amount comes from the ROW, not from the policy: the policy may have changed since,
+     * and what is owed is what was agreed at the time.
+     *
+     * @return array{ok:bool, status:string, message:string}
+     */
+    public static function retryRefund(int $regId, int $eventId, ?PaymentService $payments = null): array
+    {
+        try {
+            $r = DB::table('gates_event_registrations')
+                ->where('id', $regId)->where('event_id', $eventId)->first();
+        } catch (\Throwable) {
+            $r = null;
+        }
+        if (!$r) return ['ok' => false, 'status' => '', 'message' => 'That booking could not be found.'];
+        $was = (string) ($r->refund_status ?? '');
+        if ($was !== 'failed') {
+            // Named separately because the two are different mistakes and only one of them
+            // is a mistake at all. A second press on a row that already went through wants
+            // "it is done"; a press on one still in flight wants "wait" — and "not in a
+            // failed state" tells an organiser neither.
+            return ['ok' => false, 'status' => $was, 'message' => match ($was) {
+                'pending'  => 'That refund is already with the gateway — nothing more to send.',
+                'refunded' => 'That one has already been refunded.',
+                default    => 'There is no failed refund on that booking.',
+            }];
+        }
+
+        $owed = (int) ($r->refund_naira ?? 0);
+        if ($owed < 1) {
+            return ['ok' => false, 'status' => 'failed', 'message' => 'No amount is recorded as owed.'];
+        }
+
+        try {
+            $claimed = DB::table('gates_event_registrations')->where('id', $regId)
+                ->where('refund_status', 'failed')
+                ->update(['refund_status' => 'pending']) > 0;
+        } catch (\Throwable) {
+            $claimed = false;
+        }
+        if (!$claimed) {
+            return ['ok' => false, 'status' => 'pending', 'message' => 'Somebody else is already retrying it.'];
+        }
+
+        $payments ??= new PaymentService();
+        $provider = strtolower(trim((string) ($r->provider ?? ''))) ?: 'paystack';
+        $full     = $owed === (int) ($r->amount_naira ?? 0);
+
+        $res = $payments->refund($provider, (string) $r->reference, $full ? null : $owed);
+
+        $status = match ((string) ($res['status'] ?? 'pending')) {
+            'refunded' => 'refunded',
+            'failed'   => 'failed',
+            default    => 'pending',
+        };
+
+        try {
+            DB::table('gates_event_registrations')->where('id', $regId)
+                ->update(OptionalColumn::filter('gates_event_registrations', [
+                    'refund_status' => $status,
+                    'refund_ref'    => $res['provider_ref'] ?? ($r->refund_ref ?? null),
+                    'refunded_at'   => $status === 'refunded' ? Carbon::now()->toDateTimeString() : null,
+                ], ['refund_status', 'refund_ref', 'refunded_at']));
+        } catch (\Throwable) {}
+
+        return ['ok' => $status !== 'failed', 'status' => $status,
+                'message' => (string) ($res['message'] ?? '')];
+    }
+
+    /**
      * The decision at the door: admit, already in, or refuse.
      *
      * ══════════════════════════════════════════════════════════════════════════

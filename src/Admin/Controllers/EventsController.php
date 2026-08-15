@@ -636,6 +636,14 @@ class EventsController
             // on a screen in an office.
             'new_pass'    => $this->takeNewPass(),
             'door_hours'  => \AfricaGates\Services\EventScanPass::DEFAULT_HOURS,
+            // ── REFUNDS ──────────────────────────────────────────────────
+            //
+            // Here rather than on the finance screen because a refund that did not land is
+            // not an accounting entry, it is an attendee owed money — and the person who
+            // will hear from them is the organiser reading this page. Finance shows totals;
+            // this shows the two rows somebody has to do something about.
+            'refunds'      => EventTicketService::refunds($id),
+            'refund_tally' => EventTicketService::refundTally($id),
             'attendees'  => EventTicketService::attendees($id, $status),
             'filter'     => $status,
             'hold_minutes' => EventTicketService::HOLD_MINUTES,
@@ -755,6 +763,81 @@ class EventsController
             $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'event.door_pass.revoke', 'event', $id);
         } else {
             $_SESSION['flash_error'] = 'That pass could not be revoked — it may already be off.';
+        }
+
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    // ══ REFUNDS THAT DID NOT LAND ════════════════════════════════════════════
+
+    /**
+     * POST /admin/events/{id}/refunds/retry — ask the gateway again.
+     *
+     * ── WHY THIS IS A BUTTON AND NOT A CRON ──────────────────────────────────
+     *
+     * A refund fails for reasons a retry loop cannot fix: the transaction is past the
+     * refundable age, the account balance never covers it, the key was rotated. Retrying
+     * those on a timer burns the gateway's rate limit and produces a log nobody reads,
+     * while the person owed the money waits. A human pressing this has usually just done
+     * the thing that makes the retry work — topped the balance up, fixed the key — and is
+     * the only party who can know that.
+     *
+     * The double-press guard lives in the SERVICE, not here: the row is claimed to
+     * `pending` before the network call, so two organisers pressing together send one
+     * refund rather than two. On a refund endpoint that is the difference between paying
+     * somebody once and paying them twice.
+     */
+    public function retryRefund(Request $req, Response $res, array $args): Response
+    {
+        $id    = (int) ($args['id'] ?? 0);
+        $regId = (int) (((array) $req->getParsedBody())['reg_id'] ?? 0);
+        $back  = '/admin/events/' . $id . '/tickets#refunds';
+        $admin = (int) ($_SESSION['admin_id'] ?? 0);
+
+        $r = EventTicketService::retryRefund($regId, $id);
+
+        // Three outcomes, not two. `pending` is neither a success nor a failure — the
+        // gateway took it and has not finished — and saying "done" there is how an
+        // organiser ends up telling an attendee the money is back before it is.
+        if ($r['status'] === 'refunded') {
+            $_SESSION['flash_ok'] = 'Refunded. The money is on its way back to them.';
+        } elseif ($r['status'] === 'pending') {
+            $_SESSION['flash_ok'] = 'Sent to the gateway. It usually settles within a few '
+                . 'hours — this list updates itself when it does.';
+        } else {
+            $_SESSION['flash_error'] = 'That refund failed again'
+                . ($r['message'] !== '' ? ' — ' . $r['message'] : '.')
+                . ' If it will not go through, record it as paid by hand once you have sent it.';
+        }
+
+        $this->audit->record($admin, 'event.refund.retry', 'event_registration', $regId);
+        return $res->withHeader('Location', $back)->withStatus(302);
+    }
+
+    /**
+     * POST /admin/events/{id}/refunds/settle — "I have paid this person another way."
+     *
+     * It moves no money. It records that a person did — which is why the audit line carries
+     * who, and why the stored reference says `by-hand` rather than borrowing the shape of a
+     * gateway reference and becoming indistinguishable from one six months later.
+     *
+     * Without it a permanently unrefundable row sits red forever, and a list that is always
+     * red is a list nobody checks.
+     */
+    public function settleRefund(Request $req, Response $res, array $args): Response
+    {
+        $id    = (int) ($args['id'] ?? 0);
+        $regId = (int) (((array) $req->getParsedBody())['reg_id'] ?? 0);
+        $back  = '/admin/events/' . $id . '/tickets#refunds';
+        $admin = (int) ($_SESSION['admin_id'] ?? 0);
+
+        if (EventTicketService::settleRefundByHand($regId, $id, $admin)) {
+            $_SESSION['flash_ok'] = 'Recorded as refunded by hand. No money moved through the '
+                . 'platform — the transfer is yours to make.';
+            $this->audit->record($admin, 'event.refund.by_hand', 'event_registration', $regId);
+        } else {
+            $_SESSION['flash_error'] = 'That one could not be marked as paid — it may have '
+                . 'settled on its own already. Reload the page.';
         }
 
         return $res->withHeader('Location', $back)->withStatus(302);

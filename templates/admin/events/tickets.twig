@@ -225,6 +225,141 @@
   </div>
 </div>
 
+{# ── REFUNDS THAT DID NOT LAND ─────────────────────────────────────────────
+   Only drawn when there is something in it. A permanently-present empty panel headed
+   "refunds" trains an organiser to scroll past the word, which is exactly the word they
+   need to still be able to see on the one morning it is not empty.
+
+   FAILED first, then PENDING, then the settled ones folded away. A failed refund is the
+   only row here that is a debt: the seat went back, the ticket code is dead, and the
+   money is still sitting with the organiser. Sorting this list by date alone would bury
+   that under a week of rows costing nobody anything. #}
+{% set rf = refund_tally|default({}) %}
+{% if refunds|default([])|length %}
+<div class="tx-sec" id="refunds">
+  <h2>Refunds</h2>
+  <p>
+    {% if rf.failed|default(0) %}
+      {{ rf.failed }} refund{{ rf.failed == 1 ? '' : 's' }} did not go through —
+      <strong>₦{{ rf.owed|default(0)|number_format }}</strong> is still with you and these
+      people have already lost their seats. Try the gateway again, or send the money another
+      way and record it here so the list clears.
+    {% elseif rf.pending|default(0) %}
+      {{ rf.pending }} refund{{ rf.pending == 1 ? ' is' : 's are' }} with the gateway. Nothing
+      to do — they usually settle within a few hours and this list updates itself.
+    {% else %}
+      Everything cancelled on this event has been refunded.
+    {% endif %}
+    {% if rf.stale|default(0) %}
+      {{ rf.stale }} {{ rf.stale == 1 ? 'has' : 'have' }} been waiting more than three days,
+      which is longer than a refund normally takes — worth chasing with your gateway.
+    {% endif %}
+  </p>
+
+  <table class="tx-list">
+    <thead><tr>
+      <th scope="col">Who</th><th scope="col">Amount</th><th scope="col">State</th>
+      <th scope="col">Cancelled</th><th scope="col"></th>
+    </tr></thead>
+    <tbody>
+      {% for r in refunds|filter(r => r.status != 'refunded') %}
+        <tr>
+          <td>
+            <strong>{{ r.name }}</strong><br>
+            <span style="color:#67797b">{{ r.email }}</span>
+            {% if r.by %}<br><span style="color:#8a9a9c;font-size:11.5px">cancelled by {{ r.by }}</span>{% endif %}
+          </td>
+          <td>
+            <strong>₦{{ r.naira|number_format }}</strong>
+            {# Both figures when they differ: a partial refund looks like a mistake unless the
+               screen says out loud what was paid and what is going back. #}
+            {% if r.naira != r.paid %}
+              <br><span style="color:#8a9a9c;font-size:11.5px">of ₦{{ r.paid|number_format }} paid</span>
+            {% endif %}
+          </td>
+          <td>
+            {# The word carries the meaning; the colour only agrees with it. Somebody reading
+               this in greyscale, or colourblind, still gets the same answer. #}
+            {% if r.status == 'failed' %}
+              <span class="tx-tag tx-tag--no">✕ did not go through</span>
+            {% else %}
+              <span class="tx-tag tx-tag--wait">⋯ with the gateway</span>
+              {% if r.stale %}<br><span class="tx-tag tx-tag--no" style="margin-top:4px;display:inline-block">3+ days</span>{% endif %}
+            {% endif %}
+          </td>
+          <td style="color:#67797b">{{ r.when ? r.when|slice(0, 16)|replace({'-': '/'}) : '—' }}</td>
+          <td>
+            {% if r.status == 'failed' %}
+            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+              <form method="post" action="/admin/events/{{ event.id }}/refunds/retry" style="margin:0">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="reg_id" value="{{ r.id }}">
+                {# Named in the label, not just in the row. Five buttons all reading "Try
+                   again" to a screen reader tabbing down the column is a list you cannot
+                   act on without counting rows. #}
+                <button class="tx-btn tx-btn--tiny" type="submit" style="min-height:32px"
+                        aria-label="Try the refund for {{ r.name }} again">Try again</button>
+              </form>
+              {# Two presses. It is not destructive, but it makes the platform's books say the
+                 money went back — and a mis-click that quietly closes a debt is worse than one
+                 extra tap. Same pattern as "release seat" above. #}
+              <form method="post" action="/admin/events/{{ event.id }}/refunds/settle" style="margin:0"
+                    x-data="{ sure: false }" @submit="if(!sure){ $event.preventDefault(); sure = true }">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="reg_id" value="{{ r.id }}">
+                {# The accessible name is BOUND, not fixed: `x-text` swaps the visible words on
+                   the first press, and a static aria-label would leave a screen reader still
+                   announcing the unconfirmed wording after the state changed. #}
+                <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit" style="min-height:32px"
+                        :class="sure ? 'tx-btn--sure' : ''"
+                        aria-label="Record that {{ r.name }} was paid another way"
+                        :aria-label="sure
+                          ? 'Confirm: {{ r.name|e('js') }} was paid another way'
+                          : 'Record that {{ r.name|e('js') }} was paid another way'"
+                        x-text="sure ? 'Yes — I have sent it' : 'I paid this another way'">I paid this another way</button>
+              </form>
+            </div>
+            {% else %}
+              <span style="color:#8a9a9c;font-size:11.5px">nothing to do</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% set done = refunds|filter(r => r.status == 'refunded') %}
+  {% if done|length %}
+  {# Folded, not dropped. Settled refunds are the answer to "did that ever go back?", asked
+     weeks later — but they are not work, and putting them in the same list as the debts is
+     what makes the debts hard to see. #}
+  <details style="margin-top:12px">
+    <summary style="cursor:pointer;font-size:12.5px;color:#5a6d6f;padding:6px 0">
+      {{ done|length }} refund{{ done|length == 1 ? '' : 's' }} already settled
+    </summary>
+    <table class="tx-list">
+      <thead><tr><th scope="col">Who</th><th scope="col">Amount</th><th scope="col">Refunded</th><th scope="col">Reference</th></tr></thead>
+      <tbody>
+        {% for r in done %}
+          <tr>
+            <td><strong>{{ r.name }}</strong><br><span style="color:#67797b">{{ r.email }}</span></td>
+            <td>₦{{ r.naira|number_format }}</td>
+            <td style="color:#67797b">{{ r.settled ? r.settled|slice(0, 16)|replace({'-': '/'}) : '—' }}</td>
+            <td style="color:#8a9a9c;font-size:11.5px;word-break:break-all">
+              {{ r.gateway_ref ?: '—' }}
+              {% if r.gateway_ref starts with 'by-hand' %}
+                <br><span class="tx-tag">paid outside the platform</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endif %}
+</div>
+{% endif %}
+
 {# ── what is sold ────────────────────────────────────────────────────────── #}
 <div class="tx-stat" style="margin-bottom:14px">
   <div class="tx-s">
