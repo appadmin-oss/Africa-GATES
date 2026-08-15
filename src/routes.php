@@ -1209,6 +1209,97 @@ return function(App $app) {
                    ->withHeader('X-Robots-Tag', 'noindex, nofollow');
     });
 
+    /**
+     * GET /__setup/errors?token=… — "what actually went wrong?"
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS ENDPOINT HAD TO EXIST
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * {@see \AfricaGates\Handlers\ErrorHandler} has always written every 5xx in full —
+     * class, message, file, line, stack — to `var/logs/error-detail.log`. It is written
+     * precisely because detail DISPLAY is hardened off on public hosts, so the page a
+     * visitor sees says "an internal error occurred" and nothing else.
+     *
+     * And then nothing could read it. `var/` is outside the document root by design, this
+     * platform deploys to shared cPanel hosting where a shell is often nobody, and so the
+     * one file written specifically to make a production crash diagnosable was reachable
+     * only by whoever could open a file manager and knew it was there.
+     *
+     * The cost of that gap is measured in the report that produced this endpoint: a total
+     * checkout outage where the only way to learn the cause was for somebody to go and find
+     * a log file by hand. Every other `/__setup/*` page exists for exactly this reason —
+     * this is the one that was missing.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHAT IT SHOWS, AND WHAT IT REFUSES TO
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The last N entries, NEWEST FIRST — the opposite of `tail`, because the question is
+     * always "what just happened" and an operator should not have to scroll to the bottom of
+     * a growing file to answer it.
+     *
+     * Token-gated behind the same SETUP_TOKEN as its siblings, 404 without it so the
+     * endpoint is invisible, `no-store` and `noindex`. Stack traces name internal paths and
+     * are not for the public — but they are exactly what a person fixing this needs, so they
+     * are shown in full to whoever holds the token rather than trimmed into uselessness.
+     */
+    $app->get('/__setup/errors', function ($req, $res) use ($setupGuard) {
+        if (!$setupGuard($req)) return $res->withStatus(404);
+
+        $e    = fn ($s) => htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8');
+        $file = dirname(__DIR__) . '/var/logs/error-detail.log';
+        $want = max(1, min(50, (int) ($req->getQueryParams()['n'] ?? 10)));
+
+        $h = '<!doctype html><meta charset="utf-8"><title>Recent errors — Africa GATES</title>'
+           . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+           . '<style>body{font:14px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;margin:0;'
+           . 'padding:28px 20px;background:#0f1a1c;color:#dfe9e7}h1{font-size:19px;margin:0 0 4px}'
+           . '.sub{color:#8fa5a6;font-size:13px;margin:0 0 20px}'
+           . 'pre{background:#132327;border:1px solid #24393c;border-left:3px solid #b4553f;'
+           . 'border-radius:5px;padding:12px 14px;overflow-x:auto;font-size:12px;line-height:1.55;'
+           . 'white-space:pre-wrap;word-break:break-word;margin:0 0 12px}'
+           . '.ok{border-left-color:#3f7f46;color:#a8ccae}.n{color:#8fa5a6;font-size:12.5px}'
+           . 'code{background:#132327;padding:1px 5px;border-radius:3px}</style>'
+           . '<h1>Recent errors</h1>';
+
+        if (!is_file($file)) {
+            $h .= '<pre class="ok">Nothing here — <code>var/logs/error-detail.log</code> does not exist yet.'
+                . "\n\n" . 'That means no 500 has been recorded SINCE THIS CODE WAS DEPLOYED. If you are '
+                . 'seeing a 500 right now, the likeliest explanations are that the server is not running '
+                . 'this deployment at all (check <code>/ping</code> — the `rev` field), or that the error '
+                . 'happens before PHP reaches the error handler, in which case it will be in your host\'s '
+                . 'own PHP error log rather than here.</pre>';
+        } else {
+            $raw = (string) @file_get_contents($file);
+            // Entries are separated by a blank line and each begins with an ISO timestamp in
+            // brackets — the format ErrorHandler writes. Split on that rather than on blank
+            // lines alone, because a stack trace contains blank lines of its own.
+            $parts = preg_split('/\n(?=\[\d{4}-\d{2}-\d{2}T)/', trim($raw)) ?: [];
+            $parts = array_values(array_filter(array_map('trim', $parts)));
+            $total = count($parts);
+            $show  = array_slice(array_reverse($parts), 0, $want);
+
+            $h .= '<p class="sub">' . $total . ' recorded · showing the '
+                . count($show) . ' most recent, newest first · '
+                . $e(date('c', (int) @filemtime($file))) . ' last written</p>';
+            foreach ($show as $entry) {
+                $h .= '<pre>' . $e($entry) . '</pre>';
+            }
+            if ($total === 0) {
+                $h .= '<pre class="ok">The file exists but is empty — no 500 has been recorded.</pre>';
+            }
+        }
+
+        $h .= '<p class="n">Add <code>&amp;n=30</code> for more. This page is token-gated and '
+            . 'noindex. Delete <code>var/logs/error-detail.log</code> to clear it.</p>';
+
+        $res->getBody()->write($h);
+        return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
+                   ->withHeader('Cache-Control', 'no-store')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    });
+
     // ── Webcron: drive the maintenance hub over HTTP (token-gated) ───────────
     // For hosts without reliable shell cron: set CRON_TOKEN in .env, then point a
     // webcron service (cron-job.org, EasyCron, or a cPanel "curl a URL" job) at

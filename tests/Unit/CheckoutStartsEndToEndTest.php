@@ -35,20 +35,45 @@ use Tests\TestCase;
  */
 final class CheckoutStartsEndToEndTest extends TestCase
 {
-    /** The app, assembled exactly as public/index.php assembles it. */
+    /**
+     * The app, assembled exactly as public/index.php assembles it.
+     *
+     * ── THE STACK IS PART OF WHAT IS UNDER TEST ──────────────────────────────
+     *
+     * A thinner stack would defeat the purpose. Every layer here has been the sole cause of a
+     * broken endpoint at some point in this codebase's history — CSRF rejecting a tokenless
+     * POST, the trailing-slash canonicaliser sitting outside routing, security headers being
+     * added in the wrong order and swallowing error responses, Twig's middleware not being
+     * attached so a controller's `render()` had no view. Reproducing them in the same order,
+     * with the same custom ErrorHandler, is what makes a pass here mean anything about
+     * production.
+     *
+     * Slim runs middleware LIFO, so the order below is public/index.php's order exactly.
+     */
     private function app(): \Slim\App
     {
         $builder = new ContainerBuilder();
         $builder->addDefinitions(require dirname(__DIR__, 2) . '/config/container.php');
-        AppFactory::setContainer($builder->build());
+        $container = $builder->build();
+        AppFactory::setContainer($container);
         $app = AppFactory::create();
-        (require dirname(__DIR__, 2) . '/src/routes.php')($app);
+
         $app->addRoutingMiddleware();
+        $app->add(\Slim\Views\TwigMiddleware::createFromContainer($app, \Slim\Views\Twig::class));
+        $app->add(new \AfricaGates\Middleware\TrailingSlashMiddleware());
         $app->add(new \AfricaGates\Middleware\CsrfMiddleware());
         $app->addBodyParsingMiddleware();
+
         // Errors NOT displayed and NOT logged — a 500 must arrive here as a 500 so the
         // assertion can see it, rather than as an uncaught exception that aborts the run.
-        $app->addErrorMiddleware(false, false, false);
+        // The project's OWN handler, because a custom error handler that throws turns a
+        // handled 404 into an unhandled 500 and is invisible under Slim's default.
+        $err = $app->addErrorMiddleware(false, false, false);
+        $err->setDefaultErrorHandler(new \AfricaGates\Handlers\ErrorHandler($app));
+
+        $app->add(new \AfricaGates\Middleware\SecurityHeadersMiddleware());
+
+        (require dirname(__DIR__, 2) . '/src/routes.php')($app);
         return $app;
     }
 
@@ -210,5 +235,72 @@ final class CheckoutStartsEndToEndTest extends TestCase
         $this->assertNotServerError($res, 'POST /pay/webhook');
         $this->assertContains($res->getStatusCode(), [400, 401, 404],
             'an unsigned webhook was not refused');
+    }
+
+    // ── the error viewer, which is how a 500 gets diagnosed at all ───────────
+
+    /**
+     * Invisible without the token — a 404, not a 403.
+     *
+     * The difference matters: a 403 confirms the endpoint exists, which turns a secret URL
+     * into a known one worth attacking. Every `/__setup/*` sibling behaves this way and this
+     * one exposes stack traces, so it is the last place to break the pattern.
+     */
+    public function test_the_error_viewer_is_invisible_without_a_token(): void
+    {
+        $this->assertSame(404, $this->get('/__setup/errors')->getStatusCode());
+        $this->assertSame(404, $this->get('/__setup/errors?token=short')->getStatusCode());
+        $this->assertSame(404, $this->get('/__setup/errors?token=' . str_repeat('x', 40))->getStatusCode());
+    }
+
+    /**
+     * And with the token it renders — including when the log does not exist, which is the
+     * state every healthy deployment is in and therefore the one most likely to be met by a
+     * page that throws on a missing file.
+     */
+    public function test_the_error_viewer_renders_for_the_token_holder(): void
+    {
+        $token = str_repeat('t', 32);
+        $_ENV['SETUP_TOKEN'] = $token;
+        try {
+            $res = $this->get('/__setup/errors?token=' . $token);
+            $this->assertSame(200, $res->getStatusCode());
+            $this->assertStringContainsString('Recent errors', (string) $res->getBody());
+            $this->assertSame('noindex, nofollow', $res->getHeaderLine('X-Robots-Tag'));
+        } finally {
+            unset($_ENV['SETUP_TOKEN']);
+        }
+    }
+
+    /** Entries come back newest first, and a stack trace's own blank lines do not split one. */
+    public function test_the_error_viewer_shows_the_newest_entry_first(): void
+    {
+        $dir = dirname(__DIR__, 2) . '/var/logs';
+        if (!is_dir($dir)) @mkdir($dir, 0775, true);
+        $log = $dir . '/error-detail.log';
+        $kept = is_file($log) ? (string) file_get_contents($log) : null;
+
+        file_put_contents($log,
+            "[2026-01-01T00:00:00+00:00] RuntimeException: THE-OLDER-ONE in /a.php:1\n"
+            . "#0 /b.php(2): x()\n\n"
+            . "trailing blank line inside the trace\n\n"
+            . "[2026-02-02T00:00:00+00:00] TypeError: THE-NEWER-ONE in /c.php:3\n"
+            . "#0 /d.php(4): y()\n\n");
+
+        $token = str_repeat('t', 32);
+        $_ENV['SETUP_TOKEN'] = $token;
+        try {
+            $html = (string) $this->get('/__setup/errors?token=' . $token)->getBody();
+            $this->assertStringContainsString('THE-NEWER-ONE', $html);
+            $this->assertStringContainsString('THE-OLDER-ONE', $html);
+            $this->assertLessThan(strpos($html, 'THE-OLDER-ONE'), strpos($html, 'THE-NEWER-ONE'),
+                'the oldest entry was shown first — an operator has to scroll to find the '
+                . 'error that just happened');
+            // The blank line inside the first trace did not split it into a third entry.
+            $this->assertStringContainsString('2 recorded', $html);
+        } finally {
+            unset($_ENV['SETUP_TOKEN']);
+            if ($kept !== null) { file_put_contents($log, $kept); } else { @unlink($log); }
+        }
     }
 }
