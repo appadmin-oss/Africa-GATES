@@ -70,6 +70,20 @@ final class PaymentDestination
     private const BEARER_PREFIX = 'paystack_bearer_';
 
     /**
+     * Is subaccount routing switched on at all?
+     *
+     * Default ON, so nothing changes for a deployment that never sets the variable. Setting
+     * `PAYSTACK_SUBACCOUNTS` to off/0/false/no disables it globally — see {@see initFields()}
+     * for why a feature in the path of every payment needs a switch an operator can reach
+     * without a deploy.
+     */
+    public static function enabled(): bool
+    {
+        $v = strtolower(trim((string) \AfricaGates\Support\Env::get('PAYSTACK_SUBACCOUNTS', '')));
+        return !in_array($v, ['off', '0', 'false', 'no', 'disabled'], true);
+    }
+
+    /**
      * A Paystack subaccount code, or '' when this stream is not routed.
      *
      * '' rather than null so a caller can compare it without a coalesce, and so "not routed" has
@@ -106,6 +120,20 @@ final class PaymentDestination
      */
     public static function initFields(string $stream): array
     {
+        // ── THE KILL SWITCH ──────────────────────────────────────────────────
+        //
+        // `PAYSTACK_SUBACCOUNTS=off` in .env turns routing off everywhere, without touching
+        // the database and without losing the configured codes. It exists because this
+        // feature sits directly in the path of every payment on the platform: if anything
+        // about it misbehaves on a live site, the fix has to be one line an operator can
+        // apply in the file manager, not a code change and a deploy.
+        //
+        // Off restores byte-for-byte the behaviour from before subaccounts existed — no
+        // `subaccount` field goes out, and money settles to the main account.
+        if (!self::enabled()) {
+            return [];
+        }
+
         $code = self::forStream($stream);
         if ($code === '') {
             return [];

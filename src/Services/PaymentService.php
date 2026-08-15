@@ -488,17 +488,36 @@ class PaymentService
         // so the attribution cannot disagree with the reference the gateway knows the payment by.
         // Unconfigured returns an EMPTY ARRAY, so merging it changes nothing about the request
         // that goes out — an operator who never opens that screen sees no change at all.
-        $stream = PaymentDestination::streamForReference($reference);
-        $route  = $stream !== '' ? PaymentDestination::initFields($stream) : [];
-        $payload += $route;
+        //
+        // ── AND THE WHOLE BLOCK IS BEST-EFFORT ───────────────────────────────
+        //
+        // Reading a setting, validating a code and writing an attribution row are three
+        // database touches standing between a buyer and a checkout URL. Each one is guarded
+        // internally, but the guarantee that matters is the one made here: if ANY of it
+        // throws, routing is abandoned and the payment goes out unrouted. Money settling to
+        // the main account is a bookkeeping problem somebody can fix next week. A buyer who
+        // cannot pay is a lost sale today, and this feature is not worth a single one of them.
+        $stream = '';
+        $route  = [];
+        try {
+            $stream = PaymentDestination::streamForReference($reference);
+            $route  = $stream !== '' ? PaymentDestination::initFields($stream) : [];
 
-        if ($route !== []) {
-            // Recorded on the row, not derived later from the settings — settings change, and an
-            // order that silently re-attributed itself the moment somebody edited the field would
-            // stop matching the bank. Same doctrine as money columns being written once.
-            $this->rememberDestination($reference, $stream, (string) $route['subaccount'],
-                                       (string) ($route['bearer'] ?? 'account'), $amountNaira);
+            if ($route !== []) {
+                // Recorded on the row, not derived later from the settings — settings change,
+                // and an order that silently re-attributed itself the moment somebody edited
+                // the field would stop matching the bank. Same doctrine as money columns
+                // being written once.
+                $this->rememberDestination($reference, $stream, (string) $route['subaccount'],
+                                           (string) ($route['bearer'] ?? 'account'), $amountNaira);
+            }
+        } catch (\Throwable $e) {
+            $this->log?->error('[payment] subaccount routing failed — sending unrouted', [
+                'ref' => $reference, 'err' => $e->getMessage(),
+            ]);
+            $route = [];
         }
+        $payload += $route;
 
         $r = $this->postInitialize($payload, $reference);
         if ($r['ok']) {
@@ -534,9 +553,27 @@ class PaymentService
             $retry = $this->postInitialize($payload, $reference);
 
             if ($retry['ok']) {
-                $this->forgetDestination($reference);
-                PaymentDestination::reportRefusal($stream, (string) $route['subaccount'],
-                                                  (string) $r['message']);
+                // ── BOOKKEEPING MUST NOT BE ABLE TO UNDO A SALE ──────────────
+                //
+                // The retry has succeeded: there is a live checkout URL in hand and a buyer
+                // waiting for it. Everything after this point is record-keeping — clearing an
+                // attribution row, storing a refusal, sending an alert — and every one of
+                // those touches the database or the mailer.
+                //
+                // Without this guard a throw in any of them would escape into
+                // {@see initialize()}'s catch, which turns the whole call into "could not
+                // reach the payment provider" and discards the URL. That would take a
+                // RECOVERED failure and make it a hard one — precisely inverting the point of
+                // the fallback, and doing it only on sites that have subaccounts configured,
+                // which is the hardest possible place to notice.
+                try {
+                    $this->forgetDestination($reference);
+                    PaymentDestination::reportRefusal($stream, (string) $route['subaccount'],
+                                                      (string) $r['message']);
+                } catch (\Throwable $e) {
+                    $this->log?->error('[payment] could not record the subaccount refusal',
+                                       ['ref' => $reference, 'err' => $e->getMessage()]);
+                }
                 return $retry;
             }
             // Both attempts failed, so the subaccount was not the problem. Report the FIRST

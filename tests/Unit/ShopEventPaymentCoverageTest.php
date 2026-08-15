@@ -459,6 +459,68 @@ final class ShopEventPaymentCoverageTest extends TestCase
             ->where('reference', 'AFG-SHP-hhh888')->count());
     }
 
+    /**
+     * ── NOTHING ABOUT ROUTING MAY PREVENT A SALE ─────────────────────────────
+     *
+     * Reading a setting, validating a code and writing an attribution row are three database
+     * touches standing between a buyer and a checkout URL — and `initialize()` catches
+     * `Throwable` and converts it to "could not reach the payment provider", so ANY throw in
+     * that block silently becomes a checkout that will not start. On sites with subaccounts
+     * configured, and only those, which is the hardest possible place to notice.
+     */
+    public function test_a_broken_routing_lookup_still_lets_the_buyer_pay(): void
+    {
+        $svc = new class extends PaymentService {
+            public array $sent = [];
+            public function isEnabled(string $p): bool { return $p === 'paystack'; }
+            protected function request(string $method, string $url, ?array $jsonBody, array $headers): array
+            {
+                $this->sent[] = $jsonBody ?? [];
+                return ['ok' => true, 'code' => 200, 'raw' => '',
+                        'json' => ['status' => true,
+                                   'data' => ['authorization_url' => 'https://checkout.test/ok']]];
+            }
+        };
+
+        // The settings table is gone from under it, mid-request. Stands in for every way the
+        // routing lookup can fail on a live host: a dropped connection, a locked table, a
+        // half-run migration.
+        DB::statement('DROP TABLE IF EXISTS gates_settings');
+
+        $r = $svc->initialize('paystack', 5000, 'b@example.test', 'AFG-SHP-kkk111', 'https://s.test/cb');
+
+        $this->assertTrue($r['ok'], 'a failure in the routing lookup stopped a buyer from paying');
+        $this->assertSame('https://checkout.test/ok', $r['checkout_url']);
+        $this->assertArrayNotHasKey('subaccount', $svc->sent[0]);
+    }
+
+    /**
+     * And the switch that turns the whole feature off without a deploy.
+     *
+     * A feature sitting in the path of every payment on the platform needs a fix an operator
+     * can apply in a file manager. `off` restores byte-for-byte the request that went out
+     * before subaccounts existed, and leaves the configured codes where they are.
+     */
+    public function test_the_kill_switch_stops_routing_without_clearing_the_codes(): void
+    {
+        DB::table('gates_settings')->updateOrInsert(
+            ['key_name' => 'paystack_sub_shop'], ['value' => 'ACCT_realcode1234']);
+
+        $this->assertNotSame([], PaymentDestination::initFields('shop'));
+
+        $_ENV['PAYSTACK_SUBACCOUNTS'] = 'off';
+        try {
+            $this->assertSame([], PaymentDestination::initFields('shop'),
+                'the kill switch did not stop the subaccount field going out');
+            // The code is untouched, so removing the switch brings routing straight back.
+            $this->assertSame('ACCT_realcode1234', PaymentDestination::forStream('shop'));
+        } finally {
+            unset($_ENV['PAYSTACK_SUBACCOUNTS']);
+        }
+
+        $this->assertNotSame([], PaymentDestination::initFields('shop'));
+    }
+
     /** When both attempts fail, the subaccount was not the problem — report the real message. */
     public function test_a_failure_that_is_not_the_subaccount_reports_its_own_reason(): void
     {
