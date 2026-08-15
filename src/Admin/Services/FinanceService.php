@@ -106,12 +106,30 @@ final class FinanceService
             $out['shop']['count'] += (int) ($r->n ?? 0);
         } catch (\Throwable) {}
 
-        // ── gates_event_registrations: no status column, so a row IS the payment.
-        // Zero-amount rows are free RSVPs and must not inflate the transaction count —
-        // "412 payments" when 400 of them were free tickets is a wrong number, not a
-        // generous one.
+        // ── gates_event_registrations ────────────────────────────────────────
+        //
+        // This said "no status column, so a row IS the payment". That was true when tickets
+        // were free RSVPs and stopped being true the day they could be bought: the table has
+        // carried `status` since the ticketing migration, and a row is `pending` from the
+        // moment somebody presses Buy until their payment lands — if it ever does.
+        //
+        // So this counted abandoned checkouts, cancelled bookings and refunded tickets as
+        // REVENUE. The same defect that made unpaid people appear as registered on the event
+        // page, arriving here as money the organisation does not have, on the one screen
+        // whose numbers get compared against a bank statement.
+        //
+        // Zero-amount rows are free RSVPs and are still excluded: "412 payments" when 400 of
+        // them were free tickets is a wrong number, not a generous one.
+        // NULL counts as confirmed, deliberately. The ticketing migration backfilled every
+        // pre-existing row to `confirmed` on the stated grounds that "every row that predates
+        // this is a free RSVP that was accepted" — so a null here is either a row from before
+        // that migration ran or one written by something that bypasses reserve(), and in both
+        // cases treating it as unpaid would DELETE revenue from the report. Excluding money
+        // that exists is a worse error than the one being fixed.
         try {
-            $q = DB::table('gates_event_registrations')->where('amount_naira', '>', 0);
+            $q = DB::table('gates_event_registrations')
+                ->where(static fn ($w) => $w->where('status', 'confirmed')->orWhereNull('status'))
+                ->where('amount_naira', '>', 0);
             self::window($q, 'created_at', $since, $until);
             $r = $q->selectRaw('COALESCE(SUM(amount_naira),0) AS gross, COUNT(*) AS n')->first();
             $out['event']['gross'] += (int) ($r->gross ?? 0);
@@ -433,5 +451,115 @@ final class FinanceService
     {
         if ($since !== null && $since !== '') $q->where($col, '>=', $since . ' 00:00:00');
         if ($until !== null && $until !== '') $q->where($col, '<=', $until . ' 23:59:59');
+    }
+
+    /**
+     * Where the money that actually arrived was SETTLED — per revenue stream.
+     *
+     * ══════════════════════════════════════════════════════════════════════════════
+     * THE FEATURE HAD NO OUTPUT
+     * ══════════════════════════════════════════════════════════════════════════════
+     *
+     * `gates_payment_routes` was written on every routed payment and read by nothing. Not one
+     * screen, service or export touched it. So the question the whole subaccount feature was
+     * built to answer — "how much of this is ticket money" — still could not be answered from
+     * this platform, which is exactly the state its own design note describes as the problem:
+     * "can only be answered by exporting the platform's own records and hoping they agree
+     * with the bank."
+     *
+     * The routing worked. The reflection did not exist.
+     *
+     * ══════════════════════════════════════════════════════════════════════════════
+     * WHY THIS JOINS AND DOES NOT SIMPLY SUM THE ROUTE TABLE
+     * ══════════════════════════════════════════════════════════════════════════════
+     *
+     * A route row is written at INITIALISE — the moment a buyer is sent to the gateway, which
+     * is before they have paid and regardless of whether they ever do. Summing the table
+     * would therefore report every abandoned checkout as settled income, and it would do so
+     * on the screen most likely to be read against a bank statement.
+     *
+     * So each stream is counted from ITS OWN ledger, filtered to what actually completed, and
+     * only then matched against the attribution. A confirmed payment with no route row is not
+     * missing data: it settled to the main account, which is what an absent row means.
+     *
+     * @return list<array{stream:string, label:string, configured:string, bearer:string,
+     *                    routed_count:int, routed_naira:int, main_count:int, main_naira:int,
+     *                    subaccounts:array<string,int>}>
+     */
+    public static function settlement(?string $since = null, ?string $until = null): array
+    {
+        // stream => [table, reference column, amount column, the filter that means "paid"]
+        $ledgers = [
+            'shop'   => ['gates_orders', 'reference', 'subtotal_naira',
+                         static fn ($q) => $q->where('status', 'paid')],
+            // NULL reads as confirmed here for the same reason as in bySource() above: the
+            // ticketing migration backfilled pre-existing rows on exactly that basis.
+            'events' => ['gates_event_registrations', 'reference', 'amount_naira',
+                         static fn ($q) => $q
+                             ->where(static fn ($w) => $w->where('status', 'confirmed')->orWhereNull('status'))
+                             ->where('amount_naira', '>', 0)],
+            'votes'  => ['gates_donations', 'payment_ref', 'amount_naira',
+                         static fn ($q) => $q->where('status', 'confirmed')->whereNull('refunded_at')],
+        ];
+
+        $out = [];
+        foreach ($ledgers as $stream => [$table, $refCol, $amtCol, $paid]) {
+            $row = [
+                'stream'     => $stream,
+                'label'      => \AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream,
+                'configured' => \AfricaGates\Services\PaymentDestination::forStream($stream),
+                'bearer'     => \AfricaGates\Services\PaymentDestination::bearerFor($stream),
+                'routed_count' => 0, 'routed_naira' => 0,
+                'main_count'   => 0, 'main_naira'   => 0,
+                // Keyed by the code actually used, so a stream whose subaccount CHANGED
+                // mid-period shows both — which is the one case a single figure would hide,
+                // and the reason the code is stored per payment rather than looked up now.
+                'subaccounts'  => [],
+            ];
+
+            try {
+                $q = DB::table($table);
+                $paid($q);
+                self::window($q, 'created_at', $since, $until);
+                $rows = $q->get([$refCol . ' as ref', $amtCol . ' as naira']);
+            } catch (\Throwable) {
+                $out[] = $row;
+                continue;
+            }
+
+            // One lookup for the whole window rather than a query per payment: a busy month
+            // is thousands of rows, and this runs on a dashboard load.
+            $refs   = array_values(array_filter(array_map(
+                static fn ($r): string => (string) ($r->ref ?? ''), $rows->all())));
+            $routes = [];
+            if ($refs !== []) {
+                try {
+                    foreach (array_chunk($refs, 500) as $chunk) {
+                        foreach (DB::table('gates_payment_routes')->whereIn('reference', $chunk)
+                                    ->get(['reference', 'subaccount']) as $r) {
+                            $routes[(string) $r->reference] = (string) $r->subaccount;
+                        }
+                    }
+                } catch (\Throwable) { $routes = []; }   // unmigrated: everything reads as main
+            }
+
+            foreach ($rows as $r) {
+                $naira = (int) ($r->naira ?? 0);
+                $code  = $routes[(string) ($r->ref ?? '')] ?? '';
+                if ($code === '') {
+                    $row['main_count']++;
+                    $row['main_naira'] += $naira;
+                    continue;
+                }
+                $row['routed_count']++;
+                $row['routed_naira'] += $naira;
+                $row['subaccounts'][$code] = ($row['subaccounts'][$code] ?? 0) + $naira;
+            }
+
+            arsort($row['subaccounts']);
+            $out[] = $row;
+        }
+
+        return $out;
     }
 }

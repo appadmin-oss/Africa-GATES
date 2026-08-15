@@ -216,6 +216,80 @@
           {% else %}<div class="fi-empty">No confirmed payments in this period.</div>{% endif %}
         </div>
 
+        {# ── WHERE IT SETTLED ──────────────────────────────────────────────
+           The other half of "where the money came from", and the half that was
+           missing: which Paystack account each stream's money actually landed in.
+           The attribution has been recorded on every routed payment since
+           subaccounts shipped and read by nothing, so this question could only be
+           answered at the bank — which is the situation subaccounts were introduced
+           to end. Counted from each stream's own ledger and filtered to what
+           actually completed, so an abandoned checkout is never reported as
+           settled income. #}
+        {% if settlement %}
+        <div class="ad-card" style="margin-top:14px">
+          <strong style="font-size:14px">Where it settled</strong>
+          <p class="fi-note" style="margin-top:4px">
+            The Paystack account each stream's completed payments were routed to. A stream with
+            no subaccount configured settles to the main account, which is the default and not
+            a problem.
+          </p>
+          <table class="ad-table">
+            <thead><tr>
+              <th scope="col">Stream</th>
+              <th scope="col">Settles to</th>
+              <th scope="col" class="fi-right">Routed</th>
+              <th scope="col" class="fi-right">Main account</th>
+            </tr></thead>
+            <tbody>
+              {% for s in settlement %}
+              <tr>
+                <td>
+                  <strong>{{ s.label }}</strong>
+                  {% if s.configured and s.bearer == 'subaccount' %}
+                  <br><span style="font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">subaccount bears the fee</span>
+                  {% endif %}
+                </td>
+                <td style="font-family:var(--ag-font-mono,monospace);font-size:12px">
+                  {% if s.configured %}{{ s.configured }}
+                  {% else %}<span style="color:var(--ad-text-mute,#5a6d6f)">main account</span>{% endif %}
+                  {# A stream whose code CHANGED mid-period shows every code the period's
+                     payments actually used — the one case a single figure would hide, and
+                     the reason the code is stored per payment rather than looked up now. #}
+                  {% for code, naira in s.subaccounts %}
+                    {% if code != s.configured %}
+                    <br><span style="color:#a45e14">{{ code }} · ₦{{ naira|number_format }} (no longer configured)</span>
+                    {% endif %}
+                  {% endfor %}
+                </td>
+                <td class="fi-right fi-num">
+                  ₦{{ s.routed_naira|number_format }}
+                  <br><span style="font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">{{ s.routed_count|number_format }} payment{{ s.routed_count == 1 ? '' : 's' }}</span>
+                </td>
+                <td class="fi-right fi-num">
+                  ₦{{ s.main_naira|number_format }}
+                  <br><span style="font-size:11.5px;color:var(--ad-text-mute,#5a6d6f)">{{ s.main_count|number_format }} payment{{ s.main_count == 1 ? '' : 's' }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {# Money in the main account for a stream that IS routed means the subaccount was
+             refused at the gateway and the payment fell back — recoverable, and invisible
+             unless it is said. See PaymentDestination::reportRefusal(). #}
+          {% for s in settlement %}
+            {% if s.configured and s.main_count > 0 %}
+            <p class="fi-note" style="margin-top:10px;color:#a45e14">
+              <strong>{{ s.label }}:</strong> {{ s.main_count|number_format }} completed
+              payment{{ s.main_count == 1 ? '' : 's' }} (₦{{ s.main_naira|number_format }})
+              settled to the main account despite this stream being routed. Either they were
+              taken before the subaccount was set, or Paystack refused it and the payment fell
+              back — check Settings → Where the money settles.
+            </p>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+
         {% if providers %}
         <div class="ad-card" style="margin-top:14px">
           <strong style="font-size:14px">Shop gateways</strong>

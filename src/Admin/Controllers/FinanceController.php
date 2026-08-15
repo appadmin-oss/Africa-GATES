@@ -104,6 +104,12 @@ class FinanceController
             'owed'        => FinanceService::owedRefunds(25),
             'nominees'    => FinanceService::paidVotesByNominee(20),
             'providers'   => FinanceService::byProvider()['orders'],
+            // Where the money that arrived was actually SETTLED. The attribution has been
+            // recorded on every routed payment since subaccounts shipped and read by nothing
+            // at all — so the question the feature exists to answer, "how much of this is
+            // ticket money", still had to be answered from the bank. Same window as
+            // everything else on the page, because it will be read beside them.
+            'settlement'  => FinanceService::settlement($from, $to),
             // The reconciliation tab. Findings only appear after an explicit run —
             // never on page load, because each finding is a live HTTP call to the
             // gateway and nobody should be calling Paystack for opening a dashboard.

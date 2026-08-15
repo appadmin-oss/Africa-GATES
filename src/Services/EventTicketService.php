@@ -299,7 +299,11 @@ final class EventTicketService
         try {
             return (int) DB::table('gates_event_registrations')
                 ->where('event_id', $eventId)
-                ->where('status', 'confirmed')
+                // NULL reads as confirmed: the ticketing migration backfilled every
+                // pre-existing row to `confirmed` because "every row that predates this is a
+                // free RSVP that was accepted". Treating a null as unpaid would erase those
+                // attendees from an organiser's own headcount.
+                ->where(static fn ($w) => $w->where('status', 'confirmed')->orWhereNull('status'))
                 ->sum(DB::raw('COALESCE(quantity, 1)'));
         } catch (\Throwable) {
             return 0;
