@@ -16,7 +16,7 @@ use AfricaGates\Support\OptionalColumn;
  * email's would be the one nobody looks at until an attendee forwards a ticket that is the
  * wrong colour.
  *
- * ── AND WHY THE COLOUR IS VALIDATED TWICE ────────────────────────────────────
+ * ── AND WHY THE COLOUR IS VALIDATED TWICE ──────────────────────────────────
  *
  * An accent colour ends up inside a `style` attribute. That makes it the one field on this
  * form whose value is executed rather than displayed, so:
@@ -241,7 +241,7 @@ final class EventTicketDesign
      */
     public static function contrastInk(string $hex): string
     {
-        [$r, $g, $b] = self::channels(self::colour($hex));
+        [$r, $g, $b] = self::rawChannels(self::colour($hex));
         $lin = static function (float $c): float {
             $c /= 255;
             return $c <= 0.03928 ? $c / 12.92 : (($c + 0.055) / 1.055) ** 2.4;
@@ -260,13 +260,29 @@ final class EventTicketDesign
      */
     public static function soften(string $hex, float $alpha): string
     {
-        [$r, $g, $b] = self::channels(self::colour($hex));
+        [$r, $g, $b] = self::rawChannels(self::colour($hex));
         $a = max(0.0, min(1.0, $alpha));
         return sprintf('rgba(%d,%d,%d,%.2f)', $r, $g, $b, $a);
     }
 
+    /**
+     * A validated hex split into its three channels.
+     *
+     * Public because {@see EventTierPalette} builds the tier ladder out of the same accent
+     * and must not carry a second hex parser. Two implementations of "what are the channels
+     * of this colour" is how the ticket and the tier chip end up disagreeing about what the
+     * event's colour is.
+     *
+     * @return array{int,int,int}
+     */
+    public static function channels(string $hex): array
+    {
+        $hex = self::colour($hex);
+        return self::rawChannels($hex);
+    }
+
     /** @return array{int,int,int} */
-    private static function channels(string $hex): array
+    private static function rawChannels(string $hex): array
     {
         $h = ltrim($hex, '#');
         return [
