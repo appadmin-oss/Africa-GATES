@@ -8,9 +8,9 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
-use AfricaGates\Services\{CacheService, OtpService, Notifier, WebhookService,
-                         EventTicketService, EventDiscount, EventWaitlist, EventAgenda,
-                         EventTicketDesign,
+use AfricaGates\Services\{CacheService, OtpService, Notifier,
+                         EventTicketService, EventTicketMailer, EventDiscount, EventWaitlist,
+                         EventAgenda, EventTicketDesign,
                          GatewayHandoff, PaymentService};
 
 /**
@@ -334,8 +334,9 @@ class EventsController
 
         // ── free: done, and told ─────────────────────────────────────────────
         if ($r['free'] ?? false) {
-            $this->announce($req, $event, $who, (string) ($r['ticket_code'] ?? ''), 0, $qty,
-                            (string) $r['reference']);
+            // Sent inline, not queued: nobody is on a gateway's clock here, and an RSVP
+            // confirmation that arrives at the next cron tick reads as one that did not arrive.
+            EventTicketMailer::send((int) $r['id'], $this->mailer);
             return $json(['success' => true, 'ticket_code' => (string) ($r['ticket_code'] ?? ''),
                           'ticket_url' => $this->base($req) . '/events/ticket/' . urlencode((string) $r['reference']),
                           'discount_note' => (string) ($r['discount_note'] ?? ''),
@@ -460,12 +461,12 @@ class EventsController
         $r = EventTicketService::confirm($ref, $this->payments());
 
         if ($r['ok'] ?? false) {
-            if (!($r['already'] ?? false)) {
-                $this->announce($req, DB::table('gates_site_events')->where('id', (int) $reg->event_id)->first(),
-                    ['name' => (string) $reg->name, 'email' => (string) $reg->email, 'phone' => (string) $reg->phone],
-                    (string) ($r['ticket_code'] ?? ''), (int) ($reg->amount_naira ?? 0),
-                    (int) ($reg->quantity ?? 1), $ref);
-            }
+            // Called on BOTH branches, including `already`. The webhook very often wins this
+            // race — a buyer paying inside a wallet app comes back late or not at all — and
+            // the loser used to walk away assuming the winner had finished the job. The claim
+            // inside the mailer means a second call sends nothing, so calling it costs a query
+            // and covers the case where the winner's mail failed.
+            EventTicketMailer::send((int) $reg->id, $this->mailer);
             return $this->goTo($res, '/events/ticket/' . urlencode($ref));
         }
 
@@ -687,126 +688,4 @@ class EventsController
         return $res->withHeader('Location', $path)->withStatus(302);
     }
 
-    /**
-     * The organiser's note to attendees, as one escaped block.
-     *
-     * Escaped and then given paragraph breaks, in that order: an organiser typing an ampersand
-     * or an angle bracket into a note about a venue must not be able to inject markup into an
-     * email that goes out over this platform's name.
-     */
-    private function noteHtml(?object $event): string
-    {
-        $note = trim((string) ($event->attendee_note ?? ''));
-        if ($note === '') return '';
-        $safe = htmlspecialchars($note, ENT_QUOTES, 'UTF-8');
-        $safe = str_replace(["\r\n", "\r"], "\n", $safe);
-        $safe = implode('</p><p style="margin:0 0 10px">',
-                        array_filter(array_map('trim', explode("\n\n", $safe))));
-        return '<table role="presentation" cellpadding="0" cellspacing="0" border="0"'
-             . ' style="margin:18px 0;background:#fffbeb;border-left:4px solid #f59e0b;'
-             . 'border-radius:0 8px 8px 0;padding:14px 18px"><tr><td'
-             . ' style="font-size:14px;color:#78350f;line-height:1.7">'
-             . '<strong>Before you come</strong><p style="margin:8px 0 10px">'
-             . nl2br($safe) . '</p></td></tr></table>';
-    }
-
-    /**
-     * Tell the attendee, tell the team, tell the integrations.
-     *
-     * Best-effort throughout: a mail failure must never undo a confirmed ticket. The
-     * ticket exists in the database and on its own page either way, which is the half
-     * that matters — an email is a convenience, and treating it as the delivery mechanism
-     * is how somebody ends up at a door with nothing to show.
-     */
-    private function announce(Request $req, ?object $event, array $who, string $ticketCode,
-                              int $amount, int $qty, string $reference = ''): void
-    {
-        if (!$event) return;
-        $slug = (string) ($event->slug ?? '');
-
-        WebhookService::dispatch('event.registration', [
-            'event'    => ['slug' => $slug, 'title' => (string) ($event->title ?? '')],
-            'attendee' => ['name' => $who['name'], 'email' => $who['email'], 'phone' => $who['phone']],
-            'ticket'   => ['code' => $ticketCode, 'quantity' => $qty, 'amount_naira' => $amount],
-        ]);
-
-        if (!$this->mailer) return;
-
-        $base  = $this->base($req);
-        $e     = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-        $title = $e((string) ($event->title ?? 'the event'));
-        $when  = $e((string) ($event->event_date ?? ''));
-        $where = $e((string) ($event->location ?? ''));
-        $nm    = $e($who['name']);
-
-        $ticketUrl = $reference !== ''
-            ? $base . '/events/ticket/' . rawurlencode($reference)
-            : $base . '/events/' . rawurlencode($slug);
-
-        $codeRow = $ticketCode !== ''
-            ? '<br>Ticket code: <strong style="font-family:monospace;font-size:16px">' . $e($ticketCode) . '</strong>'
-            : '';
-        $seatRow = $qty > 1 ? '<br>Seats: <strong>' . $qty . '</strong>' : '';
-        $paidRow = $amount > 0 ? '<br>Paid: <strong>₦' . number_format($amount) . '</strong>' : '';
-
-        $html = "<p>Hi <strong>{$nm}</strong>,</p>"
-              . '<p>' . ($amount > 0
-                  ? 'Your payment has been received and your ticket is confirmed.'
-                  : 'You are registered — we have saved your spot.') . '</p>'
-              . "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" "
-              . "style=\"margin:16px 0;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0 8px 8px 0;padding:14px 18px\">"
-              . "<tr><td style=\"font-size:14px;color:#166534;line-height:1.7\">Event: <strong>{$title}</strong><br>"
-              . "When: <strong>{$when}</strong>"
-              . ($where !== '' ? "<br>Where: <strong>{$where}</strong>" : '')
-              . $seatRow . $paidRow . $codeRow . '</td></tr></table>'
-              // The ticket page, not the event page. This is the link somebody opens at the
-              // door, and it is reachable with the reference alone precisely so that they do
-              // not need an account they never made in a queue with no signal.
-              . '<p style="text-align:center;margin:22px 0 8px"><a href="' . $ticketUrl . '"'
-              . ' style="display:inline-block;padding:12px 28px;background:#10292C;color:#fff;'
-              . 'border-radius:999px;font-weight:600;text-decoration:none;font-size:15px">Your ticket →</a></p>'
-              // And the date, as a file their calendar understands. A seat that goes unused is
-              // usually not a change of mind — it is somebody who read the date here, meant to
-              // write it down, and did not. One link is the whole fix, and it has to be in the
-              // email because the email is what they have open when they think of it.
-              . ($reference !== ''
-                  ? '<p style="text-align:center;margin:0 0 20px;font-size:13px">'
-                    . '<a href="' . $ticketUrl . '/calendar.ics"'
-                    . ' style="color:#237b22;font-weight:600;text-decoration:none">'
-                    . 'Add it to your calendar</a></p>'
-                  : '')
-              // The organiser's own note — joining links, parking, dress code. In the email
-              // because that is where somebody looks the morning of, and it is the difference
-              // between a support inbox answering the same question forty times and not.
-              . $this->noteHtml($event);
-
-        $note  = trim((string) ($event->attendee_note ?? ''));
-        $plain = "Hi {$who['name']},\n\n"
-               . ($amount > 0 ? "Your payment has been received and your ticket is confirmed.\n"
-                              : "You are registered.\n")
-               . 'Event: ' . (string) ($event->title ?? '') . "\n"
-               . 'When: ' . (string) ($event->event_date ?? '') . "\n"
-               . ($ticketCode !== '' ? "Ticket code: {$ticketCode}\n" : '')
-               . "\nYour ticket: {$ticketUrl}\n"
-               . ($reference !== '' ? "Add to your calendar: {$ticketUrl}/calendar.ics\n" : '')
-               . ($note !== '' ? "\n" . $note . "\n" : '')
-               . "\n— Africa GATES";
-
-        try {
-            $this->mailer->sendBranded(
-                $who['email'],
-                ($amount > 0 ? 'Your ticket — ' : 'You are registered — ')
-                    . (string) ($event->title ?? 'Africa GATES event'),
-                $html, $plain, 'Events',
-                $base . '/assets/img/illustrations/illo-trophy2.jpg'
-            );
-        } catch (\Throwable) {}
-
-        Notifier::adminAlert($this->mailer,
-            ($amount > 0 ? 'Event ticket sold' : 'New event RSVP') . ' — ' . (string) ($event->title ?? ''),
-            "Event: " . (string) ($event->title ?? '') . "\nName: {$who['name']}\nEmail: {$who['email']}"
-            . "\nPhone: {$who['phone']}\nSeats: {$qty}"
-            . ($amount > 0 ? "\nPaid: NGN " . number_format($amount) : '')
-            . ($ticketCode !== '' ? "\nTicket: {$ticketCode}" : ''));
-    }
 }

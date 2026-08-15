@@ -20,9 +20,13 @@ use AfricaGates\Admin\Controllers\ProductsController;
  *   1. The cart total is recomputed SERVER-SIDE from gates_products ({@see priceCart}).
  *      Client-sent prices/names are ignored; a tampered cart can never set the price.
  *   2. A PENDING gates_orders row is written before leaving for the gateway.
- *   3. Confirmation requires verify()=success AND the verified amount equalling the
- *      order's subtotal, then an idempotent pending→paid transition (stock is only
+ *   3. Confirmation requires verify()=success AND a verified amount that is at least the
+ *      order's subtotal, in naira, then an idempotent pending→paid transition (stock is only
  *      decremented, and the receipt only sent, by the single winning transition).
+ *
+ * Step 3 lives in {@see \AfricaGates\Services\ShopOrderService} rather than here, because the
+ * gateway webhook and the reconciliation sweep have to reach exactly the same code — see that
+ * file for what happened while they could not.
  */
 final class ShopCheckoutController
 {
@@ -336,6 +340,12 @@ final class ShopCheckoutController
         if ($result === 'confirmed' || $result === 'already') {
             return $this->redirect($res, $this->base($req) . '/shop/success?ref=' . urlencode($reference));
         }
+        // A mismatch is not a failure and must not be worded as one: the gateway says money
+        // moved, and it is a figure a person has to look at. Telling somebody who has been
+        // debited that their payment failed is how a support ticket becomes a chargeback.
+        if ($result === 'mismatch') {
+            return $this->redirect($res, $this->base($req) . '/shop?checkout=mismatch&ref=' . urlencode($reference));
+        }
         return $this->redirect($res, $this->base($req) . '/shop?checkout=failed');
     }
 
@@ -397,187 +407,26 @@ final class ShopCheckoutController
         return $view->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
-    /** Shared, idempotent confirmation (mirrors PaymentController). */
+    /**
+     * Shared, idempotent confirmation.
+     *
+     * ── THIS USED TO BE THE IMPLEMENTATION, AND NOW IT IS A CALL ─────────────
+     *
+     * The logic moved to {@see \AfricaGates\Services\ShopOrderService}, for a reason that is
+     * worth keeping in view here: while it lived on this controller, only a browser arriving
+     * at `/shop/callback` could reach it. The gateway webhook could not, so it grew a second
+     * copy inside the reconciler — one that never touched variant stock, never counted the
+     * sale and never awarded the buyer's points. Two implementations of "this order is paid"
+     * is precisely the drift this codebase keeps finding.
+     *
+     * Three callers now share one: this callback, `/pay/webhook`, and the cron sweep.
+     */
     private function confirmByReference(string $provider, string $reference, object $order): string
     {
-        if (($order->status ?? '') === 'paid') return 'already';
-
-        $v = $this->payments->verify($provider, $reference);
-        if (!$v['ok'] || ($v['status'] ?? '') !== 'success') {
-            if (($v['status'] ?? '') === 'failed') {
-                DB::table('gates_orders')->where('reference', $reference)->where('status', 'pending')->update(['status' => 'failed']);
-                // A declined card should not spend somebody's discount.
-                ShopDiscount::releaseUse((string) ($order->discount_code ?? ''));
-            }
-            return 'failed';
-        }
-        if ((int)$v['amount'] !== (int)$order->subtotal_naira) {
-            $this->log?->warning('[shop] amount mismatch — refusing', ['ref' => $reference]);
-            return 'failed';
-        }
-
-        $changed = DB::table('gates_orders')->where('reference', $reference)->where('status', 'pending')
-            ->update(['status' => 'paid', 'paid_at' => Carbon::now()->toDateTimeString(), 'provider_ref' => $reference]);
-
-        if ($changed > 0) {
-            $this->fulfil($order);
-            return 'confirmed';
-        }
-        return 'already';
-    }
-
-    /** One-time side effects of a confirmed order: decrement tracked stock + receipts. */
-    private function fulfil(object $order): void
-    {
-        $lines = json_decode((string)$order->items_json, true) ?: [];
-        $short = $this->drawDownStock($lines);
-
-        // ── A SHORTFALL IS RECORDED, NOT FLOORED ─────────────────────────────
-        //
-        // Two buyers can pay for the last item inside the same payment window; checkout
-        // refuses an oversell but cannot hold stock across a trip to the gateway. Before,
-        // the loser's stock simply clamped to zero and nothing anywhere said so — the
-        // seller found out when the buyer emailed. Now the order is flagged and the team
-        // is told in the same alert they already read.
-        if ($short !== []) {
-            try {
-                DB::table('gates_orders')->where('id', (int) $order->id)
-                    ->update(OptionalColumn::filter('gates_orders', ['stock_short' => 1], ['stock_short']));
-            } catch (\Throwable) {}
-            $this->log?->warning('[shop] paid order exceeds stock on hand', [
-                'ref' => (string) $order->reference, 'items' => $short,
-            ]);
-        }
-
-        // Counted for the "most bought" ordering, from PAID orders only — a pending checkout
-        // that was abandoned is not a sale and must not move a product up the page.
-        ShopCatalogue::countSales($lines);
-
-        $summary = implode("\n", array_map(
-            fn($l) => '  ' . ($l['name'] ?? '?')
-                    . (($l['variant'] ?? '') !== '' ? ' (' . $l['variant'] . ')' : '')
-                    . ' ×' . ($l['qty'] ?? 0) . ' — ₦' . number_format((int)($l['line_total'] ?? 0)),
-            $lines
-        ));
-        $total = '₦' . number_format((int)$order->subtotal_naira);
-
-        if ($this->mailer) {
-            try {
-                $this->mailer->sendBranded(
-                    (string)$order->email,
-                    'Your Africa GATES order is confirmed',
-                    "<p>Thank you, " . htmlspecialchars((string)$order->name) . " — your order is confirmed and being prepared.</p>"
-                    . "<p style=\"font-family:monospace\">Order " . htmlspecialchars((string)$order->reference) . "</p>"
-                    . "<p>Total paid: <strong>{$total}</strong>. Every purchase funds child leadership programmes — thank you.</p>"
-                    // The order's own page, reachable with the reference alone. Without this a
-                    // buyer who closed the tab had nowhere to check whether it shipped, and
-                    // every such question arrived at a support inbox to be looked up by hand.
-                    . '<p style="text-align:center;margin:22px 0"><a href="'
-                    . $this->base() . '/shop/order/' . rawurlencode((string) $order->reference) . '"'
-                    . ' style="display:inline-block;padding:12px 28px;background:#10292C;color:#fff;'
-                    . 'border-radius:999px;font-weight:600;text-decoration:none">Track this order →</a></p>',
-                    'Shop'
-                );
-            } catch (\Throwable $e) { /* receipt failure must not break confirmation */ }
-        }
-        $breakdown = '';
-        if (($order->shipping_naira ?? null) !== null || ($order->discount_naira ?? null) !== null) {
-            $breakdown = "\nGoods:    ₦" . number_format((int) ($order->goods_naira ?? 0))
-                . ((int) ($order->discount_naira ?? 0) > 0
-                    ? "\nDiscount: −₦" . number_format((int) $order->discount_naira)
-                      . ' (' . (string) ($order->discount_code ?? '') . ')' : '')
-                . "\nDelivery: ₦" . number_format((int) ($order->shipping_naira ?? 0));
-        }
-
-        Notifier::adminAlert($this->mailer,
-            ($short !== [] ? 'Shop order paid — NOT ENOUGH STOCK' : 'New shop order (paid)'),
-            "Order:   {$order->reference}\nBy:      {$order->name} <{$order->email}> · " . (string)($order->phone ?? '')
-            . "\nShip to: " . (string)$order->address . $breakdown . "\nTotal:   {$total}\n\nItems:\n{$summary}"
-            // Said first thing in the alert, because it is the only part that needs somebody
-            // to do something today.
-            . ($short !== []
-                ? "\n\nSTOCK SHORTFALL — this order is paid but cannot be filled from stock on hand:\n  "
-                  . implode("\n  ", $short)
-                  . "\nContact the buyer before it becomes a complaint."
-                : ''));
-
-        // Notify subscribed integrations / AI agents that an order was paid.
-        WebhookService::dispatch('order.paid', [
-            'reference'      => (string) $order->reference,
-            'subtotal_naira' => (int) $order->subtotal_naira,
-            'email'          => (string) $order->email,
-            'items'          => $lines,
-        ]);
-
-        // Award voting points to the member who placed the order (matched by email;
-        // idempotent per reference). No-op when points are disabled or no account matches.
-        if (PointsService::enabled()) {
-            $uid = (int) (DB::table('gates_users')->where('email', strtolower((string) $order->email))->where('status', 'active')->value('id') ?? 0);
-            if ($uid > 0) {
-                PointsService::earnFromPurchase($uid, (int) $order->subtotal_naira, 'shop_order', (string) $order->reference);
-            }
-        }
-    }
-
-    /**
-     * Take the sold units out of stock, and report anything that could not be taken.
-     *
-     * ── WHY THE DECREMENT IS TWO BOUND QUERIES ───────────────────────────────
-     *
-     * Drop by qty where there is enough, then floor the remainder at zero. Two statements
-     * rather than one raw CASE so no request data — and no integer — is ever concatenated into
-     * SQL. That predates this change and is kept.
-     *
-     * ── WHAT IS NEW: THE SHORTFALL IS RETURNED ───────────────────────────────
-     *
-     * The old version floored at zero and told nobody, so an oversell became a support ticket
-     * days later with no record of when it happened. The count is read BEFORE the decrement,
-     * so what comes back is the actual gap rather than a guess derived from a number the
-     * decrement has already changed.
-     *
-     * @param list<array<string,mixed>> $lines
-     * @return list<string> human sentences naming what fell short
-     */
-    private function drawDownStock(array $lines): array
-    {
-        $short = [];
-
-        foreach ($lines as $l) {
-            $slug = (string) ($l['slug'] ?? '');
-            $qty  = (int) ($l['qty'] ?? 0);
-            $vid  = (int) ($l['variant_id'] ?? 0);
-            if ($slug === '' || $qty < 1) continue;
-
-            $what = (string) ($l['name'] ?? $slug)
-                  . (($l['variant'] ?? '') !== '' ? ' (' . $l['variant'] . ')' : '');
-
-            // A variant carries its own stock, and when one exists the product's column is
-            // not the truth — a shirt is four in medium and none in large, not twelve.
-            if ($vid > 0) {
-                $have = DB::table('gates_product_variants')->where('id', $vid)->value('stock');
-                if ($have === null) continue;                      // untracked: nothing to draw
-                if ((int) $have < $qty) {
-                    $short[] = $what . ' — ordered ' . $qty . ', ' . (int) $have . ' on hand';
-                }
-                DB::table('gates_product_variants')->where('id', $vid)->whereNotNull('stock')
-                    ->where('stock', '>=', $qty)->decrement('stock', $qty);
-                DB::table('gates_product_variants')->where('id', $vid)->whereNotNull('stock')
-                    ->where('stock', '<', $qty)->update(['stock' => 0]);
-                continue;
-            }
-
-            $have = DB::table('gates_products')->where('slug', $slug)->value('stock');
-            if ($have === null) continue;
-            if ((int) $have < $qty) {
-                $short[] = $what . ' — ordered ' . $qty . ', ' . (int) $have . ' on hand';
-            }
-            DB::table('gates_products')->where('slug', $slug)->whereNotNull('stock')
-                ->where('stock', '>=', $qty)->decrement('stock', $qty);
-            DB::table('gates_products')->where('slug', $slug)->whereNotNull('stock')
-                ->where('stock', '<', $qty)->update(['stock' => 0]);
-        }
-
-        return $short;
+        $r = \AfricaGates\Services\ShopOrderService::confirm(
+            $reference, $provider, $this->payments, $this->log
+        );
+        return (string) $r['state'];
     }
 
     /**

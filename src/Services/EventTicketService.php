@@ -437,7 +437,7 @@ final class EventTicketService
             }
         }
 
-        $ref = self::REF_PREFIX . strtoupper(bin2hex(random_bytes(5)));
+        $ref = self::freshReference();
 
         try {
             $id = (int) DB::table('gates_event_registrations')->insertGetId(
@@ -707,6 +707,62 @@ final class EventTicketService
     }
 
     /**
+     * The money went back: a refund settled, or a bank pulled it in a chargeback.
+     *
+     * ── THE HALF THAT MATTERS IS THE CODE, NOT THE STATUS ────────────────────
+     *
+     * Reversal webhooks only ever reached `gates_donations`, so a charged-back ticket stayed
+     * `confirmed` — and a confirmed ticket renders a scannable QR on a page reachable with the
+     * reference alone. The bank had taken the money back and the ticket still opened a door.
+     * Clearing `ticket_code` is therefore the point of this method; the status change is the
+     * bookkeeping around it.
+     *
+     * The seat goes back to the tier, and the waiting list can have it. That is the right
+     * default: somebody who has been refunded is not coming, and holding an empty seat out of
+     * squeamishness costs the organiser a paying attendee.
+     *
+     * Idempotent by status — only a `confirmed` row can be reversed — so a duplicate
+     * `refund.processed` delivery does the work once.
+     *
+     * @return bool whether this call was the one that reversed it
+     */
+    public static function reverse(string $reference, string $why): bool
+    {
+        $row = self::byReference(trim($reference));
+        if (!$row || (string) $row->status !== 'confirmed') return false;
+
+        try {
+            $done = DB::table('gates_event_registrations')->where('id', (int) $row->id)
+                ->where('status', 'confirmed')
+                ->update(OptionalColumn::filter('gates_event_registrations', [
+                    'status'       => 'cancelled',
+                    'cancelled_at' => Carbon::now()->toDateTimeString(),
+                    'notes'        => mb_substr('payment reversed — ' . $why, 0, 500),
+                    // The whole reason this method exists.
+                    'ticket_code'  => null,
+                ], ['status', 'cancelled_at', 'notes', 'ticket_code'])) > 0;
+        } catch (\Throwable $e) {
+            error_log('[event] could not reverse registration ' . (int) $row->id . ': ' . $e->getMessage());
+            return false;
+        }
+
+        if (!$done) return false;
+
+        self::releaseDiscount($row);
+
+        Notifier::adminAlert(null, 'Event ticket reversed — ' . $why,
+            'Reference: ' . (string) $row->reference . "\n"
+            . 'Attendee:  ' . (string) $row->name . ' <' . (string) $row->email . '>' . "\n"
+            . 'Seats:     ' . (int) ($row->quantity ?? 1) . "\n"
+            . 'Amount:    ₦' . number_format((int) ($row->amount_naira ?? 0)) . "\n"
+            . 'Reason:    ' . $why . "\n\n"
+            . "The ticket code has been cleared, so the old ticket will no longer pass at the "
+            . "door, and the seat has gone back to the tier for the waiting list.");
+
+        return true;
+    }
+
+    /**
      * Undo a row this same call created moments ago.
      *
      * Separate from {@see cancel()} and narrower in what it trusts: it matches on `id` alone
@@ -745,6 +801,19 @@ final class EventTicketService
      * available whether or not this ever runs. What it fixes is the ATTENDEE LIST, where a
      * fortnight of abandoned checkouts sitting at "pending" makes an organiser think half
      * their room has not paid.
+     *
+     * ── IT WILL NOT TOUCH A HOLD THAT MONEY MIGHT BE ATTACHED TO ─────────────
+     *
+     * This method had no caller for its whole life, and wiring it up without the guard below
+     * would have been worse than leaving it dead. {@see confirm()} only promotes a `pending`
+     * row; `cancel()` only demotes one. So cancelling an expired hold on a PAID tier — a
+     * thirty-minute window, against bank transfers that routinely settle later — would take
+     * the row out of reach of every confirmation path on the platform, permanently, for a
+     * payment that had already happened.
+     *
+     * Priced rows therefore belong to {@see \AfricaGates\Services\PaymentReconciler}, which
+     * asks the gateway BEFORE writing anything off. This sweep is for the free ones: an RSVP
+     * that was never completed owes nobody anything, so its hold can lapse on the clock alone.
      */
     public static function releaseExpired(int $limit = 500): int
     {
@@ -753,6 +822,10 @@ final class EventTicketService
             $ids = DB::table('gates_event_registrations')
                 ->where('status', 'pending')->whereNotNull('hold_expires_at')
                 ->where('hold_expires_at', '<', $now)
+                // Free tiers only. See the note above — this is the whole safety of it.
+                ->where(static function ($q): void {
+                    $q->whereNull('amount_naira')->orWhere('amount_naira', '<=', 0);
+                })
                 ->limit($limit)->pluck('id')->all();
         } catch (\Throwable) {
             return 0;
@@ -766,6 +839,26 @@ final class EventTicketService
     }
 
     // ══ 4. the ticket itself ═════════════════════════════════════════════════
+
+    /**
+     * A booking reference — and, because the ticket page needs no login, a bearer token.
+     *
+     * ── WHY IT GOT WIDER ─────────────────────────────────────────────────────
+     *
+     * It was five bytes. Forty bits is ample against somebody guessing ONE reference and
+     * hopeless against somebody enumerating: `/events/ticket/{ref}` and its calendar file are
+     * unauthenticated by design — an attendee has no account and putting a login between a
+     * person and the door they are standing at is worse — and neither route is rate-limited.
+     * The only thing standing between a scraper and the attendee list is the width of this
+     * string, so it is eight bytes now.
+     *
+     * Existing references keep working: every lookup is an exact match on the stored value,
+     * and nothing anywhere parses the length.
+     */
+    public static function freshReference(): string
+    {
+        return self::REF_PREFIX . strtoupper(bin2hex(random_bytes(8)));
+    }
 
     /**
      * A code somebody reads out over a bad phone line.

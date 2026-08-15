@@ -232,16 +232,53 @@ final class EventTicketServiceTest extends TestCase
         // Housekeeping, not arithmetic: the seats were already free. What this fixes is an
         // attendee list where a fortnight of abandoned checkouts reads as "half my room has
         // not paid".
-        $t = $this->tier(['price_naira' => 10000]);
+        //
+        // A FREE tier, deliberately — see the test below for why a priced one is off limits.
+        $t = $this->tier(['price_naira' => 0]);
         $r = T::reserve($this->eventId, $t, $this->who());
         DB::table('gates_event_registrations')->where('id', (int) $r['id'])
-            ->update(['hold_expires_at' => Carbon::now()->subHour()->toDateTimeString()]);
+            ->update(['status' => 'pending', 'ticket_code' => null, 'confirmed_at' => null,
+                      'hold_expires_at' => Carbon::now()->subHour()->toDateTimeString()]);
 
         $before = T::sold($t);
         $this->assertSame(1, T::releaseExpired());
         $this->assertSame($before, T::sold($t));
         $this->assertSame('cancelled', (string) DB::table('gates_event_registrations')
             ->where('id', (int) $r['id'])->value('status'));
+    }
+
+    /**
+     * The sweeper must never touch a hold that money might be attached to.
+     *
+     * ── WHY THIS IS THE MOST IMPORTANT TEST IN THE FILE ──────────────────────
+     *
+     * `confirm()` only promotes a `pending` row and `cancel()` only demotes one. So cancelling
+     * an expired hold on a PAID tier puts that row beyond the reach of every confirmation path
+     * on the platform, permanently — the browser callback, the gateway webhook and the
+     * reconciliation sweep all refuse a cancelled registration.
+     *
+     * The hold is thirty minutes. A Nigerian bank transfer routinely settles later than that.
+     * So a sweeper that expired priced holds on the clock alone would be a machine that takes
+     * somebody's money and then destroys the only row that could ever have issued their
+     * ticket — and it would do it most often to exactly the buyers who paid by transfer.
+     *
+     * Priced rows belong to the reconciler, which asks the gateway BEFORE writing anything off.
+     */
+    public function test_an_expired_hold_on_a_paid_tier_is_left_for_the_reconciler(): void
+    {
+        $t = $this->tier(['price_naira' => 10000]);
+        $r = T::reserve($this->eventId, $t, $this->who());
+        DB::table('gates_event_registrations')->where('id', (int) $r['id'])
+            ->update(['hold_expires_at' => Carbon::now()->subHour()->toDateTimeString()]);
+
+        $this->assertSame(0, T::releaseExpired(),
+            'a priced hold was cancelled on the clock alone — a transfer settling late would '
+            . 'now have nowhere to be confirmed');
+        $this->assertSame('pending', (string) DB::table('gates_event_registrations')
+            ->where('id', (int) $r['id'])->value('status'));
+
+        // And the seat is still on sale meanwhile, because the arithmetic ignores the hold.
+        $this->assertSame(0, T::sold($t));
     }
 
     public function test_a_confirmed_seat_is_never_released(): void

@@ -285,18 +285,31 @@ final class GatewayLedger
         }
 
         if ($schema->hasTable('gates_event_registrations')) {
-            $r = DB::table('gates_event_registrations')->where('reference', $ref)->first();
+            $r = DB::table('gates_event_registrations')
+                ->where('reference', $ref)->orWhere('provider_ref', $ref)->first();
             if ($r) {
+                // ── THIS USED TO SAY 'registered' AND settled=true, ALWAYS ───
+                //
+                // Hardcoded, both of them. {@see disagreements()} opens with
+                // `if (!$ours['settled'])` to produce "Paystack took ₦X but our row is still
+                // pending" — the single sentence this whole screen exists to write. With
+                // `settled` pinned true it could never be written for a ticket, so an event
+                // payment that Paystack had taken and this platform had never honoured was
+                // filed under AGREED. The one instrument that could have found those
+                // payments was reporting them as fine.
+                $status = (string) ($r->status ?? 'pending');
                 return [
                     'ledger' => 'Event registration', 'table' => 'gates_event_registrations',
                     'id' => (int) $r->id, 'reference' => $ref,
                     'amount' => (int) ($r->amount_naira ?? 0),
-                    'status' => 'registered',
-                    'settled' => true,
+                    'status' => $status,
+                    'settled' => $status === 'confirmed',
                     'email' => (string) ($r->email ?? ''),
                     'name'  => (string) ($r->name ?? ''),
                     'created_at' => (string) ($r->created_at ?? ''),
-                    'note' => '',
+                    'note' => $status === 'cancelled'
+                        ? 'cancelled' . (($r->cancelled_at ?? null) ? ' ' . (string) $r->cancelled_at : '')
+                        : '',
                 ];
             }
         }
@@ -382,6 +395,29 @@ final class GatewayLedger
                     'id' => (int) $r->id,
                     'reference' => (string) ($r->provider_ref ?: $r->reference),
                     'amount' => (int) $r->subtotal_naira, 'status' => (string) $r->status,
+                    'settled' => true,
+                    'email' => (string) ($r->email ?? ''), 'name' => (string) ($r->name ?? ''),
+                    'created_at' => (string) ($r->created_at ?? ''), 'note' => '',
+                ];
+            }
+        }
+
+        // Event tickets, which this method did not know existed. Without them the other
+        // direction of the comparison — a ticket we call confirmed that Paystack's own list
+        // for the window does not contain — was never checked for the one revenue stream
+        // that had no reconciliation sweep behind it either.
+        if ($schema->hasTable('gates_event_registrations')) {
+            $rows = DB::table('gates_event_registrations')
+                ->where('status', 'confirmed')
+                ->where('amount_naira', '>', 0)          // a free RSVP is not a charge
+                ->whereBetween('created_at', [$from, $to])
+                ->orderBy('id')->get();
+            foreach ($rows as $r) {
+                $out[] = [
+                    'ledger' => 'Event ticket', 'table' => 'gates_event_registrations',
+                    'id' => (int) $r->id,
+                    'reference' => (string) ($r->provider_ref ?: $r->reference),
+                    'amount' => (int) ($r->amount_naira ?? 0), 'status' => (string) $r->status,
                     'settled' => true,
                     'email' => (string) ($r->email ?? ''), 'name' => (string) ($r->name ?? ''),
                     'created_at' => (string) ($r->created_at ?? ''), 'note' => '',

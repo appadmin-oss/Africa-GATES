@@ -181,14 +181,27 @@ final class PaymentDestination
      * than skipped. A value that does not validate is REFUSED and reported, because storing it
      * would take that stream's payments offline and the admin would have no idea why.
      *
+     * ── AND IT ASKS PAYSTACK, NOT JUST THE REGEX ─────────────────────────────
+     *
+     * Shape validation cannot tell a code belonging to THIS integration from one belonging to
+     * somebody else's, and Paystack refuses the second kind at initialise — which used to mean
+     * a stream that silently stopped selling with a correct-looking code in the box. So when a
+     * gateway is available the code is looked up before it is stored, and Paystack's own words
+     * come back with the refusal.
+     *
+     * The lookup is SKIPPED, not failed, when Paystack cannot be reached: an outbound blip at
+     * the moment somebody presses Save must not refuse a configuration that is perfectly good.
+     * {@see PaymentService::subaccount()} distinguishes the two.
+     *
      * @param array<string,string> $codes   stream => raw code
      * @param array<string,string> $bearers stream => bearer choice
-     * @return array{saved:list<string>, refused:array<string,string>}
+     * @return array{saved:list<string>, refused:array<string,string>, checked:array<string,string>}
      */
-    public static function save(array $codes, array $bearers = []): array
+    public static function save(array $codes, array $bearers = [], ?PaymentService $payments = null): array
     {
         $saved = [];
         $refused = [];
+        $checked = [];
 
         foreach (self::STREAMS as $stream => $label) {
             if (!array_key_exists($stream, $codes)) {
@@ -199,17 +212,39 @@ final class PaymentDestination
             if ($raw === '') {
                 self::put(self::KEY_PREFIX . $stream, '');
                 self::put(self::BEARER_PREFIX . $stream, '');
+                self::put(self::REFUSED_PREFIX . $stream, '');
                 $saved[] = $stream;
                 continue;
             }
 
             $code = self::code($raw);
             if ($code === '') {
-                $refused[$stream] = $raw;
+                $refused[$stream] = 'That is not a Paystack subaccount code (they look like '
+                                  . 'ACCT_xxxxxxxxxx).';
                 continue;                       // and the old value stays, rather than being lost
             }
 
+            // Ask Paystack, when we can. An unreachable gateway is not a refusal.
+            if ($payments !== null && $payments->isEnabled('paystack')) {
+                $probe = $payments->subaccount($code);
+                if (!$probe['ok'] && !str_contains($probe['message'], 'could not be reached')) {
+                    $refused[$stream] = $probe['message'];
+                    continue;
+                }
+                if ($probe['ok'] && $probe['name'] !== '') {
+                    // Shown back on the screen. An operator who pasted the wrong code will
+                    // usually recognise the wrong business name faster than the wrong code.
+                    $checked[$stream] = trim($probe['name'] . ' · ' . $probe['bank'], ' ·');
+                }
+            }
+
+            // Read BEFORE the write, or the comparison is always true and the flag never clears.
+            $wasChanged = self::setting(self::KEY_PREFIX . $stream) !== $code;
             self::put(self::KEY_PREFIX . $stream, $code);
+            // A new code is a fresh start: any refusal recorded against the old one is history.
+            if ($wasChanged) {
+                self::put(self::REFUSED_PREFIX . $stream, '');
+            }
 
             $bearer = trim((string) ($bearers[$stream] ?? ''));
             self::put(self::BEARER_PREFIX . $stream,
@@ -217,7 +252,7 @@ final class PaymentDestination
             $saved[] = $stream;
         }
 
-        return ['saved' => $saved, 'refused' => $refused];
+        return ['saved' => $saved, 'refused' => $refused, 'checked' => $checked];
     }
 
     /**
@@ -231,7 +266,10 @@ final class PaymentDestination
         foreach (self::STREAMS as $stream => $label) {
             $code = self::forStream($stream);
             $out[] = ['stream' => $stream, 'label' => $label, 'code' => $code,
-                      'bearer' => self::bearerFor($stream), 'routed' => $code !== ''];
+                      'bearer' => self::bearerFor($stream), 'routed' => $code !== '',
+                      // A live refusal, shown beside the field that caused it. Without this the
+                      // only symptom of a bad code is money quietly settling somewhere else.
+                      'refusal' => self::refusal($stream)];
         }
         return $out;
     }
@@ -243,6 +281,83 @@ final class PaymentDestination
             if (self::forStream($s) !== '') return true;
         }
         return false;
+    }
+
+    /** Where a refusal is remembered, so the settings screen can show it beside the field. */
+    private const REFUSED_PREFIX = 'paystack_sub_refused_';
+
+    /**
+     * Paystack would not accept this stream's subaccount on a live payment.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A REFUSAL HAS TO BE LOUD, AND WHY IT DOES NOT UNSET THE CODE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * {@see code()} validates the SHAPE of what an admin typed. That catches a pasted bank
+     * account number and a bank's name, and it cannot catch the failure that actually takes a
+     * stream offline: a well-formed code belonging to a different Paystack integration, or one
+     * that has been deleted, or one that was never activated. Paystack refuses those at
+     * initialise, and every payment on that stream dies.
+     *
+     * {@see \AfricaGates\Services\PaymentService::initializePaystack()} now retries without the
+     * routing, so the sale still completes. That is the right trade — but it makes the problem
+     * SILENT, and a silent misconfiguration that quietly redirects a revenue stream into the
+     * main account for a month is its own kind of bad. Hence this: the refusal is written where
+     * the settings screen reads it, and the team is told once.
+     *
+     * The code itself is LEFT IN PLACE. Clearing it would be this method deciding, from one
+     * failed HTTP call, that an operator's configuration is wrong — and the likeliest cause of
+     * a single refusal is a Paystack incident, not a bad code. A stream that is routed and
+     * flagged can be fixed by a person; one that has been silently un-routed cannot even be
+     * seen.
+     *
+     * Alerted at most once an hour per stream: a busy shop would otherwise send one email per
+     * checkout, and a hundred identical alerts is the same as none.
+     */
+    public static function reportRefusal(string $stream, string $code, string $why): void
+    {
+        if (!isset(self::STREAMS[$stream])) return;
+
+        $now  = time();
+        $key  = self::REFUSED_PREFIX . $stream;
+        $prev = json_decode(self::setting($key), true);
+        $last = is_array($prev) ? (int) ($prev['at'] ?? 0) : 0;
+
+        self::put($key, (string) json_encode([
+            'code' => $code, 'why' => mb_substr($why, 0, 300), 'at' => $now,
+            'count' => (is_array($prev) ? (int) ($prev['count'] ?? 0) : 0) + 1,
+        ]));
+
+        if ($now - $last < 3600) return;                 // already shouted about this recently
+
+        Notifier::adminAlert(null,
+            'Paystack refused the subaccount for ' . (self::STREAMS[$stream] ?? $stream),
+            "Paystack would not accept the subaccount configured for "
+            . (self::STREAMS[$stream] ?? $stream) . ".\n\n"
+            . "Subaccount: {$code}\n"
+            . "Paystack said: {$why}\n\n"
+            . "The payment was retried WITHOUT the subaccount and went through, so nobody has "
+            . "been prevented from paying — but this money has settled to the MAIN account, and "
+            . "will keep doing so until the code is fixed.\n\n"
+            . "Check it under Settings → Where the money settles. The commonest causes are a "
+            . "code copied from a different Paystack integration, a subaccount that has been "
+            . "deleted, and one that was never activated.");
+    }
+
+    /**
+     * The last refusal for a stream, for the settings screen. Null when there has never been
+     * one, or when the code has been changed since — see {@see save()}.
+     *
+     * @return array{code:string, why:string, at:int, count:int}|null
+     */
+    public static function refusal(string $stream): ?array
+    {
+        $v = json_decode(self::setting(self::REFUSED_PREFIX . $stream), true);
+        if (!is_array($v) || ($v['code'] ?? '') === '') return null;
+        // A refusal against a code that is no longer configured is history, not a warning.
+        if (self::forStream($stream) !== (string) $v['code']) return null;
+        return ['code' => (string) $v['code'], 'why' => (string) ($v['why'] ?? ''),
+                'at' => (int) ($v['at'] ?? 0), 'count' => (int) ($v['count'] ?? 1)];
     }
 
     /**

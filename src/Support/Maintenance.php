@@ -146,6 +146,16 @@ final class Maintenance
                 // permanent. A pruner nobody calls is not a retention policy.
                 $ran[] = ['ticketlinks', $this->task('ticketlinks',
                     fn() => \AfricaGates\Services\TicketLinkService::prune())];
+                // Abandoned FREE registrations, tidied off the attendee list. Priced holds are
+                // deliberately excluded — those belong to the reconciliation sweep above,
+                // which asks the gateway before writing anything off. Same shape as the
+                // ticket-link pruner beside it: written, documented, and with no caller for
+                // its whole life, so nothing had ever run it.
+                $ran[] = ['event-holds', $this->task('event-holds',
+                    fn() => \AfricaGates\Services\EventTicketService::releaseExpired())];
+                // Inbound gateway deliveries, past every retry schedule and dispute window.
+                $ran[] = ['gwevents', $this->task('gwevents',
+                    fn() => \AfricaGates\Services\GatewayEventLog::prune())];
                 $ran[] = ['triage-backfill', $this->task('triage-backfill', fn() => NominationTriageService::backfill(100))];
                 $ran[] = ['maillog', $this->task('maillog', fn() => (int) DB::table('gates_mail_log')->where('created_at', '<', Carbon::now()->subDays(30))->delete())];
             }
@@ -779,6 +789,19 @@ final class Maintenance
             $q->on(WebhookService::JOB_DISPATCH, function (array $p) {
                 WebhookService::dispatch((string) ($p['event'] ?? ''),
                                          is_array($p['data'] ?? null) ? $p['data'] : []);
+            });
+            // The same two jobs for the other two revenue streams. Both became necessary the
+            // moment `/pay/webhook` learned to confirm a shop order and an event ticket: their
+            // receipts were being sent inline, which is fine on a page a human is waiting for
+            // and is 12 seconds of SMTP inside a ~30-second gateway budget here. Both are
+            // claimed on the row, so a job that runs twice sends one email.
+            $q->on(\AfricaGates\Services\ShopOrderService::JOB_RECEIPT, function (array $p) {
+                \AfricaGates\Services\ShopOrderService::receipt(
+                    (int) ($p['order_id'] ?? 0), $this->container?->get(OtpService::class));
+            });
+            $q->on(\AfricaGates\Services\EventTicketMailer::JOB, function (array $p) {
+                \AfricaGates\Services\EventTicketMailer::send(
+                    (int) ($p['registration_id'] ?? 0), $this->container?->get(OtpService::class));
             });
             // A chargeback, against a 16-hour deadline after which Paystack concedes it
             // on your behalf and refunds from your balance. The mailer comes from the

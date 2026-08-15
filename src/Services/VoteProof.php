@@ -88,8 +88,22 @@ final class VoteProof
             return ['found' => false, 'say' => 'The record could not be read just now.'];
         }
         $d = $hit['donation'];
-        if (!$hit['found'] || $d === null) {
+        if (!$hit['found']) {
             return ['found' => false, 'say' => $hit['say']];
+        }
+        if ($d === null) {
+            // Found — but in another ledger. This page is about VOTES, and a shop order or an
+            // event ticket has none. Saying "found it" and then showing nothing, which is what
+            // happened while every non-donation hit was silently discarded here, reads as the
+            // payment having gone missing a second time.
+            return ['found' => false,
+                    'say' => 'That reference is a ' . (string) ($hit['ledger'] ?? 'payment')
+                           . ', not a vote purchase, so there are no votes to show against it. '
+                           . ((string) ($hit['ledger'] ?? '') === 'shop order'
+                               ? 'You can track it at /shop/order/' . (string) $hit['reference'] . '.'
+                               : ((string) ($hit['ledger'] ?? '') === 'event ticket'
+                                   ? 'Your ticket is at /events/ticket/' . (string) $hit['reference'] . '.'
+                                   : ''))];
         }
         // The reference we know it by, so everything downstream quotes ours rather than
         // whatever the supporter happened to type.

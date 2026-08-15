@@ -5,6 +5,8 @@ namespace Tests\Unit;
 
 use AfricaGates\Services\CheckoutMailer;
 use AfricaGates\Services\DisputeAlert;
+use AfricaGates\Services\EventTicketMailer;
+use AfricaGates\Services\ShopOrderService;
 use AfricaGates\Services\SupportTicketService;
 use AfricaGates\Services\WebhookService;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -95,7 +97,7 @@ final class PaystackWebhookComplianceTest extends TestCase
             'minting has been pushed onto the queue — the supporter now waits for cron');
     }
 
-    /** Both queued jobs need a registered handler, or they simply pile up. */
+    /** Every queued job needs a registered handler, or they simply pile up. */
     public function test_every_queued_job_has_a_handler_in_the_drainer(): void
     {
         $drainer = $this->src('src/Support/Maintenance.php');
@@ -106,12 +108,65 @@ final class PaystackWebhookComplianceTest extends TestCase
             ['JOB_RECEIPT',  CheckoutMailer::JOB_RECEIPT,  'the buyer never gets a receipt'],
             ['JOB_DISPATCH', WebhookService::JOB_DISPATCH, 'integrations are never notified'],
             ['JOB',          DisputeAlert::JOB,            'nobody is told about a chargeback'],
+            // The two that arrived when the webhook learned to confirm the OTHER two revenue
+            // streams. Both send email, so an unregistered handler is a buyer who paid and
+            // was never told — which is the failure this whole area exists to prevent.
+            ['JOB_RECEIPT',  ShopOrderService::JOB_RECEIPT, 'a shop buyer never gets a receipt'],
+            ['JOB',          EventTicketMailer::JOB,        'a ticket buyer is never sent their ticket'],
         ] as [$constant, $literal, $consequence]) {
             $this->assertTrue(
                 str_contains($drainer, '::' . $constant) || str_contains($drainer, $literal),
                 'no handler for ' . $literal . ' — ' . $consequence
             );
         }
+    }
+
+    /**
+     * The shop and the ticket paths are inside the budget too, now.
+     *
+     * Both used to send inline, which was correct while only a browser could confirm them —
+     * nobody is on a gateway's clock on a page a human is waiting for. The webhook now
+     * confirms both, so the same SMTP call that was free is 12 seconds of a ~30-second budget,
+     * on top of the up-to-15 the verify may already have spent.
+     */
+    public function test_the_shop_confirm_path_queues_its_receipt(): void
+    {
+        $src = $this->src('src/Services/ShopOrderService.php');
+
+        $this->assertStringContainsString('JOB_RECEIPT', $src,
+            'the shop receipt is being sent inside the gateway webhook');
+        $this->assertStringContainsString('WebhookService::dispatchLater(', $src);
+        $this->assertDoesNotMatchRegularExpression('/WebhookService::dispatch\(/', $src,
+            'an outbound integration is being posted to inside the gateway webhook');
+    }
+
+    /** And the webhook queues the ticket email rather than sending it. */
+    public function test_the_webhook_queues_the_ticket_email(): void
+    {
+        $src = $this->src('src/Controllers/PaymentController.php');
+
+        $this->assertStringContainsString('EventTicketMailer::queue(', $src,
+            'the ticket email is being sent inside the gateway webhook — SMTP is up to 12s '
+            . 'of a ~30s budget');
+        $this->assertStringNotContainsString('EventTicketMailer::send(', $src);
+    }
+
+    /**
+     * ── AND THE HANDLER MUST NEVER 500 ───────────────────────────────────────
+     *
+     * A 500 is a delivery Paystack retries every three minutes and then hourly for 72 hours,
+     * against a handler that has just proved it throws. Answering 200 and recording the
+     * failure is strictly better: the sweep picks the payment up regardless, which is what the
+     * sweep is for.
+     */
+    public function test_a_throwing_handler_still_acknowledges_the_delivery(): void
+    {
+        $src = $this->src('src/Controllers/PaymentController.php');
+
+        $this->assertMatchesRegularExpression(
+            '/catch \(\\\\Throwable \$e\) \{.*?withStatus\(200\)/s', $src,
+            'a handler exception escapes as a 5xx, which puts the delivery into a 72-hour '
+            . 'retry schedule against code that is known to throw');
     }
 
     /**

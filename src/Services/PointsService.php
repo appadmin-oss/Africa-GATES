@@ -115,6 +115,49 @@ final class PointsService
     }
 
     /**
+     * Take back the points a purchase awarded, once the money has gone back.
+     *
+     * ── WHY IT CLAWS BACK WHAT IT CAN RATHER THAN ALL OR NOTHING ─────────────
+     *
+     * {@see award()} refuses a delta that would take a balance negative, which is right for a
+     * spend and wrong here: somebody who earned 50 points on an order, redeemed 40 of them for
+     * a vote and then charged the order back would otherwise keep all 50, because the full
+     * reversal cannot apply. Reversing the 10 that are still there is strictly better than
+     * reversing nothing, and the shortfall is a fact for a person rather than a reason to do
+     * nothing.
+     *
+     * Idempotent per reference: a second reversal for the same order writes no second entry,
+     * so a duplicate `refund.processed` delivery cannot claw the same points twice.
+     *
+     * @return int points actually taken back (0 when there were none, or none left)
+     */
+    public static function reverseFromPurchase(int $userId, string $refType, string $refId): int
+    {
+        if ($userId < 1) return 0;
+        try {
+            $awarded = (int) (DB::table('gates_points_ledger')
+                ->where('user_id', $userId)->where('ref_type', $refType)
+                ->where('ref_id', (string) $refId)->where('delta', '>', 0)->sum('delta'));
+            if ($awarded < 1) return 0;
+
+            $taken = (int) abs((int) DB::table('gates_points_ledger')
+                ->where('user_id', $userId)->where('ref_type', $refType)
+                ->where('ref_id', (string) $refId)->where('delta', '<', 0)->sum('delta'));
+            $owing = $awarded - $taken;
+            if ($owing < 1) return 0;                       // already reversed
+
+            // Only as far as the balance allows — see the note above.
+            $take = min($owing, self::balance($userId));
+            if ($take < 1) return 0;
+
+            return self::award($userId, -$take, 'reverse.' . $refType, $refType, $refId,
+                               'payment reversed') !== null ? $take : 0;
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /**
      * Redeem points for ONE vote on a nominee. Atomic: spends `points_per_vote`
      * points (ledger + balance) and mints a CPI-EXCLUDED bonus vote (vote_type
      * 'bonus', weight 1) that bumps only the public tally — never organic_vote_count,

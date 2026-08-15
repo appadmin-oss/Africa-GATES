@@ -193,18 +193,34 @@ class SettingsController
                 }
                 $bearers[$stream] = (string) ($b['bearer_' . $stream] ?? 'account');
             }
-            $r = \AfricaGates\Services\PaymentDestination::save($codes, $bearers);
+            // Paystack is ASKED whether each code exists on this integration, not merely
+            // pattern-matched. A well-formed code from somebody else's integration is the
+            // failure that actually takes a stream offline, and shape validation cannot see
+            // it — see PaymentDestination::reportRefusal().
+            $r = \AfricaGates\Services\PaymentDestination::save(
+                $codes, $bearers, new \AfricaGates\Services\PaymentService()
+            );
 
             if ($r['refused'] !== []) {
-                $names = [];
-                foreach ($r['refused'] as $stream => $raw) {
-                    $names[] = \AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream;
+                $lines = [];
+                foreach ($r['refused'] as $stream => $why) {
+                    $lines[] = (\AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream)
+                             . ': ' . $why;
                 }
-                // Said out loud, with what a good value looks like, and the old value kept. An
-                // admin who pasted a bank account number needs to know that is what happened.
-                $_SESSION['flash_error'] = 'Not saved for ' . implode(' and ', $names)
-                    . ' — a Paystack subaccount code looks like ACCT_xxxxxxxx. '
-                    . 'The previous setting has been kept.';
+                // Paystack's own words, per stream, and the old value kept. "Subaccount not
+                // found" tells an operator what to do; "invalid" does not.
+                $_SESSION['flash_error'] = 'Not saved — ' . implode(' · ', $lines)
+                    . ' The previous setting has been kept.';
+            }
+            if (($r['checked'] ?? []) !== []) {
+                // The business name Paystack has against the code. An operator who pasted the
+                // wrong one recognises the wrong name far faster than the wrong code.
+                $ok = [];
+                foreach ($r['checked'] as $stream => $who) {
+                    $ok[] = (\AfricaGates\Services\PaymentDestination::STREAMS[$stream] ?? $stream)
+                          . ' → ' . $who;
+                }
+                $verified = 'Verified with Paystack: ' . implode(' · ', $ok);
             }
         }
 
@@ -426,7 +442,10 @@ class SettingsController
         }
 
         $this->audit->record($adminId, 'settings.update', null, null);
-        $_SESSION['flash_ok'] = 'Settings saved.';
+        // The subaccount confirmation rides along with the generic message rather than being
+        // set earlier and clobbered by it — which is what happened the first time.
+        $_SESSION['flash_ok'] = 'Settings saved.'
+            . (isset($verified) ? ' ' . $verified : '');
 
         // Back to the GROUP they saved from. A browser drops the URL fragment when it
         // posts a form, so the page cannot preserve its own tab across the redirect —

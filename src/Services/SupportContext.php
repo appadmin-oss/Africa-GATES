@@ -785,6 +785,24 @@ final class SupportContext
                     'when' => $o->created_at, 'paid_at' => $o->paid_at];
         }
 
+        // Event tickets, which this lookup did not know about — so the assistant's answer to
+        // a ticket buyer asking about their own payment was that no such payment existed.
+        try {
+            $t = DB::table('gates_event_registrations')
+                ->where('reference', $ref)->whereRaw('LOWER(email) = ?', [$email])
+                ->first(['reference', 'amount_naira', 'status', 'ticket_code', 'quantity',
+                         'created_at', 'confirmed_at']);
+        } catch (\Throwable) { $t = null; }
+        if ($t) {
+            return ['found' => true, 'kind' => 'event ticket', 'reference' => $t->reference,
+                    'amount' => self::CURRENCY . number_format((float) ($t->amount_naira ?? 0)),
+                    'status' => $t->status, 'seats' => (int) ($t->quantity ?? 1),
+                    // The code itself, because "where is my ticket" is the question this
+                    // answers and the code is the answer.
+                    'ticket_code' => (string) ($t->ticket_code ?? ''),
+                    'when' => $t->created_at, 'paid_at' => $t->confirmed_at];
+        }
+
         return ['found' => false,
                 'note' => 'No payment matching that belongs to this account. It may have been made with a '
                         . 'different email address. We can look it up from our own reference (it begins '

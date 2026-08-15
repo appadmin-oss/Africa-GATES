@@ -61,9 +61,14 @@ final class PaymentLookup
      * reference goes unfound, so these are copied from the four places that mint them:
      *
      *   AFG-PVOTE-  PaidVoteController      AFG-GIVE-  DonationController
-     *   AFG-SHP-    ShopCheckoutController  AFG-       PaymentController (generic)
+     *   AFG-SHP-    ShopCheckoutController  AFG-EVT-   EventTicketService
+     *   AFG-        PaymentController (generic)
+     *
+     * `AFG-EVT-` was the fifth, and it was missing for the whole life of paid tickets — so a
+     * ticket buyer could paste the reference from their own confirmation email and be told no
+     * payment matching it was on record. Longest first, so `AFG-` never shadows the others.
      */
-    private const PREFIXES = ['AFG-PVOTE-', 'AFG-GIVE-', 'AFG-SHP-', 'AFG-'];
+    private const PREFIXES = ['AFG-PVOTE-', 'AFG-GIVE-', 'AFG-SHP-', 'AFG-EVT-', 'AFG-'];
 
     /**
      * Resolve whatever was pasted.
@@ -75,7 +80,8 @@ final class PaymentLookup
     {
         $raw = trim($input);
         $miss = static fn(string $say): array => [
-            'found' => false, 'kind' => 'none', 'donation' => null, 'order' => null,
+            'found' => false, 'kind' => 'none', 'table' => '', 'ledger' => '',
+            'donation' => null, 'order' => null, 'registration' => null,
             'reference' => null, 'say' => $say, 'asked_gateway' => false,
         ];
 
@@ -172,15 +178,25 @@ final class PaymentLookup
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * The two tables that hold money, and the column each one keys its reference by.
+     * The three tables that hold money, and the column each one keys its reference by.
      *
-     * These names differ — `gates_donations.payment_ref` for paid votes, donations and
-     * tickets; `gates_orders.reference` for the shop — and the difference is a live trap.
-     * Reading it off one hard-coded column name means the query throws on the other table,
-     * gets swallowed by the catch, and a whole product's payments quietly become
-     * unfindable with no error anywhere.
+     * These names differ — `gates_donations.payment_ref` for paid votes and donations;
+     * `gates_orders.reference` for the shop; `gates_event_registrations.reference` for
+     * tickets — and the difference is a live trap. Reading it off one hard-coded column name
+     * means the query throws on the others, gets swallowed by the catch, and a whole
+     * product's payments quietly become unfindable with no error anywhere.
+     *
+     * `gates_event_registrations` was simply absent, and the docblock above said "tickets"
+     * meaning the ticket TIERS sold through the partner page — not the event registrations
+     * that are what somebody holding a ticket actually has. So a ticket buyer with a problem
+     * could paste the reference from their own confirmation email, the transaction id from
+     * their Paystack receipt, or their bank's number, and all three found nothing.
      */
-    private const REF_COLUMN = ['gates_donations' => 'payment_ref', 'gates_orders' => 'reference'];
+    private const REF_COLUMN = [
+        'gates_donations'           => 'payment_ref',
+        'gates_orders'              => 'reference',
+        'gates_event_registrations' => 'reference',
+    ];
 
     /** @return array{table:string,row:object}|null */
     private static function byOurRef(string $ref): ?array
@@ -317,16 +333,24 @@ final class PaymentLookup
         return null;
     }
 
+    /** What each table's rows are called, for a caller deciding whether this hit is theirs. */
+    private const LEDGER = [
+        'gates_donations'           => 'vote purchase or donation',
+        'gates_orders'              => 'shop order',
+        'gates_event_registrations' => 'event ticket',
+    ];
+
     /**
      * @param array{table:string,row:object} $hit
-     * @return array{found:bool, kind:string, donation:?object, order:?object,
-     *               reference:?string, say:string, asked_gateway:bool}
+     * @return array{found:bool, kind:string, table:string, ledger:string, donation:?object,
+     *               order:?object, registration:?object, reference:?string, say:string,
+     *               asked_gateway:bool}
      */
     private static function found(array $hit, string $kind, string $matched, bool $askedGateway): array
     {
-        $isDonation = $hit['table'] === 'gates_donations';
-        $refCol = self::REF_COLUMN[$hit['table']] ?? 'payment_ref';
-        $ours = trim((string) ($hit['row']->{$refCol} ?? ''));
+        $table  = $hit['table'];
+        $refCol = self::REF_COLUMN[$table] ?? 'payment_ref';
+        $ours   = trim((string) ($hit['row']->{$refCol} ?? ''));
 
         // Says WHICH identifier matched, because a supporter who pasted their bank's
         // number and got an answer should be told what our reference is — it is the one
@@ -340,10 +364,17 @@ final class PaymentLookup
             default           => 'Found it.',
         };
 
+        // Each ledger gets its OWN key rather than everything-that-is-not-a-donation being
+        // called `order`. That shortcut was survivable with two tables and became a bug with
+        // three: a caller reading `order->subtotal_naira` would have got an event
+        // registration, which has no such column.
         return [
             'found' => true, 'kind' => $kind,
-            'donation' => $isDonation ? $hit['row'] : null,
-            'order'    => $isDonation ? null : $hit['row'],
+            'table'  => $table,
+            'ledger' => self::LEDGER[$table] ?? 'payment',
+            'donation'     => $table === 'gates_donations' ? $hit['row'] : null,
+            'order'        => $table === 'gates_orders' ? $hit['row'] : null,
+            'registration' => $table === 'gates_event_registrations' ? $hit['row'] : null,
             'reference' => $ours !== '' ? $ours : $matched,
             'say' => $say,
             'asked_gateway' => $askedGateway,

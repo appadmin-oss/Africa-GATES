@@ -197,7 +197,7 @@ final class EventWaitlist
 
             $now = Carbon::now();
             $price = (int) $tier->price_naira;
-            $ref   = EventTicketService::REF_PREFIX . strtoupper(bin2hex(random_bytes(5)));
+            $ref   = EventTicketService::freshReference();
 
             $changed = DB::table('gates_event_registrations')->where('id', (int) $next->id)
                 ->where('status', 'waitlisted')

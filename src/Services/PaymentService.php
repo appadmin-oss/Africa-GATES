@@ -499,6 +499,61 @@ class PaymentService
             $this->rememberDestination($reference, $stream, (string) $route['subaccount'],
                                        (string) ($route['bearer'] ?? 'account'), $amountNaira);
         }
+
+        $r = $this->postInitialize($payload, $reference);
+        if ($r['ok']) {
+            return $r;
+        }
+
+        // ══ REFUSING TO ROUTE IS RECOVERABLE. REFUSING TO SELL IS NOT. ══════════
+        //
+        // {@see PaymentDestination} states that rule and did not implement it. It validates
+        // the SHAPE of a subaccount code, which catches a pasted bank account number and
+        // catches nothing else — and a shape-valid code that belongs to another Paystack
+        // account, or has been deleted, or was never activated, is rejected by Paystack at
+        // initialise. Every payment on that stream then dies here.
+        //
+        // The failure is invisible in exactly the wrong way. The buyer sees "we could not
+        // start the payment"; the operator sees nothing at all, because the only trace was a
+        // log line on a host with no shell. And it is per-stream, so the shop and the events
+        // page can both be dead while votes — the stream somebody is most likely to test —
+        // works perfectly. That is the shape of the reported outage.
+        //
+        // So: one retry, WITHOUT the routing. The money lands in the main account, which is
+        // where it landed before anybody configured a subaccount and is a bookkeeping problem
+        // rather than a lost sale. The attribution row is corrected to say so, and somebody is
+        // told, loudly, with Paystack's own words in the message.
+        if ($route !== []) {
+            $this->log?->error('[payment] paystack refused the subaccount — retrying unrouted', [
+                'ref' => $reference, 'stream' => $stream,
+                'subaccount' => (string) $route['subaccount'],
+                'msg' => (string) $r['message'],
+            ]);
+
+            unset($payload['subaccount'], $payload['bearer']);
+            $retry = $this->postInitialize($payload, $reference);
+
+            if ($retry['ok']) {
+                $this->forgetDestination($reference);
+                PaymentDestination::reportRefusal($stream, (string) $route['subaccount'],
+                                                  (string) $r['message']);
+                return $retry;
+            }
+            // Both attempts failed, so the subaccount was not the problem. Report the FIRST
+            // message: it is the one that describes the request we actually meant to make.
+        }
+
+        return $r;
+    }
+
+    /**
+     * One initialise attempt. Split out so the subaccount fallback above can make two without
+     * duplicating the response reading — which is where the kobo lives.
+     *
+     * @return array{ok:bool,checkout_url:?string,message:string}
+     */
+    private function postInitialize(array $payload, string $reference): array
+    {
         $res = $this->request(
             'POST',
             'https://api.paystack.co/transaction/initialize',
@@ -511,9 +566,63 @@ class PaymentService
         if ($res['ok'] && ($body['status'] ?? false) === true && is_string($url) && $url !== '') {
             return ['ok' => true, 'checkout_url' => $url, 'message' => 'ok'];
         }
-        $msg = (string)($body['message'] ?? 'Paystack initialization failed.');
-        $this->log?->warning('[payment] paystack init failed', ['ref' => $reference, 'http' => $res['code'], 'msg' => $msg]);
+        $msg = (string) ($body['message'] ?? 'Paystack initialization failed.');
+        $this->log?->warning('[payment] paystack init failed',
+                             ['ref' => $reference, 'http' => $res['code'], 'msg' => $msg]);
         return ['ok' => false, 'checkout_url' => null, 'message' => $msg];
+    }
+
+    /**
+     * Does Paystack agree this subaccount exists, on THIS account, right now?
+     *
+     * ── THE CHECK THAT SHOULD HAVE EXISTED BEFORE THE FEATURE SHIPPED ────────
+     *
+     * A subaccount code is validated locally for shape and nothing else, so the settings
+     * screen accepted a code from a different Paystack integration, a deleted one, or one
+     * typed with a transposed character — and the first anybody learned of it was a stream
+     * that had silently stopped selling.
+     *
+     * Asking Paystack costs one call at the moment somebody presses Save, which is exactly
+     * when a person is present to read the answer. Its own words are returned, because
+     * "Subaccount not found" tells an operator what to do and "invalid" does not.
+     *
+     * @return array{ok:bool, message:string, name:string, bank:string}
+     */
+    public function subaccount(string $code): array
+    {
+        $code = trim($code);
+        if ($code === '')                  return ['ok' => false, 'message' => 'No subaccount code given.', 'name' => '', 'bank' => ''];
+        if (!$this->isEnabled('paystack')) return ['ok' => false, 'message' => 'Paystack is not configured in this environment.', 'name' => '', 'bank' => ''];
+
+        try {
+            $res = $this->request('GET', 'https://api.paystack.co/subaccount/' . rawurlencode($code),
+                                  null, $this->paystackAuth());
+        } catch (\Throwable $e) {
+            // NOT a refusal. We could not ask, which is a different answer from "no" — and
+            // treating an outage as a bad code would refuse a save that was perfectly correct.
+            return ['ok' => false, 'message' => 'Paystack could not be reached to check that code: '
+                                              . $e->getMessage(), 'name' => '', 'bank' => ''];
+        }
+
+        $body = $res['json'];
+        $d    = is_array($body['data'] ?? null) ? $body['data'] : [];
+        if (!$res['ok'] || ($body['status'] ?? false) !== true || $d === []) {
+            return ['ok' => false, 'name' => '', 'bank' => '',
+                    'message' => (string) ($body['message'] ?? 'Paystack does not recognise that subaccount.')];
+        }
+
+        // An inactive subaccount resolves but cannot receive a split, so it fails at
+        // initialise exactly like an unknown one. Caught here, where it is still a sentence
+        // on a form rather than a stream that has stopped selling.
+        if (array_key_exists('active', $d) && !$d['active']) {
+            return ['ok' => false, 'name' => (string) ($d['business_name'] ?? ''), 'bank' => '',
+                    'message' => 'That subaccount exists but is not active at Paystack, so payments '
+                               . 'routed to it would be refused.'];
+        }
+
+        return ['ok' => true, 'message' => '',
+                'name' => (string) ($d['business_name'] ?? ($d['account_name'] ?? '')),
+                'bank' => (string) ($d['settlement_bank'] ?? '')];
     }
 
     /**
@@ -556,6 +665,25 @@ class PaymentService
         }
     }
 
+    /**
+     * Un-record a routing that Paystack refused.
+     *
+     * A MISSING row means "settled to the main account", which is exactly what happens when
+     * the retry above goes out without the subaccount. Leaving the row would make the
+     * platform's own records claim a settlement that the bank will never show — the precise
+     * drift the attribution table was created to prevent.
+     */
+    private function forgetDestination(string $reference): void
+    {
+        try {
+            if (!DB::schema()->hasTable('gates_payment_routes')) return;
+            DB::table('gates_payment_routes')->where('reference', $reference)->delete();
+        } catch (\Throwable $e) {
+            $this->log?->warning('[payment] could not clear destination',
+                                 ['ref' => $reference, 'err' => $e->getMessage()]);
+        }
+    }
+
     private function verifyPaystack(string $reference): array
     {
         $res  = $this->request(
@@ -572,9 +700,22 @@ class PaymentService
                     'message' => (string)($body['message'] ?? 'Verification failed.')];
         }
 
-        // Paystack status: 'success' | 'failed' | 'abandoned' | 'reversed' | …
-        $raw    = strtolower((string)($data['status'] ?? ''));
-        $status = $raw === 'success' ? 'success' : ($raw === 'failed' ? 'failed' : 'pending');
+        // Paystack status: 'success' | 'failed' | 'abandoned' | 'reversed' | 'ongoing' | …
+        //
+        // ── 'reversed' IS CONCLUSIVE, AND USED TO BE READ AS 'pending' ───────
+        //
+        // Everything that was not `success` or `failed` collapsed to `pending`, which is right
+        // for `abandoned` and `ongoing` — those may still complete — and wrong for `reversed`,
+        // which means the money has already gone back. A reversed transaction was therefore
+        // re-verified on every sweep, forever, until the three-day ceiling wrote it off as an
+        // abandoned checkout. It is not abandoned; it is finished, and it finished badly.
+        $raw = strtolower((string) ($data['status'] ?? ''));
+        $status = match (true) {
+            $raw === 'success'  => 'success',
+            $raw === 'failed'   => 'failed',
+            $raw === 'reversed' => 'failed',
+            default             => 'pending',
+        };
         // amount comes back in KOBO → whole naira.
         $amount = (int) round(((int)($data['amount'] ?? 0)) / 100);
 

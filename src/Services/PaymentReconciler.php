@@ -176,6 +176,14 @@ final class PaymentReconciler
 
         $items = array_merge(
             $this->orders($cutoff, $limit, $apply),
+            // ── EVENT TICKETS, WHICH NOTHING SWEPT AT ALL ────────────────────
+            //
+            // `EventTicketService::confirm()` had exactly one caller: the browser callback.
+            // No webhook path reached it, this sweep did not know the table existed, no admin
+            // screen could confirm a paid registration and no support lookup could even find
+            // one. A buyer who paid inside a wallet app and never came back lost the money
+            // AND the seat — the hold aged out of the seat arithmetic and it was resold.
+            $this->registrations($cutoff, $limit, $apply),
             $this->donations($cutoff, $limit, $apply),
             // Last, so a row that is still pending is handled by the ordinary sweep above
             // and never reaches the recovery pass as well.
@@ -284,17 +292,148 @@ final class PaymentReconciler
                     . number_format($row['amount_gateway'] - $row['amount_ours']) . ')';
             }
             if ($apply) {
-                // Idempotent: only the single winning pending→paid writer fulfils.
-                $changed = DB::table('gates_orders')->where('reference', $o->reference)
-                    ->where('status', 'pending')
-                    ->update(['status' => 'paid', 'paid_at' => Carbon::now()->toDateTimeString(),
-                              'provider_ref' => (string) $o->reference]);
-                if ($changed > 0) {
-                    $this->fulfilOrder($o);
+                // ── ONE IMPLEMENTATION OF "THIS ORDER IS PAID" ───────────────
+                //
+                // This branch used to flip the row itself and call a private `fulfilOrder()`
+                // that had drifted badly from the checkout's version: it decremented
+                // `gates_products.stock` by slug and nothing else, so a reconciled order for
+                // any product WITH VARIANTS drew its stock from no column at all; it never
+                // counted the sale, never awarded the buyer's loyalty points, never fired
+                // `order.paid`, and sent a receipt with no link to the order. An order
+                // confirmed by cron and the same order confirmed by a browser were two
+                // different events with two different outcomes.
+                //
+                // It re-verifies, which costs this loop a second call to the gateway for a
+                // row we have just verified. That is the price of there being one path, and
+                // it is worth paying: the alternative is two, and two is what produced the
+                // bug above.
+                $r = ShopOrderService::confirm((string) $o->reference, $provider, $this->payments);
+                if (($r['state'] ?? '') === 'confirmed') {
+                    Notifier::adminAlert($this->mailer, 'Shop order reconciled to paid',
+                        "Order {$o->reference} was confirmed by reconciliation after a missed callback.\n"
+                        . "By:    {$o->name} <{$o->email}>\n"
+                        . 'Total: ₦' . number_format((int) $o->subtotal_naira));
+                } elseif (($r['state'] ?? '') !== 'already') {
+                    $row['action'] = 'mismatch';
+                    $row['note']   = (string) ($r['message'] ?? 'could not be confirmed');
                 } else {
                     $row['note'] = 'already confirmed by another run';
                 }
             }
+            $out[] = $row;
+        }
+        return $out;
+    }
+
+    /**
+     * Event tickets.
+     *
+     * ── WHY IT LOOKS LIKE orders() AND NOT LIKE donations() ──────────────────
+     *
+     * A registration records its provider, so one gateway is asked rather than every enabled
+     * one in turn — the loop that made a 200-row sweep 400 HTTPS calls long.
+     *
+     * ── WHAT IT DOES WITH A HOLD IT CANNOT VERIFY ────────────────────────────
+     *
+     * Cancels it, but only after the gateway has had its say and only past the age ceiling —
+     * the same order as the donations sweep, and for the same reason: a Nigerian bank transfer
+     * settling on day three must be CONFIRMED, not written off, and the only way to have both
+     * is to ask first and expire second.
+     *
+     * That cancellation is also why {@see EventTicketService::releaseExpired()} refuses to
+     * touch a priced row. Its thirty-minute hold window is far too short to write money off
+     * against, and a cancelled registration is out of reach of `confirm()` forever.
+     */
+    private function registrations(string $cutoff, int $limit, bool $apply): array
+    {
+        $out = [];
+        try {
+            if (!DB::schema()->hasTable('gates_event_registrations')) return [];
+            $rows = DB::table('gates_event_registrations')->where('status', 'pending')
+                ->where('amount_naira', '>', 0)
+                ->where('created_at', '<', $cutoff)
+                ->orderByDesc('id')->limit($limit)->get();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $deadline = self::expiryCutoff()->toDateTimeString();
+
+        foreach ($rows as $g) {
+            $row = [
+                'kind' => 'ticket', 'ref' => (string) $g->reference, 'who' => (string) $g->name,
+                'ours' => 'pending', 'gateway' => '—',
+                'amount_ours' => (int) ($g->amount_naira ?? 0), 'amount_gateway' => 0,
+                'action' => 'unverifiable', 'note' => '',
+            ];
+            $stale = (string) ($g->created_at ?? '') !== '' && (string) $g->created_at < $deadline;
+
+            $stored  = strtolower((string) ($g->provider ?? ''));
+            $enabled = $this->payments->enabledProviderIds();
+            $ask = $stored !== '' && in_array($stored, $enabled, true)
+                ? array_merge([$stored], array_values(array_diff($enabled, [$stored])))
+                : $enabled;
+
+            $answered = false;
+            foreach ($ask as $provider) {
+                $v = $this->payments->verify($provider, (string) $g->reference);
+                if (!($v['ok'] ?? false)) continue;
+                $answered = true;
+
+                $row['gateway']        = (string) ($v['status'] ?? 'pending');
+                $row['amount_gateway'] = (int) ($v['amount'] ?? 0);
+
+                if ($row['gateway'] !== 'success') break;
+                $stale = false;                       // it PAID; age stops being interesting
+
+                if ($row['amount_gateway'] < $row['amount_ours'] || !$this->currencyAgrees($v)) {
+                    $row['action'] = 'mismatch';
+                    $row['note']   = $this->currencyAgrees($v)
+                        ? 'paid ₦' . number_format($row['amount_gateway'])
+                          . ' against ₦' . number_format($row['amount_ours']) . ' for the ticket'
+                        : 'paid in ' . ((string) ($v['currency'] ?? '?')) . ', not NGN';
+                    break;
+                }
+
+                $row['action'] = 'confirmed';
+                $row['note']   = $apply ? 'confirmed — ticket issued' : 'would be confirmed';
+                if ($row['amount_gateway'] > $row['amount_ours']) {
+                    $row['note'] .= ' (overpaid by ₦'
+                        . number_format($row['amount_gateway'] - $row['amount_ours']) . ')';
+                }
+                if ($apply) {
+                    $c = EventTicketService::confirm((string) $g->reference, $this->payments);
+                    if ($c['ok'] ?? false) {
+                        if ($c['already'] ?? false) {
+                            $row['note'] = 'already confirmed by another run';
+                        } else {
+                            // The attendee has to be TOLD. A confirmed ticket nobody knows
+                            // about is only marginally better than one never issued — and
+                            // this path exists precisely because their browser never came
+                            // back to be shown it.
+                            EventTicketMailer::send((int) $g->id, $this->mailer);
+                        }
+                    } else {
+                        $row['action'] = 'mismatch';
+                        $row['note']   = (string) ($c['message'] ?? 'could not be confirmed');
+                    }
+                }
+                break;
+            }
+
+            if (!$answered) {
+                $row['note'] = 'no gateway recognised this reference';
+            }
+
+            // Asked, still nobody says it was paid, and older than the ceiling. Release the
+            // seat so the tier and the waiting list can move on.
+            if ($stale && $row['action'] === 'unverifiable') {
+                $row['action'] = 'expired';
+                $row['note']   = 'abandoned — no gateway has seen it since '
+                               . self::expiryCutoff()->format('Y-m-d H:i');
+                if ($apply) EventTicketService::cancel((int) $g->id, 'the checkout was never completed');
+            }
+
             $out[] = $row;
         }
         return $out;
@@ -760,43 +899,6 @@ final class PaymentReconciler
             'donation'  => 'donation',
             default     => 'payment',
         };
-    }
-
-    /**
-     * One-time side effects of a confirmed order. Mirrors ShopCheckoutController::fulfil
-     * INTENTIONALLY (kept separate so the audited confirm path is untouched): decrement
-     * tracked stock with the same two bound queries (never a string-built CASE, never
-     * below zero), then a best-effort receipt + operator alert. Only the single winning
-     * pending→paid transition reaches here, so it runs exactly once per order.
-     */
-    private function fulfilOrder(object $order): void
-    {
-        $lines = json_decode((string) $order->items_json, true) ?: [];
-        foreach ($lines as $l) {
-            $slug = (string) ($l['slug'] ?? ''); $qty = (int) ($l['qty'] ?? 0);
-            if ($slug === '' || $qty < 1) continue;
-            DB::table('gates_products')->where('slug', $slug)->whereNotNull('stock')
-                ->where('stock', '>=', $qty)->decrement('stock', $qty);
-            DB::table('gates_products')->where('slug', $slug)->whereNotNull('stock')
-                ->where('stock', '<', $qty)->update(['stock' => 0]);
-        }
-
-        $total = '₦' . number_format((int) $order->subtotal_naira);
-        if ($this->mailer) {
-            try {
-                $this->mailer->sendBranded(
-                    (string) $order->email,
-                    'Your Africa GATES order is confirmed',
-                    '<p>Thank you, ' . htmlspecialchars((string) $order->name) . ' — your payment is confirmed and your order is being prepared.</p>'
-                    . '<p style="font-family:monospace">Order ' . htmlspecialchars((string) $order->reference) . '</p>'
-                    . "<p>Total paid: <strong>{$total}</strong>. Every purchase funds child leadership programmes — thank you.</p>",
-                    'Shop'
-                );
-            } catch (\Throwable $e) { /* a receipt failure must never undo a confirmation */ }
-        }
-        Notifier::adminAlert($this->mailer, 'Shop order reconciled to paid',
-            "Order {$order->reference} was confirmed by reconciliation after a missed callback.\n"
-            . "By:    {$order->name} <{$order->email}>\nTotal: {$total}");
     }
 
     /**
