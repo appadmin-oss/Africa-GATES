@@ -30,7 +30,35 @@ class AccountController
 
     private function ip(Request $req): string { return (string) ($req->getServerParams()['REMOTE_ADDR'] ?? ''); }
 
-    private function flash(string $key): ?string { $v = $_SESSION[$key] ?? null; unset($_SESSION[$key]); return $v; }
+    /**
+     * Read a one-shot session value and clear it.
+     *
+     * ── WHY THE RETURN TYPE IS `mixed` AND NOT `?string` ─────────────────────
+     *
+     * It was `?string`, and it was a 500 on the registration page — recorded three times in
+     * production before anybody could read the log that held it:
+     *
+     *     TypeError: AccountController::flash(): Return value must be of type ?string,
+     *     array returned … ->flash('reg_old')
+     *
+     * Every OTHER key here does hold a string, which is how the annotation survived review:
+     * `flash_error`, `flash_notice`, `flash_ok` are all sentences. `reg_old` is not — it is
+     * the name/email/phone somebody just typed, kept so a failed registration hands their
+     * details back rather than making them type them again. An array, by design, and the one
+     * key of the four whose caller says `?? []` right there on the same line.
+     *
+     * So the declaration was a promise about one key made on behalf of all of them. Widening
+     * it is the honest fix: this is a session-bag reader, and a session bag holds what it was
+     * given. The callers already treat the result as what they put in — Twig receives it
+     * either way — and the alternative, a second typed method per shape, buys nothing for a
+     * four-key bag.
+     *
+     * The failure is worth naming precisely, because it is the nastiest shape a 500 comes in:
+     * it fires only on the SECOND visit — the first submission stores `reg_old`, and the
+     * redirect back to the form is what explodes. So the page works when you test it and
+     * breaks for every person who mistypes something.
+     */
+    private function flash(string $key): mixed { $v = $_SESSION[$key] ?? null; unset($_SESSION[$key]); return $v; }
 
     /**
      * A safe local redirect target for post-login. Only same-site absolute paths

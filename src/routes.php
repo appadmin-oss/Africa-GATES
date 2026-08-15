@@ -1297,6 +1297,48 @@ return function(App $app) {
            . 'code{background:#132327;padding:1px 5px;border-radius:3px}</style>'
            . '<h1>Recent errors</h1>';
 
+        // ── IS THIS LOG EVEN CAPABLE OF BEING CURRENT? ───────────────────────
+        //
+        // Two ways this page can mislead, both of which have now happened:
+        //
+        //   THE DIRECTORY IS NOT WRITABLE.  The handler's write is `@file_put_contents`, so a
+        //                                   permissions problem is silent by construction and
+        //                                   the page reads "no errors" forever.
+        //   THE LOG PREDATES THE CODE.      A log last written before the newest file in
+        //                                   `src/` cannot contain anything about what is
+        //                                   running now — so entries from an older release
+        //                                   get read as a diagnosis of the current one.
+        //
+        // The second is the more dangerous, because the page looks like it is working.
+        $dir      = dirname($file);
+        $writable = is_dir($dir) ? is_writable($dir) : is_writable(dirname($dir));
+        $logAt    = is_file($file) ? (int) @filemtime($file) : 0;
+        $codeAt   = 0;
+        foreach (['src/Controllers', 'src/Services'] as $d) {
+            $p = dirname(__DIR__) . '/' . $d;
+            if (!is_dir($p)) continue;
+            foreach ((array) glob($p . '/*.php') as $f) {
+                $codeAt = max($codeAt, (int) @filemtime((string) $f));
+            }
+        }
+
+        if (!$writable) {
+            $h .= '<pre>THIS PAGE CANNOT BE TRUSTED — <code>' . $e($dir) . '</code> is NOT WRITABLE.'
+                . "\n\n" . 'The error handler writes with a silenced `@file_put_contents`, so a '
+                . 'permissions problem produces no error of its own and this page will read "nothing '
+                . 'recorded" no matter how many times the site 500s.'
+                . "\n\n" . 'Fix the directory permissions (0775, owned by the web user), then reproduce '
+                . 'the fault again.</pre>';
+        } elseif ($logAt > 0 && $codeAt > $logAt) {
+            $h .= '<pre>EVERYTHING BELOW PREDATES THE CODE THAT IS RUNNING.'
+                . "\n\n" . 'Last error written: ' . $e(date('c', $logAt))
+                . "\n" . 'Newest source file: ' . $e(date('c', $codeAt))
+                . "\n\n" . 'So these entries were produced by an EARLIER release and say nothing about '
+                . 'the current one. Reproduce the fault now and reload this page — if nothing new '
+                . 'appears, the request is not reaching PHP\'s error handler at all and the cause will '
+                . 'be in your host\'s own PHP error log.</pre>';
+        }
+
         if (!is_file($file)) {
             $h .= '<pre class="ok">Nothing here — <code>var/logs/error-detail.log</code> does not exist yet.'
                 . "\n\n" . 'That means no 500 has been recorded SINCE THIS CODE WAS DEPLOYED. If you are '
