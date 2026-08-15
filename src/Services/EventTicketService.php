@@ -662,6 +662,20 @@ final class EventTicketService
     }
 
     /** Give a discount use back, once the row that consumed it is no longer holding a seat. */
+    /**
+     * Give a discount use back for a row somebody else cancelled.
+     *
+     * Public because {@see TicketSelfService::cancel()} releases the seat itself — it has to,
+     * so that the conditional UPDATE which decides the winner of a double-click is the same
+     * statement that records the refund intent. Without this the code an attendee used would
+     * stay spent after they gave the seat up, and a promotion limited to fifty would be
+     * exhausted by fifty cancellations.
+     */
+    public static function releaseDiscountFor(object $row): void
+    {
+        self::releaseDiscount($row);
+    }
+
     private static function releaseDiscount(object $row): void
     {
         $code = trim((string) ($row->discount_code ?? ''));
@@ -760,7 +774,41 @@ final class EventTicketService
     public static function reverse(string $reference, string $why): bool
     {
         $row = self::byReference(trim($reference));
-        if (!$row || (string) $row->status !== 'confirmed') return false;
+        if (!$row) return false;
+
+        // ── A REFUND WE ASKED FOR, COMING BACK SETTLED ───────────────────────
+        //
+        // Self-service cancellation already released the seat and marked the refund `pending`
+        // — the gateway settles it hours later and tells us here. Without this branch that
+        // webhook would find a row that is no longer `confirmed`, do nothing, and the refund
+        // would sit at `pending` forever while the money had actually arrived. The attendee
+        // then emails on day three about a refund that has already reached their bank.
+        if ((string) $row->status === 'cancelled') {
+            $pending = (string) ($row->refund_status ?? '') === 'pending';
+            if (!$pending) return false;
+
+            $failed = str_contains(strtolower($why), 'fail');
+            try {
+                DB::table('gates_event_registrations')->where('id', (int) $row->id)
+                    ->where('refund_status', 'pending')
+                    ->update(OptionalColumn::filter('gates_event_registrations', [
+                        'refund_status' => $failed ? 'failed' : 'refunded',
+                        'refunded_at'   => $failed ? null : Carbon::now()->toDateTimeString(),
+                    ], ['refund_status', 'refunded_at']));
+            } catch (\Throwable) {}
+
+            if ($failed) {
+                Notifier::adminAlert(null, 'Event refund failed at the gateway',
+                    'Reference: ' . (string) $row->reference . "\n"
+                    . 'Attendee:  ' . (string) $row->name . ' <' . (string) $row->email . '>' . "\n"
+                    . 'Amount:    ₦' . number_format((int) ($row->refund_naira ?? 0)) . "\n\n"
+                    . 'The seat was already released, so this is money owed with nothing '
+                    . 'holding it. Refund it by hand.');
+            }
+            return true;
+        }
+
+        if ((string) $row->status !== 'confirmed') return false;
 
         try {
             $done = DB::table('gates_event_registrations')->where('id', (int) $row->id)

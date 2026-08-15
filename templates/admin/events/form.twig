@@ -156,6 +156,82 @@
         <div></div>
       </div>
 
+    {# ── WHAT HAPPENS AROUND THE TICKET ────────────────────────────────────────
+       These columns have been saved by the controller since ticketing shipped and have
+       never had a field on this form — so every save silently blanked them. The marker
+       below is what makes the panel's absence mean "not shown" rather than "cleared";
+       see the note beside `event_extras_posted` in the controller. #}
+    {% if refund_missing|default([]) is empty %}
+    <input type="hidden" name="event_extras_posted" value="1">
+
+    <div class="af__head" style="margin-top:26px">
+      <h2>Cancellations and refunds</h2>
+      <p>What an attendee can do for themselves once they have paid. Off by default: it is your
+        event and your money, so nothing here changes unless you set it.</p>
+    </div>
+
+      <label class="af-check">
+        <input type="checkbox" name="self_cancel" value="1"
+               {% if row.self_cancel|default(0) %}checked{% endif %}>
+        Let attendees cancel their own place
+      </label>
+      <p class="af-note">With this off, the ticket page shows your contact details instead of a
+        cancel button — which is what it does today. With it on, giving a seat up frees it for
+        the waiting list immediately.</p>
+
+      <div class="row">
+        <label>What comes back
+          <select name="refund_mode">
+            {% for key, label in refund_modes|default({}) %}
+              <option value="{{ key }}" {% if (row.refund_mode|default('none')) == key %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select></label>
+        <label>If partial, how much <span class="af-opt">percent</span>
+          <input type="number" name="refund_percent" min="1" max="100" step="1"
+                 value="{{ row.refund_percent|default(50) }}"></label>
+      </div>
+
+      <div class="row">
+        <label>Refunds close this long before the event <span class="af-opt">hours · 0 = right up to it</span>
+          <input type="number" name="refund_cutoff_hours" min="0" max="8760" step="1"
+                 value="{{ row.refund_cutoff_hours|default(0) }}" placeholder="48"></label>
+        <div></div>
+      </div>
+      <p class="af-note">After the cutoff an attendee can still give the seat up so somebody on
+        the waiting list can have it — they just get nothing back. Those are two different
+        things and this keeps them separate.</p>
+
+      <label>Refund policy, in your own words
+        <textarea name="refund_policy" rows="3" maxlength="1000"
+                  placeholder="Shown before anybody buys.">{{ row.refund_policy|default('') }}</textarea></label>
+      <p class="af-note">The rule above is what the platform DOES automatically. This is what you
+        MEAN, and it is shown on the event page before anybody pays.</p>
+
+    <div class="af__head" style="margin-top:26px">
+      <h2>Before they come</h2>
+      <p>Who to contact, when registration shuts, and anything they need to know on the day.</p>
+    </div>
+      <div class="row">
+        <label>Organiser email <span class="af-opt">for questions</span>
+          <input type="email" name="organiser_email" maxlength="190"
+                 value="{{ row.organiser_email|default('') }}"></label>
+        <label>Organiser phone <span class="af-opt">optional</span>
+          <input type="text" name="organiser_phone" maxlength="40"
+                 value="{{ row.organiser_phone|default('') }}"></label>
+      </div>
+      <div class="row">
+        <label>Registration closes <span class="af-opt">blank = when the event starts</span>
+          <input type="datetime-local" name="sales_close_at" value="{{ sales_close_input|default('') }}"></label>
+        <label class="af-check" style="align-self:end">
+          <input type="checkbox" name="waitlist_open" value="1"
+                 {% if row.waitlist_open|default(0) %}checked{% endif %}>
+          Offer a waiting list when a tier sells out
+        </label>
+      </div>
+      <label>Note to attendees <span class="af-opt">joining links, parking, dress code</span>
+        <textarea name="attendee_note" rows="3">{{ row.attendee_note|default('') }}</textarea></label>
+    {% endif %}
+
     {# ── TICKET TIERS ─────────────────────────────────────────────────────────
        These are real rows now, not a JSON blob the public page printed as prose. Each
        carries its OWN attendee limit, which is what makes "40 early-bird, 40 standard, in

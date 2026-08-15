@@ -235,6 +235,11 @@
           {% if attendee_note|default('') %}
           <dt>Before you come</dt><dd>{{ attendee_note }}</dd>
           {% endif %}
+          {# The rule first, in one line, then the organiser's own words. The rule is what the
+             platform will actually do; the prose is what they mean. #}
+          {% if refund_rule|default('') %}
+            <p style="font-weight:600">{{ refund_rule }}</p>
+          {% endif %}
           {% if refund_policy|default('') %}
           <dt>Refunds &amp; transfers</dt><dd>{{ refund_policy }}</dd>
           {% endif %}

@@ -182,6 +182,9 @@ class EventsController
             }, []),
             // Shown BEFORE anybody pays, not in a confirmation email nobody reads twice.
             'refund_policy'    => trim((string) ($event['refund_policy'] ?? '')),
+            // The enforceable half, in one sentence, BEFORE anybody pays. A refund policy a
+            // buyer only discovers when they try to leave is not a policy, it is a surprise.
+            'refund_rule'      => \AfricaGates\Services\EventRefundPolicy::summary((object) $event),
             'attendee_note'    => trim((string) ($event['attendee_note'] ?? '')),
             'organiser_email'  => trim((string) ($event['organiser_email'] ?? '')),
             'organiser_phone'  => trim((string) ($event['organiser_phone'] ?? '')),
@@ -603,6 +606,47 @@ class EventsController
             (string) ($b['code'] ?? ''),
             (string) ($b['name'] ?? ''));
         return $this->jsonOut($res, $r);
+    }
+
+    /**
+     * POST /events/ticket/{ref}/cancel-quote — what would I get back, before I commit?
+     *
+     * A read, and deliberately its own endpoint. The figure has to be on screen BEFORE the
+     * irreversible step: a cancellation flow that reveals the consequence afterwards is the
+     * pattern regulators enforce against, and it is also how somebody ends up furious with an
+     * organiser who did nothing wrong.
+     */
+    public function cancelQuote(Request $req, Response $res, array $args): Response
+    {
+        $q = \AfricaGates\Services\EventRefundPolicy::quoteByReference((string) ($args['ref'] ?? ''));
+        $res->getBody()->write((string) json_encode([
+            'success'     => (bool) $q['can_cancel'],
+            'message'     => (string) $q['why'],
+            'naira'       => (int) $q['naira'],
+            'mode'        => (string) $q['mode'],
+            'policy_text' => (string) $q['policy_text'],
+            'contact'     => (string) $q['contact'],
+        ]));
+        return $res->withHeader('Content-Type', 'application/json')
+                   ->withHeader('Cache-Control', 'no-store');
+    }
+
+    /** POST /events/ticket/{ref}/cancel — give the seat up, and refund per the policy. */
+    public function cancel(Request $req, Response $res, array $args): Response
+    {
+        $b = (array) $req->getParsedBody();
+        $r = \AfricaGates\Services\TicketSelfService::cancel(
+            (string) ($args['ref'] ?? ''),
+            (string) ($b['code'] ?? ''),
+            $this->mailer);
+        $res->getBody()->write((string) json_encode([
+            'success'  => (bool) ($r['ok'] ?? false),
+            'message'  => (string) ($r['message'] ?? ''),
+            'refunded' => (int) ($r['refunded'] ?? 0),
+            'status'   => (string) ($r['status'] ?? ''),
+        ]));
+        return $res->withHeader('Content-Type', 'application/json')
+                   ->withHeader('Cache-Control', 'no-store');
     }
 
     /** POST /events/ticket/{ref}/transfer — hand it to somebody else, with a fresh code. */

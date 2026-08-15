@@ -340,6 +340,195 @@ final class TicketSelfService
                                          . 'have emailed it to them. Your old code no longer works.'];
     }
 
+    /**
+     * Give the seat up, and pay back whatever the organiser's policy says.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE ORDER OF OPERATIONS IS THE DESIGN
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Cancel first, refund second. It looks like the riskier order and it is the safe one:
+     *
+     *   REFUND FIRST, THEN CANCEL   a failure between them means money has left the account
+     *                               and the seat is still held. Nothing on the platform knows,
+     *                               because the row still reads `confirmed`.
+     *   CANCEL FIRST, THEN REFUND   a failure between them means the seat is released — which
+     *                               is what the attendee asked for — and the row records
+     *                               `refund_status = pending` with nobody paid. Visible,
+     *                               alerted, and fixable by hand.
+     *
+     * The second failure is recoverable and the first is silent. So the seat is released by a
+     * conditional UPDATE (which is also what makes a double-click safe: exactly one caller
+     * wins and only the winner asks the gateway for money), the intent to refund is written
+     * BEFORE the network call so a crash mid-call leaves evidence, and the gateway's answer
+     * updates it afterwards.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * AND `pending` IS A REAL ANSWER, NOT A FAILURE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Paystack queues a refund and settles it hours later. Treating anything but `refunded` as
+     * an error would make the caller retry a refund that is already on its way — which is how
+     * somebody gets paid back twice. See {@see PaymentService::refund()}.
+     *
+     * @return array{ok:bool, message:string, refunded:int, status:string}
+     */
+    public static function cancel(string $reference, string $code, ?OtpService $mailer,
+                                  ?PaymentService $payments = null): array
+    {
+        $no = static fn (string $m): array =>
+            ['ok' => false, 'message' => $m, 'refunded' => 0, 'status' => ''];
+
+        $reg = EventTicketService::byReference(trim($reference));
+        if (!$reg) return $no('That booking could not be found.');
+
+        // The quote is taken BEFORE anything changes, and it is the same function the page
+        // showed the attendee — so the figure they agreed to is the figure they get.
+        $q = EventRefundPolicy::quote($reg);
+        if (!$q['can_cancel']) return $no($q['why']);
+
+        $gate = self::consume($reg, $code);
+        if (!$gate['ok']) return $gate + ['refunded' => 0, 'status' => ''];
+
+        $owed = (int) $q['naira'];
+
+        // ── 1 · the seat, by conditional UPDATE ──────────────────────────────
+        try {
+            $won = DB::table('gates_event_registrations')->where('id', (int) $reg->id)
+                ->where('status', 'confirmed')->whereNull('checked_in_at')
+                ->update(OptionalColumn::filter('gates_event_registrations', [
+                    'status'        => 'cancelled',
+                    'cancelled_at'  => Carbon::now()->toDateTimeString(),
+                    'cancelled_by'  => 'attendee',
+                    'notes'         => 'cancelled by the attendee',
+                    // The old screenshot stops working at the door. Same reason as a transfer.
+                    'ticket_code'   => null,
+                    // Written before the gateway is called, so a crash mid-call is evidence
+                    // rather than silence.
+                    'refund_status' => $owed > 0 ? 'pending' : 'none',
+                    'refund_naira'  => $owed > 0 ? $owed : null,
+                ], ['status', 'cancelled_at', 'cancelled_by', 'notes', 'ticket_code',
+                    'refund_status', 'refund_naira'])) > 0;
+        } catch (\Throwable $e) {
+            error_log('[ticket] self-cancel failed for ' . $reference . ': ' . $e->getMessage());
+            return $no('That could not be saved just now.');
+        }
+
+        if (!$won) {
+            // Somebody else got there first — a double-click, or an organiser withdrawing the
+            // seat in the same second. Not an error to the person in front of us.
+            return ['ok' => true, 'refunded' => 0, 'status' => 'already',
+                    'message' => 'This booking was already cancelled.'];
+        }
+
+        // The seat is genuinely free now, so the queue can have it.
+        try { EventTicketService::releaseDiscountFor($reg); } catch (\Throwable) {}
+        try { EventWaitlist::promote((int) ($reg->tier_id ?? 0), 1, $mailer); } catch (\Throwable) {}
+
+        // ── 2 · the money ────────────────────────────────────────────────────
+        if ($owed < 1) {
+            self::tellCancelled($reg, 0, 'none', $mailer);
+            return ['ok' => true, 'refunded' => 0, 'status' => 'none',
+                    'message' => 'Your place has been given up. ' . $q['why']];
+        }
+
+        $payments ??= new PaymentService();
+        $provider = strtolower(trim((string) ($reg->provider ?? ''))) ?: 'paystack';
+
+        // A PARTIAL amount is passed only when it is genuinely partial. Passing our own figure
+        // for a full refund asks the gateway to trust our arithmetic over its own record of
+        // what it collected — and it fails asymmetrically: too low succeeds quietly and leaves
+        // the buyer short with every column reading `refunded`. See PaymentService::refund().
+        $ask = ($q['mode'] === 'full' && $owed === (int) ($reg->amount_naira ?? 0)) ? null : $owed;
+
+        $r = $payments->refund($provider, (string) $reg->reference, $ask);
+
+        $status = match ((string) ($r['status'] ?? 'pending')) {
+            'refunded' => 'refunded',
+            'failed'   => 'failed',
+            default    => 'pending',
+        };
+
+        try {
+            DB::table('gates_event_registrations')->where('id', (int) $reg->id)
+                ->update(OptionalColumn::filter('gates_event_registrations', [
+                    'refund_status' => $status,
+                    'refund_ref'    => $r['provider_ref'] ?? null,
+                    'refunded_at'   => $status === 'refunded' ? Carbon::now()->toDateTimeString() : null,
+                ], ['refund_status', 'refund_ref', 'refunded_at']));
+        } catch (\Throwable) {}
+
+        if ($status === 'failed') {
+            // The seat is gone and the money is not. Loud, because only a person can fix it and
+            // nothing else on the platform is watching this row.
+            Notifier::adminAlert($mailer, 'Event refund FAILED — a seat was released and nobody was paid',
+                'Reference: ' . (string) $reg->reference . "\n"
+                . 'Attendee:  ' . (string) $reg->name . ' <' . (string) $reg->email . '>' . "\n"
+                . 'Owed:      ₦' . number_format($owed) . "\n"
+                . 'Gateway:   ' . (string) ($r['message'] ?? 'no message') . "\n\n"
+                . "Their place has been given up and the ticket code cleared, so this is money "
+                . "owed with nothing holding it. Refund it by hand from the payments screen.");
+
+            self::tellCancelled($reg, $owed, 'failed', $mailer);
+            return ['ok' => true, 'refunded' => $owed, 'status' => 'failed',
+                    'message' => 'Your place has been given up. The refund of ₦'
+                               . number_format($owed) . ' could not be sent automatically — '
+                               . 'the team has been told and will sort it out.'];
+        }
+
+        self::tellCancelled($reg, $owed, $status, $mailer);
+
+        return ['ok' => true, 'refunded' => $owed, 'status' => $status,
+                'message' => $status === 'refunded'
+                    ? 'Your place has been given up and ₦' . number_format($owed)
+                      . ' has been refunded.'
+                    // Named as a real state rather than dressed up as done — "up to 10
+                    // business days" is the honest answer and the one that prevents a
+                    // support email on day two.
+                    : 'Your place has been given up and a refund of ₦' . number_format($owed)
+                      . ' is on its way. It can take a few days to reach your bank.'];
+    }
+
+    /** Tell the attendee, and the team, what just happened to the booking. */
+    private static function tellCancelled(object $reg, int $naira, string $status,
+                                          ?OtpService $mailer): void
+    {
+        $money = match ($status) {
+            'refunded' => '<p>We have refunded <strong>₦' . number_format($naira) . '</strong>.</p>',
+            'pending'  => '<p>A refund of <strong>₦' . number_format($naira) . '</strong> is on its '
+                        . 'way. Refunds usually take a few days to reach a bank.</p>',
+            'failed'   => '<p>The refund of <strong>₦' . number_format($naira) . '</strong> did not '
+                        . 'go through automatically. We know, and we are sorting it out.</p>',
+            default    => '<p>There was nothing to refund on this booking.</p>',
+        };
+
+        if ($mailer !== null) {
+            try {
+                $mailer->sendBranded((string) $reg->email, 'Your booking has been cancelled',
+                    '<p>Hi ' . htmlspecialchars((string) $reg->name, ENT_QUOTES, 'UTF-8') . ',</p>'
+                    . '<p>Your place has been given up, and your ticket code no longer works at '
+                    . 'the door.</p>' . $money
+                    . '<p style="font-family:monospace">Reference '
+                    . htmlspecialchars((string) $reg->reference, ENT_QUOTES, 'UTF-8') . '</p>'
+                    . '<p><strong>If you did not do this</strong>, reply to this email straight '
+                    . 'away.</p>',
+                    'Hi ' . (string) $reg->name . ",\n\nYour place has been given up and your "
+                    . "ticket code no longer works at the door.\n"
+                    . ($naira > 0 ? '₦' . number_format($naira) . " refund: {$status}.\n" : '')
+                    . 'Reference ' . (string) $reg->reference . "\n\n"
+                    . "If you did not do this, reply to this email straight away.\n",
+                    'Events');
+            } catch (\Throwable) { /* the cancellation happened; the notice is best-effort */ }
+        }
+
+        Notifier::adminAlert($mailer, 'Event booking cancelled by the attendee',
+            'Reference: ' . (string) $reg->reference . "\n"
+            . 'Attendee:  ' . (string) $reg->name . ' <' . (string) $reg->email . '>' . "\n"
+            . 'Seats:     ' . (int) ($reg->quantity ?? 1) . "\n"
+            . 'Paid:      ₦' . number_format((int) ($reg->amount_naira ?? 0)) . "\n"
+            . 'Refund:    ' . ($naira > 0 ? '₦' . number_format($naira) . ' (' . $status . ')' : 'none'));
+    }
+
     /** The OTP key for one registration. Scoped to the reference, not the address. */
     private static function key(object $reg): string
     {

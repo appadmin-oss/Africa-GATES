@@ -1618,6 +1618,10 @@ return function(App $app) {
         $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/code',     EventsController::class.':selfCode');
         $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/rename',   EventsController::class.':rename');
         $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/transfer', EventsController::class.':transfer');
+        // The quote is a READ and its own endpoint, so the amount is on screen before the
+        // irreversible step rather than after it.
+        $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/cancel-quote', EventsController::class.':cancelQuote');
+        $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/cancel',       EventsController::class.':cancel');
         $g->get('/events/{slug}/calendar.ics', EventsController::class.':calendar');
         $g->get('/events/{slug}',  EventsController::class.':show');
         $g->post('/events/{slug}/register', EventsController::class.':register');

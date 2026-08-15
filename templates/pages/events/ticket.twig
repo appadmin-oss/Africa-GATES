@@ -204,6 +204,11 @@
     border:0; border-radius:999px; background:#10292C; color:#fff; cursor:pointer }
   .tk__btn--ghost{ background:#fff; color:#10292C; border:1px solid #cfdad8; width:100%; margin-top:0 }
   .tk__btn:disabled{ opacity:.55; cursor:default }
+  /* Destructive, and deliberately not red-by-default: it sits inside a panel somebody opened
+     on purpose, and a page of alarm colours makes the one that matters invisible. Outlined
+     until hover, and the WORD carries the meaning — never the colour alone. */
+  .tk__btn--danger{ background:#fff; color:#a32b1f; border:1.5px solid #a32b1f }
+  .tk__btn--danger:hover{ background:#a32b1f; color:#fff }
   .tk__fs{ border:0; border-top:1px solid #eef3f2; margin:18px 0 0; padding:14px 0 0 }
   .tk__fs legend{ font-size:13.5px; font-weight:700; color:#10292C; padding:0 }
   .tk__said{ margin:14px 0 0; font-size:13.5px; line-height:1.6; min-height:1.2em }
@@ -424,6 +429,20 @@
             <button type="button" class="tk__btn" data-tk="rename">Save the new name</button>
           </fieldset>
 
+          {# ── CANCELLING ────────────────────────────────────────────────
+             The figure is fetched and shown BEFORE the confirm. A cancellation flow that
+             reveals what you get back only after the irreversible step is the pattern
+             regulators enforce against, and it is also how somebody ends up furious with an
+             organiser who did nothing wrong. The button is deliberately quiet and last: it is
+             the one action here nobody should hit by accident. #}
+          <fieldset class="tk__fs">
+            <legend>Cancel this booking</legend>
+            <p class="tk__dnote" id="tkCancelWhy">Checking what the organiser's policy gives
+              back…</p>
+            <button type="button" class="tk__btn tk__btn--danger" data-tk="cancel" hidden
+                    id="tkCancelGo">Cancel and give up my place</button>
+          </fieldset>
+
           <fieldset class="tk__fs">
             <legend>Give this ticket to somebody else</legend>
             <label class="tk__lab" for="tkTName">Their name</label>
@@ -498,6 +517,38 @@ document.addEventListener('click', function (e) {
     }
   }
 
+  /* The quote is fetched when the panel OPENS, so the refund figure is already on screen by
+     the time somebody reaches the cancel button — never after they have pressed it. */
+  var det = document.querySelector('.tk__d');
+  var quoted = false;
+  if (det) {
+    det.addEventListener('toggle', async function () {
+      if (!det.open || quoted) return;
+      quoted = true;
+      var why = document.getElementById('tkCancelWhy');
+      var go  = document.getElementById('tkCancelGo');
+      try {
+        var r = await fetch(base + 'cancel-quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+                     'X-CSRF-Token': {{ csrf_token|json_encode|raw }} },
+          body: '{}'
+        });
+        var q = await r.json();
+        if (why) {
+          why.textContent = q.message || '';
+          if (q.policy_text) { why.textContent += ' ' + q.policy_text; }
+          if (!q.success && q.contact) {
+            why.textContent += ' To cancel, contact ' + q.contact + '.';
+          }
+        }
+        if (go && q.success) { go.hidden = false; go.setAttribute('data-owed', String(q.naira || 0)); }
+      } catch (e) {
+        if (why) { why.textContent = 'We could not check the refund policy just now.'; }
+      }
+    });
+  }
+
   document.addEventListener('click', async function (e) {
     var btn = e.target.closest ? e.target.closest('[data-tk]') : null;
     if (!btn) return;
@@ -517,6 +568,24 @@ document.addEventListener('click', function (e) {
     }
     if (what === 'rename') {
       await post('rename', { code: code, name: (document.getElementById('tkName') || {}).value || '' }, btn);
+      return;
+    }
+    if (what === 'cancel') {
+      var why = document.getElementById('tkCancelWhy');
+      var owed = btn.getAttribute('data-owed') || '0';
+      /* The amount is repeated in the confirm, not just above it. This is the last moment
+         before something irreversible, and it is the moment somebody actually reads. */
+      var line = owed === '0'
+        ? 'Give up your place? Nothing is refunded, and your ticket code stops working.'
+        : 'Give up your place and refund \u20a6' + Number(owed).toLocaleString()
+          + '? Your ticket code stops working.';
+      if (!window.confirm(line)) return;
+      var c = await post('cancel', { code: code }, btn);
+      if (c && c.success) {
+        if (why) { why.textContent = ''; }
+        btn.hidden = true;
+        setTimeout(function () { location.reload(); }, 3000);
+      }
       return;
     }
     if (what === 'transfer') {

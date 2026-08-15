@@ -123,6 +123,13 @@ class EventsController
                 'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
                 'organiser_email', 'organiser_phone',
             ]),
+            // The enforceable half of the refund policy, hidden until migrated for the same
+            // reason as the rest — an organiser setting "50% up to 48 hours" and having it
+            // silently dropped would be worse than not offering it.
+            'refund_missing' => OptionalColumn::missing('gates_site_events', [
+                'self_cancel', 'refund_mode', 'refund_percent', 'refund_cutoff_hours',
+            ]),
+            'refund_modes'   => \AfricaGates\Services\EventRefundPolicy::MODES,
             // The ticket's appearance, same treatment: hidden until migrated rather than
             // shown and dropped.
             'design_missing' => OptionalColumn::missing('gates_site_events', [
@@ -173,20 +180,52 @@ class EventsController
             // ── the organiser's own operating rules ──────────────────────────
             // Off unless ticked. A waiting list nobody works is worse than an honest
             // "fully booked", because it costs somebody hope as well as a seat.
-            'waitlist_open'   => !empty($b['waitlist_open']) ? 1 : 0,
-            // A cutoff independent of the event date — catering, badges, a venue list.
-            'sales_close_at'  => self::fromInput($b['sales_close_at'] ?? ''),
-            'attendee_note'   => trim((string) ($b['attendee_note'] ?? '')) ?: null,
-            'refund_policy'   => mb_substr(trim((string) ($b['refund_policy'] ?? '')), 0, 1000) ?: null,
-            'organiser_email' => mb_substr(trim((string) ($b['organiser_email'] ?? '')), 0, 190) ?: null,
-            'organiser_phone' => mb_substr(trim((string) ($b['organiser_phone'] ?? '')), 0, 40) ?: null,
         ];
+
+        // ══ THE EXTRAS PANEL, AND A DATA-LOSS BUG IT WAS CAUSING ════════════════
+        //
+        // These six columns were written UNCONDITIONALLY from `$b`, and the event form does
+        // not contain a single one of them. So every save of any event — changing a title,
+        // fixing a typo in the venue — silently blanked the refund policy, the attendee note,
+        // the organiser's email and phone and the sales cutoff, and switched the waiting list
+        // off. The organiser saw a form that looked fine and lost the fields that were not on it.
+        //
+        // The fix is the marker pattern already used two blocks below for the ticket design,
+        // whose comment states the rule exactly: only merge when the panel was actually on
+        // screen, because a save that does not post a field is not a request to clear it. It
+        // was written there and never applied here.
+        if (array_key_exists('event_extras_posted', $b)) {
+            $data += [
+                'waitlist_open'   => !empty($b['waitlist_open']) ? 1 : 0,
+                // A cutoff independent of the event date — catering, badges, a venue list.
+                'sales_close_at'  => self::fromInput($b['sales_close_at'] ?? ''),
+                'attendee_note'   => trim((string) ($b['attendee_note'] ?? '')) ?: null,
+                'refund_policy'   => mb_substr(trim((string) ($b['refund_policy'] ?? '')), 0, 1000) ?: null,
+                'organiser_email' => mb_substr(trim((string) ($b['organiser_email'] ?? '')), 0, 190) ?: null,
+                'organiser_phone' => mb_substr(trim((string) ($b['organiser_phone'] ?? '')), 0, 40) ?: null,
+                // ── THE REFUND POLICY, AS A RULE ─────────────────────────
+                //
+                // `refund_policy` above stays: it is the prose a buyer reads, and it can say
+                // things a rule cannot. These four are the machine-readable version, so an
+                // attendee can be shown the actual figure before they cancel rather than after
+                // somebody reads their email. Off unless switched on — it is the organiser's
+                // event and the organiser's money.
+                'self_cancel'     => !empty($b['self_cancel']) ? 1 : 0,
+                'refund_mode'     => isset(\AfricaGates\Services\EventRefundPolicy::MODES[(string) ($b['refund_mode'] ?? '')])
+                                        ? (string) $b['refund_mode'] : 'none',
+                // Clamped rather than rejected: a typo'd 0 or 300 is a slip, and refusing the
+                // whole save over it would lose everything else on a long form.
+                'refund_percent'  => min(100, max(1, (int) ($b['refund_percent'] ?? 50))),
+                'refund_cutoff_hours' => max(0, min(8760, (int) ($b['refund_cutoff_hours'] ?? 0))),
+            ];
+        }
         // Dropped rather than written when the migration has not run. An operator uploads the
         // zip and runs /__setup/migrate as two separate acts, and a save that 500ed in
         // between would look like the editor breaking rather than a step being outstanding.
         $data = OptionalColumn::filter('gates_site_events', $data, [
             'waitlist_open', 'sales_close_at', 'attendee_note', 'refund_policy',
             'organiser_email', 'organiser_phone',
+            'self_cancel', 'refund_mode', 'refund_percent', 'refund_cutoff_hours',
         ]);
         // The ticket's appearance. Validated in the service rather than here, because the
         // accent colour reaches a `style` attribute and the same value has to be checked
