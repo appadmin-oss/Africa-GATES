@@ -351,6 +351,77 @@ final class ShopEventPaymentCoverageTest extends TestCase
         $this->assertSame(4, (int) DB::table('gates_products')->where('id', $pid)->value('stock'));
     }
 
+    // ══ 4b · who is actually registered, and how full the room is ════════════
+
+    /**
+     * ── PEOPLE WERE APPEARING AS REGISTERED WITHOUT PAYING ───────────────────
+     *
+     * The event page counted attendance with `->where('event_id', …)->count()`. That is a
+     * count of ROWS in every status, so an abandoned checkout, a cancelled registration, a
+     * refunded ticket and a WAITLIST entry each read as an attendee — and the number could
+     * only ever go up, because nothing in the lifecycle deletes a row.
+     *
+     * `attendingForEvent()` answers the question the page was actually asking.
+     */
+    public function test_only_paid_seats_count_as_registered(): void
+    {
+        $this->registration('AFG-EVT-P01', 5000, 'confirmed');   // paid
+        $this->registration('AFG-EVT-P02', 5000, 'pending');     // mid-checkout
+        $this->registration('AFG-EVT-P03', 5000, 'cancelled');   // gave up / refunded
+        $this->registration('AFG-EVT-P04', 5000, 'waitlisted');  // never had a seat
+
+        $this->assertSame(1, EventTicketService::attendingForEvent($this->eventId),
+            'somebody who has not paid is being shown as registered');
+    }
+
+    /**
+     * ── AND A TABLE OF TEN COUNTED AS ONE ────────────────────────────────────
+     *
+     * The same `count()` counted rows rather than seats, so capacity was measured in
+     * bookings. An event with 50 places sold 50 bookings — which, on a tier that allows ten
+     * per order, is up to 500 people. The two faults compounded: the count was inflated by
+     * people who had not paid AND deflated by everyone who booked more than one seat.
+     */
+    public function test_a_booking_of_several_seats_counts_as_several(): void
+    {
+        $id = $this->registration('AFG-EVT-Q01', 50000, 'confirmed');
+        DB::table('gates_event_registrations')->where('id', $id)->update(['quantity' => 10]);
+
+        $this->assertSame(10, EventTicketService::attendingForEvent($this->eventId),
+            'a table of ten is being counted as one attendee');
+        $this->assertSame(10, EventTicketService::soldForEvent($this->eventId),
+            'a table of ten is taking one seat out of capacity');
+    }
+
+    /**
+     * Capacity and attendance are DIFFERENT questions, and the page needs both.
+     *
+     * A live hold is a seat nobody else can buy, so it counts against capacity. It is not an
+     * attendee, so it must not appear in a sentence shown to a human. One number cannot be
+     * both, which is why there are two.
+     */
+    public function test_a_live_hold_takes_a_seat_but_is_not_an_attendee(): void
+    {
+        $id = $this->registration('AFG-EVT-R01', 5000, 'pending');
+        DB::table('gates_event_registrations')->where('id', $id)
+            ->update(['hold_expires_at' => Carbon::now()->addMinutes(20)->toDateTimeString()]);
+
+        $this->assertSame(1, EventTicketService::soldForEvent($this->eventId),
+            'a live hold is not holding its seat');
+        $this->assertSame(0, EventTicketService::attendingForEvent($this->eventId),
+            'a hold is being presented as somebody who has registered');
+    }
+
+    /** And an expired hold holds nothing — the arithmetic applies expiry without a sweeper. */
+    public function test_an_expired_hold_frees_its_seat(): void
+    {
+        $id = $this->registration('AFG-EVT-S01', 5000, 'pending');
+        DB::table('gates_event_registrations')->where('id', $id)
+            ->update(['hold_expires_at' => Carbon::now()->subMinute()->toDateTimeString()]);
+
+        $this->assertSame(0, EventTicketService::soldForEvent($this->eventId));
+    }
+
     // ══ 5 · the ledger can see a ticket that has not settled ═════════════════
 
     /**
@@ -564,6 +635,47 @@ final class ShopEventPaymentCoverageTest extends TestCase
         $this->assertSame('confirmed', (string) $rows[0]->outcome);
         $this->assertSame('live', (string) $rows[0]->domain);
         $this->assertTrue(GatewayEventLog::everReceived());
+    }
+
+    /**
+     * ── A CHECKOUT THAT CANNOT START MUST SAY WHY, SOMEWHERE READABLE ────────
+     *
+     * `initialize()` catches everything and returns `ok => false`, which is right for the
+     * buyer and means the cause never reaches the error handler — the only thing that writes
+     * where an operator without a shell can read. The symptom was visible to everyone and the
+     * cause to nobody, while the gateway had usually said something perfectly clear.
+     */
+    public function test_a_checkout_that_cannot_start_records_the_gateways_own_words(): void
+    {
+        $log = dirname(__DIR__, 2) . '/var/logs/error-detail.log';
+        $kept = is_file($log) ? (string) file_get_contents($log) : null;
+        @unlink($log);
+
+        $svc = new class extends PaymentService {
+            public function isEnabled(string $p): bool { return $p === 'paystack'; }
+            protected function request(string $m, string $u, ?array $b, array $h): array
+            {
+                return ['ok' => false, 'code' => 401, 'raw' => '',
+                        'json' => ['status' => false, 'message' => 'Invalid key']];
+            }
+        };
+
+        try {
+            $r = $svc->initialize('paystack', 5000, 'b@example.test', 'AFG-SHP-diag01', 'https://s.test/cb');
+            $this->assertFalse($r['ok']);
+
+            $this->assertFileExists($log, 'a failed checkout left no trace an operator can read');
+            $written = (string) file_get_contents($log);
+            $this->assertStringContainsString('CheckoutCouldNotStart', $written);
+            $this->assertStringContainsString('Invalid key', $written,
+                'the gateway said exactly what was wrong and we did not write it down');
+            $this->assertStringContainsString('AFG-SHP-diag01', $written);
+            // The buyer's email identifies a person and buys nothing here: the reference
+            // already leads to the order, and the order has the address.
+            $this->assertStringNotContainsString('b@example.test', $written);
+        } finally {
+            if ($kept !== null) { file_put_contents($log, $kept); } else { @unlink($log); }
+        }
     }
 
     /** A rejected signature is not a received webhook — it is somebody knocking. */

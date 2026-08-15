@@ -145,15 +145,71 @@ class PaymentService
         }
 
         try {
-            return match ($provider) {
+            $r = match ($provider) {
                 'paystack'    => $this->initializePaystack($amountNaira, $email, $reference, $callbackUrl, $meta),
                 'flutterwave' => $this->initializeFlutterwave($amountNaira, $email, $reference, $callbackUrl, $meta),
                 default       => ['ok' => false, 'checkout_url' => null, 'message' => 'Unknown provider.'],
             };
+            if (!($r['ok'] ?? false)) {
+                self::recordStartFailure($provider, $reference, (string) ($r['message'] ?? ''), null);
+            }
+            return $r;
         } catch (\Throwable $e) {
             $this->log?->error('[payment] initialize error', ['provider' => $provider, 'ref' => $reference, 'err' => $e->getMessage()]);
+            self::recordStartFailure($provider, $reference, $e->getMessage(), $e);
             return ['ok' => false, 'checkout_url' => null, 'message' => 'Could not reach the payment provider.'];
         }
+    }
+
+    /**
+     * Write down WHY a checkout could not start, somewhere an operator can read.
+     *
+     * ══════════════════════════════════════════════════════════════════════════════
+     * THE BLIND SPOT THIS CLOSES
+     * ══════════════════════════════════════════════════════════════════════════════
+     *
+     * "The payments are failing to start" is the hardest fault on this platform to diagnose,
+     * and the reason is structural rather than accidental: a checkout that cannot start is
+     * NOT an exception. {@see initialize()} catches everything and returns `ok => false`,
+     * which is correct — a buyer must get a sentence, not a stack trace — and it means the
+     * cause never reaches {@see \AfricaGates\Handlers\ErrorHandler}, which is the only thing
+     * that writes anywhere an operator can reach without a shell.
+     *
+     * So the symptom was visible to everyone and the cause was visible to nobody. The gateway
+     * had usually said something perfectly clear — "Invalid key", "Subaccount not found" —
+     * and it went into a Monolog channel on a host where nobody can open one.
+     *
+     * This appends to the SAME file the error handler uses, in the same format, so
+     * `/__setup/errors` lists these alongside real crashes with no extra plumbing and no
+     * migration. It is a diagnostic of last resort and behaves like one: no database, no
+     * mailer, no exceptions of its own.
+     *
+     * ── AND IT DOES NOT WRITE THE BUYER'S DETAILS ────────────────────────────
+     *
+     * The reference and the gateway's own words, nothing else. An email address in a log file
+     * that a token unlocks is a disclosure risk that buys nothing: the reference identifies
+     * the order, and the order has the email.
+     */
+    private static function recordStartFailure(string $provider, string $reference,
+                                               string $why, ?\Throwable $e): void
+    {
+        try {
+            $dir = dirname(__DIR__, 2) . '/var/logs';
+            if (!is_dir($dir)) @mkdir($dir, 0775, true);
+
+            $entry = '[' . date('c') . '] CheckoutCouldNotStart: ' . $provider
+                   . ' refused ' . $reference . ' — ' . mb_substr(trim($why), 0, 400);
+            if ($e !== null) {
+                $entry .= ' in ' . $e->getFile() . ':' . $e->getLine()
+                        . "\n" . get_class($e) . "\n" . $e->getTraceAsString();
+            } else {
+                // No exception means the GATEWAY said no rather than the code falling over,
+                // and that distinction is the first thing a person needs.
+                $entry .= "\n(the gateway answered and refused — this is its own message, "
+                        . 'not a crash on our side)';
+            }
+            @file_put_contents($dir . '/error-detail.log', $entry . "\n\n", FILE_APPEND);
+        } catch (\Throwable) { /* a diagnostic must never be the thing that breaks */ }
     }
 
     /**

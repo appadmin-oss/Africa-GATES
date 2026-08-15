@@ -279,6 +279,33 @@ final class EventTicketService
         }
     }
 
+    /**
+     * Seats belonging to people who have actually PAID (or been given a free place).
+     *
+     * ── WHY THIS IS NOT soldForEvent() ───────────────────────────────────────
+     *
+     * {@see soldForEvent()} answers "how many seats are unavailable", and a live hold makes a
+     * seat unavailable whether or not the money has arrived. That is the right answer for
+     * capacity and the WRONG one for a sentence shown to the public, because a hold is
+     * somebody who is mid-checkout and may never come back.
+     *
+     * Two different questions that were being answered by one number — and, before this,
+     * by a number that was neither: a raw `count()` of every row on the event, which counted
+     * cancelled registrations, waitlist entries and abandoned checkouts as attendees, and
+     * counted a table of ten as one.
+     */
+    public static function attendingForEvent(int $eventId): int
+    {
+        try {
+            return (int) DB::table('gates_event_registrations')
+                ->where('event_id', $eventId)
+                ->where('status', 'confirmed')
+                ->sum(DB::raw('COALESCE(quantity, 1)'));
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
     // ══ 2. taking a seat ═════════════════════════════════════════════════════
 
     /**

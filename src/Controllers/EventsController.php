@@ -83,12 +83,36 @@ class EventsController
         }
         $event   = (array)$event;
         $now      = Carbon::now()->toDateTimeString();
-        $regCount = (int) DB::table('gates_event_registrations')->where('event_id', $event['id'])->count();
         $isPast   = $event['event_date'] < $now;
+
+        // ── HOW FULL IS THE ROOM, REALLY ─────────────────────────────────────
+        //
+        // This was `->where('event_id', …)->count()`, and it was wrong twice over in ways
+        // that compounded:
+        //
+        //   IT COUNTED ROWS, NOT SEATS.      Somebody booking a table of ten counted as one.
+        //                                    A sold-out event kept selling.
+        //   IT COUNTED EVERY STATUS.         Abandoned checkouts, cancelled registrations,
+        //                                    refunded tickets and WAITLIST entries all read
+        //                                    as attendees — so people appeared as registered
+        //                                    without ever having paid, and the count only
+        //                                    ever went up.
+        //
+        // Both numbers below come from EventTicketService, which is also what the tier
+        // arithmetic, the admin screens and the reconciler use — the page had been computing
+        // its own answer beside a correct one it was already being handed as `event_sold`.
+        //
+        // `$seatsTaken` drives capacity: confirmed seats PLUS live holds, because a hold is a
+        // seat somebody else cannot buy. `$attending` drives anything shown to a human: only
+        // seats that are actually paid for, because a hold is not an attendee.
+        $seatsTaken = EventTicketService::soldForEvent((int) $event['id']);
+        $attending  = EventTicketService::attendingForEvent((int) $event['id']);
+
         $capacity  = ($event['capacity'] ?? null) !== null ? (int) $event['capacity'] : null;
-        $spotsLeft = $capacity !== null ? max(0, $capacity - $regCount) : null;
-        $isFull    = $capacity !== null && $regCount >= $capacity;
-        $pctSold   = ($capacity !== null && $capacity > 0) ? min(100, (int) round($regCount * 100 / $capacity)) : null;
+        $spotsLeft = $capacity !== null ? max(0, $capacity - $seatsTaken) : null;
+        $isFull    = $capacity !== null && $seatsTaken >= $capacity;
+        $pctSold   = ($capacity !== null && $capacity > 0)
+            ? min(100, (int) round($seatsTaken * 100 / $capacity)) : null;
 
         // ── THE AGENDA ───────────────────────────────────────────────────────
         //
@@ -111,8 +135,9 @@ class EventsController
             $tiers  = is_array($legacy) ? $legacy : [];
         }
         // The event's own ceiling still applies on top of every tier's, so a tier with
-        // seats left in a room that is full cannot be bought.
-        $eventSold = EventTicketService::soldForEvent((int) $event['id']);
+        // seats left in a room that is full cannot be bought. Same figure as the capacity
+        // arithmetic above, and now literally the same variable — it was being computed
+        // twice, beside a third number the page had worked out for itself and got wrong.
 
         // Early-bird banner: active when text is set and (no deadline OR deadline still ahead).
         $ebText  = trim((string)($event['early_bird_text'] ?? ''));
@@ -129,7 +154,10 @@ class EventsController
             'has_hero'         => false,
             'event'            => $event,
             'member'           => \AfricaGates\Services\UserAccountService::memberForForms(),
-            'reg_count'        => $regCount,
+            // Paid seats only. The template prints this as "N registered" on a past event and
+            // hands it to the booking widget, and both are statements to a person — so an
+            // abandoned checkout must not appear in it.
+            'reg_count'        => $attending,
             'is_past'          => $isPast,
             'capacity'         => $capacity,
             'spots_left'       => $spotsLeft,
@@ -138,7 +166,7 @@ class EventsController
             'schedule'         => $schedule,
             'agenda'           => $agenda,
             'tiers'            => $tiers,
-            'event_sold'       => $eventSold,
+            'event_sold'       => $seatsTaken,
             // The waitlist is offered per TIER, because a tier is what sells out — somebody
             // priced out of the ₦380,000 table is not waiting for it, they are waiting for a
             // standard seat, and one queue for the whole event would mix them.

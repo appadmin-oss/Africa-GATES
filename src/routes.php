@@ -252,6 +252,40 @@ return function(App $app) {
                 ['The board on the page',       'templates/admin/dashboard.twig', 'db-board'],
                 ['A questionnaire to rehearse', 'src/Services/QuestionnaireService.php', 'function openTest'],
             ],
+            // ── THE RELEASE THAT PROVED WHY THIS PAGE EXISTS ─────────────────
+            //
+            // A partial upload of this work produced, in production:
+            //
+            //     Class "AfricaGates\Services\ShopOrderService" not found
+            //
+            // Three NEW files carry most of it, and a deploy that copies changed files but
+            // not new ones leaves the modified controllers calling classes that are not
+            // there. Every symptom follows from that and none of them names the cause: the
+            // shop callback 500s, and a stale PaymentDestination beside a current
+            // PaymentService means the gateway call dies inside a `catch (\Throwable)` and
+            // presents as "we could not start the payment".
+            //
+            // So the new files are checked FIRST and by marker, not merely by existence —
+            // an empty file created by a failed transfer is present and useless.
+            'Shop and event payments: one confirmation path' => [
+                ['NEW · Shop order confirmation',  'src/Services/ShopOrderService.php',    'function confirm'],
+                ['NEW · The ticket email',         'src/Services/EventTicketMailer.php',   'function send'],
+                ['NEW · Inbound webhook log',      'src/Services/GatewayEventLog.php',     'function record'],
+                ['Webhook routes by stream',       'src/Controllers/PaymentController.php', 'handleWebhook'],
+                ['Subaccount fallback',            'src/Services/PaymentService.php',      'postInitialize'],
+                ['A refusal is recorded',          'src/Services/PaymentDestination.php',  'function reportRefusal'],
+                ['The kill switch',                'src/Services/PaymentDestination.php',  'PAYSTACK_SUBACCOUNTS'],
+                ['Tickets in the sweep',           'src/Services/PaymentReconciler.php',   'function registrations'],
+                ['A ticket can be reversed',       'src/Services/EventTicketService.php',  'function reverse'],
+                ['Seats counted, not rows',        'src/Services/EventTicketService.php',  'function attendingForEvent'],
+                ['The shop delegates',             'src/Controllers/ShopCheckoutController.php', 'ShopOrderService::confirm'],
+                ['Events delegate',                'src/Controllers/EventsController.php', 'EventTicketMailer::send'],
+                ['Ticket references are findable', 'src/Services/PaymentLookup.php',       'AFG-EVT-'],
+                ['The ledger reads real status',   'src/Services/GatewayLedger.php',       "'ledger' => 'Event ticket'"],
+                ['Queue handlers registered',      'src/Support/Maintenance.php',          'EventTicketMailer::send'],
+                ['Migration · gateway events',     'database/migrations/2026_09_13_gateway_events.php', 'gates_gateway_events'],
+                ['Migration · ticket columns',     'database/migrations/2026_09_14_ticket_payment_columns.php', 'notified_at'],
+            ],
         ];
 
         $checks = [];
