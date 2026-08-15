@@ -101,7 +101,39 @@ final class GatewayHandoff
                 'at'       => time(),
             ];
         }
-        return $handoffPath . '?ref=' . urlencode($reference);
+
+        // ══ THE SEPARATOR, WHICH TOOK EVERY EVENT PAYMENT DOWN ══════════════════
+        //
+        // This line was `$handoffPath . '?ref=' . …`, unconditionally. Correct for four of
+        // the five callers, because they pass a bare path — `/shop/redirect`,
+        // `/pay/redirect`, `/donate/redirect`, `/vote/paid/redirect`.
+        //
+        // Events passes `/events/redirect?event=<slug>`, so that it can bounce a buyer back
+        // to the event they were buying from rather than to the list. Appending `?ref=` to a
+        // URL that already has a query string produced
+        //
+        //     /events/redirect?event=gala?ref=AFG-EVT-ABC123
+        //
+        // and PHP reads that as ONE parameter, `event` => `gala?ref=AFG-EVT-ABC123`. Both
+        // halves then fail, which is why the symptom named neither:
+        //
+        //   · `ref` is absent, so reference() is '' and take('') refuses immediately —
+        //     the stored checkout URL is never retrieved and the buyer never reaches
+        //     the gateway.
+        //   · the slug now contains a '?', so it fails the `^[a-z0-9-]+$` guard on the
+        //     bounce path and even the fallback loses the event.
+        //
+        // The buyer lands on `/events?pay=restart`. Nothing throws, nothing is logged, no
+        // 500 is recorded and the gateway is never called — so every diagnostic on the
+        // platform reports a clean system while no ticket can be sold at all. It is also
+        // invisible to a test that only asserts "not a 5xx", which is exactly what the
+        // end-to-end test asserted.
+        //
+        // One caller with a query string was all it took. The separator is now chosen from
+        // the path rather than assumed, so adding a sixth caller cannot reintroduce it.
+        $sep = str_contains($handoffPath, '?') ? '&' : '?';
+
+        return $handoffPath . $sep . 'ref=' . urlencode($reference);
     }
 
     /**
@@ -122,12 +154,40 @@ final class GatewayHandoff
         $h = $_SESSION[self::KEY] ?? null;
         unset($_SESSION[self::KEY]);
 
-        if (!is_array($h)) return null;
-        if ((string) ($h['ref'] ?? '') !== $reference || $reference === '') return null;
-        if (time() - (int) ($h['at'] ?? 0) > self::TTL) return null;
+        // ── A LOST HAND-OFF IS A LOST SALE, AND IT USED TO BE SILENT ─────────
+        //
+        // Every `return null` below bounces a buyer away from the gateway without paying.
+        // None of them threw, none of them logged, and the gateway was never called — so a
+        // total inability to sell tickets showed up on no diagnostic anywhere. That is how
+        // the `?event=gala?ref=…` bug survived: the symptom was a redirect, and a redirect
+        // looks like the system working.
+        //
+        // The distinction that makes this loggable rather than noise: a handoff was STORED
+        // and then could not be used. Somebody merely visiting `/shop/redirect` with no
+        // handoff in their session is an ordinary stale tab, and says nothing.
+        if (!is_array($h)) return null;                      // nothing stored — not a failure
+
+        if ($reference === '') {
+            self::noteLost('', 'the redirect carried no `ref` parameter, so the stored '
+                . 'checkout URL could not be claimed');
+            return null;
+        }
+        if ((string) ($h['ref'] ?? '') !== $reference) {
+            self::noteLost($reference, 'the reference in the URL does not match the one '
+                . 'stored in the session');
+            return null;
+        }
+        if (time() - (int) ($h['at'] ?? 0) > self::TTL) {
+            self::noteLost($reference, 'the stored handoff had expired (older than '
+                . self::TTL . 's)');
+            return null;
+        }
 
         $url = (string) ($h['url'] ?? '');
-        if (!self::isGatewayUrl($url)) return null;
+        if (!self::isGatewayUrl($url)) {
+            self::noteLost($reference, 'the stored checkout URL is not on a known gateway host');
+            return null;
+        }
 
         self::$provider = (string) ($h['provider'] ?? '');
         return $url;
@@ -145,6 +205,34 @@ final class GatewayHandoff
 
     /** Set by take(), read by providerLabel(). Request-scoped, like everything in PHP. */
     private static string $provider = '';
+
+    /**
+     * Write down that a buyer was bounced instead of being sent to the gateway.
+     *
+     * Appended to `var/logs/error-detail.log` — the file {@see \AfricaGates\Handlers\ErrorHandler}
+     * writes 500s to, and the one `/__setup/errors` reads. Deliberately the same file rather
+     * than a new one: this failure is not an exception, so it would otherwise need its own
+     * plumbing and its own page to be seen, and the whole lesson of this bug is that a
+     * diagnostic nobody can reach is not a diagnostic.
+     *
+     * No database, no mailer, and it never throws. It is a last-resort note, and a last-resort
+     * note that can fail is worse than none.
+     */
+    private static function noteLost(string $reference, string $why): void
+    {
+        try {
+            $dir = dirname(__DIR__, 2) . '/var/logs';
+            if (!is_dir($dir)) @mkdir($dir, 0775, true);
+            @file_put_contents(
+                $dir . '/error-detail.log',
+                '[' . date('c') . '] HandoffLost: a buyer was sent back instead of to the '
+                . 'payment page — ' . $why
+                . ($reference !== '' ? ' (reference ' . $reference . ')' : '')
+                . "\n(no exception: the gateway was never called, so nothing else records this)\n\n",
+                FILE_APPEND
+            );
+        } catch (\Throwable) { /* a diagnostic must never be the thing that breaks */ }
+    }
 
     /**
      * Is this an https URL on a host a gateway actually checks out on?

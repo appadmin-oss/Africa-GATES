@@ -614,6 +614,79 @@ final class ShopEventPaymentCoverageTest extends TestCase
             'the retry\'s message masked the real reason the gateway said no');
     }
 
+    // ══ 7b · the hand-off actually hands off ═════════════════════════════════
+
+    /**
+     * ── THE BUG THAT SOLD NO TICKETS AND REPORTED NOTHING ────────────────────
+     *
+     * `remember()` appended `'?ref=' . $reference` unconditionally. Four of its five callers
+     * pass a bare path, so it was right for them. Events passes
+     * `/events/redirect?event=<slug>` — it wants to bounce a buyer back to the event they
+     * were buying from rather than to the list — and appending a second `?` produced
+     *
+     *     /events/redirect?event=gala?ref=AFG-EVT-ABC123
+     *
+     * which PHP reads as ONE parameter: `event` => `gala?ref=AFG-EVT-ABC123`.
+     *
+     * Both halves then fail. `ref` is absent, so `take()` never returns the stored checkout
+     * URL and the buyer never reaches Paystack. And the slug now contains a `?`, so it fails
+     * the bounce path's own `^[a-z0-9-]+$` guard and even the fallback loses the event —
+     * landing the buyer on `/events?pay=restart`, which is precisely what was reported.
+     *
+     * Nothing throws. Nothing is logged. No 500 is recorded and the gateway is never called,
+     * so every diagnostic on the platform reports a healthy system while no ticket can be
+     * sold. Asserting on the URL is the only way to see it.
+     */
+    public function test_a_handoff_path_that_already_has_a_query_string_keeps_its_reference(): void
+    {
+        $url = \AfricaGates\Services\GatewayHandoff::remember(
+            'AFG-EVT-ABC123', 'https://checkout.paystack.com/x',
+            'https://site.test/events/redirect?event=gala', 'paystack');
+
+        $this->assertStringContainsString('?event=gala&ref=AFG-EVT-ABC123', $url,
+            'a second "?" was appended, so the reference is unreadable and the event slug '
+            . 'swallows it');
+
+        // And the round trip: what the server will actually parse out of that URL.
+        $q = [];
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+        $this->assertSame('gala', $q['event'] ?? null);
+        $this->assertSame('AFG-EVT-ABC123', $q['ref'] ?? null);
+    }
+
+    /** The four bare-path callers keep the plain `?ref=` they have always had. */
+    public function test_a_bare_handoff_path_still_uses_a_question_mark(): void
+    {
+        $url = \AfricaGates\Services\GatewayHandoff::remember(
+            'AFG-SHP-abc123', 'https://checkout.paystack.com/x',
+            'https://site.test/shop/redirect', 'paystack');
+
+        $this->assertStringEndsWith('/shop/redirect?ref=AFG-SHP-abc123', $url);
+    }
+
+    /**
+     * End to end through the session: remember(), then read the reference back out of the
+     * URL exactly as the redirect endpoint does, and take() must return the checkout URL.
+     *
+     * This is the assertion that was missing. A test that only asks "did it 5xx" passes
+     * happily while the buyer is bounced, because a bounce is a 302.
+     */
+    public function test_the_stored_checkout_url_survives_the_round_trip(): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) { @session_start(); }
+
+        $url = \AfricaGates\Services\GatewayHandoff::remember(
+            'AFG-EVT-ROUND1', 'https://checkout.paystack.com/live/abc',
+            'https://site.test/events/redirect?event=my-gala', 'paystack');
+
+        $q = [];
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+
+        $this->assertSame('https://checkout.paystack.com/live/abc',
+            \AfricaGates\Services\GatewayHandoff::take((string) ($q['ref'] ?? '')),
+            'the buyer would have been bounced back to the events list instead of paying');
+    }
+
     // ══ 8 · every delivery leaves a trace ════════════════════════════════════
 
     /**
