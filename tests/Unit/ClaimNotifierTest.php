@@ -196,6 +196,67 @@ final class ClaimNotifierTest extends TestCase
         $this->assertStringContainsString("nominee's own name", $text);
     }
 
+    /**
+     * ── AND IT SURVIVES HAVING NO FREEZE LINK ────────────────────────────────
+     *
+     * The plain-text "If this was NOT you" used to be conditional on there being a one-tap
+     * freeze URL, and `$disputeUrl` is null whenever the site base cannot be worked out —
+     * APP_URL unset with no request to infer it from, which is every send from cron or the
+     * queue. So the sentence this whole email exists to deliver went missing on the automated
+     * path, while the HTML half of the same message still carried it.
+     *
+     * Both states are asserted here because they are two different messages, and the one
+     * without the link is the one that used to be wrong.
+     */
+    public function test_the_warning_survives_when_there_is_no_freeze_link(): void
+    {
+        $this->nomination();
+        $claimId = $this->claim();
+        $ref = Reference::claim($claimId);
+
+        // No APP_URL and no request: ClaimNotifier cannot build a dispute URL.
+        $kept = $_ENV['APP_URL'] ?? null;
+        unset($_ENV['APP_URL']);
+
+        try {
+            $mailer = new ClaimMailerSpy();
+            ClaimNotifier::fanOut($claimId, $mailer, $this->sms());
+            $text = $mailer->sent[0]['text'];
+
+            $this->assertStringContainsString('If this was NOT you', $text,
+                'the security instruction vanished on the path that has no freeze link — '
+                . 'which is every send from cron or the queue');
+            // The route that needs no configuration must be named, since it is the only one left.
+            $this->assertStringContainsString('reply to this email', $text);
+            $this->assertStringContainsString($ref, $text);
+            // And "also" must not dangle after an option that was never offered.
+            $this->assertStringNotContainsString('You can also reply', $text);
+        } finally {
+            if ($kept !== null) { $_ENV['APP_URL'] = $kept; }
+        }
+    }
+
+    /** With a freeze link, the one-tap route leads and the email route follows it. */
+    public function test_the_freeze_link_leads_when_there_is_one(): void
+    {
+        $this->nomination();
+        $claimId = $this->claim();
+
+        $_ENV['APP_URL'] = 'https://afg.example.test';
+        try {
+            $mailer = new ClaimMailerSpy();
+            ClaimNotifier::fanOut($claimId, $mailer, $this->sms());
+            $text = $mailer->sent[0]['text'];
+
+            $this->assertStringContainsString('If this was NOT you, stop it now', $text);
+            $this->assertStringContainsString('https://afg.example.test', $text);
+            $this->assertStringContainsString('You can also reply', $text,
+                '"also" is right here — a first option was given');
+        } finally {
+            unset($_ENV['APP_URL']);
+        }
+    }
+
     /** The same promises, in an SMS, because that is the channel a thief cannot read. */
     public function test_the_sms_carries_the_reference_and_the_promises(): void
     {

@@ -219,14 +219,43 @@ final class ClaimNotifier
 <p style="margin:0;font-size:13px;color:#9ca3af">Claim reference: {$safeRef}</p>
 HTML;
 
+        // ══ "IF THIS WAS NOT YOU" IS NOT OPTIONAL ═══════════════════════════════
+        //
+        // This block was conditional on `$disputeUrl`, and the whole sentence went with it.
+        // Without a freeze link the plain text read:
+        //
+        //     If this was you, there is nothing to do.
+        //     You can also reply to this email or write to support quoting REF.
+        //
+        // — which never names the case it is for, and whose "also" refers to an option that
+        // was never offered. The one instruction this email exists to deliver, missing.
+        //
+        // Three things make that worse than a wording slip:
+        //
+        //   IT DISAGREED WITH ITSELF.   The HTML half of the SAME message always said "If this
+        //                               was not you — stop it now". Which half a recipient sees
+        //                               is decided by their mail client, so the security
+        //                               instruction was present or absent at random.
+        //   IT FAILED OPEN.             `$disputeUrl` is null whenever APP_URL is unset — see
+        //                               the note above, this runs from a console command and a
+        //                               queue worker as well as a controller. So the sentence
+        //                               went missing on the automated paths first.
+        //   IT DROPPED OUT WHEN NEEDED MOST. No freeze link means the recipient has FEWER ways
+        //                               to act, not fewer reasons to.
+        //
+        // The email route always exists and needs no configuration, so it is the floor. The
+        // one-tap freeze is the addition when a URL can be built — and "also" now appears only
+        // where something came before it.
+        $stopBlockPlain = $disputeUrl !== null
+            ? "If this was NOT you, stop it now:\n{$disputeUrl}\n\n"
+              . "You can also reply to this email or write to {$support} quoting {$ref}. "
+            : "If this was NOT you, reply to this email or write to {$support} quoting {$ref}. ";
+
         $plain = "Someone has just claimed the Africa GATES page for {$name}.\n\n"
                . "They confirmed a code sent to {$used}. We are telling every contact on the "
                . "nomination, including this one.\n\n"
                . "If this was you, there is nothing to do.\n\n"
-               . ($disputeUrl !== null
-                    ? "If this was NOT you, stop it now:\n{$disputeUrl}\n\n"
-                    : '')
-               . "You can also reply to this email or write to {$support} quoting {$ref}. "
+               . $stopBlockPlain
                . "We will stop it while a person looks. There is nothing to pay.\n\n"
                . "No money moves on a claim less than {$days} days old, and any payment can only "
                . "go to a bank account in the nominee's own name.\n\n"
