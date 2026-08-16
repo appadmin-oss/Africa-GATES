@@ -1790,6 +1790,12 @@ return function(App $app) {
         $g->get('/donate/redirect', DonationController::class.':handoff');  // see GatewayHandoff
         $g->get('/donate/callback', DonationController::class.':callback');
         $g->get('/donate/success',  DonationController::class.':success');
+        // A partner organisation's own appeal. Registered LAST so the three fixed paths
+        // above always win — and the pattern additionally excludes them by name, because
+        // route order is the kind of invariant that survives until somebody tidies the file
+        // and a partner called "success" silently takes over the thank-you page.
+        $g->get('/donate/{slug:(?!redirect$|callback$|success$)[a-z0-9][a-z0-9-]{1,118}}',
+                DonationController::class.':page');
         // (Paid-voting routes are registered above, before /vote/{program}.)
         // Admin-editable legal/policy docs (gates_legal_docs via LegalService).
         // Content is no longer hardcoded; a missing/unpublished doc → 404.

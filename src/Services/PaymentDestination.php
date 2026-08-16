@@ -148,6 +148,69 @@ final class PaymentDestination
     }
 
     /**
+     * The stream a reference belongs to when a PARTNER ORGANISATION is the recipient.
+     *
+     * ── WHY THIS IS ALSO READ FROM THE REFERENCE ─────────────────────────────
+     *
+     * Same doctrine as {@see streamForReference()}: the recipient is looked up from the
+     * pending donation row the reference already identifies, rather than threaded down
+     * through initialize()'s call sites. The row is written BEFORE the gateway is called, so
+     * it is always there by the time this runs, and the attribution physically cannot
+     * disagree with the reference the gateway knows the payment by.
+     *
+     * Returns '' for every other kind of payment, including Africa GATES' own donations,
+     * which keeps the existing three-stream behaviour exactly as it was.
+     */
+    public static function partnerOrgIdForReference(string $reference): int
+    {
+        $reference = trim($reference);
+        if ($reference === '' || !str_starts_with(strtoupper($reference), 'AFG-GIVE')) return 0;
+
+        try {
+            if (!DB::schema()->hasColumn('gates_donations', 'recipient_org_id')) return 0;
+            return (int) (DB::table('gates_donations')
+                ->where('payment_ref', $reference)
+                ->value('recipient_org_id') ?? 0);
+        } catch (\Throwable) {
+            // Unmigrated, or the database is unhappy. Unrouted is the safe answer — the
+            // payment still goes out, it just settles to the main account.
+            return 0;
+        }
+    }
+
+    /**
+     * Route a partner donation to the organisation's OWN subaccount.
+     *
+     * ── THE ORGANISATION'S ELIGIBILITY IS CHECKED HERE, NOT ONLY ON THE PAGE ──
+     *
+     * A suspended partner must stop being able to receive money at the moment somebody
+     * presses pay, not the next time a page is rendered. The public page checks too, but the
+     * page is a cache of a decision and this is the decision.
+     *
+     * Returning an empty array means the donation settles to the main account, where it is
+     * visible, attributable and refundable — the correct failure for money that should not
+     * have been collected, and far better than a payment that cannot be made at all.
+     *
+     * @return array<string,string>
+     */
+    public static function initFieldsForPartner(int $orgId): array
+    {
+        if (!self::enabled() || $orgId < 1) return [];
+
+        try {
+            $org = \AfricaGates\Services\PartnerOrg::find($orgId);
+        } catch (\Throwable) {
+            return [];
+        }
+        if (!\AfricaGates\Services\PartnerOrg::canReceive($org)) return [];
+
+        // No `bearer` here. Who absorbs Paystack's cut on a partner donation is set by the
+        // subaccount's own percentage_charge at creation, and sending a conflicting bearer
+        // is how a partner discovers their share is not what they agreed to.
+        return ['subaccount' => (string) $org->subaccount_code];
+    }
+
+    /**
      * Validate and normalise a code an admin typed.
      *
      * Paystack's codes look like `ACCT_` followed by alphanumerics. Anything else is a paste

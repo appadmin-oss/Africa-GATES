@@ -68,23 +68,93 @@ final class DonationController
         'start'       => 'We could not start the checkout. No payment was taken — please try again.',
         'error'       => 'Something went wrong starting the checkout. No payment was taken.',
         'failed'      => 'That payment did not complete, so nothing was charged.',
+        // A partner that stopped being able to receive money between the page rendering and
+        // the form posting — suspended, or its settlement account detached. Said plainly,
+        // because the alternative is a donor whose money silently went somewhere else.
+        'closed'      => 'That appeal has closed and is no longer accepting donations. Nothing was charged.',
     ];
 
     /** GET /donate — the giving page. */
-    public function page(Request $req, Response $res): Response
+    public function page(Request $req, Response $res, array $args = []): Response
     {
+        // ── GIVING TO A PARTNER, OR TO US ────────────────────────────────────
+        //
+        // One template, two recipients. A slug that does not resolve to a partner currently
+        // able to receive money is a 404 rather than a silent fall-through to the Africa
+        // GATES page: somebody following a link to a suspended charity must be told the
+        // appeal is closed, not quietly redirected into giving to a different organisation.
+        $slug = trim((string) ($args['slug'] ?? ''));
+        $org  = null;
+
+        if ($slug !== '') {
+            $org = \AfricaGates\Services\PartnerOrg::bySlug($slug);
+            if (!\AfricaGates\Services\PartnerOrg::canReceive($org)) {
+                return $this->view->render($res->withStatus(404), 'pages/donate.twig', [
+                    'error'      => 'That appeal is not open for donations.',
+                    'page_title' => 'Appeal closed — Africa GATES',
+                    'gates_page' => 'donate', 'has_hero' => false,
+                    'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
+                    'org' => null, 'org_closed' => true,
+                    'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
+                    'processing_fee_pct' => 1.5,
+                ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
+            }
+        }
+
         return $this->view->render($res, 'pages/donate.twig', [
             'error'            => self::GIVE_REASONS[trim((string) ($req->getQueryParams()['give'] ?? ''))] ?? null,
-            'page_title'       => 'Donate — Africa GATES',
-            'meta_description' => 'Fund child leadership programmes across the continent — mentorship, scholarships and grassroots education. Every gift is receipted and independently audited.',
+            'page_title'       => $org ? ('Donate to ' . $org->name . ' — Africa GATES') : 'Donate — Africa GATES',
+            'meta_description' => $org
+                ? ('Give to ' . $org->name . ' through Africa GATES. Your donation settles directly to the organisation.')
+                : 'Fund child leadership programmes across the continent — mentorship, scholarships and grassroots education. Every gift is receipted and independently audited.',
             'gates_page'       => 'donate',
             'has_hero'         => false,
             'providers'        => $this->payments->enabledProviders(),
-            'stats'            => $this->stats(),
-            'givers'           => $this->recentGivers(),
+            'stats'            => $org ? $this->orgStats((int) $org->id) : $this->stats(),
+            'givers'           => $org ? [] : $this->recentGivers(),
+            'org'              => $org,
+            // The platform's share, in the only unit a donor can act on. A percentage in a
+            // footnote is not a disclosure; the template shows this in naira beside the
+            // amount, because a fee discovered after payment is the fastest way to lose a
+            // donor permanently.
+            'org_fee_bps'      => $org ? (int) ($org->platform_fee_bps ?? 0) : 0,
+            'partners'         => $org ? [] : \AfricaGates\Services\PartnerOrg::listReceivable(),
             'min_naira'        => self::MIN_NAIRA,
             'max_naira'        => self::MAX_NAIRA,
+            'processing_fee_pct' => $this->processingFeePct(),
         ]);
+    }
+
+    /** Confirmed totals for one partner. Same doctrine as stats(): never fabricated. */
+    private function orgStats(int $orgId): array
+    {
+        $t = \AfricaGates\Services\PartnerOrg::totals($orgId);
+        return ['raised_naira' => $t['gross'], 'gifts' => $t['count']];
+    }
+
+    /**
+     * The processing-fee cover percentage, from admin settings.
+     *
+     * ── IT WAS ADMIN-CONFIGURABLE AND SERVER-IGNORED ─────────────────────────
+     *
+     * `processing_fee_pct` has a field on the settings screen and was read by nothing. The
+     * template printed it as `{{ processing_fee_pct }}` on a page that never passed it — so
+     * the checkbox read "Add % to cover processing" with the number missing — while start()
+     * hard-coded 1.5% regardless of what an operator had set.
+     *
+     * Both halves are the same defect: a donor was shown one thing and charged another. One
+     * source now feeds the sentence and the arithmetic, so they cannot disagree.
+     */
+    private function processingFeePct(): float
+    {
+        try {
+            $v = DB::table('gates_settings')->where('key_name', 'processing_fee_pct')->value('value');
+        } catch (\Throwable) {
+            $v = null;
+        }
+        $pct = is_numeric($v) ? (float) $v : 1.5;
+        // Clamped: a mistyped 150 in an admin field must not multiply somebody's gift.
+        return max(0.0, min(10.0, $pct));
     }
 
     /** Real, public-safe aggregates from confirmed donations (never fabricated). */
@@ -137,8 +207,25 @@ final class DonationController
         $name     = \AfricaGates\Support\Name::title((string)($b['name'] ?? ''));
         $baseAmt  = (int) preg_replace('/[^0-9]/', '', (string)($b['amount'] ?? '0'));
         $cover    = !empty($b['cover_fees']);
+        $orgSlug  = trim((string)($b['org'] ?? ''));
 
-        $bail = fn(string $why) => $this->redirect($res, $this->base($req) . '/donate?give=' . urlencode($why));
+        // ── WHO IS BEING GIVEN TO ────────────────────────────────────────────
+        //
+        // Resolved SERVER-SIDE from the slug and re-checked against canReceive(), never
+        // trusted from the form. The posted slug is a request, not an instruction: a
+        // suspended partner whose page somebody still has open in a tab must not be able to
+        // take another naira, and the page is a cache of that decision while this is the
+        // decision.
+        $org = null;
+        if ($orgSlug !== '') {
+            $org = \AfricaGates\Services\PartnerOrg::bySlug($orgSlug);
+            if (!\AfricaGates\Services\PartnerOrg::canReceive($org)) {
+                return $this->redirect($res, $this->base($req) . '/donate?give=closed');
+            }
+        }
+
+        $back = $org ? '/donate/' . rawurlencode($orgSlug) : '/donate';
+        $bail = fn(string $why) => $this->redirect($res, $this->base($req) . $back . '?give=' . urlencode($why));
 
         if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
         if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL))     return $bail('email');
@@ -155,24 +242,42 @@ final class DonationController
         }
 
         // Optional processing-fee cover, computed SERVER-SIDE (never trust a client total).
-        $amount = $cover ? (int) ceil($baseAmt * 1.015) : $baseAmt;
+        $amount = $cover ? (int) ceil($baseAmt * (1 + $this->processingFeePct() / 100)) : $baseAmt;
         $amount = min(self::MAX_NAIRA, max(self::MIN_NAIRA, $amount));
 
         $reference = 'AFG-GIVE-' . bin2hex(random_bytes(6));
+
+        $row = [
+            'donor_name'     => $name !== '' ? mb_substr($name, 0, 120) : 'Supporter',
+            'donor_email'    => $email,
+            'donor_phone'    => null,
+            'donor_location' => null,
+            'amount_naira'   => $amount,
+            'tier'           => 'donation',
+            'bonus_votes'    => 0,
+            'votes_used'     => 0,
+            'payment_ref'    => $reference,
+            'status'         => 'pending',
+            'created_at'     => Carbon::now()->toDateTimeString(),
+        ];
+
+        // The recipient is written onto the row BEFORE the gateway is called, because that
+        // row is what PaymentDestination reads back from the reference to decide which
+        // subaccount this settles into. Writing it afterwards would route the money to the
+        // platform and only then record that it belonged to somebody else.
+        //
+        // The platform's own share is stored in naira at the moment of the gift rather than
+        // recomputed later from a rate: a fee percentage that changes next quarter must not
+        // retroactively restate what a partner earned last quarter. Same doctrine as money
+        // columns being written once.
+        if ($org) {
+            $feeBps = (int) ($org->platform_fee_bps ?? 0);
+            $row['recipient_org_id']   = (int) $org->id;
+            $row['platform_fee_naira'] = (int) floor($amount * $feeBps / 10000);
+        }
+
         try {
-            DB::table('gates_donations')->insert([
-                'donor_name'     => $name !== '' ? mb_substr($name, 0, 120) : 'Supporter',
-                'donor_email'    => $email,
-                'donor_phone'    => null,
-                'donor_location' => null,
-                'amount_naira'   => $amount,
-                'tier'           => 'donation',
-                'bonus_votes'    => 0,
-                'votes_used'     => 0,
-                'payment_ref'    => $reference,
-                'status'         => 'pending',
-                'created_at'     => Carbon::now()->toDateTimeString(),
-            ]);
+            DB::table('gates_donations')->insert($row);
         } catch (\Throwable $e) {
             $this->log?->error('[donate] could not persist pending donation', ['err' => $e->getMessage()]);
             return $bail('error');

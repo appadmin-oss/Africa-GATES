@@ -556,8 +556,21 @@ class PaymentService
         $stream = '';
         $route  = [];
         try {
-            $stream = PaymentDestination::streamForReference($reference);
-            $route  = $stream !== '' ? PaymentDestination::initFields($stream) : [];
+            // A donation to a PARTNER ORGANISATION settles into that organisation's own
+            // subaccount rather than into one of the three platform streams. Checked first,
+            // and recorded under its own stream name so a partner's money is never counted
+            // as platform donation income on the finance screen.
+            $orgId = PaymentDestination::partnerOrgIdForReference($reference);
+            if ($orgId > 0) {
+                $route = PaymentDestination::initFieldsForPartner($orgId);
+                // Only claim the partner stream if the routing actually resolved. A suspended
+                // partner falls through to an empty route and the payment settles to the main
+                // account, where it is visible and refundable.
+                $stream = $route !== [] ? 'partner:' . $orgId : '';
+            } else {
+                $stream = PaymentDestination::streamForReference($reference);
+                $route  = $stream !== '' ? PaymentDestination::initFields($stream) : [];
+            }
 
             if ($route !== []) {
                 // Recorded on the row, not derived later from the settings — settings change,

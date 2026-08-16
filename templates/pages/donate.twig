@@ -178,14 +178,41 @@
       <form class="dn-card__in" method="post" action="/donate" @submit="submitting = true">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <input type="hidden" name="amount" :value="value">
+        {# Which appeal this is. Re-resolved and re-checked server-side — the slug is a
+           request, not an instruction. #}
+        {% if org %}<input type="hidden" name="org" value="{{ org.slug }}">{% endif %}
 
         {# error from a bounced attempt #}
         {% if error %}<div class="dn-err" role="alert">{{ error }}</div>{% endif %}
 
         {# STEP: choose amount #}
         <div x-show="step==='choose'">
-          <h2>Make a donation</h2>
-          <p class="dn-card__sub">A one-time gift — 100% funds the programmes.</p>
+          {% if org %}
+            <h2>Give to {{ org.name }}</h2>
+            {# ── WHAT THIS PAGE PROMISES, AND WHAT IT MUST NOT ──────────────────
+               "100% funds the programmes" is true when Africa GATES is the recipient and
+               the fee cover offsets the gateway's cut. It stops being true the moment a
+               platform fee is deducted from somebody else's donation, so the claim is
+               made ONLY where it holds and the fee is stated in naira beside the amount
+               otherwise — not in a footnote, and never discovered after paying. #}
+            {% if org_fee_bps > 0 %}
+              <p class="dn-card__sub">
+                Africa GATES keeps {{ (org_fee_bps / 100)|number_format(2) }}% of this gift
+                (<span x-text="ngn(Math.floor(value * {{ org_fee_bps }} / 10000))"></span>);
+                the rest goes to {{ org.name }}.
+              </p>
+            {% else %}
+              <p class="dn-card__sub">A one-time gift — Africa GATES takes nothing. 100% goes to {{ org.name }}.</p>
+            {% endif %}
+            <p class="dn-card__sub" style="font-size:12.5px">
+              Your donation settles directly to {{ org.name }}’s own account.
+              Africa GATES checks that they are registered with the CAC{% if org.scuml_number %} and with SCUML{% endif %},
+              and that donations settle to a bank account in their own name. We do not audit how the money is spent.
+            </p>
+          {% else %}
+            <h2>Make a donation</h2>
+            <p class="dn-card__sub">A one-time gift — 100% funds the programmes.</p>
+          {% endif %}
           <div class="dn-amounts">
             <template x-for="a in presets" :key="a">
               <button type="button" class="dn-amt" :class="(!custom && amt===a) ? 'is-on' : ''" :aria-pressed="!custom && amt===a" @click="amt=a; custom=''" x-text="ngn(a)"></button>
@@ -225,7 +252,13 @@
           </div>
           <label class="dn-cover">
             <input type="checkbox" name="cover_fees" value="1" checked>
-            <span>Add {{ processing_fee_pct }}% to cover processing so 100% of my gift reaches the cause.</span>
+            {# The claim is scoped to what the cover actually buys. It offsets the GATEWAY's
+               cut; it has never offset a platform fee, so on a partner appeal that charges
+               one it says what it covers and stops there rather than promising 100%. #}
+            <span>{% if org and org_fee_bps > 0 %}Add {{ processing_fee_pct }}% to cover the payment
+              processing charge, so the full amount above reaches {{ org.name }} less the Africa
+              GATES share shown.{% else %}Add {{ processing_fee_pct }}% to cover processing so 100% of my gift
+              reaches {{ org ? org.name : 'the cause' }}.{% endif %}</span>
           </label>
           <button type="submit" class="dn-cta" :disabled="submitting" x-text="submitting ? 'Redirecting…' : ('Give '+ngn(value))"></button>
           <div class="dn-secure">
