@@ -1804,12 +1804,24 @@ return function(App $app) {
         $g->post('/org/logout', \AfricaGates\Controllers\OrgDashboardController::class.':logout');
         $g->get ('/org',        \AfricaGates\Controllers\OrgDashboardController::class.':dashboard');
         $g->post('/org/payout', \AfricaGates\Controllers\OrgDashboardController::class.':requestPayout');
+        // Appeals. The id is in the path and is checked against the SESSION's organisation in
+        // the controller — a path id is a claim, not an authorisation.
+        $g->post('/org/appeal',                    \AfricaGates\Controllers\OrgDashboardController::class.':saveCampaign');
+        $g->post('/org/appeal/{id:[0-9]+}',        \AfricaGates\Controllers\OrgDashboardController::class.':saveCampaign');
+        $g->post('/org/appeal/{id:[0-9]+}/submit', \AfricaGates\Controllers\OrgDashboardController::class.':submitCampaign');
+        $g->post('/org/appeal/{id:[0-9]+}/close',  \AfricaGates\Controllers\OrgDashboardController::class.':closeCampaign');
 
         // A partner organisation's own appeal. Registered LAST so the three fixed paths
         // above always win — and the pattern additionally excludes them by name, because
         // route order is the kind of invariant that survives until somebody tidies the file
         // and a partner called "success" silently takes over the thank-you page.
         $g->get('/donate/{slug:(?!redirect$|callback$|success$)[a-z0-9][a-z0-9-]{1,118}}',
+                DonationController::class.':page');
+        // A specific appeal inside that organisation. Two segments, because a campaign slug
+        // is only unique WITHIN an organisation — one flat namespace would make two charities
+        // running a "school-roof" appeal collide, and a collision here sends money to the
+        // wrong charity.
+        $g->get('/donate/{slug:[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}',
                 DonationController::class.':page');
         // (Paid-voting routes are registered above, before /vote/{program}.)
         // Admin-editable legal/policy docs (gates_legal_docs via LegalService).
@@ -2712,6 +2724,11 @@ return function(App $app) {
         $a->post('/partner-orgs/{id:[0-9]+}/approve',   $P.':approve');
         $a->post('/partner-orgs/{id:[0-9]+}/suspend',   $P.':suspend');
         $a->post('/partner-orgs/{id:[0-9]+}/user',      $P.':addUser');
+        // Reviewing an appeal. Publishing puts the platform's name beside somebody else's
+        // claim about what they will do with money, so it is an admin decision like approving
+        // the organisation itself.
+        $a->post('/partner-orgs/appeal/{id:[0-9]+}/publish', $P.':publishCampaign');
+        $a->post('/partner-orgs/appeal/{id:[0-9]+}/close',   $P.':closeCampaign');
 
         $a->get('/partners',                     AdminPartnersController::class.':index');
         $a->post('/partners/{id:[0-9]+}/{status}', AdminPartnersController::class.':setStatus');

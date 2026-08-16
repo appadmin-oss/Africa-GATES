@@ -201,6 +201,100 @@
     {% endif %}
   </div>
 
+  {# ── APPEALS ────────────────────────────────────────────────────────────────
+     An appeal is a public claim about what this organisation will do with money, so an
+     owner writes it and Africa GATES publishes it. Editing a LIVE appeal's story or target
+     sends it back for review, because a donor gave against the words that were on the
+     page. #}
+  <div class="pd__card">
+    <h2>Appeals</h2>
+    <p>Raise for something specific. Donations to an appeal are restricted to it — what you
+       write here is what donors are giving for.</p>
+
+    {% if campaigns %}
+      <div class="pd__wrap">
+        <table class="pd__t">
+          <caption class="sr-only">Your appeals</caption>
+          <thead><tr><th scope="col">Appeal</th><th scope="col">Raised</th><th scope="col">Status</th><th scope="col">&nbsp;</th></tr></thead>
+          <tbody>
+          {% for c in campaigns %}
+            {% set st = c.row.status %}
+            {% set cls = st == 'live' ? 'done' : (st == 'closed' ? 'dead' : 'open') %}
+            <tr>
+              <td>
+                <strong>{{ c.row.title }}</strong>
+                {% if c.open %}<div class="pd__who"><a href="/donate/{{ org.slug }}/{{ c.row.slug }}">/donate/{{ org.slug }}/{{ c.row.slug }}</a></div>{% endif %}
+                {% if c.days is not null and c.open %}<div class="pd__who">{{ c.days }} day{{ c.days == 1 ? '' : 's' }} left</div>{% endif %}
+              </td>
+              <td class="pd__num">
+                {{ ngn }}{{ c.progress.raised|number_format }}
+                {%- if c.progress.target > 0 %} <span style="color:var(--ag-ink-soft,#626a6e)">of {{ ngn }}{{ c.progress.target|number_format }}</span>{% endif %}
+                <div class="pd__who">{{ c.progress.count }} gift{{ c.progress.count == 1 ? '' : 's' }}</div>
+              </td>
+              <td>
+                <span class="pd__chip pd__chip--{{ cls }}">{{ st|capitalize }}</span>
+                {% if st == 'live' and not c.open %}<div class="pd__who">Outside its dates</div>{% endif %}
+              </td>
+              <td>
+                {% if can_payout %}
+                  {% if st in ['draft', 'closed'] %}
+                    <form method="post" action="/org/appeal/{{ c.row.id }}/submit" style="display:inline">
+                      <input type="hidden" name="_token" value="{{ csrf_token }}">
+                      <button class="pd__out" type="submit">Send for review</button>
+                    </form>
+                  {% elseif st == 'live' %}
+                    <form method="post" action="/org/appeal/{{ c.row.id }}/close" style="display:inline">
+                      <input type="hidden" name="_token" value="{{ csrf_token }}">
+                      <button class="pd__out" type="submit"
+                              data-confirm="Close “{{ c.row.title }}”? It stops accepting donations immediately. Everything already given is unaffected.">Close</button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="pd__empty">No appeals yet.</p>
+    {% endif %}
+
+    {% if can_payout %}
+      <details style="margin-top:16px">
+        <summary style="cursor:pointer;font-weight:600;font-size:13.5px;min-height:24px">Start a new appeal</summary>
+        <form method="post" action="/org/appeal" style="margin-top:12px;display:grid;gap:12px">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <label for="caTitle"><span>What are you raising for?</span>
+            <input id="caTitle" name="title" type="text" maxlength="200" required></label>
+          <label for="caSum"><span>One line a donor will read first</span>
+            <input id="caSum" name="summary" type="text" maxlength="400"></label>
+          <label for="caStory"><span>The full story</span>
+            <textarea id="caStory" name="story" rows="5"
+              style="width:100%;font:inherit;font-size:15px;border:1px solid rgba(16,41,44,.18);border-radius:11px;padding:11px 13px"></textarea></label>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+            <label for="caTarget"><span>Target in naira (optional)</span>
+              <input id="caTarget" name="target_naira" type="text" inputmode="numeric"></label>
+            <label for="caClose"><span>Closing date (optional)</span>
+              <input id="caClose" name="closes_on" type="date"></label>
+          </div>
+          <label for="caShort"><span>If you do not reach the target</span>
+            <select id="caShort" name="shortfall_policy"
+                    style="width:100%;font:inherit;font-size:16px;border:1px solid rgba(16,41,44,.18);border-radius:11px;padding:10px 13px">
+              {% for k, label in shortfall %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+            </select></label>
+          <p class="pd__empty" style="margin:0">
+            This is shown to donors <strong>before</strong> they give. Choose the one you will
+            actually do.
+          </p>
+          <div><button class="pd__out" type="submit"
+                       style="background:var(--ag-green,#237b22);color:#fff;border-color:transparent;min-height:44px;padding:0 20px;font-weight:700">
+            Save as draft</button></div>
+        </form>
+      </details>
+    {% endif %}
+  </div>
+
   <div class="pd__card">
     <h2>Recent donations</h2>
     <p>Confirmed gifts only. Donors appear by name only where they chose to be named —

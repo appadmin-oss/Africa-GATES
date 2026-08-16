@@ -55,6 +55,25 @@
   .dn-card__in{ padding:26px; }
   .dn-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:23px; color:var(--ag-ink); }
   .dn-card__sub{ margin:8px 0 18px; font-size:13.5px; color:#626a6e; }
+
+  /* Appeal progress. The bar carries an aria-label with the real figures because a width
+     is not readable — and the numbers sit under it in text for everybody else, since a bar
+     alone invites "90% is nearly there" on a fifty-million-naira target. */
+  .dn-prog{ margin:0 0 16px; }
+  .dn-prog__bar{ height:9px; border-radius:99px; background:rgba(16,41,44,.09); overflow:hidden; }
+  .dn-prog__bar i{ display:block; height:100%; border-radius:99px;
+    background:var(--ag-green,#237b22); transition:width .4s ease; }
+  .dn-prog__nums{ margin-top:7px; font-size:12.5px; color:#626a6e; line-height:1.6; }
+  .dn-prog__nums b{ color:var(--ag-ink,#10292c); font-size:14px; }
+  @media (prefers-reduced-motion: reduce){ .dn-prog__bar i{ transition:none } }
+
+  /* The list of open appeals on an organisation's own page. */
+  .dn-appeals{ margin:0 0 18px; display:grid; gap:9px; }
+  .dn-appeal{ display:block; text-decoration:none; padding:12px 14px; border-radius:13px;
+    border:1px solid rgba(16,41,44,.12); background:#fff; }
+  .dn-appeal:hover{ border-color:var(--ag-green,#237b22); }
+  .dn-appeal b{ display:block; font-size:14px; color:var(--ag-ink,#10292c); }
+  .dn-appeal span{ display:block; margin-top:3px; font-size:12.5px; color:#626a6e; }
   .dn-amounts{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
   .dn-amt{ cursor:pointer; border:1.5px solid rgba(16,41,44,.12); background:#fff; color:var(--ag-ink); font-family:var(--ag-font-mono); font-weight:700; font-size:15px; padding:16px 6px; border-radius:14px; transition:border-color .12s, background .12s, color .12s; }
   .dn-amt.is-on{ border-color:var(--ag-green); background:var(--ag-green); color:#fff; }
@@ -181,14 +200,81 @@
         {# Which appeal this is. Re-resolved and re-checked server-side — the slug is a
            request, not an instruction. #}
         {% if org %}<input type="hidden" name="org" value="{{ org.slug }}">{% endif %}
+        {# Re-resolved by (org, slug) together and re-checked server-side. A campaign slug
+           belonging to a different organisation must not attach. #}
+        {% if campaign %}<input type="hidden" name="campaign" value="{{ campaign.slug }}">{% endif %}
 
         {# error from a bounced attempt #}
         {% if error %}<div class="dn-err" role="alert">{{ error }}</div>{% endif %}
 
         {# STEP: choose amount #}
         <div x-show="step==='choose'">
-          {% if org %}
+          {% if campaign %}
+            <h2>{{ campaign.title }}</h2>
+            {% if campaign.summary %}<p class="dn-card__sub">{{ campaign.summary }}</p>{% endif %}
+
+            {# ── PROGRESS, FROM CONFIRMED ROWS ────────────────────────────────
+               A target is a representation, so the bar can only ever show money that
+               actually arrived. The figures either side of it are the raw numbers, because
+               a bar alone invites somebody to read 90% as "nearly there" when the target is
+               ₦50,000,000. #}
+            {% if progress and progress.target > 0 %}
+              <div class="dn-prog">
+                <div class="dn-prog__bar" role="img"
+                     aria-label="Raised ₦{{ progress.raised|number_format }} of a ₦{{ progress.target|number_format }} target, {{ progress.pct }} percent">
+                  <i style="width:{{ progress.pct }}%"></i>
+                </div>
+                <div class="dn-prog__nums">
+                  <b>₦{{ progress.raised|number_format }}</b> raised of
+                  ₦{{ progress.target|number_format }}
+                  · {{ progress.count }} gift{{ progress.count == 1 ? '' : 's' }}
+                  {%- if days_left is not null %} · {{ days_left }} day{{ days_left == 1 ? '' : 's' }} left{% endif %}
+                </div>
+              </div>
+              {# ── WHAT HAPPENS IF THE TARGET IS MISSED ──────────────────────
+                 Stated BEFORE anybody gives. It is the first question a thoughtful donor
+                 asks and the last thing most platforms answer, and deciding it after the
+                 money is in hand means deciding it in whatever way is most convenient. #}
+              {% if shortfall_text %}
+                <p class="dn-card__sub" style="font-size:12.5px">
+                  <strong>If the target is not reached:</strong> {{ shortfall_text|lower }}.
+                </p>
+              {% endif %}
+            {% elseif days_left is not null %}
+              <p class="dn-card__sub" style="font-size:12.5px">
+                {{ days_left }} day{{ days_left == 1 ? '' : 's' }} left · ₦{{ progress.raised|number_format }} raised so far
+              </p>
+            {% endif %}
+
+            <p class="dn-card__sub" style="font-size:12.5px">
+              Run by <strong>{{ org.name }}</strong>. Your donation settles directly to their
+              own account.
+              {%- if org_fee_bps > 0 %} Africa GATES keeps
+              {{ (org_fee_bps / 100)|number_format(2) }}% of each gift.{% else %} Africa GATES
+              takes nothing.{% endif %}
+            </p>
+          {% elseif org %}
             <h2>Give to {{ org.name }}</h2>
+
+            {# Open appeals, offered BEFORE the amount picker. Somebody who arrived at an
+               organisation's page may have come for a specific cause, and burying the list
+               under the form means their gift lands in the general fund by default rather
+               than by choice. Giving to the general fund stays available directly below. #}
+            {% if appeals %}
+              <p class="dn-card__sub" style="margin-bottom:9px">
+                {{ org.name }} is raising for {{ appeals|length }} specific
+                appeal{{ appeals|length == 1 ? '' : 's' }}. Give to one of those, or to their
+                general fund below.
+              </p>
+              <div class="dn-appeals">
+                {% for a in appeals %}
+                  <a class="dn-appeal" href="/donate/{{ org.slug }}/{{ a.slug }}">
+                    <b>{{ a.title }}</b>
+                    {% if a.summary %}<span>{{ a.summary }}</span>{% endif %}
+                  </a>
+                {% endfor %}
+              </div>
+            {% endif %}
             {# ── WHAT THIS PAGE PROMISES, AND WHAT IT MUST NOT ──────────────────
                "100% funds the programmes" is true when Africa GATES is the recipient and
                the fee cover offsets the gateway's cut. It stops being true the moment a

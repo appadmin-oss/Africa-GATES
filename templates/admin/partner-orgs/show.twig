@@ -277,6 +277,78 @@
   </div>
 </div>
 
+{# ── 3b · APPEALS ───────────────────────────────────────────────────────────
+   Publishing an appeal puts Africa GATES' name beside somebody else's claim about what
+   they will do with money, so it is reviewed like the organisation itself. The shortfall
+   policy is shown here because it is the promise a reviewer is actually approving. #}
+<div class="ad-card" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">Appeals
+    <small>what donors are told the money is for</small></div></div>
+  <div class="ad-card__body">
+
+  {% if campaigns %}
+    <div class="ad-table-wrap">
+      <table class="ad-table">
+        <caption class="sr-only">Appeals run by this organisation</caption>
+        <thead><tr>
+          <th scope="col">Appeal</th><th scope="col">Raised</th>
+          <th scope="col">If target missed</th><th scope="col">Status</th>
+          <th scope="col" class="col-actions">&nbsp;</th>
+        </tr></thead>
+        <tbody>
+        {% for c in campaigns %}
+          {% set st = c.row.status %}
+          {% set chip = st == 'live' ? 'green' : (st == 'review' ? 'gold' : (st == 'closed' ? 'red' : 'grey')) %}
+          <tr>
+            <td>
+              <strong>{{ c.row.title }}</strong>
+              {% if c.row.summary %}<div style="font-size:12px;color:var(--ad-text-soft)">{{ c.row.summary }}</div>{% endif %}
+              <div style="font-size:12px;color:var(--ad-text-soft)">
+                /donate/{{ org.slug }}/{{ c.row.slug }}
+                {%- if c.row.closes_on %} · closes {{ c.row.closes_on }}{% endif %}
+              </div>
+            </td>
+            <td style="font-family:'Space Mono',monospace">
+              ₦{{ c.progress.raised|number_format }}
+              {%- if c.progress.target > 0 %}<div style="font-size:11.5px;color:var(--ad-text-soft)">of ₦{{ c.progress.target|number_format }} ({{ c.progress.pct }}%)</div>{% endif %}
+            </td>
+            <td style="font-size:12.5px">{{ shortfall[c.row.shortfall_policy]|default('—') }}</td>
+            <td>
+              <span class="ad-chip ad-chip--{{ chip }}">{{ camp_states[st]|default(st) }}</span>
+              {% if st == 'live' and not c.open %}
+                <div style="font-size:11.5px;color:var(--ad-text-soft);margin-top:3px">Outside its dates</div>
+              {% endif %}
+            </td>
+            <td class="col-actions">
+              {% if may_decide %}
+                {% if st != 'live' %}
+                  <form method="post" action="/admin/partner-orgs/appeal/{{ c.row.id }}/publish" style="display:inline">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <button class="ad-btn ad-btn--xs ad-btn--primary" type="submit"
+                            data-confirm="Publish “{{ c.row.title }}”? It goes live at /donate/{{ org.slug }}/{{ c.row.slug }} and starts collecting immediately.">Publish</button>
+                  </form>
+                {% else %}
+                  <form method="post" action="/admin/partner-orgs/appeal/{{ c.row.id }}/close" style="display:inline">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <button class="ad-btn ad-btn--xs ad-btn--danger" type="submit"
+                            data-confirm="Close “{{ c.row.title }}”? It stops accepting donations immediately. Everything already given is unaffected.">Close</button>
+                  </form>
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p style="color:var(--ad-text-soft);margin:0">
+      No appeals. This organisation collects to its general fund at /donate/{{ org.slug }}.
+    </p>
+  {% endif %}
+  </div>
+</div>
+
 {# ── 4 · DASHBOARD LOGINS ───────────────────────────────────────────────────#}
 <div class="ad-card" style="margin-bottom:16px">
   <div class="ad-card__head"><div class="ad-card__title">Dashboard logins

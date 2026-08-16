@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
-use AfricaGates\Services\{OrgAuth, OrgPayout, PartnerOrg, PaymentService, RateLimitService};
+use AfricaGates\Services\{OrgAuth, OrgCampaign, OrgPayout, PartnerOrg, PaymentService, RateLimitService};
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -113,9 +113,101 @@ final class OrgDashboardController
             'payout_mode' => OrgPayout::mode(),
             'can_payout'  => OrgAuth::canRequestPayout($user),
             'min_payout'  => OrgPayout::MIN_NAIRA,
+            'campaigns'   => $this->campaignRows($orgId),
+            'shortfall'   => OrgCampaign::SHORTFALL,
             'flash_ok'    => $_SESSION['org_flash_ok']    ?? null,
             'flash_error' => $_SESSION['org_flash_error'] ?? null,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * The organisation's appeals, each with what it has actually raised.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function campaignRows(int $orgId): array
+    {
+        $out = [];
+        foreach (OrgCampaign::allFor($orgId) as $c) {
+            $out[] = [
+                'row'      => $c,
+                'progress' => OrgCampaign::progress((int) $c->id),
+                'open'     => OrgCampaign::isOpen($c),
+                'days'     => OrgCampaign::daysLeft($c),
+            ];
+        }
+        return $out;
+    }
+
+    // ─────────────────────────────── appeals ────────────────────────────────
+
+    /**
+     * Create or edit an appeal.
+     *
+     * An owner writes it; Africa GATES publishes it. A viewer cannot touch it — same gate
+     * as payouts, because an appeal is a public claim about what the organisation will do
+     * with money and that is not a read-only act.
+     */
+    public function saveCampaign(Request $req, Response $res, array $args = []): Response
+    {
+        $user = $this->requireUser();
+        if (!$user) return $this->redirect($res, '/org/login');
+        if (!OrgAuth::canRequestPayout($user)) {
+            $_SESSION['org_flash_error'] = 'Only an account owner can create or edit an appeal.';
+            return $this->redirect($res, '/org');
+        }
+
+        $r = OrgCampaign::save(
+            (int) $user->org_id,
+            (array) $req->getParsedBody(),
+            (int) ($args['id'] ?? 0)
+        );
+        $_SESSION[$r['ok'] ? 'org_flash_ok' : 'org_flash_error'] = $r['message'];
+        return $this->redirect($res, '/org');
+    }
+
+    /** Ask for it to be reviewed and published. */
+    public function submitCampaign(Request $req, Response $res, array $args = []): Response
+    {
+        $user = $this->requireUser();
+        if (!$user) return $this->redirect($res, '/org/login');
+        if (!OrgAuth::canRequestPayout($user)) {
+            $_SESSION['org_flash_error'] = 'Only an account owner can send an appeal for review.';
+            return $this->redirect($res, '/org');
+        }
+
+        $r = OrgCampaign::submit((int) $user->org_id, (int) ($args['id'] ?? 0));
+        $_SESSION[$r['ok'] ? 'org_flash_ok' : 'org_flash_error'] = $r['message'];
+        return $this->redirect($res, '/org');
+    }
+
+    /**
+     * Close an appeal early.
+     *
+     * An organisation may always STOP collecting for something — that needs no permission
+     * from us, and a charity that has met its need and cannot switch off the button is a
+     * charity taking money it did not ask for.
+     */
+    public function closeCampaign(Request $req, Response $res, array $args = []): Response
+    {
+        $user = $this->requireUser();
+        if (!$user) return $this->redirect($res, '/org/login');
+        if (!OrgAuth::canRequestPayout($user)) {
+            $_SESSION['org_flash_error'] = 'Only an account owner can close an appeal.';
+            return $this->redirect($res, '/org');
+        }
+
+        $id = (int) ($args['id'] ?? 0);
+        $c  = OrgCampaign::find($id);
+        // Scoped to the signed-in organisation, like everything else on these screens.
+        if (!$c || (int) $c->org_id !== (int) $user->org_id) {
+            $_SESSION['org_flash_error'] = 'That appeal does not belong to your organisation.';
+            return $this->redirect($res, '/org');
+        }
+
+        $r = OrgCampaign::close($id);
+        $_SESSION[$r['ok'] ? 'org_flash_ok' : 'org_flash_error'] = $r['message'];
+        return $this->redirect($res, '/org');
     }
 
     /**

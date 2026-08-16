@@ -72,6 +72,10 @@ final class DonationController
         // the form posting — suspended, or its settlement account detached. Said plainly,
         // because the alternative is a donor whose money silently went somewhere else.
         'closed'      => 'That appeal has closed and is no longer accepting donations. Nothing was charged.',
+        // A specific appeal that closed while somebody had its page open. Distinct from
+        // `closed` so the message can say the organisation is still collecting.
+        'appeal_closed' => 'That appeal closed before your gift went through, so nothing was '
+                         . 'charged. This organisation is still accepting donations.',
     ];
 
     /** GET /donate — the giving page. */
@@ -83,36 +87,77 @@ final class DonationController
         // able to receive money is a 404 rather than a silent fall-through to the Africa
         // GATES page: somebody following a link to a suspended charity must be told the
         // appeal is closed, not quietly redirected into giving to a different organisation.
-        $slug = trim((string) ($args['slug'] ?? ''));
-        $org  = null;
+        $slug     = trim((string) ($args['slug'] ?? ''));
+        $campSlug = trim((string) ($args['campaign'] ?? ''));
+        $org      = null;
+        $campaign = null;
 
         if ($slug !== '') {
             $org = \AfricaGates\Services\PartnerOrg::bySlug($slug);
+
+            // A campaign only exists inside an organisation, so it is resolved second and
+            // only if the organisation itself is live. A closed appeal 404s for the same
+            // reason a suspended partner does: quietly redirecting somebody who followed a
+            // link to a specific cause into giving to a general fund is not a fallback, it
+            // is spending their intention on something they did not choose.
+            if ($campSlug !== '' && $org) {
+                $campaign = \AfricaGates\Services\OrgCampaign::bySlug((int) $org->id, $campSlug);
+                if (!\AfricaGates\Services\OrgCampaign::isOpen($campaign)) {
+                    return $this->view->render($res->withStatus(404), 'pages/donate.twig', [
+                        'error'      => $campaign
+                            ? 'That appeal has closed. Thank you to everyone who gave.'
+                            : 'That appeal could not be found.',
+                        'page_title' => 'Appeal closed — Africa GATES',
+                        'gates_page' => 'donate', 'has_hero' => false,
+                        'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
+                        'org' => null, 'campaign' => null, 'org_closed' => true,
+                        'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
+                        'processing_fee_pct' => $this->processingFeePct(),
+                    ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
+                }
+            }
+
             if (!\AfricaGates\Services\PartnerOrg::canReceive($org)) {
                 return $this->view->render($res->withStatus(404), 'pages/donate.twig', [
                     'error'      => 'That appeal is not open for donations.',
                     'page_title' => 'Appeal closed — Africa GATES',
                     'gates_page' => 'donate', 'has_hero' => false,
                     'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
-                    'org' => null, 'org_closed' => true,
+                    'org' => null, 'campaign' => null, 'org_closed' => true,
                     'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
-                    'processing_fee_pct' => 1.5,
+                    'processing_fee_pct' => $this->processingFeePct(),
                 ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
             }
         }
 
         return $this->view->render($res, 'pages/donate.twig', [
             'error'            => self::GIVE_REASONS[trim((string) ($req->getQueryParams()['give'] ?? ''))] ?? null,
-            'page_title'       => $org ? ('Donate to ' . $org->name . ' — Africa GATES') : 'Donate — Africa GATES',
+            'page_title'       => $campaign
+                ? ($campaign->title . ' — ' . $org->name)
+                : ($org ? ('Donate to ' . $org->name . ' — Africa GATES') : 'Donate — Africa GATES'),
             'meta_description' => $org
                 ? ('Give to ' . $org->name . ' through Africa GATES. Your donation settles directly to the organisation.')
                 : 'Fund child leadership programmes across the continent — mentorship, scholarships and grassroots education. Every gift is receipted and independently audited.',
             'gates_page'       => 'donate',
             'has_hero'         => false,
             'providers'        => $this->payments->enabledProviders(),
-            'stats'            => $org ? $this->orgStats((int) $org->id) : $this->stats(),
+            'stats'            => $campaign
+                ? ['raised_naira' => \AfricaGates\Services\OrgCampaign::progress((int) $campaign->id)['raised'],
+                   'gifts'        => \AfricaGates\Services\OrgCampaign::progress((int) $campaign->id)['count']]
+                : ($org ? $this->orgStats((int) $org->id) : $this->stats()),
             'givers'           => $org ? [] : $this->recentGivers(),
             'org'              => $org,
+            'campaign'         => $campaign,
+            // Summed from confirmed rows on every read, never cached. A fundraising figure
+            // that drifts from the rows underneath it is the one number nobody forgives.
+            'progress'         => $campaign
+                ? \AfricaGates\Services\OrgCampaign::progress((int) $campaign->id) : null,
+            'days_left'        => $campaign
+                ? \AfricaGates\Services\OrgCampaign::daysLeft($campaign) : null,
+            'shortfall_text'   => $campaign
+                ? (\AfricaGates\Services\OrgCampaign::SHORTFALL[$campaign->shortfall_policy] ?? '') : '',
+            'appeals'          => $org && !$campaign
+                ? \AfricaGates\Services\OrgCampaign::openFor((int) $org->id) : [],
             // The platform's share, in the only unit a donor can act on. A percentage in a
             // footnote is not a disclosure; the template shows this in naira beside the
             // amount, because a fee discovered after payment is the fastest way to lose a
@@ -216,15 +261,32 @@ final class DonationController
         // suspended partner whose page somebody still has open in a tab must not be able to
         // take another naira, and the page is a cache of that decision while this is the
         // decision.
-        $org = null;
+        $org      = null;
+        $campaign = null;
         if ($orgSlug !== '') {
             $org = \AfricaGates\Services\PartnerOrg::bySlug($orgSlug);
             if (!\AfricaGates\Services\PartnerOrg::canReceive($org)) {
                 return $this->redirect($res, $this->base($req) . '/donate?give=closed');
             }
+
+            // The appeal is re-resolved and re-checked HERE, not trusted from the form. A
+            // campaign that closed between the page rendering and the form posting must not
+            // take another naira — and a campaign slug belonging to a DIFFERENT organisation
+            // must not attach, which is why it is looked up by (org, slug) together rather
+            // than by slug alone.
+            $campSlug = trim((string) ($b['campaign'] ?? ''));
+            if ($campSlug !== '') {
+                $campaign = \AfricaGates\Services\OrgCampaign::bySlug((int) $org->id, $campSlug);
+                if (!\AfricaGates\Services\OrgCampaign::isOpen($campaign)) {
+                    return $this->redirect($res, $this->base($req) . '/donate/'
+                        . rawurlencode($orgSlug) . '?give=appeal_closed');
+                }
+            }
         }
 
-        $back = $org ? '/donate/' . rawurlencode($orgSlug) : '/donate';
+        $back = $org
+            ? ('/donate/' . rawurlencode($orgSlug) . ($campaign ? '/' . rawurlencode((string) $campaign->slug) : ''))
+            : '/donate';
         $bail = fn(string $why) => $this->redirect($res, $this->base($req) . $back . '?give=' . urlencode($why));
 
         if (!$this->payments->isEnabled($provider))                          return $bail('unavailable');
@@ -274,6 +336,9 @@ final class DonationController
             $feeBps = (int) ($org->platform_fee_bps ?? 0);
             $row['recipient_org_id']   = (int) $org->id;
             $row['platform_fee_naira'] = (int) floor($amount * $feeBps / 10000);
+            // NULL means the organisation's general fund. A campaign id means the donor gave
+            // for the thing that appeal describes, and the money is restricted to it.
+            $row['campaign_id']        = $campaign ? (int) $campaign->id : null;
         }
 
         try {

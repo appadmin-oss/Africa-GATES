@@ -5,7 +5,7 @@ namespace AfricaGates\Admin\Controllers;
 
 use AfricaGates\Admin\Services\{AuditService, UploadService};
 use AfricaGates\Admin\Support\Permissions;
-use AfricaGates\Services\{OrgAuth, PartnerOrg, PaymentService, RegistryCheck};
+use AfricaGates\Services\{OrgAuth, OrgCampaign, PartnerOrg, PaymentService, RegistryCheck};
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -122,7 +122,66 @@ final class PartnerOrgsController
                     (string) $org->account_name_resolved)
                 : null,
             'may_decide'  => $this->mayDecide(),
+            'campaigns'   => $this->campaignRows($id),
+            'camp_states' => OrgCampaign::STATUSES,
+            'shortfall'   => OrgCampaign::SHORTFALL,
         ]);
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    private function campaignRows(int $orgId): array
+    {
+        $out = [];
+        foreach (OrgCampaign::allFor($orgId) as $c) {
+            $out[] = ['row' => $c, 'progress' => OrgCampaign::progress((int) $c->id),
+                      'open' => OrgCampaign::isOpen($c)];
+        }
+        return $out;
+    }
+
+    // ──────────────────────────── reviewing appeals ─────────────────────────
+
+    /**
+     * Publish an appeal.
+     *
+     * Refused unless the organisation itself may receive money, which is checked inside
+     * OrgCampaign::publish — a live appeal for a suspended charity is a donate button with
+     * nowhere to send the money.
+     */
+    public function publishCampaign(Request $req, Response $res, array $args = []): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $c  = OrgCampaign::find($id);
+        $to = '/admin/partner-orgs' . ($c ? '/' . (int) $c->org_id : '');
+
+        if (!$this->mayDecide()) {
+            $_SESSION['flash_error'] = 'Only an admin can publish an appeal.';
+            return $this->back($res, $to);
+        }
+
+        $b = (array) $req->getParsedBody();
+        $r = OrgCampaign::publish($id, $this->adminId(), trim((string) ($b['note'] ?? '')));
+
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
+        if ($r['ok']) $this->audit->record($this->adminId(), 'campaign.publish', 'campaign', $id);
+        return $this->back($res, $to);
+    }
+
+    public function closeCampaign(Request $req, Response $res, array $args = []): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $c  = OrgCampaign::find($id);
+        $to = '/admin/partner-orgs' . ($c ? '/' . (int) $c->org_id : '');
+
+        if (!$this->mayDecide()) {
+            $_SESSION['flash_error'] = 'Only an admin can close an appeal.';
+            return $this->back($res, $to);
+        }
+
+        $r = OrgCampaign::close($id, $this->adminId());
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
+        if ($r['ok']) $this->audit->record($this->adminId(), 'campaign.close', 'campaign', $id);
+        return $this->back($res, $to);
     }
 
     // ──────────────────────────────── create ────────────────────────────────
@@ -136,9 +195,8 @@ final class PartnerOrgsController
 
         $b    = (array) $req->getParsedBody();
         $name = trim((string) ($b['name'] ?? ''));
-        $slug = strtolower(trim((string) ($b['slug'] ?? '')));
-        $slug = preg_replace('/[^a-z0-9-]+/', '-', $slug) ?? '';
-        $slug = trim(preg_replace('/-+/', '-', $slug) ?? '', '-');
+        // Same reasoning as OrgCampaign: fold accents, never delete them.
+        $slug = \AfricaGates\Support\Slug::make((string) ($b['slug'] ?? '') ?: $name, 120);
 
         if ($name === '' || $slug === '') {
             $_SESSION['flash_error'] = 'A name and a URL slug are both needed.';
