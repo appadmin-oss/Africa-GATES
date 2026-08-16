@@ -61,10 +61,69 @@ final class PartnerOrg
         return [self::STATUS_APPROVED];
     }
 
+    /**
+     * The two kinds of organisation this table holds.
+     *
+     * One table, because a donation partner and a vendor need the same five things: an
+     * account in their own registered name, a subaccount created without storing that
+     * account number, a dashboard scoped to their own rows, documents with expiries, and a
+     * vetting state machine where suspension is distinct from rejection. A parallel
+     * `gates_vendors` would mean writing all five twice and maintaining two of each.
+     *
+     * What differs is which documents are required, and that is a rule rather than a schema.
+     */
+    public const KIND_PARTNER = 'partner';
+    public const KIND_VENDOR  = 'vendor';
+
+    public const KINDS = [
+        self::KIND_PARTNER => 'Donation partner',
+        self::KIND_VENDOR  => 'Vendor',
+    ];
+
     public static function find(int $id): ?object
     {
         if ($id < 1) return null;
         return DB::table('gates_partner_orgs')->where('id', $id)->first();
+    }
+
+    public static function kindOf(?object $org): string
+    {
+        $k = (string) ($org->kind ?? self::KIND_PARTNER);
+        return isset(self::KINDS[$k]) ? $k : self::KIND_PARTNER;
+    }
+
+    /**
+     * The documents this organisation must hold, by kind.
+     *
+     * ── WHY THE TWO LISTS DIFFER ─────────────────────────────────────────────
+     *
+     * SCUML registration is mandatory for an NGO collecting donations under the Money
+     * Laundering (Prevention and Prohibition) Act 2022, and irrelevant to somebody selling
+     * jewellery at a market. Public liability insurance is the reverse: essential for anybody
+     * trading from a stand where the public walks past, and not something a donation partner
+     * needs in order to receive a bank transfer.
+     *
+     * Demanding the union of both lists would look rigorous and would mostly teach applicants
+     * that the requirements are not serious, because a third of them would not apply.
+     *
+     * @return array<string,string> slug => human label
+     */
+    public static function requiredDocuments(int $orgId): array
+    {
+        $org = self::find($orgId);
+        if (!$org) return [];
+
+        if (self::kindOf($org) === self::KIND_VENDOR) {
+            return [
+                'cac'       => 'CAC registration',
+                'insurance' => 'Public liability insurance',
+            ];
+        }
+
+        return [
+            'cac'   => 'CAC certificate (Incorporated Trustees)',
+            'scuml' => 'SCUML certificate',
+        ];
     }
 
     public static function bySlug(string $slug): ?object
@@ -278,11 +337,20 @@ final class PartnerOrg
                                               . 'otherwise this partner gets a donate button with '
                                               . 'nowhere to send the money.'];
         }
-        foreach (['cac_number' => 'a CAC registration number', 'scuml_number' => 'a SCUML number'] as $col => $what) {
+        // Which numbers are required depends on what this organisation IS. A vendor selling
+        // jewellery has no reason to hold a SCUML certificate, and demanding one would teach
+        // applicants that the requirements are decorative.
+        $needed = self::kindOf($org) === self::KIND_VENDOR
+            ? ['cac_number' => 'a CAC registration number']
+            : ['cac_number' => 'a CAC registration number', 'scuml_number' => 'a SCUML number'];
+
+        foreach ($needed as $col => $what) {
             if (trim((string) ($org->{$col} ?? '')) === '') {
-                return ['ok' => false, 'message' => 'This partner has no ' . $what . ' on file. '
-                                                  . 'Both are legal requirements for a Nigerian '
-                                                  . 'non-profit collecting donations, not paperwork.'];
+                return ['ok' => false, 'message' => 'This organisation has no ' . $what . ' on file. '
+                    . (self::kindOf($org) === self::KIND_VENDOR
+                        ? 'A trading vendor must be registered.'
+                        : 'CAC and SCUML are both legal requirements for a Nigerian non-profit '
+                        . 'collecting donations, not paperwork.')];
             }
         }
 
