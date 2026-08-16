@@ -169,7 +169,24 @@ final class PartnerOrg
 
         $digits = preg_replace('/\D+/', '', $accountNumber) ?? '';
 
+        // ── THE TRANSFER RECIPIENT IS CREATED HERE, NOT AT PAYOUT TIME ───────
+        //
+        // A transfer recipient needs the bank account number, and this is the only moment
+        // the platform legitimately has it — after this request it is deliberately never
+        // stored. Creating the recipient now and keeping only its code means a payout later
+        // needs nothing but that code, and the account number still never touches a table.
+        //
+        // Best-effort: a partner that cannot be paid out yet is a partner that can still
+        // COLLECT, which is the more valuable half. The admin screen shows when this is
+        // missing and offers to retry rather than failing the whole onboarding over it.
+        $recipient = $payments->createTransferRecipient(
+            $resolved['name'] !== '' ? $resolved['name'] : (string) $org->name,
+            $accountNumber,
+            $bankCode
+        );
+
         DB::table('gates_partner_orgs')->where('id', $orgId)->update([
+            'payout_recipient_code' => $recipient['ok'] ? $recipient['code'] : null,
             'subaccount_code'       => $created['code'],
             'settlement_bank'       => $bankCode,
             // Last four only. Enough for a human to recognise which account they chose,

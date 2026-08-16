@@ -299,6 +299,7 @@ return [
     AuditService::class     => fn()=>new AuditService(),
     SettingsService::class  => fn()=>new SettingsService(),
     UploadService::class    => fn()=>new UploadService(),
+    \AfricaGates\Admin\Controllers\PartnerOrgsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\PartnerOrgsController($c->get(Twig::class), $c->get(\AfricaGates\Admin\Services\AuditService::class), $c->get(PaymentService::class), $c->get(UploadService::class)),
     AdminValidator::class   => fn()=>new AdminValidator(),
     AuthService::class      => fn(ContainerInterface $c)=>new AuthService($c->get(LogService::class), $c->get(AuditService::class), $c->get(RateLimitService::class)),
 

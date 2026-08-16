@@ -2700,6 +2700,19 @@ return function(App $app) {
         $a->post('/posts/{id:[0-9]+}',           AdminPostsController::class.':save');
         $a->post('/posts/{id:[0-9]+}/delete',    AdminPostsController::class.':delete');
 
+        // Partner ORGANISATIONS — the ones that collect donations. Distinct from
+        // /partners above, which is the partnership-enquiry inbox and shares only a word.
+        $P = \AfricaGates\Admin\Controllers\PartnerOrgsController::class;
+        $a->get ('/partner-orgs',                       $P.':index');
+        $a->post('/partner-orgs',                       $P.':create');
+        $a->get ('/partner-orgs/{id:[0-9]+}',           $P.':show');
+        $a->post('/partner-orgs/{id:[0-9]+}/account',   $P.':attachAccount');
+        $a->post('/partner-orgs/{id:[0-9]+}/check',     $P.':check');
+        $a->post('/partner-orgs/{id:[0-9]+}/document',  $P.':upload');
+        $a->post('/partner-orgs/{id:[0-9]+}/approve',   $P.':approve');
+        $a->post('/partner-orgs/{id:[0-9]+}/suspend',   $P.':suspend');
+        $a->post('/partner-orgs/{id:[0-9]+}/user',      $P.':addUser');
+
         $a->get('/partners',                     AdminPartnersController::class.':index');
         $a->post('/partners/{id:[0-9]+}/{status}', AdminPartnersController::class.':setStatus');
         $a->get('/partners/export.csv',          AdminPartnersController::class.':exportCsv');

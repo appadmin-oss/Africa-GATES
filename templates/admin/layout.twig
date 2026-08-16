@@ -173,6 +173,10 @@
         <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
         Revenue
       </a>
+      <a class="ad-side__link {% if admin_page == 'partner-orgs' %}is-active{% endif %}" href="/admin/partner-orgs">
+        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
+        Partner Orgs
+      </a>
       <a class="ad-side__link {% if admin_page == 'refunds' %}is-active{% endif %}" href="/admin/refunds">
         <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/></svg>
         Refunds
@@ -256,6 +260,7 @@
         'legacy': 'Past-edition recaps shown in the Legacy Vault.',
         'opportunities': 'Opportunities listings surfaced to the community.',
         'partners': 'Partnership enquiries submitted from the public site.',
+        'partner-orgs': 'Organisations collecting donations through the platform — vetting, settlement accounts and dashboard logins.',
         'media': 'Uploaded images and files used across the site.',
         'products': 'Shop products, pricing and delivery regions.',
         'forms': 'Build custom forms with field types, conditional logic and validation — published at /f/{key}.',

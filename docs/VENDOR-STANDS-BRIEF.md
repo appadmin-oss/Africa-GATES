@@ -125,6 +125,22 @@ Per-organiser and per-vendor routing are both new work, and the second is the ha
 | Staff at the gate with no account | `EventScanPass` door passes | Good |
 | Discounts for returning vendors | Discount codes | Good |
 
+**Built since this brief was written, and reusable for vendors as-is.** These were listed as
+new work; the partner-donations build shipped them, and the vendor path should call them rather
+than growing a second implementation:
+
+| Need | Where it now exists | Fit |
+|---|---|---|
+| An account in the vendor's own name, created automatically | `PartnerOrg::attachSubaccount()` | Good |
+| Bank-name resolution as an anti-impersonation check | `PaymentService::resolveAccount()` | Good |
+| Split at source, so the platform holds nothing | `PaymentDestination::initFieldsForPartner()` | Good |
+| A transfer recipient created without storing an account number | `PaymentService::createTransferRecipient()` | Good |
+| A dashboard the seller signs into, scoped to their own rows | `/org` + `OrgAuth` | Good |
+| Withdrawal requests on Paystack's own transfer state machine | `OrgPayout` | Good |
+| Certificates with expiry tracking | `gates_org_documents` | Good |
+| Vetting states, with suspension separate from rejection | `PartnerOrg::STATUSES` | Good |
+| Registry-number checks that never claim more than was done | `RegistryCheck` | Good |
+
 **What does not reuse, for leg B (the goods):**
 
 - **`gates_products` has no owner column.** Slug, name, category, price, stock, cover, delivery
@@ -290,7 +306,44 @@ when a missing certificate becomes the organiser's problem instead of the vendor
 | CAC registration or equivalent | All trading vendors | Sole traders: identity + address |
 | **NAFDAC registration** | **Packaged food, drink, cosmetics, supplements** | **Follows directly from selling items rather than services — applies per product, not per vendor** |
 | **SON conformity** | **Regulated manufactured goods** | **Where applicable to the category** |
+| **A settlement account in the vendor's own registered name** | **Every vendor that will be paid anything** | **Resolved at the gateway before it is accepted — see below** |
 | Power requirement | Any vendor drawing power | Drives pitch assignment, not price alone |
+
+### And an account, created the same way a partner organisation's is
+
+This is now built rather than proposed — `PartnerOrg::attachSubaccount()` does it for donation
+partners today and the vendor path should reuse it verbatim rather than growing a second
+implementation.
+
+**What happens when a vendor is onboarded:**
+
+1. **The account number is resolved before anything is created.** `/bank/resolve` returns the
+   name the BANK holds for that number, which is compared with the registered business name
+   and stored. A vendor trading as "Adaeze Foods" whose settlement account resolves to a
+   personal name has either made a mistake worth catching or is not who they say they are —
+   and either way it is a question to ask before an attendee has paid them, not after.
+2. **A Paystack subaccount is created in the vendor's own name**, with the platform's
+   commission as its `percentage_charge`, so money splits at source and the platform never
+   holds a vendor's takings.
+3. **A transfer recipient is created in the same request**, because that is the only moment
+   the account number is legitimately in hand — and only the recipient code is kept.
+4. **The account number is never stored.** Bank code, last four digits and the resolved name
+   are enough for a human to recognise which account they picked; a table of vendor account
+   numbers is a liability with no matching use.
+5. **A dashboard login is issued** so the vendor can see their own sales and request payouts,
+   with `owner` able to move money and `viewer` able only to read.
+
+**Why this matters more for vendors than for donation partners.** A donation partner receives
+money the platform never promised anything about. A vendor receives money an ATTENDEE paid for
+goods, so the account has to be right before the first sale rather than before the first
+payout — there is no window in which to fix it quietly. The gateway's own KYC does part of the
+work here: a subaccount requires a settlement account in the business's own name, so a vendor
+who cannot produce one is filtered out before any vetting code runs.
+
+**The one genuinely new piece for vendors** is that a vendor may need to be paid before their
+own goods are delivered or after they are returned. That is a hold period, not a new money
+path — the split still happens at the gateway, and what changes is when the vendor's share
+becomes withdrawable. §7 covers it.
 
 The NAFDAC and SON rows are what the "items" correction adds. A vendor *providing a service*
 needs to be insured; a vendor *selling packaged consumables* is subject to product regulation

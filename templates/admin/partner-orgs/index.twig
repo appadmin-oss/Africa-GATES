@@ -1,0 +1,119 @@
+{% extends "admin/layout.twig" %}
+
+{% block content %}
+<div class="ad-topbar">
+  <div class="ad-h1"><small>Donations</small>Partner organisations</div>
+</div>
+
+<div class="ad-card" style="margin-bottom:16px">
+  <div class="ad-card__body" style="font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+    Organisations that collect donations through Africa GATES. Each one's share settles into
+    <strong>its own Paystack subaccount</strong>, tied to a bank account in its own registered
+    name — this platform never holds a partner's money. Only an <strong>approved</strong>
+    partner with a settlement account appears publicly or can be given to.
+  </div>
+</div>
+
+<details class="ad-card" style="margin-bottom:16px">
+  <summary style="cursor:pointer;padding:14px 18px;font-weight:600">Add an organisation</summary>
+  <div class="ad-card__body">
+    <form method="post" action="/admin/partner-orgs">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="row" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div>
+          <label for="poName">Name shown to donors</label>
+          <input id="poName" name="name" type="text" maxlength="200" required>
+        </div>
+        <div>
+          <label for="poSlug">URL slug</label>
+          <input id="poSlug" name="slug" type="text" maxlength="120" required
+                 placeholder="bright-futures">
+          <small style="color:var(--ad-text-mute)">Their page becomes /donate/&lt;slug&gt;</small>
+        </div>
+        <div>
+          <label for="poLegal">Registered name (CAC)</label>
+          <input id="poLegal" name="legal_name" type="text" maxlength="200">
+          <small style="color:var(--ad-text-mute)">Compared against the bank account name</small>
+        </div>
+        <div>
+          <label for="poCac">CAC number</label>
+          <input id="poCac" name="cac_number" type="text" maxlength="60" placeholder="IT/1234567">
+        </div>
+        <div>
+          <label for="poScuml">SCUML number</label>
+          <input id="poScuml" name="scuml_number" type="text" maxlength="60">
+        </div>
+        <div>
+          <label for="poContact">Contact name</label>
+          <input id="poContact" name="contact_name" type="text" maxlength="160">
+        </div>
+        <div>
+          <label for="poEmail">Contact email</label>
+          <input id="poEmail" name="contact_email" type="email" maxlength="190">
+        </div>
+        <div>
+          <label for="poPhone">Contact phone</label>
+          <input id="poPhone" name="contact_phone" type="text" maxlength="40">
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label for="poDesc">What they do</label>
+        <textarea id="poDesc" name="description" rows="3"></textarea>
+      </div>
+      <div style="margin-top:14px">
+        <button class="ad-btn ad-btn--primary" type="submit">Create</button>
+      </div>
+    </form>
+  </div>
+</details>
+
+<div class="ad-card"><div class="ad-table-wrap">
+  <table class="ad-table">
+    <caption class="sr-only">Partner organisations</caption>
+    <thead>
+      <tr>
+        <th scope="col">Organisation</th>
+        <th scope="col">Status</th>
+        <th scope="col">Settlement</th>
+        <th scope="col">Received</th>
+        <th scope="col">Our share</th>
+        <th scope="col" class="col-actions">&nbsp;</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in rows %}
+      {% set o = r.org %}
+      {% set chip = {'approved':'green','pending':'gold','draft':'grey','suspended':'red','rejected':'red'}[o.status]|default('grey') %}
+      <tr>
+        <td>
+          <strong>{{ o.name }}</strong>
+          <div style="font-size:12px;color:var(--ad-text-soft)">/donate/{{ o.slug }}</div>
+        </td>
+        <td>
+          <span class="ad-chip ad-chip--{{ chip }}">{{ statuses[o.status]|default(o.status) }}</span>
+          {# Live is a different question from approved: an approved partner with no
+             settlement account has nowhere for money to land. #}
+          {% if r.live %}<div style="font-size:11.5px;color:#056b3b;font-weight:600;margin-top:3px">Collecting</div>
+          {% else %}<div style="font-size:11.5px;color:var(--ad-text-soft);margin-top:3px">Not collecting</div>{% endif %}
+        </td>
+        <td style="font-size:12.5px">
+          {% if o.subaccount_code %}
+            {{ o.account_last4 ? '••••' ~ o.account_last4 : 'attached' }}
+            <div style="color:var(--ad-text-soft)">{{ o.settlement_schedule }}</div>
+          {% else %}<span style="color:var(--ad-text-soft)">None</span>{% endif %}
+        </td>
+        <td style="font-family:'Space Mono',monospace">₦{{ r.totals.gross|number_format }}</td>
+        <td style="font-family:'Space Mono',monospace">₦{{ r.totals.platform_fee|number_format }}</td>
+        <td class="col-actions">
+          <a class="ad-btn ad-btn--sm" href="/admin/partner-orgs/{{ o.id }}">Open</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">
+        No partner organisations yet.
+      </td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}

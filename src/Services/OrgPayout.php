@@ -216,24 +216,26 @@ final class OrgPayout
         $org = PartnerOrg::find((int) $row->org_id);
         if (!$org) return ['ok' => false, 'reference' => $reference, 'status' => '', 'message' => 'Unknown organisation.'];
 
-        $recipient = trim((string) ($row->recipient_code ?? ''));
+        // ── THE RECIPIENT WAS CREATED AT ONBOARDING ─────────────────────────
+        //
+        // Building it here would need the bank account number, which this platform
+        // deliberately does not store — so it is created in the one request that legitimately
+        // has the number, and only its code is kept. A payout needs nothing else.
+        //
+        // Missing means onboarding could not reach Paystack at the time. That is recoverable
+        // from the admin screen and is NOT something to paper over by inventing a second
+        // recipient here: two live handles to one bank account with no way to tell which a
+        // transfer used is how a reconciliation becomes unanswerable.
+        $recipient = trim((string) ($row->recipient_code ?? '')) ?: trim((string) ($org->payout_recipient_code ?? ''));
         if ($recipient === '') {
-            // Created once and stored. A second recipient for the same account is two live
-            // handles to one bank account with no way to tell which a transfer used.
-            $made = $payments->createTransferRecipient(
-                (string) ($org->account_name_resolved ?: $org->name),
-                // Deliberately absent from our tables — see the migration. In transfer mode a
-                // deployment must supply it out of band; a recipient cannot be created from a
-                // subaccount code alone.
-                (string) Env::get('PARTNER_PAYOUT_ACCOUNT_' . $org->id, ''),
-                (string) ($org->settlement_bank ?? '')
-            );
-            if (!$made['ok']) {
-                self::markAttempt($reference, $made['message']);
-                return ['ok' => false, 'reference' => $reference, 'status' => self::ST_QUEUED,
-                        'message' => $made['message']];
-            }
-            $recipient = $made['code'];
+            $why = 'This organisation has no payout recipient on file, so a transfer cannot be '
+                 . 'built. Re-attach its settlement account from the admin screen.';
+            self::markAttempt($reference, $why);
+            return ['ok' => false, 'reference' => $reference, 'status' => self::ST_QUEUED, 'message' => $why];
+        }
+        if (trim((string) ($row->recipient_code ?? '')) === '') {
+            // Stamped onto the payout row so the transfer's handle is recorded against the
+            // payment, not merely against the organisation it happened to belong to today.
             DB::table('gates_org_payouts')->where('reference', $reference)->update(['recipient_code' => $recipient]);
         }
 
