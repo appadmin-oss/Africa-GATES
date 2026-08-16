@@ -94,8 +94,10 @@ blocking a donor.
 > ledger and a payout run. **That is wrong.** Paystack's Transaction Splits / multi-split
 > API settles a single transaction across the main account and one or more subaccounts,
 > with no documented maximum, using a split code created via the API. This materially
-> improves the vendor brief's model 3 as well, and I will correct that document — the
-> "platform must hold other people's money" conclusion does not follow.
+> improves that document's model 3 as well — the "platform must hold other people's money"
+> conclusion does not follow. **Corrected**, and the brief has since been superseded by
+> `docs/VENDOR-STANDS-SPEC.md`, which carries the correction visibly rather than silently
+> repairing it.
 
 ---
 
