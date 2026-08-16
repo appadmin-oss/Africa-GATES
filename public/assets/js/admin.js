@@ -101,6 +101,48 @@
     document.addEventListener('submit', () => window.NProgress.start());
   }
 
+  // Keyboard access to horizontally scrolling tables (WCAG 2.1.1)
+  //
+  // .ad-table-wrap is `overflow-x:auto`, and 26 admin screens use it. A scroll
+  // container that cannot take focus cannot be scrolled from the keyboard: Firefox
+  // makes them focusable itself, Chrome and Safari do not, so on the wider tables
+  // — registrations, finance, the nominee list — the right-hand columns were simply
+  // unreachable without a mouse.
+  //
+  // Conditional rather than a `tabindex="0"` typed into 26 templates, because whether
+  // a table overflows is a function of viewport width, not of the table: a static
+  // attribute is wrong in one direction on a phone and the other on a wide monitor.
+  // A region that does not scroll gets no tab stop; one that starts scrolling on
+  // resize gains one. The name comes from the table's own caption or the card title
+  // above it, so the announcement is "Judges, region" rather than "region".
+  const scrollers = document.querySelectorAll('.ad-table-wrap');
+  if (scrollers.length) {
+    const sync = (el) => {
+      const scrolls = el.scrollWidth > el.clientWidth + 1;
+      if (scrolls === el.hasAttribute('tabindex')) return;
+      if (scrolls) {
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('role', 'region');
+        if (!el.hasAttribute('aria-label')) {
+          const cap = el.querySelector('caption');
+          const title = el.closest('.ad-card')?.querySelector('.ad-card__title');
+          const name = (cap?.textContent || title?.textContent || '').trim().split('\n')[0];
+          if (name) el.setAttribute('aria-label', name);
+        }
+      } else {
+        el.removeAttribute('tabindex');
+        el.removeAttribute('role');
+      }
+    };
+    scrollers.forEach(sync);
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(entries => entries.forEach(e => sync(e.target)));
+      scrollers.forEach(el => ro.observe(el));
+    } else {
+      window.addEventListener('resize', () => scrollers.forEach(sync));
+    }
+  }
+
   // Tippy.js tooltips
   if (window.tippy) {
     window.tippy('[data-tip]', {
