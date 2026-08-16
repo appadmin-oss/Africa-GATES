@@ -211,7 +211,8 @@
        same link — and re-sending replaces the dossier rows rather than adding a second copy.</p>
     <form method="post" action="/admin/questionnaires/{{ row.id }}/reopen">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <input class="qs-in" name="note" type="text" maxlength="500" style="margin-top:12px"
+      <label class="sr-only" for="qsNote">What should they change? (optional — for your own record)</label>
+      <input class="qs-in" id="qsNote" name="note" type="text" maxlength="500" style="margin-top:12px"
              placeholder="What should they change? (optional — for your own record)">
       <div class="qs-row"><button class="qs-btn qs-btn--ghost" type="submit">Re-open for the nominee</button></div>
     </form>

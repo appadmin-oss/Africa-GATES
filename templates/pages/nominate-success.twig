@@ -44,7 +44,7 @@
     <p x-show="err" x-text="err" style="color:#b4452f;font-size:13px;margin:8px 0 0" x-cloak></p>
     <div x-show="url" x-cloak>
       <div style="display:flex;gap:8px;align-items:center">
-        <input type="text" readonly :value="url" @focus="$event.target.select()"
+        <input type="text" readonly aria-label="Share link" :value="url" @focus="$event.target.select()"
                style="flex:1;min-width:0;padding:10px 12px;border:1px solid #cfe0cf;border-radius:10px;font-size:13px;color:#10292c;background:#fff">
         <button type="button" @click="copy()" style="background:#10292c;color:#fff;border:0;font-weight:600;padding:10px 16px;border-radius:10px;cursor:pointer" x-text="copied ? 'Copied ✓' : 'Copy'"></button>
       </div>

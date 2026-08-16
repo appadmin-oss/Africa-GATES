@@ -22,6 +22,7 @@
 
   <div class="ad-card"><div class="ad-card__head"><div class="ad-card__title">Document body <small>rich text — headings, lists, links; sanitized on save &amp; render</small></div></div><div class="ad-card__body">
     {% include 'admin/partials/ai-assist.twig' with { target: 'f-body', kind: doc.title|default('policy') ~ ' document' } only %}
+    <label class="sr-only" for="f-body">Document body</label>
     <textarea name="body_html" id="f-body" data-richtext rows="18" placeholder="Write the policy — use headings for each section.">{{ doc.body_html }}</textarea>
   </div></div>
 

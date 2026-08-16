@@ -173,7 +173,8 @@
   </p>
   <form method="get" action="/admin/payments" class="pt-row">
     <input type="hidden" name="days" value="{{ days }}">
-    <input class="pt-in" type="text" name="ref" value="{{ lookup_ref }}" placeholder="AFG-PVOTE-…" style="min-width:280px">
+    <label class="sr-only" for="ptRef">Payment reference</label>
+    <input class="pt-in" id="ptRef" type="text" name="ref" value="{{ lookup_ref }}" placeholder="AFG-PVOTE-…" style="min-width:280px">
     <button class="pt-btn pt-btn--go" type="submit">Ask the gateway</button>
   </form>
 

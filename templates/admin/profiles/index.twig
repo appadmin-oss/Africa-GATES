@@ -95,7 +95,7 @@
 {% if admin_role in ['superadmin','admin'] and merged is defined and merged|length %}
 <details class="ad-card" style="margin-top:18px">
   <summary style="cursor:pointer;font-weight:600;font-size:13px">↩ Recently merged profiles ({{ merged|length }}) — undo a merge</summary>
-  <p style="font-size:11.5px;color:var(--ad-text-mute,#8a9a9c);margin:6px 0 10px">
+  <p style="font-size:11.5px;color:var(--ad-text-mute,#61728e);margin:6px 0 10px">
     These profiles were folded into a survivor and hidden from the registry, leaderboard and search.
     Undoing restores the profile and moves its linked nominees + reactions back off the survivor.
   </p>
@@ -103,7 +103,7 @@
     {% for m in merged %}
     <li style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px">
       <span><strong>{{ m.name }}</strong> → kept as <strong>{{ m.keep_name ?? ('#' ~ m.keep_id) }}</strong>
-        {% if m.merged_at %}<small style="color:var(--ad-text-mute,#8a9a9c)"> · {{ m.merged_at }}</small>{% endif %}</span>
+        {% if m.merged_at %}<small style="color:var(--ad-text-mute,#61728e)"> · {{ m.merged_at }}</small>{% endif %}</span>
       <form method="post" action="/admin/profiles/unmerge" style="margin-left:auto">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <input type="hidden" name="merged_id" value="{{ m.id }}">

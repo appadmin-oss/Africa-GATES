@@ -17,7 +17,7 @@
         </td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/events/{{ r.id }}">Edit</a>
-          <form method="post" action="/admin/events/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete this event?">×</button></form>
+          <form method="post" action="/admin/events/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete “{{ r.title }}” permanently? Registrations are not deleted with it, so anyone already holding a ticket keeps a link that no longer shows the event.">×</button></form>
         </td>
       </tr>
       {% else %}<tr><td colspan="5" style="text-align:center;color:var(--ad-text-mute);padding:30px">No events yet.</td></tr>{% endfor %}

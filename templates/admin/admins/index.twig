@@ -15,7 +15,7 @@
         <td>{% if r.is_active %}<span class="ad-chip ad-chip--green">Active</span>{% else %}<span class="ad-chip ad-chip--red">Disabled</span>{% endif %}</td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/admins/{{ r.id }}">Edit</a>
-          <form method="post" action="/admin/admins/{{ r.id }}/toggle" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Toggle account?">{{ r.is_active ? 'Disable' : 'Enable' }}</button></form>
+          <form method="post" action="/admin/admins/{{ r.id }}/toggle" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Change this account’s access? A disabled admin is signed out and cannot sign back in until re-enabled.">{{ r.is_active ? 'Disable' : 'Enable' }}</button></form>
         </td>
       </tr>
       {% endfor %}

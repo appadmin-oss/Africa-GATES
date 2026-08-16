@@ -273,7 +273,8 @@
       <form method="post" action="/admin/support/{{ t.reference }}/reply" enctype="multipart/form-data">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <input type="hidden" name="kind" value="reply">
-        <textarea name="body" placeholder="Written to the member. Emailed to them and added to their own thread page."></textarea>
+        <label class="sr-only" for="tkReply">Reply to the member</label>
+        <textarea id="tkReply" name="body" placeholder="Written to the member. Emailed to them and added to their own thread page."></textarea>
         <div class="tk-reply__row">
           <button class="tk-btn tk-btn--send" type="submit">Send reply</button>
           {# Evidence going the OTHER way — a gateway screenshot, a refund receipt.
@@ -301,7 +302,8 @@
       <form method="post" action="/admin/support/{{ t.reference }}/reply">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <input type="hidden" name="kind" value="note">
-        <textarea name="body" placeholder="Not emailed. Not shown to the member. e.g. “refunded by hand at the gateway, chased Paystack ref 90210”."></textarea>
+        <label class="sr-only" for="tkNote">Internal note</label>
+        <textarea id="tkNote" name="body" placeholder="Not emailed. Not shown to the member. e.g. “refunded by hand at the gateway, chased Paystack ref 90210”."></textarea>
         <div class="tk-reply__row">
           <button class="tk-btn tk-btn--note" type="submit">Save internal note</button>
         </div>

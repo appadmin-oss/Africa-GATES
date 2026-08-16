@@ -17,7 +17,7 @@
       <div class="row">
         <div><label for="f-name">Full name *</label><input type="text" name="name" id="f-name" value="{{ row.name|default('') }}" required placeholder="e.g. Dr. Adaobi Nwosu"></div>
         <div><label for="f-email">Email *</label><input type="email" name="email" id="f-email" value="{{ row.email|default('') }}" required placeholder="Their sign-in identity — must be unique on the panel">
-          <small style="font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">This is how they sign in to the judging portal, and where their invitation lands. One email per judge.</small>
+          <small style="font-size:11.5px;color:var(--ad-text-mute,#61728e)">This is how they sign in to the judging portal, and where their invitation lands. One email per judge.</small>
         </div>
       </div>
       <div class="row">
@@ -31,7 +31,7 @@
             <option value="">— Select —</option>
             {% for code, cname in COUNTRIES %}<option value="{{ code }}" {% if row.country_code|default('') == code %}selected{% endif %}>{{ cname }}</option>{% endfor %}
           </select>
-          <small style="font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">Shown as the full country name on their public nameplate.</small>
+          <small style="font-size:11.5px;color:var(--ad-text-mute,#61728e)">Shown as the full country name on their public nameplate.</small>
         </div>
         <div style="display:flex;align-items:flex-end">
           <label class="checkbox"><input type="checkbox" name="is_active" {% if row.is_active is not defined or row.is_active %}checked{% endif %}> <span><strong>Seated on the panel</strong> — unchecked judges keep their record but disappear from the public jury page and cannot score.</span></label>
@@ -83,7 +83,7 @@
       <li>A separate <strong>single-use onboarding form link</strong> lets them complete their own citation and portrait if you leave those blank.</li>
       <li>They appear on <a href="/judges" target="_blank" rel="noopener">the public jury page</a> immediately (while “Seated on the panel” is ticked).</li>
     </ol>
-    <p style="margin:10px 0 0;font-size:12px;color:var(--ad-text-mute,#8a9a9c)">Both emails need working delivery — check <a href="/admin/settings" style="color:var(--ad-accent,#237b22)">Settings → Email → Delivery health</a> if invitations don't arrive. You can resend the onboarding link any time from the panel list (✉).</p>
+    <p style="margin:10px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)">Both emails need working delivery — check <a href="/admin/settings" style="color:var(--ad-accent,#237b22)">Settings → Email → Delivery health</a> if invitations don't arrive. You can resend the onboarding link any time from the panel list (✉).</p>
   </div></div>
   {% endif %}
 

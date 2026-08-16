@@ -9,7 +9,7 @@
     <a class="ad-btn ad-btn--sm" href="{{ base }}{{ sep }}page={{ page - 1 }}" rel="prev">‹ Prev</a>
   {% endif %}
   {% for n in window %}
-    {% if n == 0 %}<span aria-hidden="true" style="padding:0 4px;color:var(--ad-text-mute,#8a9a9c)">…</span>
+    {% if n == 0 %}<span aria-hidden="true" style="padding:0 4px;color:var(--ad-text-mute,#61728e)">…</span>
     {% elseif n == page %}<span class="ad-btn ad-btn--sm ad-btn--primary" aria-current="page">{{ n }}</span>
     {% else %}<a class="ad-btn ad-btn--sm" href="{{ base }}{{ sep }}page={{ n }}">{{ n }}</a>{% endif %}
   {% endfor %}

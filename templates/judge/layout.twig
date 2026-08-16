@@ -14,6 +14,12 @@
 <link rel="stylesheet" href="{{ asset('/assets/css/aurora.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/vendor/tippy.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/vendor/nprogress-0.2.0.css') }}">
+{# Accessibility layer — loaded LAST so its corrections win (WCAG 2.2 AA), matching
+   gates.twig. The judge console had NO copy of `.sr-only` at all: neither main.css nor
+   judge.css defines it, so any visually-hidden label written here would have rendered
+   as visible text on the page. That is why the ballot's score-notes field was left with
+   a placeholder instead of a label. #}
+<link rel="stylesheet" href="{{ asset('/assets/css/a11y.css') }}">
 </head>
 <body class="jd-body">
 

@@ -106,7 +106,8 @@
     <div x-show="!sent">
       <h2 class="pvm__h">Say something about {{ nominee_name ? nominee_name : 'them' }}</h2>
       <p class="pvm__s">Optional, and it appears on their page once checked. Other supporters read these — it is the part of a vote that a person can actually keep. No links or phone numbers, please.</p>
-      <textarea class="pvm__t" x-model="body" :maxlength="max" placeholder="What do you want people to know?"></textarea>
+      <label class="sr-only" for="pvmBody">Say something about them</label>
+      <textarea class="pvm__t" id="pvmBody" x-model="body" :maxlength="max" placeholder="What do you want people to know?"></textarea>
       <div class="pvm__m">
         <span x-text="err" class="pvm__err"></span>
         <span><b x-text="body.length"></b>/<span x-text="max"></span></span>

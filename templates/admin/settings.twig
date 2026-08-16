@@ -37,7 +37,7 @@
   .st-tab{border:1px solid var(--ad-line,#e5eae8);background:var(--ad-surface,#fff);color:var(--ad-text,#10292c);border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font:inherit;font-size:12.5px;line-height:1.2}
   .st-tab[aria-pressed="true"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
   .st-search{flex:1;min-width:170px;max-width:280px;padding:7px 12px;border:1px solid var(--ad-line,#e5eae8);border-radius:999px;font-size:12.5px;background:var(--ad-surface,#fff);color:inherit}
-  .st-hint{margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#8a9a9c)}
+  .st-hint{margin:8px 0 0;font-size:12px;color:var(--ad-text-mute,#61728e)}
   /* ── one revenue stream's routing ──────────────────────────────────────────
      Boxed per stream rather than as six loose fields, because the pairing is the whole point:
      a code belongs to a fee-bearer choice, and reading them as two separate lists is how
@@ -57,7 +57,7 @@
   .st-tab[aria-pressed="true"] .st-dot{background:#fff}
   .st-dirty{font-size:12px;font-weight:600;color:#8a6a1e;background:#fdf3dc;border:1px solid #ecd9a6;border-radius:999px;padding:5px 11px}
   .st-kbd{font:600 10.5px/1 ui-monospace,monospace;border:1px solid var(--ad-line,#e5eae8);border-bottom-width:2px;border-radius:4px;padding:2px 4px;background:var(--ad-surface,#fff)}
-  .st-none{padding:22px;text-align:center;color:var(--ad-text-mute,#8a9a9c);font-size:13px;border:1px dashed var(--ad-line,#e5eae8);border-radius:12px}
+  .st-none{padding:22px;text-align:center;color:var(--ad-text-mute,#61728e);font-size:13px;border:1px dashed var(--ad-line,#e5eae8);border-radius:12px}
   @media (max-width:640px){ .st-bar{position:static} }
 </style>
 {# The tab list, once, so the strip and the change-tracker cannot disagree about
@@ -490,20 +490,20 @@
             {% set spend = ai_spend|filter(s => s.capability == c.name)|first %}
             {% set agree = ai_agreement|filter(a => a.capability == c.name)|first %}
             <tr>
-              <td><strong>{{ c.name }}</strong><div style="font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">{{ c.purpose }}</div></td>
+              <td><strong>{{ c.name }}</strong><div style="font-size:11.5px;color:var(--ad-text-mute,#61728e)">{{ c.purpose }}</div></td>
               <td><code style="font-size:11px">{{ c.model }}</code></td>
               <td>
                 {# Declared per feature, not assumed: silent degradation is right
                    for optional writing help and wrong for moderation. #}
                 <span class="ad-chip ad-chip--{{ c.on_failure == 'announce' ? 'blue' : 'grey' }}">{{ c.on_failure }}</span>
               </td>
-              <td>{{ spend ? spend.calls : 0 }} <span style="color:var(--ad-text-mute,#8a9a9c)">/ {{ c.calls|number_format }}</span></td>
-              <td>{{ spend ? spend.tokens|number_format : 0 }} <span style="color:var(--ad-text-mute,#8a9a9c)">/ {{ c.tokens|number_format }}</span></td>
+              <td>{{ spend ? spend.calls : 0 }} <span style="color:var(--ad-text-mute,#61728e)">/ {{ c.calls|number_format }}</span></td>
+              <td>{{ spend ? spend.tokens|number_format : 0 }} <span style="color:var(--ad-text-mute,#61728e)">/ {{ c.tokens|number_format }}</span></td>
               <td>{% if spend and spend.failures > 0 %}<span class="ad-chip ad-chip--gold">{{ spend.failures }}</span>{% else %}—{% endif %}</td>
               <td>
                 {% if agree and agree.rate is not null %}
-                  {{ agree.rate }}% <span style="color:var(--ad-text-mute,#8a9a9c)">({{ agree.decisions }} decisions)</span>
-                {% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">no decisions yet</span>{% endif %}
+                  {{ agree.rate }}% <span style="color:var(--ad-text-mute,#61728e)">({{ agree.decisions }} decisions)</span>
+                {% else %}<span style="color:var(--ad-text-mute,#61728e)">no decisions yet</span>{% endif %}
               </td>
               <td>{% if c.enabled %}<span class="ad-chip ad-chip--green">on</span>{% else %}<span class="ad-chip ad-chip--red">off</span>{% endif %}</td>
             </tr>
@@ -544,10 +544,10 @@
       ] %}
       {% for p in ai_providers %}
       <div>
-        <label>{{ p.label }} {% if ai_status[p.name] %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">not set</span>{% endif %}</label>
+        <label>{{ p.label }} {% if ai_status[p.name] %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">not set</span>{% endif %}</label>
         <input type="password" name="ai_{{ p.name }}_key" aria-label="{{ p.label }} API key" autocomplete="new-password" placeholder="{% if ai_status[p.name] %}•••••••••• (leave blank to keep){% else %}paste key to enable{% endif %}">
         <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
-          <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c)">{{ p.hint|raw }}</small>
+          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">{{ p.hint|raw }}</small>
           {% if ai_status[p.name] %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[{{ p.name }}]" value="1"> remove</label>{% endif %}
         </div>
       </div>
@@ -563,15 +563,15 @@
         <div><label for="f-ai_anthropic_model">Anthropic model <small>optional — point at your best Claude</small></label><input type="text" name="ai_anthropic_model" id="f-ai_anthropic_model" value="{{ values.ai_anthropic_model|default('') }}" placeholder="{{ ai_default_models.anthropic }}"></div>
         <div><label for="f-ai_groq_model">Groq model <small>general / public — fast &amp; cheap</small></label><input type="text" name="ai_groq_model" id="f-ai_groq_model" value="{{ values.ai_groq_model|default('') }}" placeholder="{{ ai_default_models.groq }}"></div>
       </div>
-      <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">Every provider's model is yours to set — leave blank for the default shown. Setting one here overrides the per-feature pin for that provider, so moving to a newer model is a settings change rather than a deploy. Point each at the strongest model your plan allows.</p>
+      <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#61728e)">Every provider's model is yours to set — leave blank for the default shown. Setting one here overrides the per-feature pin for that provider, so moving to a newer model is a settings change rather than a deploy. Point each at the strongest model your plan allows.</p>
 
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
         <label style="font-weight:600">Dedicated moderation Groq key
-          {% if ai_mod_dedicated %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">using the general key as a free backup</span>{% endif %}
+          {% if ai_mod_dedicated %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">using the general key as a free backup</span>{% endif %}
         </label>
         <input type="password" name="ai_groq_key_mod" aria-label="Dedicated moderation Groq API key" autocomplete="new-password" placeholder="{% if ai_mod_dedicated %}•••••••••• (leave blank to keep){% else %}optional — a 2nd Groq key just for moderation{% endif %}">
         <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
-          <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c)">A separate Groq key for the spam/abuse classifier — isolates safety decisions from public AI traffic and runs the <strong>best model</strong>. Free-falls back to the general Groq key when blank.</small>
+          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">A separate Groq key for the spam/abuse classifier — isolates safety decisions from public AI traffic and runs the <strong>best model</strong>. Free-falls back to the general Groq key when blank.</small>
           {% if ai_mod_dedicated %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[groq_mod]" value="1"> remove</label>{% endif %}
         </div>
         <div style="margin-top:8px"><label for="f-ai_groq_model_mod">Moderation model <small>defaults to the best available</small></label><input type="text" name="ai_groq_model_mod" id="f-ai_groq_model_mod" value="{{ values.ai_groq_model_mod|default('') }}" placeholder="{{ ai_mod_model }}"></div>
@@ -584,11 +584,11 @@
          the platform cannot use. #}
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e5eae8)">
         <label style="font-weight:600">ElevenLabs — read the questionnaire aloud, and let a nominee answer by talking
-          {% if voice_status.configured %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">off — the questionnaire stays text-only</span>{% endif %}
+          {% if voice_status.configured %}<span style="color:#16794d;font-weight:600">● configured</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">off — the questionnaire stays text-only</span>{% endif %}
         </label>
         <input type="password" name="voice_elevenlabs_key" aria-label="ElevenLabs API key" autocomplete="new-password" placeholder="{% if voice_status.configured %}•••••••••• (leave blank to keep){% else %}paste your ElevenLabs API key{% endif %}">
         <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
-          <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c)">A nominee who can talk for an hour about the work of their life should not lose the nomination to a phone keyboard. With a key set, each question can be <strong>read out</strong> and an answer can be <strong>spoken</strong> — the transcription goes into the answer box for them to correct and send themselves, never straight into the record.</small>
+          <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">A nominee who can talk for an hour about the work of their life should not lose the nomination to a phone keyboard. With a key set, each question can be <strong>read out</strong> and an answer can be <strong>spoken</strong> — the transcription goes into the answer box for them to correct and send themselves, never straight into the record.</small>
           {% if voice_status.configured %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[voice]" value="1"> remove</label>{% endif %}
         </div>
         <div class="row" style="margin-top:8px">
@@ -596,7 +596,7 @@
           <div><label for="f-voice_model">Voice model <small>optional</small></label><input type="text" name="voice_elevenlabs_model" id="f-voice_model" value="{{ values.voice_elevenlabs_model|default('') }}" placeholder="{{ voice_defaults.tts }}"></div>
         </div>
         <div style="margin-top:8px"><label for="f-voice_stt">Transcription model <small>for spoken answers</small></label><input type="text" name="voice_elevenlabs_stt_model" id="f-voice_stt" value="{{ values.voice_elevenlabs_stt_model|default('') }}" placeholder="{{ voice_defaults.stt }}"></div>
-        <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#8a9a9c)">
+        <p style="margin:8px 0 0;font-size:11.5px;color:var(--ad-text-mute,#61728e)">
           The default voice is a placeholder, not a recommendation — it is an American one. Copy a voice ID from your ElevenLabs library and paste it here; for a continental African panel the accent is not a cosmetic choice.
           Currently reading with <code>{{ voice_status.tts }}</code> and transcribing with <code>{{ voice_status.stt }}</code>.
         </p>
@@ -611,14 +611,14 @@
           <label for="f-gee_make_key">Make.com bridge key {% if values.gee_make_agent_key|default('') != '' %}<span style="color:#16794d;font-weight:600">● configured</span>{% endif %}</label>
           <input type="password" name="gee_make_agent_key" id="f-gee_make_key" autocomplete="new-password" placeholder="{% if values.gee_make_agent_key|default('') != '' %}•••••••••• (leave blank to keep){% else %}shared secret (16+ chars){% endif %}">
           <div style="display:flex;justify-content:space-between;gap:8px;margin-top:3px">
-            <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c)">Same key authenticates Make's inbound calls to <code>/api/v1/agent/gee</code></small>
+            <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">Same key authenticates Make's inbound calls to <code>/api/v1/agent/gee</code></small>
             {% if values.gee_make_agent_key|default('') != '' %}<label style="font-size:11px;display:inline-flex;gap:4px;align-items:center"><input type="checkbox" name="ai_clear[make_key]" value="1"> remove</label>{% endif %}
           </div>
         </div>
       </div>
       <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <button class="ad-btn" type="submit" formaction="/admin/settings/test-ai" formnovalidate>Test AI now</button>
-        <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c)">Makes one live call and reports which provider answered — the quickest way to confirm keys + network. Save any new key first.</small>
+        <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">Makes one live call and reports which provider answered — the quickest way to confirm keys + network. Save any new key first.</small>
       </div>
     </div>
   </div></div>
@@ -637,7 +637,7 @@
 
     <div style="margin:12px 0">
       <button class="ad-btn ad-btn--primary" type="submit" formaction="/admin/settings/run-cron" formnovalidate>Run maintenance now</button>
-      <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c);margin-left:8px">Runs the full hub immediately, once.</small>
+      <small style="font-size:11px;color:var(--ad-text-mute,#61728e);margin-left:8px">Runs the full hub immediately, once.</small>
     </div>
 
     {# The one task behind "I paid and my votes did not appear". A bank transfer to
@@ -648,7 +648,7 @@
        it twice cannot double-credit anyone. #}
     <div style="margin:12px 0">
       <button class="ad-btn" type="submit" formaction="/admin/settings/reconcile-payments" formnovalidate>Credit paid votes now</button>
-      <small style="font-size:11px;color:var(--ad-text-mute,#8a9a9c);margin-left:8px">
+      <small style="font-size:11px;color:var(--ad-text-mute,#61728e);margin-left:8px">
         Re-checks every pending payment with the gateway and credits the ones that really paid.
         Safe to press repeatedly — it can never double-credit. Use it when a supporter says their transfer did not add up.
       </small>
@@ -660,7 +660,8 @@
         Point a free webcron service (cron-job.org, EasyCron) or a cPanel “fetch a URL” job at this URL every ~15 minutes:
       </p>
       {% if values.cron_token|default('') %}
-      <input type="text" readonly data-ag-do="select-all" value="{{ app_url }}/__cron/run?token={{ values.cron_token }}"
+      <label class="sr-only" for="cronUrl">Cron URL to schedule</label>
+      <input type="text" id="cronUrl" readonly data-ag-do="select-all" value="{{ app_url }}/__cron/run?token={{ values.cron_token }}"
              style="width:100%;font-family:'Space Mono',monospace;font-size:12px;padding:8px;background:#f6f8f5">
       {% else %}
       <p style="font-size:12px;color:#b4452f">No cron token yet — save this section once to generate one.</p>
@@ -679,15 +680,15 @@
       <input type="checkbox" name="disposable_require_mx" value="1" {% if values.disposable_require_mx|default('') in ['1','true','on','yes'] %}checked{% endif %}>
       Also reject domains with no mail server (MX/A) — an undeliverable address can't receive the OTP anyway.
     </label>
-    <p style="margin:8px 0 0;font-size:11px;color:var(--ad-text-mute,#8a9a9c)">The MX check fails open: a DNS hiccup never blocks a real voter. Leave off unless your host has reliable outbound DNS.</p>
+    <p style="margin:8px 0 0;font-size:11px;color:var(--ad-text-mute,#61728e)">The MX check fails open: a DNS hiccup never blocks a real voter. Leave off unless your host has reliable outbound DNS.</p>
   </div></div>
 
   <div class="ad-card" data-sec="mail" data-keys="messaging sms whatsapp twilio meta cloud api sender phone number id access token notifications texts" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Messaging — SMS &amp; WhatsApp<small>Nomination &amp; notification texts. Off by default; nothing sends until a channel is enabled and configured.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="messaging_settings" value="1">
     <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">
       Secrets are stored server-side and never shown again.
-      SMS: {% if sms_status.sms %}<strong style="color:#16794d">● active (Twilio)</strong>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">inactive</span>{% endif %} ·
-      WhatsApp: {% if sms_status.whatsapp %}<strong style="color:#16794d">● active ({{ sms_status.wa_provider == 'meta' ? 'WhatsApp Business Cloud API' : 'Twilio WhatsApp' }})</strong>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">inactive</span>{% endif %}.
+      SMS: {% if sms_status.sms %}<strong style="color:#16794d">● active (Twilio)</strong>{% else %}<span style="color:var(--ad-text-mute,#61728e)">inactive</span>{% endif %} ·
+      WhatsApp: {% if sms_status.whatsapp %}<strong style="color:#16794d">● active ({{ sms_status.wa_provider == 'meta' ? 'WhatsApp Business Cloud API' : 'Twilio WhatsApp' }})</strong>{% else %}<span style="color:var(--ad-text-mute,#61728e)">inactive</span>{% endif %}.
       When both channels are configured, recipients with a phone get the SMS first, then the WhatsApp message.
     </p>
     <div class="ad-form">

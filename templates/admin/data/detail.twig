@@ -8,7 +8,7 @@
       <span style="color:var(--ad-text-soft,#5a6d6f);font-weight:500;white-space:nowrap">{{ f.key }}</span>
       <span style="word-break:break-word;min-width:0">
         {% set sv = f.value is null ? '' : f.value %}
-        {% if sv == '' %}<span style="color:var(--ad-text-mute,#8a9a9c)">—</span>
+        {% if sv == '' %}<span style="color:var(--ad-text-mute,#61728e)">—</span>
         {% elseif sv starts with '{' or sv starts with '[' %}<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font-family:'Space Mono',monospace;font-size:12px;background:var(--ad-bg,#f4f6f5);padding:9px 11px;border-radius:8px;overflow-x:auto">{{ sv }}</pre>
         {% else %}{{ sv }}{% endif %}
       </span>

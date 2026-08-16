@@ -11,7 +11,7 @@
       <tr>
         {% for f in fields|slice(0, 6) %}
           {% set v = r.data[f.name]|default('') %}
-          <td>{% if v is iterable %}{{ v|join(', ') }}{% elseif v == '' %}<span style="color:var(--ad-text-mute,#8a9a9c)">—</span>{% else %}{{ v|slice(0, 70) }}{% if v|length > 70 %}…{% endif %}{% endif %}</td>
+          <td>{% if v is iterable %}{{ v|join(', ') }}{% elseif v == '' %}<span style="color:var(--ad-text-mute,#61728e)">—</span>{% else %}{{ v|slice(0, 70) }}{% if v|length > 70 %}…{% endif %}{% endif %}</td>
         {% endfor %}
         <td style="font-family:'Space Mono',monospace;font-size:12px">{{ r.created_at|slice(0, 16) }}</td>
       </tr>

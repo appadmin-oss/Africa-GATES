@@ -673,7 +673,8 @@
                     :aria-pressed="recording"
                     x-text="recording ? '■' : (hearing ? '…' : '🎤')"></button>
           {% endif %}
-          <textarea class="mw__say" x-model="say" x-ref="say" rows="1"
+          <label class="sr-only" for="mwSay">Type your answer</label>
+          <textarea class="mw__say" id="mwSay" x-model="say" x-ref="say" rows="1"
                     placeholder="Type your answer…"
                     @keydown.enter.exact.prevent="send()"></textarea>
           <button type="button" class="mw__send" @click="send()" :disabled="busy || !say.trim()">Send</button>

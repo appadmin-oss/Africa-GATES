@@ -944,7 +944,11 @@
             <div x-show="step === 'otp'" x-cloak>
               <button type="button" class="vn-back" @click="step='email'">← Back</button>
               <p class="vn-sub">We sent a 6-digit code to <strong x-text="email"></strong>. It expires in 10 minutes.</p>
-              <input class="vn-input vn-input--otp" x-model="otp" inputmode="numeric" maxlength="6" placeholder="······" @keyup.enter="submitVote()">
+              <label class="sr-only" for="vnOtp">6-digit code from your email</label>
+              {# autocomplete="one-time-code" lets the platform offer the code straight from the
+                 notification instead of making somebody memorise six digits and switch apps. #}
+              <input class="vn-input vn-input--otp" id="vnOtp" x-model="otp" inputmode="numeric"
+                     autocomplete="one-time-code" maxlength="6" placeholder="······" @keyup.enter="submitVote()">
               <p class="vn-err" x-show="voteError" x-cloak x-text="voteError"></p>
               <button type="button" class="vn-go" :disabled="busy || otp.length !== 6" @click="submitVote()" x-text="busy ? 'Recording…' : 'Confirm vote'"></button>
               <p style="margin:13px 0 0;text-align:center;font-size:12.5px;color:#5a6d6f">Didn’t get it? <button type="button" @click="requestOtp()" style="color:var(--ag-green);font-weight:500;background:none;border:none;cursor:pointer;font:inherit">Resend code</button></p>

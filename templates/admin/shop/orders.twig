@@ -139,15 +139,18 @@
 
 <div class="so-sec">
   <form class="so-find" method="get" action="/admin/shop/orders">
-    <input type="search" name="q" value="{{ q }}" placeholder="Reference, name or email…" style="flex:1 1 200px">
-    <select name="status">
+    <label class="sr-only" for="soQ">Search orders</label>
+    <input type="search" id="soQ" name="q" value="{{ q }}" placeholder="Reference, name or email…" style="flex:1 1 200px">
+    <label class="sr-only" for="soStatus">Payment status</label>
+    <select name="status" id="soStatus">
       <option value="">Any payment</option>
       {% for s in ['paid', 'pending', 'failed'] %}
       <option value="{{ s }}" {% if status == s %}selected{% endif %}>{{ s|capitalize }}</option>
       {% endfor %}
     </select>
     {% if has_ful %}
-    <select name="ful">
+    <label class="sr-only" for="soFul">Delivery state</label>
+    <select name="ful" id="soFul">
       <option value="">Any delivery state</option>
       {% for key, label in fulfilments %}
       <option value="{{ key }}" {% if ful == key %}selected{% endif %}>{{ label }}</option>

@@ -11,6 +11,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Montserrat:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ asset('/assets/css/vendor/tippy.css') }}">
 <link rel="stylesheet" href="{{ asset('/assets/css/admin.css') }}">
+{# Accessibility layer — loaded LAST so its corrections win (WCAG 2.2 AA), the same
+   order gates.twig uses. It was reaching only the public site: the admin got none of
+   the 44px coarse-pointer target minimums, the forced-colors (Windows High Contrast)
+   handling, the prefers-contrast strengthening, or the aria-invalid field styling —
+   on the surface staff use every day, and the one where a misread number moves money.
+   admin.css defines its own .sr-only; this sheet's copy is identical, so the duplicate
+   is harmless and the two cannot drift apart into a broken visually-hidden class. #}
+<link rel="stylesheet" href="{{ asset('/assets/css/a11y.css') }}">
 {% block head_styles %}{% endblock %}
 </head>
 <body data-page-admin>

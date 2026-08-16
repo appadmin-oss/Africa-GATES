@@ -18,7 +18,7 @@
         </td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/opportunities/{{ r.id }}">Edit</a>
-          <form method="post" action="/admin/opportunities/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete?">×</button></form>
+          <form method="post" action="/admin/opportunities/{{ r.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete “{{ r.title }}” permanently? This cannot be undone.">×</button></form>
         </td>
       </tr>
       {% else %}<tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">None yet.</td></tr>{% endfor %}

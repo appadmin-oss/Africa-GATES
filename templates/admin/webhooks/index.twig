@@ -23,7 +23,7 @@
         <td class="col-actions" style="white-space:nowrap">
           <form method="post" action="/admin/webhooks/{{ w.id }}/test" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm" type="submit">Test</button></form>
           <a class="ad-btn ad-btn--sm" href="/admin/webhooks/{{ w.id }}">Edit</a>
-          <form method="post" action="/admin/webhooks/{{ w.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete this webhook?">Delete</button></form>
+          <form method="post" action="/admin/webhooks/{{ w.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete this webhook? Events stop being delivered to it immediately.">Delete</button></form>
         </td>
       </tr>
       {% endfor %}

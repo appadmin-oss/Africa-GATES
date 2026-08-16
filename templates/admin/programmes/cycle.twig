@@ -137,7 +137,7 @@
               <div><label for="f-sort_order-{{ c.id }}">Sort order</label><input type="number" name="sort_order" id="f-sort_order-{{ c.id }}" value="{{ c.sort_order }}"></div>
               <div style="display:flex;gap:8px;align-items:flex-end">
                 <button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Update</button>
-                <form method="post" action="/admin/categories/{{ c.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--danger ad-btn--sm" type="submit" data-confirm="Delete category?">Delete</button></form>
+                <form method="post" action="/admin/categories/{{ c.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--danger ad-btn--sm" type="submit" data-confirm="Delete “{{ c.name }}” permanently? This cannot be undone.">Delete</button></form>
               </div>
             </div>
           </form>

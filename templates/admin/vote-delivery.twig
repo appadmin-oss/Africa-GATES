@@ -232,7 +232,8 @@
   <p class="vd-sub">For answering a specific message. This is exactly what the supporter sees at
      <code>/vote/verify</code>, so you can send them the link instead of a promise.</p>
   <form method="get" action="/admin/vote-delivery" class="vd-row">
-    <input class="vd-input" type="text" name="ref" value="{{ ref }}" placeholder="AFG-PVOTE-…" style="min-width:240px">
+    <label class="sr-only" for="vdRef">Payment reference</label>
+    <input class="vd-input" id="vdRef" type="text" name="ref" value="{{ ref }}" placeholder="AFG-PVOTE-…" style="min-width:240px">
     <button class="vd-btn vd-btn--check" type="submit">Look up</button>
   </form>
 

@@ -34,11 +34,11 @@
           {% set v = r[c.0] %}
           {% set fmt = c.2|default('') %}
           <td>
-            {%- if fmt == 'datetime' -%}{% if v %}<span style="font-family:'Space Mono',monospace;font-size:12px">{{ v|slice(0,16) }}</span>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">—</span>{% endif %}
+            {%- if fmt == 'datetime' -%}{% if v %}<span style="font-family:'Space Mono',monospace;font-size:12px">{{ v|slice(0,16) }}</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">—</span>{% endif %}
             {%- elseif fmt == 'naira' -%}₦{{ v|default(0)|number_format }}
-            {%- elseif fmt == 'chip' -%}{% if v not in [null, ''] %}<span class="ad-chip ad-chip--grey">{{ v }}</span>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">—</span>{% endif %}
+            {%- elseif fmt == 'chip' -%}{% if v not in [null, ''] %}<span class="ad-chip ad-chip--grey">{{ v }}</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">—</span>{% endif %}
             {%- elseif fmt == 'bool' -%}{{ v ? 'Yes' : 'No' }}
-            {%- else -%}{% set s = v|default('')|trim %}{% if s == '' %}<span style="color:var(--ad-text-mute,#8a9a9c)">—</span>{% elseif s|length > 70 %}<span class="ad-trunc">{{ s|slice(0,70)|trim }}…</span><button type="button" class="ad-view-btn" data-view-title="{{ c.1 }}" data-view-text="{{ s }}">View</button>{% else %}{{ s }}{% endif %}{%- endif -%}
+            {%- else -%}{% set s = v|default('')|trim %}{% if s == '' %}<span style="color:var(--ad-text-mute,#61728e)">—</span>{% elseif s|length > 70 %}<span class="ad-trunc">{{ s|slice(0,70)|trim }}…</span><button type="button" class="ad-view-btn" data-view-title="{{ c.1 }}" data-view-text="{{ s }}">View</button>{% else %}{{ s }}{% endif %}{%- endif -%}
           </td>
         {% endfor %}
         {% if has_id %}<td class="col-actions"><a class="ad-btn ad-btn--sm" href="/admin/data/{{ dataset }}/{{ r.id }}">View</a></td>{% endif %}

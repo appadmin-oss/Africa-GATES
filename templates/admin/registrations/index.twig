@@ -30,7 +30,7 @@
         <td>{{ r.email }}</td>
         <td style="font-family:'Space Mono',monospace;font-size:12px">{{ r.phone }}</td>
         <td><a href="/admin/registrations?event={{ r.event_id }}" style="color:var(--ad-accent,#237b22);text-decoration:none">{{ r.event_title|default('—') }}</a></td>
-        <td>{% if r.tier %}<span class="ad-chip ad-chip--gold">{{ r.tier }}</span>{% else %}<span style="color:var(--ad-text-mute,#8a9a9c)">—</span>{% endif %}</td>
+        <td>{% if r.tier %}<span class="ad-chip ad-chip--gold">{{ r.tier }}</span>{% else %}<span style="color:var(--ad-text-mute,#61728e)">—</span>{% endif %}</td>
         <td style="font-family:'Space Mono',monospace;font-size:12px">{{ r.created_at|date('Y-m-d H:i') }}</td>
       </tr>
       {% else %}<tr><td colspan="6" style="text-align:center;color:var(--ad-text-mute);padding:30px">No registrations{% if event_id or q %} match this filter{% endif %} yet.</td></tr>{% endfor %}

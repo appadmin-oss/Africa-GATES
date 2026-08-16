@@ -92,7 +92,8 @@
      was wrong last time. Nothing is refunded by looking.</p>
 
   <form method="get" action="/admin/refunds" class="rf-row">
-    <input class="rf-input" type="text" name="ref" value="{{ ref }}" placeholder="AFG-PVOTE-…" style="min-width:260px">
+    <label class="sr-only" for="rfRef">Payment reference</label>
+    <input class="rf-input" id="rfRef" type="text" name="ref" value="{{ ref }}" placeholder="AFG-PVOTE-…" style="min-width:260px">
     <button class="rf-btn rf-btn--look" type="submit">Check with the gateway</button>
   </form>
 
@@ -162,8 +163,10 @@
             <input type="hidden" name="reference" value="{{ ref }}">
             <input type="hidden" name="override" value="1">
             <div class="rf-row">
-              <input class="rf-input" type="text" name="why" placeholder="Why, in one line — this is permanent" style="min-width:280px">
-              <input class="rf-input" type="text" name="confirm" placeholder="Type OVERRIDE" style="width:150px" autocomplete="off">
+              <label class="sr-only" for="rfWhy">Why you are refunding against the verdict</label>
+              <input class="rf-input" id="rfWhy" type="text" name="why" placeholder="Why, in one line — this is permanent" style="min-width:280px">
+              <label class="sr-only" for="rfConfirm">Type OVERRIDE to confirm</label>
+              <input class="rf-input" id="rfConfirm" type="text" name="confirm" placeholder="Type OVERRIDE" style="width:150px" autocomplete="off">
               <button class="rf-btn rf-btn--over" type="submit">Refund against the verdict</button>
             </div>
           </form>
