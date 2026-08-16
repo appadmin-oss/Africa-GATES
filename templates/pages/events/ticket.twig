@@ -136,6 +136,12 @@
     text-transform:uppercase; color:var(--tk-mute) }
   .tk__cell b{ display:block; margin-top:3px; font-size:14px; color:var(--tk-text);
     font-weight:700; overflow-wrap:anywhere }
+  /* The tier dot. `inline-block` on a `display:block` parent, so it sits on the same line
+     as the tier name and the name still wraps normally underneath it. The 1px edge is the
+     palette's own `edge` value, which clears 3:1 against white by construction — without it
+     a pale tier fill on the cream stub is an absence rather than a mark. */
+  .tk__dot{ display:inline-block; width:9px; height:9px; border-radius:50%;
+    border:1px solid; margin-right:7px; vertical-align:baseline; flex:none }
   .tk__cell--wide{ grid-column:1 / -1 }
 
   /* The reference along the foot, the way a serial number sits on a real ticket. The brand
@@ -167,9 +173,28 @@
   .tk__act:hover{ border-color:var(--tk-accent); color:var(--tk-accent) }
   .tk__act svg{ width:14px; height:14px; flex:none }
 
+  /* ── the phone, which is where a ticket is actually read ──────────────────
+     Proportions from docs/redesign-ref — a 268px hero band, a 140px QR and the 40/17/13.5
+     type scale — so the hero, the code and the scan block all clear an 844px fold. The
+     detail grid and the actions sit below it: adding an optional row pushes the ACTIONS
+     down, never the scan block, which is the one thing somebody is holding the phone up
+     to show.
+
+     The grid stays two columns rather than collapsing to one. Collapsing doubles the
+     height of the part below the fold for no gain — these are short labelled values, not
+     paragraphs — and it is the reason the reference used to end up two screens down. */
   @media (max-width:420px){
     .tk{ padding:18px 12px 70px }
     .tk__head, .tk__stub, .tk__body{ padding-left:16px; padding-right:16px }
+    .tk__head{ min-height:268px }
+    .tk__headin h1{ font-size:2.5rem; line-height:1.02; letter-spacing:-.025em }
+    .tk__qr svg{ width:140px; height:140px }
+    .tk__code b{ font-size:17px; letter-spacing:.22em }
+    .tk__grid{ grid-template-columns:1fr 1fr; gap:18px 16px }
+    /* Nothing below 9.5px. The cell labels are the smallest type on a document read at
+       arm's length in whatever light a venue door happens to have. */
+    .tk__cell small{ font-size:9.5px; letter-spacing:.18em }
+    .tk__cell b{ font-size:13.5px }
   }
 
   /* ── print ────────────────────────────────────────────────────────────────
@@ -240,8 +265,14 @@
         {# A real <img> rather than a background-image: it is content, it needs an alt, and
            a static `style` beside an Alpine `:style` is what AlpineStyleClobberTest fails
            the build over — so nothing here is bound. #}
+        {# EAGER, and high priority. This is the largest above-the-fold paint on the page:
+           lazy-loading it defers the request until layout has run, which is the standard
+           way to push LCP past 2.5s. It was `loading="lazy"`, which is right for a picture
+           further down a page and wrong for the one thing a ticket is recognised by — and
+           the event cover is served at poster resolution, so the deferral cost real
+           seconds on a phone at a door. #}
         <img class="tk__shot" src="{{ D.image }}" alt=""
-             loading="lazy" decoding="async" aria-hidden="true">
+             fetchpriority="high" decoding="async" aria-hidden="true">
         {# The scrim. Built from the validated accent so the header still reads as the
            organiser's colour rather than as a grey photograph.
 
@@ -335,7 +366,16 @@
           <small>Ticket holder</small><b>{{ reg.name }}</b>
         </div>
         {% if reg.tier|default('') %}
-          <div class="tk__cell"><small>Ticket</small><b>{{ reg.tier }}</b></div>
+          {# The tier's own colour, when the organiser gave it one. A DOT beside the name,
+             never the name in colour: the tier is already named in words, so the colour is
+             a second, faster way to recognise it and never the only way — a door team
+             sorting a queue by wristband reads the dot, and somebody who cannot tell the
+             dots apart still reads the word. The edge is drawn because a pale fill on a
+             pale stub is otherwise a gap rather than an object. #}
+          <div class="tk__cell"><small>Ticket</small><b>
+            {%- if tier_swatch %}<span class="tk__dot" aria-hidden="true"
+                 style="background:{{ tier_swatch.fill }};border-color:{{ tier_swatch.edge }}"></span>{% endif -%}
+            {{ reg.tier }}</b></div>
         {% endif %}
         {% if 'seat' in D.rows and reg.seat_label|default('') %}
           <div class="tk__cell"><small>Seat</small><b>{{ reg.seat_label }}</b></div>

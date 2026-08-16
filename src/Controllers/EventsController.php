@@ -543,6 +543,19 @@ class EventsController
         $event  = DB::table('gates_site_events')->where('id', (int) $reg->event_id)->first();
         $design = EventTicketDesign::forEvent($event);
 
+        // The tier's colour, recomputed from the event's accent on every read — never
+        // stored as a hex. That is the whole point of the slot: change the event's accent
+        // and every tier moves with it, so "colours that match the event" is a property of
+        // the storage rather than a rule somebody has to remember. Null when the tier has
+        // no slot, when there is no tier, or when the event is gone; the template renders
+        // no dot in all three cases rather than a grey one that means nothing.
+        $tierSwatch = null;
+        if ((int) ($reg->tier_id ?? 0) > 0 && $event) {
+            $tierSwatch = \AfricaGates\Services\EventTierPalette::forTier(
+                \AfricaGates\Services\EventTicketService::tier((int) $reg->tier_id), $event
+            );
+        }
+
         return $this->view->render($res, 'pages/events/ticket.twig', [
             'page_title'   => 'Your ticket — ' . (string) ($event->title ?? 'Africa GATES'),
             'gates_page'   => 'events',
@@ -557,6 +570,7 @@ class EventsController
             'task_page'    => true,
             'reg'          => (array) $reg,
             'event'        => $event ? (array) $event : null,
+            'tier_swatch'  => $tierSwatch,
             'support_email'=> Notifier::supportEmail(),
             // Colours, image, which rows show — resolved and VALIDATED in PHP, because the
             // accent lands inside a style attribute. See EventTicketDesign.
