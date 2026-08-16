@@ -718,6 +718,281 @@ class PaymentService
                 'bank' => (string) ($d['settlement_bank'] ?? '')];
     }
 
+    // ───────────────────── partner organisations: onboarding ────────────────
+    //
+    // These four calls exist so a partner organisation can be onboarded WITHOUT anybody at
+    // Africa GATES handling their bank details by hand, and without this platform ever
+    // holding their money. The subaccount belongs to them; we only ever learn its code.
+
+    /**
+     * Ask the gateway who owns an account number, BEFORE creating anything.
+     *
+     * ── THIS IS A FRAUD CONTROL, NOT A CONVENIENCE ───────────────────────────
+     *
+     * `/bank/resolve` returns the account NAME the bank holds for a number. Comparing it to
+     * the organisation's registered name is the cheapest anti-impersonation check available:
+     * somebody registering "Bright Futures Initiative" whose settlement account resolves to a
+     * personal name has either made a mistake worth catching or is about to collect strangers'
+     * donations into their own pocket. Either way a human should look before money can move.
+     *
+     * A transport failure is NOT a mismatch. "We could not ask" and "the answer was no" are
+     * different, and conflating them rejects correct applications during an outage.
+     *
+     * @return array{ok:bool,name:string,message:string,reachable:bool}
+     */
+    public function resolveAccount(string $accountNumber, string $bankCode): array
+    {
+        $accountNumber = preg_replace('/\D+/', '', $accountNumber) ?? '';
+        $bankCode      = trim($bankCode);
+
+        if ($accountNumber === '' || $bankCode === '') {
+            return ['ok' => false, 'name' => '', 'reachable' => true,
+                    'message' => 'An account number and a bank are both needed.'];
+        }
+        if (!$this->isEnabled('paystack')) {
+            return ['ok' => false, 'name' => '', 'reachable' => false,
+                    'message' => 'Paystack is not configured in this environment.'];
+        }
+
+        try {
+            $res = $this->request('GET', 'https://api.paystack.co/bank/resolve?' . http_build_query([
+                'account_number' => $accountNumber,
+                'bank_code'      => $bankCode,
+            ]), null, $this->paystackAuth());
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'name' => '', 'reachable' => false,
+                    'message' => 'Could not reach Paystack to check that account: ' . $e->getMessage()];
+        }
+
+        $body = $res['json'];
+        $name = trim((string) ($body['data']['account_name'] ?? ''));
+
+        if (!$res['ok'] || ($body['status'] ?? false) !== true || $name === '') {
+            return ['ok' => false, 'name' => '', 'reachable' => true,
+                    'message' => (string) ($body['message'] ?? 'That account number could not be resolved.')];
+        }
+        return ['ok' => true, 'name' => $name, 'reachable' => true, 'message' => ''];
+    }
+
+    /**
+     * Create a subaccount the organisation owns.
+     *
+     * `percentage_charge` is the share PAYSTACK keeps for the MAIN account — i.e. the platform
+     * fee, expressed as a percentage of the transaction. Zero is legitimate and is what "100%
+     * of your gift reaches the cause" requires, so it is not defaulted to something else.
+     *
+     * `settlement_schedule` is the whole reason an organisation can have a withdraw button
+     * without this platform holding their money: `auto` settles T+1 to their own bank with no
+     * involvement from us, `manual` holds it at the gateway until it is asked for.
+     *
+     * @return array{ok:bool,code:string,message:string}
+     */
+    public function createSubaccount(
+        string $businessName,
+        string $bankCode,
+        string $accountNumber,
+        float  $percentageCharge = 0.0,
+        string $settlementSchedule = 'auto',
+        array  $contact = []
+    ): array {
+        if (!$this->isEnabled('paystack')) {
+            return ['ok' => false, 'code' => '', 'message' => 'Paystack is not configured in this environment.'];
+        }
+        if (!in_array($settlementSchedule, ['auto', 'weekly', 'monthly', 'manual'], true)) {
+            $settlementSchedule = 'auto';
+        }
+        // Paystack rejects a negative or >100 share, and a wrong one here silently changes what
+        // every future donation to this organisation is worth to them.
+        if ($percentageCharge < 0 || $percentageCharge > 100) {
+            return ['ok' => false, 'code' => '', 'message' => 'The platform share must be between 0 and 100 percent.'];
+        }
+
+        $payload = [
+            'business_name'       => $businessName,
+            'settlement_bank'     => $bankCode,
+            'account_number'      => preg_replace('/\D+/', '', $accountNumber) ?? '',
+            'percentage_charge'   => $percentageCharge,
+            'settlement_schedule' => $settlementSchedule,
+        ];
+        foreach (['primary_contact_email' => 'email', 'primary_contact_name' => 'name',
+                  'primary_contact_phone' => 'phone'] as $field => $key) {
+            if (trim((string) ($contact[$key] ?? '')) !== '') $payload[$field] = trim((string) $contact[$key]);
+        }
+
+        try {
+            $res = $this->request('POST', 'https://api.paystack.co/subaccount', $payload, $this->paystackAuth());
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'code' => '', 'message' => 'Could not reach Paystack: ' . $e->getMessage()];
+        }
+
+        $body = $res['json'];
+        $code = trim((string) ($body['data']['subaccount_code'] ?? ''));
+        if (!$res['ok'] || ($body['status'] ?? false) !== true || $code === '') {
+            return ['ok' => false, 'code' => '',
+                    'message' => (string) ($body['message'] ?? 'Paystack refused to create the subaccount.')];
+        }
+        return ['ok' => true, 'code' => $code, 'message' => ''];
+    }
+
+    /**
+     * The bank list, for the account picker. Cached because it barely changes and the
+     * Resolve Account rate limit is the one worth protecting.
+     *
+     * @return array<int,array{code:string,name:string}>
+     */
+    public function banks(string $country = 'nigeria'): array
+    {
+        if (!$this->isEnabled('paystack')) return [];
+        try {
+            $res = $this->request('GET', 'https://api.paystack.co/bank?' . http_build_query([
+                'country' => $country, 'perPage' => 100,
+            ]), null, $this->paystackAuth());
+        } catch (\Throwable) {
+            return [];
+        }
+        $out = [];
+        foreach ((array) ($res['json']['data'] ?? []) as $b) {
+            $code = trim((string) ($b['code'] ?? ''));
+            $name = trim((string) ($b['name'] ?? ''));
+            if ($code !== '' && $name !== '') $out[] = ['code' => $code, 'name' => $name];
+        }
+        usort($out, static fn($a, $b) => strcasecmp($a['name'], $b['name']));
+        return $out;
+    }
+
+    // ────────────────────── partner organisations: payouts ──────────────────
+
+    /**
+     * A transfer recipient for an organisation's settlement account.
+     *
+     * Created once and the code stored, because creating a second recipient for the same
+     * account is how you end up with two live handles to one bank account and no way to tell
+     * which a given transfer used.
+     *
+     * @return array{ok:bool,code:string,message:string}
+     */
+    public function createTransferRecipient(string $name, string $accountNumber, string $bankCode): array
+    {
+        if (!$this->isEnabled('paystack')) {
+            return ['ok' => false, 'code' => '', 'message' => 'Paystack is not configured in this environment.'];
+        }
+        try {
+            $res = $this->request('POST', 'https://api.paystack.co/transferrecipient', [
+                'type'           => 'nuban',
+                'name'           => $name,
+                'account_number' => preg_replace('/\D+/', '', $accountNumber) ?? '',
+                'bank_code'      => $bankCode,
+                'currency'       => 'NGN',
+            ], $this->paystackAuth());
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'code' => '', 'message' => 'Could not reach Paystack: ' . $e->getMessage()];
+        }
+        $body = $res['json'];
+        $code = trim((string) ($body['data']['recipient_code'] ?? ''));
+        if (!$res['ok'] || ($body['status'] ?? false) !== true || $code === '') {
+            return ['ok' => false, 'code' => '',
+                    'message' => (string) ($body['message'] ?? 'Paystack refused to create the recipient.')];
+        }
+        return ['ok' => true, 'code' => $code, 'message' => ''];
+    }
+
+    /**
+     * Send money out.
+     *
+     * ── THE REFERENCE IS THE IDEMPOTENCY KEY ─────────────────────────────────
+     *
+     * Paystack documents no client-supplied idempotency header, so OUR reference is the only
+     * thing standing between a retry and paying somebody twice. The caller generates and
+     * STORES it before this is reached, and a retry passes the same one back. Paystack has
+     * also announced it will begin ENFORCING `reference` as required on Initiate Transfer,
+     * so supplying our own is both the safe and the future-proof choice.
+     *
+     * Transfer references are stricter than transaction references: lowercase alphanumerics,
+     * hyphen and underscore only. The caller is responsible for that shape; this asserts it
+     * rather than silently mangling a reference that is already written to a row.
+     *
+     * ── AND `ok` DOES NOT MEAN "PAID" ────────────────────────────────────────
+     *
+     * A transfer can come back `otp`, `pending` or `received` — none of which are conclusive.
+     * The status is returned verbatim for the caller to store; only a webhook or a later
+     * verify settles it. Do not call Verify Transfer immediately: before the transfer exists
+     * at Paystack it returns an error, which reads exactly like a failure.
+     *
+     * @return array{ok:bool,status:string,transfer_code:string,transfer_id:?string,message:string}
+     */
+    public function initiateTransfer(int $amountNaira, string $recipientCode, string $reference, string $reason = ''): array
+    {
+        $blank = ['ok' => false, 'status' => '', 'transfer_code' => '', 'transfer_id' => null];
+
+        if (!$this->isEnabled('paystack')) {
+            return $blank + ['message' => 'Paystack is not configured in this environment.'];
+        }
+        if ($amountNaira < 1) {
+            return $blank + ['message' => 'Invalid amount.'];
+        }
+        if (!preg_match('/^[a-z0-9._-]+$/', $reference)) {
+            return $blank + ['message' => 'Transfer references may only contain lowercase letters, digits, hyphen and underscore.'];
+        }
+
+        try {
+            $res = $this->request('POST', 'https://api.paystack.co/transfer', [
+                'source'    => 'balance',
+                'amount'    => $amountNaira * 100,      // kobo
+                'recipient' => $recipientCode,
+                'reference' => $reference,
+                'reason'    => $reason !== '' ? $reason : 'Partner payout',
+            ], $this->paystackAuth());
+        } catch (\Throwable $e) {
+            // Transport failure. The transfer MAY still have been created — Paystack could
+            // have processed it and lost the response — so this is explicitly not a
+            // "did not happen". The caller must leave the row open and let the sweep resolve
+            // it, never retry with a fresh reference.
+            return $blank + ['message' => 'Could not reach Paystack: ' . $e->getMessage()];
+        }
+
+        $body = $res['json'];
+        $d    = is_array($body['data'] ?? null) ? $body['data'] : [];
+        if (!$res['ok'] || ($body['status'] ?? false) !== true) {
+            return $blank + ['message' => (string) ($body['message'] ?? 'Paystack refused the transfer.')];
+        }
+
+        return [
+            'ok'            => true,
+            'status'        => strtolower(trim((string) ($d['status'] ?? 'pending'))),
+            'transfer_code' => (string) ($d['transfer_code'] ?? ''),
+            // Unsigned 64-bit since June 2022 — kept as a string so no PHP int boundary or
+            // narrow column can truncate the one value that matches Paystack's own record.
+            'transfer_id'   => isset($d['id']) ? (string) $d['id'] : null,
+            'message'       => (string) ($body['message'] ?? ''),
+        ];
+    }
+
+    /**
+     * What happened to a transfer, by our reference. For the reconciliation sweep.
+     *
+     * @return array{ok:bool,status:string,message:string,reachable:bool}
+     */
+    public function verifyTransfer(string $reference): array
+    {
+        if (!$this->isEnabled('paystack')) {
+            return ['ok' => false, 'status' => '', 'reachable' => false,
+                    'message' => 'Paystack is not configured in this environment.'];
+        }
+        try {
+            $res = $this->request('GET', 'https://api.paystack.co/transfer/verify/' . rawurlencode($reference),
+                                  null, $this->paystackAuth());
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'status' => '', 'reachable' => false, 'message' => $e->getMessage()];
+        }
+        $body = $res['json'];
+        $st   = strtolower(trim((string) ($body['data']['status'] ?? '')));
+        if (!$res['ok'] || ($body['status'] ?? false) !== true || $st === '') {
+            return ['ok' => false, 'status' => '', 'reachable' => true,
+                    'message' => (string) ($body['message'] ?? 'Paystack did not recognise that transfer.')];
+        }
+        return ['ok' => true, 'status' => $st, 'reachable' => true, 'message' => ''];
+    }
+
     /**
      * Note where a payment was routed, in `gates_payment_routes`.
      *
