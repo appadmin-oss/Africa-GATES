@@ -336,6 +336,7 @@ return [
             new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
         )
     ),
+    \AfricaGates\Controllers\OrgDashboardController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\OrgDashboardController($c->get(Twig::class), $c->get(PaymentService::class), $c->get(RateLimitService::class)),
     DonationController::class     => fn(ContainerInterface $c)=>new DonationController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(OtpService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     PaidVoteController::class     => fn(ContainerInterface $c)=>new PaidVoteController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     \AfricaGates\Admin\Controllers\AssistantController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AssistantController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),

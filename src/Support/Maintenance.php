@@ -134,6 +134,12 @@ final class Maintenance
             // it stopped being true.
             $ran[] = ['refunds',       $this->task('refunds',       fn() => $this->refundUnminted())];
             $ran[] = ['support',       $this->task('support',       fn() => $this->answerTickets())];
+            // Partner payouts, on every tick. Webhooks are the primary signal and are not a
+            // guarantee: Paystack retries a failed endpoint for up to 72 hours and then STOPS,
+            // and its own status history records an incident of degraded webhook delivery. A
+            // charity's payout left in an unknown state is exactly the thing nobody notices
+            // until they ask where their money is.
+            $ran[] = ['payouts',       $this->task('payouts',       fn() => $this->sweepPartnerPayouts())];
             // Every hour
             if ((int)$now->minute < 15) {
                 $ran[] = ['otp',        $this->task('otp',        fn() => $this->purgeExpiredOtp())];
@@ -186,6 +192,7 @@ final class Maintenance
                 'checkout-mail' => $ran[] = ['checkout-mail', $this->task('checkout-mail', fn() => $this->mailAbandonedCheckouts())],
                 'support'   => $ran[] = ['support', $this->task('support', fn() => $this->answerTickets())],
                 'refunds'   => $ran[] = ['refunds', $this->task('refunds', fn() => $this->refundUnminted())],
+                'payouts'   => $ran[] = ['payouts', $this->task('payouts', fn() => $this->sweepPartnerPayouts())],
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
                 'chain'     => $ran[] = ['chain', $this->task('chain', fn() => $this->verifyChain())],
                 'all'       => (function () use (&$ran) {
@@ -575,6 +582,26 @@ final class Maintenance
      * because the one thing maintenance must not do is develop opinions about
      * when money moves.
      */
+    /**
+     * Ask the gateway what became of partner payouts it has not told us about.
+     *
+     * The backstop for the webhook path. Only touches payouts that are not terminal and are
+     * old enough that asking is not a race against the transfer existing — Verify Transfer
+     * returns an error for a transfer Paystack has not created yet, which reads exactly like
+     * a failure and would mark a healthy payout dead.
+     */
+    private function sweepPartnerPayouts(): int
+    {
+        try {
+            $r = \AfricaGates\Services\OrgPayout::sweep(new \AfricaGates\Services\PaymentService());
+            $this->log('payouts: checked ' . $r['checked'] . ', resolved ' . $r['changed']);
+            return $r['changed'];
+        } catch (\Throwable $e) {
+            $this->log('payouts error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
     private function refundUnminted(): int
     {
         try {

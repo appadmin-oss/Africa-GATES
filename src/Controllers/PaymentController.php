@@ -419,6 +419,50 @@ final class PaymentController
     {
         $ack = static fn (): Response => $res->withStatus(200);
 
+        // ── money going OUT: a partner payout ────────────────────────────────
+        //
+        // CHECKED FIRST, and that ordering is load-bearing. `webhookReversalKind()` treats any
+        // event name containing "reversed" as money coming back from a customer — which is
+        // right for `charge.reversed` and wrong for `transfer.reversed`, where what bounced
+        // is OUR payout to a charity. Reaching that branch would find no donation for an
+        // `agpo-` reference and raise a false chargeback alert on a 16-hour clock every time
+        // a bank refused a payout.
+        //
+        // Transfers are also the one event class where the reference is ours but belongs to
+        // no donation, so they have to be claimed before anything tries to interpret it.
+        if (str_starts_with($event, 'transfer.')) {
+            $ref = trim((string) ($payload['data']['reference'] ?? ''));
+            if ($ref === '') {
+                Log::record($provider, $event, '', 'payout', 'ignored', 'transfer event with no reference', $domain);
+                return $ack();
+            }
+
+            // Paystack's own status, taken from the payload rather than inferred from the
+            // event name: `transfer.failed` and `transfer.reversed` are different outcomes
+            // for the money and the data object is where that distinction is authoritative.
+            $status = strtolower(trim((string) ($payload['data']['status'] ?? '')));
+            if ($status === '') {
+                $status = match (true) {
+                    str_ends_with($event, '.success')  => \AfricaGates\Services\OrgPayout::ST_SUCCESS,
+                    str_ends_with($event, '.failed')   => \AfricaGates\Services\OrgPayout::ST_FAILED,
+                    str_ends_with($event, '.reversed') => \AfricaGates\Services\OrgPayout::ST_REVERSED,
+                    default => '',
+                };
+            }
+
+            // applyStatus() refuses to move a payout that is already terminal, so a duplicate
+            // delivery and an out-of-order one are both no-ops rather than a payout that
+            // reopens itself after settling.
+            $moved = $status !== '' && \AfricaGates\Services\OrgPayout::applyStatus(
+                $ref, $status, (string) ($payload['data']['message'] ?? '')
+            );
+
+            Log::record($provider, $event, $ref, 'payout',
+                        $moved ? $status : 'ignored',
+                        $moved ? '' : 'already terminal, unknown reference, or no status', $domain);
+            return $ack();
+        }
+
         // ── money going BACK ─────────────────────────────────────────────────
         $reversal = $this->webhookReversalKind($payload);
         if ($reversal !== null) {

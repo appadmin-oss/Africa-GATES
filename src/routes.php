@@ -1790,6 +1790,21 @@ return function(App $app) {
         $g->get('/donate/redirect', DonationController::class.':handoff');  // see GatewayHandoff
         $g->get('/donate/callback', DonationController::class.':callback');
         $g->get('/donate/success',  DonationController::class.':success');
+        // ── PARTNER ORGANISATION DASHBOARD ───────────────────────────────
+        //
+        // No organisation id appears in any of these paths. The organisation is whichever
+        // one the signed-in user belongs to — an id in a URL is an invitation to change it,
+        // and that is the standard way a multi-tenant dashboard leaks one tenant to another.
+        // Namespaced /org, NOT /partner: /partner is already the partnership-enquiry form
+        // (PartnerController::form) and registering a second route on it makes FastRoute
+        // refuse the whole route table, which takes every page on the site down rather than
+        // just this one.
+        $g->get ('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':loginPage');
+        $g->post('/org/login',  \AfricaGates\Controllers\OrgDashboardController::class.':login');
+        $g->post('/org/logout', \AfricaGates\Controllers\OrgDashboardController::class.':logout');
+        $g->get ('/org',        \AfricaGates\Controllers\OrgDashboardController::class.':dashboard');
+        $g->post('/org/payout', \AfricaGates\Controllers\OrgDashboardController::class.':requestPayout');
+
         // A partner organisation's own appeal. Registered LAST so the three fixed paths
         // above always win — and the pattern additionally excludes them by name, because
         // route order is the kind of invariant that survives until somebody tidies the file

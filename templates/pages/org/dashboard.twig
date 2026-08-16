@@ -1,0 +1,238 @@
+{% extends "layout/gates.twig" %}
+
+{# The partner organisation's own money.
+
+   Everything here is scoped to the signed-in user's organisation by the controller —
+   there is no organisation id anywhere in this template, and there must not be one, because
+   an id a template can render is an id somebody can change.
+
+   Donor names appear only where the donor ticked the box that publishes them; everyone else
+   is "Anonymous". Email addresses never appear at all: there is no consent on file for
+   handing a donor's contact details to a partner. #}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .pd{ max-width:960px; margin:0 auto; padding:30px 20px 90px; }
+  .pd__head{ display:flex; align-items:flex-end; justify-content:space-between; gap:14px;
+    flex-wrap:wrap; margin-bottom:6px; }
+  .pd__head h1{ margin:0; font-family:var(--ag-font-display); font-weight:800;
+    font-size:clamp(1.4rem,4vw,1.95rem); color:var(--ag-ink); }
+  .pd__who{ font-size:13px; color:var(--ag-ink-soft,#626a6e); margin-top:3px; }
+  .pd__out{ min-height:38px; padding:9px 16px; border-radius:999px; cursor:pointer;
+    background:none; border:1px solid rgba(16,41,44,.18); font:600 13px/1 inherit;
+    color:var(--ag-ink-soft,#626a6e); }
+
+  .pd__flag{ border-radius:12px; padding:12px 15px; font-size:13.5px; line-height:1.65;
+    margin:14px 0 0; font-weight:600; }
+  .pd__flag--ok{ background:#effaf0; border:1px solid #bfe6bd; color:#1a6118; }
+  .pd__flag--err{ background:#fdeaea; border:1px solid #f3c2c2; color:#b42318; }
+  .pd__flag--warn{ background:#fffdf5; border:1px solid #ecd9a0; color:#6b5312; }
+
+  .pd__grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+    gap:14px; margin-top:18px; }
+  .pd__stat{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.09);
+    border-radius:16px; padding:16px 18px; }
+  .pd__stat dt{ font-size:11.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--ag-ink-soft,#626a6e); margin:0; }
+  .pd__stat dd{ margin:6px 0 0; font-family:var(--ag-font-mono,monospace); font-weight:700;
+    font-size:1.35rem; color:var(--ag-ink); }
+  .pd__stat small{ display:block; margin-top:4px; font-size:12px; font-weight:400;
+    font-family:var(--ag-font-body); color:var(--ag-ink-soft,#626a6e); }
+
+  .pd__card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.09);
+    border-radius:18px; padding:20px 22px; margin-top:18px; }
+  .pd__card h2{ margin:0 0 4px; font-size:1.05rem; font-family:var(--ag-font-display);
+    font-weight:700; color:var(--ag-ink); }
+  .pd__card p{ margin:6px 0 0; font-size:13.5px; line-height:1.7; color:var(--ag-ink-soft,#626a6e); }
+
+  .pd__wrap{ overflow-x:auto; margin-top:12px; }
+  .pd__t{ width:100%; border-collapse:collapse; font-size:13.5px; }
+  .pd__t th{ text-align:left; font-size:11px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); padding:0 12px 8px 0;
+    border-bottom:1px solid rgba(16,41,44,.12); white-space:nowrap; }
+  .pd__t td{ padding:10px 12px 10px 0; border-bottom:1px solid rgba(16,41,44,.06);
+    color:var(--ag-ink); vertical-align:top; }
+  .pd__num{ font-family:var(--ag-font-mono,monospace); white-space:nowrap; }
+  .pd__empty{ font-size:13.5px; color:var(--ag-ink-soft,#626a6e); margin:12px 0 0; }
+
+  /* Status is never colour alone — the word is the signal and the tint is decoration. */
+  .pd__chip{ display:inline-block; font-size:11.5px; font-weight:700; padding:3px 9px;
+    border-radius:999px; border:1px solid; white-space:nowrap; }
+  .pd__chip--done{ background:#effaf0; border-color:#bfe6bd; color:#1a6118; }
+  .pd__chip--open{ background:#fffdf5; border-color:#ecd9a0; color:#6b5312; }
+  .pd__chip--dead{ background:#fdeaea; border-color:#f3c2c2; color:#b42318; }
+
+  .pd__pay{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-top:14px; }
+  .pd__pay label{ flex:1 1 180px; }
+  .pd__pay span{ display:block; font-size:12.5px; font-weight:600;
+    color:var(--ag-ink-soft,#626a6e); margin-bottom:5px; }
+  .pd__pay input{ width:100%; font:inherit; font-size:16px; color:var(--ag-ink);
+    border:1px solid rgba(16,41,44,.18); border-radius:11px; padding:10px 13px; }
+  .pd__pay button{ min-height:44px; padding:0 20px; border:none; border-radius:999px;
+    background:var(--ag-green,#237b22); color:#fff; font:700 14px/1 inherit; cursor:pointer; }
+  .pd__pay button:disabled{ opacity:.55; cursor:not-allowed; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set ngn = '₦' %}
+<div class="pd">
+
+  <div class="pd__head">
+    <div>
+      <h1>{{ org.name }}</h1>
+      <div class="pd__who">
+        Signed in as {{ me.email }}{% if me.role != 'owner' %} · view only{% endif %}
+      </div>
+    </div>
+    <form method="post" action="/org/logout">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="pd__out" type="submit">Sign out</button>
+    </form>
+  </div>
+
+  {% if flash_ok %}<div class="pd__flag pd__flag--ok" role="status">{{ flash_ok }}</div>{% endif %}
+  {% if flash_error %}<div class="pd__flag pd__flag--err" role="alert">{{ flash_error }}</div>{% endif %}
+
+  {# A suspended partner keeps its dashboard and loses its donate button. Said plainly at the
+     top, because the alternative is a treasurer wondering why donations stopped. #}
+  {% if org.status == 'suspended' %}
+    <div class="pd__flag pd__flag--err" role="alert">
+      This organisation is suspended, so it is not currently accepting donations.
+      {% if org.suspended_reason %}Reason on file: {{ org.suspended_reason }}.{% endif %}
+      Everything already given to you is unaffected.
+    </div>
+  {% elseif org.status != 'approved' %}
+    <div class="pd__flag pd__flag--warn" role="status">
+      Your organisation is not live yet, so your appeal page is not public.
+      We will be in touch once the review is complete.
+    </div>
+  {% endif %}
+
+  <dl class="pd__grid">
+    <div class="pd__stat">
+      <dt>Received</dt>
+      <dd>{{ ngn }}{{ totals.gross|number_format }}</dd>
+      <small>{{ totals.count }} confirmed gift{{ totals.count == 1 ? '' : 's' }}</small>
+    </div>
+    <div class="pd__stat">
+      <dt>Africa GATES share</dt>
+      <dd>{{ ngn }}{{ totals.platform_fee|number_format }}</dd>
+      <small>{{ org.platform_fee_bps > 0 ? (org.platform_fee_bps / 100)|number_format(2) ~ '% of each gift' : 'We take nothing' }}</small>
+    </div>
+    <div class="pd__stat">
+      <dt>Yours</dt>
+      <dd>{{ ngn }}{{ totals.net|number_format }}</dd>
+      <small>After our share</small>
+    </div>
+    <div class="pd__stat">
+      <dt>Available</dt>
+      <dd>{{ ngn }}{{ available|number_format }}</dd>
+      <small>Not already requested</small>
+    </div>
+  </dl>
+
+  {# ── WITHDRAWALS ────────────────────────────────────────────────────────────
+     In settlement mode this platform is not holding the money and must not imply it is:
+     donations split at the gateway into the organisation's own subaccount and Paystack
+     settles them to the organisation's own bank. The request is a request. #}
+  <div class="pd__card">
+    <h2>Getting your money</h2>
+    {% if payout_mode == 'settlement' %}
+      <p>
+        Donations to you settle <strong>directly into your own account</strong> — they are split
+        at the payment gateway and never held by Africa GATES. Paystack releases them on your
+        subaccount’s settlement schedule
+        {%- if org.settlement_schedule == 'manual' %}, which is set to <strong>manual</strong>, so
+        they wait until requested{% else %}, which is set to <strong>{{ org.settlement_schedule }}</strong>{% endif -%}.
+      </p>
+      {% if org.settlement_schedule == 'manual' %}
+        <p>Use this to tell us to release the next settlement. You will see it here when it moves.</p>
+      {% endif %}
+    {% else %}
+      <p>Request a payout to your settlement account
+        {%- if org.account_last4 %} ending {{ org.account_last4 }}{% endif -%}.
+        Transfers are not confirmed until the bank says so, which can take a little time
+        after the status here changes.</p>
+    {% endif %}
+
+    {% if can_payout %}
+      {% if available >= min_payout and org.status == 'approved' %}
+        <form class="pd__pay" method="post" action="/org/payout">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <label for="pdAmt">
+            <span>Amount in naira (up to {{ ngn }}{{ available|number_format }})</span>
+            <input id="pdAmt" name="amount" type="text" inputmode="numeric"
+                   placeholder="{{ available }}" required>
+          </label>
+          <button type="submit">Request payout</button>
+        </form>
+      {% else %}
+        <p class="pd__empty">
+          {% if org.status != 'approved' %}Payouts are on hold while your organisation is not live.
+          {% else %}The smallest payout is {{ ngn }}{{ min_payout|number_format }}. You have
+          {{ ngn }}{{ available|number_format }} available.{% endif %}
+        </p>
+      {% endif %}
+    {% else %}
+      <p class="pd__empty">Only an account owner can request a payout.</p>
+    {% endif %}
+
+    {% if payouts %}
+      <div class="pd__wrap">
+        <table class="pd__t">
+          <caption class="sr-only">Payout requests</caption>
+          <thead><tr><th scope="col">Requested</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Reference</th></tr></thead>
+          <tbody>
+          {% for p in payouts %}
+            {% set cls = p.status == 'success' ? 'done'
+                       : (p.status in ['failed','reversed','abandoned','blocked','rejected'] ? 'dead' : 'open') %}
+            <tr>
+              <td class="pd__num">{{ p.requested_at|date('d M Y') }}</td>
+              <td class="pd__num">{{ ngn }}{{ p.amount_naira|number_format }}</td>
+              <td><span class="pd__chip pd__chip--{{ cls }}">{{ p.status|capitalize }}</span>
+                {% if p.gateway_message %}<div class="pd__who">{{ p.gateway_message }}</div>{% endif %}</td>
+              <td class="pd__num">{{ p.reference }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="pd__card">
+    <h2>Recent donations</h2>
+    <p>Confirmed gifts only. Donors appear by name only where they chose to be named —
+       we do not pass on donor email addresses.</p>
+
+    {% if donations %}
+      <div class="pd__wrap">
+        <table class="pd__t">
+          <caption class="sr-only">Confirmed donations to {{ org.name }}</caption>
+          <thead>
+            <tr>
+              <th scope="col">When</th><th scope="col">Donor</th>
+              <th scope="col">Gift</th><th scope="col">Our share</th><th scope="col">Yours</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for d in donations %}
+            <tr>
+              <td class="pd__num">{{ d.when|date('d M Y') }}</td>
+              <td>{{ d.name }}</td>
+              <td class="pd__num">{{ ngn }}{{ d.gross|number_format }}</td>
+              <td class="pd__num">{{ ngn }}{{ d.fee|number_format }}</td>
+              <td class="pd__num">{{ ngn }}{{ d.net|number_format }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="pd__empty">No confirmed donations yet. When somebody gives, it appears here.</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
