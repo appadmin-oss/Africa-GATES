@@ -29,10 +29,23 @@ class OrgPayoutTest extends TestCase
         };
     }
 
+    /**
+     * A slug unique to each call.
+     *
+     * Not for tidiness: the MySQL parity run isolates tests by transaction rollback, and any
+     * test anywhere in the suite that issues DDL implicitly COMMITs — so rows can survive
+     * into a later file for reasons that have nothing to do with either test. A fixture that
+     * cannot collide does not care.
+     */
+    private function uniqueSlug(string $stem = 'bright-futures'): string
+    {
+        return $stem . '-' . bin2hex(random_bytes(4));
+    }
+
     private function makeOrg(array $over = []): int
     {
         return (int) DB::table('gates_partner_orgs')->insertGetId($over + [
-            'slug' => 'bright-futures', 'name' => 'Bright Futures Initiative',
+            'slug' => $this->uniqueSlug(), 'name' => 'Bright Futures Initiative',
             'cac_number' => 'IT/1', 'scuml_number' => 'SC-1',
             'status' => PartnerOrg::STATUS_APPROVED, 'subaccount_code' => 'ACCT_x',
             'platform_fee_bps' => 0, 'settlement_bank' => '058',
@@ -79,9 +92,13 @@ class OrgPayoutTest extends TestCase
     public function test_a_failed_or_reversed_payout_releases_the_balance_again(): void
     {
         foreach ([OrgPayout::ST_FAILED, OrgPayout::ST_REVERSED, OrgPayout::ST_ABANDONED] as $dead) {
-            DB::table('gates_org_payouts')->truncate();
-            DB::table('gates_donations')->truncate();
-            DB::table('gates_partner_orgs')->truncate();
+            // delete(), never truncate(). TRUNCATE is DDL and DDL implicitly COMMITs in MySQL,
+            // which breaks the per-test transaction the harness rolls back — rows leak into
+            // whichever test runs next, in a different file, for no visible reason. TestCase
+            // documents this trap; the MySQL parity run is what found that I had walked into it.
+            DB::table('gates_org_payouts')->delete();
+            DB::table('gates_donations')->delete();
+            DB::table('gates_partner_orgs')->delete();
 
             $id = $this->makeOrg();
             $this->confirmedGift($id, 50000);

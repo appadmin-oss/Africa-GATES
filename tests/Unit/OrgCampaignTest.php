@@ -19,14 +19,32 @@ use Slim\Psr7\Response;
  */
 class OrgCampaignTest extends TestCase
 {
+    /**
+     * A slug unique to each call.
+     *
+     * Not for tidiness: the MySQL parity run isolates tests by transaction rollback, and any
+     * test anywhere in the suite that issues DDL implicitly COMMITs — so rows can survive
+     * into a later file for reasons that have nothing to do with either test. A fixture that
+     * cannot collide does not care.
+     */
+    private function uniqueSlug(string $stem = 'bright-futures'): string
+    {
+        return $stem . '-' . bin2hex(random_bytes(4));
+    }
+
     private function makeOrg(array $over = []): int
     {
         return (int) DB::table('gates_partner_orgs')->insertGetId($over + [
-            'slug' => 'bright-futures', 'name' => 'Bright Futures Initiative',
+            'slug' => $this->uniqueSlug(), 'name' => 'Bright Futures Initiative',
             'cac_number' => 'IT/1', 'scuml_number' => 'SC-1',
             'status' => PartnerOrg::STATUS_APPROVED, 'subaccount_code' => 'ACCT_x',
             'platform_fee_bps' => 0,
         ]);
+    }
+
+    private function orgSlug(int $orgId): string
+    {
+        return (string) DB::table('gates_partner_orgs')->where('id', $orgId)->value('slug');
     }
 
     private function makeCampaign(int $orgId, array $over = []): int
@@ -87,7 +105,11 @@ class OrgCampaignTest extends TestCase
     {
         $o = $this->makeOrg();
         foreach ([OrgCampaign::STATUS_DRAFT, OrgCampaign::STATUS_REVIEW, OrgCampaign::STATUS_CLOSED] as $st) {
-            DB::table('gates_org_campaigns')->truncate();
+            // delete(), never truncate(). TRUNCATE is DDL and DDL implicitly COMMITs in MySQL,
+            // which breaks the per-test transaction the harness rolls back — rows leak into
+            // whichever test runs next, in a different file, for no visible reason. TestCase
+            // documents this trap; the MySQL parity run is what found that I had walked into it.
+            DB::table('gates_org_campaigns')->delete();
             $c = $this->makeCampaign($o, ['status' => $st]);
             $this->assertFalse(OrgCampaign::isOpen(OrgCampaign::find($c)), $st);
         }
@@ -298,7 +320,7 @@ class OrgCampaignTest extends TestCase
         $o = $this->makeOrg();
         $this->makeCampaign($o, ['status' => OrgCampaign::STATUS_CLOSED]);
 
-        [$code, $html] = $this->renderDonate(['slug' => 'bright-futures', 'campaign' => 'school-roof']);
+        [$code, $html] = $this->renderDonate(['slug' => $this->orgSlug($o), 'campaign' => 'school-roof']);
 
         $this->assertSame(404, $code);
         $this->assertStringContainsString('closed', strtolower($html));
@@ -311,7 +333,7 @@ class OrgCampaignTest extends TestCase
         $this->gift($o, $c, 500000);
 
         [$code, $html] = $this->withPaystack(
-            fn() => $this->renderDonate(['slug' => 'bright-futures', 'campaign' => 'school-roof']));
+            fn() => $this->renderDonate(['slug' => $this->orgSlug($o), 'campaign' => 'school-roof']));
 
         $this->assertSame(200, $code);
         $this->assertStringContainsString('Rebuild the school roof', $html);
@@ -327,9 +349,9 @@ class OrgCampaignTest extends TestCase
         $this->makeCampaign($o);
 
         [$code, $html] = $this->withPaystack(
-            fn() => $this->renderDonate(['slug' => 'bright-futures']));
+            fn() => $this->renderDonate(['slug' => $this->orgSlug($o)]));
 
         $this->assertSame(200, $code);
-        $this->assertStringContainsString('/donate/bright-futures/school-roof', $html);
+        $this->assertStringContainsString('/donate/' . $this->orgSlug($o) . '/school-roof', $html);
     }
 }

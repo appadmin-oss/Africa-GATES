@@ -16,10 +16,23 @@ use Illuminate\Database\Capsule\Manager as DB;
  */
 class PartnerDonationTest extends TestCase
 {
+    /**
+     * A slug unique to each call.
+     *
+     * Not for tidiness: the MySQL parity run isolates tests by transaction rollback, and any
+     * test anywhere in the suite that issues DDL implicitly COMMITs — so rows can survive
+     * into a later file for reasons that have nothing to do with either test. A fixture that
+     * cannot collide does not care.
+     */
+    private function uniqueSlug(string $stem = 'bright-futures'): string
+    {
+        return $stem . '-' . bin2hex(random_bytes(4));
+    }
+
     private function makeOrg(array $over = []): int
     {
         return (int) DB::table('gates_partner_orgs')->insertGetId($over + [
-            'slug'            => 'bright-futures',
+            'slug'            => $this->uniqueSlug(),
             'name'            => 'Bright Futures Initiative',
             'cac_number'      => 'IT/1234567',
             'scuml_number'    => 'SC-9988',
@@ -119,7 +132,11 @@ class PartnerDonationTest extends TestCase
     public function test_approval_requires_cac_and_scuml_on_file(): void
     {
         foreach (['cac_number', 'scuml_number'] as $missing) {
-            DB::table('gates_partner_orgs')->truncate();
+            // delete(), never truncate(). TRUNCATE is DDL and DDL implicitly COMMITs in MySQL,
+            // which breaks the per-test transaction the harness rolls back — rows leak into
+            // whichever test runs next, in a different file, for no visible reason. TestCase
+            // documents this trap; the MySQL parity run is what found that I had walked into it.
+            DB::table('gates_partner_orgs')->delete();
             $id = $this->makeOrg(['status' => PartnerOrg::STATUS_PENDING, $missing => '']);
             $r  = PartnerOrg::approve($id, 1);
             $this->assertFalse($r['ok'], "Approved with no $missing");

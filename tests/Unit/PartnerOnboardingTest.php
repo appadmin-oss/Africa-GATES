@@ -28,10 +28,23 @@ class PartnerOnboardingTest extends TestCase
         };
     }
 
+    /**
+     * A slug unique to each call.
+     *
+     * Not for tidiness: the MySQL parity run isolates tests by transaction rollback, and any
+     * test anywhere in the suite that issues DDL implicitly COMMITs — so rows can survive
+     * into a later file for reasons that have nothing to do with either test. A fixture that
+     * cannot collide does not care.
+     */
+    private function uniqueSlug(string $stem = 'bright-futures'): string
+    {
+        return $stem . '-' . bin2hex(random_bytes(4));
+    }
+
     private function makeOrg(array $over = []): int
     {
         return (int) DB::table('gates_partner_orgs')->insertGetId($over + [
-            'slug' => 'bright-futures', 'name' => 'Bright Futures Initiative',
+            'slug' => $this->uniqueSlug(), 'name' => 'Bright Futures Initiative',
             'status' => PartnerOrg::STATUS_DRAFT,
         ]);
     }

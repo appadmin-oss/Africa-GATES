@@ -31,10 +31,16 @@ class PartnerAdminSmokeTest extends TestCase
         $_SESSION['admin_role'] = $role;
     }
 
+    /**
+     * A slug unique to each call — see the note in PartnerDonationTest. The MySQL parity run
+     * isolates by transaction rollback, and any DDL anywhere in the suite implicitly COMMITs,
+     * so a fixture that cannot collide is the only one that stays reliable.
+     */
     private function seed(array $over = []): int
     {
         return (int) DB::table('gates_partner_orgs')->insertGetId($over + [
-            'slug' => 'bright-futures', 'name' => 'Bright Futures Initiative',
+            'slug' => 'bright-futures-' . bin2hex(random_bytes(4)),
+            'name' => 'Bright Futures Initiative',
             'legal_name' => 'Bright Futures Initiative',
             'cac_number' => 'IT/1234567', 'scuml_number' => 'SC-9988',
             'status' => PartnerOrg::STATUS_PENDING,
