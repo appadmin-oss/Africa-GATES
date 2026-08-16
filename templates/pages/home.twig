@@ -492,7 +492,7 @@
         <a class="hm-ev" href="/events">
           <span class="hm-ev__d"><span class="hm-ev__mon">{{ e.event_date|date('M') }}</span><span class="hm-ev__day">{{ e.event_date|date('d') }}</span></span>
           <div style="flex:1;min-width:0"><div class="hm-ev__t">{{ e.title }}{% if loop.first %} <span class="hm-mini__open" data-countdown="{{ e.event_date|date('c') }}" style="margin-left:6px"><span class="hm-live__dot"></span><span data-countdown-label>soon</span></span>{% endif %}</div><div class="hm-ev__m">{{ e.event_date|date('D, g:i a') }}{% if e.location %} · {{ e.location }}{% endif %}</div></div>
-          <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 20 20" fill="none" style="flex:none;color:#92a6a7"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 20 20" fill="none" style="flex:none;color:var(--ag-ink-soft,#626a6e)"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </a>
         {% endfor %}
       </div>

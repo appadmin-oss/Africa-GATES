@@ -11,7 +11,7 @@
      controls is what fixes that: a wrapping single row put "Report" inline or on its
      own line depending on the length of the supporter's name. */
   .vmi__f{ margin-top:9px; display:flex; align-items:center; justify-content:space-between;
-           flex-wrap:wrap; gap:0 12px; font-size:12px; color:#6b7d7f; }
+           flex-wrap:wrap; gap:0 12px; font-size:12px; color:var(--ag-ink-soft,#626a6e); }
   .vmi__who{ display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0; }
   .vmi__acts{ display:inline-flex; align-items:center; gap:10px; flex:none; }
   .vmi__n{ font-weight:600; color:#3d5254; overflow-wrap:anywhere; }
@@ -34,9 +34,9 @@
   .vmi__act[disabled]{ opacity:.5; cursor:default; }
   /* Extra separation from Cheer, which is two controls away and does something very
      different. A mis-tap here reports somebody's message about a child. */
-  .vmi__act--report{ color:#8a9a9c; font-weight:500; margin-left:6px; }
+  .vmi__act--report{ color:var(--ag-ink-soft,#626a6e); font-weight:500; margin-left:6px; }
   .vmi__act--report:hover{ color:#b3261e; }
-  .vmi__done{ font-size:12px; color:#8a9a9c; min-height:40px; display:inline-flex; align-items:center; }
+  .vmi__done{ font-size:12px; color:var(--ag-ink-soft,#626a6e); min-height:40px; display:inline-flex; align-items:center; }
   @media (max-width:520px){
     /* On a phone the controls always take their own full-width row under the
        attribution, and spread across it — so Report ends up as far from Cheer as the

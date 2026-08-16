@@ -28,7 +28,7 @@
   .so-state{ display:grid; gap:12px; grid-template-columns:1fr 1fr; margin-top:18px; }
   @media(max-width:560px){ .so-state{ grid-template-columns:1fr; } }
   .so-s{ border:1px solid rgba(16,41,44,.1); border-radius:14px; padding:13px 15px; }
-  .so-s__k{ font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:#8a9a9c; }
+  .so-s__k{ font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); }
   .so-s__v{ margin-top:6px; font-size:15.5px; font-weight:700; color:var(--ag-ink); }
   .so-s__n{ margin-top:4px; font-size:12.5px; line-height:1.55; color:#67797b; }
   .so-s--ok{ background:#f3fbf3; border-color:rgba(35,123,34,.24); }
@@ -124,14 +124,14 @@
         <tr>
           <td>
             {{ l.name }}{% if l.variant|default('') %}<span class="so-var">{{ l.variant }}</span>{% endif %}
-            <div style="font-size:12.5px;color:#8a9a9c;margin-top:3px">
+            <div style="font-size:12.5px;color:var(--ag-ink-soft,#626a6e);margin-top:3px">
               {{ l.qty }} × ₦{{ (l.price_naira|default(0))|number_format }}
             </div>
           </td>
           <td class="n">₦{{ (l.line_total|default(0))|number_format }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="2" style="color:#8a9a9c">No item detail was stored for this order.</td></tr>
+        <tr><td colspan="2" style="color:var(--ag-ink-soft,#626a6e)">No item detail was stored for this order.</td></tr>
         {% endfor %}
       </tbody>
     </table>

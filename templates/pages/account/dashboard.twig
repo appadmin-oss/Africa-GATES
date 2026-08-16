@@ -35,7 +35,7 @@
   .ac-row__d{ font-size:12px; color:#5a6d6f; margin-top:1px; }
   .ac-row__delta{ font:700 14px/1 var(--ag-font-mono,monospace); flex:none; }
   .ac-row__delta.pos{ color:#1a6118; } .ac-row__delta.neg{ color:#b42318; }
-  .ac-row__bal{ font:600 12px/1 var(--ag-font-mono,monospace); color:#92a6a7; flex:none; min-width:64px; text-align:right; }
+  .ac-row__bal{ font:600 12px/1 var(--ag-font-mono,monospace); color:var(--ag-ink-soft,#626a6e); flex:none; min-width:64px; text-align:right; }
   .ac-empty{ color:#5a6d6f; font-size:14px; margin:0; }
 </style>
 {% endblock %}
@@ -264,7 +264,7 @@
         <label style="font-size:12.5px;color:#5a6d6f">Full name<input name="name" type="text" value="{{ user.name }}" required style="display:block;width:100%;margin-top:5px;border:1px solid rgba(16,41,44,.16);border-radius:10px;padding:10px 12px;font:inherit"></label>
         <label style="font-size:12.5px;color:#5a6d6f">Phone<input name="phone" type="tel" value="{{ user.phone }}" required style="display:block;width:100%;margin-top:5px;border:1px solid rgba(16,41,44,.16);border-radius:10px;padding:10px 12px;font:inherit"></label>
       </div>
-      <p style="font-size:12px;color:#92a6a7;margin:10px 0 4px">Your email is fixed here — contact support to change it.</p>
+      <p style="font-size:12px;color:var(--ag-ink-soft,#626a6e);margin:10px 0 4px">Your email is fixed here — contact support to change it.</p>
       <button type="button" @click="pw=!pw" style="border:none;background:#f4f7f4;border-radius:999px;padding:7px 13px;font:600 12.5px/1 inherit;color:#5a6d6f;cursor:pointer" x-text="pw ? '− Cancel password change' : '+ Change password'"></button>
       <div x-show="pw" x-cloak style="margin-top:10px;display:grid;gap:10px">
         {% if user.password_hash %}<label style="font-size:12.5px;color:#5a6d6f">Current password<input name="current_password" type="password" autocomplete="current-password" style="display:block;width:100%;margin-top:5px;border:1px solid rgba(16,41,44,.16);border-radius:10px;padding:10px 12px;font:inherit"></label>{% endif %}
@@ -280,7 +280,7 @@
     {% for bm in bookmarks %}
     <a href="/community/{{ bm.slug }}" style="display:block;padding:11px 0;border-top:1px solid rgba(16,41,44,.07);text-decoration:none">
       <div style="font-weight:600;font-size:14px;color:var(--ag-ink)">{{ bm.title }}</div>
-      <div style="font-size:12px;color:#92a6a7;margin-top:2px">{{ bm.reply_count|default(0) }} replies · {{ bm.cheer_count|default(0) }} reactions</div>
+      <div style="font-size:12px;color:var(--ag-ink-soft,#626a6e);margin-top:2px">{{ bm.reply_count|default(0) }} replies · {{ bm.cheer_count|default(0) }} reactions</div>
     </a>
     {% endfor %}
   </div>

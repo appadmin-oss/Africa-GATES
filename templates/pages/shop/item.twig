@@ -95,7 +95,7 @@
   .si-chip:disabled{ opacity:.45; cursor:not-allowed; text-decoration:line-through; }
   /* Sold out but still pressable — the thing to do about it is ask to be told. */
   .si-chip.is-gone{ text-decoration:line-through; color:#8a5a00; border-style:dashed; }
-  .si-chip.is-gone.is-on{ border-color:#a47306; border-style:solid; background:#fff8ec; }
+  .si-chip.is-gone.is-on{ border-color:#966905; border-style:solid; background:#fff8ec; }
   /* Which answer is currently chosen, echoed beside the heading. On a swatch row this is the
      only place the colour's NAME appears once one is picked, and a buyer who cannot tell two
      of them apart has to be able to read which they have. */
@@ -152,7 +152,7 @@
   .si-back__p{ font-size:12.5px; line-height:1.6; color:#7a5a1a; margin:5px 0 0; }
   .si-back__row{ display:flex; gap:8px; margin-top:11px; flex-wrap:wrap; }
   .si-back__row input{ flex:1 1 170px; min-width:0; border:1px solid rgba(16,41,44,.18); border-radius:11px; padding:11px 13px; font-family:inherit; font-size:14px; color:var(--ag-ink); background:#fff; outline:none; }
-  .si-back__row input:focus{ border-color:#a47306; }
+  .si-back__row input:focus{ border-color:#966905; }
   .si-back__go{ flex:none; cursor:pointer; border:none; background:#a47306; color:#fff; font-family:inherit; font-weight:600; font-size:13.5px; padding:0 20px; border-radius:11px; }
   .si-back__go:disabled{ opacity:.55; cursor:not-allowed; }
   .si-back__said{ font-size:13px; font-weight:600; margin-top:9px; }
@@ -163,7 +163,7 @@
   .si-tabs{ margin-top:26px; border-top:1px solid rgba(16,41,44,.08); }
   .si-tab{ border-bottom:1px solid rgba(16,41,44,.08); }
   .si-tab__q{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; border:none; background:none; font-family:inherit; font-size:14px; font-weight:600; color:var(--ag-ink); padding:15px 2px; text-align:left; }
-  .si-tab__q span:last-child{ color:#8a9a9c; font-weight:400; }
+  .si-tab__q span:last-child{ color:var(--ag-ink-soft,#626a6e); font-weight:400; }
   .si-tab__a{ font-size:13.5px; line-height:1.7; color:#3a4448; padding:0 2px 15px; white-space:pre-line; }
 </style>
 {% endblock %}

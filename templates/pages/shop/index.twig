@@ -18,7 +18,7 @@
   .sh-search{ flex:1 1 260px; position:relative; display:flex; }
   .sh-search input{ width:100%; border:1px solid rgba(16,41,44,.14); border-radius:999px; padding:11px 42px 11px 42px; font-family:inherit; font-size:14px; color:var(--ag-ink); background:var(--ag-surface,#fff); outline:none; }
   .sh-search input:focus{ border-color:var(--ag-green); box-shadow:0 0 0 3px rgba(35,123,34,.1); }
-  .sh-search__i{ position:absolute; left:15px; top:50%; transform:translateY(-50%); color:#8a9a9c; pointer-events:none; }
+  .sh-search__i{ position:absolute; left:15px; top:50%; transform:translateY(-50%); color:var(--ag-ink-soft,#626a6e); pointer-events:none; }
   .sh-search__go{ position:absolute; right:5px; top:5px; bottom:5px; cursor:pointer; border:none; background:var(--ag-ink); color:#fff; font-family:inherit; font-size:12.5px; font-weight:600; padding:0 15px; border-radius:999px; }
   .sh-sort{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#4a5256; }
   .sh-sort select{ border:1px solid rgba(16,41,44,.16); border-radius:999px; padding:9px 13px; font-family:inherit; font-size:13px; background:var(--ag-surface,#fff); color:var(--ag-ink); cursor:pointer; }
@@ -62,7 +62,7 @@
   .sh-card__stock.is-low{ color:#8a2020; }
   .sh-card__stock.is-gone{ color:#8a5a00; }
   .sh-card__stock.is-opt{ color:#5a6d6f; font-weight:600; }
-  .sh-card__sub{ font-size:12.5px; line-height:1.5; color:#717a7e; margin-top:3px; }
+  .sh-card__sub{ font-size:12.5px; line-height:1.5; color:var(--ag-ink-soft,#626a6e); margin-top:3px; }
   .sh-card--gone .sh-card__cover{ filter:grayscale(.7) opacity(.65); }
 
   /* paging */
@@ -192,20 +192,20 @@
 
   .sh-fs{ border:none; margin:0; padding:14px 0 0; border-top:1px solid rgba(16,41,44,.08); }
   .sh-fs__l{ font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
-    color:#8a9a9c; padding:0; margin-bottom:9px; }
+    color:var(--ag-ink-soft,#626a6e); padding:0; margin-bottom:9px; }
   .sh-opt{ display:flex; align-items:center; gap:9px; font-size:13.5px; color:#3a4448;
     padding:5px 0; cursor:pointer; }
   .sh-opt input{ width:auto; flex:none; margin:0; accent-color:var(--ag-green); }
   .sh-opt span{ min-width:0; overflow-wrap:anywhere; }
-  .sh-opt__n{ margin-left:auto; font-size:11.5px; color:#9aa6a8; font-variant-numeric:tabular-nums; }
+  .sh-opt__n{ margin-left:auto; font-size:11.5px; color:var(--ag-ink-soft,#626a6e); font-variant-numeric:tabular-nums; }
 
   .sh-money{ display:flex; align-items:center; gap:7px; }
   .sh-money input{ min-width:0; width:100%; border:1px solid rgba(16,41,44,.16);
     border-radius:10px; padding:8px 10px; font-family:var(--ag-font-mono,monospace);
     font-size:12.5px; color:var(--ag-ink); background:var(--ag-surface,#fff);
     box-sizing:border-box; }
-  .sh-money span{ color:#9aa6a8; font-size:12px; flex:none; }
-  .sh-hint{ font-size:11.5px; color:#9aa6a8; margin:7px 0 0; }
+  .sh-money span{ color:var(--ag-ink-soft,#626a6e); font-size:12px; flex:none; }
+  .sh-hint{ font-size:11.5px; color:var(--ag-ink-soft,#626a6e); margin:7px 0 0; }
 
   .sh-apply{ display:flex; gap:8px; margin-top:16px; }
   .sh-apply button{ flex:1; cursor:pointer; border:none; background:var(--ag-ink); color:#fff;
@@ -246,7 +246,7 @@
     background:#fff; border:1px solid rgba(16,41,44,.14); border-radius:999px;
     padding:5px 7px 5px 11px; color:#3a4448; text-decoration:none; }
   .sh-on__p:hover{ border-color:#8a2020; color:#8a2020; }
-  .sh-on__x{ font-size:14px; line-height:1; color:#9aa6a8; }
+  .sh-on__x{ font-size:14px; line-height:1; color:var(--ag-ink-soft,#626a6e); }
   .sh-on__p:hover .sh-on__x{ color:#8a2020; }
 
   /* ── colour dots on a card ──────────────────────────────────────────────────
@@ -257,8 +257,8 @@
   .sh-dots__d{ width:13px; height:13px; border-radius:50%; flex:none;
     box-shadow:inset 0 0 0 1px rgba(16,41,44,.2); }
   .sh-dots__d.is-gone{ opacity:.4; }
-  .sh-dots__m{ font-size:11px; font-weight:700; color:#8a9a9c; margin-left:2px; }
-  .sh-card__from{ font-size:11px; font-weight:600; color:#8a9a9c; margin-right:4px; }
+  .sh-dots__m{ font-size:11px; font-weight:700; color:var(--ag-ink-soft,#626a6e); margin-left:2px; }
+  .sh-card__from{ font-size:11px; font-weight:600; color:var(--ag-ink-soft,#626a6e); margin-right:4px; }
 
   /* The alternate colourway, on hover. Free — it is a variant photograph already loaded for
      the stock note, so no extra query. Not on touch, where there is no hover and the image
@@ -269,7 +269,7 @@
 
   /* Ad units — clean, labeled, and height-reserved so they never shift the layout. */
   .ad-slot{ margin:28px 0 0; padding:14px; background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:18px; text-align:center; min-height:128px; overflow:hidden; }
-  .ad-slot__label{ display:block; font-size:10px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:#9aa6a8; margin-bottom:8px; }
+  .ad-slot__label{ display:block; font-size:10px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); margin-bottom:8px; }
   .ad-slot .adsbygoogle{ display:block; min-height:90px; }
 </style>
 {% endblock %}

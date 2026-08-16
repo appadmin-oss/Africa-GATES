@@ -80,7 +80,7 @@
   .mw__send{ cursor:pointer; flex:0 0 auto; background:#237b22; color:#fff; border:none;
     border-radius:14px; padding:0 18px; height:52px; font:700 14.5px/1 inherit }
   .mw__send:disabled{ opacity:.5; cursor:default }
-  .mw__hint{ margin-top:8px; font-size:12px; color:#8a969a }
+  .mw__hint{ margin-top:8px; font-size:12px; color:var(--ag-ink-soft,#626a6e) }
   .mw__skip{ cursor:pointer; background:none; border:none; padding:0; font:600 12px/1 inherit;
     color:#237b22; text-decoration:underline }
 
@@ -570,7 +570,7 @@
         clock(){ const m = Math.floor(this.secs/60), s = this.secs%60;
                  return m + ":" + (s < 10 ? "0" : "") + s }
       }'>
-        <h2>Introduce yourself out loud <small style="font-weight:400;color:#8a969a">— optional</small></h2>
+        <h2>Introduce yourself out loud <small style="font-weight:400;color:var(--ag-ink-soft,#626a6e)">— optional</small></h2>
         <p>Up to {{ (intro_max|default(120)) // 60 }} minutes on who you are and what the work is.
           The judges will <strong>hear this in your own voice</strong>, which is the one thing in a
           dossier nobody can write for you. It is fine to skip it and type everything instead.</p>

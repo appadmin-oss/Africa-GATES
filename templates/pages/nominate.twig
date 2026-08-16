@@ -251,7 +251,7 @@
                   Photo
                 </span>
               </label>
-              <small class="nm-photomsg" :style="photoMsg ? (photoOk ? 'color:#1a9c34' : 'color:#b4452f') : ''" x-text="photoMsg || 'Optional portrait'"></small>
+              <small class="nm-photomsg" :style="photoMsg ? (photoOk ? 'color:#16832c' : 'color:#b4452f') : ''" x-text="photoMsg || 'Optional portrait'"></small>
             </div>
             <div><label class="nm-lab" for="nName">Nominee's full name *</label><input id="nName" name="nominee_name" class="nm-in" type="text" required pattern="^\s*\S+(\s+\S+)+.*$" title="Please enter the nominee's first and last name." placeholder="e.g. Amara Okonkwo" value="{{ old.nominee_name ?? prefill.nominee_name ?? '' }}"></div>
             <div><label class="nm-lab" for="nCountry">Country *</label>
@@ -333,7 +333,7 @@
                       aria-describedby="polishNote">
                 <span x-text="polishing ? '✦ Polishing…' : '✦ Polish my story'"></span>
               </button>
-              <span class="nm-count" :style="story.trim().length>=60 ? 'color:#1a9c34' : 'color:#5a6d6f'" x-text="story.trim().length + ' chars'"></span>
+              <span class="nm-count" :style="story.trim().length>=60 ? 'color:#16832c' : 'color:#5a6d6f'" x-text="story.trim().length + ' chars'"></span>
             </span>
           </div>
           <p id="catSuggestNote" class="nm-hint" x-show="catSuggestMsg" x-cloak role="status" style="margin-top:5px" x-text="catSuggestMsg"></p>

@@ -189,6 +189,65 @@ class AdminContrastTest extends TestCase
             'a11y.css is the canonical home for .sr-only; every layout loads it.');
     }
 
+    /**
+     * The greys retired from the public site must not come back.
+     *
+     * Six literal greys were carrying metadata and hint text on white cards at between
+     * 2.3:1 and 4.4:1 — shop delivery notes, the account dashboard's "your email is fixed
+     * here", event schedule bodies, message timestamps. They were replaced with
+     * `--ag-ink-soft`, which the token file already documents as the AA-safe secondary
+     * ink, rather than with six new near-identical greys.
+     *
+     * a11y.css had already diagnosed two of them by name and corrected exactly two
+     * selectors, which is how the other forty-odd survived. This asserts the diagnosis
+     * was applied everywhere rather than at the two call sites somebody happened to hit.
+     *
+     * Dark grounds are exempt and excluded: the same family of light greens and golds is
+     * used deliberately on the vote hero and the dark support prompt, where they are the
+     * legible choice.
+     */
+    public function test_retired_low_contrast_greys_do_not_return(): void
+    {
+        $retired = ['#8a9a9c', '#92a6a7', '#9aa6a8', '#7f9293', '#7d8c8e', '#8a969a', '#6b7d7f', '#717a7e'];
+        $re = '/color:\s*(' . implode('|', array_map('preg_quote', $retired)) . ')\b/i';
+
+        $offenders = [];
+        foreach (self::twigAndCss() as $file) {
+            $rel = self::rel($file);
+            // Admin and judge carry their own palettes, asserted by the token test above.
+            if (str_contains($rel, '/admin/') || str_contains($rel, 'judge')) {
+                continue;
+            }
+            if (preg_match_all($re, (string) file_get_contents($file), $m)) {
+                foreach (array_unique($m[1]) as $hex) {
+                    $offenders[] = "$rel uses $hex";
+                }
+            }
+        }
+
+        $this->assertSame([], $offenders, sprintf(
+            "These greys fail 4.5:1 on the light grounds they are used on. Use "
+            . "var(--ag-ink-soft,#626a6e) (5.14:1 at worst) instead:\n%s",
+            implode("\n", $offenders)
+        ));
+    }
+
+    /** The token those greys were replaced with must itself stay AA on every light ground. */
+    public function test_ink_soft_token_is_aa_on_light_grounds(): void
+    {
+        $tokens = self::css('public/assets/css/base/tokens.css');
+        $this->assertSame(1, preg_match('/--ag-ink-soft:\s*(#[0-9a-fA-F]{6})/', $tokens, $m),
+            'tokens.css must define --ag-ink-soft as a 6-digit hex.');
+
+        foreach (['#ffffff', '#fbfbfa', '#f6f7f6'] as $ground) {
+            $r = self::ratio(strtolower($m[1]), $ground);
+            $this->assertGreaterThanOrEqual(4.5, $r, sprintf(
+                '--ag-ink-soft (%s) is %.2f:1 on %s — it is the site-wide secondary ink and '
+                . 'roughly sixty declarations now depend on it clearing AA.', $m[1], $r, $ground
+            ));
+        }
+    }
+
     /** @return list<string> */
     private static function twigAndCss(): array
     {

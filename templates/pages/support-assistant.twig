@@ -31,7 +31,7 @@
   .sa-cap{ display:inline-flex; align-items:center; gap:6px; font:600 12px/1 inherit; color:#3d4c4e;
            background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:999px; padding:6px 11px; }
   .sa-cap svg{ flex:none; }
-  .sa-cap--off{ color:#8a9a9c; background:#f2f4f3; }
+  .sa-cap--off{ color:var(--ag-ink-soft,#626a6e); background:#f2f4f3; }
 
   .sa-note{ margin:14px 0 0; padding:11px 14px; border-radius:12px; font-size:13.5px; line-height:1.55;
             background:#fdf6e3; border:1px solid #efe0b5; color:#7a611a; }
@@ -141,13 +141,13 @@
                   padding:0; line-height:1; opacity:.65; }
   .sa-ref button:hover{ opacity:1; }
   .sa-reset{ margin-left:auto; border:0; background:none; cursor:pointer; font:600 12.5px/1 inherit;
-             color:#8a9a9c; text-decoration:underline; padding:5px; }
+             color:var(--ag-ink-soft,#626a6e); text-decoration:underline; padding:5px; }
   .sa-reset:hover{ color:var(--ag-ink,#10292c); }
 
   /* The busy line says WHICH kind of work is running. "…" for eight seconds
      is indistinguishable from a hung page, and this desk's slowest answers are
      the ones that talk to a payment gateway. */
-  .sa-work{ font-size:13px; color:#7d8c8e; }
+  .sa-work{ font-size:13px; color:var(--ag-ink-soft,#626a6e); }
 
   .sa-form{ display:flex; gap:10px; align-items:flex-end; padding:14px 16px;
             border-top:1px solid rgba(16,41,44,.08); }
@@ -160,7 +160,7 @@
   .sa-go[disabled]{ opacity:.45; cursor:default; }
 
   .sa-foot{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
-            padding:0 18px 16px; font-size:12.5px; line-height:1.5; color:#8a9a9c; }
+            padding:0 18px 16px; font-size:12.5px; line-height:1.5; color:var(--ag-ink-soft,#626a6e); }
   .sa-foot p{ margin:0; max-width:52ch; }
   .sa-human{ border:0; background:none; cursor:pointer; font:700 13px/1 inherit;
              color:var(--ag-green,#237b22); text-decoration:underline; padding:5px; }

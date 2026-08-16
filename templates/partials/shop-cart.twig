@@ -139,7 +139,7 @@
           <span class="sc-mono" x-text="'−' + $store.cart.ngn($store.cart.q.discount)"></span>
         </div>
         <div class="sc-srow" x-show="$store.cart.q.charged !== undefined" x-cloak>
-          <span>Delivery <span style="color:#8a9a9c" x-text="$store.cart.q.shipping_why || ''"></span></span>
+          <span>Delivery <span style="color:var(--ag-ink-soft,#626a6e)" x-text="$store.cart.q.shipping_why || ''"></span></span>
           <span class="sc-mono" x-text="($store.cart.q.shipping || 0) > 0 ? $store.cart.ngn($store.cart.q.shipping) : 'Free'"></span>
         </div>
         <div class="sc-srow tot"><span>Total</span><span class="sc-mono" x-text="$store.cart.ngn($store.cart.due)"></span></div>
@@ -169,7 +169,7 @@
              A preview only: ShopCheckoutController::totals() prices it again from the code
              row at checkout, so what is shown here cannot change what anybody is charged. #}
           <div class="sc-field">
-            <label for="scCoCode">Discount code <span style="font-weight:400;color:#8a9a9c">(optional)</span></label>
+            <label for="scCoCode">Discount code <span style="font-weight:400;color:var(--ag-ink-soft,#626a6e)">(optional)</span></label>
             <div class="sc-code">
               <input id="scCoCode" x-model="$store.cart.code" placeholder="GATES10" autocomplete="off"
                      @keydown.enter.prevent="$store.cart.quote()">

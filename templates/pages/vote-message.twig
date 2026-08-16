@@ -34,9 +34,9 @@
   /* 40px of hit area, same reason as .vmi__act: it was 23px tall, next to a control
      that does something entirely different, on a page people reach from a chat app. */
   .vm__report{ background:none; border:none; padding:4px 6px; min-height:40px; display:inline-flex;
-               align-items:center; font:500 12.5px/1.4 inherit; color:#8a9a9c; cursor:pointer; }
+               align-items:center; font:500 12.5px/1.4 inherit; color:var(--ag-ink-soft,#626a6e); cursor:pointer; }
   .vm__report:hover{ color:#b3261e; text-decoration:underline; }
-  .vm__reported{ font-size:12.5px; color:#6b7d7f; min-height:40px; display:inline-flex; align-items:center; }
+  .vm__reported{ font-size:12.5px; color:var(--ag-ink-soft,#626a6e); min-height:40px; display:inline-flex; align-items:center; }
   .vm__cta{ margin-top:26px; background:#10292C; border-radius:18px; padding:26px 28px; color:#eef3ee; }
   .vm__cta h2{ margin:0 0 8px; font-size:1.12rem; color:#fff; letter-spacing:-.01em; }
   .vm__cta p{ margin:0 0 18px; font-size:14px; line-height:1.7; color:#b9c9bd; }
@@ -67,7 +67,7 @@
       {% if msg.nominee_photo %}<img class="vm__ava" src="{{ msg.nominee_photo|media_url('avatar') }}" alt="" width="42" height="42" loading="lazy">{% endif %}
       <p class="vm__by-t">
         <strong>{{ msg.name }}</strong> on <strong>{{ msg.nominee_name }}</strong>
-        {% if msg.when %}<br><span style="color:#6b7d7f">{{ msg.when|date('j F Y') }}</span>{% endif %}
+        {% if msg.when %}<br><span style="color:var(--ag-ink-soft,#626a6e)">{{ msg.when|date('j F Y') }}</span>{% endif %}
       </p>
     </div>
 
