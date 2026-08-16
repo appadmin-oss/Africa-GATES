@@ -133,11 +133,17 @@ Per-organiser and per-vendor routing are both new work, and the second is the ha
 - **`gates_orders` is one basket, one payment.** An `items_json` blob, a single
   `subtotal_naira`, a single `provider_ref`. There is nowhere to record that ₦8,000 of a
   ₦20,000 order belongs to vendor A and ₦12,000 to vendor B. Per-vendor order lines are new.
-- **Money cannot be split per seller.** One Paystack transaction settles to at most one
-  subaccount. A basket spanning three vendors is either three separate payments (three
-  checkouts, three failure modes, an attendee who can abandon after paying vendor A) or one
-  payment into a platform account plus a **ledger and a payout run** — which means holding other
-  people's money, with everything that implies.
+- **Money is not split per seller today — but the gateway supports it.**
+  **Corrected since first publication.** This brief originally said "one Paystack transaction
+  settles to at most one subaccount", and used that to conclude model 3 needs a ledger, a
+  payout run and therefore custody of other people's money. That is wrong: Paystack's
+  Transaction Splits / multi-split API settles a single transaction across the main account
+  and *one or more* subaccounts, with no documented maximum, via a split code created through
+  the API. A multi-vendor basket therefore needs per-vendor order lines and a split code —
+  real work, but **not** custody, and not a regulatory posture. `PaymentService` already
+  merges a per-payment `subaccount` into the Paystack payload and records the attribution, so
+  the seam exists. See `docs/PARTNER-DONATIONS-PROPOSAL.md` §4 for the same mechanism worked
+  through on donations.
 - **Shipping assumes delivery, not collection.** `ShopShipping` quotes by region against
   `delivery_regions`. Items bought at a stand are collected there; items bought online before an
   event may be collected *at* the event. Collection is a fulfilment mode that does not exist.
@@ -146,8 +152,11 @@ Per-organiser and per-vendor routing are both new work, and the second is the ha
   unchanged. This is the one part of leg B that is genuinely nearly free.
 
 **The honest summary:** model 3 is not "the shop, but for vendors". The catalogue half is
-reusable; the money half is a rebuild, and it is the largest single item in this brief —
-larger than the whole selection-and-fairness apparatus in §5.
+reusable; the money half is still the largest single item in this brief, because per-vendor
+order lines, per-line commission and refund-after-split are all new. But it is a **rebuild of
+the order model, not of the money model** — the gateway splits for you, so the frightening
+part (custody, payout runs, holding funds you do not own) is optional rather than inherent.
+That is a materially smaller and less dangerous piece of work than this brief first claimed.
 
 ---
 
@@ -256,9 +265,12 @@ subaccount or a manual settlement.
 **Leg B — item sales (model 3 only).** The genuinely new money, and the reason to think hard
 before choosing model 3:
 
-- **One basket, many sellers** needs either split payments or a ledger. A ledger means the
-  platform holds funds it does not own, which is a regulatory posture, not a feature.
-- **A payout run** — schedule, minimum, failure handling, and a statement per vendor.
+- **One basket, many sellers** should be a **gateway split, not a ledger.** Both work; only
+  one avoids the platform holding funds it does not own, which is a regulatory posture rather
+  than a feature. Split at source and vendor money never sits in an Africa GATES account.
+  A vendor's Paystack subaccount also settles to a bank account in the vendor's own name,
+  which does a KYC step you would otherwise build.
+- **A payout run** — only if you choose a ledger. Splitting at source removes it.
 - **A held-back window.** Paying out the instant an order is marked paid means paying out before
   the refund window closes. A short hold is normal and must be published, because to a vendor an
   unexplained delay in their money is the platform stealing.
@@ -315,9 +327,10 @@ an underwriter, and pretending otherwise creates a liability nobody priced.
 
 ## 10 · Honest risks
 
-- **Model 3 is a marketplace, with a marketplace's obligations.** Holding other people's money,
-  standing behind other people's goods, and handling other people's disputes. It is buildable,
-  but it should be chosen deliberately and not arrived at by increment.
+- **Model 3 is a marketplace, with a marketplace's obligations.** Standing behind other
+  people's goods and handling other people's disputes — though *not* necessarily holding their
+  money, now that splitting at the gateway is confirmed available. It is buildable, but it
+  should be chosen deliberately and not arrived at by increment.
 - **Self-preferencing is the reputational landmine.** The platform sells merchandise and would be
   ranking competitors. §6c is not optional politeness.
 - **Curation is a reputational surface.** A rejection that looks like favouritism is a public
@@ -363,9 +376,9 @@ lines, split or ledgered money, payout runs, disputes, collection codes.
    follows from this, and it is the decision the "vendors sell items" correction actually poses.
 2. **Curated or first-come?** Both are defensible; only one is affordable at scale. Determines
    whether Phase 3 exists.
-3. **If model 3: does the platform hold vendor funds**, or does each vendor get their own
-   Paystack subaccount and their own checkout? The second is far less powerful and far less
-   dangerous.
+3. **If model 3: split at the gateway, or a platform ledger?** Now that multi-split is
+   confirmed available, splitting at source is both simpler and far safer — the platform
+   never holds vendor money. Choosing a ledger should require a positive reason.
 4. **Who scores?** Organiser staff, or an independent pair? Independence costs money and buys the
    answer to the favouritism question.
 5. **Deposit or full payment up front for the stand?**
