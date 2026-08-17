@@ -189,7 +189,7 @@
     <div class="dn-card">
       {% if providers is empty %}
       <div class="dn-card__in">
-        <h2>Make a donation</h2>
+        <h2>Make a gift</h2>
         <p class="dn-card__sub">Choose how you’d like to give.</p>
         <div class="dn-soon">Online giving is being set up. In the meantime, reach our team via <a href="/support">/support</a> to make a gift — we’ll send you secure payment details and a receipt.</div>
       </div>
@@ -247,7 +247,7 @@
             {% endif %}
 
             <p class="dn-card__sub" style="font-size:12.5px">
-              Run by <strong>{{ org.name }}</strong>. Your donation settles directly to their
+              Run by <strong>{{ org.name }}</strong>. Your gift settles directly to their
               own account.
               {%- if org_fee_bps > 0 %} Africa GATES keeps
               {{ (org_fee_bps / 100)|number_format(2) }}% of each gift.{% else %} Africa GATES
@@ -278,7 +278,7 @@
             {# ── WHAT THIS PAGE PROMISES, AND WHAT IT MUST NOT ──────────────────
                "100% funds the programmes" is true when Africa GATES is the recipient and
                the fee cover offsets the gateway's cut. It stops being true the moment a
-               platform fee is deducted from somebody else's donation, so the claim is
+               platform fee is deducted from somebody else's gift, so the claim is
                made ONLY where it holds and the fee is stated in naira beside the amount
                otherwise — not in a footnote, and never discovered after paying. #}
             {% if org_fee_bps > 0 %}
@@ -291,12 +291,12 @@
               <p class="dn-card__sub">A one-time gift — Africa GATES takes nothing. 100% goes to {{ org.name }}.</p>
             {% endif %}
             <p class="dn-card__sub" style="font-size:12.5px">
-              Your donation settles directly to {{ org.name }}’s own account.
+              Your gift settles directly to {{ org.name }}’s own account.
               Africa GATES checks that they are registered with the CAC{% if org.scuml_number %} and with SCUML{% endif %},
-              and that donations settle to a bank account in their own name. We do not audit how the money is spent.
+              and that gifts settle to a bank account in their own name. We do not audit how the money is spent.
             </p>
           {% else %}
-            <h2>Make a donation</h2>
+            <h2>Make a gift</h2>
             <p class="dn-card__sub">A one-time gift — 100% funds the programmes.</p>
           {% endif %}
           <div class="dn-amounts">
@@ -324,7 +324,7 @@
           <button type="button" class="dn-back" @click="step='choose'">← Back</button>
           <h2>Your details</h2>
           <div class="dn-recap" style="margin-top:16px">
-            <span>One-time donation</span><b x-text="ngn(value)"></b>
+            <span>One-time gift</span><b x-text="ngn(value)"></b>
           </div>
           <div class="dn-field"><label for="dnName">Full name</label><input id="dnName" type="text" name="name" placeholder="Your name" autocomplete="name"></div>
           <div class="dn-field"><label for="dnEmail">Email (for your receipt)</label><input id="dnEmail" type="email" name="email" required placeholder="you@email.com" autocomplete="email" x-model="email"></div>
@@ -357,6 +357,46 @@
     </div>
 
   </div>
+
+  {# ── THE DOOR, FOR THE OTHER KIND OF READER ─────────────────────────────
+     Shown only on the Africa GATES page, never on an organisation's own. On a partner's
+     appeal it would be an advert for the platform in the middle of somebody else's ask,
+     competing with the reason the visitor came.
+
+     The two figures are the ones a stranger is actually asking: has anybody applied, and
+     has anybody got money out of it. The first counts every applicant rather than only the
+     ones who got through — a page reporting successes alone claims a 100% acceptance rate
+     for a process that refuses people. #}
+  {% if not org %}
+  <div class="dn-sec" style="margin-top:22px">
+    <h2>Are you an organisation?</h2>
+    <p style="margin:0 0 16px;font-size:14.5px;line-height:1.7;color:#3a4448">
+      You can raise gifts here too. Supporters give on a page in your name and the money
+      settles <strong>directly into your own account</strong> — Africa GATES never holds it,
+      because the split happens at the payment gateway rather than in a balance we are looking
+      after for you.
+    </p>
+    <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:18px">
+      <div class="dn-stat">
+        <div class="dn-stat__n">{{ org_totals.orgs }}</div>
+        <div class="dn-stat__l">organisation{{ org_totals.orgs == 1 ? '' : 's' }} applied,
+          {{ org_totals.approved }} approved</div>
+      </div>
+      <div class="dn-stat">
+        <div class="dn-stat__n">₦{{ org_totals.raised|number_format }}</div>
+        <div class="dn-stat__l">generated for them, across
+          {{ org_totals.gifts|number_format }} gift{{ org_totals.gifts == 1 ? '' : 's' }}</div>
+      </div>
+    </div>
+    <a href="/gift/apply" style="display:inline-flex;align-items:center;justify-content:center;
+       min-height:48px;padding:13px 26px;border-radius:14px;background:#12481d;color:#fff;
+       font-weight:700;font-size:15px;text-decoration:none">Apply to raise gifts</a>
+    <p style="margin:12px 0 0;font-size:13px;line-height:1.65;color:#626a6e">
+      CAC and SCUML registration are both required, and the settlement account must be in your
+      organisation's own registered name. Everything we ask for is listed on the form.
+    </p>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}
 

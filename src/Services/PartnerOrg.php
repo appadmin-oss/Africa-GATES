@@ -357,6 +357,139 @@ final class PartnerOrg
         ];
     }
 
+    /**
+     * An organisation applies to collect gifts through Africa GATES.
+     *
+     * ── WHY THE GIFT PAGE NEEDED AN APPLICATION FORM ─────────────────────────
+     *
+     * Every organisation on the platform was typed in by an administrator, which meant the
+     * only bodies that could ever raise money here were the ones that already knew somebody.
+     * A published form does not lower the bar — the vetting in {@see approve()} is unchanged,
+     * and CAC and SCUML are still both mandatory — it changes WHO GETS TO REACH the bar.
+     *
+     * ── AND WHY IT BUYS ALMOST NOTHING ───────────────────────────────────────
+     *
+     * The row lands as a DRAFT with `self_registered` set. They can sign in, upload their
+     * certificates and read their own decision. They cannot collect, cannot appear publicly,
+     * and cannot be approved until somebody has read the record and attached a settlement
+     * account. Applying buys a place in a queue, which is exactly what it should buy.
+     *
+     * @return array{ok:bool,message:string,org_id:int,user:?object}
+     */
+    public static function registerPartner(array $in): array
+    {
+        $fail = ['ok' => false, 'org_id' => 0, 'user' => null];
+
+        $name  = trim((string) ($in['name'] ?? ''));
+        $legal = trim((string) ($in['legal_name'] ?? ''));
+        $email = strtolower(trim((string) ($in['contact_email'] ?? '')));
+        $pass  = (string) ($in['password'] ?? '');
+        $cac   = trim((string) ($in['cac_number'] ?? ''));
+
+        if ($name === '')  return $fail + ['message' => 'Give the name supporters will recognise you by.'];
+        if ($legal === '') return $fail + ['message' => 'Give the registered name exactly as it appears at the CAC.'];
+        if ($cac === '') {
+            // Not negotiable, and not the same rule as a vendor's. A body collecting
+            // charitable gifts in Nigeria has to be incorporated — an unregistered group
+            // asking the public for money is the thing this platform must never launder.
+            return $fail + ['message' => 'A CAC registration number is required. Only an '
+                                       . 'incorporated body may collect charitable gifts in Nigeria.'];
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $fail + ['message' => 'That is not a valid email address.'];
+        }
+        if (\AfricaGates\Services\OrgAuth::findByEmail($email)) {
+            return $fail + ['message' => 'That email address already has a sign-in. '
+                                       . 'Sign in and continue from your dashboard.'];
+        }
+        if (strlen($pass) < 12) {
+            return $fail + ['message' => 'Use a password of at least 12 characters — this sign-in '
+                                       . 'can later request payouts.'];
+        }
+
+        $slug = self::uniqueSlug($name);
+        if ($slug === '') return $fail + ['message' => 'That name does not make a usable web address.'];
+
+        $orgId = (int) DB::table('gates_partner_orgs')->insertGetId([
+            'slug'            => $slug,
+            'name'            => mb_substr($name, 0, 200),
+            'legal_name'      => mb_substr($legal, 0, 200),
+            'kind'            => self::KIND_PARTNER,
+            // A donation partner is always a body, never a person. Enforced here so nothing
+            // downstream has to check the pair.
+            'entity_type'     => self::ENTITY_BUSINESS,
+            'self_registered' => 1,
+            'cac_number'      => mb_substr($cac, 0, 60),
+            'scuml_number'    => mb_substr(trim((string) ($in['scuml_number'] ?? '')), 0, 60) ?: null,
+            'contact_name'    => mb_substr(trim((string) ($in['contact_name'] ?? '')), 0, 160) ?: null,
+            'contact_email'   => mb_substr($email, 0, 190),
+            'contact_phone'   => mb_substr(trim((string) ($in['contact_phone'] ?? '')), 0, 40) ?: null,
+            'description'     => mb_substr(trim((string) ($in['description'] ?? '')), 0, 2000) ?: null,
+            'status'          => self::STATUS_DRAFT,
+            'created_at'      => date('Y-m-d H:i:s'),
+        ]);
+
+        $u = \AfricaGates\Services\OrgAuth::createUser(
+            $orgId, $email, $pass, trim((string) ($in['contact_name'] ?? '')), 'owner'
+        );
+        if (!$u['ok']) {
+            DB::table('gates_partner_orgs')->where('id', $orgId)->delete();
+            return $fail + ['message' => $u['message']];
+        }
+
+        return ['ok' => true, 'org_id' => $orgId,
+                'user' => \AfricaGates\Services\OrgAuth::findByEmail($email),
+                'message' => 'Application received.'];
+    }
+
+    /**
+     * What the platform has done for organisations, in two numbers.
+     *
+     * ── WHY THESE TWO AND NOT A DASHBOARD ────────────────────────────────────
+     *
+     * A stranger deciding whether to apply is asking one question — has anybody actually got
+     * money out of this? — and a stranger deciding whether to give is asking the same one
+     * from the other side. "Twelve organisations, ₦4.2m raised" answers it. A grid of six
+     * metrics does not; it reads as marketing.
+     *
+     * Counted from confirmed rows every time and never cached. A cached figure on a page
+     * about other people's money is a number that is eventually wrong in public, and the
+     * query is two aggregates over an indexed column.
+     *
+     * @return array{orgs:int,approved:int,raised:int,gifts:int}
+     */
+    public static function platformTotals(): array
+    {
+        $out = ['orgs' => 0, 'approved' => 0, 'raised' => 0, 'gifts' => 0];
+
+        try {
+            // Every organisation that has APPLIED, not only the ones that got through. The
+            // honest denominator: a page that counts only successes is reporting a rate of
+            // 100% for a process that refuses people.
+            $out['orgs'] = (int) DB::table('gates_partner_orgs')
+                ->where('kind', self::KIND_PARTNER)->count();
+            $out['approved'] = (int) DB::table('gates_partner_orgs')
+                ->where('kind', self::KIND_PARTNER)
+                ->where('status', self::STATUS_APPROVED)->count();
+        } catch (\Throwable) {
+            // A missing column on a database that has not been migrated yet is a zero, not
+            // a five-hundred on the public page that asks people for money.
+        }
+
+        try {
+            $row = DB::table('gates_donations')
+                ->whereNotNull('recipient_org_id')
+                ->where('status', 'confirmed')
+                ->selectRaw('COALESCE(SUM(amount_naira),0) g, COUNT(*) c')
+                ->first();
+            $out['raised'] = (int) ($row->g ?? 0);
+            $out['gifts']  = (int) ($row->c ?? 0);
+        } catch (\Throwable) {
+        }
+
+        return $out;
+    }
+
     /** A slug nobody else holds. Suffixed rather than refused — two "Mama's Kitchen"s exist. */
     private static function uniqueSlug(string $name): string
     {

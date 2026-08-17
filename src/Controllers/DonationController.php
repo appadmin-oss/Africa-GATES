@@ -110,6 +110,7 @@ final class DonationController
                         'page_title' => 'Appeal closed — Africa GATES',
                         'gates_page' => 'donate', 'has_hero' => false,
                         'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
+                    'org_totals' => \AfricaGates\Services\PartnerOrg::platformTotals(),
                         'org' => null, 'campaign' => null, 'org_closed' => true,
                         'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
                         'processing_fee_pct' => $this->processingFeePct(),
@@ -119,10 +120,11 @@ final class DonationController
 
             if (!\AfricaGates\Services\PartnerOrg::canReceive($org)) {
                 return $this->view->render($res->withStatus(404), 'pages/donate.twig', [
-                    'error'      => 'That appeal is not open for donations.',
+                    'error'      => 'That appeal is not open for gifts.',
                     'page_title' => 'Appeal closed — Africa GATES',
                     'gates_page' => 'donate', 'has_hero' => false,
                     'providers'  => [], 'stats' => $this->stats(), 'givers' => [],
+                    'org_totals' => \AfricaGates\Services\PartnerOrg::platformTotals(),
                     'org' => null, 'campaign' => null, 'org_closed' => true,
                     'min_naira' => self::MIN_NAIRA, 'max_naira' => self::MAX_NAIRA,
                     'processing_fee_pct' => $this->processingFeePct(),
@@ -134,9 +136,9 @@ final class DonationController
             'error'            => self::GIVE_REASONS[trim((string) ($req->getQueryParams()['give'] ?? ''))] ?? null,
             'page_title'       => $campaign
                 ? ($campaign->title . ' — ' . $org->name)
-                : ($org ? ('Donate to ' . $org->name . ' — Africa GATES') : 'Donate — Africa GATES'),
+                : ($org ? ('Give to ' . $org->name . ' — Africa GATES') : 'Give — Africa GATES'),
             'meta_description' => $org
-                ? ('Give to ' . $org->name . ' through Africa GATES. Your donation settles directly to the organisation.')
+                ? ('Give to ' . $org->name . ' through Africa GATES. Your gift settles directly to the organisation.')
                 : 'Fund child leadership programmes across the continent — mentorship, scholarships and grassroots education. Every gift is receipted and independently audited.',
             'gates_page'       => 'donate',
             'has_hero'         => false,
@@ -164,6 +166,11 @@ final class DonationController
             // donor permanently.
             'org_fee_bps'      => $org ? (int) ($org->platform_fee_bps ?? 0) : 0,
             'partners'         => $org ? [] : \AfricaGates\Services\PartnerOrg::listReceivable(),
+            // What the platform has done FOR organisations, for the other kind of reader on
+            // this page. Only meaningful on the Africa GATES page — on a partner's own appeal
+            // the block that uses it is suppressed, because an advert for the platform in the
+            // middle of somebody else's ask competes with the reason the visitor came.
+            'org_totals'       => \AfricaGates\Services\PartnerOrg::platformTotals(),
             'min_naira'        => self::MIN_NAIRA,
             'max_naira'        => self::MAX_NAIRA,
             'processing_fee_pct' => $this->processingFeePct(),

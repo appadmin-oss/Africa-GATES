@@ -1,0 +1,224 @@
+{% extends "layout/gates.twig" %}
+
+{# ─────────────────────────────────────────────────────────────────────────────
+   Apply to raise gifts through Africa GATES.
+
+   The requirements are on the page, above the form, not behind a link. An application form
+   that hides what it will ask for is a form that wastes the time of the people least able to
+   spare it — and the ones it wastes most are the small organisations this is for.
+   ───────────────────────────────────────────────────────────────────────────── #}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="donate"]{ background:#f4f6f2; color:var(--ag-ink); }
+  .oa{ max-width:840px; margin:0 auto; padding:24px var(--ag-gutter,32px) 76px; }
+
+  .oa-hero{ position:relative; overflow:hidden; border-radius:24px;
+            background:radial-gradient(130% 130% at 82% 10%,#1d5b2a,#10292C 62%);
+            padding:clamp(2.2rem,5vw,3rem) clamp(1.6rem,4vw,2.6rem); }
+  .oa-hero h1{ margin:14px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800;
+               font-size:clamp(1.9rem,4.6vw,2.5rem); line-height:1.06; letter-spacing:-.02em; }
+  .oa-hero p{ margin:14px 0 0; max-width:56ch; font-size:15.5px; line-height:1.65;
+              color:rgba(255,255,255,.86); }
+  .oa-badge{ display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:700;
+             letter-spacing:.1em; text-transform:uppercase; color:#ffd24a; background:rgba(8,26,16,.55);
+             box-shadow:inset 0 0 0 1px rgba(212,154,14,.32); padding:7px 14px; border-radius:999px; }
+
+  /* The two numbers that answer the only question a stranger is actually asking. */
+  .oa-stats{ display:flex; flex-wrap:wrap; gap:14px; margin-top:24px; }
+  .oa-stat{ flex:1 1 190px; background:rgba(255,255,255,.07); border-radius:14px; padding:14px 18px;
+            box-shadow:inset 0 0 0 1px rgba(255,255,255,.1); }
+  .oa-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:23px; color:#ffd24a; }
+  .oa-stat__l{ margin-top:4px; font-size:12.5px; line-height:1.45; color:rgba(255,255,255,.72); }
+
+  .oa-sec{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:20px;
+           padding:26px 28px; margin-top:18px; }
+  .oa-sec h2{ margin:0 0 6px; font-family:var(--ag-font-display); font-weight:700; font-size:20px; }
+  .oa-sec p.lead{ margin:0 0 18px; font-size:14px; line-height:1.65; color:#5a6468; }
+
+  .oa-req{ list-style:none; margin:0; padding:0; counter-reset:r; }
+  .oa-req li{ counter-increment:r; position:relative; padding:0 0 16px 44px; font-size:14.5px;
+              line-height:1.65; }
+  .oa-req li::before{ content:counter(r); position:absolute; left:0; top:-2px; width:30px; height:30px;
+                      border-radius:50%; background:#e8f3ea; color:#12481d; display:flex;
+                      align-items:center; justify-content:center; font-family:var(--ag-font-mono);
+                      font-weight:700; font-size:13px; }
+  .oa-req strong{ display:block; }
+
+  .oa-f label{ display:block; font-size:13.5px; font-weight:600; margin-bottom:6px; }
+  .oa-f input[type=text], .oa-f input[type=email], .oa-f input[type=tel],
+  .oa-f input[type=password], .oa-f textarea{
+    width:100%; padding:11px 13px; border:1px solid rgba(16,41,44,.18); border-radius:11px;
+    font:inherit; font-size:15px; background:#fff; color:var(--ag-ink); }
+  .oa-f input:focus, .oa-f textarea:focus{ outline:2px solid #1a6118; outline-offset:1px;
+    border-color:#1a6118; }
+  .oa-f small{ display:block; margin-top:5px; font-size:12.5px; color:#61707a; }
+  .oa-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:640px){ .oa-grid{ grid-template-columns:1fr; } }
+
+  /* #8a2b18 on #fdecea is 6.4:1. An error nobody can read is not an error message. */
+  .oa-err{ background:#fdecea; border:1px solid #f3c4bd; color:#8a2b18; border-radius:14px;
+           padding:14px 16px; font-size:14.5px; line-height:1.6; margin-top:18px; }
+
+  .oa-go{ display:inline-flex; align-items:center; justify-content:center; min-height:50px;
+          padding:14px 30px; border:0; border-radius:14px; background:#12481d; color:#fff;
+          font:inherit; font-weight:700; font-size:15.5px; cursor:pointer; }
+  .oa-go:hover{ background:#0d3716; }
+  .oa-note{ margin-top:14px; font-size:13px; line-height:1.65; color:#5a6468; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="oa">
+
+  <div class="oa-hero">
+    <span class="oa-badge">For organisations</span>
+    <h1>Raise gifts through Africa GATES</h1>
+    <p>Supporters give on a page in your name, and the money settles <strong>directly into your
+       own account</strong>. Africa GATES never holds it — the split happens at the payment
+       gateway, not in a balance we are looking after for you.</p>
+
+    {# The two numbers a stranger is actually asking about: has anybody applied, and has
+       anybody got money out of it. The first counts EVERY applicant rather than only the
+       ones who got through — a page reporting only successes is claiming a 100% acceptance
+       rate for a process that refuses people. #}
+    <div class="oa-stats">
+      <div class="oa-stat">
+        <div class="oa-stat__n">{{ totals.orgs }}</div>
+        <div class="oa-stat__l">organisation{{ totals.orgs == 1 ? '' : 's' }} applied,
+          {{ totals.approved }} approved to collect</div>
+      </div>
+      <div class="oa-stat">
+        <div class="oa-stat__n">₦{{ totals.raised|number_format }}</div>
+        <div class="oa-stat__l">given to them through this platform,
+          across {{ totals.gifts|number_format }} gift{{ totals.gifts == 1 ? '' : 's' }}</div>
+      </div>
+    </div>
+  </div>
+
+  {% if error %}<div class="oa-err" role="alert">{{ error }}</div>{% endif %}
+
+  {# ── WHAT WE ASK FOR ─────────────────────────────────────────────────── #}
+  <div class="oa-sec">
+    <h2>What we will ask you for</h2>
+    <p class="lead">All of it, before you start, so you can decide whether this is worth your
+       afternoon.</p>
+    <ol class="oa-req">
+      <li><strong>CAC registration — Incorporated Trustees.</strong>
+        Only an incorporated body may collect charitable gifts in Nigeria. We check the number
+        against the register.</li>
+      <li><strong>SCUML registration.</strong>
+        Mandatory for a non-profit under the Money Laundering (Prevention and Prohibition) Act
+        2022. This is a legal requirement, not our paperwork.</li>
+      <li><strong>A bank account in your own registered name.</strong>
+        We ask your bank who owns the account before anything is paid, and compare the answer
+        with your registered name. An account in a trustee's personal name is refused —
+        that is the single most common way charitable money goes missing.</li>
+      <li><strong>A decision, with a reason.</strong>
+        Yes or no, you will be told which and why. You can read it on your own dashboard.</li>
+    </ol>
+  </div>
+
+  {# ── HOW THE MONEY MOVES ──────────────────────────────────────────────── #}
+  <div class="oa-sec">
+    <h2>How the money moves</h2>
+    <p class="lead" style="margin-bottom:14px">Worth reading, because it is the part most
+      platforms are vague about.</p>
+    <ul style="margin:0;padding-left:20px;font-size:14.5px;line-height:1.75;color:#3a4448">
+      <li><strong>It never becomes our money.</strong> A gift splits at the gateway into a
+        subaccount in your organisation's name. There is no Africa GATES balance holding your
+        funds, so there is nothing for us to be slow about releasing.</li>
+      <li><strong>You withdraw it yourself</strong>, from your own dashboard, to your own
+        account.</li>
+      <li><strong>Your account number is never stored here.</strong> It reaches the gateway
+        once. We keep the bank, the last four digits and the name the bank gave back.</li>
+      <li><strong>Every figure on your dashboard is summed from confirmed payments</strong>
+        each time it is asked for. Nothing is cached, so nothing can quietly drift.</li>
+    </ul>
+  </div>
+
+  {# ── THE FORM ─────────────────────────────────────────────────────────── #}
+  {% if signed_in %}
+    <div class="oa-sec">
+      <h2>You are already signed in</h2>
+      <p class="lead" style="margin-bottom:0">Continue from your
+        <a href="/org">organisation dashboard</a> — applying again would create a second record
+        against the same people.</p>
+    </div>
+  {% else %}
+  <form method="post" action="/gift/apply" class="oa-f">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+    <div class="oa-sec">
+      <h2>Your organisation</h2>
+      <p class="lead">This creates a sign-in. Nothing is public until an administrator has read
+        the record and approved it.</p>
+
+      <div class="oa-grid">
+        <div>
+          <label for="oaName">Name supporters will know you by</label>
+          <input id="oaName" name="name" type="text" maxlength="200" required
+                 value="{{ old.name|default('') }}" placeholder="Bright Futures Initiative">
+          <small>This appears on your gift page.</small>
+        </div>
+        <div>
+          <label for="oaLegal">Registered name (CAC)</label>
+          <input id="oaLegal" name="legal_name" type="text" maxlength="200" required
+                 value="{{ old.legal_name|default('') }}">
+          <small>Exactly as registered. It is compared against your bank account name.</small>
+        </div>
+        <div>
+          <label for="oaCac">CAC number</label>
+          <input id="oaCac" name="cac_number" type="text" maxlength="60" required
+                 value="{{ old.cac_number|default('') }}" placeholder="IT/1234567">
+          <small>Incorporated Trustees numbers usually begin <strong>IT/</strong>.</small>
+        </div>
+        <div>
+          <label for="oaScuml">SCUML number <span style="font-weight:400;color:#61707a">— if you have it yet</span></label>
+          <input id="oaScuml" name="scuml_number" type="text" maxlength="60"
+                 value="{{ old.scuml_number|default('') }}">
+          <small>You can apply without it, but you cannot be approved without it.</small>
+        </div>
+        <div>
+          <label for="oaContact">Contact name</label>
+          <input id="oaContact" name="contact_name" type="text" maxlength="160"
+                 value="{{ old.contact_name|default('') }}">
+        </div>
+        <div>
+          <label for="oaPhone">Phone</label>
+          <input id="oaPhone" name="contact_phone" type="tel" maxlength="40" autocomplete="tel"
+                 value="{{ old.contact_phone|default('') }}">
+        </div>
+        <div>
+          <label for="oaEmail">Email</label>
+          <input id="oaEmail" name="contact_email" type="email" maxlength="190" required
+                 autocomplete="email" value="{{ old.contact_email|default('') }}">
+          <small>This becomes your sign-in.</small>
+        </div>
+        <div>
+          <label for="oaPass">Choose a password</label>
+          <input id="oaPass" name="password" type="password" minlength="12" required
+                 autocomplete="new-password">
+          <small>At least 12 characters. This sign-in can later request payouts.</small>
+        </div>
+      </div>
+
+      <div style="margin-top:16px">
+        <label for="oaWhat">What does your organisation do?</label>
+        <textarea id="oaWhat" name="description" rows="5"
+          placeholder="Who you work with, where, and what a gift actually pays for.">{{ old.description|default('') }}</textarea>
+        <small>This is what a reviewer reads first, and what supporters read on your page.</small>
+      </div>
+    </div>
+
+    <div style="margin-top:22px">
+      <button class="oa-go" type="submit">Apply</button>
+      <p class="oa-note">
+        You will land on your dashboard, where you upload your certificates. Nothing can be
+        reviewed until they are on file.
+      </p>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

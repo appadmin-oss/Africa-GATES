@@ -500,6 +500,12 @@
          {% if filter == f.0 %}style="background:#10292C;color:#fff;border-color:#10292C"{% endif %}>{{ f.1 }}</a>
     {% endfor %}
     <a class="tx-btn tx-btn--ghost" href="/admin/events/{{ event.id }}/attendees.csv">Download CSV</a>
+    {# Physical tickets, for the guest list, the sponsor's table and the people who bought at
+       a kiosk with no email address. A generated PDF at exact millimetres — not the browser's
+       print dialogue, which rescales the QR to whatever "Fit to page" feels like. Only
+       confirmed bookings are printed. #}
+    <a class="tx-btn tx-btn--ghost" href="/admin/events/{{ event.id }}/tickets.pdf">Print tickets (PDF)</a>
+    <a class="tx-btn tx-btn--ghost" href="/admin/events/{{ event.id }}/tickets.pdf?per=2">Large, 2 a page</a>
   </div>
 
   <table class="tx-list">

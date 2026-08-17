@@ -161,11 +161,86 @@
 
     {% if not verifier_on %}
       <p style="font-size:13px;line-height:1.7;color:var(--ad-text-soft);margin:0 0 14px">
-        No registry verifier is configured, so these numbers are <strong>stored, not verified</strong>.
-        The CAC public search is a page for people — open it, check the number, then record
-        what you found. Set <code>CAC_VERIFY_URL</code> and <code>CAC_VERIFY_KEY</code> to
-        enable an automated lookup.
+        No automatic verifier is configured, so a number is <strong>confirmed by you</strong>
+        rather than verified by a machine. Search the register below — the result lands on this
+        page, beside the number it is about. Set <code>CAC_VERIFY_URL</code> and
+        <code>CAC_VERIFY_KEY</code> for an automated lookup that answers on its own.
       </p>
+    {% endif %}
+
+    {# ── THE REGISTER, SEARCHED FROM HERE ─────────────────────────────────────
+       The one-click link to the CAC portal worked, and was the weakest part of onboarding:
+       a reviewer left this record, searched in a tab, came back, and pressed "I checked
+       this" from memory. Nothing connected the two — a mistyped digit and a careful check
+       left the same trace. Searching here puts the result beside the number, and the
+       register's own spelling of the name gets stored rather than somebody's recollection
+       of it. A GET, so it needs no script and survives a reload with the results still up. #}
+    <form method="get" action="/admin/partner-orgs/{{ org.id }}"
+          style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px">
+      <div style="flex:1 1 280px">
+        <label for="cacQ">Search the CAC register</label>
+        <input id="cacQ" name="q" type="search" maxlength="120"
+               value="{{ cac_query|default(org.cac_number ?: org.legal_name ?: org.name) }}"
+               placeholder="Registered name or RC/BN/IT number">
+      </div>
+      <button class="ad-btn ad-btn--primary" type="submit">Search</button>
+      <a class="ad-btn ad-btn--sm" href="{{ cac_search }}" target="_blank" rel="noopener noreferrer"
+         title="If the register is unreachable from this server">Open the CAC portal</a>
+    </form>
+
+    {% if cac_results %}
+      {% if not cac_results.ok %}
+        {# Unreachable is UNKNOWN, and the wording has to say so. On a screen where somebody
+           decides whether a charity is real, an outage that reads as a refusal is the most
+           dangerous thing this page could do. #}
+        <div style="margin-bottom:14px;border-left:4px solid var(--ad-gold);background:#fffdf5;
+                    border-radius:0 10px 10px 0;padding:12px 15px;font-size:13.5px;line-height:1.65;
+                    color:#6b5312" role="status">
+          {{ cac_results.message }}
+        </div>
+      {% elseif cac_results.results is empty %}
+        <div style="margin-bottom:14px;font-size:13.5px;line-height:1.65;color:var(--ad-text-soft)">
+          {{ cac_results.message }}
+        </div>
+      {% else %}
+        <div class="ad-table-wrap" style="margin-bottom:14px">
+          <table class="ad-table">
+            <caption class="sr-only">Results from the CAC register</caption>
+            <thead><tr>
+              <th scope="col">Registered name</th><th scope="col">Number</th>
+              <th scope="col">Kind</th><th scope="col">Status</th><th scope="col" class="col-actions">&nbsp;</th>
+            </tr></thead>
+            <tbody>
+            {% for r in cac_results.results %}
+              <tr>
+                <td><strong>{{ r.name }}</strong>
+                  {% if r.address %}<div style="font-size:12px;color:var(--ad-text-soft);margin-top:3px">{{ r.address }}</div>{% endif %}</td>
+                <td style="font-family:'Space Mono',monospace">{{ r.rc|default('—') }}</td>
+                <td>{{ r.type|default('—') }}
+                  {% if r.date %}<div style="font-size:12px;color:var(--ad-text-soft)">{{ r.date }}</div>{% endif %}</td>
+                <td>{{ r.status|default('—') }}</td>
+                <td class="col-actions">
+                  {% if may_decide %}
+                    <form method="post" action="/admin/partner-orgs/{{ org.id }}/registry">
+                      <input type="hidden" name="_token" value="{{ csrf_token }}">
+                      <input type="hidden" name="reg_name" value="{{ r.name }}">
+                      <input type="hidden" name="rc_number" value="{{ r.rc }}">
+                      <button class="ad-btn ad-btn--sm" type="submit"
+                              data-confirm="Record “{{ r.name }}” as this organisation's registered identity, against your name?">This is them</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p style="font-size:12.5px;line-height:1.65;color:var(--ad-text-soft);margin:0 0 14px">
+          {{ cac_results.message }} Recording one stores the register's spelling of the name,
+          which is what the bank account name is later compared against — so it must not be
+          retyped by hand.
+        </p>
+      {% endif %}
     {% endif %}
 
     <table class="ad-table" style="max-width:760px">

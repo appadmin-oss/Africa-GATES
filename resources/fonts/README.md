@@ -43,3 +43,31 @@ U+1E00-1EFF, U+2000-206F, U+20A0-20BF, U+2122, U+2190-21FF, U+25A0-25FF`.
 
 Both are under the SIL Open Font License 1.1, which permits redistribution and
 bundling. Full texts: `OFL-Montserrat.txt`, `OFL-PlayfairDisplay.txt`.
+
+---
+
+## `AGText-*` and `AGMono-Bold` — the PDF faces
+
+Added for the ticket PDFs (`AfricaGates\Services\TicketPdf`). Derived from **DejaVu Sans**
+and **DejaVu Sans Mono Bold**, trimmed with this repository's own subsetter
+(`TrueType::subset($gids, standalone: true)`) to the ranges listed above.
+
+### Why not the brand face
+
+Measured, not assumed: the `DMSans-*.ttf` files in this directory have **no glyph** for
+`Ọ ọ Ẹ ẹ Ṣ ṣ`, none for `Ɓ Ɗ Ƙ Ɔ`, and none for `₦`. Google's own TTF delivery serves the
+same latin-only cut. A ticket for *Ọlásùnkànmí Ṣẹ́gun* set in it prints holes through the
+middle of somebody's name and loses the currency off the price — which on this platform is
+not a cosmetic defect.
+
+`Pdf::font()` takes a fallback chain precisely so a brand face can be reinstated later
+without any of the ticket code changing: register DM Sans with these as its fallback and
+every character it *can* set comes from it.
+
+**The same gap affects `FlierService::png()`**, which still sets social images in DM Sans.
+That is a separate fix and is not addressed here.
+
+### Licence
+
+DejaVu fonts are released under a permissive Bitstream Vera / Arev derivative licence that
+allows redistribution and modification. Full text: `LICENCE-DejaVu.txt`.

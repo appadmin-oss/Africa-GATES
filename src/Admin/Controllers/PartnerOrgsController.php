@@ -89,6 +89,9 @@ final class PartnerOrgsController
             'admin_page' => 'partner-orgs',
             'rows'       => $out,
             'statuses'   => PartnerOrg::STATUSES,
+            // The same two numbers the public application page shows, so nobody has to
+            // reconcile an internal figure against a external one — there is only one.
+            'totals'     => PartnerOrg::platformTotals(),
         ]);
     }
 
@@ -99,6 +102,10 @@ final class PartnerOrgsController
         if (!$org) return $this->back($res, '/admin/partner-orgs');
 
         $cac = RegistryCheck::cacFormat((string) ($org->cac_number ?? ''));
+
+        // Defaults to the number already on file, so the common case — "is this real?" — is
+        // one click rather than a retype, which is the retype that introduces the typo.
+        $q = trim((string) ($req->getQueryParams()['q'] ?? ''));
 
         return $this->view->render($res, 'admin/partner-orgs/show.twig', [
             'page_title'  => $org->name . ' — Admin',
@@ -112,6 +119,14 @@ final class PartnerOrgsController
             'banks'       => $this->payments->banks(),
             'cac_format'  => $cac,
             'cac_search'  => RegistryCheck::cacSearchUrl((string) ($org->cac_number ?? '')),
+            // ── THE REGISTER, SEARCHED FROM THIS PAGE ────────────────────
+            //
+            // Run on the GET so it needs no script and survives a reload with the results
+            // still on screen. Only when a query was actually typed — an unconditional
+            // search would put an outbound HTTP call in front of every page view of every
+            // vetting record.
+            'cac_query'   => $q,
+            'cac_results' => $q !== '' ? RegistryCheck::searchCac($q) : null,
             'verifier_on' => RegistryCheck::verifierAvailable(),
             'check_states'=> RegistryCheck::STATES,
             // The stored comparison from onboarding: what the BANK said the account name is,
@@ -330,6 +345,57 @@ final class PartnerOrgsController
 
         DB::table('gates_partner_orgs')->where('id', $id)->update($update);
         $this->audit->record($this->adminId(), 'partner_org.registry_check', 'partner_org', $id);
+        return $this->back($res, '/admin/partner-orgs/' . $id);
+    }
+
+    /**
+     * Take a searched result as the organisation's registered identity.
+     *
+     * ── WHY THIS IS A BUTTON AND NOT A COPY-PASTE ────────────────────────────
+     *
+     * Because the alternative is a reviewer retyping a name from one half of the screen into
+     * the other, and the register's spelling is the one that has to win. "Bright Futures
+     * Initiative" against "BRIGHT FUTURE INITIATIVE" is a difference that matters — it is the
+     * difference the bank-account name match is later measured against — and it is exactly
+     * the kind of difference a human eye smooths over while copying.
+     *
+     * Recorded as CONFIRMED rather than VERIFIED. A search result a person chose from a list
+     * is a person's judgement, which is what `confirmed` means; `verified` is reserved for a
+     * verifier that answered on its own. The record has to be able to tell those apart.
+     */
+    public function adoptRegistry(Request $req, Response $res, array $args = []): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        if (!$this->mayDecide()) {
+            $_SESSION['flash_error'] = 'Only an admin can record a registry check.';
+            return $this->back($res, '/admin/partner-orgs/' . $id);
+        }
+        if (!PartnerOrg::find($id)) return $this->back($res, '/admin/partner-orgs');
+
+        $b    = (array) $req->getParsedBody();
+        $name = trim((string) ($b['reg_name'] ?? ''));
+        $rc   = trim((string) ($b['rc_number'] ?? ''));
+
+        if ($name === '') {
+            $_SESSION['flash_error'] = 'That result carried no registered name.';
+            return $this->back($res, '/admin/partner-orgs/' . $id);
+        }
+
+        $update = [
+            'cac_registered_name' => mb_substr($name, 0, 200),
+            'cac_check'           => RegistryCheck::CONFIRMED,
+            'checked_by'          => $this->adminId(),
+            'checked_at'          => date('Y-m-d H:i:s'),
+        ];
+        // The number too, but only when the register gave one — overwriting a number on file
+        // with an empty string would erase the thing being checked.
+        if ($rc !== '') $update['cac_number'] = mb_substr($rc, 0, 60);
+
+        DB::table('gates_partner_orgs')->where('id', $id)->update($update);
+        $this->audit->record($this->adminId(), 'partner_org.registry_adopted', 'partner_org', $id);
+
+        $_SESSION['flash_ok'] = 'Recorded “' . $name . '” from the register, against your name. '
+                              . 'Compare it with the bank account name below before approving.';
         return $this->back($res, '/admin/partner-orgs/' . $id);
     }
 

@@ -588,6 +588,61 @@ class EventsController
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
+    /**
+     * The ticket as a PDF, at a fixed physical size.
+     *
+     * ── WHY THIS EXISTS BESIDE A PERFECTLY GOOD WEB PAGE ─────────────────────
+     *
+     * Because `@media print` hands the artefact to the browser and the driver, and "Fit to
+     * page" — on by default in more than one browser — silently rescales the QR symbol. A
+     * code that came off the printer below the module size a scanner resolves is not
+     * discovered in an office. It is discovered at a gate with a queue behind it.
+     *
+     * A PDF is 30mm on every machine. It is also a FILE, which the web page is not: it can
+     * be forwarded to a guest with no printer, kept against a dispute, or sent to a print
+     * shop that will not accept a URL.
+     *
+     * Reachable with the reference alone, like the page it comes from — an attendee has no
+     * account, and a login between somebody and their own ticket is a queue that stops.
+     */
+    public function ticketPdf(Request $req, Response $res, array $args): Response
+    {
+        $ref = trim((string) ($args['ref'] ?? ''));
+        $reg = $ref !== ''
+            ? DB::table('gates_event_registrations')->where('reference', $ref)->first()
+            : null;
+        if (!$reg) return $res->withHeader('Location', '/events')->withStatus(302);
+
+        // Only a confirmed booking becomes a document. Same doctrine as the page, and
+        // stronger: paper carries an authority a screen does not, and nobody at a gate
+        // assumes a printed ticket might still be provisional.
+        if ((string) $reg->status !== 'confirmed') {
+            return $res->withHeader('Location', '/events/ticket/' . rawurlencode($ref))->withStatus(302);
+        }
+
+        $event = DB::table('gates_site_events')->where('id', (int) $reg->event_id)->first();
+        // SiteUrl, not APP_URL directly. It falls back to the request's own host, so a
+        // deployment that never set APP_URL prints a working link rather than one beginning
+        // "/events/…" — which on paper is not a link at all. SiteUrlTest enforces this.
+        $url = \AfricaGates\Support\SiteUrl::base($req) . '/events/ticket/' . rawurlencode($ref);
+
+        $pdf = \AfricaGates\Services\TicketPdf::one(
+            (array) $reg,
+            $event ? (array) $event : [],
+            \AfricaGates\Services\EventTicketDesign::forEvent($event),
+            $url
+        );
+
+        $name = preg_replace('/[^A-Za-z0-9\-]+/', '-', $ref) . '.pdf';
+        $res->getBody()->write($pdf);
+        return $res
+            ->withHeader('Content-Type', 'application/pdf')
+            // `inline`, not `attachment`: a phone opens it in place, and somebody who wants
+            // the file still gets a save button from the viewer.
+            ->withHeader('Content-Disposition', 'inline; filename="' . $name . '"')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
     // ══ SELF-SERVICE ═════════════════════════════════════════════════════════
     //
     // Four endpoints, all JSON, all reachable with the reference alone — because an attendee

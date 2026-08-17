@@ -984,6 +984,88 @@ class EventsController
                    ->withHeader('Content-Disposition', 'attachment; filename="' . $name . '"');
     }
 
+    /**
+     * The box-office sheet: every ticket for this event, laid out to be printed and cut.
+     *
+     * ── WHY A BATCH SHEET EXISTS AT ALL ──────────────────────────────────────
+     *
+     * The attendee's own page prints one ticket beautifully and is the wrong tool for a door
+     * team. Somebody has to hand physical tickets to a guest list, to a sponsor's table of
+     * twelve, to the forty people who bought at a kiosk with no email address — and doing
+     * that from the attendee page means opening forty tabs and pressing print forty times.
+     * The alternative organisers actually reach for is a spreadsheet, which produces a row of
+     * text with no QR on it, and then the door is typing codes by hand all evening.
+     *
+     * ── AND WHY IT IS A PAGE RATHER THAN A PDF ───────────────────────────────
+     *
+     * A PDF means a rendering library, a font stack, and a second implementation of this
+     * layout that drifts from the first. The browser already has a print engine, it already
+     * has the fonts, and `@page` with millimetre geometry is a real typesetting instruction
+     * rather than an approximation of one. What is lost is control over the driver's
+     * ink-saving default — which is exactly why nothing on this sheet depends on a fill.
+     *
+     * ── WHAT IT REFUSES ──────────────────────────────────────────────────────
+     *
+     * Only CONFIRMED registrations get printed. Same doctrine as the attendee page: a pending
+     * payment rendered as a scannable ticket is an argument at a door, and a printed one is
+     * worse, because paper carries an authority a web page does not — nobody at the gate
+     * assumes a printed ticket might be provisional.
+     */
+    public function printTickets(Request $req, Response $res, array $args): Response
+    {
+        $id    = (int) ($args['id'] ?? 0);
+        $event = DB::table('gates_site_events')->where('id', $id)->first();
+        if (!$event) {
+            $_SESSION['flash_error'] = 'That event could not be found.';
+            return $res->withHeader('Location', '/admin/events')->withStatus(302);
+        }
+
+        $q = $req->getQueryParams();
+
+        // Three per page or two. See TicketPdf::LAYOUTS for why those two and not others.
+        $per = (int) ($q['per'] ?? 3) === 2 ? 2 : 3;
+
+        // A cap with a VISIBLE consequence. Several thousand inline QR symbols is tens of
+        // megabytes of markup and a browser that stops responding mid-print, which reads as
+        // "the printer is broken" rather than "there were too many". The template says how
+        // many were left out and how to get them.
+        $limit = 400;
+        $tier  = trim((string) ($q['tier'] ?? ''));
+
+        $all = EventTicketService::attendees($id, 'confirmed', 5000);
+        if ($tier !== '') {
+            $all = array_values(array_filter($all, static fn($a) => (string) ($a['tier'] ?? '') === $tier));
+        }
+
+        // Oldest booking first, so reprinting a sheet after a few more sales appends rather
+        // than reshuffling — a box office that has already cut page three should not find
+        // page three is now different people.
+        usort($all, static fn($a, $b) => (int) ($a['id'] ?? 0) <=> (int) ($b['id'] ?? 0));
+
+        $total = count($all);
+        $rows  = array_slice($all, 0, $limit);
+
+        // The cap is reported in the FILENAME, because a PDF has no room for a banner and a
+        // sheet that silently stopped at four hundred would be read as "that is everyone" —
+        // and the people it left out find out at the door.
+        $pdf = \AfricaGates\Services\TicketPdf::sheet(
+            $rows, (array) $event, EventTicketDesign::forEvent($event), $per
+        );
+
+        $slug = preg_replace('/[^a-z0-9\-]+/i', '-', (string) $event->slug);
+        $name = $slug . '-tickets'
+              . ($tier !== '' ? '-' . preg_replace('/[^a-z0-9\-]+/i', '-', $tier) : '')
+              . '-' . count($rows) . 'of' . $total . '.pdf';
+
+        $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'event.tickets_printed', 'event', $id);
+
+        $res->getBody()->write($pdf);
+        return $res
+            ->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $name . '"')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
     public function delete(Request $req, Response $res, array $args): Response
     {
         $id = (int)$args['id'];

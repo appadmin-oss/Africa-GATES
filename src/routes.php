@@ -1603,6 +1603,10 @@ return function(App $app) {
         // The calendar files. Registered BEFORE `/events/{slug}`, because `{slug}` would
         // otherwise swallow `calendar.ics` as a slug and answer 404 for a real event — the
         // same ordering trap the back-in-stock stop link hit in the shop.
+        // The ticket as a fixed-size PDF. Deliberately NOT the browser's print dialogue: see
+        // TicketPdf — "Fit to page" silently rescales the QR below what a scanner resolves,
+        // and nobody finds out until a queue has stopped.
+        $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/ticket.pdf', EventsController::class.':ticketPdf');
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/calendar.ics',
                 EventsController::class.':ticketCalendar');
         $g->get('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}', EventsController::class.':ticket');
@@ -1798,6 +1802,18 @@ return function(App $app) {
         //   POST /donate           first-party form post (CSRF) → hosted checkout
         //   GET  /donate/callback  browser return; verified server-side
         //   GET  /donate/success   read-only thank-you
+        // ── GIFTS ─────────────────────────────────────────────────────
+        //
+        // "Gift" is the word on every surface now; /donate stays registered because links to
+        // it are printed on receipts, in emails and on other people's websites, and breaking
+        // those to win a noun is a bad trade. /gift is the canonical path from here.
+        //
+        // /gift/apply comes BEFORE the {slug} pattern: FastRoute matches in declaration order
+        // for patterns of the same shape, so a wildcard registered first would swallow it.
+        $g->get ('/gift/apply', \AfricaGates\Controllers\OrgApplyController::class.':form');
+        $g->post('/gift/apply', \AfricaGates\Controllers\OrgApplyController::class.':submit');
+        $g->get('/gift',            DonationController::class.':page');
+        $g->post('/gift',           DonationController::class.':start');
         $g->get('/donate',          DonationController::class.':page');
         $g->post('/donate',         DonationController::class.':start');
         $g->get('/donate/redirect', DonationController::class.':handoff');  // see GatewayHandoff
@@ -1836,6 +1852,10 @@ return function(App $app) {
         // above always win — and the pattern additionally excludes them by name, because
         // route order is the kind of invariant that survives until somebody tidies the file
         // and a partner called "success" silently takes over the thank-you page.
+        $g->get('/gift/{slug:(?!apply$|redirect$|callback$|success$)[a-z0-9][a-z0-9-]{1,118}}',
+                DonationController::class.':page');
+        $g->get('/gift/{slug:(?!apply$)[a-z0-9][a-z0-9-]{1,118}}/{campaign:[a-z0-9][a-z0-9-]{1,118}}',
+                DonationController::class.':page');
         $g->get('/donate/{slug:(?!redirect$|callback$|success$)[a-z0-9][a-z0-9-]{1,118}}',
                 DonationController::class.':page');
         // A specific appeal inside that organisation. Two segments, because a campaign slug
@@ -2653,6 +2673,10 @@ return function(App $app) {
         $a->post('/events/{id:[0-9]+}/refunds/retry',  AdminEventsController::class.':retryRefund');
         $a->post('/events/{id:[0-9]+}/refunds/settle', AdminEventsController::class.':settleRefund');
         $a->get('/events/{id:[0-9]+}/attendees.csv', AdminEventsController::class.':exportAttendees');
+        // The box-office sheet. A door team handing physical tickets to a guest list cannot
+        // open forty attendee pages and press print forty times, and the spreadsheet they
+        // reach for instead has no QR on it — which means the door types codes all evening.
+        $a->get('/events/{id:[0-9]+}/tickets.pdf', AdminEventsController::class.':printTickets');
         // Discount codes get their own screen: a code is created and retired on a completely
         // different rhythm from an event's title and venue.
         // ── VENDOR STANDS ─────────────────────────────────────────────
@@ -2762,6 +2786,9 @@ return function(App $app) {
         $a->get ('/partner-orgs/{id:[0-9]+}',           $P.':show');
         $a->post('/partner-orgs/{id:[0-9]+}/account',   $P.':attachAccount');
         $a->post('/partner-orgs/{id:[0-9]+}/check',     $P.':check');
+        // Adopting a result the register returned, without retyping it — the retype is where
+        // the register's own spelling quietly becomes somebody's approximation of it.
+        $a->post('/partner-orgs/{id:[0-9]+}/registry',  $P.':adoptRegistry');
         $a->post('/partner-orgs/{id:[0-9]+}/document',  $P.':upload');
         $a->post('/partner-orgs/{id:[0-9]+}/approve',   $P.':approve');
         $a->post('/partner-orgs/{id:[0-9]+}/suspend',   $P.':suspend');
