@@ -53,10 +53,15 @@ final class TicketPdf
      */
     private const QR_MM = 30.0;
 
-    private const INK   = [16, 41, 44];
-    private const MUTE  = [61, 71, 73];
-    private const LINE  = [185, 196, 195];
-    private const BLACK = [0, 0, 0];
+    /** The 1A palette, taken from the design rather than from the site's tokens. */
+    private const INK    = [16, 41, 44];      // #10292C — all dark type, and the notches
+    private const MUTE   = [61, 71, 73];
+    private const LINE   = [185, 196, 195];
+    private const GOLD   = [243, 180, 22];    // #f3b416 — the panel ground and the perforation
+    private const CREAM  = [246, 242, 230];   // #f6f2e6 — the stub stock
+    private const IVORY  = [251, 246, 230];   // #fbf6e6 — type over the artwork
+    private const LABEL  = [169, 174, 177];   // #a9aeb1 — the stub's micro-labels
+    private const BLACK  = [0, 0, 0];
 
     /**
      * The two densities that fit A4 without leaving a hole in every ticket.
@@ -81,11 +86,12 @@ final class TicketPdf
         $pdf = self::begin();
         // Centred, and at the width of the thing people expect to tear rather than stretched
         // to the paper. A ticket that fills A4 reads as a poster.
-        // 180 × 78mm, which is a shade over the proportions of the design and a shade under
-        // the width of A4 — a ticket that fills the paper edge to edge reads as a poster.
-        $w = 180.0;
-        $h = 78.0;
-        self::ticket($pdf, $reg, $event, $design, (self::PAGE_W - $w) / 2, 45.0, $w, $h, true, $url);
+        // 190 × 86mm. The design is 2.67:1 and this is 2.2:1 — the difference is the stub,
+        // which has to be tall enough to hold a 30mm symbol above a column of labels. That is
+        // the one proportion physics takes back.
+        $w = 190.0;
+        $h = 86.0;
+        self::ticket($pdf, $reg, $event, $design, (self::PAGE_W - $w) / 2, 42.0, $w, $h, true, $url);
         return $pdf->output();
     }
 
@@ -140,6 +146,12 @@ final class TicketPdf
         $pdf->font('text', $dir . 'AGText-Regular.ttf');
         $pdf->font('bold', $dir . 'AGText-Bold.ttf');
         $pdf->font('mono', $dir . 'AGMono-Bold.ttf');
+
+        // The display face the design is drawn in. Playfair covers U+1EA0–1EFF, so it sets
+        // "Ogidì Ọmọ" properly — but it has no ₦, which is why it is registered with the text
+        // face behind it rather than alone. A title that dropped its currency symbol would be
+        // the same defect this whole font path exists to fix.
+        $pdf->font('display', $dir . 'PlayfairDisplay-Bold.ttf', 'bold');
         return $pdf;
     }
 
@@ -170,161 +182,181 @@ final class TicketPdf
                                    float $x, float $y, float $w, float $h,
                                    bool $large = false, string $url = ''): void
     {
-        $accent = self::rgb((string) ($design['accent'] ?? '#2a0a4a'));
-        $s      = $large ? 1.35 : 1.0;
+        $s    = $large ? 1.18 : 1.0;
+        $tier = mb_strtoupper(trim((string) ($reg['tier'] ?? '')));
 
-        // The stub is sized from the QR outward, because the QR does not scale: it is 30mm
-        // whatever else happens, so the panel that holds it cannot be narrower than 30mm plus
-        // its margins. Everything else gets the remainder.
-        $stubW = max(self::QR_MM + 22, $w * 0.34);
-        $tearW = 2.6;
+        // ── PROPORTIONS, AND THE ONE PLACE THEY GIVE ────────────────────────
+        //
+        // The design is 940 × 352 with a stub a third of the width. Those proportions assume
+        // the QR is decorative, which on paper it is not: 30mm is the size below which the
+        // scanners a venue actually owns start hunting for the symbol. So the stub is widened
+        // to fit a real one and the ticket is a little taller than 2.67:1. Everything else —
+        // the gold ground, the wash, the perforation, the slanted tier, the label column, the
+        // scan block at the top right — is as drawn.
+        $tearW = 2.2;
+        $stubW = max(self::QR_MM + 30, $w * 0.38);
         $artW  = $w - $stubW - $tearW;
-        $artX  = $x;
         $tearX = $x + $artW;
         $stubX = $tearX + $tearW;
 
         // ── the artwork panel ───────────────────────────────────────────────
-        $pdf->rect($artX, $y, $artW, $h, $accent);
-        $art = self::artwork($design);
-        if ($art !== null) {
-            $pdf->image($art, $artX, $y, $artW, $h, 0.3);
-            // The wash, which is what makes a title legible over an unknown photograph. Kept
-            // even on light artwork, because "unknown" is the operative word: an organiser
-            // uploads whatever they have and the type has to survive all of it.
-            $pdf->rect($artX, $y + $h * 0.42, $artW, $h * 0.58, $accent, 0.86);
-            $pdf->rect($artX, $y + $h * 0.62, $artW, $h * 0.38, $accent, 0.97);
-        }
+        //
+        // Gold underneath, always. The photograph sits on top of it and the wash on top of
+        // that, so an event with no artwork loses a photograph and keeps the design.
+        $pdf->rect($x, $y, $artW, $h, self::GOLD);
 
-        $tier = strtoupper(trim((string) ($reg['tier'] ?? '')));
+        $wash = self::rgb((string) ($design['accent'] ?? '#2a0a4a'));
+        $art  = self::artwork($design);
+        if ($art !== null) $pdf->image($art, $x, $y, $artW, $h, 0.28);
+
+        // Bottom-up over 62% of the height, at the design's own stops. It is what makes a
+        // title legible over a photograph nobody chose, so it is drawn even on light artwork
+        // — "nobody chose" is the operative part.
+        $pdf->wash($x, $y + $h * 0.38, $artW, $h * 0.62, $wash);
+
+        $pdf->pushClip($x, $y, $artW, $h);
+
+        // The tier, slanted, ivory at 40%, running off its own panel. At two metres in bad
+        // light this is the only thing anybody reads off a ticket — it is what sorts a queue —
+        // and it does that job long before the 5pt label beside the QR does.
         if ($tier !== '') {
-            // Pale, enormous, and clipped by the panel it sits in — a watermark rather than a
-            // label. 22% is the alpha at which it reads as a texture up close and as a word
-            // across a room, which is the only distance it has to work at.
-            $pdf->text($tier, $artX + 8 * $s, $y + $h - 5 * $s, 'bold', 34 * $s,
-                [255, 255, 255], 0, 0.22);
+            $pdf->text($tier, $x + 7 * $s, $y + $h - 5 * $s, 'display', 30 * $s,
+                self::IVORY, 0, 0.40, 0.21);
         }
 
-        $ax = $artX + 8 * $s;
-        $aw = $artW - 16 * $s;
-        $ay = $y + $h - 24 * $s;
-
+        $ax = $x + 7 * $s;
+        $aw = $artW - 14 * $s;
         $when = trim((string) ($event['event_date'] ?? ''));
-        if ($when !== '') {
-            $ts = strtotime($when) ?: time();
-            $kicker = strtoupper(date('d.m.y', $ts));
-            $city   = strtoupper(trim((string) ($event['city'] ?? '')));
-            $pdf->text($kicker . ($city !== '' ? ' · ' . $city : ''), $ax, $ay - 9 * $s,
-                'mono', 6.5 * $s, [243, 180, 22], 180);
+        $ts   = $when !== '' ? (strtotime($when) ?: time()) : 0;
+
+        // The title sits above the tier, and the kicker above that — the design's stack.
+        $titleBase = $y + $h - 26 * $s;
+        $pdf->paragraph((string) ($event['title'] ?? 'Event'), $ax, $titleBase, $aw,
+            'display', 17 * $s, 7 * $s, self::IVORY, 2);
+
+        if ($ts > 0) {
+            $city = mb_strtoupper(trim((string) ($event['city'] ?? '')));
+            // Gold, over the darkest part of the wash. Set above the title it was invisible:
+            // the wash is weak that high up, and gold type on a gold panel is not type.
+            $pdf->text(date('d.m.y', $ts) . ($city !== '' ? '  ·  ' . $city : ''),
+                $ax, $titleBase + 5.5 * $s, 'mono', 6 * $s, self::GOLD, 220);
         }
-        $pdf->paragraph((string) ($event['title'] ?? 'Event'), $ax, $ay, $aw,
-            'bold', 15 * $s, 6.4 * $s, [251, 246, 230], 2);
+
+        $pdf->popClip();
 
         // ── the perforation ─────────────────────────────────────────────────
-        $pdf->rect($tearX, $y, $tearW, $h, [246, 242, 230]);
-        $pdf->line($tearX + $tearW / 2, $y + 2, $tearX + $tearW / 2, $y + $h - 2,
-            [140, 150, 150], 0.25, [1.1, 1.1]);
-        // The notches are drawn in the PAGE colour, so they read as holes punched through the
-        // ticket rather than as two dots printed on it.
-        $pdf->rect($tearX - 1.1, $y - 0.1, $tearW + 2.2, 1.6, [255, 255, 255]);
-        $pdf->rect($tearX - 1.1, $y + $h - 1.5, $tearW + 2.2, 1.6, [255, 255, 255]);
+        //
+        // Gold, like the panel it divides, with a dashed rule down the middle and a notch
+        // punched out at each end. The notches are drawn in the PAGE colour so they read as
+        // holes through the ticket rather than as two dots printed on it.
+        $pdf->rect($tearX, $y, $tearW, $h, self::GOLD);
+        $pdf->line($tearX + $tearW / 2, $y + 2.4, $tearX + $tearW / 2, $y + $h - 2.4,
+            self::INK, 0.3, [1.1, 1.1]);
+        $pdf->rect($tearX - 1.2, $y - 0.2, $tearW + 2.4, 1.7, [255, 255, 255]);
+        $pdf->rect($tearX - 1.2, $y + $h - 1.5, $tearW + 2.4, 1.7, [255, 255, 255]);
 
         // ── the stub ────────────────────────────────────────────────────────
-        $pdf->rect($stubX, $y, $stubW, $h, [246, 242, 230]);
+        $pdf->rect($stubX, $y, $stubW, $h, self::CREAM);
 
-        $pad = 5 * $s;
-        $sx  = $stubX + $pad;
-        $sw  = $stubW - $pad * 2;
+        $pad  = 5 * $s;
+        $sx   = $stubX + $pad;
+        $sw   = $stubW - $pad * 2;
+        $codeW = 6 * $s;                                   // the vertical serial's own strip
 
-        // ── THE BOTTOM OF THE STUB IS RESERVED, AND MEASURED FIRST ──────────
+        // The scan block, top right, with the code reading up its edge — the design's
+        // arrangement, at a size a scanner can resolve.
+        $qrX = $stubX + $stubW - $pad - $codeW - self::QR_MM;
+        $qrY = $y + $pad;
+        // On the stub's own cream, not on a white patch. Cream is 93% luminance — far above
+        // what a decoder needs against black modules — and a white square on cream stock is
+        // a hole in the design that no printer put there.
+        $pdf->qr(self::matrix($reg), $qrX, $qrY, self::QR_MM, 4, self::CREAM);
+
+        $code = trim((string) ($reg['ticket_code'] ?? '')) ?: (string) ($reg['reference'] ?? '—');
+        $pdf->textUp($code, $qrX + self::QR_MM + 4.4 * $s, $qrY + self::QR_MM,
+            'mono', 6 * $s, self::INK, 200);
+
+        // EVENT sits to the LEFT of the symbol, in the column the design leaves for it.
+        $pdf->text('EVENT', $sx, $qrY + 3 * $s, 'mono', 5 * $s, self::LABEL, 220);
+        $pdf->paragraph(mb_strtoupper((string) ($event['title'] ?? '')), $sx, $qrY + 7 * $s,
+            $qrX - $sx - 3, 'bold', 6.6 * $s, 3.2 * $s, self::INK, 3);
+
+        // ── the label column, below the scan block ──────────────────────────
         //
-        // The scan block and the holder's name are the two things a door actually uses, and
-        // both are anchored to the foot. Everything above them flows down into whatever is
-        // left. Doing it the other way round — flowing from the top and hoping — is what
-        // printed a three-line address straight through the word HOLDER: two correct blocks,
-        // one on top of the other, which is what a fixed-height panel does every time.
+        // The holder's name is RESERVED above the footer rather than flowed with the rest. It
+        // is the field a door checks against the person in front of it, and the first cut let
+        // a three-line address push it off the bottom — the ticket still looked complete,
+        // which is the dangerous part.
         $footY   = $y + $h - $pad;
-        $qrBot   = $footY - 3.5 * $s;
-        $qrTop   = $qrBot - self::QR_MM;
-        $nameY   = $qrTop - 3.0 * $s;
-        $nameLab = $nameY - 3.2 * $s;
-        $limit   = $nameLab - 3 * $s;
+        $footH   = 7.0 * $s;
+        $nameY   = $footY - $footH - 2.8 * $s;
+        $nameLab = $nameY - 3.0 * $s;
+        $limit   = $nameLab - 2.0 * $s;
+        $sy      = $qrY + self::QR_MM + 5 * $s;
 
-        $sy = $y + $pad + 2.5 * $s;
-
-        // Label-above-value pairs in the register's own idiom: a tiny tracked mono label over
-        // a short bold value, uppercase throughout, because this panel is read at a glance and
-        // never as prose.
-        //
-        // Returns false when the field did not fit, so the caller stops rather than drawing
-        // over the block below. The order they are offered in IS the priority order.
+        // Measured, not reserved: assuming every field needs its maximum dropped the venue
+        // address to make room for space that then stayed empty, and the address is the one
+        // field on a ticket that cannot be reconstructed from the others.
         $field = static function (string $label, string $value, int $maxLines = 2) use (
             $pdf, $sx, $sw, $s, $limit, &$sy
-        ): bool {
-            if (trim($value) === '') return true;
+        ): void {
+            if (trim($value) === '') return;
+            $used = $pdf->lines($value, $sw, 'bold', 6.8 * $s, $maxLines);
+            $need = 3.0 * $s + $used * 3.2 * $s + 1.9 * $s;
+            if ($sy + $need > $limit) return;
 
-            // Measured, not reserved. Assuming every field needs its maximum dropped the
-            // venue address to make room for space that then stayed empty — which is the
-            // worst of both, because the address is the one field on a ticket that cannot be
-            // reconstructed from the others.
-            $used = $pdf->lines($value, $sw, 'bold', 7.2 * $s, $maxLines);
-            $need = 3.0 * $s + $used * 3.3 * $s + 1.8 * $s;
-            if ($sy + $need > $limit) return false;
-
-            $pdf->text($label, $sx, $sy, 'mono', 5 * $s, [140, 148, 152], 200);
+            $pdf->text($label, $sx, $sy, 'mono', 5 * $s, self::LABEL, 220);
             $sy += 3.0 * $s;
-            $sy  = $pdf->paragraph($value, $sx, $sy, $sw, 'bold', 7.2 * $s, 3.3 * $s,
+            $sy  = $pdf->paragraph($value, $sx, $sy, $sw, 'bold', 6.8 * $s, 3.2 * $s,
                 self::INK, $maxLines);
-            $sy += 1.8 * $s;
-            return true;
+            $sy += 1.9 * $s;
         };
 
         $where = array_values(array_filter([
             trim((string) ($event['venue'] ?? '')),
             trim((string) ($event['location'] ?? '')),
         ]));
-
         $paid  = (int) ($reg['amount_naira'] ?? 0) > 0;
         $money = in_array('price', (array) ($design['rows'] ?? []), true)
             ? ($paid ? '₦' . number_format((int) $reg['amount_naira']) : 'FREE') : '';
 
-        // ── PRIORITY ORDER, BECAUSE THE PANEL CAN RUN SHORT ─────────────────
-        //
-        // LOCATION outranks DATE, and both outrank the EVENT name — because the artwork panel
-        // beside this one already carries the title at six times the size and the date as its
-        // kicker, while the address appears nowhere else on the ticket. Whichever field falls
-        // off the bottom should be the one a guest can find somewhere else.
-        //
-        // `continue`, not `break`: a field that did not fit is skipped, and a shorter one
-        // after it may still fit. Stopping at the first refusal would drop a one-line SEAT
-        // because a three-line address did not fit.
-        foreach ([
-            ['TICKET TYPE', trim(($tier !== '' ? $tier : 'ADMIT ONE') . ($money !== '' ? '   ' . $money : '')), 2],
-            ['LOCATION',    $where !== [] ? mb_strtoupper(implode(', ', $where)) : '', 3],
-            ['DATE',        $when !== ''
-                ? strtoupper(date('D d M Y', strtotime($when) ?: time()))
-                  . '  ·  ' . date('g:i a', strtotime($when) ?: time()) : '', 2],
-            ['SEAT',        mb_strtoupper(trim((string) ($reg['seat_label'] ?? ''))), 1],
-            ['EVENT',       mb_strtoupper((string) ($event['title'] ?? '')), 2],
-        ] as [$label, $value, $lines]) {
-            $field($label, $value, $lines);
-        }
+        // Priority order for the space that is left: the address outranks the date, and both
+        // outrank the ticket type — because the artwork panel already carries the date as its
+        // kicker and the type as a word the height of a fist, while the address appears
+        // nowhere else on the ticket at all.
+        $field('LOCATION', $where !== [] ? mb_strtoupper(implode(', ', $where)) : '', 3);
+        if ($ts > 0) $field('DATE', strtoupper(date('D d M Y', $ts)) . '  ·  ' . date('g:i a', $ts), 2);
+        $field('TICKET TYPE', trim(($tier !== '' ? $tier : 'ADMIT ONE')
+            . ($money !== '' ? '   ' . $money : '')), 1);
+        $field('SEAT', mb_strtoupper(trim((string) ($reg['seat_label'] ?? ''))), 1);
 
-        // ── the holder and the scan block ───────────────────────────────────
-        $pdf->text('HOLDER', $sx, $nameLab, 'mono', 5 * $s, [140, 148, 152], 200);
+        // Reserved, and therefore always drawn.
+        $pdf->text('HOLDER', $sx, $nameLab, 'mono', 5 * $s, self::LABEL, 220);
         $pdf->paragraph((string) ($reg['name'] ?? '—'), $sx, $nameY, $sw, 'bold',
-            8.4 * $s, 3.8 * $s, self::INK, 1);
+            7.4 * $s, 3.4 * $s, self::INK, 1);
 
-        $pdf->qr(self::matrix($reg), $sx, $qrTop, self::QR_MM);
+        // ── the foot: the mark, and the address of the site ─────────────────
+        // ── THE MARK IS SET, NOT PLACED ─────────────────────────────────────
+        //
+        // The bundled logo is a PNG built for a dark ground. Composited onto cream at 8mm it
+        // printed as a pale disc with unreadable text inside it — and a smudged mark on a
+        // document carrying somebody's identity reads as a forgery rather than as a brand.
+        // The wordmark in the display face is crisp at any size a printer can resolve, which
+        // is the job the mark was there to do.
+        $pdf->text('AFROVANGUARD', $sx, $footY - $footH + 1.5 * $s, 'mono', 4.6 * $s,
+            self::LABEL, 220);
+        $pdf->text('AFRICA GATES', $sx, $footY, 'display', 8 * $s, self::INK, 40);
 
-        $code = trim((string) ($reg['ticket_code'] ?? '')) ?: (string) ($reg['reference'] ?? '—');
-        // Down the right-hand edge of the symbol, which is where a stub has always carried its
-        // serial — and it keeps the code beside the thing it encodes without stealing a line.
-        $pdf->textUp($code, $sx + self::QR_MM + 3.6, $qrBot, 'mono', 6.2 * $s, self::INK, 120);
+        $site = 'AGATES.ORG';
+        $rw   = $pdf->width($site, 'mono', 5 * $s, 100);
+        $pdf->text($site, $stubX + $stubW - $pad - $rw, $footY, 'mono', 5 * $s, self::MUTE, 100);
 
-        $pdf->text('AFROVANGUARD', $sx, $footY, 'mono', 5 * $s, [140, 148, 152], 200);
         $ref = (string) ($reg['reference'] ?? '');
-        $rw  = $pdf->width($ref, 'mono', 5 * $s, 40);
-        $pdf->text($ref, $stubX + $stubW - $pad - $rw, $footY, 'mono', 5 * $s, [140, 148, 152], 40);
+        if ($ref !== '') {
+            $rw2 = $pdf->width($ref, 'mono', 4.6 * $s, 40);
+            $pdf->text($ref, $stubX + $stubW - $pad - $rw2, $footY - 4 * $s, 'mono',
+                4.6 * $s, self::LABEL, 40);
+        }
 
         // Paper cannot be clicked, so the link that recovers a lost ticket is set below it.
         if ($url !== '' && $large) {
@@ -337,12 +369,12 @@ final class TicketPdf
      *
      * ── WHY IT IS TRANSCODED RATHER THAN EMBEDDED AS FOUND ───────────────────
      *
-     * Organisers upload PNGs and 4MB posters. PDF speaks JPEG natively and nothing else that
-     * is worth implementing here, and a 2160 × 2700 poster on a 60mm panel is fifty times the
-     * pixels a printer can use — which is a ticket file nobody can email. GD is asked for a
-     * JPEG at roughly 300dpi for the panel and no more.
+     * Organisers upload PNGs and four-megabyte posters. PDF speaks JPEG natively and nothing
+     * else worth implementing here, and a 2160 × 2700 poster on a 100mm panel is fifty times
+     * the pixels a printer can use — which is a ticket file nobody can email. GD is asked for
+     * a JPEG at roughly 300dpi for the panel and no more.
      *
-     * Every failure returns null and the panel falls back to flat accent. A ticket without its
+     * Every failure returns null and the panel falls back to flat gold. A ticket without its
      * photograph is a ticket; a ticket that failed to render is not.
      */
     private static function artwork(array $design): ?string
@@ -363,8 +395,7 @@ final class TicketPdf
 
             $w = imagesx($im);
             $h = imagesy($im);
-            // ~300dpi across a panel that is never wider than 130mm.
-            $target = 1600;
+            $target = 1600;                                     // ~300dpi across a 135mm panel
             if ($w > $target) {
                 $scaled = imagescale($im, $target, (int) round($h * $target / $w));
                 if ($scaled !== false) { imagedestroy($im); $im = $scaled; }

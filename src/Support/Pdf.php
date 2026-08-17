@@ -199,7 +199,8 @@ final class Pdf
      *
      * @param array<int,array<int,bool>> $matrix
      */
-    public function qr(array $matrix, float $x, float $y, float $sizeMm, int $quiet = 4): void
+    public function qr(array $matrix, float $x, float $y, float $sizeMm, int $quiet = 4,
+                       array $ground = [255, 255, 255]): void
     {
         $n = count($matrix);
         if ($n === 0) return;
@@ -207,9 +208,14 @@ final class Pdf
         $span   = $n + $quiet * 2;
         $module = $sizeMm / $span;
 
-        // White ground first. On a tinted card the quiet zone has to BE white, not "the
-        // paper showing through", or the decoder measures the tint as a dark module.
-        $this->rect($x, $y, $sizeMm, $sizeMm, [255, 255, 255]);
+        // The ground is DRAWN, not left to the paper — a decoder measures contrast against
+        // what is actually there, so a symbol dropped onto a tinted card without its own
+        // ground reads the tint as a light module and loses the edge of the quiet zone.
+        //
+        // It is a parameter because white is not always right: on cream stock a white square
+        // is a visible patch on the design, and cream is light enough to carry the symbol.
+        // Anything darker than about 60% luminance should stay white.
+        $this->rect($x, $y, $sizeMm, $sizeMm, $ground);
 
         // One path with many subpaths, filled once — a `re f` per module would be forty
         // thousand operators on a six-ticket sheet.
@@ -224,6 +230,73 @@ final class Pdf
             }
         }
         if ($ops !== '') $this->buffer .= "0 0 0 rg " . $ops . "f\n";
+    }
+
+    /**
+     * Clip everything drawn until popClip() to a rectangle.
+     *
+     * The ticket's tier watermark is set larger than the panel holding it — deliberately, it
+     * is meant to run off the edge — and without a clip it runs over the perforation and into
+     * the stub, straight through the address.
+     */
+    public function pushClip(float $x, float $y, float $w, float $h): void
+    {
+        $this->buffer .= sprintf("q %.2F %.2F %.2F %.2F re W n\n",
+            $this->x($x), $this->y($y + $h), $w * self::PT, $h * self::PT);
+    }
+
+    public function popClip(): void
+    {
+        $this->buffer .= "Q\n";
+    }
+
+    /**
+     * A vertical wash: opaque at the bottom, nothing at the top.
+     *
+     * ── WHY IT IS BANDED, AND WHY THE BANDS DO NOT OVERLAP ───────────────────
+     *
+     * PDF has axial shadings, and one that fades to TRANSPARENT needs a soft mask — a second
+     * image in its own colour space, referenced from a graphics state. That is a great deal
+     * of machinery for one gradient. Sixty-four bands over forty millimetres is 0.6mm each,
+     * which is below the width at which an eye finds an edge on paper.
+     *
+     * They are drawn EDGE TO EDGE with no overlap. The first cut added two per cent to each
+     * band's height "to avoid hairline gaps", and every overlap then took its neighbour's
+     * alpha a second time — which printed as a ladder of darker seams straight down the
+     * artwork. Alpha does not tile.
+     *
+     * ── AND THE STOPS ARE THE DESIGN'S, NOT A CURVE ──────────────────────────
+     *
+     * Interpolated between the four stops the artwork direction specifies rather than fitted
+     * to an exponent. A curve that was merely "about right" left the kicker sitting on a part
+     * of the wash too weak to carry it, and gold type on a gold panel is not type.
+     *
+     * @param array{0:int,1:int,2:int}   $rgb
+     * @param array<int,array{0:float,1:float}> $stops [distance from the TOP of the wash 0..1,
+     *                                                  alpha], ascending
+     */
+    public function wash(float $x, float $y, float $w, float $h, array $rgb,
+                         array $stops = [[0.0, 0.0], [0.26, 0.12], [0.65, 0.72], [1.0, 0.96]],
+                         int $bands = 64): void
+    {
+        if ($h <= 0 || $bands < 1 || count($stops) < 2) return;
+
+        $step = $h / $bands;
+        for ($i = 0; $i < $bands; $i++) {
+            $t = ($i + 0.5) / $bands;
+
+            $a = $stops[0][1];
+            for ($k = 1, $n = count($stops); $k < $n; $k++) {
+                [$t0, $a0] = $stops[$k - 1];
+                [$t1, $a1] = $stops[$k];
+                if ($t <= $t1 || $k === $n - 1) {
+                    $span = ($t1 - $t0) ?: 1.0;
+                    $a = $a0 + ($a1 - $a0) * max(0.0, min(1.0, ($t - $t0) / $span));
+                    break;
+                }
+            }
+            if ($a > 0.002) $this->rect($x, $y + $i * $step, $w, $step, $rgb, $a);
+        }
     }
 
     /**
@@ -312,8 +385,16 @@ final class Pdf
      * @param float $tracking extra space between glyphs, in 1/1000 em — the letter-spacing
      *                        that makes a ticket code legible at arm's length
      */
+    /**
+     * @param float $shear a slant, as the tangent of the angle. 0.21 is about 12 degrees,
+     *                     which is where a synthesised italic stops reading as a mistake.
+     *                     Used for the ticket's tier watermark, because the bundled Playfair
+     *                     ships upright only and shipping a second 116KB face to slant one
+     *                     word is a poor trade.
+     */
     public function text(string $s, float $x, float $y, string $alias, float $sizePt,
-                         array $rgb = [0, 0, 0], float $tracking = 0.0, float $alpha = 1.0): void
+                         array $rgb = [0, 0, 0], float $tracking = 0.0, float $alpha = 1.0,
+                         float $shear = 0.0): void
     {
         if ($s === '' || !isset($this->fonts[$alias])) return;
 
@@ -334,8 +415,8 @@ final class Pdf
                 $this->fonts[$runAlias]['gids'][$gid] = $gid;
             }
             $this->buffer .= sprintf(
-                "/F%s %.2F Tf 1 0 0 1 %.2F %.2F Tm <%s> Tj\n",
-                self::objSafe($runAlias), $sizePt, $this->x($cursor), $this->y($y), $hex
+                "/F%s %.2F Tf 1 0 %.3F 1 %.2F %.2F Tm <%s> Tj\n",
+                self::objSafe($runAlias), $sizePt, $shear, $this->x($cursor), $this->y($y), $hex
             );
             $cursor += $this->runWidth($runAlias, $gids, $sizePt, $tracking);
         }
