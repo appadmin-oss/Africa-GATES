@@ -196,6 +196,50 @@ Unsuccessful applicants may request their score.
 **5.8 Accessible pitches are inventory, not a favour.** A stated number of step-free stands,
 marked on the map and requestable on the form.
 
+**5.9 The SIZE is a published term, locked with the price and the quota.** A vendor who
+applied for 3 × 3 m and arrives to find 2 × 2 m was sold something else, and no amount of
+goodwill on the morning fixes it. Sizes are chosen from a short list of stock parts — the
+hired gazebo and multiples of it — because a market is built from what can actually be
+ordered, and a free pair of numbers invites 2.8 m, which fits nothing and is discovered on
+build day. Custom remains available for the converted warehouse with odd corners.
+
+### 5.10 The floor budget
+
+**The sum that nobody does.** Forty pitches at 3 × 3 and twelve at 6 × 3 is 576 m² of stands.
+In a 500 m² hall with a third of the floor given to aisles, that is not tight — it is
+impossible. It is discovered on build morning, by which point every remaining option is a
+broken promise: pitches shrunk without notice, or vendors turned away who hold an accepted
+offer, or a room the fire officer closes.
+
+The arithmetic takes one line. It does not get done because it lives in a different head from
+the one typing quotas, so the platform does it on the same screen, at the moment the quota is
+typed:
+
+| | |
+|---|---|
+| Hall | width × depth, recorded against the call |
+| Aisle allowance | default **35%** — circulation, fire lanes, the queue at a servery |
+| Sellable floor | hall less the allowance |
+| Committed | Σ (quota × pitch area) across every stand type |
+
+Over the sellable floor, the screen says so in square metres and refuses to be quietly
+optimistic about it. An unmeasured venue reports as *unmeasured* — never as a comfortable
+fit, which would be the most dangerous thing this feature could do.
+
+**The venue is exempt from the lock, and that distinction is the point.** The lock exists to
+stop the *rules* changing once you know who applied. How wide the hall is, is not a rule; it
+is a fact somebody may measure more carefully next week, or a room the venue may reassign.
+Refusing a better measurement protects no applicant — it only guarantees the plan on the
+screen stays wrong.
+
+**The block layout is not a site plan, and says so wherever it appears.** It packs rows of
+pitches into a plain rectangle. It knows nothing about fire exits, columns, power drops, the
+servery, the stage, or which wall the loading door is on. That crudeness is the honest part: a
+diagram that *looks* like a fire-safety document while knowing nothing about fire is worse
+than no diagram, because somebody forwards it to the venue. It answers one question — is this
+plausibly the right order of magnitude, or obviously impossible — and pitches it could not
+place are counted rather than dropped.
+
 ---
 
 ## 6 · Conduct: trading once you are in
@@ -272,6 +316,7 @@ is when a missing certificate becomes the organiser's problem instead of the ven
 | Public liability insurance | All | Expiry stored; a lapsed policy blocks confirmation |
 | Food hygiene / handler certificate | Food and drink | A gate, not a scoring criterion |
 | CAC registration | **Registered businesses only** | Not asked of individuals — see 8.0 |
+| Pitch size accepted as published | Every vendor | Locked with the price and quota — see 5.9 |
 | Government photo ID | **Individuals and sole traders** | Replaces CAC; also what the pitch is checked against on the day |
 | NAFDAC registration | Packaged food, drink, cosmetics, supplements | Attaches per product line, not per vendor |
 | SON conformity | Regulated manufactured goods | Where applicable to the category |
@@ -558,5 +603,5 @@ it travels.
 
 ---
 
-*Prepared for Africa GATES. Sections 4, 8.0 and 8.1 describe code that exists and is under test;
+*Prepared for Africa GATES. Sections 4, 5.9–5.10, 8.0 and 8.1 describe code that exists and is under test;
 everything else is proposal.*

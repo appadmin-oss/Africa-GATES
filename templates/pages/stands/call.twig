@@ -113,6 +113,10 @@
           <div>
             <div class="sc-stand__n">{{ c.type.name }}</div>
             <div style="margin-top:6px">
+              {# The SIZE first, because it is the fact a vendor decides on. Somebody with a
+                 6m rail cannot use a 2 × 2, and finding that out on the morning is the whole
+                 problem this line exists to prevent. #}
+              <span class="sc-tag">{{ c.size }}</span>
               <span class="sc-tag">{{ categories[c.type.category]|default(c.type.category) }}</span>
               {% if c.left > 0 %}
                 <span class="sc-tag sc-tag--left">{{ c.left }} of {{ c.quota }} still open</span>
@@ -124,6 +128,7 @@
           <div class="sc-stand__p">₦{{ c.type.price_naira|number_format }}</div>
         </div>
         <div class="sc-stand__meta">
+          <strong>{{ c.size }}</strong> — {{ c.each_sqm }} m² of floor.
           {% if c.type.description %}{{ c.type.description }}<br>{% endif %}
           {{ c.type.includes_power ? 'Power is included.' : 'No power at this pitch — bring your own if you need it.' }}
           {% if c.type.step_free %} Step-free access.{% endif %}

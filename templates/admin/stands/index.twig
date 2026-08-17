@@ -1,4 +1,5 @@
 {% extends "admin/layout.twig" %}
+{% import "admin/stands/_viz.twig" as viz %}
 
 {# ─────────────────────────────────────────────────────────────────────────────
    Running a call for vendor stands.
@@ -40,6 +41,35 @@
     /* #086411 on white is 6.9:1; white on #086411 is the same pair inverted. */
   .st-tab.is-on{ background:var(--ad-primary); color:#fff; border-color:transparent; }
   .st-dec{ display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end; }
+
+  /* ── VISUALS ──────────────────────────────────────────────────────────────
+     Chart ink is text ink, never a series colour: the swatch beside a label carries
+     identity, the words stay readable. Three of the eight categorical hues sit below
+     3:1 on this white surface, so every mark is directly labelled — that is the
+     relief, and it is why none of these rely on colour alone. */
+  .viz-sw{ display:block; }
+  .viz-swatches{ display:flex; flex-wrap:wrap; gap:22px; align-items:flex-end; }
+  .viz-swatch{ text-align:center; }
+  .viz-swatch__l{ margin-top:7px; font-size:12px; font-weight:600; color:var(--ad-text); }
+  .viz-swatch__d{ font-size:11.5px; color:var(--ad-text-soft);
+                  font-family:'Space Mono',monospace; }
+  .viz-bar{ display:block; overflow:visible; }
+  .viz-plan{ display:block; max-width:100%; height:auto; }
+  .viz-planwrap{ overflow-x:auto; padding:14px 4px 4px; }
+  .viz-legend{ list-style:none; display:flex; flex-wrap:wrap; gap:6px 18px;
+               margin:12px 0 0; padding:0; font-size:12.5px; color:var(--ad-text); }
+  .viz-legend li{ display:flex; align-items:center; gap:7px; }
+  .viz-legend em{ font-style:normal; color:var(--ad-text-soft);
+                  font-family:'Space Mono',monospace; }
+  .viz-legend__dot{ width:11px; height:11px; border-radius:3px; flex:none; }
+  .viz-figs{ display:flex; flex-wrap:wrap; gap:26px; margin-top:4px; }
+  .viz-fig__n{ font-family:'Space Mono',monospace; font-weight:700; font-size:19px; }
+  .viz-fig__l{ font-size:11px; font-weight:700; letter-spacing:.12em;
+               text-transform:uppercase; color:var(--ad-text-soft); margin-top:4px; }
+  .viz-warn{ margin-top:14px; border-left:4px solid #d03b3b; background:#fdf2f2;
+             border-radius:0 10px 10px 0; padding:12px 15px; font-size:13.5px;
+             line-height:1.65; color:#7f1d1d; }
+  .viz-caveat{ margin-top:12px; font-size:12.5px; line-height:1.65; color:var(--ad-text-soft); }
 </style>
 {% endblock %}
 
@@ -181,6 +211,7 @@
       <thead>
         <tr>
           <th scope="col">Stand type</th>
+          <th scope="col">Size</th>
           <th scope="col">Category</th>
           <th scope="col">Price</th>
           <th scope="col">Deposit</th>
@@ -196,6 +227,17 @@
           <td><strong>{{ c.type.name }}</strong>
             {% if c.type.description %}
               <div class="st-app__meta">{{ c.type.description }}</div>{% endif %}</td>
+          <td>
+            {# The swatch is drawn at the SAME scale as every other on the page, so a 6×3
+               looks like twice a 3×3. That comparison is the thing a number cannot do. #}
+            <div style="display:flex;align-items:center;gap:10px">
+              {{ viz.swatch(c.type, 9, c.type.name) }}
+              <span>
+                <span class="st-cap__n">{{ c.size }}</span>
+                <div class="st-app__meta">{{ c.each_sqm }} m² each · {{ c.total_sqm }} m² total</div>
+              </span>
+            </div>
+          </td>
           <td>{{ categories[c.type.category]|default(c.type.category) }}</td>
           <td style="font-family:'Space Mono',monospace">₦{{ c.type.price_naira|number_format }}</td>
           <td style="font-family:'Space Mono',monospace">
@@ -223,7 +265,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="7" style="color:var(--ad-text-soft)">
+        <tr><td colspan="8" style="color:var(--ad-text-soft)">
           Nothing on offer yet. A call with no stand types is a form with no options.</td></tr>
       {% endfor %}
       </tbody>
@@ -244,6 +286,26 @@
             <div>
               <label for="stName">Name</label>
               <input id="stName" name="name" type="text" maxlength="160" required placeholder="Food pitch, 3m">
+            </div>
+            <div>
+              <label for="stSize">Size</label>
+              <select id="stSize" name="size_preset">
+                {% for key, sz in sizes %}
+                  <option value="{{ key }}" {% if key == '3x3' %}selected{% endif %}>{{ sz.label }}</option>
+                {% endfor %}
+                <option value="custom">Custom — use the boxes below</option>
+              </select>
+              <small style="color:var(--ad-text-mute)">A market is built from stock parts: hired
+                gazebos and multiples of them. 2.8m fits nothing and orders nothing.</small>
+            </div>
+            <div>
+              <label for="stW">Custom width (m)</label>
+              <input id="stW" name="width_m" type="number" min="0.5" max="50" step="0.1" value="3">
+            </div>
+            <div>
+              <label for="stD">Custom depth (m)</label>
+              <input id="stD" name="depth_m" type="number" min="0.5" max="50" step="0.1" value="3">
+              <small style="color:var(--ad-text-mute)">Only read when the size above is “Custom”</small>
             </div>
             <div>
               <label for="stCat">Category</label>
@@ -283,6 +345,159 @@
       </div>
     {% endif %}
   {% endif %}
+</div>
+
+{# ── 2b · SIZES AND THE FLOOR ───────────────────────────────────────────────
+   The arithmetic nobody does, on the screen where the quota is typed.
+
+   An organiser sets forty 3×3s and twelve 6×3s, publishes, allocates every place, and finds
+   on build morning that 576m² of stands do not fit a 500m² hall with room to walk. There is
+   no good move left at that point — every option is a broken promise. The sum that prevents
+   it is trivial and lives in a different head from the one setting quotas, so it is done
+   here, beside the quota box. #}
+<div class="ad-card" id="plan" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">Sizes and the floor
+    <small>does what you have published fit in the hall you have hired?</small></div></div>
+  <div class="ad-card__body">
+
+  {# ── the pitches, all at one scale ──────────────────────────────────── #}
+  {% if plan.types is not empty %}
+    <div class="viz-swatches" role="group" aria-label="Stand sizes drawn to a shared scale">
+      {% for r in plan.types %}
+        <figure class="viz-swatch" style="margin:0">
+          {{ viz.swatch(r.type, swatch_scale, r.type.name) }}
+          <figcaption>
+            <div class="viz-swatch__l">{{ r.type.name }}</div>
+            <div class="viz-swatch__d">{{ r.size }} · {{ r.each_sqm }} m² × {{ r.quota }}</div>
+          </figcaption>
+        </figure>
+      {% endfor %}
+    </div>
+    <p class="viz-caveat">
+      Drawn to one shared scale with a 1.7 m figure for reference — a 6 × 3 is twice a 3 × 3
+      on screen because it is twice a 3 × 3 on the floor. That comparison is the thing a
+      column of numbers cannot do.
+    </p>
+  {% else %}
+    <p style="margin:0;color:var(--ad-text-soft)">Add a stand type and its size appears here.</p>
+  {% endif %}
+
+  {# ── the venue ──────────────────────────────────────────────────────── #}
+  {% if may_decide %}
+    <form method="post" action="/admin/events/{{ event.id }}/stands/venue"
+          style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px">
+        <div>
+          <label for="flW">Hall width (m)</label>
+          <input id="flW" name="floor_width_m" type="number" min="0" max="1000" step="0.1"
+                 value="{{ plan.measured ? (plan.floor_w_cm / 100) : '' }}">
+        </div>
+        <div>
+          <label for="flD">Hall depth (m)</label>
+          <input id="flD" name="floor_depth_m" type="number" min="0" max="1000" step="0.1"
+                 value="{{ plan.measured ? (plan.floor_d_cm / 100) : '' }}">
+        </div>
+        <div>
+          <label for="flA">Aisles and circulation (%)</label>
+          <input id="flA" name="aisle_pct" type="number" min="0" max="80" step="1"
+                 value="{{ plan.aisle_pct }}">
+          <small style="color:var(--ad-text-mute)">The floor no pitch can stand on. 35% is
+            deliberately generous — a market with nowhere to walk is one a fire officer closes.</small>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label for="flN">Notes about the space</label>
+        <input id="flN" name="floor_note" type="text" maxlength="400" value="{{ plan.note }}"
+               placeholder="Columns down the centre; loading door on the north wall.">
+      </div>
+      <div style="margin-top:14px">
+        <button class="ad-btn ad-btn--primary" type="submit">Save the venue</button>
+        <small style="display:block;margin-top:6px;color:var(--ad-text-mute)">
+          Editable at any time, including after the call locks. The lock stops the
+          <em>rules</em> changing once you know who applied; how wide the hall is, is a fact
+          somebody may measure better next week.</small>
+      </div>
+    </form>
+  {% endif %}
+
+  {# ── the budget ─────────────────────────────────────────────────────── #}
+  {% if plan.measured %}
+    <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+      <div class="viz-figs">
+        <div><div class="viz-fig__n">{{ plan.gross_sqm }} m²</div>
+          <div class="viz-fig__l">Hall</div></div>
+        <div><div class="viz-fig__n">{{ plan.usable_sqm }} m²</div>
+          <div class="viz-fig__l">Sellable, after {{ plan.aisle_pct }}% aisles</div></div>
+        <div><div class="viz-fig__n">{{ plan.committed_sqm }} m²</div>
+          <div class="viz-fig__l">Committed by the quotas</div></div>
+        <div><div class="viz-fig__n" {% if not plan.fits %}style="color:#b91c1c"{% endif %}>{{ plan.used_pct }}%</div>
+          <div class="viz-fig__l">Of the sellable floor</div></div>
+        <div><div class="viz-fig__n">{{ plan.pitches }}</div>
+          <div class="viz-fig__l">Pitches published</div></div>
+      </div>
+
+      <div style="margin-top:16px">{{ viz.budget(plan) }}</div>
+
+      {% if not plan.fits %}
+        <div class="viz-warn" role="alert">
+          <strong>Over by {{ plan.over_sqm }} m².</strong>
+          The quotas as published commit more floor than this hall has, once
+          {{ plan.aisle_pct }}% is set aside for aisles. Every way out of this on build morning
+          is a broken promise — pitches shrunk without notice, or vendors turned away who hold
+          an accepted offer. Reduce a quota, use a smaller pitch, or find more room.
+          {% if call and call.status == 'open' %}
+            <br><br>The call is already open, so the quotas are locked. Fixing this means
+            closing it and opening a new one — which is exactly the cost this warning exists
+            to make you pay <em>before</em> publishing.
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    {# ── the block layout ────────────────────────────────────────────── #}
+    <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+      <div class="ad-card__title" style="margin-bottom:2px">Indicative block layout</div>
+      <p class="viz-caveat" style="margin-top:6px">
+        <strong>This is not a site plan.</strong> It packs rows of pitches into a plain
+        rectangle and knows nothing about fire exits, columns, power drops, the servery or
+        which wall the loading door is on. Do not send it to the venue. It answers one
+        question — is this plausibly the right order of magnitude, or obviously impossible?
+      </p>
+      <div class="viz-planwrap">{{ viz.floorplan(plan, plan_scale) }}</div>
+      {# Coloured by CATEGORY, the same scale the mix bar below uses — one meaning per hue on
+         this card. Each block also carries its own size, and hovering names the stand type;
+         the table at the top of the page is the authoritative version of all of it. #}
+      {% if plan.categories|length > 1 %}
+        {{ viz.legend(plan.categories|map(c => {'index': c.index, 'label': c.label, 'suffix': c.quota ~ ' pitches'})) }}
+      {% endif %}
+      <p class="viz-caveat">
+        {{ plan.placed }} of {{ plan.pitches }} pitches placed{% if plan.unplaced > 0 %},
+        <strong style="color:#b91c1c">{{ plan.unplaced }} would not fit</strong>{% endif %}.
+        {% if plan.note %}<br>{{ plan.note }}{% endif %}
+      </p>
+    </div>
+
+    {# ── the mix ─────────────────────────────────────────────────────── #}
+    {% if plan.categories|length > 1 %}
+      <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--ad-line)">
+        <div class="ad-card__title" style="margin-bottom:10px">The mix you have published</div>
+        {{ viz.mix(plan) }}
+        {{ viz.legend(plan.categories|map(c => {'index': c.index, 'label': c.label, 'suffix': c.quota ~ ' · ' ~ c.pct ~ '%'})) }}
+        <p class="viz-caveat">
+          This is what the quotas add up to — twelve jewellery stalls and nothing to eat is a
+          shape you can see here and cannot see in a table. It is fixed once the call opens.
+        </p>
+      </div>
+    {% endif %}
+  {% else %}
+    <p class="viz-caveat" style="margin-top:18px">
+      No venue measured yet, so there is nothing to check the quotas against. Two numbers —
+      the width and depth of the hall — turn the list above into a plan that can be wrong on
+      screen instead of on build morning.
+    </p>
+  {% endif %}
+  </div>
 </div>
 
 {# ── 3 · WHO APPLIED ───────────────────────────────────────────────────────── #}

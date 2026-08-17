@@ -5,7 +5,7 @@ namespace AfricaGates\Admin\Controllers;
 
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Support\Permissions;
-use AfricaGates\Services\{PartnerOrg, StandApplication, StandCall, StandType};
+use AfricaGates\Services\{PartnerOrg, StandApplication, StandCall, StandFloorPlan, StandType};
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -105,7 +105,39 @@ final class StandsController
             'filter_type' => (int) ($q['type'] ?? 0),
             'offer_hours' => StandApplication::OFFER_HOURS,
             'may_decide'  => $this->mayDecide(),
+            // ── SIZES AND THE FLOOR PLAN ─────────────────────────────────
+            'sizes'       => StandType::SIZES,
+            'plan'        => $plan = StandFloorPlan::forEvent($eventId),
+            // The drawing scales are computed here rather than in the template, because
+            // getting them wrong renders a picture the size of a wall and Twig is a poor
+            // place to discover that.
+            'swatch_scale'=> $this->swatchScale($plan),
+            'plan_scale'  => $this->planScale($plan),
         ]);
+    }
+
+    /**
+     * Pixels per metre for the size swatches.
+     *
+     * ONE scale for every swatch on the page, which is the entire point of drawing them: a
+     * 6 × 3 has to look like twice a 3 × 3. Sizing each swatch to fit its own box would make
+     * every stand type the same size on screen, which is worse than printing the numbers.
+     */
+    private function swatchScale(array $plan): float
+    {
+        $widest = 3.0;
+        foreach ($plan['types'] as $r) {
+            $widest = max($widest, (int) $r['type']->width_cm / 100);
+        }
+        return round(min(42.0, 210 / $widest), 2);
+    }
+
+    /** Pixels per metre for the hall, so a hall of any size lands about 880px across. */
+    private function planScale(array $plan): float
+    {
+        $w = $plan['floor_w_cm'] / 100;
+        if ($w < 1) return 10.0;
+        return round(min(30.0, 880 / $w), 2);
     }
 
     /**
@@ -223,6 +255,29 @@ final class StandsController
         $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
         if ($r['ok']) $this->audit->record($this->adminId(), 'stand_call.close', 'event', $eventId);
         return $this->back($res, $eventId);
+    }
+
+    /**
+     * Record the hall's measurements.
+     *
+     * Deliberately NOT routed through saveCall(): the venue is exempt from the lock, because
+     * how wide a hall is, is a fact rather than a rule. {@see StandCall::savePlan()} carries
+     * the full reasoning, and it is a separate method rather than a flag because a flag is a
+     * thing somebody eventually passes from the wrong form.
+     */
+    public function savePlan(Request $req, Response $res, array $args = []): Response
+    {
+        $eventId = (int) ($args['id'] ?? 0);
+        if (!$this->mayDecide()) {
+            $_SESSION['flash_error'] = 'Only an admin can record the venue.';
+            return $this->back($res, $eventId, '#plan');
+        }
+        if (!$this->event($eventId)) return $res->withHeader('Location', '/admin/events')->withStatus(302);
+
+        $r = StandCall::savePlan($eventId, (array) $req->getParsedBody());
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
+        if ($r['ok']) $this->audit->record($this->adminId(), 'stand_call.venue', 'event', $eventId);
+        return $this->back($res, $eventId, '#plan');
     }
 
     // ───────────────────────────── what is on offer ─────────────────────────

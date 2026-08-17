@@ -1,0 +1,198 @@
+{# ─────────────────────────────────────────────────────────────────────────────
+   Stand-size and floor-plan visuals.
+
+   Every one of these is inline SVG rendered on the server. There is no chart library and
+   there is no <script>: the Content-Security-Policy on this site carries no 'unsafe-inline'
+   and no CDN host, so a chart that needs either is a chart that silently does not draw. What
+   is left — geometry the server already computed, in markup — turns out to be exactly right
+   for these four, because all four are showing SIZE and none of them needs to animate.
+
+   ── HOW IDENTITY IS CARRIED ────────────────────────────────────────────────
+   Never by colour alone. Every block, every segment and every swatch carries a text label or
+   a legend entry beside it, and the same numbers appear in the table on the page. Three of
+   the eight categorical hues sit below 3:1 against this white surface — legible as a filled
+   shape, not as a lone signal — so the labels are the mechanism, not decoration.
+
+   Hover is the SVG <title> element, which every browser surfaces as a native tooltip and
+   every screen reader reads as the accessible name. It costs nothing and needs no script.
+   ───────────────────────────────────────────────────────────────────────────── #}
+
+{# The categorical order is fixed and assigned by slot, never cycled by rank — a colour that
+   moves when a stand type is added beside it is a colour that means nothing. Validated
+   against this screen's white surface: every adjacent pair clears the colour-vision and
+   normal-vision separation floors. Three slots fall below 3:1 contrast, which is why every
+   mark on this page is directly labelled. #}
+{% macro colour(i) %}{{ ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948'][i % 8] }}{% endmacro %}
+
+
+{# ── 1 · TO-SCALE SIZE SWATCH ───────────────────────────────────────────────
+   One stand type drawn at a shared scale, with a human figure for reference.
+
+   The figure is the whole point. "3 × 3 m" is a number an organiser reads and does not feel;
+   a rectangle with a person in it is a size they can judge against the gazebo they hired. All
+   the swatches on the page share one scale, so a 6 × 3 is visibly twice a 3 × 3 — which is
+   the comparison that stops a plan going wrong. #}
+{% macro swatch(type, px_per_m, label) %}
+  {% import _self as viz %}
+  {% set w = (type.width_cm / 100) * px_per_m %}
+  {% set d = (type.depth_cm / 100) * px_per_m %}
+  {% set wm = (type.width_cm / 100) %}
+  {% set dm = (type.depth_cm / 100) %}
+  <svg class="viz-sw" width="{{ (w + 2)|round }}" height="{{ (d + 2)|round }}"
+       viewBox="0 0 {{ (w + 2)|round }} {{ (d + 2)|round }}" role="img"
+       aria-label="{{ label }}: {{ wm }} by {{ dm }} metres, {{ (wm * dm)|round(1) }} square metres">
+    <title>{{ label }} — {{ wm }} × {{ dm }} m ({{ (wm * dm)|round(1) }} m²)</title>
+    {# 4px corner radius on the data mark, 2px inset so neighbouring swatches keep a surface gap #}
+    <rect x="1" y="1" width="{{ w|round }}" height="{{ d|round }}" rx="4"
+          fill="#eef4fc" stroke="#2a78d6" stroke-width="2"></rect>
+    {% if w > 30 and d > 34 %}
+      {# A 0.5 m-wide person, drawn to the same scale. Not decoration — the reference. #}
+      {% set ph = px_per_m * 1.7 %}
+      {% if ph < d - 8 %}
+        <g transform="translate({{ (w / 2 + 1)|round }},{{ (d - ph / 2 - 3)|round }})" fill="#52514e" opacity=".55">
+          <circle cx="0" cy="{{ (-ph * 0.36)|round(1) }}" r="{{ (px_per_m * 0.11)|round(1) }}"></circle>
+          <rect x="{{ (-px_per_m * 0.13)|round(1) }}" y="{{ (-ph * 0.27)|round(1) }}"
+                width="{{ (px_per_m * 0.26)|round(1) }}" height="{{ (ph * 0.52)|round(1) }}" rx="2"></rect>
+        </g>
+      {% endif %}
+    {% endif %}
+  </svg>
+{% endmacro %}
+
+
+{# ── 2 · FLOOR-AREA BUDGET ──────────────────────────────────────────────────
+   One bar: how much of the sellable floor the published quotas have already spent.
+
+   A single stacked bar rather than a gauge or a donut, because the question is a part-to-
+   whole comparison against a hard limit and a bar is the only form that shows the overshoot
+   honestly. When it overshoots, the overspill is drawn PAST the 100% line rather than by
+   rescaling the bar — rescaling would make an impossible plan look merely full. #}
+{% macro budget(plan) %}
+  {% set W = 720 %}{% set H = 30 %}
+  {% set over = not plan.fits %}
+  {% set scale = over ? (plan.usable_sqm + plan.over_sqm) : plan.usable_sqm %}
+  {% set usedW = scale > 0 ? (plan.committed_sqm / scale * W) : 0 %}
+  {% set limitX = scale > 0 ? (plan.usable_sqm / scale * W) : W %}
+
+  <svg class="viz-bar" viewBox="0 0 {{ W }} {{ H + 22 }}" width="100%" height="{{ H + 22 }}"
+       preserveAspectRatio="none" role="img"
+       aria-label="{{ plan.committed_sqm }} square metres of stands against {{ plan.usable_sqm }} square metres of sellable floor, {{ plan.used_pct }} per cent{% if over %}. Over by {{ plan.over_sqm }} square metres{% endif %}">
+    <title>{{ plan.committed_sqm }} m² committed of {{ plan.usable_sqm }} m² sellable — {{ plan.used_pct }}%</title>
+
+    <rect x="0" y="0" width="{{ W }}" height="{{ H }}" rx="4" fill="#f0efec"></rect>
+    {# The committed block, clipped at the limit, then the overspill in the critical status
+       colour — which ships with the word "over" beside it, never as colour alone. #}
+    <rect x="0" y="0" width="{{ min(usedW, limitX)|round }}" height="{{ H }}" rx="4" fill="#2a78d6"></rect>
+    {% if over %}
+      <rect x="{{ (limitX + 2)|round }}" y="0" width="{{ (usedW - limitX - 2)|round }}" height="{{ H }}"
+            rx="4" fill="#d03b3b"></rect>
+    {% endif %}
+
+    {# The sellable-floor limit, drawn as a rule so "full" has a visible edge. #}
+    <line x1="{{ limitX|round }}" y1="-2" x2="{{ limitX|round }}" y2="{{ H + 4 }}"
+          stroke="#0b0b0b" stroke-width="2"></line>
+    <text x="{{ min(limitX + 6, W - 4)|round }}" y="{{ H + 18 }}" font-size="11" fill="#52514e"
+          text-anchor="{{ limitX > W - 120 ? 'end' : 'start' }}">
+      {{ plan.usable_sqm }} m² sellable</text>
+    <text x="2" y="{{ H + 18 }}" font-size="11" fill="#52514e">
+      {{ plan.committed_sqm }} m² committed</text>
+  </svg>
+{% endmacro %}
+
+
+{# ── 3 · CATEGORY MIX ───────────────────────────────────────────────────────
+   One stacked bar of pitches by category, because the quota system exists to control the mix
+   and a table of seven numbers does not show a mix. Adjacent segments only, which is the
+   pairlist the palette order is validated against; a 2px surface gap between them; and each
+   segment wide enough to hold its own count is directly labelled. #}
+{% macro mix(plan) %}
+  {% import _self as viz %}
+  {% if plan.categories is not empty and plan.pitches > 0 %}
+  {% set W = 720 %}{% set H = 26 %}
+  <svg class="viz-bar" viewBox="0 0 {{ W }} {{ H }}" width="100%" height="{{ H }}"
+       preserveAspectRatio="none" role="img"
+       aria-label="Pitches by category: {% for c in plan.categories %}{{ c.label }} {{ c.quota }}{{ loop.last ? '' : ', ' }}{% endfor %}">
+    <title>{{ plan.pitches }} pitches across {{ plan.categories|length }} categories</title>
+    {% set x = 0 %}
+    {% for c in plan.categories %}
+      {% set w = c.quota / plan.pitches * W %}
+      <g>
+        <title>{{ c.label }} — {{ c.quota }} pitch(es), {{ c.pct }}% · {{ c.sqm }} m²</title>
+        <rect x="{{ x|round }}" y="0" width="{{ max(w - 2, 1)|round }}" height="{{ H }}" rx="4"
+              fill="{{ viz.colour(c.index) }}"></rect>
+        {% if w > 42 %}
+          <text x="{{ (x + w / 2 - 1)|round }}" y="{{ H / 2 + 4 }}" font-size="11.5" font-weight="700"
+                text-anchor="middle" fill="#ffffff">{{ c.quota }}</text>
+        {% endif %}
+      </g>
+      {% set x = x + w %}
+    {% endfor %}
+  </svg>
+  {% endif %}
+{% endmacro %}
+
+
+{# ── 4 · THE BLOCK LAYOUT ───────────────────────────────────────────────────
+   The hall as a rectangle with the pitches packed into it, to scale.
+
+   This is the one that has to be honest about what it is not. It packs equal rows into a
+   plain rectangle and knows nothing about fire exits, columns, power drops or the loading
+   door — so the caller prints that sentence next to it, every time. A diagram that LOOKS like
+   a site plan while knowing nothing about fire is worse than no diagram, because somebody
+   will forward it to the venue. #}
+{% macro floorplan(plan, px_per_m) %}
+  {% import _self as viz %}
+  {% if plan.measured %}
+  {% set W = (plan.floor_w_cm / 100) * px_per_m %}
+  {% set D = (plan.floor_d_cm / 100) * px_per_m %}
+  <svg class="viz-plan" viewBox="-4 -4 {{ (W + 8)|round }} {{ (D + 8)|round }}"
+       width="100%" height="auto" role="img"
+       aria-label="Indicative block layout: {{ plan.placed }} of {{ plan.pitches }} pitches placed in a hall {{ (plan.floor_w_cm / 100) }} by {{ (plan.floor_d_cm / 100) }} metres. Not a site plan.">
+    <title>{{ (plan.floor_w_cm / 100) }} × {{ (plan.floor_d_cm / 100) }} m hall — {{ plan.placed }} of {{ plan.pitches }} pitches placed</title>
+
+    <rect x="0" y="0" width="{{ W|round }}" height="{{ D|round }}"
+          fill="#fcfcfb" stroke="#c3c2b7" stroke-width="2"></rect>
+
+    {% for b in plan.blocks %}
+      {% set bx = (b.x / 100) * px_per_m %}
+      {% set by = (b.y / 100) * px_per_m %}
+      {% set bw = (b.w / 100) * px_per_m %}
+      {% set bd = (b.d / 100) * px_per_m %}
+      <g>
+        <title>{{ b.name }} — {{ b.label }} m</title>
+        {# 2px surface ring so neighbouring pitches never merge into one shape. #}
+        <rect x="{{ bx|round }}" y="{{ by|round }}" width="{{ bw|round }}" height="{{ bd|round }}"
+              rx="3" fill="{{ viz.colour(b.cat_index) }}" fill-opacity=".9"
+              stroke="#fcfcfb" stroke-width="2"></rect>
+        {# Measured against the ACTUAL string, not a fixed pixel floor. "1.8×0.75" needs three
+           times the room "3×3" does, and a width test that ignores that renders ".8×0.75"
+           spilling over its neighbour — which is worse than no label, because it reads as a
+           different number. Below the threshold the legend and the hover title carry it. #}
+        {% if bw > (b.label|length * 6.2) + 6 and bd > 15 %}
+          <text x="{{ (bx + bw / 2)|round }}" y="{{ (by + bd / 2 + 4)|round }}" font-size="10.5"
+                font-weight="600" text-anchor="middle" fill="#ffffff">{{ b.label }}</text>
+        {% endif %}
+      </g>
+    {% endfor %}
+
+    {# Dimension rules on two sides, so the rectangle is a measurement rather than a shape. #}
+    <text x="{{ (W / 2)|round }}" y="-8" font-size="11" fill="#52514e" text-anchor="middle">
+      {{ (plan.floor_w_cm / 100) }} m</text>
+    <text x="-8" y="{{ (D / 2)|round }}" font-size="11" fill="#52514e" text-anchor="middle"
+          transform="rotate(-90 -8 {{ (D / 2)|round }})">{{ (plan.floor_d_cm / 100) }} m</text>
+  </svg>
+  {% endif %}
+{% endmacro %}
+
+
+{# ── LEGEND ─────────────────────────────────────────────────────────────────
+   Present whenever two or more series are on screen, because identity must never be colour
+   alone — and the swatch beside the name is what lets the colour mean anything at all. #}
+{% macro legend(items) %}
+  {% import _self as viz %}
+  <ul class="viz-legend">
+    {% for it in items %}
+      <li><span class="viz-legend__dot" style="background:{{ viz.colour(it.index) }}"></span>{{ it.label }}{% if it.suffix is defined %} <em>{{ it.suffix }}</em>{% endif %}</li>
+    {% endfor %}
+  </ul>
+{% endmacro %}

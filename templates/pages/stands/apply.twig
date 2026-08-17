@@ -112,6 +112,7 @@
             <span>
               <span class="ap-stand__n">{{ c.type.name }}</span>
               <span class="ap-stand__m">
+                <strong>{{ c.size }}</strong> ·
                 {{ categories[c.type.category]|default(c.type.category) }} ·
                 {% if c.left > 0 %}{{ c.left }} of {{ c.quota }} places open
                 {% else %}all {{ c.quota }} places currently held — you can still apply and be waitlisted{% endif %}

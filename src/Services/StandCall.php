@@ -133,6 +133,64 @@ final class StandCall
     }
 
     /**
+     * Record the hall's measurements. Allowed at any time, including after the lock.
+     *
+     * ── WHY THIS ONE WRITER IS EXEMPT ────────────────────────────────────────
+     *
+     * The lock exists to stop the RULES changing once you know who applied: the criteria, the
+     * quotas, the prices, the closing date. How wide the hall actually is, is not a rule. It
+     * is a fact about the world, and somebody may measure it more carefully next week or the
+     * venue may confirm a different room.
+     *
+     * Refusing a better measurement would protect no applicant. It would only guarantee that
+     * the floor plan on the screen stays wrong — and a wrong floor plan is worse than none,
+     * because the whole point of it is to catch "these stands do not fit" while there is
+     * still time to do something about it.
+     *
+     * The distinction has to be enforced by having a separate method rather than a flag on
+     * {@see save()}, because a flag is a thing somebody eventually passes from the wrong form.
+     *
+     * @return array{ok:bool,message:string}
+     */
+    public static function savePlan(int $eventId, array $in): array
+    {
+        $call = self::forEvent($eventId);
+        if (!$call) {
+            return ['ok' => false, 'message' => 'Set up the call first — the venue is recorded '
+                                              . 'against it.'];
+        }
+
+        // Metres in, centimetres stored, for the same reason as the pitches: exact sums.
+        $w = (int) round(((float) ($in['floor_width_m'] ?? 0)) * 100);
+        $d = (int) round(((float) ($in['floor_depth_m'] ?? 0)) * 100);
+
+        if ($w < 0 || $d < 0 || $w > 100000 || $d > 100000) {
+            return ['ok' => false, 'message' => 'Those are not plausible hall dimensions.'];
+        }
+        if (($w > 0) !== ($d > 0)) {
+            return ['ok' => false, 'message' => 'Give both the width and the depth, or neither. '
+                                              . 'One of the two is not a floor area.'];
+        }
+
+        // Clamped, not trusted. A 100% aisle allowance leaves no sellable floor, which turns
+        // every percentage downstream into a division by zero.
+        $aisle = max(0, min(80, (int) ($in['aisle_pct'] ?? 35)));
+
+        DB::table('gates_stand_calls')->where('id', $call->id)->update([
+            'floor_width_cm' => $w > 0 ? $w : null,
+            'floor_depth_cm' => $d > 0 ? $d : null,
+            'aisle_pct'      => $aisle,
+            'floor_note'     => trim((string) ($in['floor_note'] ?? '')) ?: null,
+            'updated_at'     => date('Y-m-d H:i:s'),
+        ]);
+
+        return ['ok' => true, 'message' => $w > 0
+            ? 'Venue recorded. The floor plan below is an indicative block layout — it knows '
+            . 'nothing about fire exits, columns or power, so do not send it to the venue as one.'
+            : 'Venue measurements cleared.'];
+    }
+
+    /**
      * Publish the call and lock its terms. One way.
      *
      * Refused unless there is something to apply for and a closing date to apply by: a call
@@ -171,6 +229,12 @@ final class StandCall
                 'category' => (string) $t->category,
                 'price'    => (int) $t->price_naira,
                 'quota'    => (int) $t->quota,
+                // The SIZE is in the snapshot too. A vendor who applied for 3m × 3m and
+                // arrives to find 2m × 2m was sold something else, and the only thing that
+                // settles that argument is what the call said on the day they applied.
+                'width_cm' => (int) $t->width_cm,
+                'depth_cm' => (int) $t->depth_cm,
+                'size'     => StandType::sizeLabel($t),
             ], $types),
         ];
 
@@ -202,11 +266,17 @@ final class StandCall
      * because offering more places than exist and hoping some decline is how an organiser
      * ends up with more vendors than pitches on the morning.
      *
-     * @return array<int,array{type:object,quota:int,taken:int,left:int}>
+     * The size travels with the row because every surface that shows capacity also shows the
+     * pitch — a vendor deciding whether to apply needs "3 × 3 m, two left" as one fact, and
+     * fetching the second half separately is how the two end up disagreeing.
+     *
+     * @return array<int,array{type:object,quota:int,taken:int,left:int,index:int,
+     *                         size:string,each_sqm:float,total_sqm:float}>
      */
     public static function capacity(int $eventId): array
     {
         $out = [];
+        $i   = 0;
         foreach (StandType::forEvent($eventId) as $t) {
             try {
                 $taken = (int) DB::table('gates_stand_applications')
@@ -217,7 +287,16 @@ final class StandCall
                 $taken = 0;
             }
             $quota = (int) $t->quota;
-            $out[] = ['type' => $t, 'quota' => $quota, 'taken' => $taken, 'left' => max(0, $quota - $taken)];
+            $each  = StandType::areaSqm($t);
+            $out[] = [
+                'type' => $t, 'quota' => $quota, 'taken' => $taken, 'left' => max(0, $quota - $taken),
+                // A fixed slot per type, so the colour of a stand type in the floor plan and
+                // in the legend never moves when another type is added beside it.
+                'index'     => $i++,
+                'size'      => StandType::sizeLabel($t),
+                'each_sqm'  => $each,
+                'total_sqm' => round($each * $quota, 2),
+            ];
         }
         return $out;
     }

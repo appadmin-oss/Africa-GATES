@@ -43,10 +43,120 @@ final class StandType
         'general'  => 'General',
     ];
 
+    /**
+     * The sizes an organiser picks from, in centimetres.
+     *
+     * ── A LIST, BECAUSE A MARKET IS BUILT FROM STOCK PARTS ───────────────────
+     *
+     * Pitches are not arbitrary rectangles. They are whatever the hired gazebos, tables and
+     * shell schemes actually are, and on this continent that overwhelmingly means the 3m
+     * gazebo and multiples of it. Offering a free pair of numbers as the primary control
+     * invites 2.8m — which fits nothing, orders nothing, and is discovered on build day.
+     *
+     * Custom is still available, because a converted warehouse has odd corners and a
+     * specification that cannot describe reality gets worked around rather than followed.
+     *
+     * Centimetres, so that 1.8m and 2.5m are expressible and the area arithmetic across a
+     * hundred pitches stays exact. A float here accumulates the kind of error that reads as
+     * "we are 4m² over" when the plan is fine.
+     *
+     * @var array<string,array{w:int,d:int,label:string,note:string}>
+     */
+    public const SIZES = [
+        'table' => ['w' => 180, 'd' =>  75, 'label' => 'Table only · 1.8 × 0.75 m',
+                    'note' => 'A trestle and the space to stand behind it. Books, crafts, leaflets.'],
+        '2x2'   => ['w' => 200, 'd' => 200, 'label' => 'Small pitch · 2 × 2 m',
+                    'note' => 'One person, goods on a table. No room for a queue to form inside it.'],
+        '3x2'   => ['w' => 300, 'd' => 200, 'label' => 'Shallow pitch · 3 × 2 m',
+                    'note' => 'Wide frontage against a wall where depth is not available.'],
+        '3x3'   => ['w' => 300, 'd' => 300, 'label' => 'Standard gazebo · 3 × 3 m',
+                    'note' => 'The default. One hired gazebo, two staff, stock behind.'],
+        '4x3'   => ['w' => 400, 'd' => 300, 'label' => 'Wide pitch · 4 × 3 m',
+                    'note' => 'A gazebo with working space beside it — cooking, a rail, a counter.'],
+        '6x3'   => ['w' => 600, 'd' => 300, 'label' => 'Double gazebo · 6 × 3 m',
+                    'note' => 'Two gazebos side by side. Hot food, fashion rails, demonstrations.'],
+        '6x6'   => ['w' => 600, 'd' => 600, 'label' => 'Corner block · 6 × 6 m',
+                    'note' => 'Open on two sides. Usually an anchor vendor or a sponsor.'],
+    ];
+
     public static function find(int $id): ?object
     {
         if ($id < 1) return null;
         return DB::table('gates_stand_types')->where('id', $id)->first();
+    }
+
+    // ────────────────────────────────── sizes ───────────────────────────────
+
+    /** Square metres of floor one of these occupies. */
+    public static function areaSqm(?object $type): float
+    {
+        $w = (int) ($type->width_cm ?? 0);
+        $d = (int) ($type->depth_cm ?? 0);
+        if ($w < 1 || $d < 1) return 0.0;
+        return round($w * $d / 10000, 2);
+    }
+
+    /** "3 × 3 m" — the dimension a vendor was promised, written the way they read it. */
+    public static function sizeLabel(?object $type): string
+    {
+        $w = (int) ($type->width_cm ?? 0);
+        $d = (int) ($type->depth_cm ?? 0);
+        if ($w < 1 || $d < 1) return '—';
+        return self::metres($w) . ' × ' . self::metres($d) . ' m';
+    }
+
+    /** Centimetres as metres, without a trailing ".00" on the common whole-metre case. */
+    public static function metres(int $cm): string
+    {
+        $m = $cm / 100;
+        return rtrim(rtrim(number_format($m, 2, '.', ''), '0'), '.');
+    }
+
+    /**
+     * Which preset a size corresponds to, or 'custom'.
+     *
+     * Matched on the numbers rather than stored, so a row edited by hand into 3 × 3 still
+     * shows as the standard gazebo. Storing the preset key alongside the numbers would let
+     * the two disagree, and then one of them is a lie.
+     */
+    public static function presetFor(?object $type): string
+    {
+        $w = (int) ($type->width_cm ?? 0);
+        $d = (int) ($type->depth_cm ?? 0);
+        foreach (self::SIZES as $key => $s) {
+            if ($s['w'] === $w && $s['d'] === $d) return $key;
+        }
+        return 'custom';
+    }
+
+    /**
+     * Read a size out of submitted form values.
+     *
+     * A preset wins over the free pair, because the preset is the control the organiser
+     * actually operated — the number boxes are only meaningful once they have said "custom",
+     * and honouring stale numbers behind a chosen preset is how a 3 × 3 silently becomes
+     * whatever was in the boxes last time.
+     *
+     * @return array{0:int,1:int} width and depth in centimetres
+     */
+    public static function readSize(array $in, ?object $existing = null): array
+    {
+        $preset = (string) ($in['size_preset'] ?? '');
+        if (isset(self::SIZES[$preset])) {
+            return [self::SIZES[$preset]['w'], self::SIZES[$preset]['d']];
+        }
+
+        // Metres in, centimetres stored. Rounded rather than truncated: 2.999 typed into a
+        // browser's number field is somebody who meant 3.
+        $w = (int) round(((float) ($in['width_m']  ?? 0)) * 100);
+        $d = (int) round(((float) ($in['depth_m']  ?? 0)) * 100);
+
+        if ($w < 1 || $d < 1) {
+            return [(int) ($existing->width_cm ?? 300), (int) ($existing->depth_cm ?? 300)];
+        }
+        // Capped at 50m a side. Not a real pitch above that, and an unbounded number here
+        // makes the floor plan render a rectangle the size of a city.
+        return [min($w, 5000), min($d, 5000)];
     }
 
     /** @return array<int,object> */
@@ -108,10 +218,17 @@ final class StandType
             return $fail + ['message' => 'This event already has a stand type at that address.'];
         }
 
+        $existing = $typeId > 0 ? self::find($typeId) : null;
+        [$widthCm, $depthCm] = self::readSize($in, $existing);
+
         $row = [
             'event_id'       => $eventId,
             'slug'           => $slug,
             'name'           => mb_substr($name, 0, 160),
+            // A published term, like the price and the quota. A vendor who applied for
+            // 3m × 3m and arrives to find 2m × 2m was sold something else.
+            'width_cm'       => $widthCm,
+            'depth_cm'       => $depthCm,
             'category'       => $category,
             'description'    => trim((string) ($in['description'] ?? '')) ?: null,
             'price_naira'    => $price,
@@ -125,7 +242,6 @@ final class StandType
         ];
 
         if ($typeId > 0) {
-            $existing = self::find($typeId);
             if (!$existing || (int) $existing->event_id !== $eventId) {
                 return $fail + ['message' => 'That stand type does not belong to this event.'];
             }

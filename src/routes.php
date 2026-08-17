@@ -2667,6 +2667,10 @@ return function(App $app) {
         $a->post('/events/{id:[0-9]+}/stands/call',                    $ST.':saveCall');
         $a->post('/events/{id:[0-9]+}/stands/call/open',               $ST.':openCall');
         $a->post('/events/{id:[0-9]+}/stands/call/close',              $ST.':closeCall');
+        // The venue, and NOT under the lock. The lock stops the rules changing once you know
+        // who applied; how wide the hall is, is a fact somebody may measure better next week,
+        // and refusing a better measurement only guarantees the floor plan stays wrong.
+        $a->post('/events/{id:[0-9]+}/stands/venue',                   $ST.':savePlan');
         $a->post('/events/{id:[0-9]+}/stands/type',                    $ST.':saveType');
         $a->post('/events/{id:[0-9]+}/stands/type/{type:[0-9]+}/delete', $ST.':deleteType');
         $a->post('/events/{id:[0-9]+}/stands/check',                   $ST.':checkAll');
