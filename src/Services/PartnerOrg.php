@@ -80,6 +80,50 @@ final class PartnerOrg
         self::KIND_VENDOR  => 'Vendor',
     ];
 
+    /**
+     * And a vendor can be a person.
+     *
+     * ── WHY THIS MATTERS MORE THAN IT LOOKS ──────────────────────────────────
+     *
+     * Most of the people who will actually sell at an Africa GATES market are not companies.
+     * They are one woman with a jollof stall, one man who prints t-shirts, a pair who make
+     * sandals. Demanding a CAC registration before any of them can hold a pitch would not
+     * raise the standard of the market — it would hand every place to whoever already has a
+     * lawyer, and push everybody else to borrow somebody else's registration number, which
+     * is strictly worse than having none: it puts the wrong name on the paperwork at exactly
+     * the moment the paperwork matters.
+     *
+     * So the requirements branch on this, and only the requirements. The settlement account,
+     * the subaccount, the dashboard, the documents, the vetting states are all identical.
+     *
+     * An organisation is always a business in this sense — an Incorporated Trustee is a
+     * registered body, never a natural person — so `business` is the default and every row
+     * written before this existed still means what it meant.
+     */
+    public const ENTITY_BUSINESS   = 'business';
+    public const ENTITY_INDIVIDUAL = 'individual';
+
+    public const ENTITIES = [
+        self::ENTITY_BUSINESS   => 'Registered business',
+        self::ENTITY_INDIVIDUAL => 'Individual or sole trader',
+    ];
+
+    /**
+     * Every kind of document this platform files, in one place.
+     *
+     * Shared rather than redeclared per screen, because the admin upload form and
+     * {@see requiredDocuments()} disagreeing about a slug means a vendor uploads the right
+     * certificate and is still told it is missing.
+     */
+    public const DOCUMENT_KINDS = [
+        'cac'       => 'CAC certificate',
+        'scuml'     => 'SCUML certificate',
+        'id'        => 'Government photo ID',
+        'insurance' => 'Public liability insurance',
+        'food'      => 'Food handling / hygiene certificate',
+        'other'     => 'Other supporting document',
+    ];
+
     public static function find(int $id): ?object
     {
         if ($id < 1) return null;
@@ -90,6 +134,30 @@ final class PartnerOrg
     {
         $k = (string) ($org->kind ?? self::KIND_PARTNER);
         return isset(self::KINDS[$k]) ? $k : self::KIND_PARTNER;
+    }
+
+    public static function entityOf(?object $org): string
+    {
+        $e = (string) ($org->entity_type ?? self::ENTITY_BUSINESS);
+        return isset(self::ENTITIES[$e]) ? $e : self::ENTITY_BUSINESS;
+    }
+
+    /** A natural person rather than a registered body. */
+    public static function isIndividual(?object $org): bool
+    {
+        return self::entityOf($org) === self::ENTITY_INDIVIDUAL;
+    }
+
+    /**
+     * The name this party is legally known by — what the bank account should be in.
+     *
+     * For a business that is the CAC registered name; for a person it is their own full name.
+     * Falling back to the display name covers the row where only one was ever given.
+     */
+    public static function legalNameOf(?object $org): string
+    {
+        $legal = trim((string) ($org->legal_name ?? ''));
+        return $legal !== '' ? $legal : trim((string) ($org->name ?? ''));
     }
 
     /**
@@ -106,6 +174,14 @@ final class PartnerOrg
      * Demanding the union of both lists would look rigorous and would mostly teach applicants
      * that the requirements are not serious, because a third of them would not apply.
      *
+     * ── AND WHY A PERSON IS NOT ASKED FOR A CAC CERTIFICATE ──────────────────
+     *
+     * A sole trader does not have one, and asking anyway has exactly two outcomes: the honest
+     * ones do not apply, and the rest borrow a number. What replaces it is a photo ID, for an
+     * operational reason rather than a regulatory one — on the morning of the market somebody
+     * has to check that the person at the pitch is the person it was allocated to, and a
+     * company registration number does not help with that.
+     *
      * @return array<string,string> slug => human label
      */
     public static function requiredDocuments(int $orgId): array
@@ -114,10 +190,15 @@ final class PartnerOrg
         if (!$org) return [];
 
         if (self::kindOf($org) === self::KIND_VENDOR) {
-            return [
-                'cac'       => 'CAC registration',
-                'insurance' => 'Public liability insurance',
-            ];
+            return self::isIndividual($org)
+                ? [
+                    'id'        => 'Government photo ID',
+                    'insurance' => 'Public liability insurance',
+                  ]
+                : [
+                    'cac'       => 'CAC registration',
+                    'insurance' => 'Public liability insurance',
+                  ];
         }
 
         return [
@@ -166,6 +247,130 @@ final class PartnerOrg
         }
     }
 
+    // ────────────────────────── self-registration ───────────────────────────
+
+    /**
+     * A vendor signs themselves up from the public application form.
+     *
+     * ── WHY THIS EXISTS AT ALL ───────────────────────────────────────────────
+     *
+     * The alternative is that every vendor is typed in by an administrator, which sounds
+     * careful and is actually the least fair option available: it means the only people who
+     * can apply are the ones who already know somebody. A published form that anybody can
+     * fill in is the thing that makes the allocation rules in §5 of the specification worth
+     * having, because a fair rule applied to a hand-picked pool is still a hand-picked pool.
+     *
+     * ── AND WHY IT CREATES ALMOST NOTHING ────────────────────────────────────
+     *
+     * The row lands as a DRAFT with `self_registered` set. Nobody has met these people. They
+     * can sign in, upload their certificates and see their own application — and that is the
+     * entire extent of it. They cannot collect money, cannot appear publicly, and cannot be
+     * offered a stand until an administrator has read the record and approved it. Registering
+     * buys an applicant a place in the queue and nothing else, which is exactly what it
+     * should buy.
+     *
+     * The password is chosen by the applicant here rather than generated, unlike the admin
+     * path: a person who has just typed their details into a public form and been handed a
+     * random string will not have it tomorrow, and a vendor locked out of their own
+     * application generates a support ticket instead of a stall.
+     *
+     * @return array{ok:bool,message:string,org_id:int,user:?object}
+     */
+    public static function registerVendor(array $in): array
+    {
+        $fail = ['ok' => false, 'org_id' => 0, 'user' => null];
+
+        $name  = trim((string) ($in['name'] ?? ''));
+        $legal = trim((string) ($in['legal_name'] ?? ''));
+        $email = strtolower(trim((string) ($in['contact_email'] ?? '')));
+        $pass  = (string) ($in['password'] ?? '');
+
+        $entity = (string) ($in['entity_type'] ?? self::ENTITY_BUSINESS);
+        if (!isset(self::ENTITIES[$entity])) $entity = self::ENTITY_BUSINESS;
+
+        if ($name === '') {
+            return $fail + ['message' => $entity === self::ENTITY_INDIVIDUAL
+                ? 'Give the name you trade under — it can be your own name.'
+                : 'Give the name of the business.'];
+        }
+        if ($legal === '') {
+            return $fail + ['message' => $entity === self::ENTITY_INDIVIDUAL
+                ? 'Give your full name as it appears on your bank account and your ID.'
+                : 'Give the registered name of the business exactly as it appears at the CAC.'];
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $fail + ['message' => 'That is not a valid email address.'];
+        }
+        if (\AfricaGates\Services\OrgAuth::findByEmail($email)) {
+            // Deliberately explicit, unlike the sign-in screen. This is a registration form,
+            // where "that address is taken" is information the person needs in order to
+            // proceed, and where they can discover it in one attempt anyway.
+            return $fail + ['message' => 'That email address already has a sign-in. '
+                                       . 'Sign in and apply from your dashboard instead.'];
+        }
+        if (strlen($pass) < 12) {
+            return $fail + ['message' => 'Use a password of at least 12 characters — this sign-in '
+                                       . 'can later request payouts.'];
+        }
+        // A registered business must say what it is registered as. An individual is not
+        // asked, because they have nothing to give and asking anyway invites a borrowed number.
+        $cac = trim((string) ($in['cac_number'] ?? ''));
+        if ($entity === self::ENTITY_BUSINESS && $cac === '') {
+            return $fail + ['message' => 'Give the CAC registration number of the business, or '
+                                       . 'apply as an individual if you are not registered.'];
+        }
+
+        $slug = self::uniqueSlug($name);
+        if ($slug === '') return $fail + ['message' => 'That name does not make a usable web address.'];
+
+        $orgId = (int) DB::table('gates_partner_orgs')->insertGetId([
+            'slug'            => $slug,
+            'name'            => mb_substr($name, 0, 200),
+            'legal_name'      => mb_substr($legal, 0, 200),
+            'kind'            => self::KIND_VENDOR,
+            'entity_type'     => $entity,
+            'self_registered' => 1,
+            'cac_number'      => $entity === self::ENTITY_BUSINESS ? mb_substr($cac, 0, 60) : null,
+            'contact_name'    => mb_substr(trim((string) ($in['contact_name'] ?? '')), 0, 160) ?: null,
+            'contact_email'   => mb_substr($email, 0, 190),
+            'contact_phone'   => mb_substr(trim((string) ($in['contact_phone'] ?? '')), 0, 40) ?: null,
+            'description'     => mb_substr(trim((string) ($in['description'] ?? '')), 0, 2000) ?: null,
+            'status'          => self::STATUS_DRAFT,
+            'created_at'      => date('Y-m-d H:i:s'),
+        ]);
+
+        $u = \AfricaGates\Services\OrgAuth::createUser(
+            $orgId, $email, $pass, trim((string) ($in['contact_name'] ?? '')), 'owner'
+        );
+        if (!$u['ok']) {
+            // Nothing half-built is left behind. An organisation nobody can sign into is a
+            // row an administrator will eventually approve by accident.
+            DB::table('gates_partner_orgs')->where('id', $orgId)->delete();
+            return $fail + ['message' => $u['message']];
+        }
+
+        return [
+            'ok'      => true,
+            'org_id'  => $orgId,
+            'user'    => \AfricaGates\Services\OrgAuth::findByEmail($email),
+            'message' => 'Account created.',
+        ];
+    }
+
+    /** A slug nobody else holds. Suffixed rather than refused — two "Mama's Kitchen"s exist. */
+    private static function uniqueSlug(string $name): string
+    {
+        $base = \AfricaGates\Support\Slug::make($name, 110);
+        if ($base === '') return '';
+
+        $slug = $base;
+        for ($i = 2; $i < 60; $i++) {
+            if (!DB::table('gates_partner_orgs')->where('slug', $slug)->exists()) return $slug;
+            $slug = $base . '-' . $i;
+        }
+        return $base . '-' . bin2hex(random_bytes(3));
+    }
+
     // ─────────────────────────────── onboarding ─────────────────────────────
 
     /**
@@ -203,11 +408,13 @@ final class PartnerOrg
             return $fail + ['message' => $resolved['message']];
         }
 
-        // 2 · Is that plausibly this organisation?
-        $registered = (string) ($org->legal_name ?? '') !== ''
-            ? (string) $org->legal_name
-            : (string) ($org->name ?? '');
-        $score = self::nameSimilarity($registered, $resolved['name']);
+        // 2 · Is that plausibly this party?
+        //
+        // Routed through matchScore rather than nameSimilarity directly, because a person's
+        // account is compared by a different rule — see personNameSimilarity(). Getting this
+        // wrong would score every legitimate sole trader as the fraud case.
+        $registered = self::legalNameOf($org);
+        $score      = self::matchScore($org, $resolved['name']);
 
         // 3 · Create it. A weak match is recorded, not refused — see the class docblock.
         $created = $payments->createSubaccount(
@@ -278,6 +485,109 @@ final class PartnerOrg
     }
 
     /**
+     * The right name comparison for this party, 0..1.
+     *
+     * One entry point so the onboarding path and the admin screen can never disagree about
+     * how a score was reached — a screen that recomputes a match with the other rule would
+     * show a number nobody could reproduce.
+     */
+    public static function matchScore(?object $org, string $resolvedName): float
+    {
+        $registered = self::legalNameOf($org);
+        return self::isIndividual($org)
+            ? self::personNameSimilarity($registered, $resolvedName)
+            : self::nameSimilarity($registered, $resolvedName);
+    }
+
+    /**
+     * How alike are two PEOPLE's names, 0..1?
+     *
+     * ── WHY THIS CANNOT BE THE ORGANISATION RULE ─────────────────────────────
+     *
+     * A Nigerian bank returns "OKAFOR NGOZI CHIOMA". The same woman writes "Ngozi Okafor".
+     * Character-similarity scores that pair around 0.5 — squarely in the range this platform
+     * treats as "someone is collecting into a stranger's account". Run over the whole vendor
+     * list, an organisation rule applied to people would flag nearly every honest sole trader
+     * and teach reviewers to click past the warning, which is how the warning stops working
+     * for the one case it exists for.
+     *
+     * So names are compared as a SET of parts, not a string:
+     *
+     *   · order is irrelevant — surname first is the bank's convention, not a discrepancy;
+     *   · an extra part on the bank's side is expected — middle names live on bank records
+     *     and rarely on forms, so containment scores high;
+     *   · a single initial matches the part it abbreviates, because "OKAFOR N C" is a real
+     *     thing a bank returns;
+     *   · titles are stripped — MRS is not a name, and half of Nigerian bank records carry one.
+     *
+     * The score weights recall over precision: every part the person claimed must be on the
+     * account, while parts the account carries that they did not mention cost comparatively
+     * little. Claiming a name that is not on the account is the suspicious direction.
+     *
+     * Like its sibling it is a SIGNAL, not a decision. Two brothers share a surname and a
+     * married couple share an account; only a human can settle those.
+     */
+    public static function personNameSimilarity(string $stated, string $resolved): float
+    {
+        $want = self::nameParts($stated);
+        $got  = self::nameParts($resolved);
+        if ($want === [] || $got === []) return 0.0;
+
+        $hits      = 0;
+        $remaining = $got;
+        foreach ($want as $part) {
+            foreach ($remaining as $i => $candidate) {
+                if (self::partsMatch($part, $candidate)) {
+                    $hits++;
+                    // Consumed, so "OKAFOR OKAFOR" cannot score twice against one "OKAFOR".
+                    unset($remaining[$i]);
+                    break;
+                }
+            }
+        }
+        if ($hits === 0) return 0.0;
+
+        $recall    = $hits / count($want);
+        $precision = $hits / count($got);
+        return round($recall * 0.75 + $precision * 0.25, 4);
+    }
+
+    /**
+     * A person's name split into comparable parts, titles removed.
+     *
+     * @return array<int,string>
+     */
+    private static function nameParts(string $s): array
+    {
+        $s = strtoupper(trim($s));
+        $s = preg_replace('/[^A-Z ]+/', ' ', $s) ?? $s;
+
+        // Titles, honorifics and the religious and traditional prefixes that appear on
+        // Nigerian bank records constantly. None of them identify anybody.
+        static $titles = [
+            'MR', 'MRS', 'MS', 'MISS', 'DR', 'PROF', 'ENGR', 'BARR', 'REV', 'PASTOR',
+            'IMAM', 'ALHAJI', 'ALHAJA', 'MALLAM', 'CHIEF', 'OTUNBA', 'OLORI', 'HRH', 'SIR',
+        ];
+
+        $out = [];
+        foreach (preg_split('/\s+/', (string) $s) ?: [] as $part) {
+            $part = trim($part);
+            if ($part === '' || in_array($part, $titles, true)) continue;
+            $out[] = $part;
+        }
+        return $out;
+    }
+
+    /** Two name parts, where a single letter is an initial standing for a longer part. */
+    private static function partsMatch(string $a, string $b): bool
+    {
+        if ($a === $b) return true;
+        if (strlen($a) === 1) return str_starts_with($b, $a);
+        if (strlen($b) === 1) return str_starts_with($a, $b);
+        return false;
+    }
+
+    /**
      * How alike are two organisation names, 0..1?
      *
      * Normalised first, because the differences that matter are never punctuation: case,
@@ -337,20 +647,42 @@ final class PartnerOrg
                                               . 'otherwise this partner gets a donate button with '
                                               . 'nowhere to send the money.'];
         }
-        // Which numbers are required depends on what this organisation IS. A vendor selling
-        // jewellery has no reason to hold a SCUML certificate, and demanding one would teach
-        // applicants that the requirements are decorative.
-        $needed = self::kindOf($org) === self::KIND_VENDOR
-            ? ['cac_number' => 'a CAC registration number']
-            : ['cac_number' => 'a CAC registration number', 'scuml_number' => 'a SCUML number'];
+        // ── WHAT MUST BE ON FILE DEPENDS ON WHAT THIS PARTY IS ──────────────
+        //
+        // A vendor selling jewellery has no reason to hold a SCUML certificate, and a sole
+        // trader has no CAC number to give. Demanding either anyway teaches applicants that
+        // the requirements are decorative, which is how a real requirement gets ignored too.
+        if (self::isIndividual($org) && self::kindOf($org) === self::KIND_VENDOR) {
+            // A person is identified by their name and by a bank having already verified it.
+            // There is no NIN column to check because there is deliberately no NIN column:
+            // opening a Nigerian account requires a BVN, so /bank/resolve answering with this
+            // person's name is a regulated institution's identity check, fresher and better
+            // evidenced than a number typed into a form — and it leaves no register of
+            // Nigerians' identifiers here to be stolen.
+            if (self::legalNameOf($org) === '') {
+                return ['ok' => false, 'message' => 'This vendor has no full legal name on file. '
+                    . 'For an individual that is the name the settlement account is checked '
+                    . 'against, so approving without it checks nothing.'];
+            }
+            if (trim((string) ($org->account_name_resolved ?? '')) === '') {
+                return ['ok' => false, 'message' => 'The bank has not confirmed who owns this '
+                    . 'vendor’s settlement account. For an individual that confirmation is the '
+                    . 'identity check — re-attach the account so it can be resolved.'];
+            }
+        } else {
+            $needed = self::kindOf($org) === self::KIND_VENDOR
+                ? ['cac_number' => 'a CAC registration number']
+                : ['cac_number' => 'a CAC registration number', 'scuml_number' => 'a SCUML number'];
 
-        foreach ($needed as $col => $what) {
-            if (trim((string) ($org->{$col} ?? '')) === '') {
-                return ['ok' => false, 'message' => 'This organisation has no ' . $what . ' on file. '
-                    . (self::kindOf($org) === self::KIND_VENDOR
-                        ? 'A trading vendor must be registered.'
-                        : 'CAC and SCUML are both legal requirements for a Nigerian non-profit '
-                        . 'collecting donations, not paperwork.')];
+            foreach ($needed as $col => $what) {
+                if (trim((string) ($org->{$col} ?? '')) === '') {
+                    return ['ok' => false, 'message' => 'This organisation has no ' . $what . ' on file. '
+                        . (self::kindOf($org) === self::KIND_VENDOR
+                            ? 'A registered business trading at an event must give its registration '
+                            . 'number — or be recorded as an individual, which has its own requirements.'
+                            : 'CAC and SCUML are both legal requirements for a Nigerian non-profit '
+                            . 'collecting donations, not paperwork.')];
+                }
             }
         }
 

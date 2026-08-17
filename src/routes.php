@@ -1623,6 +1623,19 @@ return function(App $app) {
         $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/cancel-quote', EventsController::class.':cancelQuote');
         $g->post('/events/ticket/{ref:[A-Za-z0-9\-]{8,60}}/cancel',       EventsController::class.':cancel');
         $g->get('/events/{slug}/calendar.ics', EventsController::class.':calendar');
+        // ── TRADING AT AN EVENT ───────────────────────────────────────
+        //
+        // BEFORE the bare /events/{slug} below. FastRoute matches in declaration order for
+        // patterns of the same shape, and a two-segment path registered after a one-segment
+        // wildcard is a path that never runs.
+        //
+        // The call page is public and stays reachable after the deadline: a vendor who
+        // arrives a week late is owed "this closed on the 14th" rather than a 404 that reads
+        // as though the whole thing was imaginary.
+        $S = \AfricaGates\Controllers\StandApplyController::class;
+        $g->get ('/events/{slug}/stands',       $S.':call');
+        $g->get ('/events/{slug}/stands/apply', $S.':form');
+        $g->post('/events/{slug}/stands/apply', $S.':submit');
         $g->get('/events/{slug}',  EventsController::class.':show');
         $g->post('/events/{slug}/register', EventsController::class.':register');
         // A price preview for a typed discount code, and the queue for a tier that has gone.
@@ -1810,6 +1823,14 @@ return function(App $app) {
         $g->post('/org/appeal/{id:[0-9]+}',        \AfricaGates\Controllers\OrgDashboardController::class.':saveCampaign');
         $g->post('/org/appeal/{id:[0-9]+}/submit', \AfricaGates\Controllers\OrgDashboardController::class.':submitCampaign');
         $g->post('/org/appeal/{id:[0-9]+}/close',  \AfricaGates\Controllers\OrgDashboardController::class.':closeCampaign');
+        // Stands. Accepting an offer commits the organisation to a fee, so it sits behind
+        // the same owner-only gate as a payout; the id is checked against the SESSION's
+        // organisation inside the service, because a path id is a claim rather than a right.
+        $g->post('/org/stand/{id:[0-9]+}/accept', \AfricaGates\Controllers\OrgDashboardController::class.':acceptStand');
+        // A vendor files their own certificates. The alternative — emailing them to an
+        // administrator — makes the eligibility check dishonest, because an application
+        // marked incomplete may just be one whose insurance is sitting unread in an inbox.
+        $g->post('/org/document', \AfricaGates\Controllers\OrgDashboardController::class.':uploadDocument');
 
         // A partner organisation's own appeal. Registered LAST so the three fixed paths
         // above always win — and the pattern additionally excludes them by name, because
@@ -2634,6 +2655,23 @@ return function(App $app) {
         $a->get('/events/{id:[0-9]+}/attendees.csv', AdminEventsController::class.':exportAttendees');
         // Discount codes get their own screen: a code is created and retired on a completely
         // different rhythm from an event's title and venue.
+        // ── VENDOR STANDS ─────────────────────────────────────────────
+        //
+        // Its own screen for the same reason tickets have one: opening a call, publishing
+        // quotas and allocating pitches is a different job from editing a description, and
+        // the person doing it will defend every decision on this page to somebody who did
+        // not get a stand.
+        $ST = \AfricaGates\Admin\Controllers\StandsController::class;
+        $a->get ('/events/{id:[0-9]+}/stands',                         $ST.':index');
+        $a->get ('/events/{id:[0-9]+}/stands/allocation.csv',          $ST.':exportCsv');
+        $a->post('/events/{id:[0-9]+}/stands/call',                    $ST.':saveCall');
+        $a->post('/events/{id:[0-9]+}/stands/call/open',               $ST.':openCall');
+        $a->post('/events/{id:[0-9]+}/stands/call/close',              $ST.':closeCall');
+        $a->post('/events/{id:[0-9]+}/stands/type',                    $ST.':saveType');
+        $a->post('/events/{id:[0-9]+}/stands/type/{type:[0-9]+}/delete', $ST.':deleteType');
+        $a->post('/events/{id:[0-9]+}/stands/check',                   $ST.':checkAll');
+        $a->post('/events/{id:[0-9]+}/stands/{app:[0-9]+}/decide',     $ST.':decide');
+
         $a->get('/events/{id:[0-9]+}/codes',              AdminEventsController::class.':codes');
         $a->post('/events/{id:[0-9]+}/codes',             AdminEventsController::class.':saveCode');
         $a->post('/events/{id:[0-9]+}/codes/{code:[0-9]+}/delete', AdminEventsController::class.':deleteCode');

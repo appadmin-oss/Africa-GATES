@@ -1,0 +1,252 @@
+{% extends "layout/gates.twig" %}
+
+{# ─────────────────────────────────────────────────────────────────────────────
+   The application form.
+
+   Two shapes, one page. A signed-in vendor sees only the questions that are about this
+   event; a new applicant is asked who they are as well, and the account is created in the
+   same request as the application — splitting them produces accounts belonging to people
+   who never finished applying.
+
+   The first question is whether they are a business or a person, because everything after
+   it changes. It is a radio pair rather than a dropdown so that both options are visible
+   without an interaction: an individual who never sees "individual" concludes the form is
+   not for them and closes the tab.
+   ───────────────────────────────────────────────────────────────────────────── #}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="stands"]{ background:#f4f6f2; color:var(--ag-ink); }
+  .ap{ max-width:760px; margin:0 auto; padding:26px var(--ag-gutter,32px) 72px; }
+  .ap-head h1{ margin:6px 0 0; font-family:var(--ag-font-display); font-weight:800;
+               font-size:clamp(1.7rem,4vw,2.2rem); line-height:1.1; letter-spacing:-.02em; }
+  .ap-head p{ margin:10px 0 0; font-size:15px; line-height:1.65; color:#5a6468; }
+  .ap-back{ font-size:13px; font-weight:600; color:#2f5d38; text-decoration:none; }
+
+  .ap-card{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:20px;
+            padding:24px 26px; margin-top:18px; }
+  .ap-card h2{ margin:0 0 4px; font-family:var(--ag-font-display); font-weight:700; font-size:18px; }
+  .ap-card .hint{ margin:0 0 18px; font-size:13.5px; line-height:1.6; color:#5a6468; }
+
+  .ap-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:640px){ .ap-grid{ grid-template-columns:1fr; } }
+
+  .ap-f label{ display:block; font-size:13.5px; font-weight:600; margin-bottom:6px; }
+  .ap-f input[type=text], .ap-f input[type=email], .ap-f input[type=tel],
+  .ap-f input[type=password], .ap-f textarea, .ap-f select{
+    width:100%; padding:11px 13px; border:1px solid rgba(16,41,44,.18); border-radius:11px;
+    font:inherit; font-size:15px; background:#fff; color:var(--ag-ink); }
+  .ap-f input:focus, .ap-f textarea:focus, .ap-f select:focus{
+    outline:2px solid #1a6118; outline-offset:1px; border-color:#1a6118; }
+  .ap-f small{ display:block; margin-top:5px; font-size:12.5px; color:#61707a; }
+
+  /* Radio cards. Min 44px tall and the whole card is the label, so the target is the card
+     and not a 13px circle — WCAG 2.5.8 is a floor here, not the goal. */
+  .ap-pick{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:640px){ .ap-pick{ grid-template-columns:1fr; } }
+  .ap-pick label{ display:flex; gap:11px; align-items:flex-start; min-height:44px;
+                  padding:14px 16px; border:1px solid rgba(16,41,44,.18); border-radius:14px;
+                  cursor:pointer; font-weight:600; font-size:14.5px; }
+  .ap-pick label:has(input:checked){ border-color:#1a6118; box-shadow:0 0 0 1px #1a6118; background:#f2f8f2; }
+  .ap-pick label:focus-within{ outline:2px solid #1a6118; outline-offset:2px; }
+  .ap-pick input{ margin-top:2px; width:18px; height:18px; accent-color:#1a6118; }
+  .ap-pick span small{ display:block; margin-top:4px; font-weight:400; font-size:12.5px;
+                       line-height:1.5; color:#5a6468; }
+
+  .ap-stand{ display:flex; gap:12px; align-items:flex-start; min-height:44px; padding:14px 16px;
+             border:1px solid rgba(16,41,44,.15); border-radius:14px; margin-bottom:10px;
+             cursor:pointer; }
+  .ap-stand:has(input:checked){ border-color:#1a6118; box-shadow:0 0 0 1px #1a6118; background:#f2f8f2; }
+  .ap-stand:focus-within{ outline:2px solid #1a6118; outline-offset:2px; }
+  .ap-stand input{ margin-top:3px; width:18px; height:18px; accent-color:#1a6118; }
+  .ap-stand__n{ font-weight:700; font-size:15px; }
+  .ap-stand__m{ margin-top:4px; font-size:13px; line-height:1.55; color:#5a6468; }
+  .ap-stand__p{ margin-left:auto; font-family:var(--ag-font-mono); font-weight:700;
+                font-size:15px; color:var(--ag-green); white-space:nowrap; }
+  .ap-stand.is-full{ opacity:.62; }
+
+  .ap-check{ display:flex; gap:10px; align-items:flex-start; min-height:44px; padding:10px 0;
+             font-size:14.5px; line-height:1.5; cursor:pointer; }
+  .ap-check input{ margin-top:2px; width:18px; height:18px; accent-color:#1a6118; }
+
+  /* #8a2b18 on #fdecea is 6.4:1. An error message that fails contrast is not an error message. */
+  .ap-err{ background:#fdecea; border:1px solid #f3c4bd; color:#8a2b18; border-radius:14px;
+           padding:14px 16px; font-size:14.5px; line-height:1.6; margin-top:18px; }
+
+  .ap-go{ display:inline-flex; align-items:center; justify-content:center; min-height:50px;
+          padding:14px 30px; border:0; border-radius:14px; background:#12481d; color:#fff;
+          font:inherit; font-weight:700; font-size:15.5px; cursor:pointer; }
+  .ap-go:hover{ background:#0d3716; }
+  .ap-note{ margin-top:14px; font-size:13px; line-height:1.65; color:#5a6468; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ap">
+
+  <div class="ap-head">
+    <a class="ap-back" href="/events/{{ event.slug }}/stands">← The call and its terms</a>
+    <h1>Apply for a stand</h1>
+    <p>{{ event.title }} · applications close {{ call.closes_at|slice(0,16) }}</p>
+  </div>
+
+  {% if error %}
+    <div class="ap-err" role="alert">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/events/{{ event.slug }}/stands/apply" class="ap-f">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+    {# ── 1 · WHICH STAND ─────────────────────────────────────────────────── #}
+    <div class="ap-card">
+      <h2>Which stand</h2>
+      <p class="hint">One application per stand type. Applying for two different types is fine
+        if you would take either.</p>
+
+      <fieldset style="border:0;padding:0;margin:0">
+        <legend class="sr-only">Choose a stand type</legend>
+        {% for c in capacity %}
+          <label class="ap-stand {% if c.left == 0 %}is-full{% endif %}">
+            <input type="radio" name="stand_type_id" value="{{ c.type.id }}" required
+                   {% if old.stand_type_id is defined and old.stand_type_id == c.type.id %}checked{% endif %}>
+            <span>
+              <span class="ap-stand__n">{{ c.type.name }}</span>
+              <span class="ap-stand__m">
+                {{ categories[c.type.category]|default(c.type.category) }} ·
+                {% if c.left > 0 %}{{ c.left }} of {{ c.quota }} places open
+                {% else %}all {{ c.quota }} places currently held — you can still apply and be waitlisted{% endif %}
+                {% if c.type.description %}<br>{{ c.type.description }}{% endif %}
+              </span>
+            </span>
+            <span class="ap-stand__p">₦{{ c.type.price_naira|number_format }}</span>
+          </label>
+        {% else %}
+          <p style="color:#5a6468">Nothing is on offer for this event.</p>
+        {% endfor %}
+      </fieldset>
+    </div>
+
+    {# ── 2 · WHO YOU ARE — only for somebody not already signed in ────────── #}
+    {% if org %}
+      <div class="ap-card">
+        <h2>Applying as {{ org.name }}</h2>
+        <p class="hint" style="margin-bottom:0">
+          Signed in, so we already have your details. If anything has changed, update it on your
+          <a href="/org">dashboard</a> before the call closes — it is what the eligibility check reads.
+        </p>
+      </div>
+    {% else %}
+      <div class="ap-card">
+        <h2>Who is applying</h2>
+        <p class="hint">You do not need to be a registered company to trade at our events.</p>
+
+        <fieldset style="border:0;padding:0;margin:0 0 20px">
+          <legend style="font-size:13.5px;font-weight:600;margin-bottom:8px">Are you a business or an individual?</legend>
+          <div class="ap-pick">
+            <label>
+              <input type="radio" name="entity_type" value="individual"
+                     {% if old.entity_type is not defined or old.entity_type == 'individual' %}checked{% endif %}>
+              <span>Individual or sole trader
+                <small>You trade under your own name or a market name, and are not registered at
+                  the CAC. We ask for a photo ID instead.</small></span>
+            </label>
+            <label>
+              <input type="radio" name="entity_type" value="business"
+                     {% if old.entity_type is defined and old.entity_type == 'business' %}checked{% endif %}>
+              <span>Registered business
+                <small>You have a CAC registration number — RC, BN or IT.</small></span>
+            </label>
+          </div>
+        </fieldset>
+
+        <div class="ap-grid">
+          <div>
+            <label for="apName">Name you trade under</label>
+            <input id="apName" name="name" type="text" maxlength="200" required
+                   value="{{ old.name|default('') }}" placeholder="Mama Ngozi’s Kitchen">
+            <small>This is what appears on the stand list. It can be your own name.</small>
+          </div>
+          <div>
+            <label for="apLegal">Full legal name</label>
+            <input id="apLegal" name="legal_name" type="text" maxlength="200" required
+                   value="{{ old.legal_name|default('') }}" placeholder="Ngozi Chioma Okafor">
+            <small>Your own full name, or the registered name if you are a business. It must match
+              the bank account we settle to — we check that with your bank.</small>
+          </div>
+          <div>
+            <label for="apCac">CAC number <span style="font-weight:400;color:#61707a">— registered businesses only</span></label>
+            <input id="apCac" name="cac_number" type="text" maxlength="60"
+                   value="{{ old.cac_number|default('') }}" placeholder="BN1234567">
+            <small>Leave this empty if you are applying as an individual. Do not borrow somebody
+              else's number — it puts the wrong name on the paperwork.</small>
+          </div>
+          <div>
+            <label for="apContact">Contact name</label>
+            <input id="apContact" name="contact_name" type="text" maxlength="160"
+                   value="{{ old.contact_name|default('') }}">
+            <small>Who will actually be standing at the pitch.</small>
+          </div>
+          <div>
+            <label for="apEmail">Email</label>
+            <input id="apEmail" name="contact_email" type="email" maxlength="190" required
+                   autocomplete="email" value="{{ old.contact_email|default('') }}">
+            <small>This becomes your sign-in.</small>
+          </div>
+          <div>
+            <label for="apPhone">Phone</label>
+            <input id="apPhone" name="contact_phone" type="tel" maxlength="40"
+                   autocomplete="tel" value="{{ old.contact_phone|default('') }}">
+          </div>
+          <div>
+            <label for="apPass">Choose a password</label>
+            <input id="apPass" name="password" type="password" minlength="12" required
+                   autocomplete="new-password">
+            <small>At least 12 characters. This sign-in can later request payouts, so it is held
+              to a higher bar than a shopping account.</small>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {# ── 3 · WHAT YOU SELL ───────────────────────────────────────────────── #}
+    <div class="ap-card">
+      <h2>What you will sell</h2>
+      <p class="hint">This is what the panel reads, and it decides which certificates you need —
+        hot food and cosmetics carry requirements that a bookstall does not.</p>
+
+      <div>
+        <label for="apSell">Describe your goods</label>
+        <textarea id="apSell" name="what_they_sell" rows="5" required
+          placeholder="Jollof rice, moi moi and chin chin, cooked on site. Two staff.">{{ old.what_they_sell|default('') }}</textarea>
+      </div>
+
+      <div style="margin-top:14px">
+        <label class="ap-check">
+          <input type="checkbox" name="needs_power" value="1"
+                 {% if old.needs_power is defined %}checked{% endif %}>
+          <span>I need mains power at the pitch</span>
+        </label>
+        <label class="ap-check">
+          <input type="checkbox" name="needs_step_free" value="1"
+                 {% if old.needs_step_free is defined %}checked{% endif %}>
+          <span>I need step-free access to the pitch
+            <small style="display:block;color:#5a6468;font-size:12.5px;margin-top:3px">
+              Asked here rather than left to chance. Step-free pitches are allocated, not
+              improvised on the morning.</small></span>
+        </label>
+      </div>
+    </div>
+
+    <div style="margin-top:22px">
+      <button class="ap-go" type="submit">
+        {{ org ? 'Submit application' : 'Create account and apply' }}</button>
+      <p class="ap-note">
+        What happens next: you land on your dashboard and upload your certificates. Your
+        application is not <em>complete</em> until they are all on file, and where applications
+        are otherwise equal the tiebreak is whoever became complete first — so it is worth doing
+        today. You will hear either way, with a reason.
+      </p>
+    </div>
+  </form>
+</div>
+{% endblock %}

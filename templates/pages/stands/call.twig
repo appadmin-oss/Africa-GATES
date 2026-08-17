@@ -1,0 +1,184 @@
+{% extends "layout/gates.twig" %}
+
+{# ─────────────────────────────────────────────────────────────────────────────
+   The public call for stands.
+
+   Everything on this page is a published term, and it is published BEFORE anybody knows
+   who applied. That is the whole fairness mechanism — the prices, the quotas, the closing
+   date and what a strong application looks like are all readable by every applicant before
+   they decide whether to bother.
+
+   It stays up after the deadline on purpose. A vendor who arrives a week late is owed the
+   sentence "this closed on the 14th", not a 404 that reads as though the whole thing was
+   imaginary.
+   ───────────────────────────────────────────────────────────────────────────── #}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  body[data-page="stands"]{ background:#f4f6f2; color:var(--ag-ink); }
+  .sc{ max-width:960px; margin:0 auto; padding:24px var(--ag-gutter,32px) 72px; }
+
+  .sc-hero{ position:relative; overflow:hidden; border-radius:24px;
+            background:radial-gradient(130% 130% at 82% 10%,#1d5b2a,#10292C 62%);
+            padding:clamp(2.2rem,5vw,3rem) clamp(1.6rem,4vw,2.6rem); }
+  .sc-hero h1{ margin:14px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800;
+               font-size:clamp(1.9rem,4.6vw,2.5rem); line-height:1.06; letter-spacing:-.02em; }
+  .sc-hero p{ margin:14px 0 0; max-width:56ch; font-size:15.5px; line-height:1.65; color:rgba(255,255,255,.86); }
+  .sc-badge{ display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:700;
+             letter-spacing:.1em; text-transform:uppercase; color:#ffd24a; background:rgba(8,26,16,.55);
+             box-shadow:inset 0 0 0 1px rgba(212,154,14,.32); padding:7px 14px; border-radius:999px; }
+
+  .sc-cta{ display:inline-flex; align-items:center; justify-content:center; min-height:48px;
+           margin-top:22px; padding:13px 26px; border-radius:14px; background:#ffd24a; color:#10292C;
+           font-weight:700; font-size:15px; text-decoration:none; }
+  .sc-cta:hover{ background:#ffdc6d; }
+  .sc-closed{ display:inline-block; margin-top:22px; padding:12px 18px; border-radius:12px;
+              background:rgba(255,255,255,.1); color:#fff; font-size:14px; }
+
+  .sc-sec{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:20px;
+           padding:26px 28px; margin-top:18px; }
+  .sc-sec h2{ margin:0 0 6px; font-family:var(--ag-font-display); font-weight:700; font-size:20px; }
+  .sc-sec p.lead{ margin:0 0 20px; font-size:14px; line-height:1.65; color:#5a6468; }
+
+  .sc-stand{ border:1px solid rgba(16,41,44,.1); border-radius:16px; padding:18px 20px; margin-top:12px; }
+  .sc-stand__top{ display:flex; flex-wrap:wrap; gap:12px; align-items:baseline; justify-content:space-between; }
+  .sc-stand__n{ font-weight:700; font-size:16px; }
+  .sc-stand__p{ font-family:var(--ag-font-mono); font-weight:700; font-size:17px; color:var(--ag-green); }
+  .sc-stand__meta{ margin-top:8px; font-size:13.5px; line-height:1.6; color:#5a6468; }
+  .sc-tag{ display:inline-block; font-size:11.5px; font-weight:700; letter-spacing:.05em;
+           text-transform:uppercase; padding:4px 10px; border-radius:99px; background:#eef3ec;
+           color:#2f4a33; margin-right:6px; }
+  /* #8a2b18 on #fdecea is 6.4:1 — the "full" state has to be readable, not merely red. */
+  .sc-tag--full{ background:#fdecea; color:#8a2b18; }
+  .sc-tag--left{ background:#e8f3ea; color:#1a5c26; }
+
+  .sc-steps{ counter-reset:s; list-style:none; margin:0; padding:0; }
+  .sc-steps li{ counter-increment:s; position:relative; padding:0 0 18px 44px; font-size:14.5px; line-height:1.65; }
+  .sc-steps li::before{ content:counter(s); position:absolute; left:0; top:-2px; width:30px; height:30px;
+                        border-radius:50%; background:var(--ag-green-wash,#e8f3ea); color:#12481d;
+                        display:flex; align-items:center; justify-content:center;
+                        font-family:var(--ag-font-mono); font-weight:700; font-size:13px; }
+  .sc-steps strong{ display:block; }
+
+  @media (max-width:720px){ .sc-stand__top{ flex-direction:column; gap:4px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="sc">
+
+  <div class="sc-hero">
+    <span class="sc-badge">Vendor stands</span>
+    <h1>Trade at {{ event.title }}</h1>
+    {% if call.intro %}
+      <p>{{ call.intro }}</p>
+    {% else %}
+      <p>Stands at Africa GATES events are applied for and allocated against published quotas —
+         not sold to whoever pays first. Everything that decides your application is on this page.</p>
+    {% endif %}
+
+    {% if accepting %}
+      <a class="sc-cta" href="/events/{{ event.slug }}/stands/apply">Apply for a stand</a>
+      <p style="margin-top:12px;font-size:13px;color:rgba(255,255,255,.72)">
+        Applications close {{ call.closes_at|slice(0,16) }}.
+        {% if not signed_in %}You do not need an account first — the form creates one.{% endif %}
+      </p>
+    {% else %}
+      <div class="sc-closed">
+        {% if call.closes_at and call.closes_at|slice(0,10) < "now"|date("Y-m-d") %}
+          Applications closed on {{ call.closes_at|slice(0,16) }}.
+        {% elseif call.opens_at %}
+          Applications open on {{ call.opens_at|slice(0,16) }}.
+        {% else %}
+          This call is not taking applications.
+        {% endif %}
+        Everything below is what was published, so you know what to expect next time.
+      </div>
+    {% endif %}
+  </div>
+
+  {# ── WHAT IS ON OFFER, WITH THE QUOTA AGAINST IT ───────────────────────── #}
+  <div class="sc-sec">
+    <h2>What is on offer</h2>
+    <p class="lead">
+      The number of places in each category is fixed and published here. It is what stops a
+      market becoming twelve jewellery stalls and nothing to eat — and it means nobody is
+      deciding your category's size after seeing who applied. Places left over in one category
+      do not move into another.
+    </p>
+
+    {% for c in capacity %}
+      <div class="sc-stand">
+        <div class="sc-stand__top">
+          <div>
+            <div class="sc-stand__n">{{ c.type.name }}</div>
+            <div style="margin-top:6px">
+              <span class="sc-tag">{{ categories[c.type.category]|default(c.type.category) }}</span>
+              {% if c.left > 0 %}
+                <span class="sc-tag sc-tag--left">{{ c.left }} of {{ c.quota }} still open</span>
+              {% else %}
+                <span class="sc-tag sc-tag--full">All {{ c.quota }} places taken</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="sc-stand__p">₦{{ c.type.price_naira|number_format }}</div>
+        </div>
+        <div class="sc-stand__meta">
+          {% if c.type.description %}{{ c.type.description }}<br>{% endif %}
+          {{ c.type.includes_power ? 'Power is included.' : 'No power at this pitch — bring your own if you need it.' }}
+          {% if c.type.step_free %} Step-free access.{% endif %}
+          {% if c.type.deposit_naira > 0 %}
+            Deposit of ₦{{ c.type.deposit_naira|number_format }} on acceptance.
+          {% endif %}
+        </div>
+      </div>
+    {% else %}
+      <p style="color:#5a6468">Nothing has been published for this event yet.</p>
+    {% endfor %}
+  </div>
+
+  {# ── HOW IT IS DECIDED ─────────────────────────────────────────────────── #}
+  <div class="sc-sec">
+    <h2>How your application is decided</h2>
+    <p class="lead">Two stages, and they are different kinds of “no”.</p>
+    <ol class="sc-steps">
+      <li><strong>Eligibility — a rule, not an opinion.</strong>
+        Your certificates are on file and in date, and you are not suspended. Nothing is
+        weighed here. If you fail it we tell you exactly what is missing, and you can fix it
+        while the call is still open.</li>
+      <li><strong>Selection — a judgement, with a reason written down.</strong>
+        Within each category, against the published quota. Where applications are otherwise
+        equal, the tiebreak is whoever became <em>complete</em> first — not whoever submitted
+        first, so filling in an empty form quickly gains you nothing.</li>
+      <li><strong>An outcome either way.</strong>
+        Everybody hears, and a refusal comes with the reason. If you are offered a stand you
+        have {{ offer_hours }} hours to accept before the place goes to the waiting list.</li>
+    </ol>
+  </div>
+
+  {# ── WHO CAN APPLY ─────────────────────────────────────────────────────── #}
+  <div class="sc-sec">
+    <h2>You do not need to be a registered company</h2>
+    <p class="lead" style="margin-bottom:14px">
+      Most of the people who trade at our events are not companies, and the requirements say so.
+    </p>
+    <ul style="margin:0;padding-left:20px;font-size:14.5px;line-height:1.75;color:#3a4448">
+      <li><strong>Applying as an individual or sole trader:</strong> your full name, a government
+        photo ID, and public liability insurance. No CAC registration is asked for, because you
+        do not have one — and borrowing somebody else's number is worse than having none.</li>
+      <li><strong>Applying as a registered business:</strong> your CAC registration number and
+        registered name, and public liability insurance.</li>
+      <li><strong>Either way:</strong> the bank account we settle to must be in your own name.
+        We check that with your bank before anything is paid, and we never store your account
+        number.</li>
+    </ul>
+  </div>
+
+  {% if accepting %}
+    <div style="text-align:center;margin-top:26px">
+      <a class="sc-cta" href="/events/{{ event.slug }}/stands/apply"
+         style="margin-top:0">Apply for a stand</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

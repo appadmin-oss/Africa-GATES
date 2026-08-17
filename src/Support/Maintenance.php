@@ -140,6 +140,11 @@ final class Maintenance
             // charity's payout left in an unknown state is exactly the thing nobody notices
             // until they ask where their money is.
             $ran[] = ['payouts',       $this->task('payouts',       fn() => $this->sweepPartnerPayouts())];
+            // Stand offers nobody accepted in time. On every tick rather than daily, because
+            // the place an expired offer is holding was promised to a waiting list that was
+            // told it would move — and a list that only moves at 06:00 is a list that does
+            // not move on the day the organiser is filling the last three pitches.
+            $ran[] = ['standoffers',   $this->task('standoffers',   fn() => $this->expireStandOffers())];
             // Every hour
             if ((int)$now->minute < 15) {
                 $ran[] = ['otp',        $this->task('otp',        fn() => $this->purgeExpiredOtp())];
@@ -193,6 +198,7 @@ final class Maintenance
                 'support'   => $ran[] = ['support', $this->task('support', fn() => $this->answerTickets())],
                 'refunds'   => $ran[] = ['refunds', $this->task('refunds', fn() => $this->refundUnminted())],
                 'payouts'   => $ran[] = ['payouts', $this->task('payouts', fn() => $this->sweepPartnerPayouts())],
+                'standoffers' => $ran[] = ['standoffers', $this->task('standoffers', fn() => $this->expireStandOffers())],
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
                 'chain'     => $ran[] = ['chain', $this->task('chain', fn() => $this->verifyChain())],
                 'all'       => (function () use (&$ran) {
@@ -598,6 +604,25 @@ final class Maintenance
             return $r['changed'];
         } catch (\Throwable $e) {
             $this->log('payouts error: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Release stand offers whose acceptance window has run out.
+     *
+     * The window is one of the call's published terms, so an offer that never expires is a
+     * pitch held indefinitely by somebody who stopped replying — against a waiting list that
+     * was told it would move. See StandApplication::OFFER_HOURS.
+     */
+    private function expireStandOffers(): int
+    {
+        try {
+            $n = \AfricaGates\Services\StandApplication::expireStaleOffers();
+            $this->log('stands: ' . $n . ' expired offer(s) returned to the waiting list');
+            return $n;
+        } catch (\Throwable $e) {
+            $this->log('stands error: ' . $e->getMessage());
             return 0;
         }
     }

@@ -71,15 +71,25 @@ final class OrgAuth
             return null;
         }
 
-        // A user whose organisation has been suspended or rejected keeps their password and
-        // loses their dashboard. The check belongs here rather than on each page, so there is
-        // one place it can be got wrong.
+        // ── WHICH ORGANISATIONS MAY SIGN IN, AND WHY THAT IS NEARLY ALL OF THEM ──
+        //
+        // Signing in is not permission to collect money — PartnerOrg::canReceive() decides
+        // that, on the public path, on every request. So the question here is only "may this
+        // party see their own record", and the answer is almost always yes:
+        //
+        //   · DRAFT is a vendor who registered ten seconds ago on the public form and has
+        //     not uploaded anything yet. Locking them out at exactly the moment they need to
+        //     upload their certificates would make self-registration impossible.
+        //   · SUSPENDED needs to read why they were suspended and get their paperwork back
+        //     in order.
+        //   · REJECTED is the case §10.10 of the vendor specification is about. An applicant
+        //     is entitled to an outcome with a reason, and the cheapest honest way to deliver
+        //     one is to let them read it. A rejected party can see their own decision and
+        //     nothing else — there is no money on the account and no payout to request.
+        //
+        // The row that cannot sign in is the one that does not exist.
         $org = PartnerOrg::find((int) $user->org_id);
-        if (!$org || !in_array((string) $org->status, [
-            PartnerOrg::STATUS_APPROVED, PartnerOrg::STATUS_PENDING, PartnerOrg::STATUS_SUSPENDED,
-        ], true)) {
-            return null;
-        }
+        if (!$org) return null;
 
         DB::table('gates_org_users')->where('id', $user->id)->update([
             'failed_logins' => 0,

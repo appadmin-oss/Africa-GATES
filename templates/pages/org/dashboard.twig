@@ -102,11 +102,190 @@
       {% if org.suspended_reason %}Reason on file: {{ org.suspended_reason }}.{% endif %}
       Everything already given to you is unaffected.
     </div>
+  {% elseif org.status == 'rejected' %}
+    {# §10.10 of the vendor specification: an applicant is entitled to an outcome with a
+       reason. Letting them sign in and read it is the cheapest honest way to deliver one —
+       the alternative is a person who was told "unsuccessful" and left to invent why. #}
+    <div class="pd__flag pd__flag--err" role="alert">
+      This application was not accepted.
+      {% if org.vetting_note %}Reason on file: {{ org.vetting_note }}.{% endif %}
+      You are welcome to apply again to a future call.
+    </div>
   {% elseif org.status != 'approved' %}
     <div class="pd__flag pd__flag--warn" role="status">
-      Your organisation is not live yet, so your appeal page is not public.
-      We will be in touch once the review is complete.
+      {% if is_vendor %}
+        Your account is not approved yet, so you cannot be offered a stand. Get your documents
+        below on file — that is the part you control, and nothing moves until it is done.
+      {% else %}
+        Your organisation is not live yet, so your appeal page is not public.
+        We will be in touch once the review is complete.
+      {% endif %}
     </div>
+  {% endif %}
+
+  {# ── DOCUMENTS ──────────────────────────────────────────────────────────────
+     A vendor files their own. The alternative — emailing them to an administrator — makes
+     the eligibility check dishonest, because an application marked incomplete may just be
+     one whose insurance certificate is sitting unread in an inbox.
+
+     Shown to every kind of organisation, because a donation partner has required documents
+     too and the list simply differs. #}
+  {% if required is not empty %}
+  <div class="pd__card">
+    <h2>Your documents</h2>
+    <p>
+      {% if individual %}
+        You are registered as an <strong>individual</strong>, so no CAC certificate is asked for.
+      {% endif %}
+      A document that has expired counts as missing — that is what the expiry date is for, and
+      finding out on the morning of an event makes it everybody's problem.
+    </p>
+
+    <div class="pd__wrap">
+      <table class="pd__t">
+        <caption class="sr-only">Documents required and held</caption>
+        <thead><tr>
+          <th scope="col">Required</th><th scope="col">Status</th>
+        </tr></thead>
+        <tbody>
+        {% for slug, label in required %}
+          <tr>
+            <td>{{ label }}</td>
+            <td>
+              {% if missing[slug] is defined %}
+                <span class="pd__chip pd__chip--dead">Not on file</span>
+              {% else %}
+                <span class="pd__chip pd__chip--done">On file</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if documents %}
+      <div class="pd__wrap">
+        <table class="pd__t">
+          <caption class="sr-only">Documents you have uploaded</caption>
+          <thead><tr>
+            <th scope="col">Uploaded</th><th scope="col">Kind</th>
+            <th scope="col">File</th><th scope="col">Expires</th>
+          </tr></thead>
+          <tbody>
+          {% for d in documents %}
+            <tr>
+              <td class="pd__num">{{ d.created_at|slice(0,10) }}</td>
+              <td>{{ doc_kinds[d.kind]|default(d.kind) }}</td>
+              <td>{{ d.original_name }}</td>
+              <td class="pd__num">
+                {% if d.expires_on %}
+                  {{ d.expires_on|slice(0,10) }}
+                  {% if d.expires_on|slice(0,10) < "now"|date("Y-m-d") %}
+                    <span class="pd__chip pd__chip--dead">Lapsed</span>
+                  {% endif %}
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    {% if can_payout and uploads_on %}
+      <form method="post" action="/org/document" enctype="multipart/form-data" class="pd__pay">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <label style="flex:1 1 190px">
+          <span>What is it?</span>
+          <select name="kind" style="width:100%;font:inherit;font-size:16px;padding:10px 13px;
+                  border:1px solid rgba(16,41,44,.18);border-radius:11px;background:#fff">
+            {% for slug, label in doc_kinds %}<option value="{{ slug }}">{{ label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label style="flex:1 1 190px">
+          <span>File (PDF or photo)</span>
+          <input type="file" name="document" accept=".pdf,image/*" required>
+        </label>
+        <label style="flex:1 1 150px">
+          <span>Expires (if it does)</span>
+          <input type="date" name="expires_on">
+        </label>
+        <button type="submit">Upload</button>
+      </form>
+    {% elseif not uploads_on %}
+      <p>Uploads are unavailable on this server right now. Email your certificates and we will file them.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── STAND APPLICATIONS ─────────────────────────────────────────────────────
+     The decision AND its reason are shown, including a rejection. §5.7: every applicant gets
+     an outcome they can understand, and the difference between a disappointment and a story
+     about favouritism is whether anybody ever told them which rule they fell on. #}
+  {% if applications %}
+  <div class="pd__card">
+    <h2>Your stand applications</h2>
+    <p>An offer is held for a limited time. If it runs out the place returns to the waiting
+       list, because a place held by somebody who stopped replying is a place somebody else
+       was promised.</p>
+
+    <div class="pd__wrap">
+      <table class="pd__t">
+        <caption class="sr-only">Stand applications and their outcomes</caption>
+        <thead><tr>
+          <th scope="col">Event</th><th scope="col">Stand</th>
+          <th scope="col">Applied</th><th scope="col">Outcome</th><th scope="col">&nbsp;</th>
+        </tr></thead>
+        <tbody>
+        {% for a in applications %}
+          <tr>
+            <td>{{ a.event ? a.event.title : '—' }}</td>
+            <td>{{ a.type ? a.type.name : '—' }}
+              {% if a.type %}<div class="pd__num" style="font-size:12px;color:var(--ag-ink-soft,#626a6e)">
+                {{ ngn }}{{ a.type.price_naira|number_format }}</div>{% endif %}</td>
+            <td class="pd__num">{{ a.app.submitted_at|slice(0,10) }}
+              {% if not a.app.completed_at %}
+                <div style="font-size:12px;color:#b42318">Not complete</div>
+              {% endif %}</td>
+            <td>
+              {% set c = {'accepted':'done','offered':'open','waitlisted':'open',
+                          'rejected':'dead','declined':'dead','pending':'open'}[a.app.decision]|default('open') %}
+              <span class="pd__chip pd__chip--{{ c }}">{{ decisions[a.app.decision]|default(a.app.decision) }}</span>
+              {% if a.app.decision_reason %}
+                <div style="margin-top:5px;font-size:12.5px;line-height:1.55;color:var(--ag-ink-soft,#626a6e)">
+                  {{ a.app.decision_reason }}</div>
+              {% endif %}
+              {% if a.app.eligibility == 'fail' and a.app.eligibility_note %}
+                <div style="margin-top:5px;font-size:12.5px;line-height:1.55;color:#b42318">
+                  {{ a.app.eligibility_note }}</div>
+              {% endif %}
+            </td>
+            <td>
+              {% if a.live_offer %}
+                {% if can_payout %}
+                  <form method="post" action="/org/stand/{{ a.app.id }}/accept">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <button type="submit" style="min-height:44px;padding:0 18px;border:none;
+                            border-radius:999px;background:var(--ag-green,#237b22);color:#fff;
+                            font:700 13.5px/1 inherit;cursor:pointer">Accept</button>
+                  </form>
+                  <div style="margin-top:5px;font-size:12px;color:var(--ag-ink-soft,#626a6e)">
+                    By {{ a.app.offer_expires_at|slice(0,16) }}</div>
+                {% else %}
+                  <span style="font-size:12.5px;color:var(--ag-ink-soft,#626a6e)">
+                    Only an account owner can accept</span>
+                {% endif %}
+              {% elseif a.expired %}
+                <span style="font-size:12.5px;color:#b42318">This offer expired</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
   {% endif %}
 
   <dl class="pd__grid">

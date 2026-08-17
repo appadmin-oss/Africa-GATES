@@ -337,7 +337,13 @@ return [
             new \AfricaGates\Services\SupportTicketService($c->get(OtpService::class))
         )
     ),
-    \AfricaGates\Controllers\OrgDashboardController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\OrgDashboardController($c->get(Twig::class), $c->get(PaymentService::class), $c->get(RateLimitService::class)),
+    \AfricaGates\Controllers\OrgDashboardController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\OrgDashboardController($c->get(Twig::class), $c->get(PaymentService::class), $c->get(RateLimitService::class), $c->get(UploadService::class)),
+
+    // Vendors applying for stands. Rate limiter injected because the form CREATES ACCOUNTS
+    // for people who are not signed in, which is the one public endpoint here worth abusing.
+    \AfricaGates\Controllers\StandApplyController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\StandApplyController($c->get(Twig::class), $c->get(RateLimitService::class)),
+
+    \AfricaGates\Admin\Controllers\StandsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\StandsController($c->get(Twig::class), $c->get(\AfricaGates\Admin\Services\AuditService::class)),
     DonationController::class     => fn(ContainerInterface $c)=>new DonationController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(OtpService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     PaidVoteController::class     => fn(ContainerInterface $c)=>new PaidVoteController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     \AfricaGates\Admin\Controllers\AssistantController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AssistantController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),

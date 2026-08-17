@@ -31,9 +31,27 @@
           <small style="color:var(--ad-text-mute)">Their page becomes /donate/&lt;slug&gt;</small>
         </div>
         <div>
-          <label for="poLegal">Registered name (CAC)</label>
+          <label for="poKind">What are they?</label>
+          <select id="poKind" name="kind">
+            <option value="partner">Donation partner</option>
+            <option value="vendor">Vendor (trades at events)</option>
+          </select>
+        </div>
+        <div>
+          <label for="poEntity">Business or person?</label>
+          <select id="poEntity" name="entity_type">
+            <option value="business">Registered business</option>
+            <option value="individual">Individual or sole trader</option>
+          </select>
+          <small style="color:var(--ad-text-mute)">Only applies to vendors — a body collecting
+            donations must be incorporated. An individual is asked for a photo ID rather than a
+            CAC certificate, and their bank account is matched against their own name.</small>
+        </div>
+        <div>
+          <label for="poLegal">Full legal name</label>
           <input id="poLegal" name="legal_name" type="text" maxlength="200">
-          <small style="color:var(--ad-text-mute)">Compared against the bank account name</small>
+          <small style="color:var(--ad-text-mute)">The CAC registered name, or the person's own
+            full name. Compared against the bank account name.</small>
         </div>
         <div>
           <label for="poCac">CAC number</label>

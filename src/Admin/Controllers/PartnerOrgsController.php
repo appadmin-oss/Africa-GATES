@@ -36,13 +36,14 @@ use Slim\Views\Twig;
  */
 final class PartnerOrgsController
 {
-    /** Certificates a partner is asked for. Slugs, so adding one is a code change. */
-    private const DOC_KINDS = [
-        'cac'       => 'CAC certificate (Incorporated Trustees)',
-        'scuml'     => 'SCUML certificate',
-        'insurance' => 'Public liability insurance',
-        'other'     => 'Other supporting document',
-    ];
+    /**
+     * Certificates a party can be asked for.
+     *
+     * Taken from PartnerOrg rather than redeclared, because this list and
+     * PartnerOrg::requiredDocuments() disagreeing about a slug means somebody uploads the
+     * right certificate and is still told it is missing.
+     */
+    private const DOC_KINDS = PartnerOrg::DOCUMENT_KINDS;
 
     public function __construct(
         private readonly Twig            $view,
@@ -117,10 +118,16 @@ final class PartnerOrgsController
             // beside what the organisation calls itself. The single most useful thing on the
             // page for spotting somebody collecting into a personal account.
             'name_match'  => trim((string) ($org->account_name_resolved ?? '')) !== ''
-                ? PartnerOrg::nameSimilarity(
-                    (string) ($org->legal_name ?: $org->name),
-                    (string) $org->account_name_resolved)
+                // matchScore, not nameSimilarity: a person's account is compared by a
+                // different rule, and a screen that recomputed it with the other one would
+                // show a number nobody could reproduce.
+                ? PartnerOrg::matchScore($org, (string) $org->account_name_resolved)
                 : null,
+            'entities'    => PartnerOrg::ENTITIES,
+            'kinds'       => PartnerOrg::KINDS,
+            'individual'  => PartnerOrg::isIndividual($org),
+            'required'    => PartnerOrg::requiredDocuments($id),
+            'missing'     => \AfricaGates\Services\StandApplication::missingDocuments($id),
             'may_decide'  => $this->mayDecide(),
             'campaigns'   => $this->campaignRows($id),
             'camp_states' => OrgCampaign::STATUSES,
@@ -207,8 +214,17 @@ final class PartnerOrgsController
             return $this->back($res, '/admin/partner-orgs');
         }
 
+        $kind   = (string) ($b['kind'] ?? PartnerOrg::KIND_PARTNER);
+        $entity = (string) ($b['entity_type'] ?? PartnerOrg::ENTITY_BUSINESS);
+
         $id = (int) DB::table('gates_partner_orgs')->insertGetId([
             'slug' => $slug, 'name' => $name,
+            'kind'          => isset(PartnerOrg::KINDS[$kind]) ? $kind : PartnerOrg::KIND_PARTNER,
+            // An individual DONATION partner is not a thing: a body collecting charitable
+            // gifts in Nigeria has to be incorporated. Only a vendor can be a person, and
+            // forcing that here means the rest of the code never has to check the pair.
+            'entity_type'   => ($kind === PartnerOrg::KIND_VENDOR && isset(PartnerOrg::ENTITIES[$entity]))
+                                ? $entity : PartnerOrg::ENTITY_BUSINESS,
             'legal_name'    => trim((string) ($b['legal_name'] ?? '')) ?: null,
             'cac_number'    => trim((string) ($b['cac_number'] ?? '')) ?: null,
             'scuml_number'  => trim((string) ($b['scuml_number'] ?? '')) ?: null,

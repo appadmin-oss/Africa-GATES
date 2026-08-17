@@ -22,6 +22,7 @@
 6. [Conduct: trading once you are in](#6--conduct-trading-once-you-are-in)
 7. [Money](#7--money)
 8. [Eligibility, documents and the vendor account](#8--eligibility-documents-and-the-vendor-account)
+   - [8.0 A vendor can be a person](#80-a-vendor-can-be-a-person)
 9. [Event day](#9--event-day)
 10. [**Worked scenarios**](#10--worked-scenarios)
 11. [Risks](#11--risks)
@@ -270,7 +271,8 @@ is when a missing certificate becomes the organiser's problem instead of the ven
 |---|---|---|
 | Public liability insurance | All | Expiry stored; a lapsed policy blocks confirmation |
 | Food hygiene / handler certificate | Food and drink | A gate, not a scoring criterion |
-| CAC registration | All trading vendors | Sole traders: identity and address |
+| CAC registration | **Registered businesses only** | Not asked of individuals — see 8.0 |
+| Government photo ID | **Individuals and sole traders** | Replaces CAC; also what the pitch is checked against on the day |
 | NAFDAC registration | Packaged food, drink, cosmetics, supplements | Attaches per product line, not per vendor |
 | SON conformity | Regulated manufactured goods | Where applicable to the category |
 | **Settlement account in the vendor's own registered name** | **Every vendor to be paid** | **Resolved at the gateway before acceptance — see 8.1** |
@@ -278,6 +280,56 @@ is when a missing certificate becomes the organiser's problem instead of the ven
 
 **A published prohibited-goods list.** Counterfeits, unlicensed medicines, anything the venue
 bans. Cheap to write now; extremely expensive to improvise on the day.
+
+### 8.0 A vendor can be a person
+
+**Most of the people who will actually trade at an Africa GATES market are not companies.**
+They are one woman with a jollof stall, one man who prints t-shirts, a pair who make leather
+sandals. Requiring a CAC registration from all of them would not raise the standard of the
+market. It would do two things, both bad: hand every pitch to whoever already has a lawyer,
+and push everybody else to borrow somebody else's registration number — which is strictly
+worse than having none, because it puts the wrong name on the paperwork at exactly the moment
+the paperwork matters.
+
+So an applicant declares themselves a **registered business** or an **individual**, and the
+requirements branch on that and only on that. The settlement account, the subaccount, the
+dashboard, the document expiries and the vetting states are identical for both.
+
+| | Registered business | Individual / sole trader |
+|---|---|---|
+| Identity | CAC registration number and certificate | Full legal name and a government photo ID |
+| Insurance | Public liability | Public liability |
+| Settlement account | In the registered name | In their own name |
+| Name comparison | String similarity, legal-form suffixes normalised | **Part-by-part, order-insensitive** — see below |
+
+**There is deliberately no NIN field.** The instinct is to collect a National Identification
+Number, and it is resisted for the same reason bank account numbers are not stored: a table of
+Nigerians' NINs is a permanent liability under the Nigeria Data Protection Act 2023 and buys
+nothing the platform does not already have. Opening a Nigerian bank account requires a BVN,
+which requires identity documents — so when the gateway answers *"this account belongs to
+NGOZI OKAFOR"*, a regulated institution has already done the identity check, more recently and
+better evidenced than a number typed into a form. **That answer is the identity control**, and
+approving an individual is refused until it exists.
+
+**The photo ID is asked for anyway, for an operational reason rather than a regulatory one.**
+On the morning of the market somebody has to check that the person standing at the pitch is
+the person it was allocated to. A registration number does not help with that.
+
+**Why the name comparison had to change.** A Nigerian bank returns `OKAFOR NGOZI CHIOMA`; the
+same woman writes *Ngozi Okafor*. Under the organisation rule — character similarity — that
+pair scores around 0.5, squarely inside the range the platform treats as *somebody is
+collecting into a stranger's account*. Applied across a vendor list it would flag nearly every
+honest sole trader, and a warning that fires on everybody is a warning reviewers learn to
+click past. That is how it stops working for the one case it exists for.
+
+So a person's name is compared as a **set of parts**: order is irrelevant, an extra middle name
+on the bank's side is expected, a single initial matches the part it abbreviates (`OKAFOR N C`
+is a real thing a bank returns), and titles are stripped (`MRS` is not a name). The score
+weights recall over precision — every part the applicant claimed must appear on the account,
+while parts the account carries that they did not mention cost comparatively little, because
+claiming a name that is not on the account is the suspicious direction. A shared surname alone
+does not clear the bar: two brothers, or somebody using a relative's account, is precisely the
+case a reviewer must still be shown.
 
 ### 8.1 The vendor account, created automatically
 
@@ -370,6 +422,13 @@ account belongs to somebody unconnected to the business — stops the acceptance
 **Why.** A weak name match is a question, not a verdict. Refusing outright would push
 legitimate sole traders to supply somebody else's account details, which is worse. But money
 must never settle to an account nobody has explained.
+
+**Since 8.0 this scenario is rarer, on purpose.** "A sole trader banking personally" is no
+longer an anomaly the reviewer has to guess at — the applicant said which they were on the
+form, and an individual's account is compared part-by-part against their own name, so
+`OKAFOR CHINEDU JOSEPH` against *Chinedu Okafor* now scores strong and never reaches a human.
+What still reaches one is the case worth reaching one: a name on the account that the
+applicant never claimed.
 
 ### 10.4 The certificate that lapsed last month
 
@@ -499,5 +558,5 @@ it travels.
 
 ---
 
-*Prepared for Africa GATES. Sections 4 and 8.1 describe code that exists and is under test;
+*Prepared for Africa GATES. Sections 4, 8.0 and 8.1 describe code that exists and is under test;
 everything else is proposal.*

@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
-use AfricaGates\Services\{OrgAuth, OrgCampaign, OrgPayout, PartnerOrg, PaymentService, RateLimitService};
+use AfricaGates\Admin\Services\UploadService;
+use AfricaGates\Services\{OrgAuth, OrgCampaign, OrgPayout, PartnerOrg, PaymentService,
+                          RateLimitService, StandApplication};
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -33,6 +35,7 @@ final class OrgDashboardController
         private readonly Twig               $view,
         private readonly PaymentService     $payments,
         private readonly ?RateLimitService  $rateLimit = null,
+        private readonly ?UploadService     $uploads   = null,
     ) {}
 
     private function redirect(Response $res, string $to): Response
@@ -115,9 +118,179 @@ final class OrgDashboardController
             'min_payout'  => OrgPayout::MIN_NAIRA,
             'campaigns'   => $this->campaignRows($orgId),
             'shortfall'   => OrgCampaign::SHORTFALL,
+            // ── THE VENDOR HALF ──────────────────────────────────────────
+            //
+            // Shown to everybody rather than gated on `kind`, because the arrays are empty
+            // for a donation partner and an empty section renders as nothing. Branching the
+            // template on kind would mean a partner who later takes a stand sees a dashboard
+            // that has quietly decided what they are.
+            'is_vendor'   => PartnerOrg::kindOf($org) === PartnerOrg::KIND_VENDOR,
+            'individual'  => PartnerOrg::isIndividual($org),
+            'applications'=> $this->applicationRows($orgId),
+            'documents'   => $this->documentRows($orgId),
+            'required'    => PartnerOrg::requiredDocuments($orgId),
+            'missing'     => StandApplication::missingDocuments($orgId),
+            'doc_kinds'   => PartnerOrg::DOCUMENT_KINDS,
+            'uploads_on'  => $this->uploads !== null,
+            'decisions'   => StandApplication::DECISIONS,
             'flash_ok'    => $_SESSION['org_flash_ok']    ?? null,
             'flash_error' => $_SESSION['org_flash_error'] ?? null,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * This organisation's stand applications, each with its outcome.
+     *
+     * The DECISION and its REASON are shown to the applicant, always, including a rejection.
+     * §5.7 of the vendor specification gives every applicant an outcome they can understand,
+     * and the difference between a disappointment and a story about favouritism is whether
+     * anybody ever told them which rule they fell on.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    private function applicationRows(int $orgId): array
+    {
+        $apps = StandApplication::forOrg($orgId);
+        if ($apps === []) return [];
+
+        try {
+            $types  = DB::table('gates_stand_types')
+                ->whereIn('id', array_map(static fn($a) => (int) $a->stand_type_id, $apps))
+                ->get()->keyBy('id');
+            $events = DB::table('gates_site_events')
+                ->whereIn('id', array_map(static fn($a) => (int) $a->event_id, $apps))
+                ->get()->keyBy('id');
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $out = [];
+        foreach ($apps as $a) {
+            $expires = trim((string) ($a->offer_expires_at ?? ''));
+            $out[] = [
+                'app'   => $a,
+                'type'  => $types[(int) $a->stand_type_id] ?? null,
+                'event' => $events[(int) $a->event_id] ?? null,
+                // An offer that has run out is shown as run out rather than as an accept
+                // button that will be refused. The sweep may not have reached it yet.
+                'live_offer' => (string) $a->decision === StandApplication::DECISION_OFFERED
+                                && ($expires === '' || $expires > $now),
+                'expired'    => (string) $a->decision === StandApplication::DECISION_OFFERED
+                                && $expires !== '' && $expires <= $now,
+            ];
+        }
+        return $out;
+    }
+
+    /** @return array<int,object> */
+    private function documentRows(int $orgId): array
+    {
+        try {
+            return DB::table('gates_org_documents')->where('org_id', $orgId)
+                ->orderByDesc('id')->get()->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    // ─────────────────────────── stands and documents ───────────────────────
+
+    /**
+     * Accept an offered stand.
+     *
+     * The window, the ownership check and the expiry all live in the service, so this cannot
+     * be the place any of them is forgotten.
+     */
+    public function acceptStand(Request $req, Response $res, array $args = []): Response
+    {
+        $user = $this->requireUser();
+        if (!$user) return $this->redirect($res, '/org/login');
+        if (!OrgAuth::canRequestPayout($user)) {
+            $_SESSION['org_flash_error'] = 'Only an account owner can accept a stand — accepting '
+                                         . 'commits the organisation to the stand fee.';
+            return $this->redirect($res, '/org');
+        }
+
+        $r = StandApplication::accept((int) ($args['id'] ?? 0), (int) $user->org_id);
+        $_SESSION[$r['ok'] ? 'org_flash_ok' : 'org_flash_error'] = $r['message'];
+        return $this->redirect($res, '/org');
+    }
+
+    /**
+     * Upload a certificate.
+     *
+     * ── WHY A VENDOR UPLOADS THEIR OWN ───────────────────────────────────────
+     *
+     * The alternative is that certificates arrive by email and an administrator files them,
+     * which puts a person between a vendor and the requirement they are being judged against.
+     * It also makes the eligibility check dishonest: an application marked incomplete may
+     * simply be one whose insurance certificate is sitting unread in an inbox.
+     *
+     * Completeness is refreshed straight afterwards, because the document that just landed
+     * may be the last one — and the tiebreak in §5.4 is the moment an application became
+     * complete, so a delay here costs the vendor queue position they earned.
+     */
+    public function uploadDocument(Request $req, Response $res): Response
+    {
+        $user = $this->requireUser();
+        if (!$user) return $this->redirect($res, '/org/login');
+        if (!OrgAuth::canRequestPayout($user)) {
+            $_SESSION['org_flash_error'] = 'Only an account owner can upload documents.';
+            return $this->redirect($res, '/org');
+        }
+        if (!$this->uploads) {
+            $_SESSION['org_flash_error'] = 'Uploads are not available on this server. '
+                                         . 'Email your certificates and we will file them.';
+            return $this->redirect($res, '/org');
+        }
+
+        $orgId = (int) $user->org_id;
+        $b     = (array) $req->getParsedBody();
+        $kind  = (string) ($b['kind'] ?? 'other');
+        if (!isset(PartnerOrg::DOCUMENT_KINDS[$kind])) $kind = 'other';
+
+        $file = $req->getUploadedFiles()['document'] ?? null;
+        if (!$file || $file->getError() === UPLOAD_ERR_NO_FILE) {
+            $_SESSION['org_flash_error'] = 'Choose a file to upload.';
+            return $this->redirect($res, '/org');
+        }
+
+        try {
+            // 'public' as the uploader type, truthfully: this file arrived from outside the
+            // administration, and the pipeline verifies the BYTES rather than the client's
+            // claim about them.
+            $r = $this->uploads->uploadDocument($file, 'org-docs', 15, (int) $user->id, 'public',
+                                                'partner_org', $orgId);
+        } catch (\Throwable $e) {
+            $_SESSION['org_flash_error'] = 'Could not upload — ' . $e->getMessage();
+            return $this->redirect($res, '/org');
+        }
+
+        $expires = trim((string) ($b['expires_on'] ?? ''));
+        DB::table('gates_org_documents')->insert([
+            'org_id'        => $orgId,
+            'kind'          => $kind,
+            'original_name' => mb_substr((string) $file->getClientFilename(), 0, 250),
+            'stored_path'   => (string) $r['path'],
+            'mime'          => (string) ($r['mime'] ?? ''),
+            'size_bytes'    => (int) ($r['size'] ?? 0),
+            // Nullable on purpose: a CAC certificate does not expire and an insurance policy
+            // very much does. An expiry nobody gave must not read as "expired".
+            'expires_on'    => preg_match('/^\d{4}-\d{2}-\d{2}$/', $expires) ? $expires : null,
+            'uploaded_by'   => (int) $user->id,
+            'created_at'    => date('Y-m-d H:i:s'),
+        ]);
+
+        foreach (StandApplication::forOrg($orgId) as $a) {
+            StandApplication::refreshCompleteness((int) $a->id);
+        }
+
+        $missing = StandApplication::missingDocuments($orgId);
+        $_SESSION['org_flash_ok'] = $missing === []
+            ? 'Uploaded. Everything we ask for is now on file.'
+            : 'Uploaded. Still outstanding: ' . implode(', ', $missing) . '.';
+        return $this->redirect($res, '/org');
     }
 
     /**

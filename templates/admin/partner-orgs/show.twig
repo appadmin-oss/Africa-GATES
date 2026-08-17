@@ -21,6 +21,16 @@
     <span class="ad-chip ad-chip--{{ chip }}" style="margin-top:5px">{{ org.status|capitalize }}</span>
   </div>
   <div>
+    <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Kind</div>
+    <div style="margin-top:5px;font-weight:600">
+      {{ kinds[org.kind]|default('Donation partner') }}{% if individual %} · individual{% endif %}
+      {% if org.self_registered %}
+        <span class="ad-chip ad-chip--gold" style="margin-left:6px"
+              title="Applied through the public form — nobody here has met them">Self-registered</span>
+      {% endif %}
+    </div>
+  </div>
+  <div>
     <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ad-text-soft)">Collecting</div>
     <div style="margin-top:5px;font-weight:600">{{ live ? 'Yes' : 'No' }}</div>
   </div>
@@ -61,7 +71,7 @@
             <td>{{ org.account_last4 ? '••••' ~ org.account_last4 : '—' }} · bank {{ org.settlement_bank }}</td></tr>
         <tr><th scope="row">Bank says the name is</th>
             <td><strong>{{ org.account_name_resolved|default('—') }}</strong></td></tr>
-        <tr><th scope="row">Registered as</th>
+        <tr><th scope="row">{{ individual ? 'Their own name' : 'Registered as' }}</th>
             <td>{{ org.legal_name|default(org.name) }}</td></tr>
         <tr><th scope="row">Name match</th>
             <td>
@@ -71,9 +81,16 @@
               {% else %}
                 <span class="ad-chip ad-chip--red">Weak ({{ (name_match * 100)|round }}%)</span>
                 <div style="margin-top:6px;font-size:12.5px;line-height:1.6;color:var(--ad-text-soft)">
-                  The bank's name for this account does not closely match the registered name.
-                  That can be a legitimate trading name — or somebody collecting donations into
-                  a personal account. Confirm before approving.
+                  {% if individual %}
+                    The bank's name does not match the name this person gave. Names are compared
+                    as a set of parts, so surname-first ordering and an extra middle name already
+                    score highly — a weak score here means a part they claimed is not on the
+                    account at all. Ask before approving.
+                  {% else %}
+                    The bank's name for this account does not closely match the registered name.
+                    That can be a legitimate trading name — or somebody collecting donations into
+                    a personal account. Confirm before approving.
+                  {% endif %}
                 </div>
               {% endif %}
             </td></tr>

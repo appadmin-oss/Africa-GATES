@@ -1,0 +1,424 @@
+{% extends "admin/layout.twig" %}
+
+{# ─────────────────────────────────────────────────────────────────────────────
+   Running a call for vendor stands.
+
+   The page is laid out in the order the argument runs: the published terms first, then
+   what was on offer and how much of it is left, then who applied and what was decided.
+   Every one of those is a thing an unsuccessful applicant may reasonably ask about, and
+   they are in the order somebody would have to answer them.
+
+   There is deliberately no "override quota" and no "reopen criteria". Each would be one
+   line and each would destroy the only thing that makes the rest defensible.
+   ───────────────────────────────────────────────────────────────────────────── #}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .st-strip{ display:grid; grid-template-columns:repeat(auto-fit,minmax(122px,1fr)); gap:1px;
+             background:var(--ad-line); border-radius:12px; overflow:hidden; }
+  .st-strip__c{ background:var(--ad-surface); padding:14px 16px; }
+  .st-strip__n{ font-family:'Space Mono',monospace; font-weight:700; font-size:21px; line-height:1.1; }
+  .st-strip__l{ font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+                color:var(--ad-text-soft); margin-top:5px; }
+
+  /* Capacity. The bar is decoration — the figures beside it are the fact, because a width
+     is not readable and a screen reader user is entitled to the same number. */
+  .st-cap{ display:flex; align-items:center; gap:12px; }
+  .st-cap__bar{ flex:1; min-width:80px; height:8px; border-radius:99px; background:var(--ad-line);
+                overflow:hidden; }
+  .st-cap__fill{ height:100%; background:var(--ad-primary); }
+  .st-cap__fill.is-full{ background:#b91c1c; }
+  .st-cap__n{ font-family:'Space Mono',monospace; font-size:12.5px; white-space:nowrap; }
+
+  .st-locked{ border-left:4px solid var(--ad-gold); }
+  .st-app__meta{ font-size:12px; color:var(--ad-text-soft); line-height:1.55; }
+  .st-miss{ color:#b91c1c; font-size:12px; }
+  .st-tabs{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
+  .st-tab{ display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:6px 13px;
+           border-radius:99px; border:1px solid var(--ad-line); background:var(--ad-surface);
+           font-size:12.5px; font-weight:600; color:var(--ad-text); text-decoration:none; }
+    /* #086411 on white is 6.9:1; white on #086411 is the same pair inverted. */
+  .st-tab.is-on{ background:var(--ad-primary); color:#fff; border-color:transparent; }
+  .st-dec{ display:grid; grid-template-columns:1fr auto; gap:8px; align-items:end; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ad-topbar">
+  <div class="ad-h1"><small>Vendor stands</small>{{ event.title }}</div>
+  <div class="ad-actions">
+    <a class="ad-btn ad-btn--sm" href="/admin/events/{{ event.id }}">← Event</a>
+    <a class="ad-btn ad-btn--sm" href="/admin/events/{{ event.id }}/tickets">Tickets</a>
+    {% if summary.accepted > 0 %}
+      <a class="ad-btn ad-btn--sm ad-btn--primary"
+         href="/admin/events/{{ event.id }}/stands/allocation.csv">Allocation sheet (CSV)</a>
+    {% endif %}
+  </div>
+</div>
+
+{# ── WHERE THIS CALL IS UP TO ──────────────────────────────────────────────── #}
+<div class="st-strip" style="margin-bottom:16px">
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.total }}</div>
+    <div class="st-strip__l">Applications</div></div>
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.complete }}</div>
+    <div class="st-strip__l">Complete</div></div>
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.pending }}</div>
+    <div class="st-strip__l">Undecided</div></div>
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.offered }}</div>
+    <div class="st-strip__l">Offered</div></div>
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.accepted }}</div>
+    <div class="st-strip__l">Accepted</div></div>
+  <div class="st-strip__c"><div class="st-strip__n">{{ summary.waitlisted }}</div>
+    <div class="st-strip__l">Waiting list</div></div>
+</div>
+
+{# ── 1 · THE PUBLISHED TERMS ───────────────────────────────────────────────── #}
+<div class="ad-card {% if call and call.locked_at %}st-locked{% endif %}" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">The call
+    <small>{{ call ? statuses[call.status]|default(call.status) : 'not created yet' }}</small></div></div>
+  <div class="ad-card__body">
+
+  {% if call and call.locked_at %}
+    <p style="margin:0 0 14px;font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+      These terms were <strong>locked on {{ call.locked_at|slice(0,16) }}</strong> and cannot be
+      edited. That is not a limitation of this screen — it is the mechanism. A rule that can be
+      changed once you know who applied is not a rule, and every rejection made under this call
+      is justified against the snapshot below and nothing else. To use different terms, close
+      this call and open another; that is visible and dated.
+    </p>
+
+    <table class="ad-table" style="max-width:720px">
+      <caption class="sr-only">Published terms of this call</caption>
+      <tbody>
+        <tr><th scope="row" style="width:190px">Opens</th>
+            <td>{{ call.opens_at ? call.opens_at|slice(0,16) : 'Immediately' }}</td></tr>
+        <tr><th scope="row">Closes</th><td>{{ call.closes_at|slice(0,16) }}</td></tr>
+        <tr><th scope="row">Taking applications</th>
+            <td>{% if accepting %}<span class="ad-chip ad-chip--green">Yes</span>
+                {% else %}<span class="ad-chip ad-chip--grey">No</span>{% endif %}</td></tr>
+        <tr><th scope="row">Published quotas</th>
+            <td>
+              {% if criteria.types is defined %}
+                {% for t in criteria.types %}
+                  <div>{{ t.name }} — {{ t.quota }} place(s) at ₦{{ t.price|number_format }}</div>
+                {% endfor %}
+              {% else %}—{% endif %}
+            </td></tr>
+      </tbody>
+    </table>
+
+    {% if call.intro %}
+      <div style="margin-top:14px;font-size:13.5px;line-height:1.7">{{ call.intro|nl2br }}</div>
+    {% endif %}
+
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <a class="ad-btn ad-btn--sm" href="/events/{{ event.slug }}/stands" target="_blank" rel="noopener">
+        View the public call page</a>
+      {% if may_decide and call.status == 'open' %}
+        <form method="post" action="/admin/events/{{ event.id }}/stands/call/close">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="ad-btn ad-btn--sm" type="submit">Close to new applications</button>
+        </form>
+      {% endif %}
+    </div>
+
+  {% elseif may_decide %}
+    <p style="margin:0 0 14px;font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+      A draft. Nothing here is public and everything is editable. Publishing locks the closing
+      date, the prices and the quotas <strong>permanently</strong> — read them once more first.
+    </p>
+    <form method="post" action="/admin/events/{{ event.id }}/stands/call">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">
+        <div>
+          <label for="stOpens">Opens (optional)</label>
+          <input id="stOpens" name="opens_at" type="datetime-local"
+                 value="{{ call and call.opens_at ? call.opens_at|slice(0,16)|replace({' ':'T'}) : '' }}">
+        </div>
+        <div>
+          <label for="stCloses">Closes <span aria-hidden="true">*</span></label>
+          <input id="stCloses" name="closes_at" type="datetime-local" required
+                 value="{{ call and call.closes_at ? call.closes_at|slice(0,16)|replace({' ':'T'}) : '' }}">
+          <small style="color:var(--ad-text-mute)">A window with no deadline is an appeal that never resolves</small>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <label for="stIntro">What you are looking for</label>
+        <textarea id="stIntro" name="intro" rows="4"
+          placeholder="Say what makes a strong application — this is the text every rejection will be measured against.">{{ call ? call.intro : '' }}</textarea>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap">
+        <button class="ad-btn ad-btn--primary" type="submit">Save draft</button>
+      </div>
+    </form>
+
+    {% if call %}
+      <form method="post" action="/admin/events/{{ event.id }}/stands/call/open" style="margin-top:12px">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {# A one-way door earns a confirmation — through the delegated data-confirm handler,
+           not an inline onsubmit. The CSP carries no 'unsafe-inline', so an inline handler
+           here would be a confirmation that silently never fires. #}
+        <button class="ad-btn" type="submit"
+                data-confirm="Publish this call? The closing date, the prices and the quotas can never be edited afterwards — changing them means closing this call and opening another.">Publish and lock the terms</button>
+        <small style="display:block;margin-top:6px;color:var(--ad-text-mute)">
+          Needs a closing date and at least one stand type.</small>
+      </form>
+    {% endif %}
+  {% else %}
+    <p style="margin:0;color:var(--ad-text-soft)">No call has been set up for this event.</p>
+  {% endif %}
+  </div>
+</div>
+
+{# ── 2 · WHAT IS ON OFFER ──────────────────────────────────────────────────── #}
+<div class="ad-card" id="types" style="margin-bottom:16px">
+  <div class="ad-card__head"><div class="ad-card__title">Stand types and quotas
+    <small>a quota is a published number, not a preference</small></div></div>
+
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <caption class="sr-only">Stand types on offer</caption>
+      <thead>
+        <tr>
+          <th scope="col">Stand type</th>
+          <th scope="col">Category</th>
+          <th scope="col">Price</th>
+          <th scope="col">Deposit</th>
+          <th scope="col">Places</th>
+          <th scope="col">Facilities</th>
+          <th scope="col" class="col-actions">&nbsp;</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in capacity %}
+        {% set pct = c.quota > 0 ? (c.taken / c.quota * 100)|round : 0 %}
+        <tr>
+          <td><strong>{{ c.type.name }}</strong>
+            {% if c.type.description %}
+              <div class="st-app__meta">{{ c.type.description }}</div>{% endif %}</td>
+          <td>{{ categories[c.type.category]|default(c.type.category) }}</td>
+          <td style="font-family:'Space Mono',monospace">₦{{ c.type.price_naira|number_format }}</td>
+          <td style="font-family:'Space Mono',monospace">
+            {{ c.type.deposit_naira > 0 ? '₦' ~ c.type.deposit_naira|number_format : '—' }}</td>
+          <td>
+            <div class="st-cap">
+              <div class="st-cap__bar" role="presentation">
+                <div class="st-cap__fill {% if c.left == 0 %}is-full{% endif %}" style="width:{{ pct }}%"></div>
+              </div>
+              <span class="st-cap__n">{{ c.taken }}/{{ c.quota }}</span>
+            </div>
+            <div class="st-app__meta">{{ c.left }} left</div>
+          </td>
+          <td class="st-app__meta">
+            {{ c.type.includes_power ? 'Power' : 'No power' }}{% if c.type.step_free %} · step-free{% endif %}
+          </td>
+          <td class="col-actions">
+            {% if may_decide and not (call and call.status == 'open') %}
+              <form method="post" action="/admin/events/{{ event.id }}/stands/type/{{ c.type.id }}/delete">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <button class="ad-btn ad-btn--sm ad-btn--danger" type="submit"
+                        data-confirm="Remove “{{ c.type.name }}”? Refused once anybody has applied for it — deleting it would erase what they applied for.">Remove</button>
+              </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" style="color:var(--ad-text-soft)">
+          Nothing on offer yet. A call with no stand types is a form with no options.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if may_decide %}
+    {% if call and call.status == 'open' %}
+      <div class="ad-card__body" style="border-top:1px solid var(--ad-line);color:var(--ad-text-soft);font-size:13.5px;line-height:1.7">
+        The call is open, so prices and quotas are locked. They were published before anybody
+        applied, and that is the whole of what makes the allocation defensible.
+      </div>
+    {% else %}
+      <div class="ad-card__body" style="border-top:1px solid var(--ad-line)">
+        <form method="post" action="/admin/events/{{ event.id }}/stands/type">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+            <div>
+              <label for="stName">Name</label>
+              <input id="stName" name="name" type="text" maxlength="160" required placeholder="Food pitch, 3m">
+            </div>
+            <div>
+              <label for="stCat">Category</label>
+              <select id="stCat" name="category">
+                {% for slug, label in categories %}<option value="{{ slug }}">{{ label }}</option>{% endfor %}
+              </select>
+              <small style="color:var(--ad-text-mute)">Quotas are what stop twelve of one thing</small>
+            </div>
+            <div>
+              <label for="stPrice">Price (₦)</label>
+              <input id="stPrice" name="price_naira" type="number" min="0" step="1000" value="0">
+            </div>
+            <div>
+              <label for="stDep">Deposit (₦)</label>
+              <input id="stDep" name="deposit_naira" type="number" min="0" step="1000" value="0">
+            </div>
+            <div>
+              <label for="stQuota">How many exist</label>
+              <input id="stQuota" name="quota" type="number" min="1" value="10" required>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <label for="stDesc">Description</label>
+            <textarea id="stDesc" name="description" rows="2"></textarea>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+            <label style="display:flex;gap:8px;align-items:center;font-weight:500">
+              <input type="checkbox" name="includes_power" value="1"> Power included</label>
+            <label style="display:flex;gap:8px;align-items:center;font-weight:500">
+              <input type="checkbox" name="step_free" value="1"> Step-free pitch</label>
+            <button class="ad-btn ad-btn--primary" type="submit">Add stand type</button>
+          </div>
+          <small style="display:block;margin-top:8px;color:var(--ad-text-mute)">
+            Step-free pitches are inventory, not a favour — marking them here is what lets a
+            vendor request one on the form instead of asking and hoping.</small>
+        </form>
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+
+{# ── 3 · WHO APPLIED ───────────────────────────────────────────────────────── #}
+<div class="ad-card" id="apps">
+  <div class="ad-card__head">
+    <div class="ad-card__title">Applications
+      <small>eligibility is a rule; selection is a judgement — they are shown separately</small></div>
+    {% if may_decide and summary.total > 0 %}
+      <form method="post" action="/admin/events/{{ event.id }}/stands/check">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="ad-btn ad-btn--sm" type="submit">Run the eligibility check</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="ad-card__body" style="padding-bottom:0">
+    <nav class="st-tabs" aria-label="Filter applications by outcome">
+      <a class="st-tab {% if filter == '' %}is-on{% endif %}"
+         href="/admin/events/{{ event.id }}/stands#apps">All ({{ summary.total }})</a>
+      {% for slug, label in decisions %}
+        <a class="st-tab {% if filter == slug %}is-on{% endif %}"
+           href="/admin/events/{{ event.id }}/stands?decision={{ slug }}#apps">{{ label }} ({{ summary[slug] }})</a>
+      {% endfor %}
+    </nav>
+  </div>
+
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <caption class="sr-only">Stand applications</caption>
+      <thead>
+        <tr>
+          <th scope="col">Applicant</th>
+          <th scope="col">Applied for</th>
+          <th scope="col">Eligibility</th>
+          <th scope="col">Outcome</th>
+          <th scope="col">Decide</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in applications %}
+        <tr>
+          <td>
+            <strong>{{ r.org ? r.org.name : 'Unknown' }}</strong>
+            {% if r.individual %}
+              <span class="ad-chip ad-chip--grey" style="margin-left:6px">Individual</span>
+            {% endif %}
+            {% if r.org and r.org.self_registered %}
+              <span class="ad-chip ad-chip--gold" style="margin-left:6px" title="Applied through the public form — nobody here has met them">Self-registered</span>
+            {% endif %}
+            <div class="st-app__meta">
+              {% if r.org %}
+                {{ r.org.legal_name|default(r.org.name) }}
+                {% if r.org.contact_phone %} · {{ r.org.contact_phone }}{% endif %}<br>
+              {% endif %}
+              Applied {{ r.app.submitted_at|slice(0,16) }} ·
+              {% if r.app.completed_at %}complete {{ r.app.completed_at|slice(0,16) }}
+              {% else %}<span class="st-miss">not complete</span>{% endif %}
+            </div>
+            {% if r.org %}
+              <div style="margin-top:5px">
+                <a class="ad-btn ad-btn--sm" href="/admin/partner-orgs/{{ r.org.id }}">Vetting record</a>
+              </div>
+            {% endif %}
+          </td>
+          <td>
+            {{ r.type ? r.type.name : '—' }}
+            <div class="st-app__meta">
+              {% if r.app.needs_power %}Needs power. {% endif %}
+              {% if r.app.needs_step_free %}Needs a step-free pitch. {% endif %}
+              {{ r.app.what_they_sell }}
+            </div>
+          </td>
+          <td>
+            {% if r.app.eligibility == 'pass' %}
+              <span class="ad-chip ad-chip--green">Eligible</span>
+            {% elseif r.app.eligibility == 'fail' %}
+              <span class="ad-chip ad-chip--red">Not eligible</span>
+              <div class="st-miss" style="margin-top:5px">{{ r.app.eligibility_note }}</div>
+            {% else %}
+              <span class="ad-chip ad-chip--grey">Unchecked</span>
+            {% endif %}
+            {% if r.missing is not empty %}
+              <div class="st-miss" style="margin-top:5px">
+                Missing: {{ r.missing|join(', ') }}</div>
+            {% endif %}
+          </td>
+          <td>
+            {% set dchip = {'offered':'gold','accepted':'green','rejected':'red',
+                            'declined':'grey','waitlisted':'grey','pending':'grey'}[r.app.decision]|default('grey') %}
+            <span class="ad-chip ad-chip--{{ dchip }}">{{ decisions[r.app.decision]|default(r.app.decision) }}</span>
+            {% if r.app.decision == 'offered' and r.app.offer_expires_at %}
+              <div class="st-app__meta">Expires {{ r.app.offer_expires_at|slice(0,16) }}</div>
+            {% endif %}
+            {% if r.app.decision_reason %}
+              <div class="st-app__meta" style="margin-top:5px">“{{ r.app.decision_reason }}”</div>
+            {% endif %}
+          </td>
+          <td>
+            {% if may_decide %}
+              <form method="post" action="/admin/events/{{ event.id }}/stands/{{ r.app.id }}/decide">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <div class="st-dec">
+                  <div>
+                    <label class="sr-only" for="dec{{ r.app.id }}">Decision for {{ r.org ? r.org.name : 'this application' }}</label>
+                    <select id="dec{{ r.app.id }}" name="decision">
+                      <option value="offered">Offer a stand</option>
+                      <option value="waitlisted">Waiting list</option>
+                      <option value="rejected">Not selected</option>
+                    </select>
+                  </div>
+                  <button class="ad-btn ad-btn--sm" type="submit">Record</button>
+                </div>
+                <label class="sr-only" for="rsn{{ r.app.id }}">Reason</label>
+                <input id="rsn{{ r.app.id }}" name="reason" type="text" maxlength="400"
+                       style="margin-top:6px" placeholder="Reason — required to reject">
+              </form>
+            {% else %}
+              <span style="color:var(--ad-text-soft)">Read only</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" style="color:var(--ad-text-soft)">
+          {% if summary.total > 0 %}No application matches that filter.
+          {% else %}Nobody has applied yet.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ad-card__body" style="border-top:1px solid var(--ad-line);font-size:13px;line-height:1.7;color:var(--ad-text-soft)">
+    An offer is held for <strong>{{ offer_hours }} hours</strong>. After that the maintenance run
+    returns the place to the waiting list automatically — a place held by somebody who stopped
+    replying is a place the waiting list was promised and never got.
+    <br>A rejection cannot be recorded without a reason. That is the difference between a
+    disappointment and a story about favouritism.
+  </div>
+</div>
+{% endblock %}
