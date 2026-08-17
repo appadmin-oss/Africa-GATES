@@ -67,7 +67,7 @@ class OrgCampaignTest extends TestCase
         ]);
     }
 
-    // ────────────────────────────── when it is open ─────────────────────────
+    // ───────────────────────────── when it is open ──────────────────────
 
     public function test_a_live_campaign_inside_its_dates_is_open(): void
     {
@@ -115,7 +115,7 @@ class OrgCampaignTest extends TestCase
         }
     }
 
-    // ─────────────────────────────── progress ───────────────────────────────
+    // ─────────────────────────────── progress ─────────────────────────────
 
     /**
      * Never cached, and confirmed rows only. A pending gift on a progress bar is a number
@@ -180,7 +180,7 @@ class OrgCampaignTest extends TestCase
         $this->assertTrue($p['met']);
     }
 
-    // ───────────────────────────── writing rules ────────────────────────────
+    // ──────────────────────────── writing rules ───────────────────────────
 
     /**
      * The rule that protects donors: a donor gave against the words on the page, so
@@ -324,6 +324,27 @@ class OrgCampaignTest extends TestCase
 
         $this->assertSame(404, $code);
         $this->assertStringContainsString('closed', strtolower($html));
+    }
+
+    /**
+     * The 404 page must actually PRINT its reason.
+     *
+     * A closed appeal renders with no payment providers, and the refusal message used to sit
+     * inside the `{% if providers is not empty %}` form — so the one page whose whole job was
+     * to say "that appeal has closed, nothing was charged" rendered the sentence into a branch
+     * that was never taken. A donor got a bare heading and no explanation.
+     */
+    public function test_a_closed_appeal_prints_the_reason_and_not_just_a_heading(): void
+    {
+        $o = $this->makeOrg();
+        $this->makeCampaign($o, ['status' => OrgCampaign::STATUS_CLOSED]);
+
+        [, $html] = $this->renderDonate(['slug' => $this->orgSlug($o), 'campaign' => 'school-roof']);
+
+        $this->assertStringContainsString('That appeal has closed', $html);
+        // …and NOT the "we are still setting giving up" notice, which would read as an
+        // apology for the platform rather than an answer about this appeal.
+        $this->assertStringNotContainsString('Online giving is being set up', $html);
     }
 
     public function test_an_open_appeal_renders_its_real_progress(): void
