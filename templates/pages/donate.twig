@@ -2,59 +2,88 @@
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  body[data-page="donate"]{ background:#eef0ec; color:var(--ag-ink); }
+  /* ══════════════════════════════════════════════════════════════════════
+     GIVE — page tokens.
+
+     Every colour, radius and rhythm value below resolves to one of these.
+     Nothing further down hard-codes a hex, so a change here moves the whole
+     page and the two dark bands cannot drift apart from each other.
+     ══════════════════════════════════════════════════════════════════════ */
+  body[data-page="donate"]{
+    --dn-paper:#f1f3ef;                    /* page ground */
+    --dn-card:#ffffff;
+    --dn-ink:#10292c;
+    --dn-ink-2:#576165;                    /* ≥4.5:1 on paper and card */
+    --dn-line:rgba(16,41,44,.10);
+    --dn-line-2:rgba(16,41,44,.16);
+    --dn-deep:#0b2225;                     /* the dark bands */
+    --dn-deep-2:#164a2c;
+    --dn-on-deep:rgba(255,255,255,.86);
+    --dn-on-deep-2:rgba(255,255,255,.70);  /* ≥4.5:1 on --dn-deep */
+    --dn-rule-deep:rgba(255,255,255,.15);
+    --dn-figure:#8fd58b;                   /* mono figures on dark */
+    --dn-gold:#ffd24a;
+    --dn-green:var(--ag-green,#237b22);
+    --dn-green-dark:var(--ag-green-dark,#1a6118);
+    --dn-r:22px;
+    --dn-r-sm:14px;
+    --dn-r-band:28px;
+    --dn-pad-band:clamp(1.6rem,4vw,2.8rem);
+    --dn-gap:clamp(14px,2vw,22px);
+    --dn-sec:clamp(26px,4vw,44px);         /* rhythm between sections */
+
+    background:var(--dn-paper); color:var(--dn-ink);
+  }
   body[data-page="donate"] [x-cloak]{ display:none !important; }
-  .dn{ max-width:1100px; margin:0 auto; padding:24px var(--ag-gutter,32px) 60px; }
-  .dn-grid{ display:grid; grid-template-columns:1fr 400px; gap:30px; align-items:start; }
 
-  /* hero */
-  .dn-hero{ position:relative; overflow:hidden; border-radius:24px; background:radial-gradient(130% 130% at 82% 10%,#1d5b2a,#10292C 62%); padding:clamp(2.4rem,5vw,3rem) clamp(1.6rem,4vw,2.6rem); }
-  .dn-hero__orb{ position:absolute; right:-50px; top:-50px; width:260px; height:260px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.3),transparent 68%); }
-  .dn-hero__in{ position:relative; max-width:440px; }
-  .dn-badge{ display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#ffd24a; background:rgba(8,26,16,.55); box-shadow:inset 0 0 0 1px rgba(212,154,14,.32); padding:7px 14px; border-radius:999px; }
-  .dn-hero h1{ margin:16px 0 0; color:#fff; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(2rem,5vw,2.6rem); line-height:1.05; letter-spacing:-.02em; }
-  .dn-hero p{ margin:14px 0 0; font-size:15.5px; line-height:1.6; color:rgba(255,255,255,.85); }
+  .dn{ max-width:1180px; margin:0 auto; padding:20px var(--ag-gutter,32px) 60px; }
 
-  /* real stat row */
-  .dn-stats{ display:flex; gap:14px; margin-top:18px; flex-wrap:wrap; }
-  .dn-stat{ flex:1; min-width:150px; background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:18px 20px; }
-  .dn-stat__n{ font-family:var(--ag-font-mono); font-weight:700; font-size:24px; color:var(--ag-green); }
-  .dn-stat__l{ font-size:12.5px; color:#626a6e; margin-top:3px; }
-  .dn-firstgift{ margin-top:18px; background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:16px 20px; font-size:14px; color:#3a4448; display:flex; align-items:center; gap:11px; }
-  .dn-firstgift svg{ flex:none; color:var(--ag-green); }
+  /* ── Shared type ── */
+  .dn-eyebrow{ display:block; font-family:var(--ag-font-mono); font-size:11px; font-weight:600;
+    letter-spacing:.2em; text-transform:uppercase; color:var(--dn-ink-2); }
+  .dn-eyebrow--deep{ color:var(--dn-gold); }
+  .dn-h2{ margin:8px 0 0; font-family:var(--ag-font-display); font-weight:700;
+    font-size:clamp(1.35rem,2.6vw,1.85rem); line-height:1.15; letter-spacing:-.015em; color:var(--dn-ink); }
+  .dn-h2--deep{ color:#fff; }
+  .dn-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:16px;
+    flex-wrap:wrap; margin:0 0 18px; }
+  .dn-sec{ margin-top:var(--dn-sec); }
 
-  /* card sections */
-  .dn-sec{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:24px 26px; margin-top:18px; }
-  .dn-sec h2{ margin:0 0 18px; font-family:var(--ag-font-display); font-weight:700; font-size:20px; color:var(--ag-ink); }
-  .dn-alloc{ display:flex; flex-direction:column; gap:18px; }
-  .dn-alloc__row{ display:flex; align-items:flex-start; gap:14px; }
-  .dn-alloc__ico{ flex:none; width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; }
-  .dn-alloc__t{ font-weight:600; font-size:14.5px; color:var(--ag-ink); }
-  .dn-alloc__b{ margin:5px 0 0; font-size:13px; line-height:1.55; color:#626a6e; }
-  .dn-trust{ display:flex; align-items:center; gap:10px; margin-top:20px; padding-top:18px; border-top:1px solid rgba(16,41,44,.08); }
-  .dn-trust__i{ width:34px; height:34px; border-radius:10px; background:#effaf0; color:#1a6118; display:flex; align-items:center; justify-content:center; flex:none; }
-  .dn-trust span{ font-size:12.5px; line-height:1.5; color:#3a4448; }
+  /* ══ THE BAND: the ask and the form, together, above the fold ══════════ */
+  .dn-band{ position:relative; overflow:hidden; border-radius:var(--dn-r-band);
+    background:radial-gradient(120% 130% at 84% 4%,var(--dn-deep-2),var(--dn-deep) 58%);
+    padding:var(--dn-pad-band); }
+  .dn-band__orb{ position:absolute; right:-70px; top:-90px; width:320px; height:320px;
+    border-radius:50%; background:radial-gradient(circle,rgba(255,210,74,.22),transparent 66%); }
+  .dn-band__grid{ position:relative; display:grid; grid-template-columns:minmax(0,1fr) 396px;
+    grid-template-rows:auto 1fr; gap:clamp(22px,3vw,44px); align-items:start; }
 
-  /* mission pull-quote */
-  .dn-mission{ background:#10292C; border-radius:20px; padding:28px; margin-top:18px; position:relative; overflow:hidden; }
-  .dn-mission__orb{ position:absolute; right:-40px; bottom:-50px; width:180px; height:180px; border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.16),transparent 68%); }
-  .dn-mission p{ margin:0; font-family:var(--ag-font-display); font-style:italic; font-weight:600; font-size:18.5px; line-height:1.5; color:#fff; position:relative; }
-  .dn-mission small{ display:block; margin-top:14px; font-size:12.5px; font-style:normal; color:rgba(255,255,255,.6); position:relative; }
+  .dn-say{ grid-column:1; grid-row:1; max-width:33rem; }
+  .dn-say h1{ margin:12px 0 0; font-family:var(--ag-font-display); font-weight:800; color:#fff;
+    font-size:clamp(2rem,4.6vw,2.9rem); line-height:1.04; letter-spacing:-.025em; }
+  .dn-say p{ margin:16px 0 0; font-size:16px; line-height:1.65; color:var(--dn-on-deep); }
 
-  /* givers */
-  .dn-givers{ display:flex; flex-direction:column; gap:12px; }
-  .dn-giver{ display:flex; align-items:center; gap:12px; }
-  .dn-giver__av{ flex:none; width:36px; height:36px; border-radius:10px; background:var(--ag-green-wash); color:var(--ag-green-dark); display:flex; align-items:center; justify-content:center; font-family:var(--ag-font-display); font-weight:700; font-size:14px; }
-  .dn-giver__b{ flex:1; min-width:0; font-size:13.5px; color:var(--ag-ink); }
-  .dn-giver__b strong{ font-weight:600; }
-  .dn-giver__amt{ color:#1a6118; font-weight:600; }
-  .dn-giver__when{ font-size:12px; color:#5a6d6f; flex:none; }
+  /* The real figures, in the same breath as the ask rather than in a card of
+     their own further down. Mono, because they are money. */
+  .dn-figs{ grid-column:1; grid-row:2; align-self:end; display:flex; flex-wrap:wrap;
+    gap:clamp(22px,5vw,52px); padding-top:22px; border-top:1px solid var(--dn-rule-deep); }
+  .dn-fig__n{ font-family:var(--ag-font-mono); font-weight:700; letter-spacing:-.02em;
+    font-size:clamp(1.5rem,3vw,2rem); color:var(--dn-figure); }
+  .dn-fig__l{ margin-top:5px; font-size:12.5px; line-height:1.45; color:var(--dn-on-deep-2); }
+  .dn-first{ grid-column:1; grid-row:2; align-self:end; display:flex; align-items:flex-start;
+    gap:11px; padding-top:22px; border-top:1px solid var(--dn-rule-deep);
+    font-size:14px; line-height:1.6; color:var(--dn-on-deep); }
+  .dn-first svg{ flex:none; margin-top:2px; color:var(--dn-figure); }
 
-  /* donate card */
-  .dn-card{ background:#fff; border:1px solid rgba(16,41,44,.08); border-radius:22px; box-shadow:0 16px 40px -22px rgba(16,41,44,.35); overflow:hidden; position:sticky; top:88px; }
-  .dn-card__in{ padding:26px; }
-  .dn-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:23px; color:var(--ag-ink); }
-  .dn-card__sub{ margin:8px 0 18px; font-size:13.5px; color:#626a6e; }
+  /* ── the give card, sitting in the dark ── */
+  .dn-card{ grid-column:2; grid-row:1 / span 2; background:var(--dn-card);
+    border-top:4px solid var(--dn-gold); border-radius:var(--dn-r);
+    box-shadow:0 34px 64px -34px rgba(0,0,0,.62); overflow:hidden; }
+  .dn-card__in{ padding:clamp(20px,2.3vw,26px); }
+  .dn-card h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:22px;
+    line-height:1.2; color:var(--dn-ink); }
+  .dn-card__sub{ margin:9px 0 16px; font-size:13.5px; line-height:1.6; color:var(--dn-ink-2); }
+  .dn-card__sub strong{ color:var(--dn-ink); }
 
   /* Appeal progress. The bar carries an aria-label with the real figures because a width
      is not readable — and the numbers sit under it in text for everybody else, since a bar
@@ -62,52 +91,147 @@
   .dn-prog{ margin:0 0 16px; }
   .dn-prog__bar{ height:9px; border-radius:99px; background:rgba(16,41,44,.09); overflow:hidden; }
   .dn-prog__bar i{ display:block; height:100%; border-radius:99px;
-    background:var(--ag-green,#237b22); transition:width .4s ease; }
-  .dn-prog__nums{ margin-top:7px; font-size:12.5px; color:#626a6e; line-height:1.6; }
-  .dn-prog__nums b{ color:var(--ag-ink,#10292c); font-size:14px; }
+    background:var(--dn-green); transition:width .4s ease; }
+  .dn-prog__nums{ margin-top:8px; font-size:12.5px; color:var(--dn-ink-2); line-height:1.6; }
+  .dn-prog__nums b{ font-family:var(--ag-font-mono); color:var(--dn-ink); font-size:14px; }
   @media (prefers-reduced-motion: reduce){ .dn-prog__bar i{ transition:none } }
 
   /* The list of open appeals on an organisation's own page. */
   .dn-appeals{ margin:0 0 18px; display:grid; gap:9px; }
-  .dn-appeal{ display:block; text-decoration:none; padding:12px 14px; border-radius:13px;
-    border:1px solid rgba(16,41,44,.12); background:#fff; }
-  .dn-appeal:hover{ border-color:var(--ag-green,#237b22); }
-  .dn-appeal b{ display:block; font-size:14px; color:var(--ag-ink,#10292c); }
-  .dn-appeal span{ display:block; margin-top:3px; font-size:12.5px; color:#626a6e; }
-  .dn-amounts{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
-  .dn-amt{ cursor:pointer; border:1.5px solid rgba(16,41,44,.12); background:#fff; color:var(--ag-ink); font-family:var(--ag-font-mono); font-weight:700; font-size:15px; padding:16px 6px; border-radius:14px; transition:border-color .12s, background .12s, color .12s; }
-  .dn-amt.is-on{ border-color:var(--ag-green); background:var(--ag-green); color:#fff; }
-  .dn-custom{ margin-top:11px; display:flex; align-items:center; gap:10px; background:#fff; border:1px solid rgba(16,41,44,.16); border-radius:14px; padding:13px 16px; transition:border-color .12s; }
-  .dn-custom.is-on{ border-color:var(--ag-green); }
-  .dn-custom span{ font-family:var(--ag-font-mono); font-weight:700; font-size:16px; color:#5a6d6f; }
-  .dn-custom input{ flex:1; border:none; outline:none; font-family:var(--ag-font-mono); font-size:16px; font-weight:700; color:var(--ag-ink); background:none; min-width:0; }
-  .dn-echo{ margin-top:16px; background:#f4f7f4; border:1px solid #d6e8d3; border-radius:14px; padding:14px 16px; display:flex; align-items:center; gap:11px; font-size:12.5px; line-height:1.45; color:#1a6118; }
-  .dn-echo svg{ flex:none; }
-  .dn-cta{ width:100%; margin-top:18px; cursor:pointer; border:none; background:var(--ag-green); color:#fff; font-family:inherit; font-weight:600; font-size:15px; padding:15px; border-radius:999px; transition:background .15s; }
-  .dn-cta:hover{ background:var(--ag-green-dark); }
-  .dn-cta:disabled{ background:#dfe4e3; color:#5b6669; cursor:not-allowed; }
-  .dn-secure{ display:flex; align-items:center; justify-content:center; gap:7px; margin-top:13px; font-size:11.5px; color:#5a6d6f; }
-  .dn-back{ cursor:pointer; border:none; background:none; font-family:inherit; font-size:13px; font-weight:600; color:#5a6d6f; padding:0; margin-bottom:14px; }
-  .dn-recap{ background:#f4f7f4; border-radius:14px; padding:14px 16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-  .dn-recap span{ font-size:13.5px; color:#4a5256; }
-  .dn-recap b{ font-family:var(--ag-font-mono); font-weight:700; font-size:16px; color:var(--ag-green); }
-  .dn-field{ margin-top:12px; }
-  .dn-field label{ display:block; font-size:12px; font-weight:600; color:#4a5256; margin-bottom:6px; }
-  .dn-field input{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:14.5px; color:var(--ag-ink); outline:none; transition:border-color .12s; }
-  .dn-field input:focus{ border-color:var(--ag-green); }
-  .dn-prov{ display:flex; gap:9px; flex-wrap:wrap; margin-top:6px; }
-  .dn-prov label{ flex:1; min-width:120px; display:flex; align-items:center; gap:8px; border:1.5px solid rgba(16,41,44,.14); border-radius:12px; padding:12px 14px; cursor:pointer; font-size:13.5px; font-weight:600; color:var(--ag-ink); }
-  .dn-prov input{ accent-color:var(--ag-green); }
-  .dn-cover{ display:flex; align-items:flex-start; gap:9px; margin-top:14px; cursor:pointer; }
-  .dn-cover input{ margin-top:2px; width:16px; height:16px; accent-color:var(--ag-green); }
-  .dn-cover span{ font-size:12px; line-height:1.5; color:#626a6e; }
-  .dn-soon{ background:#fff8df; border:1px solid #ecdca0; color:#7a5a08; border-radius:12px; padding:14px 16px; font-size:13.5px; line-height:1.55; }
-  .dn-soon a{ color:var(--ag-green); font-weight:600; }
-  .dn-err{ font-size:13px; color:#b42318; background:#fdecec; border:1px solid rgba(180,35,24,.18); border-radius:11px; padding:10px 13px; margin-bottom:14px; }
+  .dn-appeal{ display:block; text-decoration:none; padding:12px 14px; border-radius:var(--dn-r-sm);
+    border:1px solid var(--dn-line-2); background:var(--dn-card); }
+  .dn-appeal:hover{ border-color:var(--dn-green); }
+  .dn-appeal b{ display:block; font-size:14px; color:var(--dn-ink); }
+  .dn-appeal span{ display:block; margin-top:3px; font-size:12.5px; color:var(--dn-ink-2); }
 
-  @media (max-width:900px){
-    .dn-grid{ grid-template-columns:1fr; }
-    .dn-card{ position:static; order:-1; }
+  .dn-amounts{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; }
+  .dn-amt{ cursor:pointer; border:1.5px solid var(--dn-line-2); background:var(--dn-card);
+    color:var(--dn-ink); font-family:var(--ag-font-mono); font-weight:700; font-size:14.5px;
+    padding:15px 4px; border-radius:var(--dn-r-sm);
+    transition:border-color .12s, background .12s, color .12s; }
+  .dn-amt:hover{ border-color:var(--dn-green); }
+  .dn-amt.is-on{ border-color:var(--dn-green); background:var(--dn-green); color:#fff; }
+  .dn-custom{ margin-top:10px; display:flex; align-items:center; gap:10px; background:var(--dn-card);
+    border:1.5px solid var(--dn-line-2); border-radius:var(--dn-r-sm); padding:12px 15px;
+    transition:border-color .12s; }
+  .dn-custom.is-on{ border-color:var(--dn-green); }
+  .dn-custom span{ font-family:var(--ag-font-mono); font-weight:700; font-size:16px; color:var(--dn-ink-2); }
+  .dn-custom input{ flex:1; min-width:0; border:none; outline:none; background:none;
+    font-family:var(--ag-font-mono); font-size:16px; font-weight:700; color:var(--dn-ink); }
+  .dn-echo{ margin-top:14px; display:flex; align-items:center; gap:10px; padding:13px 15px;
+    border-radius:var(--dn-r-sm); background:rgba(127,200,124,.13);
+    font-size:12.5px; line-height:1.5; color:var(--dn-green-dark); }
+  .dn-echo svg{ flex:none; }
+  .dn-cta{ width:100%; margin-top:16px; cursor:pointer; border:none; background:var(--dn-green);
+    color:#fff; font-family:inherit; font-weight:700; font-size:15px; min-height:52px; padding:15px;
+    border-radius:var(--ag-r-pill,999px); transition:background .15s; }
+  .dn-cta:hover{ background:var(--dn-green-dark); }
+  .dn-cta:disabled{ background:#dfe4e3; color:#5b6669; cursor:not-allowed; }
+  .dn-secure{ display:flex; align-items:center; justify-content:center; gap:7px; margin-top:12px;
+    font-size:11.5px; color:var(--dn-ink-2); text-align:center; }
+  .dn-back{ cursor:pointer; border:none; background:none; font-family:inherit; font-size:13px;
+    font-weight:600; color:var(--dn-ink-2); padding:0; margin-bottom:14px; }
+  .dn-recap{ display:flex; align-items:center; justify-content:space-between; margin:16px 0;
+    padding:14px 16px; border-radius:var(--dn-r-sm); background:rgba(16,41,44,.045); }
+  .dn-recap span{ font-size:13.5px; color:var(--dn-ink-2); }
+  .dn-recap b{ font-family:var(--ag-font-mono); font-weight:700; font-size:16px; color:var(--dn-green-dark); }
+  .dn-field{ margin-top:12px; }
+  .dn-field label{ display:block; font-size:12px; font-weight:600; color:var(--dn-ink-2); margin-bottom:6px; }
+  .dn-field input{ width:100%; border:1.5px solid var(--dn-line-2); border-radius:var(--dn-r-sm);
+    padding:13px 15px; font-family:inherit; font-size:15px; color:var(--dn-ink);
+    outline:none; transition:border-color .12s; }
+  .dn-field input:focus{ border-color:var(--dn-green); }
+  .dn-prov{ display:flex; gap:9px; flex-wrap:wrap; margin-top:6px; }
+  .dn-prov label{ flex:1; min-width:120px; display:flex; align-items:center; gap:8px;
+    border:1.5px solid var(--dn-line-2); border-radius:var(--dn-r-sm); padding:12px 14px;
+    cursor:pointer; font-size:13.5px; font-weight:600; color:var(--dn-ink); }
+  .dn-prov input{ accent-color:var(--dn-green); }
+  .dn-cover{ display:flex; align-items:flex-start; gap:9px; margin-top:14px; cursor:pointer; }
+  .dn-cover input{ margin-top:2px; width:16px; height:16px; accent-color:var(--dn-green); }
+  .dn-cover span{ font-size:12px; line-height:1.5; color:var(--dn-ink-2); }
+  .dn-soon{ background:#fff8df; border:1px solid #ecdca0; color:#6f5207; border-radius:var(--dn-r-sm);
+    padding:14px 16px; font-size:13.5px; line-height:1.55; }
+  .dn-soon a{ color:var(--dn-green-dark); font-weight:600; }
+  .dn-err{ font-size:13px; color:#8f1d14; background:#fdecec; border:1px solid rgba(180,35,24,.2);
+    border-radius:11px; padding:11px 13px; margin-bottom:14px; }
+
+  /* ══ WHERE THE GIFT GOES — three across, on paper ══════════════════════ */
+  .dn-alloc{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--dn-gap); }
+  .dn-alloc__c{ background:var(--dn-card); border:1px solid var(--dn-line); border-radius:var(--dn-r);
+    padding:22px 22px 24px; }
+  .dn-alloc__ico{ width:42px; height:42px; border-radius:12px; display:flex; align-items:center;
+    justify-content:center; }
+  .dn-alloc__t{ margin:15px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:17px;
+    color:var(--dn-ink); }
+  .dn-alloc__b{ margin:7px 0 0; font-size:13.5px; line-height:1.6; color:var(--dn-ink-2); }
+  .dn-trust{ display:flex; align-items:center; gap:11px; margin-top:var(--dn-gap);
+    background:var(--dn-card); border:1px solid var(--dn-line); border-radius:var(--dn-r);
+    padding:16px 20px; }
+  .dn-trust__i{ width:34px; height:34px; border-radius:10px; background:rgba(127,200,124,.18);
+    color:var(--dn-green-dark); display:flex; align-items:center; justify-content:center; flex:none; }
+  .dn-trust span{ font-size:13px; line-height:1.55; color:var(--dn-ink-2); }
+  .dn-trust a{ color:var(--dn-green-dark); font-weight:600; }
+
+  /* ══ THE MISSION, as a pull quote on paper — not a third dark box ══════ */
+  .dn-quote{ margin-top:var(--dn-sec); padding-left:clamp(18px,3vw,30px);
+    border-left:3px solid var(--dn-gold); }
+  .dn-quote p{ margin:0; font-family:var(--ag-font-display); font-style:italic; font-weight:600;
+    font-size:clamp(1.15rem,2.4vw,1.55rem); line-height:1.45; letter-spacing:-.01em; color:var(--dn-ink); }
+  .dn-quote small{ display:block; margin-top:12px; font-family:var(--ag-font-mono); font-size:11px;
+    font-style:normal; letter-spacing:.14em; text-transform:uppercase; color:var(--dn-ink-2); }
+
+  /* ══ RECENT GIFTS — a ledger, not a testimonial wall ═══════════════════ */
+  .dn-led{ background:var(--dn-card); border:1px solid var(--dn-line); border-radius:var(--dn-r);
+    padding:4px 22px; }
+  .dn-led__r{ display:flex; align-items:center; gap:14px; padding:14px 0;
+    border-top:1px solid var(--dn-line); }
+  .dn-led__r:first-child{ border-top:none; }
+  .dn-led__av{ flex:none; width:34px; height:34px; border-radius:10px;
+    background:rgba(127,200,124,.18); color:var(--dn-green-dark); display:flex;
+    align-items:center; justify-content:center; font-family:var(--ag-font-display);
+    font-weight:700; font-size:14px; }
+  .dn-led__n{ flex:1; min-width:0; font-size:14px; color:var(--dn-ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .dn-led__a{ flex:none; font-family:var(--ag-font-mono); font-weight:700; font-size:14px;
+    color:var(--dn-green-dark); }
+
+  .dn-jump{ margin:var(--dn-sec) 0 0; text-align:center; font-size:14px; }
+  .dn-jump a{ display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 22px;
+    border-radius:var(--ag-r-pill,999px); border:1.5px solid var(--dn-line-2);
+    color:var(--dn-ink); font-weight:600; text-decoration:none; }
+  .dn-jump a:hover{ border-color:var(--dn-green); color:var(--dn-green-dark); }
+
+  /* ══ THE DOOR — organisations, in a band of their own ══════════════════ */
+  .dn-org{ margin-top:var(--dn-sec); position:relative; overflow:hidden;
+    border-radius:var(--dn-r-band); padding:var(--dn-pad-band);
+    background:radial-gradient(120% 140% at 10% 100%,var(--dn-deep-2),var(--dn-deep) 60%); }
+  .dn-org__orb{ position:absolute; left:-80px; bottom:-110px; width:300px; height:300px;
+    border-radius:50%; background:radial-gradient(circle,rgba(127,200,124,.18),transparent 68%); }
+  .dn-org__grid{ position:relative; display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);
+    gap:clamp(24px,4vw,48px); align-items:center; }
+  .dn-org p{ margin:14px 0 0; font-size:15px; line-height:1.7; color:var(--dn-on-deep); }
+  .dn-org p strong{ color:#fff; }
+  .dn-org__fine{ margin-top:14px; font-size:12.5px; line-height:1.65; color:var(--dn-on-deep-2); }
+  .dn-org__cta{ display:inline-flex; align-items:center; justify-content:center; margin-top:20px;
+    min-height:50px; padding:0 28px; border-radius:var(--ag-r-pill,999px);
+    background:var(--dn-gold); color:#241c00; font-weight:700; font-size:15px; text-decoration:none; }
+  .dn-org__cta:hover{ background:#ffdd74; }
+  .dn-org__panel{ border:1px solid var(--dn-rule-deep); border-radius:var(--dn-r);
+    background:rgba(255,255,255,.05); padding:6px 22px; }
+  .dn-org__row{ padding:18px 0; border-top:1px solid var(--dn-rule-deep); }
+  .dn-org__row:first-child{ border-top:none; }
+  .dn-org__n{ font-family:var(--ag-font-mono); font-weight:700; letter-spacing:-.02em;
+    font-size:clamp(1.4rem,2.6vw,1.8rem); color:var(--dn-figure); }
+  .dn-org__l{ margin-top:5px; font-size:12.5px; line-height:1.5; color:var(--dn-on-deep-2); }
+
+  @media (max-width:1020px){
+    .dn-band__grid{ grid-template-columns:1fr; grid-template-rows:none; }
+    /* DOM order is: the ask, the card, the figures — so the primary action stays
+       second on a phone rather than below a screenful of case-making. */
+    .dn-say, .dn-card, .dn-figs, .dn-first{ grid-column:auto; grid-row:auto; }
+    .dn-card{ box-shadow:0 20px 44px -26px rgba(0,0,0,.55); }
+    .dn-alloc{ grid-template-columns:1fr; }
+    .dn-org__grid{ grid-template-columns:1fr; }
   }
   @media (max-width:420px){
     .dn-amounts{ grid-template-columns:1fr 1fr; }
@@ -117,248 +241,297 @@
 
 {% block content %}
 {% set ALLOC = [
-  {'t':'Scholarships','b':'Direct school and training fees for promising young leaders.','tint':'#eef7ee','fg':'#1a6118','ico':'<path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/>'},
-  {'t':'Mentorship programmes','b':'Pairing children with verified leaders across the continent.','tint':'#fff8df','fg':'#7a5600','ico':'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>'},
-  {'t':'Community grants','b':'Seed funding for grassroots education projects.','tint':'#fdeaf0','fg':'#b03a5b','ico':'<path d="M12 22V12M12 12C12 7 8 4 3 4c0 5 4 8 9 8ZM12 14c0-4 4-7 9-7 0 4-4 7-9 7Z"/>'}
+  {'t':'Scholarships','b':'Direct school and training fees for promising young leaders.','tint':'#eef7ee','fg':'#155114','ico':'<path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/>'},
+  {'t':'Mentorship programmes','b':'Pairing children with verified leaders across the continent.','tint':'#fff5d6','fg':'#6b4c00','ico':'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>'},
+  {'t':'Community grants','b':'Seed funding for grassroots education projects.','tint':'#fdeaf0','fg':'#96305c','ico':'<path d="M12 22V12M12 12C12 7 8 4 3 4c0 5 4 8 9 8ZM12 14c0-4 4-7 9-7 0 4-4 7-9 7Z"/>'}
 ] %}
 
 <div class="dn" x-data="donate()">
-  <div class="dn-grid">
 
-    {# ── LEFT: the case for giving ── #}
-    <div class="dn-main">
-      <div class="dn-hero">
-        <div class="dn-hero__orb" aria-hidden="true"></div>
-        <div class="dn-hero__in">
-          <span class="dn-badge">Give back</span>
+  {# ══ THE BAND ══════════════════════════════════════════════════════════
+     The ask, the real figures and the form in one dark band, so the primary
+     action is above the fold instead of sitting beside a column three times
+     its height with dead space underneath it. #}
+  <div class="dn-band">
+    <div class="dn-band__orb" aria-hidden="true"></div>
+    <div class="dn-band__grid">
+
+      {# The identity of the appeal lives HERE, once. The card below carries the
+         mechanics — an amount and a payment method — and does not repeat the title. #}
+      <div class="dn-say">
+        {% if campaign %}
+          <span class="dn-eyebrow dn-eyebrow--deep">{{ org.name }}</span>
+          <h1>{{ campaign.title }}</h1>
+          <p>{% if campaign.summary %}{{ campaign.summary }}{% else %}An appeal run by {{ org.name }}. Your gift settles directly to their own account.{% endif %}</p>
+        {% elseif org %}
+          <span class="dn-eyebrow dn-eyebrow--deep">Partner appeal</span>
+          <h1>Give to {{ org.name }}</h1>
+          <p>Your gift settles directly into {{ org.name }}’s own account — Africa GATES never holds it.</p>
+        {% else %}
+          <span class="dn-eyebrow dn-eyebrow--deep">Give back</span>
           <h1>Fund the next generation of leaders</h1>
           <p>Every gift funds child leadership programmes across the continent — mentorship, scholarships, and the classrooms where tomorrow’s icons begin.</p>
-        </div>
+        {% endif %}
       </div>
 
+      {# ── THE GIVE CARD ── #}
+      <div class="dn-card" id="give">
+        {# The refusal message is hoisted ABOVE the providers branch on purpose. A closed
+           appeal renders with no providers at all, so while this lived inside the form the
+           one page that most needed to explain itself — "that appeal has closed, nothing
+           was charged" — rendered the message into nothing. #}
+        {% if providers is empty %}
+        <div class="dn-card__in">
+          <h2>{% if org_closed is defined and org_closed %}This appeal is closed{% else %}Make a gift{% endif %}</h2>
+          {% if error %}<div class="dn-err" role="alert" style="margin-top:14px;margin-bottom:0">{{ error }}</div>{% endif %}
+          {% if not (org_closed is defined and org_closed) %}
+          <p class="dn-card__sub">Choose how you’d like to give.</p>
+          <div class="dn-soon">Online giving is being set up. In the meantime, reach our team via <a href="/support">/support</a> to make a gift — we’ll send you secure payment details and a receipt.</div>
+          {% endif %}
+        </div>
+        {% else %}
+        <form class="dn-card__in" method="post" action="/donate" @submit="submitting = true">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="amount" :value="value">
+          {# Which appeal this is. Re-resolved and re-checked server-side — the slug is a
+             request, not an instruction. #}
+          {% if org %}<input type="hidden" name="org" value="{{ org.slug }}">{% endif %}
+          {# Re-resolved by (org, slug) together and re-checked server-side. A campaign slug
+             belonging to a different organisation must not attach. #}
+          {% if campaign %}<input type="hidden" name="campaign" value="{{ campaign.slug }}">{% endif %}
+
+          {# error from a bounced attempt #}
+          {% if error %}<div class="dn-err" role="alert">{{ error }}</div>{% endif %}
+
+          {# STEP: choose amount #}
+          <div x-show="step==='choose'">
+            {% if campaign %}
+              <h2>Give to this appeal</h2>
+
+              {# ── PROGRESS, FROM CONFIRMED ROWS ────────────────────────────────
+                 A target is a representation, so the bar can only ever show money that
+                 actually arrived. The figures either side of it are the raw numbers, because
+                 a bar alone invites somebody to read 90% as "nearly there" when the target is
+                 ₦50,000,000. #}
+              {% if progress and progress.target > 0 %}
+                <div class="dn-prog" style="margin-top:16px">
+                  <div class="dn-prog__bar" role="img"
+                       aria-label="Raised ₦{{ progress.raised|number_format }} of a ₦{{ progress.target|number_format }} target, {{ progress.pct }} percent">
+                    <i style="width:{{ progress.pct }}%"></i>
+                  </div>
+                  <div class="dn-prog__nums">
+                    <b>₦{{ progress.raised|number_format }}</b> raised of
+                    ₦{{ progress.target|number_format }}
+                    · {{ progress.count }} gift{{ progress.count == 1 ? '' : 's' }}
+                    {%- if days_left is not null %} · {{ days_left }} day{{ days_left == 1 ? '' : 's' }} left{% endif %}
+                  </div>
+                </div>
+                {# ── WHAT HAPPENS IF THE TARGET IS MISSED ──────────────────────
+                   Stated BEFORE anybody gives. It is the first question a thoughtful donor
+                   asks and the last thing most platforms answer, and deciding it after the
+                   money is in hand means deciding it in whatever way is most convenient. #}
+                {% if shortfall_text %}
+                  <p class="dn-card__sub" style="font-size:12.5px">
+                    <strong>If the target is not reached:</strong> {{ shortfall_text|lower }}.
+                  </p>
+                {% endif %}
+              {% elseif days_left is not null %}
+                <p class="dn-card__sub" style="font-size:12.5px">
+                  {{ days_left }} day{{ days_left == 1 ? '' : 's' }} left · ₦{{ progress.raised|number_format }} raised so far
+                </p>
+              {% endif %}
+
+              <p class="dn-card__sub" style="font-size:12.5px">
+                Run by <strong>{{ org.name }}</strong>. Your gift settles directly to their
+                own account.
+                {%- if org_fee_bps > 0 %} Africa GATES keeps
+                {{ (org_fee_bps / 100)|number_format(2) }}% of each gift.{% else %} Africa GATES
+                takes nothing.{% endif %}
+              </p>
+            {% elseif org %}
+              <h2>Make a gift</h2>
+
+              {# Open appeals, offered BEFORE the amount picker. Somebody who arrived at an
+                 organisation's page may have come for a specific cause, and burying the list
+                 under the form means their gift lands in the general fund by default rather
+                 than by choice. Giving to the general fund stays available directly below. #}
+              {% if appeals %}
+                <p class="dn-card__sub" style="margin-bottom:9px">
+                  {{ org.name }} is raising for {{ appeals|length }} specific
+                  appeal{{ appeals|length == 1 ? '' : 's' }}. Give to one of those, or to their
+                  general fund below.
+                </p>
+                <div class="dn-appeals">
+                  {% for a in appeals %}
+                    <a class="dn-appeal" href="/donate/{{ org.slug }}/{{ a.slug }}">
+                      <b>{{ a.title }}</b>
+                      {% if a.summary %}<span>{{ a.summary }}</span>{% endif %}
+                    </a>
+                  {% endfor %}
+                </div>
+              {% endif %}
+              {# ── WHAT THIS PAGE PROMISES, AND WHAT IT MUST NOT ──────────────────
+                 "100% funds the programmes" is true when Africa GATES is the recipient and
+                 the fee cover offsets the gateway's cut. It stops being true the moment a
+                 platform fee is deducted from somebody else's gift, so the claim is
+                 made ONLY where it holds and the fee is stated in naira beside the amount
+                 otherwise — not in a footnote, and never discovered after paying. #}
+              {% if org_fee_bps > 0 %}
+                <p class="dn-card__sub">
+                  Africa GATES keeps {{ (org_fee_bps / 100)|number_format(2) }}% of this gift
+                  (<span x-text="ngn(Math.floor(value * {{ org_fee_bps }} / 10000))"></span>);
+                  the rest goes to {{ org.name }}.
+                </p>
+              {% else %}
+                <p class="dn-card__sub">A one-time gift — Africa GATES takes nothing. 100% goes to {{ org.name }}.</p>
+              {% endif %}
+              <p class="dn-card__sub" style="font-size:12.5px">
+                Your gift settles directly to {{ org.name }}’s own account.
+                Africa GATES checks that they are registered with the CAC{% if org.scuml_number %} and with SCUML{% endif %},
+                and that gifts settle to a bank account in their own name. We do not audit how the money is spent.
+              </p>
+            {% else %}
+              <h2>Make a gift</h2>
+              <p class="dn-card__sub">A one-time gift — 100% funds the programmes.</p>
+            {% endif %}
+            <div class="dn-amounts">
+              <template x-for="a in presets" :key="a">
+                <button type="button" class="dn-amt" :class="(!custom && amt===a) ? 'is-on' : ''" :aria-pressed="!custom && amt===a" @click="amt=a; custom=''" x-text="ngn(a)"></button>
+              </template>
+            </div>
+            <div class="dn-custom" :class="custom ? 'is-on' : ''">
+              <span>₦</span>
+              <input type="text" inputmode="numeric" placeholder="Custom amount" aria-label="Custom amount in naira" x-model="custom" @input="onCustom">
+            </div>
+            <div class="dn-echo">
+              <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
+              <span>Your gift funds mentorship, scholarships and grassroots education across the continent.</span>
+            </div>
+            <button type="button" class="dn-cta" :disabled="value < {{ min_naira }}" @click="if(value>={{ min_naira }}) step='details'" x-text="value>={{ min_naira }} ? ('Continue with '+ngn(value)) : ('Minimum gift is ₦{{ min_naira|number_format }}')"></button>
+            <div class="dn-secure">
+              <svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Secure · encrypted · receipted
+            </div>
+          </div>
+
+          {# STEP: details + provider #}
+          <div x-show="step==='details'" x-cloak>
+            <button type="button" class="dn-back" @click="step='choose'">← Back</button>
+            <h2>Your details</h2>
+            <div class="dn-recap">
+              <span>One-time gift</span><b x-text="ngn(value)"></b>
+            </div>
+            <div class="dn-field"><label for="dnName">Full name</label><input id="dnName" type="text" name="name" placeholder="Your name" autocomplete="name"></div>
+            <div class="dn-field"><label for="dnEmail">Email (for your receipt)</label><input id="dnEmail" type="email" name="email" required placeholder="you@email.com" autocomplete="email" x-model="email"></div>
+            <div class="dn-field">
+              <label>Pay with</label>
+              <div class="dn-prov">
+                {% for p in providers %}
+                <label><input type="radio" name="provider" value="{{ p.id }}" {% if loop.first %}checked{% endif %}>{{ p.label }}</label>
+                {% endfor %}
+              </div>
+            </div>
+            <label class="dn-cover">
+              <input type="checkbox" name="cover_fees" value="1" checked>
+              {# The claim is scoped to what the cover actually buys. It offsets the GATEWAY's
+                 cut; it has never offset a platform fee, so on a partner appeal that charges
+                 one it says what it covers and stops there rather than promising 100%. #}
+              <span>{% if org and org_fee_bps > 0 %}Add {{ processing_fee_pct }}% to cover the payment
+                processing charge, so the full amount above reaches {{ org.name }} less the Africa
+                GATES share shown.{% else %}Add {{ processing_fee_pct }}% to cover processing so 100% of my gift
+                reaches {{ org ? org.name : 'the cause' }}.{% endif %}</span>
+            </label>
+            <button type="submit" class="dn-cta" :disabled="submitting" x-text="submitting ? 'Redirecting…' : ('Give '+ngn(value))"></button>
+            <div class="dn-secure">
+              <svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              You’ll complete payment on our secure gateway.
+            </div>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+
+      {# ── THE FIGURES, OR THE ABSENCE OF THEM ──
+         Real confirmed rows only. With none yet, the space says so plainly rather
+         than printing a zero, because "₦0 raised" beside an ask reads as a verdict. #}
       {% if stats.gifts > 0 %}
-      <div class="dn-stats">
-        <div class="dn-stat"><div class="dn-stat__n">₦{{ stats.raised_naira|number_format }}</div><div class="dn-stat__l">Raised from community gifts</div></div>
-        <div class="dn-stat"><div class="dn-stat__n">{{ stats.gifts|number_format }}</div><div class="dn-stat__l">Gift{{ stats.gifts == 1 ? '' : 's' }} received</div></div>
+      <div class="dn-figs">
+        <div>
+          <div class="dn-fig__n">₦{{ stats.raised_naira|number_format }}</div>
+          <div class="dn-fig__l">Raised {% if campaign %}for this appeal{% elseif org %}for {{ org.name }}{% else %}from community gifts{% endif %}</div>
+        </div>
+        <div>
+          <div class="dn-fig__n">{{ stats.gifts|number_format }}</div>
+          <div class="dn-fig__l">Gift{{ stats.gifts == 1 ? '' : 's' }} received</div>
+        </div>
       </div>
       {% else %}
-      <div class="dn-firstgift">
+      <div class="dn-first">
         <svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
         <span>Be among the first to fund this cycle — every gift is receipted and goes straight to the programmes.</span>
       </div>
       {% endif %}
 
-      <div class="dn-sec">
-        <h2>Where your gift goes</h2>
-        <div class="dn-alloc">
-          {% for a in ALLOC %}
-          <div class="dn-alloc__row">
-            <span class="dn-alloc__ico" style="background:{{ a.tint }};color:{{ a.fg }}"><svg aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ a.ico|raw }}</svg></span>
-            <div><div class="dn-alloc__t">{{ a.t }}</div><p class="dn-alloc__b">{{ a.b }}</p></div>
-          </div>
-          {% endfor %}
-        </div>
-        <div class="dn-trust">
-          <span class="dn-trust__i"><svg aria-hidden="true" focusable="false" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
-          <span>Every gift is receipted and the fund is independently audited — read the full method in the <a href="/integrity" style="color:var(--ag-green);font-weight:600">Integrity Center</a>.</span>
-        </div>
-      </div>
-
-      <div class="dn-mission">
-        <div class="dn-mission__orb" aria-hidden="true"></div>
-        <p>“Recognition is only the beginning. The fund turns a spotlight into a scholarship, a mentor, a classroom — so the next generation of African leaders has somewhere to begin.”</p>
-        <small>The Africa GATES mission · an Afrovanguard initiative</small>
-      </div>
-
-      {% if givers is not empty %}
-      <div class="dn-sec">
-        <h2 style="margin-bottom:14px">Recent givers</h2>
-        <div class="dn-givers">
-          {% for g in givers %}
-          <div class="dn-giver">
-            <span class="dn-giver__av">{{ g.name|first|upper }}</span>
-            <span class="dn-giver__b"><strong>{{ g.name }}</strong> gave <span class="dn-giver__amt">₦{{ g.amount|number_format }}</span></span>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
     </div>
-
-    {# ── RIGHT: the donate card ── #}
-    <div class="dn-card">
-      {% if providers is empty %}
-      <div class="dn-card__in">
-        <h2>Make a gift</h2>
-        <p class="dn-card__sub">Choose how you’d like to give.</p>
-        <div class="dn-soon">Online giving is being set up. In the meantime, reach our team via <a href="/support">/support</a> to make a gift — we’ll send you secure payment details and a receipt.</div>
-      </div>
-      {% else %}
-      <form class="dn-card__in" method="post" action="/donate" @submit="submitting = true">
-        <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <input type="hidden" name="amount" :value="value">
-        {# Which appeal this is. Re-resolved and re-checked server-side — the slug is a
-           request, not an instruction. #}
-        {% if org %}<input type="hidden" name="org" value="{{ org.slug }}">{% endif %}
-        {# Re-resolved by (org, slug) together and re-checked server-side. A campaign slug
-           belonging to a different organisation must not attach. #}
-        {% if campaign %}<input type="hidden" name="campaign" value="{{ campaign.slug }}">{% endif %}
-
-        {# error from a bounced attempt #}
-        {% if error %}<div class="dn-err" role="alert">{{ error }}</div>{% endif %}
-
-        {# STEP: choose amount #}
-        <div x-show="step==='choose'">
-          {% if campaign %}
-            <h2>{{ campaign.title }}</h2>
-            {% if campaign.summary %}<p class="dn-card__sub">{{ campaign.summary }}</p>{% endif %}
-
-            {# ── PROGRESS, FROM CONFIRMED ROWS ────────────────────────────────
-               A target is a representation, so the bar can only ever show money that
-               actually arrived. The figures either side of it are the raw numbers, because
-               a bar alone invites somebody to read 90% as "nearly there" when the target is
-               ₦50,000,000. #}
-            {% if progress and progress.target > 0 %}
-              <div class="dn-prog">
-                <div class="dn-prog__bar" role="img"
-                     aria-label="Raised ₦{{ progress.raised|number_format }} of a ₦{{ progress.target|number_format }} target, {{ progress.pct }} percent">
-                  <i style="width:{{ progress.pct }}%"></i>
-                </div>
-                <div class="dn-prog__nums">
-                  <b>₦{{ progress.raised|number_format }}</b> raised of
-                  ₦{{ progress.target|number_format }}
-                  · {{ progress.count }} gift{{ progress.count == 1 ? '' : 's' }}
-                  {%- if days_left is not null %} · {{ days_left }} day{{ days_left == 1 ? '' : 's' }} left{% endif %}
-                </div>
-              </div>
-              {# ── WHAT HAPPENS IF THE TARGET IS MISSED ──────────────────────
-                 Stated BEFORE anybody gives. It is the first question a thoughtful donor
-                 asks and the last thing most platforms answer, and deciding it after the
-                 money is in hand means deciding it in whatever way is most convenient. #}
-              {% if shortfall_text %}
-                <p class="dn-card__sub" style="font-size:12.5px">
-                  <strong>If the target is not reached:</strong> {{ shortfall_text|lower }}.
-                </p>
-              {% endif %}
-            {% elseif days_left is not null %}
-              <p class="dn-card__sub" style="font-size:12.5px">
-                {{ days_left }} day{{ days_left == 1 ? '' : 's' }} left · ₦{{ progress.raised|number_format }} raised so far
-              </p>
-            {% endif %}
-
-            <p class="dn-card__sub" style="font-size:12.5px">
-              Run by <strong>{{ org.name }}</strong>. Your gift settles directly to their
-              own account.
-              {%- if org_fee_bps > 0 %} Africa GATES keeps
-              {{ (org_fee_bps / 100)|number_format(2) }}% of each gift.{% else %} Africa GATES
-              takes nothing.{% endif %}
-            </p>
-          {% elseif org %}
-            <h2>Give to {{ org.name }}</h2>
-
-            {# Open appeals, offered BEFORE the amount picker. Somebody who arrived at an
-               organisation's page may have come for a specific cause, and burying the list
-               under the form means their gift lands in the general fund by default rather
-               than by choice. Giving to the general fund stays available directly below. #}
-            {% if appeals %}
-              <p class="dn-card__sub" style="margin-bottom:9px">
-                {{ org.name }} is raising for {{ appeals|length }} specific
-                appeal{{ appeals|length == 1 ? '' : 's' }}. Give to one of those, or to their
-                general fund below.
-              </p>
-              <div class="dn-appeals">
-                {% for a in appeals %}
-                  <a class="dn-appeal" href="/donate/{{ org.slug }}/{{ a.slug }}">
-                    <b>{{ a.title }}</b>
-                    {% if a.summary %}<span>{{ a.summary }}</span>{% endif %}
-                  </a>
-                {% endfor %}
-              </div>
-            {% endif %}
-            {# ── WHAT THIS PAGE PROMISES, AND WHAT IT MUST NOT ──────────────────
-               "100% funds the programmes" is true when Africa GATES is the recipient and
-               the fee cover offsets the gateway's cut. It stops being true the moment a
-               platform fee is deducted from somebody else's gift, so the claim is
-               made ONLY where it holds and the fee is stated in naira beside the amount
-               otherwise — not in a footnote, and never discovered after paying. #}
-            {% if org_fee_bps > 0 %}
-              <p class="dn-card__sub">
-                Africa GATES keeps {{ (org_fee_bps / 100)|number_format(2) }}% of this gift
-                (<span x-text="ngn(Math.floor(value * {{ org_fee_bps }} / 10000))"></span>);
-                the rest goes to {{ org.name }}.
-              </p>
-            {% else %}
-              <p class="dn-card__sub">A one-time gift — Africa GATES takes nothing. 100% goes to {{ org.name }}.</p>
-            {% endif %}
-            <p class="dn-card__sub" style="font-size:12.5px">
-              Your gift settles directly to {{ org.name }}’s own account.
-              Africa GATES checks that they are registered with the CAC{% if org.scuml_number %} and with SCUML{% endif %},
-              and that gifts settle to a bank account in their own name. We do not audit how the money is spent.
-            </p>
-          {% else %}
-            <h2>Make a gift</h2>
-            <p class="dn-card__sub">A one-time gift — 100% funds the programmes.</p>
-          {% endif %}
-          <div class="dn-amounts">
-            <template x-for="a in presets" :key="a">
-              <button type="button" class="dn-amt" :class="(!custom && amt===a) ? 'is-on' : ''" :aria-pressed="!custom && amt===a" @click="amt=a; custom=''" x-text="ngn(a)"></button>
-            </template>
-          </div>
-          <div class="dn-custom" :class="custom ? 'is-on' : ''">
-            <span>₦</span>
-            <input type="text" inputmode="numeric" placeholder="Custom amount" aria-label="Custom amount in naira" x-model="custom" @input="onCustom">
-          </div>
-          <div class="dn-echo">
-            <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a6118" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
-            <span>Your gift funds mentorship, scholarships and grassroots education across the continent.</span>
-          </div>
-          <button type="button" class="dn-cta" :disabled="value < {{ min_naira }}" @click="if(value>={{ min_naira }}) step='details'" x-text="value>={{ min_naira }} ? ('Continue with '+ngn(value)) : ('Minimum gift is ₦{{ min_naira|number_format }}')"></button>
-          <div class="dn-secure">
-            <svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5a6d6f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            Secure · encrypted · receipted
-          </div>
-        </div>
-
-        {# STEP: details + provider #}
-        <div x-show="step==='details'" x-cloak>
-          <button type="button" class="dn-back" @click="step='choose'">← Back</button>
-          <h2>Your details</h2>
-          <div class="dn-recap" style="margin-top:16px">
-            <span>One-time gift</span><b x-text="ngn(value)"></b>
-          </div>
-          <div class="dn-field"><label for="dnName">Full name</label><input id="dnName" type="text" name="name" placeholder="Your name" autocomplete="name"></div>
-          <div class="dn-field"><label for="dnEmail">Email (for your receipt)</label><input id="dnEmail" type="email" name="email" required placeholder="you@email.com" autocomplete="email" x-model="email"></div>
-          <div class="dn-field">
-            <label>Pay with</label>
-            <div class="dn-prov">
-              {% for p in providers %}
-              <label><input type="radio" name="provider" value="{{ p.id }}" {% if loop.first %}checked{% endif %}>{{ p.label }}</label>
-              {% endfor %}
-            </div>
-          </div>
-          <label class="dn-cover">
-            <input type="checkbox" name="cover_fees" value="1" checked>
-            {# The claim is scoped to what the cover actually buys. It offsets the GATEWAY's
-               cut; it has never offset a platform fee, so on a partner appeal that charges
-               one it says what it covers and stops there rather than promising 100%. #}
-            <span>{% if org and org_fee_bps > 0 %}Add {{ processing_fee_pct }}% to cover the payment
-              processing charge, so the full amount above reaches {{ org.name }} less the Africa
-              GATES share shown.{% else %}Add {{ processing_fee_pct }}% to cover processing so 100% of my gift
-              reaches {{ org ? org.name : 'the cause' }}.{% endif %}</span>
-          </label>
-          <button type="submit" class="dn-cta" :disabled="submitting" x-text="submitting ? 'Redirecting…' : ('Give '+ngn(value))"></button>
-          <div class="dn-secure">
-            <svg aria-hidden="true" focusable="false" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#5a6d6f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            You’ll complete payment on our secure gateway.
-          </div>
-        </div>
-      </form>
-      {% endif %}
-    </div>
-
   </div>
 
-  {# ── THE DOOR, FOR THE OTHER KIND OF READER ─────────────────────────────
+  {# ══ WHERE THE GIFT GOES ═══════════════════════════════════════════════ #}
+  <div class="dn-sec">
+    <div class="dn-head">
+      <div>
+        <span class="dn-eyebrow">The allocation</span>
+        <h2 class="dn-h2">Where your gift goes</h2>
+      </div>
+    </div>
+    <div class="dn-alloc">
+      {% for a in ALLOC %}
+      <div class="dn-alloc__c">
+        <span class="dn-alloc__ico" style="background:{{ a.tint }};color:{{ a.fg }}"><svg aria-hidden="true" focusable="false" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ a.ico|raw }}</svg></span>
+        <h3 class="dn-alloc__t">{{ a.t }}</h3>
+        <p class="dn-alloc__b">{{ a.b }}</p>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="dn-trust">
+      <span class="dn-trust__i"><svg aria-hidden="true" focusable="false" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+      <span>Every gift is receipted and the fund is independently audited — read the full method in the <a href="/integrity">Integrity Center</a>.</span>
+    </div>
+  </div>
+
+  {# ══ THE MISSION ═══════════════════════════════════════════════════════ #}
+  <blockquote class="dn-quote">
+    <p>“Recognition is only the beginning. The fund turns a spotlight into a scholarship, a mentor, a classroom — so the next generation of African leaders has somewhere to begin.”</p>
+    <small>The Africa GATES mission · an Afrovanguard initiative</small>
+  </blockquote>
+
+  {# ══ RECENT GIFTS ══════════════════════════════════════════════════════
+     Held back below three, because a "recent gifts" ledger carrying a single
+     anonymised row says less than the figure in the band above already does. #}
+  {% if givers|length >= 3 %}
+  <div class="dn-sec">
+    <div class="dn-head">
+      <div>
+        <span class="dn-eyebrow">Confirmed</span>
+        <h2 class="dn-h2">Recent gifts</h2>
+      </div>
+    </div>
+    <div class="dn-led">
+      {% for g in givers %}
+      <div class="dn-led__r">
+        <span class="dn-led__av" aria-hidden="true">{{ g.name|first|upper }}</span>
+        <span class="dn-led__n">{{ g.name }}</span>
+        <span class="dn-led__a">₦{{ g.amount|number_format }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if providers is not empty %}
+  <p class="dn-jump"><a href="#give">Make a gift</a></p>
+  {% endif %}
+
+  {# ══ THE DOOR, FOR THE OTHER KIND OF READER ════════════════════════════
      Shown only on the Africa GATES page, never on an organisation's own. On a partner's
      appeal it would be an advert for the platform in the middle of somebody else's ask,
      competing with the reason the visitor came.
@@ -368,33 +541,37 @@
      ones who got through — a page reporting successes alone claims a 100% acceptance rate
      for a process that refuses people. #}
   {% if not org %}
-  <div class="dn-sec" style="margin-top:22px">
-    <h2>Are you an organisation?</h2>
-    <p style="margin:0 0 16px;font-size:14.5px;line-height:1.7;color:#3a4448">
-      You can raise gifts here too. Supporters give on a page in your name and the money
-      settles <strong>directly into your own account</strong> — Africa GATES never holds it,
-      because the split happens at the payment gateway rather than in a balance we are looking
-      after for you.
-    </p>
-    <div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:18px">
-      <div class="dn-stat">
-        <div class="dn-stat__n">{{ org_totals.orgs }}</div>
-        <div class="dn-stat__l">organisation{{ org_totals.orgs == 1 ? '' : 's' }} applied,
-          {{ org_totals.approved }} approved</div>
+  <div class="dn-org">
+    <div class="dn-org__orb" aria-hidden="true"></div>
+    <div class="dn-org__grid">
+      <div>
+        <span class="dn-eyebrow dn-eyebrow--deep">For organisations</span>
+        <h2 class="dn-h2 dn-h2--deep">Raise gifts on a page of your own</h2>
+        <p>
+          Supporters give on a page in your name and the money settles
+          <strong>directly into your own account</strong> — Africa GATES never holds it,
+          because the split happens at the payment gateway rather than in a balance we are
+          looking after for you.
+        </p>
+        <a class="dn-org__cta" href="/gift/apply">Apply to raise gifts</a>
+        <p class="dn-org__fine">
+          CAC and SCUML registration are both required, and the settlement account must be in
+          your organisation’s own registered name. Everything we ask for is listed on the form.
+        </p>
       </div>
-      <div class="dn-stat">
-        <div class="dn-stat__n">₦{{ org_totals.raised|number_format }}</div>
-        <div class="dn-stat__l">generated for them, across
-          {{ org_totals.gifts|number_format }} gift{{ org_totals.gifts == 1 ? '' : 's' }}</div>
+      <div class="dn-org__panel">
+        <div class="dn-org__row">
+          <div class="dn-org__n">{{ org_totals.orgs|number_format }}</div>
+          <div class="dn-org__l">organisation{{ org_totals.orgs == 1 ? '' : 's' }} applied,
+            {{ org_totals.approved|number_format }} approved</div>
+        </div>
+        <div class="dn-org__row">
+          <div class="dn-org__n">₦{{ org_totals.raised|number_format }}</div>
+          <div class="dn-org__l">generated for them, across
+            {{ org_totals.gifts|number_format }} gift{{ org_totals.gifts == 1 ? '' : 's' }}</div>
+        </div>
       </div>
     </div>
-    <a href="/gift/apply" style="display:inline-flex;align-items:center;justify-content:center;
-       min-height:48px;padding:13px 26px;border-radius:14px;background:#12481d;color:#fff;
-       font-weight:700;font-size:15px;text-decoration:none">Apply to raise gifts</a>
-    <p style="margin:12px 0 0;font-size:13px;line-height:1.65;color:#626a6e">
-      CAC and SCUML registration are both required, and the settlement account must be in your
-      organisation's own registered name. Everything we ask for is listed on the form.
-    </p>
   </div>
   {% endif %}
 </div>
