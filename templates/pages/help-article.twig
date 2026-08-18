@@ -97,7 +97,10 @@
   .ha-prog__b{ height:100%; width:0; background:linear-gradient(90deg,#7FC87C,#177015); transition:width .08s linear; }
 
   .ha-crumb{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ag-ink-soft); margin-bottom:16px; flex-wrap:wrap; }
-  .ha-crumb a{ color:var(--ag-ink-soft); text-decoration:none; }
+  /* Standalone navigation rather than a link in a sentence, so it does not get SC
+     2.5.8's inline exception — it measured 19.4px tall. */
+  .ha-crumb a{ display:inline-flex; align-items:center; min-height:24px;
+    color:var(--ag-ink-soft); text-decoration:none; }
   .ha-crumb a:hover{ color:var(--ag-green); }
   .ha-crumb svg{ flex:none; opacity:.5 }
 
