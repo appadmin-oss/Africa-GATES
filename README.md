@@ -101,6 +101,26 @@ never advance:
 only if you prefer discrete cron lines over the hub. **Do not schedule both**, or CPI will
 recompute twice every 6 hours.
 
+## One-off: CAC number backfill
+
+CAC numbers are normalised on write (`RC/1234567`), so anything registered since that rule
+landed is already in one spelling. Rows written **before** it hold whatever was typed — and
+because the duplicate check compares stored strings, a legacy row and a new row carrying the
+*same registration* never collide. Run this once, after deploying:
+
+```bash
+php bin/console registry:backfill                        # look — writes nothing
+php bin/console registry:backfill --commit               # normalise
+php bin/console registry:backfill --commit --queue-checks # …and re-derive every note
+```
+
+It is a **dry-run unless `--commit`**. Numbers it does not recognise are reported and left
+exactly as they are — never rewritten to a guess. Any registration that turns out to sit on
+more than one organisation is printed under its own heading: that is the finding the command
+exists for, it does not block anything, and which of the two is wrong is a question for a
+person. `--queue-checks` is opt-in because a configured registry verifier is a paid third
+party; without it, nothing external is called.
+
 ## Google Apps Script
 1. Open Google Sheets → Extensions → Apps Script
 2. Paste `config/AfricaGATES_AppScript.gs`

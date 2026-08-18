@@ -264,10 +264,17 @@ final class PartnerOrg
         $notes = [];
 
         // 1 · Shape, which is free and true offline.
+        //
+        // The KIND-OF-REGISTRATION note is for donation partners only. cacFormat's message
+        // says a non-profit is normally an incorporated trustee and an RC or BN is "worth
+        // asking about" — true of a body collecting charitable gifts, and wrong of a food
+        // trader, for whom a business name is exactly the right registration. Attaching it
+        // to every vendor would put a line on most records that a reviewer has to learn to
+        // ignore, and a note people learn to ignore stops being a note.
         $f = RegistryCheck::cacFormat($number);
         if (!$f['ok']) {
             $notes[] = $f['message'];
-        } elseif ($f['message'] !== '') {
+        } elseif ($f['message'] !== '' && self::kindOf($org) === self::KIND_PARTNER) {
             $notes[] = $f['message'];
         }
 

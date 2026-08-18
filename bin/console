@@ -36,6 +36,7 @@ use AfricaGates\Console\Commands\{
     PaymentsTriageCommand,
     PrivacyPurgeCommand,
     PrivacyEraseUserCommand,
+    RegistryBackfillCommand,
     RepairIndexesCommand,
     StandingsVerifyCommand,
     VotesRecoverCommand,
@@ -76,6 +77,7 @@ $app->add(new PaymentClawbackCommand());
 $app->add(new PaymentsTriageCommand());
 $app->add(new PrivacyPurgeCommand());
 $app->add(new PrivacyEraseUserCommand());
+$app->add(new RegistryBackfillCommand());
 $app->add(new RepairIndexesCommand());
 $app->add(new StandingsVerifyCommand());
 $app->add(new VotesRecoverCommand());
