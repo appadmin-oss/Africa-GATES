@@ -136,10 +136,13 @@ final class DonationController
             'error'            => self::GIVE_REASONS[trim((string) ($req->getQueryParams()['give'] ?? ''))] ?? null,
             'page_title'       => $campaign
                 ? ($campaign->title . ' — ' . $org->name)
-                : ($org ? ('Give to ' . $org->name . ' — Africa GATES') : 'Give — Africa GATES'),
+                // "Donations" is the noun on this surface — it is what the navigation, the
+                // footer and the page itself say, and a title that says something else is
+                // the line a search result and a browser tab show.
+                : ($org ? ('Donate to ' . $org->name . ' — Africa GATES') : 'Donations — Africa GATES'),
             'meta_description' => $org
-                ? ('Give to ' . $org->name . ' through Africa GATES. Your gift settles directly to the organisation.')
-                : 'Fund child leadership programmes across the continent — mentorship, scholarships and grassroots education. Every gift is receipted and independently audited.',
+                ? ('Donate to ' . $org->name . ' through Africa GATES. Your donation settles directly to the organisation.')
+                : 'Fund child leadership programmes across the continent — mentorship, scholarships and grassroots education. Every donation is receipted and independently audited.',
             'gates_page'       => 'donate',
             'has_hero'         => false,
             'providers'        => $this->payments->enabledProviders(),
