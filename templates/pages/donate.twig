@@ -175,8 +175,8 @@
   .dn-appeal span{ display:block; margin-top:3px; font-size:12.5px; color:var(--dn-mute); }
 
   .dn-lab{ display:block; margin:18px 0 8px; font-family:var(--ag-font-mono,monospace);
-    font-size:9.5px; font-weight:700; letter-spacing:.22em; text-transform:uppercase;
-    color:var(--dn-mute); }
+    font-size:11px; font-weight:700; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--dn-ink-2); }
 
   .dn-amounts{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
   .dn-amt{ cursor:pointer; border:1px solid var(--dn-line-2); background:var(--dn-card);
@@ -232,9 +232,12 @@
     color:var(--dn-ink); }
 
   .dn-field{ margin-top:16px; }
-  .dn-field label{ display:block; font-family:var(--ag-font-mono,monospace); font-size:9.5px;
-    font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--dn-mute);
-    margin-bottom:7px; }
+  /* 11px, not the 9.5px the decorative kickers use. This is the primary label of a
+     required field — it is read rather than glanced at, and uppercase mono at 9.5px with
+     .22em tracking is a caption. */
+  .dn-field label{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
+    font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--dn-ink-2);
+    margin-bottom:8px; }
   .dn-field input{ width:100%; box-sizing:border-box; border:1px solid var(--dn-line-2);
     border-radius:var(--dn-r-sm); padding:0 14px; min-height:48px; font-family:inherit;
     font-size:16px; color:var(--dn-ink); background:var(--dn-card); outline:none;

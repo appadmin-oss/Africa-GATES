@@ -190,21 +190,43 @@ final class PartnerOrg
         if (!$org) return [];
 
         if (self::kindOf($org) === self::KIND_VENDOR) {
-            return self::isIndividual($org)
-                ? [
-                    'id'        => 'Government photo ID',
-                    'insurance' => 'Public liability insurance',
-                  ]
-                : [
-                    'cac'       => 'CAC registration',
-                    'insurance' => 'Public liability insurance',
-                  ];
+            return self::vendorDocuments(self::entityOf($org));
         }
 
         return [
             'cac'   => 'CAC certificate (Incorporated Trustees)',
             'scuml' => 'SCUML certificate',
         ];
+    }
+
+    /**
+     * What a vendor of this entity type has to supply, WITHOUT needing a row first.
+     *
+     * ── WHY THIS IS SPLIT OUT ────────────────────────────────────────────────
+     *
+     * The application form has to tell somebody what they will be asked to upload BEFORE
+     * they have an account — which is the point at which knowing it changes what they do,
+     * and the point at which {@see requiredDocuments()} has no org id to answer from. It
+     * was previously only discoverable in the flash message after applying.
+     *
+     * Split rather than copied. Two implementations of "which certificates does an
+     * individual need" is how a vendor uploads exactly what the form asked for and is then
+     * told the application is incomplete, which is the failure this list exists to prevent
+     * and the one nobody would find until it happened to somebody.
+     *
+     * @return array<string,string> slug => human label
+     */
+    public static function vendorDocuments(string $entity): array
+    {
+        return $entity === self::ENTITY_INDIVIDUAL
+            ? [
+                'id'        => 'Government photo ID',
+                'insurance' => 'Public liability insurance',
+              ]
+            : [
+                'cac'       => 'CAC registration',
+                'insurance' => 'Public liability insurance',
+              ];
     }
 
     public static function bySlug(string $slug): ?object

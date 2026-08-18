@@ -133,6 +133,15 @@ final class StandApplyController
             'categories' => StandType::CATEGORIES,
             'org'        => $org,
             'entities'   => PartnerOrg::ENTITIES,
+            // What each route will be asked to upload, resolved from the same list the
+            // completeness check reads. Told BEFORE applying rather than in the flash
+            // message afterwards: it is the one fact that changes whether somebody starts
+            // the form today or goes to find a certificate first, and where applications
+            // are otherwise equal the tiebreak is who became complete first.
+            'docs'       => [
+                PartnerOrg::ENTITY_INDIVIDUAL => PartnerOrg::vendorDocuments(PartnerOrg::ENTITY_INDIVIDUAL),
+                PartnerOrg::ENTITY_BUSINESS   => PartnerOrg::vendorDocuments(PartnerOrg::ENTITY_BUSINESS),
+            ],
             'old'        => $old,
             'error'      => $error,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');

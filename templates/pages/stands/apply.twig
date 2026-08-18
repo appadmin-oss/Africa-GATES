@@ -1,83 +1,264 @@
 {% extends "layout/gates.twig" %}
 
 {# ─────────────────────────────────────────────────────────────────────────────
-   The application form.
+   THE STAND APPLICATION.
 
    Two shapes, one page. A signed-in vendor sees only the questions that are about this
    event; a new applicant is asked who they are as well, and the account is created in the
    same request as the application — splitting them produces accounts belonging to people
    who never finished applying.
 
-   The first question is whether they are a business or a person, because everything after
-   it changes. It is a radio pair rather than a dropdown so that both options are visible
-   without an interaction: an individual who never sees "individual" concludes the form is
-   not for them and closes the tab.
+   ── WHAT THE REBUILD FIXED, AND WHY EACH ONE WAS COSTING APPLICATIONS ───────
+
+   IT LOOKED LIKE A CHECKOUT. Three prices and a submit button, and nothing anywhere
+   saying that applying is free. Somebody reading "₦95,000" beside "Create account and
+   apply" has every reason to think they are about to be charged, and the ones who are not
+   sure close the tab. It now says so, twice, in the places a person is deciding.
+
+   THE STAND LIST RAN TOGETHER. Name, size, category, availability and description were
+   one line of mixed weights, and the price — `margin-left:auto` inside a flex whose middle
+   child grew — wrapped underneath instead of sitting to the right of it. Five facts of
+   four different kinds, presented as a paragraph. Each now has a fixed position, and the
+   price is in the same mono column on every row so three of them can be compared down a
+   page rather than read one at a time.
+
+   THE CAC FIELD WAS ALWAYS THERE. An individual met a required-looking field for a number
+   they do not have, under help text explaining that they should leave it empty — which is
+   the sentence that makes a person borrow somebody else's. It is now revealed by the
+   answer to "business or individual", with `:has()` written so that an engine WITHOUT
+   `:has()` shows both fields rather than hiding one: degraded, it is exactly the old page,
+   and no route is ever unfillable.
+
+   NOBODY KNEW WHAT THEY WOULD NEED. The certificates were named in the flash message
+   AFTER applying. They are the reason an application sits incomplete, and where
+   applications are otherwise equal the tiebreak is whoever became complete first — so
+   knowing them is the difference between finishing today and finishing in a fortnight.
+   They are now listed before the questions, and they change with the entity answer,
+   resolved from `PartnerOrg::vendorDocuments` so the form and the completeness check
+   cannot drift apart.
+
+   THERE WAS NO SHAPE. Three cards with headings and no sense of how long the thing was.
+   It is now four numbered sections with the last one being what happens after — which is
+   the question somebody is holding while they fill in the third.
+
+   ── AND WHAT DID NOT CHANGE ─────────────────────────────────────────────────
+
+   Every field name, every `old` value, the single POST, and the first question still being
+   business-or-person as a visible radio pair rather than a dropdown: an individual who
+   never sees "individual" concludes the form is not for them and closes the tab.
    ───────────────────────────────────────────────────────────────────────────── #}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  body[data-page="stands"]{ background:#f4f6f2; color:var(--ag-ink); }
-  .ap{ max-width:760px; margin:0 auto; padding:26px var(--ag-gutter,32px) 72px; }
-  .ap-head h1{ margin:6px 0 0; font-family:var(--ag-font-display); font-weight:800;
-               font-size:clamp(1.7rem,4vw,2.2rem); line-height:1.1; letter-spacing:-.02em; }
-  .ap-head p{ margin:10px 0 0; font-size:15px; line-height:1.65; color:#5a6468; }
-  .ap-back{ font-size:13px; font-weight:600; color:#2f5d38; text-decoration:none; }
+  /* ══════════════════════════════════════════════════════════════════════════
+     The same system as the Help Centre, the donations page and the ticket:
+     paper ground, hairline rules, mono micro-labels, one gold accent, emerald
+     reserved for the action.
+     ══════════════════════════════════════════════════════════════════════════ */
+  body[data-page="stands"]{
+    --ap-paper:#f0f2f2;
+    --ap-card:#ffffff;
+    --ap-cream:#f6f2e6;
+    --ap-ink:#10292C;
+    --ap-ink-2:#4a5256;                 /* 6.6:1 on paper */
+    --ap-mute:#626a6e;                  /* 4.7:1 on paper — the floor */
+    --ap-line:rgba(16,41,44,.12);
+    --ap-line-2:rgba(16,41,44,.22);
+    --ap-gold:#f3b416;
+    --ap-gold-ink:#745001;              /* 6.1:1 on paper */
+    --ap-green:#237b22;
+    --ap-green-dark:#12481d;
+    --ap-r:14px;
+    --ap-r-sm:4px;
 
-  .ap-card{ background:#fff; border:1px solid rgba(16,41,44,.09); border-radius:20px;
-            padding:24px 26px; margin-top:18px; }
-  .ap-card h2{ margin:0 0 4px; font-family:var(--ag-font-display); font-weight:700; font-size:18px; }
-  .ap-card .hint{ margin:0 0 18px; font-size:13.5px; line-height:1.6; color:#5a6468; }
+    background:var(--ap-paper); color:var(--ap-ink);
+  }
+  .ap{ max-width:760px; margin:0 auto;
+    padding:clamp(20px,4vw,36px) var(--ag-gutter,32px) clamp(56px,7vw,88px); }
 
-  .ap-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media (max-width:640px){ .ap-grid{ grid-template-columns:1fr; } }
+  .ap-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; letter-spacing:.24em; text-transform:uppercase; color:var(--ap-gold-ink); }
 
-  .ap-f label{ display:block; font-size:13.5px; font-weight:600; margin-bottom:6px; }
+  .ap-back{ display:inline-flex; align-items:center; gap:7px; min-height:32px;
+    font-family:var(--ag-font-mono,monospace); font-size:10.5px; font-weight:700;
+    letter-spacing:.18em; text-transform:uppercase; color:var(--ap-mute);
+    text-decoration:none; }
+  .ap-back:hover{ color:var(--ap-ink); }
+  .ap-back:focus-visible{ outline:3px solid var(--ap-green); outline-offset:3px; }
+
+  .ap-head h1{ margin:12px 0 0; font-family:var(--ag-font-display,Georgia,serif);
+    font-weight:800; font-size:clamp(1.9rem,4.4vw,2.6rem); line-height:1.04;
+    letter-spacing:-.03em; color:var(--ap-ink); text-wrap:balance; }
+  .ap-head p{ margin:14px 0 0; max-width:56ch; font-size:15.5px; line-height:1.65;
+    color:var(--ap-ink-2); text-wrap:pretty; }
+  .ap-head b{ color:var(--ap-ink); font-weight:700; }
+
+  /* Applying is free, and the page is full of prices. Said at the top, where the
+     decision to start is made, and again beside the button, where the decision to
+     finish is. Neither is a footnote. */
+  .ap-free{ display:flex; align-items:flex-start; gap:11px; margin-top:20px;
+    padding:14px 16px; border-radius:var(--ap-r-sm); background:var(--ap-cream);
+    font-size:13.5px; line-height:1.6; color:var(--ap-ink-2); }
+  .ap-free svg{ flex:none; margin-top:2px; color:var(--ap-gold-ink); }
+  .ap-free b{ color:var(--ap-ink); font-weight:700; }
+
+  /* ── the numbered sections ─────────────────────────────────────────────── */
+  .ap-sec{ margin-top:clamp(34px,5vw,52px); }
+  .ap-sec__h{ display:grid; grid-template-columns:34px minmax(0,1fr);
+    column-gap:clamp(12px,2vw,18px); align-items:baseline;
+    padding-bottom:14px; border-bottom:1px solid var(--ap-line-2); }
+  .ap-sec__n{ font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
+    letter-spacing:.14em; color:var(--ap-gold-ink); }
+  .ap-sec__h h2{ margin:0; font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
+    font-size:clamp(1.2rem,2.4vw,1.5rem); line-height:1.2; letter-spacing:-.02em;
+    color:var(--ap-ink); }
+  .ap-sec__h p{ margin:8px 0 0; max-width:58ch; font-size:14px; line-height:1.65;
+    color:var(--ap-ink-2); text-wrap:pretty; }
+  .ap-sec__b{ margin-top:20px; }
+
+  /* ── the stand chooser ─────────────────────────────────────────────────────
+     Every fact in a fixed position, and the price in a mono column that lines up
+     down the page — because the reader is comparing three of them, not reading
+     one. The whole row is the label, so the target is the row and not a 13px
+     circle: WCAG 2.5.8 is a floor here, not the goal. */
+  .ap-stand{ display:grid; grid-template-columns:20px minmax(0,1fr) auto;
+    column-gap:14px; row-gap:8px; align-items:start; padding:18px 16px;
+    border:1px solid var(--ap-line-2); border-radius:var(--ap-r-sm);
+    margin-bottom:10px; cursor:pointer; background:var(--ap-card); }
+  .ap-stand:hover{ border-color:var(--ap-ink); }
+  .ap-stand:has(input:checked){ border-color:var(--ap-ink);
+    box-shadow:inset 0 0 0 1px var(--ap-ink); background:var(--ap-cream); }
+  .ap-stand:focus-within{ outline:3px solid var(--ap-green); outline-offset:2px; }
+  .ap-stand input{ margin-top:3px; width:18px; height:18px; accent-color:var(--ap-green-dark); }
+  .ap-stand__n{ font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
+    font-size:1.08rem; line-height:1.25; letter-spacing:-.01em; color:var(--ap-ink); }
+  .ap-stand__meta{ display:block; margin-top:5px; font-family:var(--ag-font-mono,monospace);
+    font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ap-mute); }
+  /* Never colour alone: the word says "full" and the word says how many are left. */
+  .ap-stand__left{ color:var(--ap-green-dark); }
+  .ap-stand__full{ color:#8a2b18; }
+  .ap-stand__d{ grid-column:2 / -1; margin:0; font-size:13.5px; line-height:1.6;
+    color:var(--ap-ink-2); }
+  .ap-stand__p{ grid-column:3; grid-row:1; text-align:right; white-space:nowrap;
+    font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:1rem;
+    font-variant-numeric:tabular-nums; color:var(--ap-ink); }
+  /* `white-space:normal`, and a measure. The price cell is `nowrap` so a figure never
+     breaks across a line, and the deposit note inherited it — so a 28-character sentence
+     became one unbreakable run, the third column grew to fit it, and the meta line in the
+     middle column was squeezed until "step-free" broke in half. */
+  .ap-stand__dep{ display:block; margin-top:5px; margin-left:auto; max-width:15ch;
+    white-space:normal; font-family:var(--ag-font-body,sans-serif); font-size:11.5px;
+    font-weight:400; line-height:1.45; letter-spacing:0; color:var(--ap-mute); }
+  .ap-stand.is-full{ background:var(--ap-paper); }
+  .ap-stand.is-full .ap-stand__n{ color:var(--ap-ink-2); }
+
+  /* ── the entity pair ───────────────────────────────────────────────────── */
+  .ap-pick{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .ap-pick label{ display:grid; grid-template-columns:18px minmax(0,1fr); column-gap:11px;
+    align-items:start; padding:16px; border:1px solid var(--ap-line-2);
+    border-radius:var(--ap-r-sm); cursor:pointer; background:var(--ap-card); }
+  .ap-pick label:hover{ border-color:var(--ap-ink); }
+  .ap-pick label:has(input:checked){ border-color:var(--ap-ink);
+    box-shadow:inset 0 0 0 1px var(--ap-ink); background:var(--ap-cream); }
+  .ap-pick label:focus-within{ outline:3px solid var(--ap-green); outline-offset:2px; }
+  .ap-pick input{ margin-top:3px; width:18px; height:18px; accent-color:var(--ap-green-dark); }
+  .ap-pick b{ display:block; font-size:14.5px; font-weight:700; color:var(--ap-ink); }
+  .ap-pick small{ display:block; margin-top:5px; font-size:12.5px; line-height:1.55;
+    color:var(--ap-ink-2); }
+
+  /* ── what you will be asked to upload ──────────────────────────────────────
+     Both lists are rendered; `:has()` hides the one that does not apply. Written
+     as HIDE-THE-OTHER rather than show-the-right-one so that an engine without
+     `:has()` shows both — which is more information than the old page gave, never
+     less, and never a route somebody cannot complete. */
+  .ap-docs{ margin-top:18px; padding:18px 20px; border-radius:var(--ap-r-sm);
+    background:var(--ap-cream); }
+  .ap-docs h3{ margin:0; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--ap-gold-ink); }
+  .ap-docs ul{ margin:12px 0 0; padding:0; list-style:none; }
+  .ap-docs li{ position:relative; padding:0 0 0 22px; font-size:14px; line-height:1.6;
+    color:var(--ap-ink); }
+  .ap-docs li + li{ margin-top:7px; }
+  .ap-docs li::before{ content:""; position:absolute; left:2px; top:.62em; width:8px;
+    height:8px; border-radius:50%; border:1.5px solid var(--ap-gold-ink); }
+  .ap-docs p{ margin:12px 0 0; max-width:56ch; font-size:12.5px; line-height:1.6;
+    color:var(--ap-ink-2); }
+  .ap-f:has(#apEntBusiness:checked) .ap-docs--ind{ display:none }
+  .ap-f:has(#apEntIndividual:checked) .ap-docs--biz{ display:none }
+  /* And the CAC field, by the same rule and in the same direction. */
+  .ap-f:has(#apEntIndividual:checked) .ap-cac{ display:none }
+
+  /* ── fields ──────────────────────────────────────────────────────────────── */
+  .ap-grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px 18px; }
+  /* 11px, not the 9.5px the decorative kickers use. This is the primary label of a
+     required field on a form somebody fills in once — it is read rather than glanced at,
+     and uppercase mono at 9.5px with .22em tracking is a caption, not a label. */
+  .ap-field label{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
+    font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--ap-ink-2);
+    margin-bottom:8px; }
+  .ap-field label em{ font-style:normal; color:var(--ap-mute); }
   .ap-f input[type=text], .ap-f input[type=email], .ap-f input[type=tel],
-  .ap-f input[type=password], .ap-f textarea, .ap-f select{
-    width:100%; padding:11px 13px; border:1px solid rgba(16,41,44,.18); border-radius:11px;
-    font:inherit; font-size:15px; background:#fff; color:var(--ag-ink); }
-  .ap-f input:focus, .ap-f textarea:focus, .ap-f select:focus{
-    outline:2px solid #1a6118; outline-offset:1px; border-color:#1a6118; }
-  .ap-f small{ display:block; margin-top:5px; font-size:12.5px; color:#61707a; }
+  .ap-f input[type=password], .ap-f textarea{
+    width:100%; box-sizing:border-box; padding:0 14px; min-height:48px;
+    border:1px solid var(--ap-line-2); border-radius:var(--ap-r-sm);
+    font-family:inherit; font-size:16px; background:var(--ap-card); color:var(--ap-ink);
+    outline:none; transition:border-color .12s; }
+  .ap-f textarea{ padding:13px 14px; line-height:1.6; resize:vertical; }
+  .ap-f input:focus, .ap-f textarea:focus{ border-color:var(--ap-green);
+    box-shadow:0 0 0 3px rgba(35,123,34,.16); }
+  .ap-field small{ display:block; margin-top:7px; font-size:12.5px; line-height:1.55;
+    color:var(--ap-mute); }
+  .ap-wide{ grid-column:1 / -1; }
 
-  /* Radio cards. Min 44px tall and the whole card is the label, so the target is the card
-     and not a 13px circle — WCAG 2.5.8 is a floor here, not the goal. */
-  .ap-pick{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  @media (max-width:640px){ .ap-pick{ grid-template-columns:1fr; } }
-  .ap-pick label{ display:flex; gap:11px; align-items:flex-start; min-height:44px;
-                  padding:14px 16px; border:1px solid rgba(16,41,44,.18); border-radius:14px;
-                  cursor:pointer; font-weight:600; font-size:14.5px; }
-  .ap-pick label:has(input:checked){ border-color:#1a6118; box-shadow:0 0 0 1px #1a6118; background:#f2f8f2; }
-  .ap-pick label:focus-within{ outline:2px solid #1a6118; outline-offset:2px; }
-  .ap-pick input{ margin-top:2px; width:18px; height:18px; accent-color:#1a6118; }
-  .ap-pick span small{ display:block; margin-top:4px; font-weight:400; font-size:12.5px;
-                       line-height:1.5; color:#5a6468; }
+  .ap-check{ display:grid; grid-template-columns:18px minmax(0,1fr); column-gap:11px;
+    align-items:start; padding:14px 0; cursor:pointer; }
+  .ap-check + .ap-check{ border-top:1px solid var(--ap-line); }
+  .ap-check input{ margin-top:2px; width:18px; height:18px; accent-color:var(--ap-green-dark); }
+  .ap-check b{ display:block; font-size:14.5px; font-weight:600; color:var(--ap-ink); }
+  .ap-check small{ display:block; margin-top:5px; font-size:12.5px; line-height:1.55;
+    color:var(--ap-ink-2); }
+  .ap-checks{ border-top:1px solid var(--ap-line-2); }
 
-  .ap-stand{ display:flex; gap:12px; align-items:flex-start; min-height:44px; padding:14px 16px;
-             border:1px solid rgba(16,41,44,.15); border-radius:14px; margin-bottom:10px;
-             cursor:pointer; }
-  .ap-stand:has(input:checked){ border-color:#1a6118; box-shadow:0 0 0 1px #1a6118; background:#f2f8f2; }
-  .ap-stand:focus-within{ outline:2px solid #1a6118; outline-offset:2px; }
-  .ap-stand input{ margin-top:3px; width:18px; height:18px; accent-color:#1a6118; }
-  .ap-stand__n{ font-weight:700; font-size:15px; }
-  .ap-stand__m{ margin-top:4px; font-size:13px; line-height:1.55; color:#5a6468; }
-  .ap-stand__p{ margin-left:auto; font-family:var(--ag-font-mono); font-weight:700;
-                font-size:15px; color:var(--ag-green); white-space:nowrap; }
-  .ap-stand.is-full{ opacity:.62; }
+  /* #8a2b18 on #fdecea is 6.4:1. An error message that fails contrast is not an
+     error message. */
+  .ap-err{ background:#fdecea; border:1px solid #f3c4bd; color:#8a2b18;
+    border-radius:var(--ap-r-sm); padding:14px 16px; font-size:14.5px; line-height:1.6;
+    margin-top:22px; }
+  .ap-err b{ font-weight:700; }
 
-  .ap-check{ display:flex; gap:10px; align-items:flex-start; min-height:44px; padding:10px 0;
-             font-size:14.5px; line-height:1.5; cursor:pointer; }
-  .ap-check input{ margin-top:2px; width:18px; height:18px; accent-color:#1a6118; }
+  /* ── what happens next, and the submit ────────────────────────────────── */
+  .ap-next{ margin-top:20px; }
+  .ap-next li{ display:grid; grid-template-columns:26px minmax(0,1fr); column-gap:12px;
+    align-items:baseline; padding:14px 0; border-bottom:1px solid var(--ap-line);
+    font-size:14px; line-height:1.65; color:var(--ap-ink-2); }
+  .ap-next{ list-style:none; margin:20px 0 0; padding:0;
+    border-top:1px solid var(--ap-line-2); }
+  .ap-next b{ color:var(--ap-ink); font-weight:700; }
+  .ap-next span{ font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
+    letter-spacing:.14em; color:var(--ap-gold-ink); }
 
-  /* #8a2b18 on #fdecea is 6.4:1. An error message that fails contrast is not an error message. */
-  .ap-err{ background:#fdecea; border:1px solid #f3c4bd; color:#8a2b18; border-radius:14px;
-           padding:14px 16px; font-size:14.5px; line-height:1.6; margin-top:18px; }
-
-  .ap-go{ display:inline-flex; align-items:center; justify-content:center; min-height:50px;
-          padding:14px 30px; border:0; border-radius:14px; background:#12481d; color:#fff;
-          font:inherit; font-weight:700; font-size:15.5px; cursor:pointer; }
+  .ap-go{ display:inline-flex; align-items:center; justify-content:center; min-height:52px;
+    margin-top:28px; padding:0 30px; border:0; border-radius:var(--ag-r-pill,999px);
+    background:var(--ap-green-dark); color:#fff; font-family:inherit; font-weight:700;
+    font-size:15.5px; cursor:pointer; }
   .ap-go:hover{ background:#0d3716; }
-  .ap-note{ margin-top:14px; font-size:13px; line-height:1.65; color:#5a6468; }
+  .ap-go:focus-visible{ outline:3px solid var(--ap-green); outline-offset:3px; }
+  .ap-note{ margin-top:14px; max-width:58ch; font-size:13px; line-height:1.65;
+    color:var(--ap-mute); }
+
+  .ap-empty{ padding:22px 0; font-size:14.5px; line-height:1.65; color:var(--ap-ink-2); }
+
+  @media (max-width:640px){
+    .ap-grid, .ap-pick{ grid-template-columns:1fr; }
+    /* The price moves under the name rather than off the right edge of a 320px
+       row: at that width the third column squeezes the name to two words a line. */
+    .ap-stand{ grid-template-columns:20px minmax(0,1fr); }
+    .ap-stand__p{ grid-column:2; grid-row:auto; text-align:left; }
+    /* The note is pushed to the right of a right-aligned column above this width. Left
+       of a left-aligned one it has to come back, or it floats away from its own figure. */
+    .ap-stand__dep{ margin-left:0; max-width:none; }
+  }
 </style>
 {% endblock %}
 
@@ -85,169 +266,271 @@
 <div class="ap">
 
   <div class="ap-head">
-    <a class="ap-back" href="/events/{{ event.slug }}/stands">← The call and its terms</a>
-    <h1>Apply for a stand</h1>
-    <p>{{ event.title }} · applications close {{ call.closes_at|slice(0,16) }}</p>
+    <a class="ap-back" href="/events/{{ event.slug }}/stands">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+      The call and its terms
+    </a>
+    <span class="ap-kick" style="margin-top:16px">Stand application</span>
+    <h1>Apply to trade at {{ event.title }}</h1>
+    {# The date, WRITTEN OUT. `2026-09-01 08:16` is a database value; a person deciding
+       whether they have time reads a day and a month. #}
+    <p>Applications close <b>{{ call.closes_at|date('l j F Y') }}</b>, at
+      {{ call.closes_at|date('g:i a') }}. Everything that decides your application was
+      published on the call, and nothing below is scored on how quickly you fill it in.</p>
+
+    <p class="ap-free">
+      <svg aria-hidden="true" focusable="false" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+      <span><b>Applying costs nothing.</b> The prices below are what a stand costs if you
+        are offered one and accept it. Nothing is taken today, and no card details are
+        asked for anywhere on this form.</span>
+    </p>
   </div>
 
   {% if error %}
-    <div class="ap-err" role="alert">{{ error }}</div>
+    <div class="ap-err" role="alert"><b>That did not go through.</b> {{ error }}</div>
   {% endif %}
 
   <form method="post" action="/events/{{ event.slug }}/stands/apply" class="ap-f">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
 
-    {# ── 1 · WHICH STAND ─────────────────────────────────────────────────── #}
-    <div class="ap-card">
-      <h2>Which stand</h2>
-      <p class="hint">One application per stand type. Applying for two different types is fine
-        if you would take either.</p>
-
-      <fieldset style="border:0;padding:0;margin:0">
-        <legend class="sr-only">Choose a stand type</legend>
-        {% for c in capacity %}
-          <label class="ap-stand {% if c.left == 0 %}is-full{% endif %}">
-            <input type="radio" name="stand_type_id" value="{{ c.type.id }}" required
-                   {% if old.stand_type_id is defined and old.stand_type_id == c.type.id %}checked{% endif %}>
-            <span>
-              <span class="ap-stand__n">{{ c.type.name }}</span>
-              <span class="ap-stand__m">
-                <strong>{{ c.size }}</strong> ·
-                {{ categories[c.type.category]|default(c.type.category) }} ·
-                {% if c.left > 0 %}{{ c.left }} of {{ c.quota }} places open
-                {% else %}all {{ c.quota }} places currently held — you can still apply and be waitlisted{% endif %}
-                {% if c.type.description %}<br>{{ c.type.description }}{% endif %}
-              </span>
-            </span>
-            <span class="ap-stand__p">₦{{ c.type.price_naira|number_format }}</span>
-          </label>
-        {% else %}
-          <p style="color:#5a6468">Nothing is on offer for this event.</p>
-        {% endfor %}
-      </fieldset>
-    </div>
-
-    {# ── 2 · WHO YOU ARE — only for somebody not already signed in ────────── #}
-    {% if org %}
-      <div class="ap-card">
-        <h2>Applying as {{ org.name }}</h2>
-        <p class="hint" style="margin-bottom:0">
-          Signed in, so we already have your details. If anything has changed, update it on your
-          <a href="/org">dashboard</a> before the call closes — it is what the eligibility check reads.
-        </p>
-      </div>
-    {% else %}
-      <div class="ap-card">
-        <h2>Who is applying</h2>
-        <p class="hint">You do not need to be a registered company to trade at our events.</p>
-
-        <fieldset style="border:0;padding:0;margin:0 0 20px">
-          <legend style="font-size:13.5px;font-weight:600;margin-bottom:8px">Are you a business or an individual?</legend>
-          <div class="ap-pick">
-            <label>
-              <input type="radio" name="entity_type" value="individual"
-                     {% if old.entity_type is not defined or old.entity_type == 'individual' %}checked{% endif %}>
-              <span>Individual or sole trader
-                <small>You trade under your own name or a market name, and are not registered at
-                  the CAC. We ask for a photo ID instead.</small></span>
-            </label>
-            <label>
-              <input type="radio" name="entity_type" value="business"
-                     {% if old.entity_type is defined and old.entity_type == 'business' %}checked{% endif %}>
-              <span>Registered business
-                <small>You have a CAC registration number — RC, BN or IT.</small></span>
-            </label>
-          </div>
-        </fieldset>
-
-        <div class="ap-grid">
-          <div>
-            <label for="apName">Name you trade under</label>
-            <input id="apName" name="name" type="text" maxlength="200" required
-                   value="{{ old.name|default('') }}" placeholder="Mama Ngozi’s Kitchen">
-            <small>This is what appears on the stand list. It can be your own name.</small>
-          </div>
-          <div>
-            <label for="apLegal">Full legal name</label>
-            <input id="apLegal" name="legal_name" type="text" maxlength="200" required
-                   value="{{ old.legal_name|default('') }}" placeholder="Ngozi Chioma Okafor">
-            <small>Your own full name, or the registered name if you are a business. It must match
-              the bank account we settle to — we check that with your bank.</small>
-          </div>
-          <div>
-            <label for="apCac">CAC number <span style="font-weight:400;color:#61707a">— registered businesses only</span></label>
-            <input id="apCac" name="cac_number" type="text" maxlength="60"
-                   value="{{ old.cac_number|default('') }}" placeholder="BN1234567">
-            <small>Leave this empty if you are applying as an individual. Do not borrow somebody
-              else's number — it puts the wrong name on the paperwork.</small>
-          </div>
-          <div>
-            <label for="apContact">Contact name</label>
-            <input id="apContact" name="contact_name" type="text" maxlength="160"
-                   value="{{ old.contact_name|default('') }}">
-            <small>Who will actually be standing at the pitch.</small>
-          </div>
-          <div>
-            <label for="apEmail">Email</label>
-            <input id="apEmail" name="contact_email" type="email" maxlength="190" required
-                   autocomplete="email" value="{{ old.contact_email|default('') }}">
-            <small>This becomes your sign-in.</small>
-          </div>
-          <div>
-            <label for="apPhone">Phone</label>
-            <input id="apPhone" name="contact_phone" type="tel" maxlength="40"
-                   autocomplete="tel" value="{{ old.contact_phone|default('') }}">
-          </div>
-          <div>
-            <label for="apPass">Choose a password</label>
-            <input id="apPass" name="password" type="password" minlength="12" required
-                   autocomplete="new-password">
-            <small>At least 12 characters. This sign-in can later request payouts, so it is held
-              to a higher bar than a shopping account.</small>
-          </div>
+    {# ── 01 · WHICH STAND ─────────────────────────────────────────────────── #}
+    <section class="ap-sec">
+      <div class="ap-sec__h">
+        <span class="ap-sec__n" aria-hidden="true">01</span>
+        <div>
+          <h2>Which stand</h2>
+          <p>One application per stand type. Applying for two different types is fine if you
+            would take either — apply again once this one is in.</p>
         </div>
       </div>
+      <div class="ap-sec__b">
+        <fieldset style="border:0;padding:0;margin:0">
+          <legend class="sr-only">Choose a stand type</legend>
+          {% for c in capacity %}
+            <label class="ap-stand{% if c.left == 0 %} is-full{% endif %}">
+              <input type="radio" name="stand_type_id" value="{{ c.type.id }}" required
+                     {% if old.stand_type_id is defined and old.stand_type_id == c.type.id %}checked{% endif %}>
+              <span>
+                <span class="ap-stand__n">{{ c.type.name }}</span>
+                <span class="ap-stand__meta">
+                  {{ c.size }} · {{ categories[c.type.category]|default(c.type.category) }} ·
+                  {% if c.left > 0 %}<span class="ap-stand__left">{{ c.left }} of {{ c.quota }} open</span>
+                  {%- else %}<span class="ap-stand__full">All {{ c.quota }} held · waiting list</span>{% endif %}
+                  {%- if c.type.includes_power %} · Power included{% endif %}
+                  {%- if c.type.step_free %} · Step-free{% endif %}
+                </span>
+              </span>
+              <span class="ap-stand__p">₦{{ c.type.price_naira|number_format }}
+                {% if c.type.deposit_naira > 0 %}
+                  <span class="ap-stand__dep">₦{{ c.type.deposit_naira|number_format }} deposit
+                    on acceptance</span>
+                {% endif %}
+              </span>
+              {% if c.type.description %}<span class="ap-stand__d">{{ c.type.description }}</span>{% endif %}
+              {% if c.left == 0 %}
+                <span class="ap-stand__d">You can still apply. If a place comes free the
+                  longest-waiting applicant is offered it first.</span>
+              {% endif %}
+            </label>
+          {% else %}
+            <p class="ap-empty">Nothing is on offer for this event yet. The call lists what
+              will be, as soon as it is published.</p>
+          {% endfor %}
+        </fieldset>
+      </div>
+    </section>
+
+    {# ── 02 · WHO IS APPLYING ─────────────────────────────────────────────── #}
+    {% if org %}
+      <section class="ap-sec">
+        <div class="ap-sec__h">
+          <span class="ap-sec__n" aria-hidden="true">02</span>
+          <div>
+            <h2>Applying as {{ org.name }}</h2>
+            <p>You are signed in, so we already have your details. If anything has changed,
+              update it on your <a href="/org">dashboard</a> before the call closes — it is
+              what the eligibility check reads.</p>
+          </div>
+        </div>
+      </section>
+    {% else %}
+      <section class="ap-sec">
+        <div class="ap-sec__h">
+          <span class="ap-sec__n" aria-hidden="true">02</span>
+          <div>
+            <h2>Who is applying</h2>
+            <p>You do not need to be a registered company to trade at our events. Most of the
+              people who do are not.</p>
+          </div>
+        </div>
+        <div class="ap-sec__b">
+
+          <fieldset style="border:0;padding:0;margin:0">
+            <legend class="ap-kick" style="color:var(--ap-mute);margin-bottom:10px">
+              Are you a business or an individual?</legend>
+            <div class="ap-pick">
+              <label>
+                <input type="radio" name="entity_type" value="individual" id="apEntIndividual"
+                       {% if old.entity_type is not defined or old.entity_type == 'individual' %}checked{% endif %}>
+                <span>
+                  <b>Individual or sole trader</b>
+                  <small>You trade under your own name or a market name, and are not
+                    registered at the CAC. We ask for a photo ID instead.</small>
+                </span>
+              </label>
+              <label>
+                <input type="radio" name="entity_type" value="business" id="apEntBusiness"
+                       {% if old.entity_type is defined and old.entity_type == 'business' %}checked{% endif %}>
+                <span>
+                  <b>Registered business</b>
+                  <small>You have a CAC registration number — RC, BN or IT.</small>
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          {# ── WHAT YOU WILL BE ASKED TO UPLOAD ──────────────────────────────
+             Before the questions, not after the submit. These are what decide whether an
+             application is COMPLETE, and completeness is the published tiebreak — so
+             somebody who learns here that they need public liability insurance can go and
+             get it today instead of finding out in a fortnight. #}
+          {% for entity, list in docs %}
+            <div class="ap-docs ap-docs--{{ entity == 'individual' ? 'ind' : 'biz' }}">
+              <h3>What you will upload · {{ entities[entity]|default(entity) }}</h3>
+              <ul>
+                {% for label in list %}<li>{{ label }}</li>{% endfor %}
+              </ul>
+              <p>Not now — you upload these on your dashboard straight after applying. An
+                application is not complete until they are all on file and in date, and
+                where applications are otherwise equal the tiebreak is whoever became
+                complete first.</p>
+            </div>
+          {% endfor %}
+
+          <div class="ap-grid" style="margin-top:24px">
+            <div class="ap-field">
+              <label for="apName">Name you trade under</label>
+              <input id="apName" name="name" type="text" maxlength="200" required
+                     value="{{ old.name|default('') }}" placeholder="Mama Ngozi’s Kitchen">
+              <small>This is what appears on the stand list. It can be your own name.</small>
+            </div>
+            <div class="ap-field">
+              <label for="apLegal">Full legal name</label>
+              <input id="apLegal" name="legal_name" type="text" maxlength="200" required
+                     value="{{ old.legal_name|default('') }}" placeholder="Ngozi Chioma Okafor">
+              <small>Your own full name, or the registered name if you are a business. It
+                must match the bank account we settle to — we check that with your bank.</small>
+            </div>
+            {# Revealed by the answer above. See the `:has()` note in the stylesheet: this
+               is written to degrade to VISIBLE, never to hidden. #}
+            <div class="ap-field ap-cac ap-wide">
+              <label for="apCac">CAC number <em>— registered businesses only</em></label>
+              <input id="apCac" name="cac_number" type="text" maxlength="60"
+                     value="{{ old.cac_number|default('') }}" placeholder="BN1234567">
+              <small>Your own RC, BN or IT number. Do not borrow somebody else’s — it puts
+                the wrong name on the paperwork and on the money.</small>
+            </div>
+            <div class="ap-field">
+              <label for="apEmail">Email</label>
+              <input id="apEmail" name="contact_email" type="email" maxlength="190" required
+                     autocomplete="email" value="{{ old.contact_email|default('') }}">
+              <small>This becomes your sign-in, and it is where the decision goes.</small>
+            </div>
+            <div class="ap-field">
+              <label for="apPass">Choose a password</label>
+              <input id="apPass" name="password" type="password" minlength="12" required
+                     autocomplete="new-password">
+              <small>At least 12 characters. This sign-in can later request payouts, so it
+                is held to a higher bar than a shopping account.</small>
+            </div>
+            <div class="ap-field">
+              <label for="apContact">Contact name <em>— optional</em></label>
+              <input id="apContact" name="contact_name" type="text" maxlength="160"
+                     autocomplete="name" value="{{ old.contact_name|default('') }}">
+              <small>Who will actually be standing at the pitch, if that is somebody else.</small>
+            </div>
+            <div class="ap-field">
+              <label for="apPhone">Phone <em>— optional</em></label>
+              <input id="apPhone" name="contact_phone" type="tel" maxlength="40"
+                     autocomplete="tel" value="{{ old.contact_phone|default('') }}">
+              <small>Only used if something about your pitch has to be settled on the day.</small>
+            </div>
+          </div>
+        </div>
+      </section>
     {% endif %}
 
-    {# ── 3 · WHAT YOU SELL ───────────────────────────────────────────────── #}
-    <div class="ap-card">
-      <h2>What you will sell</h2>
-      <p class="hint">This is what the panel reads, and it decides which certificates you need —
-        hot food and cosmetics carry requirements that a bookstall does not.</p>
-
-      <div>
-        <label for="apSell">Describe your goods</label>
-        <textarea id="apSell" name="what_they_sell" rows="5" required
-          placeholder="Jollof rice, moi moi and chin chin, cooked on site. Two staff.">{{ old.what_they_sell|default('') }}</textarea>
+    {# ── 03 · WHAT YOU WILL SELL ──────────────────────────────────────────── #}
+    <section class="ap-sec">
+      <div class="ap-sec__h">
+        <span class="ap-sec__n" aria-hidden="true">03</span>
+        <div>
+          <h2>What you will sell</h2>
+          <p>This is what the panel reads, and it decides which certificates you need — hot
+            food and cosmetics carry requirements that a bookstall does not.</p>
+        </div>
       </div>
+      <div class="ap-sec__b">
+        <div class="ap-field">
+          <label for="apSell">Describe your goods</label>
+          <textarea id="apSell" name="what_they_sell" rows="5" required
+            placeholder="Jollof rice, moi moi and chin chin, cooked on site. Two staff.">{{ old.what_they_sell|default('') }}</textarea>
+          <small>A few plain sentences is enough. What you sell, how it is made or served,
+            and how many of you there will be.</small>
+        </div>
 
-      <div style="margin-top:14px">
-        <label class="ap-check">
-          <input type="checkbox" name="needs_power" value="1"
-                 {% if old.needs_power is defined %}checked{% endif %}>
-          <span>I need mains power at the pitch</span>
-        </label>
-        <label class="ap-check">
-          <input type="checkbox" name="needs_step_free" value="1"
-                 {% if old.needs_step_free is defined %}checked{% endif %}>
-          <span>I need step-free access to the pitch
-            <small style="display:block;color:#5a6468;font-size:12.5px;margin-top:3px">
-              Asked here rather than left to chance. Step-free pitches are allocated, not
-              improvised on the morning.</small></span>
-        </label>
+        <div class="ap-checks" style="margin-top:24px">
+          <label class="ap-check">
+            <input type="checkbox" name="needs_power" value="1"
+                   {% if old.needs_power is defined %}checked{% endif %}>
+            <span><b>I need mains power at the pitch</b>
+              <small>Some stand types include it and say so above. Asking here is how you get
+                it on a pitch that does not.</small></span>
+          </label>
+          <label class="ap-check">
+            <input type="checkbox" name="needs_step_free" value="1"
+                   {% if old.needs_step_free is defined %}checked{% endif %}>
+            <span><b>I need step-free access to the pitch</b>
+              <small>Asked here rather than left to chance. Step-free pitches are allocated,
+                not improvised on the morning.</small></span>
+          </label>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div style="margin-top:22px">
+    {# ── 04 · WHAT HAPPENS NEXT ───────────────────────────────────────────
+       The question somebody is holding while they fill in section 03, answered before
+       they have to press anything. It is also where the tiebreak is stated a second
+       time, because it is the one fact that changes what they do this afternoon. #}
+    <section class="ap-sec">
+      <div class="ap-sec__h">
+        <span class="ap-sec__n" aria-hidden="true">04</span>
+        <div>
+          <h2>What happens after you press it</h2>
+        </div>
+      </div>
+      <ul class="ap-next">
+        <li><span aria-hidden="true">01</span>
+          <div>{% if org %}Your application is recorded against this call.{% else %}Your
+            account is created and you are signed in — one step, not two.{% endif %}</div></li>
+        <li><span aria-hidden="true">02</span>
+          <div>You land on your dashboard and <b>upload your certificates</b>. The
+            application is not complete until they are all on file and in date.</div></li>
+        <li><span aria-hidden="true">03</span>
+          <div>Eligibility is a rule, not an opinion. If you fail it we say exactly what is
+            missing, and you can fix it while the call is still open.</div></li>
+        <li><span aria-hidden="true">04</span>
+          <div><b>You hear either way, with a reason.</b> If you are offered a stand you have
+            {{ offer_hours|default(72) }} hours to accept before the place goes to the
+            waiting list.</div></li>
+      </ul>
+
       <button class="ap-go" type="submit">
         {{ org ? 'Submit application' : 'Create account and apply' }}</button>
-      <p class="ap-note">
-        What happens next: you land on your dashboard and upload your certificates. Your
-        application is not <em>complete</em> until they are all on file, and where applications
-        are otherwise equal the tiebreak is whoever became complete first — so it is worth doing
-        today. You will hear either way, with a reason.
-      </p>
-    </div>
+      <p class="ap-note"><b>Still free.</b> Pressing this does not take a payment and does
+        not commit you to a stand — a place is only yours once you are offered one and
+        accept it.</p>
+    </section>
   </form>
 </div>
 {% endblock %}
