@@ -12,77 +12,281 @@
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  .pd{ max-width:960px; margin:0 auto; padding:30px 20px 90px; }
-  .pd__head{ display:flex; align-items:flex-end; justify-content:space-between; gap:14px;
-    flex-wrap:wrap; margin-bottom:6px; }
-  .pd__head h1{ margin:0; font-family:var(--ag-font-display); font-weight:800;
-    font-size:clamp(1.4rem,4vw,1.95rem); color:var(--ag-ink); }
-  .pd__who{ font-size:13px; color:var(--ag-ink-soft,#626a6e); margin-top:3px; }
-  .pd__out{ min-height:38px; padding:9px 16px; border-radius:999px; cursor:pointer;
-    background:none; border:1px solid rgba(16,41,44,.18); font:600 13px/1 inherit;
-    color:var(--ag-ink-soft,#626a6e); }
+  /* ══════════════════════════════════════════════════════════════════════════
+     The same system as the application form the vendor arrived through, and as
+     the donations page a partner's supporters see: paper ground, hairline rules,
+     mono micro-labels, one gold accent, emerald reserved for the action.
 
-  .pd__flag{ border-radius:12px; padding:12px 15px; font-size:13.5px; line-height:1.65;
-    margin:14px 0 0; font-weight:600; }
-  .pd__flag--ok{ background:#effaf0; border:1px solid #bfe6bd; color:#1a6118; }
-  .pd__flag--err{ background:#fdeaea; border:1px solid #f3c2c2; color:#b42318; }
-  .pd__flag--warn{ background:#fffdf5; border:1px solid #ecd9a0; color:#6b5312; }
+     The `.pd__t`, `.pd__chip`, `.pd__pay`, `.pd__num` and `.pd__who` names are
+     kept as they were. Every table and form on this page uses them, and renaming
+     working markup to match a new stylesheet is how a control quietly loses its
+     styling on a screen somebody withdraws money from.
+     ══════════════════════════════════════════════════════════════════════════ */
+  body[data-page="partner"]{
+    --pd-paper:#f0f2f2;
+    --pd-card:#ffffff;
+    --pd-cream:#f6f2e6;
+    --pd-ink:#10292C;
+    --pd-ink-2:#4a5256;
+    --pd-mute:#626a6e;
+    --pd-line:rgba(16,41,44,.12);
+    --pd-line-2:rgba(16,41,44,.22);
+    --pd-gold:#f3b416;
+    --pd-gold-ink:#745001;
+    --pd-green:#237b22;
+    --pd-green-dark:#12481d;
+    --pd-r:14px;
+    --pd-r-sm:4px;
 
-  .pd__grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
-    gap:14px; margin-top:18px; }
-  .pd__stat{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.09);
-    border-radius:16px; padding:16px 18px; }
-  .pd__stat dt{ font-size:11.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase;
-    color:var(--ag-ink-soft,#626a6e); margin:0; }
+    background:var(--pd-paper); color:var(--pd-ink);
+  }
+  .pd{ max-width:1000px; margin:0 auto;
+    padding:clamp(20px,4vw,36px) var(--ag-gutter,32px) clamp(56px,7vw,96px); }
+
+  .pd-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; letter-spacing:.24em; text-transform:uppercase; color:var(--pd-gold-ink); }
+
+  /* ── the masthead ────────────────────────────────────────────────────────── */
+  .pd__head{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+    flex-wrap:wrap; }
+  .pd__head h1{ margin:12px 0 0; font-family:var(--ag-font-display,Georgia,serif);
+    font-weight:800; font-size:clamp(1.7rem,4vw,2.4rem); line-height:1.05;
+    letter-spacing:-.03em; color:var(--pd-ink); }
+  .pd__who{ font-size:13px; line-height:1.6; color:var(--pd-mute); margin-top:3px; }
+  .pd__who a{ color:var(--pd-green-dark); text-decoration:underline; }
+  .pd__out{ min-height:40px; padding:0 16px; border-radius:var(--ag-r-pill,999px);
+    cursor:pointer; background:none; border:1px solid var(--pd-line-2);
+    font:700 13px/1 inherit; color:var(--pd-ink-2); display:inline-flex;
+    align-items:center; justify-content:center; }
+  .pd__out:hover{ border-color:var(--pd-ink); color:var(--pd-ink); }
+  .pd__out:focus-visible{ outline:3px solid var(--pd-green); outline-offset:2px; }
+
+  /* ── THE STATE PANEL ──────────────────────────────────────────────────────
+     What a dashboard is actually for, and what this one did not have. Its users
+     are people waiting on a decision, and the three questions they arrive with
+     are: where am I, what is holding it up, and what can I do about it. Those
+     were previously spread across a banner at the top, a red "Not complete" in a
+     table two screens down, and an upload form with no connection to either.
+
+     One strip, three answers, and the action is a link to the thing it names. */
+  .pd-state{ margin-top:26px; padding:20px 22px; border-radius:var(--pd-r);
+    background:var(--pd-card); border:1px solid var(--pd-line);
+    border-left:4px solid var(--pd-state, var(--pd-gold)); }
+  .pd-state--ok{   --pd-state:#237b22 }
+  .pd-state--wait{ --pd-state:#f3b416 }
+  .pd-state--stop{ --pd-state:#b42318 }
+  .pd-state__t{ margin:0; font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
+    font-size:clamp(1.05rem,2vw,1.25rem); line-height:1.3; letter-spacing:-.01em;
+    color:var(--pd-ink); }
+  .pd-state__b{ margin:9px 0 0; max-width:62ch; font-size:14px; line-height:1.7;
+    color:var(--pd-ink-2); text-wrap:pretty; }
+  .pd-state__b strong{ color:var(--pd-ink); font-weight:700; }
+  .pd-state__go{ display:inline-flex; align-items:center; gap:8px; min-height:44px;
+    margin-top:16px; padding:0 20px; border-radius:var(--ag-r-pill,999px);
+    background:var(--pd-ink); color:#fff; font-weight:700; font-size:14px;
+    text-decoration:none; }
+  .pd-state__go:hover{ background:var(--pd-green-dark) }
+  .pd-state__go:focus-visible{ outline:3px solid var(--pd-green); outline-offset:3px }
+
+  .pd__flag{ border-radius:var(--pd-r-sm); padding:13px 16px; font-size:13.5px;
+    line-height:1.65; margin:18px 0 0; font-weight:600; border:1px solid; }
+  .pd__flag--ok{ background:#effaf0; border-color:#bfe6bd; color:#1a6118; }
+  .pd__flag--err{ background:#fdeaea; border-color:#f3c2c2; color:#b42318; }
+  .pd__flag--warn{ background:#fffdf5; border-color:#ecd9a0; color:#6b5312; }
+
+  /* ── THE LOCAL NAV ───────────────────────────────────────────────────────
+     Because this page is four thousand pixels of single-column cards and had no
+     way to get from the top of it to any of them. Sticky on a desktop, a
+     scrolling row on a phone. `scroll-margin-top` on the sections, or the site's
+     own fixed header lands on top of every heading it jumps to. */
+  .pd-nav{ position:sticky; top:calc(var(--ag-nav-h,72px) + 6px); z-index:5;
+    margin:26px 0 0; padding:10px 0; background:var(--pd-paper);
+    border-top:1px solid var(--pd-line-2); border-bottom:1px solid var(--pd-line-2);
+    display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; }
+  .pd-nav::-webkit-scrollbar{ display:none }
+  .pd-nav a{ flex:none; display:inline-flex; align-items:center; gap:8px; min-height:40px;
+    padding:0 14px; border-radius:var(--pd-r-sm); font-family:var(--ag-font-mono,monospace);
+    font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--pd-ink-2); text-decoration:none; white-space:nowrap; }
+  .pd-nav a:hover{ background:var(--pd-cream); color:var(--pd-ink) }
+  .pd-nav a:focus-visible{ outline:3px solid var(--pd-green); outline-offset:-2px }
+  /* A count beside the label, so the nav says what is behind it rather than only
+     where it goes. The one that needs attention is gold and says so in a word. */
+  .pd-nav b{ display:inline-flex; align-items:center; min-height:18px; padding:0 6px;
+    border-radius:3px; background:var(--pd-line); font-weight:700; font-size:10px;
+    letter-spacing:.08em; color:var(--pd-ink-2) }
+  .pd-nav .is-todo{ background:rgba(243,180,22,.28); color:#5f4805 }
+
+  /* ── sections ────────────────────────────────────────────────────────────── */
+  /* ONE GUTTER for the whole section. With the number inside the header only, the heading
+     and its prose were indented past it and the table underneath was not — so every section
+     had two left edges. The number lives in a 34px column and everything else in the second.
+     Below 700px the gutter collapses, because 34px of a 320px screen is a tenth of the
+     measure for a two-character label. */
+  .pd-sec{ margin-top:clamp(32px,4.5vw,48px);
+    scroll-margin-top:calc(var(--ag-nav-h,72px) + 64px);
+    display:grid; grid-template-columns:34px minmax(0,1fr);
+    column-gap:clamp(12px,2vw,18px); }
+  .pd-sec__h{ grid-column:1 / -1; display:grid; grid-template-columns:subgrid;
+    align-items:baseline; padding-bottom:14px; border-bottom:1px solid var(--pd-line-2); }
+  .pd-sec__b{ grid-column:2; }
+  @media (max-width:700px){
+    .pd-sec{ grid-template-columns:minmax(0,1fr); }
+    .pd-sec__h{ grid-template-columns:minmax(0,1fr); }
+    .pd-sec__b{ grid-column:1; }
+    .pd-sec__n{ display:none; }
+  }
+  .pd-sec__n{ font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
+    letter-spacing:.14em; color:var(--pd-gold-ink); }
+  .pd-sec__h h2{ margin:0; font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
+    font-size:clamp(1.2rem,2.4vw,1.5rem); line-height:1.2; letter-spacing:-.02em;
+    color:var(--pd-ink); }
+  .pd-sec__h p{ margin:8px 0 0; max-width:62ch; font-size:13.5px; line-height:1.7;
+    color:var(--pd-ink-2); text-wrap:pretty; }
+  .pd-sec__b > :first-child{ margin-top:0 }
+  .pd-sec__b{ padding-top:18px; }
+  .pd-sec__b > p{ margin:0 0 14px; max-width:62ch; font-size:13.5px; line-height:1.7;
+    color:var(--pd-ink-2); }
+
+  /* The money row, as a ledger rather than four boxes. Mono with tabular figures so
+     a column of naira lines up on its digits. */
+  .pd__grid{ display:flex; flex-wrap:wrap; gap:clamp(20px,4vw,44px); margin:0 0 22px;
+    padding:0 0 20px; border-bottom:1px solid var(--pd-line); }
+  .pd__stat dt{ margin:0; font-family:var(--ag-font-mono,monospace); font-size:9.5px;
+    font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--pd-mute); }
+  /* ── letter-spacing:0, NOT the -.02em a display figure usually wants ──────
+     JetBrains Mono draws the naira sign as an N with two bars, and at 700 weight with
+     negative tracking `₦0` renders as the word NO. Measured at 1:1, not guessed: all four
+     tiles on a new organisation's dashboard read "NO". Tightening a money figure is a
+     typographic preference; a currency symbol that merges with its amount is a defect. */
   .pd__stat dd{ margin:6px 0 0; font-family:var(--ag-font-mono,monospace); font-weight:700;
-    font-size:1.35rem; color:var(--ag-ink); }
-  .pd__stat small{ display:block; margin-top:4px; font-size:12px; font-weight:400;
-    font-family:var(--ag-font-body); color:var(--ag-ink-soft,#626a6e); }
+    font-size:clamp(1.25rem,2.4vw,1.6rem); font-variant-numeric:tabular-nums;
+    letter-spacing:0; color:var(--pd-ink); }
+  .pd__stat small{ display:block; margin-top:5px; max-width:22ch; font-size:12px;
+    font-weight:400; font-family:var(--ag-font-body); line-height:1.5; color:var(--pd-mute); }
 
-  .pd__card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.09);
-    border-radius:18px; padding:20px 22px; margin-top:18px; }
-  .pd__card h2{ margin:0 0 4px; font-size:1.05rem; font-family:var(--ag-font-display);
-    font-weight:700; color:var(--ag-ink); }
-  .pd__card p{ margin:6px 0 0; font-size:13.5px; line-height:1.7; color:var(--ag-ink-soft,#626a6e); }
-
-  .pd__wrap{ overflow-x:auto; margin-top:12px; }
+  /* ── tables ──────────────────────────────────────────────────────────────── */
+  .pd__wrap{ overflow-x:auto; }
   .pd__t{ width:100%; border-collapse:collapse; font-size:13.5px; }
-  .pd__t th{ text-align:left; font-size:11px; font-weight:700; letter-spacing:.08em;
-    text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); padding:0 12px 8px 0;
-    border-bottom:1px solid rgba(16,41,44,.12); white-space:nowrap; }
-  .pd__t td{ padding:10px 12px 10px 0; border-bottom:1px solid rgba(16,41,44,.06);
-    color:var(--ag-ink); vertical-align:top; }
-  .pd__num{ font-family:var(--ag-font-mono,monospace); white-space:nowrap; }
-  .pd__empty{ font-size:13.5px; color:var(--ag-ink-soft,#626a6e); margin:12px 0 0; }
+  .pd__t th{ text-align:left; font-family:var(--ag-font-mono,monospace); font-size:9.5px;
+    font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--pd-mute);
+    padding:0 14px 10px 0; border-bottom:1px solid var(--pd-line-2); white-space:nowrap; }
+  .pd__t td{ padding:14px 14px 14px 0; border-bottom:1px solid var(--pd-line);
+    color:var(--pd-ink); vertical-align:top; line-height:1.55; }
+  .pd__num{ font-family:var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
+    white-space:nowrap; }
+  .pd__empty{ font-size:13.5px; line-height:1.7; color:var(--pd-mute); margin:0; }
+  .pd__who{ font-size:12.5px; line-height:1.55; color:var(--pd-mute); margin-top:4px; }
+  .pd__who a{ color:var(--pd-green-dark); text-decoration:underline; }
 
   /* Status is never colour alone — the word is the signal and the tint is decoration. */
-  .pd__chip{ display:inline-block; font-size:11.5px; font-weight:700; padding:3px 9px;
-    border-radius:999px; border:1px solid; white-space:nowrap; }
+  .pd__chip{ display:inline-block; font-size:11.5px; font-weight:700; padding:4px 10px;
+    border-radius:var(--pd-r-sm); border:1px solid; white-space:nowrap; }
   .pd__chip--done{ background:#effaf0; border-color:#bfe6bd; color:#1a6118; }
   .pd__chip--open{ background:#fffdf5; border-color:#ecd9a0; color:#6b5312; }
   .pd__chip--dead{ background:#fdeaea; border-color:#f3c2c2; color:#b42318; }
 
-  .pd__pay{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-top:14px; }
-  .pd__pay label{ flex:1 1 180px; }
-  .pd__pay span{ display:block; font-size:12.5px; font-weight:600;
-    color:var(--ag-ink-soft,#626a6e); margin-bottom:5px; }
-  .pd__pay input{ width:100%; font:inherit; font-size:16px; color:var(--ag-ink);
-    border:1px solid rgba(16,41,44,.18); border-radius:11px; padding:10px 13px; }
-  .pd__pay button{ min-height:44px; padding:0 20px; border:none; border-radius:999px;
-    background:var(--ag-green,#237b22); color:#fff; font:700 14px/1 inherit; cursor:pointer; }
+  /* ── forms ───────────────────────────────────────────────────────────────── */
+  .pd__pay{ display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:20px;
+    padding:18px 20px; border-radius:var(--pd-r-sm); background:var(--pd-cream); }
+  .pd__pay label, .pd__pay-f{ flex:1 1 180px; min-width:0; }
+  .pd__pay-f--sm{ flex:1 1 150px; }
+  .pd__pay span{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10px;
+    font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--pd-ink-2);
+    margin-bottom:7px; }
+  .pd__pay input, .pd__pay select{ width:100%; box-sizing:border-box; font:inherit;
+    font-size:16px; color:var(--pd-ink); background:var(--pd-card);
+    border:1px solid var(--pd-line-2); border-radius:var(--pd-r-sm); padding:0 13px;
+    min-height:46px; }
+  .pd__pay input[type=file]{ padding:11px 13px; min-height:46px; }
+  .pd__pay input:focus, .pd__pay select:focus{ outline:none; border-color:var(--pd-green);
+    box-shadow:0 0 0 3px rgba(35,123,34,.16); }
+  .pd__pay button{ min-height:46px; padding:0 22px; border:none;
+    border-radius:var(--ag-r-pill,999px); background:var(--pd-green-dark); color:#fff;
+    font:700 14px/1 inherit; cursor:pointer; }
+  .pd__pay button:hover{ background:#0d3716 }
+  .pd__pay button:focus-visible{ outline:3px solid var(--pd-green); outline-offset:3px }
   .pd__pay button:disabled{ opacity:.55; cursor:not-allowed; }
+
+  .pd-fields{ display:grid; gap:16px; margin-top:14px; }
+  .pd-fields label span{ display:block; font-family:var(--ag-font-mono,monospace);
+    font-size:10px; font-weight:700; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--pd-ink-2); margin-bottom:7px; }
+  .pd-fields input, .pd-fields select, .pd-fields textarea{ width:100%; box-sizing:border-box;
+    font:inherit; font-size:16px; color:var(--pd-ink); background:var(--pd-card);
+    border:1px solid var(--pd-line-2); border-radius:var(--pd-r-sm); padding:11px 13px;
+    min-height:46px; }
+  .pd-fields textarea{ line-height:1.6; resize:vertical; }
+  .pd-fields input:focus, .pd-fields select:focus, .pd-fields textarea:focus{ outline:none;
+    border-color:var(--pd-green); box-shadow:0 0 0 3px rgba(35,123,34,.16); }
+  .pd-fields details summary{ cursor:pointer; min-height:44px; display:flex;
+    align-items:center; font-weight:700; font-size:14px; color:var(--pd-ink); }
+  .pd-fold{ margin-top:22px; padding-top:20px; border-top:1px solid var(--pd-line); }
+  .pd-fold > summary{ cursor:pointer; min-height:44px; display:flex; align-items:center;
+    gap:9px; font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--pd-green-dark); }
+  .pd-fold > summary:focus-visible{ outline:3px solid var(--pd-green); outline-offset:3px }
+
+  @media (max-width:640px){
+    .pd-nav{ top:0; }
+    /* `flex:none` on the labels as well as the direction change. `flex-basis` is measured
+       along the MAIN axis, so `flex:1 1 180px` on a column-direction flex box asks every
+       field to be 180px TALL — which rendered the upload form as four controls separated by
+       eighty pixels of nothing. */
+    .pd__pay{ flex-direction:column; align-items:stretch; }
+    .pd__pay label, .pd__pay-f, .pd__pay-f--sm{ flex:none }
+    .pd__pay button{ width:100% }
+  }
+  @media (prefers-reduced-motion:no-preference){ html{ scroll-behavior:smooth } }
 </style>
 {% endblock %}
 
 {% block content %}
 {% set ngn = '₦' %}
+
+{#
+  ── WHAT THIS PAGE IS FOR, AND WHAT IT WAS DOING INSTEAD ────────────────────
+
+  Its users are people waiting on a decision. They arrive with three questions — where am
+  I, what is holding it up, and what can I do about it — and the page answered all three in
+  different places: a banner at the top, a red "Not complete" in a table two screens down,
+  and an upload form connected to neither. So the first thing on it is now one strip that
+  answers all three, with the action as a link to the thing it names.
+
+  ── AND WHY IT NOW SHOWS DIFFERENT PAGES TO DIFFERENT ACCOUNTS ──────────────
+
+  Every money figure here comes from `gates_donations` (see PartnerOrg::totals). A STAND
+  VENDOR has no donation rows and never will: they PAY for a pitch, and
+  StandApplication::accept() says the fee is invoiced. So a vendor was being shown four
+  ₦0 tiles, a "Getting your money" card describing a settlement schedule that would never
+  pay them anything, an Appeals card for charitable appeals they cannot run, and a
+  donations ledger that will stay empty for the life of the account. Roughly sixty per
+  cent of their dashboard was another product's interface, promising money that cannot
+  arrive through it.
+
+  The donation sections now render for a donation partner, and for a vendor ONLY if they
+  actually have donation data — a total, an appeal or a payout on file. Gating on the kind
+  alone would risk hiding something real; gating on "relevant OR present" cannot.
+#}
+
+{# ── THE STATE, COMPUTED ONCE ──────────────────────────────────────────────
+   From what the controller already passes. Nothing here queries anything: `missing` is
+   the eligibility gap, `applications` carries the live offers, and `org.status` is the
+   verdict. Three facts, one sentence, one link. #}
+{% set n_missing  = missing|length %}
+{% set n_offers   = applications|filter(a => a.live_offer)|length %}
+{% set has_money  = totals.count > 0 or payouts|length > 0 or campaigns|length > 0 %}
+{% set show_money = not is_vendor or has_money %}
+
 <div class="pd">
 
   <div class="pd__head">
     <div>
+      <span class="pd-kick">{{ is_vendor ? 'Vendor account' : 'Organisation account' }}</span>
       <h1>{{ org.name }}</h1>
       <div class="pd__who">
-        Signed in as {{ me.email }}{% if me.role != 'owner' %} · view only{% endif %}
+        Signed in as {{ me.email }}{% if me.role != 'owner' %} · view only, so you cannot
+        upload, accept an offer or move money{% endif %}
       </div>
     </div>
     <form method="post" action="/org/logout">
@@ -94,34 +298,97 @@
   {% if flash_ok %}<div class="pd__flag pd__flag--ok" role="status">{{ flash_ok }}</div>{% endif %}
   {% if flash_error %}<div class="pd__flag pd__flag--err" role="alert">{{ flash_error }}</div>{% endif %}
 
-  {# A suspended partner keeps its dashboard and loses its donate button. Said plainly at the
-     top, because the alternative is a treasurer wondering why donations stopped. #}
+  {# ── THE STATE PANEL ────────────────────────────────────────────────────
+     Ordered by what stops what. A refusal outranks a missing certificate, which outranks
+     a pending review, which outranks an offer waiting to be accepted — and an offer
+     outranks "all clear", because an offer expires. #}
   {% if org.status == 'suspended' %}
-    <div class="pd__flag pd__flag--err" role="alert">
-      This organisation is suspended, so it is not currently accepting donations.
-      {% if org.suspended_reason %}Reason on file: {{ org.suspended_reason }}.{% endif %}
-      Everything already given to you is unaffected.
+    <div class="pd-state pd-state--stop" role="alert">
+      <h2 class="pd-state__t">This organisation is suspended</h2>
+      <p class="pd-state__b">It is not currently accepting donations{% if is_vendor %} and
+        cannot be offered a stand{% endif %}.
+        {% if org.suspended_reason %}<strong>Reason on file:</strong> {{ org.suspended_reason }}.{% endif %}
+        Everything already given to you is unaffected.</p>
     </div>
+
   {% elseif org.status == 'rejected' %}
     {# §10.10 of the vendor specification: an applicant is entitled to an outcome with a
        reason. Letting them sign in and read it is the cheapest honest way to deliver one —
        the alternative is a person who was told "unsuccessful" and left to invent why. #}
-    <div class="pd__flag pd__flag--err" role="alert">
-      This application was not accepted.
-      {% if org.vetting_note %}Reason on file: {{ org.vetting_note }}.{% endif %}
-      You are welcome to apply again to a future call.
+    <div class="pd-state pd-state--stop" role="alert">
+      <h2 class="pd-state__t">This application was not accepted</h2>
+      <p class="pd-state__b">
+        {% if org.vetting_note %}<strong>Reason on file:</strong> {{ org.vetting_note }}.
+        {% endif %}You are welcome to apply again to a future call, and nothing about this
+        decision counts against that one.</p>
     </div>
+
+  {% elseif n_missing > 0 %}
+    {# The most common state on this page, and the one it used to answer worst. The count is
+       named, the reason it matters is named, and the button goes to the form. #}
+    <div class="pd-state pd-state--wait" role="status">
+      <h2 class="pd-state__t">{{ n_missing }} document{{ n_missing == 1 ? '' : 's' }}
+        still to upload</h2>
+      <p class="pd-state__b">This is the part you control, and nothing moves until it is
+        done{% if is_vendor %} — an application is not <strong>complete</strong> until every
+        certificate is on file and in date, and where applications are otherwise equal the
+        tiebreak is whoever became complete first{% endif %}.</p>
+      <a class="pd-state__go" href="#documents">Upload them now</a>
+    </div>
+
   {% elseif org.status != 'approved' %}
-    <div class="pd__flag pd__flag--warn" role="status">
-      {% if is_vendor %}
-        Your account is not approved yet, so you cannot be offered a stand. Get your documents
-        below on file — that is the part you control, and nothing moves until it is done.
-      {% else %}
-        Your organisation is not live yet, so your appeal page is not public.
-        We will be in touch once the review is complete.
-      {% endif %}
+    <div class="pd-state pd-state--wait" role="status">
+      <h2 class="pd-state__t">Everything is on file. We are reviewing it.</h2>
+      <p class="pd-state__b">There is nothing further for you to do.
+        {% if is_vendor %}You cannot be offered a stand until the review is complete, and you
+        will hear either way with a reason.{% else %}Your appeal page is not public yet; we
+        will be in touch once the review is complete.{% endif %}</p>
+    </div>
+
+  {% elseif n_offers > 0 %}
+    <div class="pd-state pd-state--ok" role="status">
+      <h2 class="pd-state__t">You have been offered
+        {{ n_offers == 1 ? 'a stand' : n_offers ~ ' stands' }}</h2>
+      <p class="pd-state__b">An offer is held for a limited time. If it runs out the place
+        returns to the waiting list, because a place held by somebody who stopped replying is
+        a place somebody else was promised.</p>
+      <a class="pd-state__go" href="#applications">See the offer</a>
+    </div>
+
+  {% else %}
+    <div class="pd-state pd-state--ok" role="status">
+      <h2 class="pd-state__t">{{ is_vendor
+        ? 'Your account is approved and complete'
+        : 'Your organisation is live' }}</h2>
+      <p class="pd-state__b">{% if is_vendor %}You can apply to any open call for stands, and
+        your certificates are all on file and in date.{% else %}Your appeal page is public and
+        can receive donations. Money settles to your own account.{% endif %}</p>
     </div>
   {% endif %}
+
+  {# ── THE LOCAL NAV ──────────────────────────────────────────────────────
+     Four thousand pixels of single-column cards had no way to get from the top of the page
+     to any of them. Each entry carries its own count, so the nav says what is behind it
+     rather than only where it goes — and the one needing attention says so in a word. #}
+  <nav class="pd-nav" aria-label="Sections of your dashboard">
+    {% if required is not empty %}
+      <a href="#documents">Documents
+        {% if n_missing > 0 %}<b class="is-todo">{{ n_missing }} to do</b>
+        {% else %}<b>done</b>{% endif %}</a>
+    {% endif %}
+    {% if applications or is_vendor %}
+      <a href="#applications">Stand applications
+        {% if n_offers > 0 %}<b class="is-todo">{{ n_offers }} offered</b>
+        {% elseif applications %}<b>{{ applications|length }}</b>{% endif %}</a>
+    {% endif %}
+    {% if show_money %}
+      <a href="#appeals">Appeals{% if campaigns %}<b>{{ campaigns|length }}</b>{% endif %}</a>
+      <a href="#donations">Donations{% if totals.count > 0 %}<b>{{ totals.count }}</b>{% endif %}</a>
+      <a href="#payouts">Getting paid</a>
+    {% else %}
+      <a href="#fees">Stand fees</a>
+    {% endif %}
+  </nav>
 
   {# ── DOCUMENTS ──────────────────────────────────────────────────────────────
      A vendor files their own. The alternative — emailing them to an administrator — makes
@@ -131,15 +398,22 @@
      Shown to every kind of organisation, because a donation partner has required documents
      too and the list simply differs. #}
   {% if required is not empty %}
-  <div class="pd__card">
-    <h2>Your documents</h2>
-    <p>
-      {% if individual %}
-        You are registered as an <strong>individual</strong>, so no CAC certificate is asked for.
-      {% endif %}
-      A document that has expired counts as missing — that is what the expiry date is for, and
-      finding out on the morning of an event makes it everybody's problem.
-    </p>
+  <section class="pd-sec" id="documents">
+    <header class="pd-sec__h">
+      <span class="pd-sec__n" aria-hidden="true">01</span>
+      <div>
+        <h2>Your documents</h2>
+        <p>
+          {% if individual %}
+            You are registered as an <strong>individual</strong>, so no CAC certificate is
+            asked for.
+          {% endif %}
+          A document that has expired counts as missing — that is what the expiry date is for,
+          and finding out on the morning of an event makes it everybody's problem.
+        </p>
+      </div>
+    </header>
+    <div class="pd-sec__b">
 
     <div class="pd__wrap">
       <table class="pd__t">
@@ -196,40 +470,62 @@
     {% if can_payout and uploads_on %}
       <form method="post" action="/org/document" enctype="multipart/form-data" class="pd__pay">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <label style="flex:1 1 190px">
+        {# No inline `flex` here. It used to carry `style="flex:1 1 190px"`, and an inline
+           style beats any stylesheet rule without !important — so the mobile override that
+           makes these fields their own height never applied, and the form rendered 648px
+           tall with eighty pixels of nothing between each control. `flex-basis` is measured
+           along the main axis, and the main axis is vertical once the form stacks.
+
+           The select and the date input lost their inline styling too: the stylesheet now
+           covers every control in `.pd__pay`, and a second set of values on the element is
+           how one of them ends up with a different border from its neighbours. #}
+        <label class="pd__pay-f">
           <span>What is it?</span>
-          <select name="kind" style="width:100%;font:inherit;font-size:16px;padding:10px 13px;
-                  border:1px solid rgba(16,41,44,.18);border-radius:11px;background:#fff">
+          <select name="kind">
             {% for slug, label in doc_kinds %}<option value="{{ slug }}">{{ label }}</option>{% endfor %}
           </select>
         </label>
-        <label style="flex:1 1 190px">
+        <label class="pd__pay-f">
           <span>File (PDF or photo)</span>
           <input type="file" name="document" accept=".pdf,image/*" required>
         </label>
-        <label style="flex:1 1 150px">
+        <label class="pd__pay-f pd__pay-f--sm">
           <span>Expires (if it does)</span>
           <input type="date" name="expires_on">
         </label>
         <button type="submit">Upload</button>
       </form>
     {% elseif not uploads_on %}
-      <p>Uploads are unavailable on this server right now. Email your certificates and we will file them.</p>
+      <p class="pd__empty">Uploads are unavailable on this server right now. Email your
+        certificates and we will file them.</p>
     {% endif %}
-  </div>
+    </div>
+  </section>
   {% endif %}
 
   {# ── STAND APPLICATIONS ─────────────────────────────────────────────────────
      The decision AND its reason are shown, including a rejection. §5.7: every applicant gets
      an outcome they can understand, and the difference between a disappointment and a story
      about favouritism is whether anybody ever told them which rule they fell on. #}
-  {% if applications %}
-  <div class="pd__card">
-    <h2>Your stand applications</h2>
-    <p>An offer is held for a limited time. If it runs out the place returns to the waiting
-       list, because a place held by somebody who stopped replying is a place somebody else
-       was promised.</p>
-
+  {% if applications or is_vendor %}
+  <section class="pd-sec" id="applications">
+    <header class="pd-sec__h">
+      <span class="pd-sec__n" aria-hidden="true">02</span>
+      <div>
+        <h2>Your stand applications</h2>
+        <p>An offer is held for a limited time. If it runs out the place returns to the
+           waiting list, because a place held by somebody who stopped replying is a place
+           somebody else was promised.</p>
+      </div>
+    </header>
+    <div class="pd-sec__b">
+    {% if not applications %}
+      {# An empty state that is not a dead end. A vendor who has been approved and has
+         applied for nothing is one click from the thing this account is for. #}
+      <p class="pd__empty">You have not applied for a stand yet.
+        <a href="/events" style="color:var(--pd-green-dark);text-decoration:underline">See which
+        events are taking applications</a> — applying costs nothing.</p>
+    {% else %}
     <div class="pd__wrap">
       <table class="pd__t">
         <caption class="sr-only">Stand applications and their outcomes</caption>
@@ -244,9 +540,17 @@
             <td>{{ a.type ? a.type.name : '—' }}
               {% if a.type %}<div class="pd__num" style="font-size:12px;color:var(--ag-ink-soft,#626a6e)">
                 {{ ngn }}{{ a.type.price_naira|number_format }}</div>{% endif %}</td>
-            <td class="pd__num">{{ a.app.submitted_at|slice(0,10) }}
+            <td class="pd__num">{{ a.app.submitted_at|date('d M Y') }}
+              {# NAMED, and linked. "Not complete" on its own is a verdict with no
+                 instruction — the reason is a table two sections up, and the reader was
+                 left to work out that the two were about each other. #}
               {% if not a.app.completed_at %}
-                <div style="font-size:12px;color:#b42318">Not complete</div>
+                <div style="margin-top:4px;font-family:var(--ag-font-body);font-size:12px;
+                            line-height:1.5;color:#b42318;white-space:normal">
+                  Not complete —
+                  {% if n_missing > 0 %}<a href="#documents" style="color:#b42318;text-decoration:underline">{{ n_missing }}
+                    document{{ n_missing == 1 ? '' : 's' }} still to upload</a>
+                  {%- else %}waiting on the completeness check{% endif %}</div>
               {% endif %}</td>
             <td>
               {% set c = {'accepted':'done','offered':'open','waitlisted':'open',
@@ -285,9 +589,36 @@
         </tbody>
       </table>
     </div>
-  </div>
+    {% endif %}
+    </div>
+  </section>
   {% endif %}
 
+  {% if show_money %}
+  {# ══ THE DONATION HALF OF THIS PAGE ═════════════════════════════════════
+     Rendered for a donation partner, and for a vendor only when they actually have
+     donation data. See the note at the top of the content block: every figure below comes
+     from `gates_donations`, a stand vendor has none and never will, and showing them four
+     ₦0 tiles beside a settlement schedule that cannot pay them is not a neutral omission —
+     it is the platform describing money that will not arrive. #}
+  <section class="pd-sec" id="donations">
+    <header class="pd-sec__h">
+      <span class="pd-sec__n" aria-hidden="true">{{ (applications or is_vendor) ? '03' : '02' }}</span>
+      <div>
+        <h2>Donations</h2>
+        <p>Confirmed gifts only. Donors appear by name only where they chose to be named —
+          we do not pass on donor email addresses. Every figure is summed from confirmed
+          payments each time this page is asked for, so nothing can quietly drift.</p>
+      </div>
+    </header>
+    <div class="pd-sec__b">
+
+  {# ── THE SAME RULE THE DONATIONS PAGE OBEYS ─────────────────────────────
+     That page suppresses its figures until there are any, because "₦0 raised" beside an
+     ask reads as a verdict. Four ₦0 tiles at the top of an organisation's own dashboard is
+     the same sentence said four times, to the person it is about. The empty state below
+     carries the meaning in words, which is the more useful form of it. #}
+  {% if totals.count > 0 %}
   <dl class="pd__grid">
     <div class="pd__stat">
       <dt>Received</dt>
@@ -310,13 +641,150 @@
       <small>Not already requested</small>
     </div>
   </dl>
+  {% endif %}
+
+  
+      {% if donations %}
+        <div class="pd__wrap">
+          <table class="pd__t">
+            <caption class="sr-only">Confirmed donations to {{ org.name }}</caption>
+            <thead>
+              <tr>
+                <th scope="col">When</th><th scope="col">Donor</th>
+                <th scope="col">Gift</th><th scope="col">Our share</th><th scope="col">Yours</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for d in donations %}
+              <tr>
+                <td class="pd__num">{{ d.when|date('d M Y') }}</td>
+                <td>{{ d.name }}</td>
+                <td class="pd__num">{{ ngn }}{{ d.gross|number_format }}</td>
+                <td class="pd__num">{{ ngn }}{{ d.fee|number_format }}</td>
+                <td class="pd__num">{{ ngn }}{{ d.net|number_format }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="pd__empty">No confirmed donations yet. When somebody gives, it appears here.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  {# ── APPEALS ────────────────────────────────────────────────────────────────
+     An appeal is a public claim about what this organisation will do with money, so an
+     owner writes it and Africa GATES publishes it. Editing a LIVE appeal's story or target
+     sends it back for review, because a donor gave against the words that were on the
+     page. #}
+  <section class="pd-sec" id="appeals">
+    <header class="pd-sec__h">
+      <span class="pd-sec__n" aria-hidden="true">{{ (applications or is_vendor) ? '04' : '03' }}</span>
+      <div>
+        <h2>Appeals</h2>
+        <p>Raise for something specific. Donations to an appeal are restricted to it — what
+          you write here is what donors are giving for, and an appeal that goes live is a
+          public promise about what the money does.</p>
+      </div>
+    </header>
+    <div class="pd-sec__b">
+
+    {% if campaigns %}
+      <div class="pd__wrap">
+        <table class="pd__t">
+          <caption class="sr-only">Your appeals</caption>
+          <thead><tr><th scope="col">Appeal</th><th scope="col">Raised</th><th scope="col">Status</th><th scope="col">&nbsp;</th></tr></thead>
+          <tbody>
+          {% for c in campaigns %}
+            {% set st = c.row.status %}
+            {% set cls = st == 'live' ? 'done' : (st == 'closed' ? 'dead' : 'open') %}
+            <tr>
+              <td>
+                <strong>{{ c.row.title }}</strong>
+                {% if c.open %}<div class="pd__who"><a href="/donate/{{ org.slug }}/{{ c.row.slug }}">/donate/{{ org.slug }}/{{ c.row.slug }}</a></div>{% endif %}
+                {% if c.days is not null and c.open %}<div class="pd__who">{{ c.days }} day{{ c.days == 1 ? '' : 's' }} left</div>{% endif %}
+              </td>
+              <td class="pd__num">
+                {{ ngn }}{{ c.progress.raised|number_format }}
+                {%- if c.progress.target > 0 %} <span style="color:var(--ag-ink-soft,#626a6e)">of {{ ngn }}{{ c.progress.target|number_format }}</span>{% endif %}
+                <div class="pd__who">{{ c.progress.count }} gift{{ c.progress.count == 1 ? '' : 's' }}</div>
+              </td>
+              <td>
+                <span class="pd__chip pd__chip--{{ cls }}">{{ st|capitalize }}</span>
+                {% if st == 'live' and not c.open %}<div class="pd__who">Outside its dates</div>{% endif %}
+              </td>
+              <td>
+                {% if can_payout %}
+                  {% if st in ['draft', 'closed'] %}
+                    <form method="post" action="/org/appeal/{{ c.row.id }}/submit" style="display:inline">
+                      <input type="hidden" name="_token" value="{{ csrf_token }}">
+                      <button class="pd__out" type="submit">Send for review</button>
+                    </form>
+                  {% elseif st == 'live' %}
+                    <form method="post" action="/org/appeal/{{ c.row.id }}/close" style="display:inline">
+                      <input type="hidden" name="_token" value="{{ csrf_token }}">
+                      <button class="pd__out" type="submit"
+                              data-confirm="Close “{{ c.row.title }}”? It stops accepting donations immediately. Everything already given is unaffected.">Close</button>
+                    </form>
+                  {% endif %}
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="pd__empty">No appeals yet.</p>
+    {% endif %}
+
+    {% if can_payout %}
+      <details class="pd-fold">
+        <summary>+ Start a new appeal</summary>
+        <form class="pd-fields" method="post" action="/org/appeal">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <label for="caTitle"><span>What are you raising for?</span>
+            <input id="caTitle" name="title" type="text" maxlength="200" required></label>
+          <label for="caSum"><span>One line a donor will read first</span>
+            <input id="caSum" name="summary" type="text" maxlength="400"></label>
+          <label for="caStory"><span>The full story</span>
+            <textarea id="caStory" name="story" rows="5"></textarea></label>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+            <label for="caTarget"><span>Target in naira (optional)</span>
+              <input id="caTarget" name="target_naira" type="text" inputmode="numeric"></label>
+            <label for="caClose"><span>Closing date (optional)</span>
+              <input id="caClose" name="closes_on" type="date"></label>
+          </div>
+          <label for="caShort"><span>If you do not reach the target</span>
+            <select id="caShort" name="shortfall_policy">
+              {% for k, label in shortfall %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+            </select></label>
+          <p class="pd__empty" style="margin:0">
+            This is shown to donors <strong>before</strong> they give. Choose the one you will
+            actually do.
+          </p>
+          <div><button class="pd__out" type="submit"
+                       style="background:var(--ag-green,#237b22);color:#fff;border-color:transparent;min-height:44px;padding:0 20px;font-weight:700">
+            Save as draft</button></div>
+        </form>
+      </details>
+    {% endif %}
+    </div>
+  </section>
 
   {# ── WITHDRAWALS ────────────────────────────────────────────────────────────
      In settlement mode this platform is not holding the money and must not imply it is:
      donations split at the gateway into the organisation's own subaccount and Paystack
      settles them to the organisation's own bank. The request is a request. #}
-  <div class="pd__card">
-    <h2>Getting your money</h2>
+  <section class="pd-sec" id="payouts">
+    <header class="pd-sec__h">
+      <span class="pd-sec__n" aria-hidden="true">{{ (applications or is_vendor) ? '05' : '04' }}</span>
+      <div>
+        <h2>Getting paid</h2>
+      </div>
+    </header>
+    <div class="pd-sec__b">
     {% if payout_mode == 'settlement' %}
       <p>
         Donations to you settle <strong>directly into your own account</strong> — they are split
@@ -378,134 +846,45 @@
         </table>
       </div>
     {% endif %}
-  </div>
+    </div>
+  </section>
+  {% endif %}
 
-  {# ── APPEALS ────────────────────────────────────────────────────────────────
-     An appeal is a public claim about what this organisation will do with money, so an
-     owner writes it and Africa GATES publishes it. Editing a LIVE appeal's story or target
-     sends it back for review, because a donor gave against the words that were on the
-     page. #}
-  <div class="pd__card">
-    <h2>Appeals</h2>
-    <p>Raise for something specific. Donations to an appeal are restricted to it — what you
-       write here is what donors are giving for.</p>
-
-    {% if campaigns %}
-      <div class="pd__wrap">
-        <table class="pd__t">
-          <caption class="sr-only">Your appeals</caption>
-          <thead><tr><th scope="col">Appeal</th><th scope="col">Raised</th><th scope="col">Status</th><th scope="col">&nbsp;</th></tr></thead>
-          <tbody>
-          {% for c in campaigns %}
-            {% set st = c.row.status %}
-            {% set cls = st == 'live' ? 'done' : (st == 'closed' ? 'dead' : 'open') %}
-            <tr>
-              <td>
-                <strong>{{ c.row.title }}</strong>
-                {% if c.open %}<div class="pd__who"><a href="/donate/{{ org.slug }}/{{ c.row.slug }}">/donate/{{ org.slug }}/{{ c.row.slug }}</a></div>{% endif %}
-                {% if c.days is not null and c.open %}<div class="pd__who">{{ c.days }} day{{ c.days == 1 ? '' : 's' }} left</div>{% endif %}
-              </td>
-              <td class="pd__num">
-                {{ ngn }}{{ c.progress.raised|number_format }}
-                {%- if c.progress.target > 0 %} <span style="color:var(--ag-ink-soft,#626a6e)">of {{ ngn }}{{ c.progress.target|number_format }}</span>{% endif %}
-                <div class="pd__who">{{ c.progress.count }} gift{{ c.progress.count == 1 ? '' : 's' }}</div>
-              </td>
-              <td>
-                <span class="pd__chip pd__chip--{{ cls }}">{{ st|capitalize }}</span>
-                {% if st == 'live' and not c.open %}<div class="pd__who">Outside its dates</div>{% endif %}
-              </td>
-              <td>
-                {% if can_payout %}
-                  {% if st in ['draft', 'closed'] %}
-                    <form method="post" action="/org/appeal/{{ c.row.id }}/submit" style="display:inline">
-                      <input type="hidden" name="_token" value="{{ csrf_token }}">
-                      <button class="pd__out" type="submit">Send for review</button>
-                    </form>
-                  {% elseif st == 'live' %}
-                    <form method="post" action="/org/appeal/{{ c.row.id }}/close" style="display:inline">
-                      <input type="hidden" name="_token" value="{{ csrf_token }}">
-                      <button class="pd__out" type="submit"
-                              data-confirm="Close “{{ c.row.title }}”? It stops accepting donations immediately. Everything already given is unaffected.">Close</button>
-                    </form>
-                  {% endif %}
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
+  {# ── STAND FEES · THE VENDOR'S SIDE OF THE MONEY ────────────────────────
+     What replaces four ₦0 tiles and a settlement schedule for an account that pays rather
+     than collects. It is short because there is little to say, and saying the little there
+     is beats implying the opposite. #}
+  {% if not show_money %}
+  <section class="pd-sec" id="fees">
+    <header class="pd-sec__h">
+      <span class="pd-sec__n" aria-hidden="true">03</span>
+      <div>
+        <h2>Stand fees</h2>
+        <p>A vendor account pays for a pitch rather than collecting through the platform, so
+          there is no balance here and no payout to request.</p>
       </div>
-    {% else %}
-      <p class="pd__empty">No appeals yet.</p>
-    {% endif %}
+    </header>
+    <div class="pd-sec__b">
+      <ul style="list-style:none;margin:0;padding:0;border-top:1px solid var(--pd-line-2)">
+        <li style="padding:16px 0;border-bottom:1px solid var(--pd-line);font-size:14px;
+                   line-height:1.7;color:var(--pd-ink-2)">
+          <strong style="color:var(--pd-ink)">Nothing is charged when you apply.</strong>
+          A place only becomes yours once you are offered one and accept it.</li>
+        <li style="padding:16px 0;border-bottom:1px solid var(--pd-line);font-size:14px;
+                   line-height:1.7;color:var(--pd-ink-2)">
+          <strong style="color:var(--pd-ink)">The fee is invoiced after you accept.</strong>
+          The amount is the published price of the stand type you applied for, which is on
+          the call and in the table above. Any deposit is stated there too.</li>
+        <li style="padding:16px 0;border-bottom:1px solid var(--pd-line);font-size:14px;
+                   line-height:1.7;color:var(--pd-ink-2)">
+          <strong style="color:var(--pd-ink)">No card details are held here.</strong>
+          This account has no stored payment method, and nothing on this page can take money
+          from you.</li>
+      </ul>
+    </div>
+  </section>
+  {% endif %}
 
-    {% if can_payout %}
-      <details style="margin-top:16px">
-        <summary style="cursor:pointer;font-weight:600;font-size:13.5px;min-height:24px">Start a new appeal</summary>
-        <form method="post" action="/org/appeal" style="margin-top:12px;display:grid;gap:12px">
-          <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <label for="caTitle"><span>What are you raising for?</span>
-            <input id="caTitle" name="title" type="text" maxlength="200" required></label>
-          <label for="caSum"><span>One line a donor will read first</span>
-            <input id="caSum" name="summary" type="text" maxlength="400"></label>
-          <label for="caStory"><span>The full story</span>
-            <textarea id="caStory" name="story" rows="5"
-              style="width:100%;font:inherit;font-size:15px;border:1px solid rgba(16,41,44,.18);border-radius:11px;padding:11px 13px"></textarea></label>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
-            <label for="caTarget"><span>Target in naira (optional)</span>
-              <input id="caTarget" name="target_naira" type="text" inputmode="numeric"></label>
-            <label for="caClose"><span>Closing date (optional)</span>
-              <input id="caClose" name="closes_on" type="date"></label>
-          </div>
-          <label for="caShort"><span>If you do not reach the target</span>
-            <select id="caShort" name="shortfall_policy"
-                    style="width:100%;font:inherit;font-size:16px;border:1px solid rgba(16,41,44,.18);border-radius:11px;padding:10px 13px">
-              {% for k, label in shortfall %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
-            </select></label>
-          <p class="pd__empty" style="margin:0">
-            This is shown to donors <strong>before</strong> they give. Choose the one you will
-            actually do.
-          </p>
-          <div><button class="pd__out" type="submit"
-                       style="background:var(--ag-green,#237b22);color:#fff;border-color:transparent;min-height:44px;padding:0 20px;font-weight:700">
-            Save as draft</button></div>
-        </form>
-      </details>
-    {% endif %}
-  </div>
-
-  <div class="pd__card">
-    <h2>Recent donations</h2>
-    <p>Confirmed gifts only. Donors appear by name only where they chose to be named —
-       we do not pass on donor email addresses.</p>
-
-    {% if donations %}
-      <div class="pd__wrap">
-        <table class="pd__t">
-          <caption class="sr-only">Confirmed donations to {{ org.name }}</caption>
-          <thead>
-            <tr>
-              <th scope="col">When</th><th scope="col">Donor</th>
-              <th scope="col">Gift</th><th scope="col">Our share</th><th scope="col">Yours</th>
-            </tr>
-          </thead>
-          <tbody>
-          {% for d in donations %}
-            <tr>
-              <td class="pd__num">{{ d.when|date('d M Y') }}</td>
-              <td>{{ d.name }}</td>
-              <td class="pd__num">{{ ngn }}{{ d.gross|number_format }}</td>
-              <td class="pd__num">{{ ngn }}{{ d.fee|number_format }}</td>
-              <td class="pd__num">{{ ngn }}{{ d.net|number_format }}</td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <p class="pd__empty">No confirmed donations yet. When somebody gives, it appears here.</p>
-    {% endif %}
-  </div>
 
 </div>
 {% endblock %}
