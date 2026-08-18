@@ -121,6 +121,22 @@ exists for, it does not block anything, and which of the two is wrong is a quest
 person. `--queue-checks` is opt-in because a configured registry verifier is a paid third
 party; without it, nothing external is called.
 
+## Ticket artwork
+
+**Events → an event → step 4, “The ticket”.** The frame in that panel is the ticket's own
+band, at the ticket's own gradient with the ticket's own title over it, so what is inside it
+is what prints. Drag to move, scroll or the Zoom slider to fill it, plus quarter turns,
+mirroring, brightness, contrast and black-and-white.
+
+The browser posts a small JSON recipe and the server does the cutting with
+`AfricaGates\Services\TicketArtwork`, writing a 1200×800 render — ~3× the 390px screen band
+and ~300dpi across the printed panel. The upload it was cut from is **kept**, so re-framing a
+year later cuts from the original rather than from the last crop.
+
+Needs `php bin/console db:migrate` for `ticket_image_src` and `ticket_image_edit`. Without
+them the panel falls back to the address box it has always been, and every existing ticket
+renders exactly as before either way — nothing changes until somebody opens the editor.
+
 ## Google Apps Script
 1. Open Google Sheets → Extensions → Apps Script
 2. Paste `config/AfricaGATES_AppScript.gs`

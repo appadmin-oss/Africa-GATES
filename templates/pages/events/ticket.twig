@@ -175,15 +175,21 @@
      · SPEC · a 268px band, 20px radius on the top two corners only. */
   .tk__hero{ position:relative; height:268px; overflow:hidden; border-radius:20px 20px 0 0;
     background:var(--tk-accent); color:var(--tk-ink); }
-  /* `object-fit:cover` and a crop biased ABOVE centre.
+  /* `object-fit:cover`, and a fallback focal point for the images nobody has framed.
 
      The artboard pins `left:-150 top:-178 width:700 height:875` against the band,
      which frames the subject of one particular poster and means nothing for the
-     next event's. The spec says the same thing and names the real fix: store a
-     dedicated 3:2 crop per event beside `D.image` rather than cropping a poster in
-     CSS. Until that exists, `50% 32%` keeps faces and figures in frame on portrait
-     artwork, which is what event covers overwhelmingly are, and the wash below is
-     what guarantees the type stays legible either way. */
+     next event's. The spec named the real fix — a dedicated 3:2 crop stored per
+     event rather than a poster cropped in CSS — and that now exists: the admin's
+     artwork editor writes one with AfricaGates\Services\TicketArtwork, and
+     `D.image` is the 1200×800 render of it.
+
+     These two lines are what happens for everyone else: an event still using its
+     cover photograph, or an organiser who pasted an address the editor cannot cut.
+     `50% 32%` keeps faces and figures in frame on portrait artwork, which is what
+     event covers overwhelmingly are; on a framed image it is a no-op, because a 3:2
+     render into a 390×268 band has about 3% of width to spare and nothing to
+     choose between. The wash below is what keeps the type legible either way. */
   .tk__shot{ position:absolute; inset:0; width:100%; height:100%;
     object-fit:cover; object-position:50% 32%; }
   /* The wash: the accent, bottom to top. It is what makes the title legible over an

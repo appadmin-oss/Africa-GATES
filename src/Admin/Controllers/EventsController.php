@@ -5,16 +5,19 @@ namespace AfricaGates\Admin\Controllers;
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use Psr\Http\Message\UploadedFileInterface;
 use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Admin\Services\UploadService;
 use AfricaGates\Services\CacheService;
 use AfricaGates\Services\EventAgenda;
 use AfricaGates\Services\EventDiscount;
 use AfricaGates\Services\EventTicketDesign;
 use AfricaGates\Services\EventTicketService;
 use AfricaGates\Services\EventWaitlist;
+use AfricaGates\Services\TicketArtwork;
 use AfricaGates\Support\OptionalColumn;
 use AfricaGates\Support\Slug;
 
@@ -28,6 +31,10 @@ class EventsController
         // whether or not the message got through, and the organiser's screen shows an
         // outstanding offer either way. See EventWaitlist::tell().
         private readonly ?\AfricaGates\Services\OtpService $mailer = null,
+        // Optional and constructed on demand, like the mailer above. It is here so a test can
+        // hand in one pointed at a temporary directory: without that, exercising the artwork
+        // path would mean writing into the real public/uploads tree and leaving it there.
+        private readonly ?UploadService $uploads = null,
     ) {}
 
     public function index(Request $req, Response $res): Response
@@ -141,6 +148,18 @@ class EventsController
             // not colourless.
             'design'      => EventTicketDesign::forEvent($row ?: null),
             'design_rows' => EventTicketDesign::ROWS,
+            // The artwork editor's own two columns, on their own migration. Without them the
+            // template falls back to the address box the field has always been, so a
+            // deployment that has not migrated keeps working instead of losing the field.
+            'artwork_missing' => OptionalColumn::missing('gates_site_events', [
+                'ticket_image_src', 'ticket_image_edit',
+            ]),
+            // The ORIGINAL, not the baked crop. The editor has to show the whole picture for
+            // the frame to be draggable — handing it the finished 3:2 file would let somebody
+            // crop a crop, which is the thing TicketArtwork exists to prevent.
+            'artwork_src'    => EventTicketDesign::image(['ticket_image' => (string) ($row['ticket_image_src'] ?? '')]),
+            'artwork_edit'   => TicketArtwork::recipe($row['ticket_image_edit'] ?? null),
+            'artwork_ratio'  => TicketArtwork::W / TicketArtwork::H,
         ]);
     }
 
@@ -236,6 +255,7 @@ class EventsController
         // organiser cleared everything" would wipe a design somebody had already set.
         if (!empty($b['ticket_design_posted'])) {
             $data = array_merge($data, EventTicketDesign::fromForm($b));
+            $data = array_merge($data, $this->ticketArtwork($req, $b, $id));
         }
         if ($data['title'] === '' || $data['slug'] === '') {
             $_SESSION['flash_error'] = 'Title and slug are required.';
@@ -257,6 +277,127 @@ class EventsController
         $this->cache->forget('home:site_events');
         $_SESSION['flash_ok'] = 'Event saved.';
         return $res->withHeader('Location', '/admin/events')->withStatus(302);
+    }
+
+    /**
+     * The ticket's artwork: store the original, cut the crop, hand back the three columns.
+     *
+     * ── THE TWO WAYS TO PUT A PICTURE ON A TICKET, AND WHY ONE ALWAYS WINS ───
+     *
+     * The panel offers an editor (upload, drag, zoom, adjust) and, underneath it, a plain
+     * address box for an image that lives somewhere else. Both write `ticket_image`, so
+     * "which one is in charge" has to be answered here rather than left to whichever ran
+     * last. The rule is the one an organiser would guess:
+     *
+     *   • Upload a file → that becomes the artwork, and whatever was in the address box is
+     *     replaced by the path to the crop this method just cut.
+     *   • Type an address over an existing crop → the crop is let go. Not kept as a hidden
+     *     source that reappears on the next save, which is how somebody ends up unable to
+     *     get rid of a picture they have already replaced.
+     *   • Change only the sliders → the original is re-read and re-cut. No new upload, no
+     *     loss of quality, and the frame stays exactly where it was left.
+     *
+     * ── WHAT IS RETURNED, AND WHAT IS DELIBERATELY NOT ──────────────────────
+     *
+     * An empty array means "this method has no opinion", and every failure returns one, so a
+     * rejected upload or a renderer that fell over costs the organiser the picture and NOT
+     * the forty other fields on the form. The flash says which happened; the save proceeds.
+     *
+     * @return array<string, mixed> columns to merge into the event row
+     */
+    private function ticketArtwork(Request $req, array $b, int $id): array
+    {
+        // Same rule as every other panel on this form: a deployment that has the code and
+        // not the migration must save what it can rather than 500 on an unknown column.
+        if (OptionalColumn::missing('gates_site_events', ['ticket_image_src', 'ticket_image_edit']) !== []) {
+            return [];
+        }
+
+        $blank   = ['ticket_image_src' => null, 'ticket_image_edit' => null];
+        $adminId = ((int) ($_SESSION['admin_id'] ?? 0)) ?: null;
+
+        if (!empty($b['ticket_artwork_clear'])) {
+            return $blank + ['ticket_image' => null];
+        }
+
+        $stored = $id
+            ? (array) (DB::table('gates_site_events')->where('id', $id)
+                ->first(['ticket_image', 'ticket_image_src']) ?: [])
+            : [];
+        $storedSrc = EventTicketDesign::image(['ticket_image' => (string) ($stored['ticket_image_src'] ?? '')]);
+
+        $file = $req->getUploadedFiles()['ticket_artwork'] ?? null;
+        $sent = $file instanceof UploadedFileInterface
+             && $file->getError() === UPLOAD_ERR_OK
+             && $file->getSize() > 0;
+
+        if (!$sent) {
+            // No new file. Did they type over the address box? Compare against what is on the
+            // row, because the box is pre-filled with the current path — an untouched form
+            // posts it back verbatim and that is not a decision to do anything.
+            $typed = trim((string) ($b['ticket_image'] ?? ''));
+            if ($typed !== '' && $typed !== trim((string) ($stored['ticket_image'] ?? ''))) {
+                return $blank;                   // EventTicketDesign::fromForm already took the address
+            }
+            if ($storedSrc === '') {
+                return [];                       // never had artwork; nothing here to decide
+            }
+        }
+
+        $uploads = $this->uploads ?? new UploadService();
+        $src     = $storedSrc;
+
+        if ($sent) {
+            try {
+                // 2400px and q88, both higher than this codebase's usual: this file is a
+                // MASTER, not a delivered image. Everything a visitor loads is cut from it,
+                // so the compression that is invisible on a cover photo is compression that
+                // every future crop inherits — and a 300px floor because a picture smaller
+                // than the band it fills is a blurred ticket nobody can fix later.
+                $up  = $uploads->uploadImage($file, 'tickets', 2400, 88, $adminId, 'site_event', $id ?: null, 300);
+                $src = (string) $up['local'];
+            } catch (\Throwable $e) {
+                $_SESSION['flash_error'] = 'Ticket artwork was not used: ' . $e->getMessage()
+                    . ' Everything else on the form was saved.';
+                return [];
+            }
+        }
+
+        // A recipe is only absent when the editor never ran — an old cached page, or a browser
+        // where the script failed. A file still arrived in that case, so it is cut to the
+        // default frame (the whole picture, centred) rather than stored with nothing rendering
+        // it; without a file, the stored crop is left exactly as it was.
+        $recipe = TicketArtwork::fromForm($b) ?? ($sent ? TicketArtwork::recipe(null) : null);
+        if ($recipe === null) {
+            // `ticket_image` is put back deliberately. EventTicketDesign::fromForm has already
+            // set it to NULL from an address box that is not on screen while the editor is,
+            // and returning nothing here would let that blank the crop of every organiser
+            // whose browser did not run the script.
+            return ['ticket_image' => ((string) ($stored['ticket_image'] ?? '')) ?: null];
+        }
+
+        // The service's own root, not the repository's: the two differ wherever this
+        // controller is handed an UploadService pointed somewhere else.
+        $srcAbs = $uploads->publicRoot() . $src;
+        $tmp    = (string) tempnam(sys_get_temp_dir(), 'ag_tk_');
+        try {
+            TicketArtwork::render($srcAbs, $recipe, $tmp);
+            $out = $uploads->storeRendered($tmp, 'jpg', 'tickets', $adminId, 'site_event', $id ?: null);
+        } catch (\Throwable $e) {
+            @unlink($tmp);
+            $_SESSION['flash_error'] = 'The ticket artwork could not be cut: ' . $e->getMessage()
+                . ' The picture and the frame were kept, so try saving again.';
+            // The source and the recipe ARE stored even though the cut failed — that is what
+            // lets the next save retry from the same starting point instead of asking the
+            // organiser to upload and re-frame the whole thing again.
+            return ['ticket_image_src' => $src, 'ticket_image_edit' => TicketArtwork::pack($recipe)];
+        }
+
+        return [
+            'ticket_image'      => (string) $out['path'],
+            'ticket_image_src'  => $src,
+            'ticket_image_edit' => TicketArtwork::pack($recipe),
+        ];
     }
 
     /** `2026-01-31 19:00:00` → `2026-01-31T19:00`, which is what datetime-local wants. */

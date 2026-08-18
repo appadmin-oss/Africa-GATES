@@ -49,6 +49,19 @@ class UploadService
     }
 
     /**
+     * Where the `local` paths these methods return are rooted.
+     *
+     * Public because a caller that re-reads its own upload has to turn `/uploads/x/y.jpg`
+     * back into a file, and it must resolve it against THIS service's root rather than
+     * assuming the repository's — otherwise anything constructed with a different root
+     * (a test, a second site on one install) reads from a directory nothing wrote to.
+     */
+    public function publicRoot(): string
+    {
+        return $this->publicRoot;
+    }
+
+    /**
      * The hardening rules Apache must apply to `public/uploads/`.
      *
      * ── WHY THIS IS WRITTEN AT RUNTIME AND NOT JUST COMMITTED ────────────────
@@ -142,7 +155,7 @@ class UploadService
 
     /**
      * Upload an image and produce a web-optimised variant.
-     * @return array{path:string,url:string,width:int,height:int,size:int}
+     * @return array{path:string,url:string,local:string,width:int,height:int,size:int}
      */
     public function uploadImage(
         UploadedFileInterface $file,
@@ -228,9 +241,100 @@ class UploadService
         return [
             'path' => $stored,
             'url'  => $stored,
+            // WHERE THE FILE ACTUALLY IS, which is not always where it is served from. With
+            // Cloudinary on, `path` is a remote URL and there is no way back from it to the
+            // bytes — but the local write happened first and unconditionally, and it is still
+            // there. A caller that needs to re-read its own upload (the ticket artwork editor
+            // re-cutting a crop from the original a month later) needs this and not that.
+            'local' => '/' . $relPath,
             'width' => $w,
             'height' => $h,
             'size' => $size,
+        ];
+    }
+
+    /**
+     * Take a file THIS CODEBASE produced and put it in the uploads tree.
+     *
+     * The difference from {@see uploadImage()} is provenance, and it is the whole reason this
+     * is a separate method rather than a flag: there is no client here. The bytes were written
+     * by a service on this server from an image that already went through the sniffing and the
+     * re-encode, so re-running that gate would be theatre. What is NOT skipped is everything
+     * after it — the dated directory, the .htaccess guard, the `gates_uploads` row and the
+     * hand-off to Cloudinary — because a derived image is delivered exactly like any other.
+     *
+     * Call this ONLY with a path your own code wrote. Anything that arrived over HTTP goes
+     * through uploadImage(), which is the method that assumes the file is hostile.
+     *
+     * @param string $tmpAbs absolute path to the finished file; MOVED, not copied
+     * @return array{path: string, url: string, local: string, size: int}
+     */
+    public function storeRendered(
+        string  $tmpAbs,
+        string  $ext = 'jpg',
+        string  $bucket = 'images',
+        ?int    $uploaderId = null,
+        ?string $attachedToType = null,
+        ?int    $attachedToId = null,
+    ): array {
+        if (!is_file($tmpAbs)) {
+            throw new \RuntimeException('Nothing to store: the rendered file is missing.');
+        }
+        // Still sniffed — not against an attacker, but against a renderer that failed halfway
+        // and left a truncated file. Storing that would put a broken image on a ticket and the
+        // first person to notice would be an attendee at a door.
+        $mime  = (string)(new \finfo(FILEINFO_MIME_TYPE))->file($tmpAbs);
+        $known = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        if (!in_array($mime, $known, true)) {
+            @unlink($tmpAbs);
+            throw new \RuntimeException('The rendered file is not a readable image.');
+        }
+
+        $ext    = preg_match('/^[a-z0-9]{1,5}$/', $ext) === 1 ? $ext : 'jpg';
+        $relDir = sprintf('uploads/%s/%s/%s', $bucket, date('Y'), date('m'));
+        $absDir = $this->publicRoot . '/' . $relDir;
+        if (!is_dir($absDir)) @mkdir($absDir, 0775, true);
+        $this->ensureUploadsGuard();
+
+        $relPath = $relDir . '/' . Uuid::uuid4()->toString() . '.' . $ext;
+        $absPath = $this->publicRoot . '/' . $relPath;
+        if (!@rename($tmpAbs, $absPath)) {
+            // Across a device boundary rename() fails where copy() succeeds, and the system
+            // temp directory is on its own filesystem more often than not.
+            if (!@copy($tmpAbs, $absPath)) {
+                @unlink($tmpAbs);
+                throw new \RuntimeException('The rendered image could not be written.');
+            }
+            @unlink($tmpAbs);
+        }
+        @chmod($absPath, 0644);
+
+        [$w, $h] = @getimagesize($absPath) ?: [0, 0];
+        $size    = filesize($absPath) ?: 0;
+
+        $remote = $this->toCloud($absPath, $bucket, $relPath);
+        $stored = $remote !== null ? $remote['url'] : '/' . $relPath;
+
+        try {
+            DB::table('gates_uploads')->insert([
+                'uploader_id'      => $uploaderId,
+                'uploader_type'    => 'admin',
+                'path'             => $stored,
+                'mime'             => $mime,
+                'size_bytes'       => $size,
+                'width'            => (int) $w,
+                'height'           => (int) $h,
+                'attached_to_type' => $attachedToType,
+                'attached_to_id'   => $attachedToId,
+                'created_at'       => Carbon::now()->toDateTimeString(),
+            ] + $this->providerColumns($remote, $relPath));
+        } catch (\Throwable $e) { /* metadata is non-fatal */ }
+
+        return [
+            'path'  => $stored,
+            'url'   => $stored,
+            'local' => '/' . $relPath,
+            'size'  => $size,
         ];
     }
 
