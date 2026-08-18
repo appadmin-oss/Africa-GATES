@@ -429,10 +429,19 @@
                is written to degrade to VISIBLE, never to hidden. #}
             <div class="ap-field ap-cac ap-wide">
               <label for="apCac">CAC number <em>— registered businesses only</em></label>
+              {# The `pattern` catches the gross shape in the browser, where the person who
+                 made the typo is still standing there. It is deliberately looser than the
+                 server's rule — two letters and digits, rather than RC|BN|IT specifically —
+                 because a browser that silently refuses a real number teaches nothing,
+                 while the server's refusal names the three prefixes and can be read. #}
               <input id="apCac" name="cac_number" type="text" maxlength="60"
-                     value="{{ old.cac_number|default('') }}" placeholder="BN1234567">
-              <small>Your own RC, BN or IT number. Do not borrow somebody else’s — it puts
-                the wrong name on the paperwork and on the money.</small>
+                     value="{{ old.cac_number|default('') }}" placeholder="BN1234567"
+                     autocapitalize="characters" spellcheck="false"
+                     pattern="[A-Za-z]{2}[ /-]*[0-9]{1,10}"
+                     title="Two letters — RC, BN or IT — then the digits. For example BN1234567.">
+              <small>Your own RC, BN or IT number. It is checked against the register after
+                you apply, and it must not be somebody else’s — a borrowed number puts the
+                wrong name on the paperwork and on the money.</small>
             </div>
             <div class="ap-field">
               <label for="apEmail">Email</label>

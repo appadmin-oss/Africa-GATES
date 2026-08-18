@@ -260,6 +260,25 @@
               <div style="font-size:12px;color:var(--ad-text-soft);margin-top:4px">
                 Register says: <strong>{{ org.cac_registered_name }}</strong></div>
             {% endif %}
+            {# ── WHAT THE BACKGROUND CHECK FOUND ───────────────────────────────
+               Machine output, and labelled as such. It carries the things the state
+               column cannot: that this number is already on file against somebody else,
+               that it is a business name rather than an incorporated trustee, or that
+               nobody could be reached — none of which are verdicts, and the most useful
+               of which (the duplicate) is a question for the reader rather than an
+               answer. Written by the queued check and by nothing else, so it is never
+               mistaken for a colleague's opinion. #}
+            {% if org.cac_check_note|default('') %}
+              {# Inline, like every other note on this page. The template carries no style
+                 block and inventing a class with nowhere to live is how a rule ends up in
+                 admin.css that only one row uses. #}
+              <div style="margin-top:8px;padding:8px 10px;border-left:3px solid #84610b;
+                          background:rgba(132,97,11,.06);font-size:12px;line-height:1.55">
+                <strong>Background check{% if org.cac_checked_at|default('') %} ·
+                  {{ org.cac_checked_at|slice(0,16) }}{% endif %}</strong>
+                <div style="margin-top:3px">{{ org.cac_check_note }}</div>
+              </div>
+            {% endif %}
           </td>
           <td>
             {% set cs = org.cac_check|default('unchecked') %}

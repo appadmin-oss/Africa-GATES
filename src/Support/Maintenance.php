@@ -828,6 +828,19 @@ final class Maintenance
             $q->on(NominationTriageService::JOB_TRIAGE, function (array $p) {
                 NominationTriageService::generate((int)($p['nomination_id'] ?? 0));
             });
+            // ── the register, asked away from the form ─────────────────────────
+            //
+            // A vendor's submit creates an account AND an application in one request, on a
+            // phone, against a closing date. RegistryCheck allows ten seconds to connect and
+            // ten to read, so a verifier having a bad afternoon would cost that person
+            // twenty seconds and then a failure with nothing saved — and would invert the
+            // rule the vetting design rests on, that unreachable is UNCHECKED and never a
+            // refusal. Here it retries five times and its failure costs nobody an
+            // application. Safe to run twice: it overwrites its own three columns and will
+            // not touch a verdict a person recorded.
+            $q->on(\AfricaGates\Services\PartnerOrg::JOB_REGISTRY, function (array $p) {
+                \AfricaGates\Services\PartnerOrg::runRegistryCheck((int) ($p['org_id'] ?? 0));
+            });
             // ── the two jobs that keep a gateway webhook inside its budget ────
             //
             // Paystack allows roughly 30 seconds for a whole webhook delivery. Sending

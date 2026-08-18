@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use Illuminate\Database\Capsule\Manager as DB;
+use AfricaGates\Services\RegistryCheck;
+use AfricaGates\Services\QueueService;
 
 /**
  * Partner organisations that collect donations through this platform.
@@ -123,6 +125,207 @@ final class PartnerOrg
         'food'      => 'Food handling / hygiene certificate',
         'other'     => 'Other supporting document',
     ];
+
+    /**
+     * The queued registry check. See {@see runRegistryCheck()} for what it does and, more to
+     * the point, for what it deliberately does not do.
+     */
+    public const JOB_REGISTRY = 'org.registry_check';
+
+    // ─────────────────────────── registration numbers ───────────────────────
+
+    /**
+     * Is this a usable CAC number, and what should be stored for it?
+     *
+     * ── WHY THIS EXISTS AT ALL ───────────────────────────────────────────────
+     *
+     * Both registration paths used to accept any non-empty string. A phone number, a bank
+     * account, `12345`, or a pasted line of a PDF all stored clean and looked like a
+     * registration number on the vetting screen until somebody opened the register and found
+     * nothing. {@see RegistryCheck::cacFormat()} has always known the difference and was
+     * only ever called from the admin screen, which is the wrong end: the person who can fix
+     * a typo is the person who just made it, and they are gone by then.
+     *
+     * ── AND WHY IT REFUSES ONLY THE MALFORMED ────────────────────────────────
+     *
+     * Shape is the only thing knowable here without a network call, and a well-formed number
+     * belonging to nobody passes. The kind of registration — RC, BN, IT — is a NOTE and never
+     * a refusal, because a Nigerian non-profit limited by guarantee is an RC and turning one
+     * away at a form would be both wrong and unappealable. That judgement belongs to a
+     * reviewer looking at a whole record, which is exactly what the note is for.
+     *
+     * The NORMALISED form is what gets stored: `RC/1234567`, one spelling, so that two people
+     * typing `rc1234567` and `RC 1234567` collide in {@see cacOnFileElsewhere()} instead of
+     * looking like two different organisations.
+     *
+     * @return array{ok:bool,stored:string,note:string,message:string}
+     */
+    public static function checkCacInput(string $raw, bool $required): array
+    {
+        $raw = trim($raw);
+
+        if ($raw === '') {
+            return $required
+                ? ['ok' => false, 'stored' => '', 'note' => '', 'message' => 'A CAC registration number is required.']
+                : ['ok' => true,  'stored' => '', 'note' => '', 'message' => ''];
+        }
+
+        $f = RegistryCheck::cacFormat($raw);
+        if (!$f['ok']) {
+            return ['ok' => false, 'stored' => '', 'note' => '', 'message' => $f['message']];
+        }
+
+        return ['ok' => true, 'stored' => $f['normalised'], 'note' => $f['message'], 'message' => ''];
+    }
+
+    /**
+     * The form a CAC number should be STORED in, whatever was typed.
+     *
+     * Normalised when the shape is recognised, verbatim when it is not, null when it is
+     * blank. The lenient branch is for the admin screen only: an administrator entering a
+     * number is reading it off the register and may meet a shape this platform has not seen,
+     * and a tool that refuses what the source of truth says is a tool that gets worked
+     * around. The public forms go through {@see checkCacInput()}, which refuses.
+     */
+    public static function storableCac(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if ($raw === '') return null;
+
+        $f = RegistryCheck::cacFormat($raw);
+        return mb_substr($f['ok'] ? $f['normalised'] : $raw, 0, 60);
+    }
+
+    /**
+     * Is this registration number already on file against somebody else?
+     *
+     * The cheapest real fraud signal this platform has: no third party, no key, no network,
+     * one indexed lookup. It is what the application form warns about in words — "do not
+     * borrow somebody else's number" — finally checked rather than merely requested.
+     *
+     * ── AND IT IS A SIGNAL, NOT A GATE ───────────────────────────────────────
+     *
+     * Refusing a duplicate at the form would do three bad things. It would answer "is this
+     * organisation on your platform?" to anyone who can type, from a register that is public
+     * but an account that is not. It would block a body whose first application was
+     * abandoned, or whose treasurer left with the password. And it would make a machine
+     * decide which of two claimants is the real one, which is precisely the judgement this
+     * platform reserves for a person with the whole record in front of them.
+     *
+     * So it is recorded, surfaced, and left to a reviewer.
+     */
+    public static function cacOnFileElsewhere(string $stored, int $exceptOrgId = 0): ?object
+    {
+        $stored = trim($stored);
+        if ($stored === '') return null;
+
+        try {
+            $q = DB::table('gates_partner_orgs')->where('cac_number', $stored);
+            if ($exceptOrgId > 0) $q->where('id', '!=', $exceptOrgId);
+            return $q->orderBy('id')->first();
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * Ask the register about one organisation's number, and write down what came back.
+     *
+     * ── WHY THIS IS A JOB AND NOT PART OF THE SUBMIT ─────────────────────────
+     *
+     * The submit that creates a vendor is one request that makes an account AND an
+     * application, on a phone, at a market, against a closing date. {@see RegistryCheck} uses
+     * a ten-second connect and a ten-second read, so a verifier having a bad afternoon would
+     * cost that person twenty seconds and then a failure, with nothing saved. Worse, it would
+     * invert the rule the whole vetting design rests on: unreachable is UNCHECKED, never
+     * rejected. A submit-time gate turns an outage into a refusal at the deadline.
+     *
+     * Queued, it runs within the maintenance cycle, retries with backoff five times, and its
+     * failure costs nobody their application.
+     *
+     * ── WHAT IT WILL NOT OVERWRITE ───────────────────────────────────────────
+     *
+     * A verdict a PERSON recorded. If a reviewer has already confirmed or rejected this
+     * number, the job leaves the state alone and only refreshes the note — because the whole
+     * point of the confirmed/verified distinction is that the record can tell a human's
+     * judgement from a machine's, and a job that quietly overwrote one with the other would
+     * destroy exactly that.
+     *
+     * @return array{state:string,note:string}
+     */
+    public static function runRegistryCheck(int $orgId): array
+    {
+        $org = self::find($orgId);
+        if (!$org) return ['state' => RegistryCheck::UNCHECKED, 'note' => ''];
+
+        $number = trim((string) ($org->cac_number ?? ''));
+        if ($number === '') return ['state' => RegistryCheck::UNCHECKED, 'note' => ''];
+
+        $notes = [];
+
+        // 1 · Shape, which is free and true offline.
+        $f = RegistryCheck::cacFormat($number);
+        if (!$f['ok']) {
+            $notes[] = $f['message'];
+        } elseif ($f['message'] !== '') {
+            $notes[] = $f['message'];
+        }
+
+        // 2 · The duplicate, which costs one indexed lookup and is the best signal here.
+        $twin = self::cacOnFileElsewhere($f['ok'] ? $f['normalised'] : $number, $orgId);
+        if ($twin) {
+            $notes[] = 'This number is already on file against “' . (string) $twin->name
+                     . '” (#' . (int) $twin->id . '). One of the two is wrong, and which one '
+                     . 'is a question for a person.';
+        }
+
+        // 3 · The register itself, if anybody is configured to answer.
+        $state = RegistryCheck::UNCHECKED;
+        $name  = '';
+        if ($f['ok']) {
+            $v     = RegistryCheck::verifyCac($number);
+            $state = $v['state'];
+            $name  = $v['name'];
+            if ($v['message'] !== '') $notes[] = $v['message'];
+        }
+
+        $note   = mb_substr(implode(' ', array_filter($notes)), 0, 500);
+        $update = [
+            'cac_check_note' => $note !== '' ? $note : null,
+            'cac_checked_at' => date('Y-m-d H:i:s'),
+        ];
+
+        // A person's verdict stands. Only an unchecked record takes the machine's.
+        $current = (string) ($org->cac_check ?? RegistryCheck::UNCHECKED);
+        if ($current === RegistryCheck::UNCHECKED) {
+            $update['cac_check'] = $state;
+            if ($name !== '') $update['cac_registered_name'] = mb_substr($name, 0, 200);
+        }
+
+        try {
+            DB::table('gates_partner_orgs')->where('id', $orgId)->update($update);
+        } catch (\Throwable) {
+            // The columns arrive with a migration. A deployment that has not run it yet must
+            // not turn a background check into a failing job that retries five times.
+            return ['state' => $state, 'note' => $note];
+        }
+
+        return ['state' => $state, 'note' => $note];
+    }
+
+    /** Queue the registry check for one organisation. Deduped, so a retry enqueues once. */
+    public static function queueRegistryCheck(int $orgId): void
+    {
+        if ($orgId < 1) return;
+        try {
+            (new QueueService())->push(self::JOB_REGISTRY, ['org_id' => $orgId], 0,
+                                       'registry:' . $orgId);
+        } catch (\Throwable) {
+            // Never at the cost of the registration that triggered it. An organisation that
+            // exists without a queued check is a record a reviewer still sees; a registration
+            // that failed because a queue insert did is a person who did not get to apply.
+        }
+    }
 
     public static function find(int $id): ?object
     {
@@ -336,11 +539,24 @@ final class PartnerOrg
         }
         // A registered business must say what it is registered as. An individual is not
         // asked, because they have nothing to give and asking anyway invites a borrowed number.
-        $cac = trim((string) ($in['cac_number'] ?? ''));
-        if ($entity === self::ENTITY_BUSINESS && $cac === '') {
-            return $fail + ['message' => 'Give the CAC registration number of the business, or '
-                                       . 'apply as an individual if you are not registered.'];
+        //
+        // CHECKED FOR SHAPE, not merely for presence. `12345`, a phone number and a pasted
+        // line of a PDF all used to store clean and look like a registration on the vetting
+        // screen — and the person who could have fixed the typo was long gone by then. An
+        // individual's is discarded rather than validated, because the form does not ask
+        // them for one and a number typed into a field they were told to leave empty is more
+        // likely to be somebody else's than their own.
+        $cacIn = self::checkCacInput(
+            $entity === self::ENTITY_BUSINESS ? (string) ($in['cac_number'] ?? '') : '',
+            $entity === self::ENTITY_BUSINESS
+        );
+        if (!$cacIn['ok']) {
+            return $fail + ['message' => $entity === self::ENTITY_BUSINESS && trim((string) ($in['cac_number'] ?? '')) === ''
+                ? 'Give the CAC registration number of the business, or apply as an individual '
+                  . 'if you are not registered.'
+                : $cacIn['message']];
         }
+        $cac = $cacIn['stored'];
 
         $slug = self::uniqueSlug($name);
         if ($slug === '') return $fail + ['message' => 'That name does not make a usable web address.'];
@@ -352,7 +568,7 @@ final class PartnerOrg
             'kind'            => self::KIND_VENDOR,
             'entity_type'     => $entity,
             'self_registered' => 1,
-            'cac_number'      => $entity === self::ENTITY_BUSINESS ? mb_substr($cac, 0, 60) : null,
+            'cac_number'      => $cac !== '' ? mb_substr($cac, 0, 60) : null,
             'contact_name'    => mb_substr(trim((string) ($in['contact_name'] ?? '')), 0, 160) ?: null,
             'contact_email'   => mb_substr($email, 0, 190),
             'contact_phone'   => mb_substr(trim((string) ($in['contact_phone'] ?? '')), 0, 40) ?: null,
@@ -370,6 +586,11 @@ final class PartnerOrg
             DB::table('gates_partner_orgs')->where('id', $orgId)->delete();
             return $fail + ['message' => $u['message']];
         }
+
+        // The register, asked in the background. Never in this request: see
+        // runRegistryCheck() for why a ten-second verifier timeout has no business standing
+        // between a vendor and a closing date.
+        self::queueRegistryCheck($orgId);
 
         return [
             'ok'      => true,
@@ -417,6 +638,12 @@ final class PartnerOrg
             return $fail + ['message' => 'A CAC registration number is required. Only an '
                                        . 'incorporated body may collect charitable gifts in Nigeria.'];
         }
+        // Shape, and shape only. A non-IT number is a NOTE and not a refusal here: a
+        // non-profit limited by guarantee is an RC, and turning one away at a form it cannot
+        // argue with would be both wrong and unappealable. The note reaches the reviewer.
+        $cacIn = self::checkCacInput($cac, true);
+        if (!$cacIn['ok']) return $fail + ['message' => $cacIn['message']];
+        $cac = $cacIn['stored'];
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return $fail + ['message' => 'That is not a valid email address.'];
         }
@@ -458,6 +685,8 @@ final class PartnerOrg
             DB::table('gates_partner_orgs')->where('id', $orgId)->delete();
             return $fail + ['message' => $u['message']];
         }
+
+        self::queueRegistryCheck($orgId);
 
         return ['ok' => true, 'org_id' => $orgId,
                 'user' => \AfricaGates\Services\OrgAuth::findByEmail($email),

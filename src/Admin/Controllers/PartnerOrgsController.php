@@ -241,7 +241,13 @@ final class PartnerOrgsController
             'entity_type'   => ($kind === PartnerOrg::KIND_VENDOR && isset(PartnerOrg::ENTITIES[$entity]))
                                 ? $entity : PartnerOrg::ENTITY_BUSINESS,
             'legal_name'    => trim((string) ($b['legal_name'] ?? '')) ?: null,
-            'cac_number'    => trim((string) ($b['cac_number'] ?? '')) ?: null,
+            // Normalised when it is well formed, kept verbatim when it is not. An admin
+            // typing a number is looking at the register and may have a shape this platform
+            // does not know; refusing it would be the tool arguing with the source. But when
+            // it IS a shape we know, one spelling is stored — `RC/1234567` — so two records
+            // carrying the same registration collide in PartnerOrg::cacOnFileElsewhere()
+            // instead of looking like two organisations.
+            'cac_number'    => PartnerOrg::storableCac((string) ($b['cac_number'] ?? '')),
             'scuml_number'  => trim((string) ($b['scuml_number'] ?? '')) ?: null,
             'description'   => trim((string) ($b['description'] ?? '')) ?: null,
             'contact_name'  => trim((string) ($b['contact_name'] ?? '')) ?: null,

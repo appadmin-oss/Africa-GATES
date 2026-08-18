@@ -170,8 +170,12 @@
         <div>
           <label for="oaCac">CAC number</label>
           <input id="oaCac" name="cac_number" type="text" maxlength="60" required
-                 value="{{ old.cac_number|default('') }}" placeholder="IT/1234567">
-          <small>Incorporated Trustees numbers usually begin <strong>IT/</strong>.</small>
+                 value="{{ old.cac_number|default('') }}" placeholder="IT/1234567"
+                 autocapitalize="characters" spellcheck="false"
+                 pattern="[A-Za-z]{2}[ /-]*[0-9]{1,10}"
+                 title="Two letters — RC, BN or IT — then the digits. For example IT/1234567.">
+          <small>Incorporated Trustees numbers begin <strong>IT</strong>. An RC or BN is
+            accepted and noted for the reviewer — a body limited by guarantee holds an RC.</small>
         </div>
         <div>
           <label for="oaScuml">SCUML number <span style="font-weight:400;color:#61707a">— if you have it yet</span></label>
