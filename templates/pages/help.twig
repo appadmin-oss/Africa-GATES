@@ -4,160 +4,284 @@
   THE HELP CENTRE INDEX.
 
   ── WHAT THIS PAGE IS FOR ───────────────────────────────────────────────────
-  Somebody arriving here is stuck, not browsing, and the ticket queue says the
-  top arrival by a distance is "I paid and I have no votes". So the order is:
-  search, then the four things that go wrong most, then the taxonomy. Making a
-  stuck person read a category system first is a small unkindness repeated
-  thousands of times.
+  Somebody arriving here is stuck, not browsing, and the ticket queue says the top
+  arrival by a distance is "I paid and I have no votes". So the order is: search,
+  then the four things that go wrong most, then the whole directory. Making a stuck
+  person read a category system first is a small unkindness repeated thousands of
+  times.
 
-  ── THE LAYOUT PROBLEM THIS REBUILD FIXES ───────────────────────────────────
-  The previous version put six category cards in `grid-template-columns:
-  repeat(2,1fr)` and printed EVERY answer in each one. The corpus is deeply
-  uneven — 12 answers under "Results & integrity", 2 under "Privacy" — and a
-  grid row is as tall as its tallest cell, so each row left a column of empty
-  page beside the short card. Measured: 2,858px tall at 1280px wide, roughly a
-  third of it void, and "Results & integrity" was a wall of twelve links.
+  ── WHAT THE REBUILD CHANGED ────────────────────────────────────────────────
+  The behaviour was right and the surface was not. It was a centred hero over a
+  centred search over eleven rounded white boxes of identical radius, border and
+  elevation — which is the shape a page takes when nobody has decided what is
+  important on it. Four "most people are here for" cards each carried the SAME
+  red-tinted alert icon, four times, which is decoration wearing the costume of
+  information.
 
-  Three changes, and the first is the one that matters:
+  Three changes, and none of them touch the mechanics:
 
-    1. CSS MULTI-COLUMN instead of a grid. Cards flow and pack, so a short card
-       is followed by the next card rather than by 350px of nothing. The column
-       count is the browser's: `columns: 20rem 2` means "as many columns as fit,
-       none narrower than 20rem, at most two", so a phone gets one and anything
-       above about 660px gets two, with no breakpoint in between. Now 2,317px
-       and the two columns end within 60px of each other.
+    1. AN EDITORIAL MASTHEAD, left-aligned, with the search field on the same
+       measure as the text. The search is the primary action, so it is the widest
+       and heaviest thing on the page, and it is above everything else — not
+       floating in the middle of a centred hero.
+    2. NO CARDS. Hairline rules carry the structure. The four emergencies are a
+       numbered list, and the directory is an INDEX: topic, count, and its answers
+       under a rule. A ragged column bottom then reads as the end of a list rather
+       than as a broken box, which is what killed the previous two-column pack at
+       1280px.
+    3. THE ICONS EARN THEIR PLACE OR GO. The four identical alert marks are gone.
+       The six topic icons stay, as bare 17px line marks rather than tinted rounded
+       squares, because six DISTINCT marks in a directory are a scanning aid and
+       four identical ones were not.
 
-       Two and not three, having tried three: it fits at 1280px, saves only
-       150px of height, and every second title wraps onto a second line. These
-       titles are sentences — "Someone nominated me — can I manage my own
-       profile?" — so the count is set by what a line of them needs to read,
-       not by how much width is left over.
-    2. EACH CARD SHOWS FIVE and links to its own page for the rest, which is
-       why /help/c/{cat} now exists. Six evenly-sized cards, one screen.
-    3. TYPING NARROWS IN PLACE. Progressive enhancement over the same GET form
-       — Enter still runs the real scored server search, which is shareable and
-       matches keywords the page does not contain. See the Alpine note below.
+  ── WHAT DID NOT CHANGE, BECAUSE IT MUST NOT ────────────────────────────────
+    · EVERY CARD SHOWS FIVE and links to its own page for the rest. The corpus is
+      deeply uneven — 12 answers under "Results & integrity", 2 under "Privacy" —
+      and printing all of it was the original 2,858px page.
+    · TYPING NARROWS IN PLACE, as progressive enhancement over a real GET form.
+      Enter still runs the scored server search, which is shareable and matches
+      keywords the page does not contain.
+    · EVERYTHING PAST THE PREVIEW IS IN THE MARKUP, marked out rather than
+      omitted, so the live filter can reach it without a round trip and a reader
+      with no JavaScript still gets the first few plus a real link to the rest.
 #}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  body[data-page="help"]{ background:#eef0ec; color:var(--ag-ink); }
-  .hc{ max-width:1120px; margin:0 auto; padding:clamp(1.75rem,5vw,2.9rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+  /* ══════════════════════════════════════════════════════════════════════════
+     TOKENS — the same system as the donations page and the event ticket: paper
+     ground, hairline rules, mono micro-labels, one gold accent, emerald reserved
+     for the action.
+     ══════════════════════════════════════════════════════════════════════════ */
+  body[data-page="help"]{
+    --hc-paper:#f0f2f2;
+    --hc-card:#ffffff;
+    --hc-cream:#f6f2e6;
+    --hc-ink:#10292C;
+    --hc-ink-2:#4a5256;                   /* 6.6:1 on paper */
+    --hc-mute:#626a6e;                    /* 4.7:1 on paper — the floor */
+    --hc-line:rgba(16,41,44,.12);
+    --hc-line-2:rgba(16,41,44,.22);
+    --hc-gold-ink:#745001;                /* gold that has to be read: 6.1:1 */
+    --hc-gold:#f3b416;
+    --hc-green:#237b22;
+    --hc-green-dark:#1a6118;
+    --hc-r:14px;
+    --hc-r-sm:4px;
+    --hc-sec:clamp(40px,6vw,68px);
 
-  /* ── hero + search ─────────────────────────────────────────────────────── */
-  .hc-hero{ text-align:center; }
-  .hc-eyebrow{ margin:0 0 10px; font:600 12px/1 var(--ag-font-body); letter-spacing:.14em; text-transform:uppercase; color:var(--ag-green); }
-  .hc-hero h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.75rem,4.4vw,2.5rem); letter-spacing:-.02em; }
-  .hc-hero p{ margin:12px auto 0; max-width:34rem; font-size:15px; line-height:1.6; color:#4a5256; }
+    background:var(--hc-paper); color:var(--hc-ink);
+  }
+  body[data-page="help"] [x-cloak]{ display:none !important; }
 
-  /* A real GET form, so a search is a URL you can share and reload. */
-  .hc-search{ position:relative; display:flex; align-items:center; gap:11px; background:var(--ag-surface); border:1px solid rgba(16,41,44,.14);
-    border-radius:14px; padding:6px 6px 6px 18px; margin:22px auto 0; max-width:600px; }
-  .hc-search:focus-within{ border-color:var(--ag-green); box-shadow:0 0 0 3px rgba(127,200,124,.18); }
-  .hc-search input{ flex:1; min-width:0; border:none; outline:none; font-family:inherit; font-size:15px; color:var(--ag-ink); background:none; padding:10px 0; }
+  .hc{ max-width:1080px; margin:0 auto;
+    padding:clamp(24px,4vw,44px) var(--ag-gutter,32px) clamp(48px,6vw,72px); }
+
+  .hc-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; letter-spacing:.24em; text-transform:uppercase; color:var(--hc-gold-ink); }
+
+  /* ── the masthead ────────────────────────────────────────────────────────
+     Left-aligned and on the text measure. A centred hero centres the search too,
+     and a centred search on a 1080px page is a control floating in the middle of
+     nothing — which is what made this read as a template. */
+  .hc-mast h1{ margin:12px 0 0; font-family:var(--ag-font-display,Georgia,serif);
+    font-weight:800; font-size:clamp(2rem,4.4vw,2.9rem); line-height:1.03;
+    letter-spacing:-.03em; color:var(--hc-ink); text-wrap:balance; }
+  .hc-mast p{ margin:14px 0 0; max-width:54ch; font-size:16px; line-height:1.65;
+    color:var(--hc-ink-2); text-wrap:pretty; }
+
+  /* ── the search ──────────────────────────────────────────────────────────
+     A real GET form, so a search is a URL you can share, bookmark and reload.
+     The heaviest control on the page, because it is the thing a stuck person
+     wants. 16px on the input, because anything smaller and iOS zooms on focus. */
+  .hc-search{ display:flex; align-items:stretch; gap:0; margin:28px 0 0; max-width:640px;
+    background:var(--hc-card); border:1px solid var(--hc-line-2); border-radius:var(--hc-r); }
+  .hc-search:focus-within{ border-color:var(--hc-green);
+    box-shadow:0 0 0 3px rgba(35,123,34,.16); }
+  .hc-search__ico{ flex:none; display:flex; align-items:center; padding:0 0 0 18px;
+    color:var(--hc-mute); }
+  .hc-search input{ flex:1; min-width:0; border:none; outline:none; background:none;
+    font-family:inherit; font-size:16px; color:var(--hc-ink); padding:16px 14px;
+    min-height:56px; }
   .hc-search input::-webkit-search-cancel-button{ cursor:pointer; }
-  .hc-search button{ flex:none; cursor:pointer; border:none; font-family:inherit; font-weight:600; font-size:14px;
-    padding:11px 20px; border-radius:10px; background:var(--ag-ink); color:#fff; }
+  .hc-search button{ flex:none; margin:6px; cursor:pointer; border:none; font-family:inherit;
+    font-weight:700; font-size:14.5px; padding:0 22px; min-height:44px;
+    border-radius:var(--hc-r-sm); background:var(--hc-ink); color:#fff;
+    display:inline-flex; align-items:center; gap:8px; }
+  .hc-search button:hover{ background:var(--hc-green-dark); }
+  .hc-search button:focus-visible{ outline:3px solid var(--hc-green); outline-offset:2px; }
 
-  /* The live count. Sits under the field rather than replacing anything, so the
-     page never jumps as you type. */
-  .hc-live{ margin:10px auto 0; max-width:600px; font-size:13px; color:var(--ag-ink-soft); min-height:1.2em; }
-  .hc-live b{ color:var(--ag-ink); }
-  .hc-live a{ color:var(--ag-green); font-weight:600; }
+  /* The live count sits UNDER the field rather than replacing anything, so the page
+     never jumps as you type. `min-height` holds the space before it has anything to
+     say, for the same reason. */
+  .hc-live{ margin:12px 0 0; max-width:640px; font-size:13.5px; line-height:1.55;
+    color:var(--hc-ink-2); min-height:1.3em; }
+  .hc-live b{ font-family:var(--ag-font-mono,monospace); color:var(--hc-ink); }
+  .hc-live a{ color:var(--hc-green-dark); font-weight:700; text-decoration:underline; }
 
-  /* ── the emergencies ───────────────────────────────────────────────────── */
-  .hc-sec{ margin-top:clamp(2rem,4vw,2.75rem); }
-  .hc-sec__h{ display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin:0 0 14px; }
-  .hc-sec__h h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.25rem; }
-  .hc-sec__h span{ font-size:13px; color:var(--ag-ink-soft); }
+  .hc-count{ margin:22px 0 0; font-family:var(--ag-font-mono,monospace); font-size:11px;
+    font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--hc-mute); }
 
-  /* TWO up, deliberately, rather than auto-fit. There are exactly four of these
-     and the set is curated in HelpController, so the count is known. auto-fit put
-     three on the first row and left the fourth as an orphan beside empty space —
-     the same raggedness this rebuild removed from the topic cards, reintroduced at
-     the top of the page. A 2×2 block is balanced at every width above a phone. */
-  .hc-top{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
-  .hc-top a{ display:flex; gap:13px; align-items:flex-start; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08);
-    border-radius:16px; padding:16px 18px; text-decoration:none; transition:border-color .15s, transform .15s, box-shadow .15s; }
-  .hc-top a:hover{ border-color:rgba(16,41,44,.2); transform:translateY(-2px); box-shadow:0 12px 26px -18px rgba(16,41,44,.5); }
-  .hc-top__b{ flex:none; width:30px; height:30px; border-radius:9px; background:#fdeaf0; color:#b03a5b; display:flex; align-items:center; justify-content:center; }
-  /* `display:block` is load-bearing: these are <span>s inside an <a> (an <a> may
-     not contain block elements), and left inline the title and the summary ran
-     together into one grey sentence — the heading stopped reading as a heading. */
-  .hc-top__t{ display:block; font-weight:600; font-size:14.5px; line-height:1.35; color:var(--ag-ink); }
-  .hc-top__d{ display:block; font-size:12.5px; line-height:1.5; color:var(--ag-ink-soft); margin-top:4px; }
+  /* ── sections ────────────────────────────────────────────────────────────── */
+  .hc-sec{ margin-top:var(--hc-sec); }
+  .hc-sec__h{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  .hc-sec__h h2{ margin:0; font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
+    font-size:clamp(1.35rem,2.6vw,1.75rem); line-height:1.16; letter-spacing:-.02em;
+    color:var(--hc-ink); }
+  .hc-sec__h span{ font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
+    letter-spacing:.18em; text-transform:uppercase; color:var(--hc-mute); }
+  .hc-sec__h a{ color:var(--hc-green-dark); text-decoration:underline; }
 
-  /* ── categories ────────────────────────────────────────────────────────── */
-  /* MULTI-COLUMN, not grid. See the note at the top of this file: with a grid,
-     a 2-answer category sat beside a 12-answer one and the row was as tall as
-     the taller, leaving a column of empty page. Columns pack instead.
-     `columns: <width> <count>` sets a MAXIMUM count and a MINIMUM width, and the
-     browser picks — one column on a phone, two from about 660px up, with nothing
-     in between needing a media query.
+  /* ── the four emergencies ────────────────────────────────────────────────
+     A numbered list. There are exactly four, curated in HelpController, and the
+     four cards this replaces each carried the same red alert icon — which told a
+     reader nothing except that somebody had a spare icon. The NUMBER carries the
+     one true fact: these are ranked by how often they arrive. */
+  /* Two up above 760px. Four stacked rows read in rank order but cost a screenful,
+     and the point of this block is to be a shortcut. Grid rather than columns so the
+     two rows line up and the hairlines meet across the gutter. */
+  .hc-top{ margin:20px 0 0; display:grid; grid-template-columns:1fr 1fr;
+    column-gap:clamp(28px,4vw,52px); border-top:1px solid var(--hc-line-2); }
+  .hc-top a{ display:grid; grid-template-columns:30px minmax(0,1fr);
+    column-gap:clamp(12px,1.6vw,18px); align-items:baseline; padding:18px 0;
+    border-bottom:1px solid var(--hc-line); text-decoration:none; }
+  .hc-top a:hover .hc-top__t{ color:var(--hc-green-dark); text-decoration:underline; }
+  .hc-top a:focus-visible{ outline:3px solid var(--hc-green); outline-offset:3px; }
+  .hc-top__n{ font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
+    letter-spacing:.14em; color:var(--hc-gold-ink); }
+  /* `display:block` is load-bearing: these are <span>s inside an <a> (an <a> may not
+     contain block elements), and left inline the title and the summary ran together
+     into one grey sentence — the heading stopped reading as a heading. */
+  .hc-top__t{ display:block; font-family:var(--ag-font-display,Georgia,serif);
+    font-weight:700; font-size:clamp(1.02rem,1.7vw,1.15rem); line-height:1.3;
+    letter-spacing:-.01em; color:var(--hc-ink); }
+  .hc-top__d{ display:block; margin-top:5px; font-size:13.5px; line-height:1.6;
+    color:var(--hc-ink-2); max-width:56ch; }
 
-     The cap is 2 rather than 3 on purpose; see the note at the top of the file.
-     Three fits at 1280px and saves 150px of height, at the cost of wrapping every
-     second title onto a second line. */
-  .hc-cats{ columns:20rem 2; column-gap:16px; }
-  .hc-cat{ break-inside:avoid; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08);
-    border-radius:18px; padding:20px 22px; margin:0 0 16px; }
-  .hc-cat__hd{ display:flex; align-items:center; gap:12px; text-decoration:none; }
-  .hc-cat__ico{ flex:none; width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; }
-  .hc-cat__t{ font-weight:600; font-size:15px; color:var(--ag-ink); }
-  .hc-cat__d{ font-size:12.5px; color:var(--ag-ink-soft); margin-top:2px; }
-  a.hc-cat__hd:hover .hc-cat__t{ color:var(--ag-green); }
-  .hc-cat__list{ list-style:none; margin:14px 0 0; padding:0; display:flex; flex-direction:column; }
-  .hc-cat__list li + li{ border-top:1px solid rgba(16,41,44,.06); }
-  .hc-cat__list a{ display:block; padding:10px 0; font-size:14px; line-height:1.45; color:#39464a; text-decoration:none; }
-  .hc-cat__list a:hover{ color:var(--ag-green); }
-  .hc-cat__more{ display:inline-block; margin-top:12px; font-size:13px; font-weight:600; color:var(--ag-green); text-decoration:none; }
+  /* ── the directory ───────────────────────────────────────────────────────
+     MULTI-COLUMN, not grid, and the reasoning is unchanged from the last rebuild:
+     with a grid, a 2-answer topic sat beside a 12-answer one and the row was as
+     tall as the taller, leaving a column of empty page. Columns pack instead.
+     `columns: <width> <count>` sets a MINIMUM width and a MAXIMUM count and lets
+     the browser pick — one column on a phone, two from about 660px up, with no
+     media query in between.
+
+     Two and not three, having tried three: it fits at 1280px, saves 150px of
+     height, and wraps every second title onto a second line. These titles are
+     sentences — "Someone nominated me — can I manage my own profile?" — so the
+     count is set by what a line of them needs in order to read.
+
+     What IS new: the topics have no card chrome. A box whose bottom edge lands
+     300px above its neighbour's reads as a mistake; a list that simply ends does
+     not. Same packing, none of the raggedness. */
+  .hc-cats{ columns:20rem 2; column-gap:clamp(28px,4vw,52px); margin-top:22px; }
+  /* ONE GUTTER for the whole topic. With the icon inside a flexed heading, the title
+     was indented by the icon's width and the answer list underneath was not — so every
+     topic had two left edges. The icon lives in a 24px column and everything else in
+     the second, which gives the block a single margin. */
+  .hc-cat{ break-inside:avoid; margin:0 0 30px; padding-top:16px;
+    border-top:1px solid var(--hc-line-2);
+    display:grid; grid-template-columns:24px minmax(0,1fr); column-gap:11px; }
+  .hc-cat__hd{ grid-column:1 / -1; display:grid;
+    grid-template-columns:subgrid; align-items:start; text-decoration:none; }
+  .hc-cat__ico{ margin-top:3px; color:var(--hc-gold-ink); }
+  .hc-cat__list, .hc-cat__more{ grid-column:2; }
+  .hc-cat__t{ display:block; font-family:var(--ag-font-display,Georgia,serif);
+    font-weight:700; font-size:1.06rem; line-height:1.25; letter-spacing:-.01em;
+    color:var(--hc-ink); }
+  .hc-cat__d{ display:block; margin-top:4px; font-size:12.5px; line-height:1.55;
+    color:var(--hc-mute); }
+  /* The count, beside the topic rather than only implied by "all 12 answers" at the
+     foot of it. "Privacy · 2" sets an honest expectation before the click. */
+  .hc-cat__c{ font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
+    letter-spacing:.1em; color:var(--hc-mute); vertical-align:2px; }
+  .hc-cat__c::before{ content:"· "; }
+  a.hc-cat__hd:hover .hc-cat__t{ color:var(--hc-green-dark); text-decoration:underline; }
+  a.hc-cat__hd:focus-visible{ outline:3px solid var(--hc-green); outline-offset:3px; }
+  .hc-cat__list{ list-style:none; margin:12px 0 0; padding:0; }
+  .hc-cat__list li + li{ border-top:1px solid var(--hc-line); }
+  .hc-cat__list a{ display:block; padding:10px 0; font-size:14px; line-height:1.5;
+    color:var(--hc-ink-2); text-decoration:none; }
+  .hc-cat__list a:hover{ color:var(--hc-green-dark); text-decoration:underline; }
+  .hc-cat__list a:focus-visible{ outline:3px solid var(--hc-green); outline-offset:2px; }
+  .hc-cat__more{ display:inline-block; margin-top:12px;
+    font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--hc-green-dark);
+    text-decoration:none; }
   .hc-cat__more:hover{ text-decoration:underline; }
   /* Hidden by the live filter. A class rather than an inline style so Alpine's
      `:class` cannot clobber anything else on the element. */
   .hc-cat.is-out, .hc-cat__list li.is-out{ display:none; }
-  .hc-cat__none{ font-size:13px; color:var(--ag-ink-soft); margin-top:12px; }
 
-  /* ── search results ────────────────────────────────────────────────────── */
-  .hc-res{ display:flex; flex-direction:column; gap:11px; }
-  .hc-res a{ display:block; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px;
-    padding:17px 20px; text-decoration:none; transition:border-color .15s; }
-  .hc-res a:hover{ border-color:var(--ag-green); }
-  .hc-res__t{ font-weight:600; font-size:15px; color:var(--ag-ink); }
-  .hc-res__d{ font-size:13px; line-height:1.55; color:var(--ag-ink-soft); margin-top:4px; }
-  .hc-res__c{ display:inline-block; margin-top:9px; font-size:11px; font-weight:700; letter-spacing:.05em;
-    text-transform:uppercase; padding:4px 9px; border-radius:999px; }
-  .hc-none{ background:var(--ag-surface); border:1px dashed rgba(16,41,44,.18); border-radius:16px; padding:28px; text-align:center; }
-  .hc-none p{ margin:0 0 4px; font-weight:600; font-size:15px; }
-  .hc-none span{ font-size:13.5px; color:var(--ag-ink-soft); }
+  /* ── search results ─────────────────────────────────────────────────────── */
+  .hc-res{ margin:20px 0 0; border-top:1px solid var(--hc-line-2); }
+  .hc-res a{ display:block; padding:18px 0; border-bottom:1px solid var(--hc-line);
+    text-decoration:none; }
+  .hc-res a:hover .hc-res__t{ color:var(--hc-green-dark); text-decoration:underline; }
+  .hc-res a:focus-visible{ outline:3px solid var(--hc-green); outline-offset:3px; }
+  .hc-res__c{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10px;
+    font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--hc-gold-ink); }
+  .hc-res__t{ display:block; margin-top:6px; font-family:var(--ag-font-display,Georgia,serif);
+    font-weight:700; font-size:clamp(1.02rem,1.7vw,1.15rem); line-height:1.3;
+    letter-spacing:-.01em; color:var(--hc-ink); }
+  .hc-res__d{ display:block; margin-top:5px; font-size:13.5px; line-height:1.6;
+    color:var(--hc-ink-2); max-width:64ch; }
 
-  /* ── still stuck ───────────────────────────────────────────────────────── */
-  .hc-ask{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:22px;
-    padding:clamp(1.5rem,3vw,2rem); margin-top:clamp(2rem,4vw,2.75rem);
-    display:flex; align-items:center; justify-content:space-between; gap:22px; flex-wrap:wrap; }
-  .hc-ask__orb{ position:absolute; right:-60px; top:-60px; width:220px; height:220px; border-radius:50%;
-    background:radial-gradient(circle,rgba(127,200,124,.2),transparent 68%); }
-  .hc-ask__t{ position:relative; flex:1 1 18rem; min-width:0; }
-  .hc-ask__t h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.3rem; color:#fff; }
-  .hc-ask__t p{ margin:8px 0 0; font-size:14px; line-height:1.6; color:rgba(255,255,255,.78); }
-  .hc-ask__b{ position:relative; display:flex; gap:10px; flex-wrap:wrap; }
-  .hc-btn{ cursor:pointer; border:none; font-family:inherit; font-weight:600; font-size:14.5px; padding:13px 22px; border-radius:999px; text-decoration:none; }
-  .hc-btn--p{ background:var(--ag-green-light); color:var(--ag-ink); }
-  .hc-btn--g{ border:1px solid rgba(255,255,255,.24); background:none; color:#fff; }
+  /* A dead end is where a help centre loses people, so this one is not a dead end:
+     it says plainly that nothing matched and hands over with the question already
+     carried across. */
+  .hc-none{ margin-top:22px; background:var(--hc-cream); border-radius:var(--hc-r);
+    padding:clamp(22px,3vw,30px); }
+  .hc-none p{ margin:0; font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
+    font-size:1.15rem; line-height:1.3; color:var(--hc-ink); }
+  .hc-none span{ display:block; margin-top:8px; max-width:56ch; font-size:14px;
+    line-height:1.6; color:var(--hc-ink-2); }
+  .hc-none__b{ display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
 
-  /* One breakpoint left, and only for things a fluid rule cannot express. */
-  @media (max-width:640px){
-    /* The search button collapses to its icon: at 360px a labelled button leaves
-       the input too narrow to read what you typed. */
-    .hc-search button span{ display:none; }
-    .hc-search button{ padding:11px 14px; }
-    .hc-ask{ flex-direction:column; align-items:flex-start; }
+  .hc-btn{ display:inline-flex; align-items:center; justify-content:center;
+    min-height:48px; padding:0 22px; border-radius:var(--ag-r-pill,999px);
+    font-family:inherit; font-weight:700; font-size:14.5px; text-decoration:none;
+    cursor:pointer; border:1px solid transparent; }
+  .hc-btn--p{ background:var(--hc-ink); color:#fff; }
+  .hc-btn--p:hover{ background:var(--hc-green-dark); }
+  .hc-btn--g{ border-color:var(--hc-line-2); color:var(--hc-ink); background:none; }
+  .hc-btn--g:hover{ border-color:var(--hc-ink); }
+  .hc-btn:focus-visible{ outline:3px solid var(--hc-green); outline-offset:3px; }
+
+  /* ── still stuck ─────────────────────────────────────────────────────────
+     A flat panel. The radial-gradient orb that used to sit in the corner of this
+     band was the same generic move the donations page had, in the same place, and
+     it was doing the same amount of work. */
+  .hc-ask{ margin-top:var(--hc-sec); background:var(--hc-ink); border-radius:var(--hc-r);
+    padding:clamp(26px,4vw,40px); display:grid;
+    grid-template-columns:minmax(0,1fr) auto; gap:clamp(20px,3vw,40px);
+    align-items:center; }
+  .hc-ask h2{ margin:10px 0 0; font-family:var(--ag-font-display,Georgia,serif);
+    font-weight:700; font-size:clamp(1.3rem,2.4vw,1.6rem); line-height:1.18;
+    letter-spacing:-.02em; color:#fff; }
+  .hc-ask p{ margin:12px 0 0; max-width:56ch; font-size:14.5px; line-height:1.65;
+    color:rgba(251,246,230,.88); text-wrap:pretty; }
+  .hc-ask .hc-kick{ color:var(--hc-gold); }
+  .hc-ask__b{ display:flex; gap:10px; flex-wrap:wrap; }
+  .hc-ask .hc-btn--p{ background:var(--hc-gold); color:#241c00; }
+  .hc-ask .hc-btn--p:hover{ background:#ffc63d; }
+  /* .38 alpha, not .24: a control's own boundary is non-text UI and wants 3:1
+     against its ground. */
+  .hc-ask .hc-btn--g{ border-color:rgba(251,246,230,.38); color:#fff; }
+  .hc-ask .hc-btn--g:hover{ border-color:#fff; }
+
+  @media (max-width:760px){
+    .hc-ask{ grid-template-columns:minmax(0,1fr); }
     /* Two of these side by side on a phone leaves each title wrapping over four
-       lines, which is worse than scrolling. */
+       lines, which is worse than scrolling past four rows. */
     .hc-top{ grid-template-columns:1fr; }
   }
-  @media (prefers-reduced-motion:reduce){
-    .hc-top a{ transition:none; }
-    .hc-top a:hover{ transform:none; }
+  @media (max-width:520px){
+    /* The label goes and the icon stays: at 360px a labelled button leaves the
+       input too narrow to read what you have typed. */
+    .hc-search button span{ display:none; }
+    .hc-search button{ padding:0 14px; }
+    .hc-ask__b .hc-btn{ width:100%; }
   }
 </style>
 {% endblock %}
@@ -165,15 +289,15 @@
 {% block content %}
 {#
   ── WHY ALPINE IS ON THE WHOLE PAGE AND NOT ON THE FORM ─────────────────────
-  The filter has to reach both the category cards and the live count, which are
+  The filter has to reach both the topic blocks and the live count, which are
   siblings in different sections, so the state lives at the top.
 
   `filter` is the typed string; nothing else. The corpus is a `<script
-  type="application/json">` block read once on init rather than an x-data
-  literal: 33 titles plus keywords is several kilobytes, and interpolating that
-  into an HTML attribute is how the vote page ended up with a broken x-data —
-  a quote in a title closes the attribute. JSON in a script tag has no such
-  failure mode, and it is not executable, so CSP is untouched.
+  type="application/json">` block read once on init rather than an x-data literal:
+  33 titles plus keywords is several kilobytes, and interpolating that into an HTML
+  attribute is how the vote page ended up with a broken x-data — a quote in a title
+  closes the attribute. JSON in a script tag has no such failure mode, and it is
+  not executable, so CSP is untouched.
 #}
 <div class="hc"
      x-data="{
@@ -193,23 +317,26 @@
      invariant with an exception in it stops being mechanically checkable. #}
   <script type="application/json" nonce="{{ csp_nonce }}" x-ref="corpus">{{ index|json_encode(constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
 
-  <header class="hc-hero">
-    <p class="hc-eyebrow">Help Centre</p>
+  <header class="hc-mast">
+    <span class="hc-kick">Help Centre</span>
     <h1>{% if q %}Results for “{{ q }}”{% else %}What has gone wrong?{% endif %}</h1>
     {% if not q %}
-      <p>Most problems here have a two-minute answer. Start typing and the list narrows, or press Enter to search properly.</p>
+      <p>Most problems here have a two-minute answer. Start typing and the list
+        narrows, or press Enter to search the full text of every answer.</p>
     {% endif %}
 
     {# A GET form, not an Alpine filter. A search you can bookmark, share with
-       support, or press back to — and it matches the keywords people actually
-       type, which client-side filtering over rendered text cannot. The live
-       narrowing below is additive: with JavaScript off this still works. #}
+       support, or press back to — and it matches the keywords people actually type,
+       which client-side filtering over rendered text cannot. The live narrowing
+       below is additive: with JavaScript off this still works. #}
     <form class="hc-search" method="get" action="/help" role="search">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#5a6d6f" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      <span class="hc-search__ico" aria-hidden="true">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      </span>
       <input type="search" name="q" value="{{ q }}" x-model="filter"
              placeholder="Describe it — “paid but no votes”, “no code”…"
              aria-label="Search the Help Centre" autocomplete="off">
-      <button type="submit"><span>Search</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="display:block"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      <button type="submit"><span>Search</span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="display:block"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
     </form>
 
     {# aria-live so the count is announced rather than only seen. `polite`, not
@@ -218,7 +345,8 @@
       <p class="hc-live" aria-live="polite" x-cloak x-show="needle.length >= 2">
         <template x-if="hits().length">
           <span><b x-text="hits().length"></b> of {{ total }} answers match — or
-            <a :href="'/help?q=' + encodeURIComponent(filter)">search properly</a> for the best one first.</span>
+            <a :href="'/help?q=' + encodeURIComponent(filter)">search the full text</a>
+            to have the best one ranked first.</span>
         </template>
         <template x-if="!hits().length">
           <span>No title matches that.
@@ -234,47 +362,45 @@
       {% if results %}
         <div class="hc-sec__h">
           <h2>{{ results|length }} answer{{ results|length == 1 ? '' : 's' }}</h2>
-          <span><a href="/help" style="color:inherit">Clear search</a></span>
+          <span><a href="/help">Clear search</a></span>
         </div>
         <div class="hc-res">
           {% for a in results %}
             {% set c = categories[a.cat] %}
             <a href="/help/{{ a.slug }}">
-              <div class="hc-res__t">{{ a.title }}</div>
-              <div class="hc-res__d">{{ a.summary }}</div>
-              <span class="hc-res__c" style="background:{{ c.tint }};color:{{ c.fg }}">{{ c.title }}</span>
+              <span class="hc-res__c">{{ c.title }}</span>
+              <span class="hc-res__t">{{ a.title }}</span>
+              <span class="hc-res__d">{{ a.summary }}</span>
             </a>
           {% endfor %}
         </div>
       {% else %}
-        {# A dead end is where a help centre loses people, so this one is not a
-           dead end: it says plainly that nothing matched and hands over to the
-           assistant with the question already carried across. #}
         <div class="hc-none">
           <p>Nothing written covers that yet.</p>
-          <span>Ask the assistant — it can look up your own payments and votes, which no article can.</span>
-          <div style="margin-top:16px">
-            <a class="hc-btn hc-btn--p" style="background:var(--ag-ink);color:#fff" href="/support/assistant?q={{ q|url_encode }}">Ask the assistant →</a>
+          <span>Ask the assistant — it can look up your own payments and votes, which no
+            article can.</span>
+          <div class="hc-none__b">
+            <a class="hc-btn hc-btn--p" href="/support/assistant?q={{ q|url_encode }}">Ask the assistant</a>
+            <a class="hc-btn hc-btn--g" href="/help">Browse every topic</a>
           </div>
         </div>
       {% endif %}
     </section>
 
   {% else %}
-    {# ── the four emergencies ────────────────────────────────────────────── #}
-    {# Hidden once a filter is on: they are a shortcut for somebody who has not
-       said what they want, and leaving them above a filtered list makes the
-       filter look broken. #}
+    {# ── the four emergencies ────────────────────────────────────────────────
+       Hidden once a filter is on: they are a shortcut for somebody who has not yet
+       said what they want, and leaving them above a filtered list makes the filter
+       look broken. #}
     <section class="hc-sec" x-show="needle.length < 2">
       <div class="hc-sec__h">
         <h2>Most people are here for one of these</h2>
+        <span>In the order they arrive</span>
       </div>
       <div class="hc-top">
         {% for a in top %}
           <a href="/help/{{ a.slug }}">
-            <span class="hc-top__b" aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
-            </span>
+            <span class="hc-top__n" aria-hidden="true">{{ '%02d'|format(loop.index) }}</span>
             <span>
               <span class="hc-top__t">{{ a.title }}</span>
               <span class="hc-top__d">{{ a.summary }}</span>
@@ -284,44 +410,44 @@
       </div>
     </section>
 
-    {# ── everything, by category ─────────────────────────────────────────── #}
+    {# ── the directory ──────────────────────────────────────────────────── #}
     <section class="hc-sec">
       <div class="hc-sec__h">
-        <h2 x-text="needle.length >= 2 ? 'Matching answers' : 'Browse by topic'">Browse by topic</h2>
-        <span x-show="needle.length < 2">{{ total }} answers in {{ categories|length }} topics</span>
+        <h2 x-text="needle.length >= 2 ? 'Matching answers' : 'Every topic'">Every topic</h2>
+        <span x-show="needle.length < 2">{{ total }} answers · {{ categories|length }} topics</span>
       </div>
       <div class="hc-cats">
         {% for key, c in categories %}
           {% set list = by_category[key] %}
-          {# A card with nothing left after filtering is removed entirely rather
-             than left as an empty shell — six empty cards is a worse answer than
-             one that says nothing matched. #}
+          {# A topic with nothing left after filtering is removed entirely rather than
+             left as an empty shell — six empty headings is a worse answer than one
+             line saying nothing matched. #}
           <div class="hc-cat" :class="{ 'is-out': inCat('{{ key }}') === 0 && needle.length >= 2 }">
             <a class="hc-cat__hd" href="/help/c/{{ key }}">
-              <span class="hc-cat__ico" style="background:{{ c.tint }};color:{{ c.fg }}">
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ c.icon|raw }}</svg>
+              <span class="hc-cat__ico" aria-hidden="true">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{{ c.icon|raw }}</svg>
               </span>
               <span>
-                <span class="hc-cat__t" style="display:block">{{ c.title }}</span>
-                <span class="hc-cat__d" style="display:block">{{ c.blurb }}</span>
+                <span class="hc-cat__t">{{ c.title }}
+                  <span class="hc-cat__c">{{ list|length }}</span></span>
+                <span class="hc-cat__d">{{ c.blurb }}</span>
               </span>
             </a>
             <ul class="hc-cat__list">
-              {# EVERY article is rendered, and the ones past the preview are
-                 hidden by CSS until a filter is typed. That way the live filter
-                 can reach the whole category without a round trip, and a reader
-                 with no JavaScript still sees the first few plus a real link to
-                 the rest. #}
+              {# EVERY article is rendered, and the ones past the preview are hidden by
+                 CSS until a filter is typed. That way the live filter can reach the
+                 whole topic without a round trip, and a reader with no JavaScript
+                 still sees the first few plus a real link to the rest. #}
               {#
-                OBJECT syntax on :class, not a string, and the difference is a bug
-                that shipped once already on the vote page.
+                OBJECT syntax on :class, not a string, and the difference is a bug that
+                shipped once already on the vote page.
 
                 `:class="cond ? '' : 'is-out'"` ADDS the classes it evaluates to and
-                removes only ones it added before — it never touches a class that
-                was in the static `class` attribute. So an <li> rendered with
-                `class="is-out"` for the server-side preview cap stayed hidden
-                forever, and searching "refund" showed a Payments card with nothing
-                in it, because the matching answer is the sixth in its category.
+                removes only ones it added before — it never touches a class that was
+                in the static `class` attribute. So an <li> rendered with
+                `class="is-out"` for the server-side preview cap stayed hidden forever,
+                and searching "refund" showed a Payments topic with nothing in it,
+                because the matching answer is the sixth in its category.
 
                 The object form sets and UNSETS the named class, so the static one is
                 cleared when the filter wants the item back. And the static class has
@@ -336,7 +462,7 @@
             </ul>
             {% if list|length > preview %}
               <a class="hc-cat__more" href="/help/c/{{ key }}" x-show="needle.length < 2">
-                All {{ list|length }} answers on {{ c.title|lower }} →
+                All {{ list|length }} answers →
               </a>
             {% endif %}
           </div>
@@ -344,33 +470,30 @@
       </div>
 
       {# The one place a filter can dead-end, and it hands over rather than stopping. #}
-      <div class="hc-none" style="margin-top:16px" x-cloak
-           x-show="needle.length >= 2 && !hits().length">
+      <div class="hc-none" x-cloak x-show="needle.length >= 2 && !hits().length">
         <p>Nothing written covers that yet.</p>
-        <span>Search the full text of every answer, or ask the assistant — it can look up your own
-              payments and votes, which no article can.</span>
-        <div style="margin-top:16px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap">
-          <a class="hc-btn hc-btn--p" style="background:var(--ag-ink);color:#fff"
-             :href="'/help?q=' + encodeURIComponent(filter)">Search the full text</a>
-          <a class="hc-btn hc-btn--g" style="border-color:rgba(16,41,44,.2);color:var(--ag-ink)"
-             :href="'/support/assistant?q=' + encodeURIComponent(filter)">Ask the assistant</a>
+        <span>Search the full text of every answer, or ask the assistant — it can look up
+          your own payments and votes, which no article can.</span>
+        <div class="hc-none__b">
+          <a class="hc-btn hc-btn--p" :href="'/help?q=' + encodeURIComponent(filter)">Search the full text</a>
+          <a class="hc-btn hc-btn--g" :href="'/support/assistant?q=' + encodeURIComponent(filter)">Ask the assistant</a>
         </div>
       </div>
     </section>
   {% endif %}
 
   {# ── still stuck ──────────────────────────────────────────────────────── #}
-  <div class="hc-ask">
-    <div class="hc-ask__orb" aria-hidden="true"></div>
-    <div class="hc-ask__t">
-      <h2>Still stuck?</h2>
-      <p>The assistant can do what an article cannot: look up your own payment, re-check it with the bank and add
-         missing votes on the spot. If it cannot, a person picks it up — usually within one business day.</p>
+  <section class="hc-ask">
+    <div>
+      <span class="hc-kick">Still stuck</span>
+      <h2>An article cannot look up your payment. The assistant can.</h2>
+      <p>It re-checks a payment with the bank and adds missing votes on the spot. If it
+        cannot, a person picks it up — usually within one business day.</p>
     </div>
     <div class="hc-ask__b">
       <a class="hc-btn hc-btn--p" href="/support/assistant">Ask the assistant</a>
       <a class="hc-btn hc-btn--g" href="/support">Contact a person</a>
     </div>
-  </div>
+  </section>
 </div>
 {% endblock %}

@@ -86,7 +86,10 @@
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  body[data-page="help"]{ background:#eef0ec; color:var(--ag-ink); }
+  /* The same paper as the Help Centre index and the topic pages. This page was on
+     #eef0ec while those two moved to #f0f2f2, and a section whose ground shifts as you
+     click through it reads as three sites rather than one. */
+  body[data-page="help"]{ background:#f0f2f2; color:var(--ag-ink); }
   .ha{ max-width:1020px; margin:0 auto; padding:clamp(1.2rem,4vw,2.1rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
 
   /* Reading progress. Fixed, hairline, above everything but the site header. */
@@ -103,11 +106,15 @@
      the strip spanned the full page and its "Next" card sat under the rail —
      visually attached to the sidebar rather than to the answer it follows. */
   .ha-col{ min-width:0; }
-  .ha-main{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:22px; padding:clamp(1.4rem,3.5vw,2.4rem); }
+  .ha-main{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.10); border-radius:14px; padding:clamp(1.4rem,3.5vw,2.4rem); }
 
   /* head */
   .ha-meta{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .ha-tag{ display:inline-block; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:5px 11px; border-radius:999px; }
+  /* A mono kicker, not a tinted pill. The pill took the topic's own colour, which put
+     a pink chip at the top of a payments answer for no reason a reader could act on —
+     the topic is a label here, not a status. Same micro-label as every other surface. */
+  .ha-tag{ display:inline-block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:#745001; }
   .ha-read{ font-size:12px; color:#5a6d6f; }
   .ha-copy{ margin-left:auto; cursor:pointer; font-family:inherit; font-size:12px; font-weight:600; display:inline-flex;
     align-items:center; gap:6px; padding:7px 12px; border-radius:999px; border:1px solid rgba(16,41,44,.14);
@@ -187,21 +194,28 @@
 
   /* rail */
   .ha-side{ display:flex; flex-direction:column; gap:14px; position:sticky; top:88px; }
-  .ha-box{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; padding:18px 20px; }
-  .ha-box h2{ margin:0 0 12px; font:600 11.5px/1.4 var(--ag-font-body); letter-spacing:.09em; text-transform:uppercase; color:#5a6d6f; }
+  .ha-box{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.10); border-radius:14px; padding:18px 20px; }
+  .ha-box h2{ margin:0 0 12px; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; line-height:1.4; letter-spacing:.22em; text-transform:uppercase;
+    color:#626a6e; }
   .ha-box ul{ list-style:none; margin:0; padding:0; }
   .ha-box li + li{ border-top:1px solid rgba(16,41,44,.06); }
   .ha-box a{ display:block; padding:9px 0; font-size:13.5px; line-height:1.5; color:#39464a; text-decoration:none; }
   .ha-box a:hover{ color:var(--ag-green); }
   .ha-box a[aria-current]{ color:var(--ag-green-dark,#177015); font-weight:650; }
 
-  .ha-help{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:18px; padding:20px; }
-  .ha-help__orb{ position:absolute; right:-40px; top:-40px; width:150px; height:150px; border-radius:50%;
-    background:radial-gradient(circle,rgba(127,200,124,.2),transparent 68%); }
-  .ha-help h2{ position:relative; margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:16px; color:#fff; letter-spacing:0; text-transform:none; }
-  .ha-help p{ position:relative; margin:8px 0 0; font-size:13px; line-height:1.55; color:rgba(255,255,255,.78); }
-  .ha-help__a{ position:relative; display:block; margin-top:14px; text-align:center; background:var(--ag-green-light); color:var(--ag-ink);
-    font-weight:600; font-size:13.5px; padding:11px; border-radius:999px; text-decoration:none; }
+  /* Flat. The radial-gradient orb that used to sit in this corner was decoration
+     doing no work, and the same move appeared on the index and on the donations page —
+     three glows is a house style nobody chose. */
+  .ha-help{ background:var(--ag-ink); border-radius:14px; padding:20px; }
+  .ha-help h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:16px;
+    color:#fff; letter-spacing:0; text-transform:none; }
+  .ha-help p{ margin:8px 0 0; font-size:13px; line-height:1.6; color:rgba(251,246,230,.88); }
+  .ha-help__a{ display:flex; align-items:center; justify-content:center; min-height:44px;
+    margin-top:14px; background:#f3b416; color:#241c00; font-weight:700; font-size:13.5px;
+    padding:0 14px; border-radius:999px; text-decoration:none; }
+  .ha-help__a:hover{ background:#ffc63d; }
+  .ha-help__a:focus-visible{ outline:3px solid #fff; outline-offset:3px; }
 
   @media (max-width:880px){
     .ha-grid{ grid-template-columns:1fr; }
@@ -297,7 +311,7 @@
     <div class="ha-col">
     <article class="ha-main">
       <div class="ha-meta">
-        <span class="ha-tag" style="background:{{ category.tint }};color:{{ category.fg }}">{{ category.title }}</span>
+        <span class="ha-tag">{{ category.title }}</span>
         <span class="ha-read">{{ read_minutes }} min read</span>
         <button type="button" class="ha-copy" :class="copied && 'is-done'" @click="copy()"
                 :aria-label="copied ? 'Link copied' : 'Copy a link to this answer'">
@@ -381,7 +395,6 @@
       {% endif %}
 
       <div class="ha-help">
-        <div class="ha-help__orb" aria-hidden="true"></div>
         <h2>This is a general answer</h2>
         <p>The assistant can check <em>your</em> payment, re-ask the bank and add missing votes on the spot.</p>
         <a class="ha-help__a" href="/support/assistant">Ask about my case →</a>

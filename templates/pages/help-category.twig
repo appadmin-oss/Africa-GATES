@@ -4,74 +4,118 @@
   ONE TOPIC, EVERY ANSWER IN IT.
 
   ── WHY THIS PAGE EXISTS ────────────────────────────────────────────────────
-  The Help Centre index used to print all 33 answers inline, because a category
-  had nowhere to lead. The corpus is deeply uneven — 12 answers under "Results &
-  integrity", 2 under "Privacy" — so in a two-column grid each row was as tall
-  as its taller card and left a column of empty page beside the shorter one.
+  The Help Centre index used to print all 33 answers inline, because a category had
+  nowhere to lead. The corpus is deeply uneven — 12 answers under "Results &
+  integrity", 2 under "Privacy" — so in a two-column grid each row was as tall as
+  its taller card and left a column of empty page beside the shorter one.
 
-  Giving a category its own page fixes the index (five titles per card, then a
-  link) and adds something the index never had: a URL for a whole topic, which
-  support can paste and a search engine can index.
+  Giving a topic its own page fixed the index (five titles, then a link) and added
+  something the index never had: a URL for a whole topic, which support can paste
+  and a search engine can index.
 
   ── SUMMARIES, NOT JUST TITLES ──────────────────────────────────────────────
-  A category page is a decision point, not a directory. Somebody who has already
-  chosen "Payments" is choosing between seven answers that all sound relevant, so
-  each one shows the sentence that tells them whether it is theirs. The index
-  shows titles only because there it is competing with five other topics for the
-  same screen.
+  A topic page is a decision point, not a directory. Somebody who has already chosen
+  "Payments" is choosing between seven answers that all sound relevant, so each one
+  shows the sentence that tells them whether it is theirs. The index shows titles
+  alone because there it is competing with five other topics for the same screen.
+
+  ── AND WHY IT LOOKS LIKE THIS ──────────────────────────────────────────────
+  The same system as the index, the donations page and the event ticket: paper
+  ground, hairline rules, mono micro-labels, one gold accent. The grid of rounded
+  white cards this replaces was the index's problem in miniature — seven boxes of
+  identical weight, so nothing on the page was more important than anything else.
+  A ruled list of a title and its sentence is what a reader is actually doing here.
 #}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  body[data-page="help"]{ background:#eef0ec; color:var(--ag-ink); }
-  .hcc{ max-width:920px; margin:0 auto; padding:clamp(1.5rem,4vw,2.4rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+  body[data-page="help"]{
+    --hc-paper:#f0f2f2;
+    --hc-cream:#f6f2e6;
+    --hc-ink:#10292C;
+    --hc-ink-2:#4a5256;
+    --hc-mute:#626a6e;
+    --hc-line:rgba(16,41,44,.12);
+    --hc-line-2:rgba(16,41,44,.22);
+    --hc-gold:#f3b416;
+    --hc-gold-ink:#745001;
+    --hc-green-dark:#1a6118;
+    --hc-green:#237b22;
+    --hc-r:14px;
+    --hc-sec:clamp(38px,5vw,60px);
 
-  .hcc-crumb{ font-size:13px; color:var(--ag-ink-soft); }
-  .hcc-crumb a{ color:inherit; text-decoration:none; }
-  .hcc-crumb a:hover{ color:var(--ag-green); }
-
-  .hcc-hd{ display:flex; align-items:flex-start; gap:16px; margin:14px 0 0; }
-  .hcc-hd__ico{ flex:none; width:52px; height:52px; border-radius:15px; display:flex; align-items:center; justify-content:center; }
-  .hcc-hd h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.5rem,3.6vw,2.1rem); letter-spacing:-.02em; }
-  .hcc-hd p{ margin:7px 0 0; font-size:14.5px; line-height:1.6; color:#4a5256; max-width:44rem; }
-
-  /* auto-fit with a `min(100%, …)` floor: two columns where there is room for
-     two, one where there is not, and never a track wider than the container —
-     which is what makes a bare `minmax(20rem,1fr)` overflow a 320px phone. */
-  .hcc-list{ display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));
-    gap:12px; margin-top:clamp(1.5rem,3vw,2rem); }
-  .hcc-item{ display:block; background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px;
-    padding:17px 20px; text-decoration:none; transition:border-color .15s, transform .15s, box-shadow .15s; }
-  .hcc-item:hover{ border-color:rgba(16,41,44,.2); transform:translateY(-2px); box-shadow:0 12px 26px -18px rgba(16,41,44,.5); }
-  .hcc-item__t{ display:block; font-weight:600; font-size:15px; line-height:1.35; color:var(--ag-ink); }
-  .hcc-item__d{ display:block; font-size:13px; line-height:1.55; color:var(--ag-ink-soft); margin-top:5px; }
-
-  /* ── the other topics ──────────────────────────────────────────────────── */
-  .hcc-other{ margin-top:clamp(2rem,4vw,2.75rem); }
-  .hcc-other h2{ margin:0 0 12px; font-family:var(--ag-font-display); font-weight:700; font-size:1.1rem; }
-  .hcc-chips{ display:flex; flex-wrap:wrap; gap:9px; }
-  .hcc-chip{ display:inline-flex; align-items:center; gap:8px; background:var(--ag-surface);
-    border:1px solid rgba(16,41,44,.1); border-radius:999px; padding:9px 15px; font-size:13.5px;
-    font-weight:600; color:var(--ag-ink); text-decoration:none; }
-  .hcc-chip:hover{ border-color:var(--ag-green); }
-  .hcc-chip b{ font-weight:600; color:var(--ag-ink-soft); }
-
-  .hcc-ask{ position:relative; overflow:hidden; background:var(--ag-ink); border-radius:22px;
-    padding:clamp(1.4rem,3vw,1.9rem); margin-top:clamp(2rem,4vw,2.75rem);
-    display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; }
-  .hcc-ask h2{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:1.2rem; color:#fff; }
-  .hcc-ask p{ margin:7px 0 0; font-size:13.5px; line-height:1.6; color:rgba(255,255,255,.78); max-width:34rem; }
-  .hcc-ask__t{ flex:1 1 18rem; min-width:0; }
-  .hcc-btn{ flex:none; font-family:inherit; font-weight:600; font-size:14px; padding:12px 20px;
-    border-radius:999px; text-decoration:none; background:var(--ag-green-light); color:var(--ag-ink); }
-
-  @media (max-width:640px){
-    .hcc-hd__ico{ width:44px; height:44px; border-radius:13px; }
-    .hcc-ask{ flex-direction:column; align-items:flex-start; }
+    background:var(--hc-paper); color:var(--hc-ink);
   }
-  @media (prefers-reduced-motion:reduce){
-    .hcc-item{ transition:none; }
-    .hcc-item:hover{ transform:none; }
+  .hcc{ max-width:880px; margin:0 auto;
+    padding:clamp(22px,4vw,40px) var(--ag-gutter,32px) clamp(48px,6vw,72px); }
+
+  .hcc-crumb{ font-family:var(--ag-font-mono,monospace); font-size:10.5px; font-weight:700;
+    letter-spacing:.2em; text-transform:uppercase; color:var(--hc-mute); }
+  .hcc-crumb a{ color:var(--hc-gold-ink); text-decoration:none; }
+  .hcc-crumb a:hover{ text-decoration:underline; }
+  .hcc-crumb a:focus-visible{ outline:3px solid var(--hc-green); outline-offset:3px; }
+
+  .hcc-hd{ display:flex; align-items:flex-start; gap:13px; margin:14px 0 0; }
+  .hcc-hd__ico{ flex:none; margin-top:9px; color:var(--hc-gold-ink); }
+  .hcc-hd h1{ margin:0; font-family:var(--ag-font-display,Georgia,serif); font-weight:800;
+    font-size:clamp(1.8rem,4vw,2.5rem); line-height:1.05; letter-spacing:-.03em;
+    color:var(--hc-ink); text-wrap:balance; }
+  .hcc-hd p{ margin:12px 0 0; max-width:54ch; font-size:15.5px; line-height:1.65;
+    color:var(--hc-ink-2); text-wrap:pretty; }
+  .hcc-hd b{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:13px;
+    color:var(--hc-ink); }
+
+  /* A ruled list. One column, because these lines are sentences and a topic page is
+     read down rather than scanned across — the two-column grid of cards it replaces
+     put a 5-word title beside a 12-word one and made both look like buttons. */
+  .hcc-list{ margin:clamp(26px,4vw,36px) 0 0; border-top:1px solid var(--hc-line-2); }
+  .hcc-item{ display:block; padding:18px 0; border-bottom:1px solid var(--hc-line);
+    text-decoration:none; }
+  .hcc-item:hover .hcc-item__t{ color:var(--hc-green-dark); text-decoration:underline; }
+  .hcc-item:focus-visible{ outline:3px solid var(--hc-green); outline-offset:3px; }
+  .hcc-item__t{ display:block; font-family:var(--ag-font-display,Georgia,serif);
+    font-weight:700; font-size:clamp(1.05rem,1.8vw,1.2rem); line-height:1.3;
+    letter-spacing:-.01em; color:var(--hc-ink); }
+  .hcc-item__d{ display:block; margin-top:6px; max-width:64ch; font-size:14px;
+    line-height:1.6; color:var(--hc-ink-2); }
+
+  /* ── the other topics ────────────────────────────────────────────────────
+     Sideways, not just back. Somebody who did not find their answer here is far
+     more likely to want the next topic than the index again — and the counts are
+     shown because "Privacy · 2" sets an honest expectation before the click. */
+  .hcc-other{ margin-top:var(--hc-sec); }
+  .hcc-other h2{ margin:0 0 14px; font-family:var(--ag-font-mono,monospace); font-size:11px;
+    font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--hc-mute); }
+  .hcc-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+  .hcc-chip{ display:inline-flex; align-items:center; gap:8px; min-height:44px;
+    border:1px solid var(--hc-line-2); border-radius:var(--ag-r-pill,999px);
+    padding:0 16px; font-size:13.5px; font-weight:600; color:var(--hc-ink);
+    text-decoration:none; }
+  .hcc-chip:hover{ border-color:var(--hc-ink); }
+  .hcc-chip:focus-visible{ outline:3px solid var(--hc-green); outline-offset:3px; }
+  .hcc-chip b{ font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:11px;
+    letter-spacing:.1em; color:var(--hc-mute); }
+
+  .hcc-ask{ margin-top:var(--hc-sec); background:var(--hc-ink); border-radius:var(--hc-r);
+    padding:clamp(24px,4vw,36px); display:grid; grid-template-columns:minmax(0,1fr) auto;
+    gap:clamp(18px,3vw,36px); align-items:center; }
+  .hcc-ask__k{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; letter-spacing:.24em; text-transform:uppercase; color:var(--hc-gold); }
+  .hcc-ask h2{ margin:10px 0 0; font-family:var(--ag-font-display,Georgia,serif);
+    font-weight:700; font-size:clamp(1.2rem,2.2vw,1.45rem); line-height:1.2;
+    letter-spacing:-.02em; color:#fff; }
+  .hcc-ask p{ margin:11px 0 0; max-width:54ch; font-size:14px; line-height:1.65;
+    color:rgba(251,246,230,.88); text-wrap:pretty; }
+  .hcc-btn{ display:inline-flex; align-items:center; justify-content:center; min-height:48px;
+    padding:0 22px; border-radius:var(--ag-r-pill,999px); font-family:inherit;
+    font-weight:700; font-size:14.5px; text-decoration:none; background:var(--hc-gold);
+    color:#241c00; }
+  .hcc-btn:hover{ background:#ffc63d; }
+  .hcc-btn:focus-visible{ outline:3px solid #fff; outline-offset:3px; }
+
+  @media (max-width:700px){
+    .hcc-ask{ grid-template-columns:minmax(0,1fr); }
+    .hcc-btn{ width:100%; }
   }
 </style>
 {% endblock %}
@@ -84,12 +128,12 @@
   </nav>
 
   <header class="hcc-hd">
-    <span class="hcc-hd__ico" style="background:{{ category.tint }};color:{{ category.fg }}" aria-hidden="true">
-      <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{{ category.icon|raw }}</svg>
+    <span class="hcc-hd__ico" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">{{ category.icon|raw }}</svg>
     </span>
     <div>
       <h1>{{ category.title }}</h1>
-      <p>{{ category.blurb }} {{ articles|length }} answer{{ articles|length == 1 ? '' : 's' }}.</p>
+      <p>{{ category.blurb }} <b>{{ articles|length }} answer{{ articles|length == 1 ? '' : 's' }}.</b></p>
     </div>
   </header>
 
@@ -102,9 +146,6 @@
     {% endfor %}
   </div>
 
-  {# Sideways, not just back. Somebody who did not find their answer here is far
-     more likely to want the next topic than the index again — and the counts are
-     shown because "Privacy (2)" sets an honest expectation before the click. #}
   <section class="hcc-other">
     <h2>Other topics</h2>
     <div class="hcc-chips">
@@ -116,13 +157,14 @@
     </div>
   </section>
 
-  <div class="hcc-ask">
-    <div class="hcc-ask__t">
-      <h2>Not here?</h2>
-      <p>The assistant can look up your own payment, re-check it with the bank and add missing votes on the
-         spot — none of which an article can do. If it cannot, a person picks it up.</p>
+  <section class="hcc-ask">
+    <div>
+      <span class="hcc-ask__k">Not here</span>
+      <h2>The assistant can do what an article cannot.</h2>
+      <p>It looks up your own payment, re-checks it with the bank and adds missing votes on
+        the spot. If it cannot, a person picks it up.</p>
     </div>
     <a class="hcc-btn" href="/support/assistant">Ask the assistant</a>
-  </div>
+  </section>
 </div>
 {% endblock %}
