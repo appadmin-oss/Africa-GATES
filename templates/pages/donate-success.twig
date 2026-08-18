@@ -1,4 +1,22 @@
 {% extends "layout/gates.twig" %}
+
+{#
+  THE RECEIPT PAGE.
+
+  ── A PROMISE THAT WAS NOT TRUE ─────────────────────────────────────────────
+  This page used to close with "Make it recurring any time to compound the impact".
+  There is no recurring donation anywhere in the platform — not a route, not a service,
+  not a column — and the form a donor had just used says "a one-time donation" on it.
+  Telling somebody a feature exists at the moment they are most inclined to use it is
+  the kind of copy that costs the trust the rest of this flow is built to earn.
+
+  What replaced it is three things that actually happen, each of which is checkable
+  from somewhere else on the site.
+
+  ── AND THE NOUN ────────────────────────────────────────────────────────────
+  "Donation", to match the page the donor came from, the navigation and the footer.
+#}
+
 {% block content %}
 {% if confirmed %}
 {% include 'partials/success.twig' with {
@@ -7,17 +25,17 @@
   sc_glyph: 'heart',
   sc_kicker: 'Donation received',
   sc_heading: 'Thank you',
-  sc_body: 'Your gift funds child-leadership programmes across the continent — mentorship, scholarships and classrooms. This page is your receipt.',
+  sc_body: 'Your donation funds child-leadership programmes across the continent — mentorship, scholarships and classrooms. This page is your receipt.',
   sc_receipt: { label: 'Receipt', code: reference, amount: '₦' ~ (amount_naira|number_format) },
   sc_primary: { label: 'See the leaderboard', href: '/leaderboard' },
-  sc_secondary: { label: 'Give again', href: '/donate' },
+  sc_secondary: { label: 'Back to donations', href: '/donate' },
   sc_email_note: 'A full receipt has been emailed to you.',
   sc_confetti: true,
-  sc_next_label: 'Your gift at work',
+  sc_next_label: 'What happens now',
   sc_steps: [
-    'Every naira is allocated transparently to our programmes.',
-    'We’ll share an impact update as the cycle progresses.',
-    'Make it recurring any time to compound the impact.'
+    'A receipt is on its way to the email you gave. That one is the record — this page is the copy.',
+    'The amount joins the confirmed total on the donations page. Nothing is counted there until it has cleared.',
+    'The fund is independently audited, and the method is published in the Integrity Center.'
   ]
 } only %}
 {% else %}
@@ -25,11 +43,11 @@
   sc_accent: 'slate',
   sc_art: 'slate',
   sc_glyph: 'clock',
-  sc_kicker: 'Confirming your gift',
+  sc_kicker: 'Confirming your donation',
   sc_heading: 'We’re confirming your payment',
-  sc_body: 'We haven’t been able to confirm this gift yet. If you completed payment, your receipt will arrive by email shortly — gateway confirmations can take a moment. If something looks wrong, our team can help.',
+  sc_body: 'We haven’t been able to confirm this donation yet. If you completed payment, your receipt will arrive by email shortly — gateway confirmations can take a moment. If something looks wrong, our team can help.',
   sc_receipt: reference ? { label: 'Reference', code: reference } : null,
-  sc_primary: { label: 'Back to giving', href: '/donate' },
+  sc_primary: { label: 'Back to donations', href: '/donate' },
   sc_secondary: { label: 'Contact support', href: '/support' },
   sc_email_note: 'No charge is confirmed until you receive an emailed receipt.',
   sc_confetti: false

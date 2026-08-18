@@ -132,8 +132,12 @@
   .ap-stand input{ margin-top:3px; width:18px; height:18px; accent-color:var(--ap-green-dark); }
   .ap-stand__n{ font-family:var(--ag-font-display,Georgia,serif); font-weight:700;
     font-size:1.08rem; line-height:1.25; letter-spacing:-.01em; color:var(--ap-ink); }
+  /* NOT uppercased. `text-transform` reaches the units too, and this line quotes
+     physical dimensions: it rendered `1.8 × 0.75 M` and `9 M²`, and a capital M is
+     not the metre. Mono at .1em tracking carries the same micro-label weight in
+     sentence case, where the category names are correct English as well. */
   .ap-stand__meta{ display:block; margin-top:5px; font-family:var(--ag-font-mono,monospace);
-    font-size:10.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    font-size:10.5px; font-weight:700; letter-spacing:.1em;
     color:var(--ap-mute); }
   /* Never colour alone: the word says "full" and the word says how many are left. */
   .ap-stand__left{ color:var(--ap-green-dark); }
@@ -314,7 +318,7 @@
                 <span class="ap-stand__n">{{ c.type.name }}</span>
                 <span class="ap-stand__meta">
                   {{ c.size }} · {{ categories[c.type.category]|default(c.type.category) }} ·
-                  {% if c.left > 0 %}<span class="ap-stand__left">{{ c.left }} of {{ c.quota }} open</span>
+                  {% if c.left > 0 %}<span class="ap-stand__left">{{ c.left }} of {{ c.quota }} still open</span>
                   {%- else %}<span class="ap-stand__full">All {{ c.quota }} held · waiting list</span>{% endif %}
                   {%- if c.type.includes_power %} · Power included{% endif %}
                   {%- if c.type.step_free %} · Step-free{% endif %}
