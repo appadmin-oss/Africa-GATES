@@ -180,41 +180,43 @@
     </form>
 
     {% if passes %}
-    <table class="ad-table" style="margin-top:14px">
-      <thead><tr>
-        <th scope="col">Door</th><th scope="col">Window</th>
-        <th scope="col">State</th><th scope="col" class="fi-right">Scans</th><th scope="col"></th>
-      </tr></thead>
-      <tbody>
-        {% for p in passes %}
-        <tr>
-          <td><strong>{{ p.label ?: 'Door' }}</strong></td>
-          <td style="font-size:12.5px;color:#5a6d6f">
-            {{ p.opens_at ? p.opens_at|slice(0, 16)|replace({'-': '/'}) : 'now' }}
-            → {{ p.closes_at|slice(0, 16)|replace({'-': '/'}) }}
-          </td>
-          <td>
-            {# A word, not a colour: this table is read to decide whether a gate is live. #}
-            {% if p.state == 'open' %}<span class="tx-tag tx-tag--ok">open now</span>
-            {% elseif p.state == 'scheduled' %}<span class="tx-tag tx-tag--wait">not yet</span>
-            {% elseif p.state == 'revoked' %}<span class="tx-tag tx-tag--no">revoked</span>
-            {% else %}<span class="tx-tag">closed</span>{% endif %}
-          </td>
-          <td class="fi-right fi-num">{{ p.scans }}</td>
-          <td class="fi-right">
-            {% if not p.revoked and p.state != 'closed' %}
-            <form method="post" action="/admin/events/{{ event.id }}/door/revoke" style="display:inline">
-              <input type="hidden" name="_token" value="{{ csrf_token }}">
-              <input type="hidden" name="pass_id" value="{{ p.id }}">
-              <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit"
-                      style="min-height:32px">Turn off</button>
-            </form>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="ad-table-wrap">
+      <table class="ad-table" style="margin-top:14px">
+        <thead><tr>
+          <th scope="col">Door</th><th scope="col">Window</th>
+          <th scope="col">State</th><th scope="col" class="fi-right">Scans</th><th scope="col"></th>
+        </tr></thead>
+        <tbody>
+          {% for p in passes %}
+          <tr>
+            <td><strong>{{ p.label ?: 'Door' }}</strong></td>
+            <td style="font-size:12.5px;color:#5a6d6f">
+              {{ p.opens_at ? p.opens_at|slice(0, 16)|replace({'-': '/'}) : 'now' }}
+              → {{ p.closes_at|slice(0, 16)|replace({'-': '/'}) }}
+            </td>
+            <td>
+              {# A word, not a colour: this table is read to decide whether a gate is live. #}
+              {% if p.state == 'open' %}<span class="tx-tag tx-tag--ok">open now</span>
+              {% elseif p.state == 'scheduled' %}<span class="tx-tag tx-tag--wait">not yet</span>
+              {% elseif p.state == 'revoked' %}<span class="tx-tag tx-tag--no">revoked</span>
+              {% else %}<span class="tx-tag">closed</span>{% endif %}
+            </td>
+            <td class="fi-right fi-num">{{ p.scans }}</td>
+            <td class="fi-right">
+              {% if not p.revoked and p.state != 'closed' %}
+              <form method="post" action="/admin/events/{{ event.id }}/door/revoke" style="display:inline">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="pass_id" value="{{ p.id }}">
+                <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit"
+                        style="min-height:32px">Turn off</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
     {# Empty state: what this is, why it is empty, what fills it. #}
     <p class="st-hint" style="margin-top:12px">
@@ -256,77 +258,79 @@
     {% endif %}
   </p>
 
-  <table class="tx-list">
-    <thead><tr>
-      <th scope="col">Who</th><th scope="col">Amount</th><th scope="col">State</th>
-      <th scope="col">Cancelled</th><th scope="col"></th>
-    </tr></thead>
-    <tbody>
-      {% for r in refunds|filter(r => r.status != 'refunded') %}
-        <tr>
-          <td>
-            <strong>{{ r.name }}</strong><br>
-            <span style="color:#67797b">{{ r.email }}</span>
-            {% if r.by %}<br><span style="color:#8a9a9c;font-size:11.5px">cancelled by {{ r.by }}</span>{% endif %}
-          </td>
-          <td>
-            <strong>₦{{ r.naira|number_format }}</strong>
-            {# Both figures when they differ: a partial refund looks like a mistake unless the
-               screen says out loud what was paid and what is going back. #}
-            {% if r.naira != r.paid %}
-              <br><span style="color:#8a9a9c;font-size:11.5px">of ₦{{ r.paid|number_format }} paid</span>
-            {% endif %}
-          </td>
-          <td>
-            {# The word carries the meaning; the colour only agrees with it. Somebody reading
-               this in greyscale, or colourblind, still gets the same answer. #}
-            {% if r.status == 'failed' %}
-              <span class="tx-tag tx-tag--no">✕ did not go through</span>
-            {% else %}
-              <span class="tx-tag tx-tag--wait">⋯ with the gateway</span>
-              {% if r.stale %}<br><span class="tx-tag tx-tag--no" style="margin-top:4px;display:inline-block">3+ days</span>{% endif %}
-            {% endif %}
-          </td>
-          <td style="color:#67797b">{{ r.when ? r.when|slice(0, 16)|replace({'-': '/'}) : '—' }}</td>
-          <td>
-            {% if r.status == 'failed' %}
-            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-              <form method="post" action="/admin/events/{{ event.id }}/refunds/retry" style="margin:0">
-                <input type="hidden" name="_token" value="{{ csrf_token }}">
-                <input type="hidden" name="reg_id" value="{{ r.id }}">
-                {# Named in the label, not just in the row. Five buttons all reading "Try
-                   again" to a screen reader tabbing down the column is a list you cannot
-                   act on without counting rows. #}
-                <button class="tx-btn tx-btn--tiny" type="submit" style="min-height:32px"
-                        aria-label="Try the refund for {{ r.name }} again">Try again</button>
-              </form>
-              {# Two presses. It is not destructive, but it makes the platform's books say the
-                 money went back — and a mis-click that quietly closes a debt is worse than one
-                 extra tap. Same pattern as "release seat" above. #}
-              <form method="post" action="/admin/events/{{ event.id }}/refunds/settle" style="margin:0"
-                    x-data="{ sure: false }" @submit="if(!sure){ $event.preventDefault(); sure = true }">
-                <input type="hidden" name="_token" value="{{ csrf_token }}">
-                <input type="hidden" name="reg_id" value="{{ r.id }}">
-                {# The accessible name is BOUND, not fixed: `x-text` swaps the visible words on
-                   the first press, and a static aria-label would leave a screen reader still
-                   announcing the unconfirmed wording after the state changed. #}
-                <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit" style="min-height:32px"
-                        :class="sure ? 'tx-btn--sure' : ''"
-                        aria-label="Record that {{ r.name }} was paid another way"
-                        :aria-label="sure
-                          ? 'Confirm: {{ r.name|e('js') }} was paid another way'
-                          : 'Record that {{ r.name|e('js') }} was paid another way'"
-                        x-text="sure ? 'Yes — I have sent it' : 'I paid this another way'">I paid this another way</button>
-              </form>
-            </div>
-            {% else %}
-              <span style="color:#8a9a9c;font-size:11.5px">nothing to do</span>
-            {% endif %}
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="ad-table-wrap">
+    <table class="tx-list">
+      <thead><tr>
+        <th scope="col">Who</th><th scope="col">Amount</th><th scope="col">State</th>
+        <th scope="col">Cancelled</th><th scope="col"></th>
+      </tr></thead>
+      <tbody>
+        {% for r in refunds|filter(r => r.status != 'refunded') %}
+          <tr>
+            <td>
+              <strong>{{ r.name }}</strong><br>
+              <span style="color:#67797b">{{ r.email }}</span>
+              {% if r.by %}<br><span style="color:#8a9a9c;font-size:11.5px">cancelled by {{ r.by }}</span>{% endif %}
+            </td>
+            <td>
+              <strong>₦{{ r.naira|number_format }}</strong>
+              {# Both figures when they differ: a partial refund looks like a mistake unless the
+                 screen says out loud what was paid and what is going back. #}
+              {% if r.naira != r.paid %}
+                <br><span style="color:#8a9a9c;font-size:11.5px">of ₦{{ r.paid|number_format }} paid</span>
+              {% endif %}
+            </td>
+            <td>
+              {# The word carries the meaning; the colour only agrees with it. Somebody reading
+                 this in greyscale, or colourblind, still gets the same answer. #}
+              {% if r.status == 'failed' %}
+                <span class="tx-tag tx-tag--no">✕ did not go through</span>
+              {% else %}
+                <span class="tx-tag tx-tag--wait">⋯ with the gateway</span>
+                {% if r.stale %}<br><span class="tx-tag tx-tag--no" style="margin-top:4px;display:inline-block">3+ days</span>{% endif %}
+              {% endif %}
+            </td>
+            <td style="color:#67797b">{{ r.when ? r.when|slice(0, 16)|replace({'-': '/'}) : '—' }}</td>
+            <td>
+              {% if r.status == 'failed' %}
+              <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+                <form method="post" action="/admin/events/{{ event.id }}/refunds/retry" style="margin:0">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="reg_id" value="{{ r.id }}">
+                  {# Named in the label, not just in the row. Five buttons all reading "Try
+                     again" to a screen reader tabbing down the column is a list you cannot
+                     act on without counting rows. #}
+                  <button class="tx-btn tx-btn--tiny" type="submit" style="min-height:32px"
+                          aria-label="Try the refund for {{ r.name }} again">Try again</button>
+                </form>
+                {# Two presses. It is not destructive, but it makes the platform's books say the
+                   money went back — and a mis-click that quietly closes a debt is worse than one
+                   extra tap. Same pattern as "release seat" above. #}
+                <form method="post" action="/admin/events/{{ event.id }}/refunds/settle" style="margin:0"
+                      x-data="{ sure: false }" @submit="if(!sure){ $event.preventDefault(); sure = true }">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="reg_id" value="{{ r.id }}">
+                  {# The accessible name is BOUND, not fixed: `x-text` swaps the visible words on
+                     the first press, and a static aria-label would leave a screen reader still
+                     announcing the unconfirmed wording after the state changed. #}
+                  <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit" style="min-height:32px"
+                          :class="sure ? 'tx-btn--sure' : ''"
+                          aria-label="Record that {{ r.name }} was paid another way"
+                          :aria-label="sure
+                            ? 'Confirm: {{ r.name|e('js') }} was paid another way'
+                            : 'Record that {{ r.name|e('js') }} was paid another way'"
+                          x-text="sure ? 'Yes — I have sent it' : 'I paid this another way'">I paid this another way</button>
+                </form>
+              </div>
+              {% else %}
+                <span style="color:#8a9a9c;font-size:11.5px">nothing to do</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
   {% set done = refunds|filter(r => r.status == 'refunded') %}
   {% if done|length %}
@@ -337,24 +341,26 @@
     <summary style="cursor:pointer;font-size:12.5px;color:#5a6d6f;padding:6px 0">
       {{ done|length }} refund{{ done|length == 1 ? '' : 's' }} already settled
     </summary>
-    <table class="tx-list">
-      <thead><tr><th scope="col">Who</th><th scope="col">Amount</th><th scope="col">Refunded</th><th scope="col">Reference</th></tr></thead>
-      <tbody>
-        {% for r in done %}
-          <tr>
-            <td><strong>{{ r.name }}</strong><br><span style="color:#67797b">{{ r.email }}</span></td>
-            <td>₦{{ r.naira|number_format }}</td>
-            <td style="color:#67797b">{{ r.settled ? r.settled|slice(0, 16)|replace({'-': '/'}) : '—' }}</td>
-            <td style="color:#8a9a9c;font-size:11.5px;word-break:break-all">
-              {{ r.gateway_ref ?: '—' }}
-              {% if r.gateway_ref starts with 'by-hand' %}
-                <br><span class="tx-tag">paid outside the platform</span>
-              {% endif %}
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="ad-table-wrap">
+      <table class="tx-list">
+        <thead><tr><th scope="col">Who</th><th scope="col">Amount</th><th scope="col">Refunded</th><th scope="col">Reference</th></tr></thead>
+        <tbody>
+          {% for r in done %}
+            <tr>
+              <td><strong>{{ r.name }}</strong><br><span style="color:#67797b">{{ r.email }}</span></td>
+              <td>₦{{ r.naira|number_format }}</td>
+              <td style="color:#67797b">{{ r.settled ? r.settled|slice(0, 16)|replace({'-': '/'}) : '—' }}</td>
+              <td style="color:#8a9a9c;font-size:11.5px;word-break:break-all">
+                {{ r.gateway_ref ?: '—' }}
+                {% if r.gateway_ref starts with 'by-hand' %}
+                  <br><span class="tx-tag">paid outside the platform</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </details>
   {% endif %}
 </div>
@@ -389,52 +395,54 @@
   <p>A tier can sell out while the event has room, and the room can fill while a tier still
      has seats — both limits are real and both are checked. A blank limit means "as many as
      the room allows".</p>
-  <table class="tx-tiers">
-    <thead><tr><th>Ticket</th><th>Price</th><th>Sold</th><th style="width:24%">Against its limit</th><th>State</th><th>Waiting list</th></tr></thead>
-    <tbody>
-      {% for t in summary.tiers %}
-        {% set pct = t.capacity ? (100 * t.sold / t.capacity)|round : 0 %}
-        {% set waiting = queue|default([])|filter(q => (q.tier_id|default(0)) == t.id)|length %}
-        <tr>
-          <td><strong>{{ t.name }}</strong>{% if not t.active %} <span class="tx-tag">off sale</span>{% endif %}</td>
-          <td>{{ t.price_naira > 0 ? '₦' ~ t.price_naira|number_format : 'Free' }}</td>
-          <td>{{ t.sold }}{% if t.capacity %} / {{ t.capacity }}{% endif %}</td>
-          <td>
-            {% if t.capacity %}
-              <div class="tx-bar"><i class="{{ pct >= 100 ? 'is-full' : (pct >= 80 ? 'is-tight' : '') }}"
-                   style="width:{{ pct > 100 ? 100 : pct }}%"></i></div>
-            {% else %}
-              <span style="color:#8a9a9c">no limit</span>
-            {% endif %}
-          </td>
-          <td>
-            {% if t.state == 'open' %}<span class="tx-tag tx-tag--ok">on sale</span>
-            {% elseif t.state == 'sold_out' %}<span class="tx-tag tx-tag--no">sold out</span>
-            {% else %}<span class="tx-tag tx-tag--wait">{{ t.state }}</span>{% endif %}
-          </td>
-          <td>
-            {# The button appears only when there is somebody to offer a seat TO. A control
-               that would email nobody is a control that teaches you to stop trusting it. #}
-            {% if waiting %}
-              <form method="post" action="/admin/events/{{ event.id }}/promote" style="margin:0">
-                <input type="hidden" name="_token" value="{{ csrf_token }}">
-                <input type="hidden" name="tier_id" value="{{ t.id }}">
-                <button class="tx-btn" type="submit" style="padding:8px 14px;font-size:12px">
-                  Offer free seats <span style="opacity:.7">({{ waiting }} waiting)</span>
-                </button>
-              </form>
-            {% elseif waitlist_open|default(false) %}
-              <span style="color:#8a9a9c;font-size:12px">nobody waiting</span>
-            {% endif %}
-          </td>
-        </tr>
-      {% else %}
-        <tr><td colspan="6" style="padding:18px 0;color:#8a9a9c">
-          No ticket types yet. <a href="/admin/events/{{ event.id }}">Add one on the event</a> —
-          a price of 0 makes it a free RSVP.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="ad-table-wrap">
+    <table class="tx-tiers">
+      <thead><tr><th>Ticket</th><th>Price</th><th>Sold</th><th style="width:24%">Against its limit</th><th>State</th><th>Waiting list</th></tr></thead>
+      <tbody>
+        {% for t in summary.tiers %}
+          {% set pct = t.capacity ? (100 * t.sold / t.capacity)|round : 0 %}
+          {% set waiting = queue|default([])|filter(q => (q.tier_id|default(0)) == t.id)|length %}
+          <tr>
+            <td><strong>{{ t.name }}</strong>{% if not t.active %} <span class="tx-tag">off sale</span>{% endif %}</td>
+            <td>{{ t.price_naira > 0 ? '₦' ~ t.price_naira|number_format : 'Free' }}</td>
+            <td>{{ t.sold }}{% if t.capacity %} / {{ t.capacity }}{% endif %}</td>
+            <td>
+              {% if t.capacity %}
+                <div class="tx-bar"><i class="{{ pct >= 100 ? 'is-full' : (pct >= 80 ? 'is-tight' : '') }}"
+                     style="width:{{ pct > 100 ? 100 : pct }}%"></i></div>
+              {% else %}
+                <span style="color:#8a9a9c">no limit</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if t.state == 'open' %}<span class="tx-tag tx-tag--ok">on sale</span>
+              {% elseif t.state == 'sold_out' %}<span class="tx-tag tx-tag--no">sold out</span>
+              {% else %}<span class="tx-tag tx-tag--wait">{{ t.state }}</span>{% endif %}
+            </td>
+            <td>
+              {# The button appears only when there is somebody to offer a seat TO. A control
+                 that would email nobody is a control that teaches you to stop trusting it. #}
+              {% if waiting %}
+                <form method="post" action="/admin/events/{{ event.id }}/promote" style="margin:0">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="tier_id" value="{{ t.id }}">
+                  <button class="tx-btn" type="submit" style="padding:8px 14px;font-size:12px">
+                    Offer free seats <span style="opacity:.7">({{ waiting }} waiting)</span>
+                  </button>
+                </form>
+              {% elseif waitlist_open|default(false) %}
+                <span style="color:#8a9a9c;font-size:12px">nobody waiting</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6" style="padding:18px 0;color:#8a9a9c">
+            No ticket types yet. <a href="/admin/events/{{ event.id }}">Add one on the event</a> —
+            a price of 0 makes it a free RSVP.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 {# ── THE WAITING LIST ─────────────────────────────────────────────────────────
@@ -457,37 +465,41 @@
   </p>
 
   {% if offers|default([])|length %}
-  <table class="tx-list">
-    <thead><tr><th>Offered to</th><th>Ticket</th><th>Offered</th><th>Expires</th></tr></thead>
-    <tbody>
-      {% for o in offers %}
-        <tr>
-          <td><strong>{{ o.name }}</strong><br><span style="color:#67797b">{{ o.email }}</span></td>
-          <td>{{ o.tier|default('—') }}</td>
-          <td style="color:#67797b">{{ o.offered_at }}</td>
-          <td><span class="tx-tag tx-tag--wait">{{ o.offer_expires_at }}</span></td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="ad-table-wrap">
+    <table class="tx-list">
+      <thead><tr><th>Offered to</th><th>Ticket</th><th>Offered</th><th>Expires</th></tr></thead>
+      <tbody>
+        {% for o in offers %}
+          <tr>
+            <td><strong>{{ o.name }}</strong><br><span style="color:#67797b">{{ o.email }}</span></td>
+            <td>{{ o.tier|default('—') }}</td>
+            <td style="color:#67797b">{{ o.offered_at }}</td>
+            <td><span class="tx-tag tx-tag--wait">{{ o.offer_expires_at }}</span></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   {% endif %}
 
-  <table class="tx-list">
-    <thead><tr><th>#</th><th>Name</th><th>Contact</th><th>Ticket</th><th>Joined</th></tr></thead>
-    <tbody>
-      {% for q in queue|default([]) %}
-        <tr>
-          <td style="color:#8a9a9c;font-weight:700">{{ loop.index }}</td>
-          <td><strong>{{ q.name }}</strong></td>
-          <td>{{ q.email }}{% if q.phone %}<br>{{ q.phone }}{% endif %}</td>
-          <td>{{ q.tier|default('—') }}</td>
-          <td style="color:#67797b">{{ q.waitlist_at|default(q.created_at) }}</td>
-        </tr>
-      {% else %}
-        <tr><td colspan="5" style="padding:18px 0;text-align:center;color:#8a9a9c">Nobody waiting.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="ad-table-wrap">
+    <table class="tx-list">
+      <thead><tr><th>#</th><th>Name</th><th>Contact</th><th>Ticket</th><th>Joined</th></tr></thead>
+      <tbody>
+        {% for q in queue|default([]) %}
+          <tr>
+            <td style="color:#8a9a9c;font-weight:700">{{ loop.index }}</td>
+            <td><strong>{{ q.name }}</strong></td>
+            <td>{{ q.email }}{% if q.phone %}<br>{{ q.phone }}{% endif %}</td>
+            <td>{{ q.tier|default('—') }}</td>
+            <td style="color:#67797b">{{ q.waitlist_at|default(q.created_at) }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" style="padding:18px 0;text-align:center;color:#8a9a9c">Nobody waiting.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endif %}
 
@@ -508,74 +520,76 @@
     <a class="tx-btn tx-btn--ghost" href="/admin/events/{{ event.id }}/tickets.pdf?per=2">Large, 2 a page</a>
   </div>
 
-  <table class="tx-list">
-    <thead><tr><th>Name</th><th>Contact</th><th>Ticket</th><th>Paid</th><th>Code</th><th>Status</th><th>Registered</th><th></th></tr></thead>
-    <tbody>
-      {% for a in attendees %}
-        <tr>
-          <td><strong>{{ a.name }}</strong>{% if (a.quantity|default(1)) > 1 %} <span class="tx-tag">{{ a.quantity }} seats</span>{% endif %}</td>
-          <td>{{ a.email }}{% if a.phone %}<br>{{ a.phone }}{% endif %}</td>
-          <td>{{ a.tier|default('—') }}</td>
-          <td>
-            {{ (a.amount_naira|default(0)) > 0 ? '₦' ~ a.amount_naira|number_format : 'Free' }}
-            {# What a code took off, read off the ROW rather than recomputed: a code can be
-               edited or deleted after somebody bought against it, and a receipt that quietly
-               restated history would make the money stop adding up. #}
-            {% if a.discount_code|default('') %}
-              <br><span class="tx-tag">{{ a.discount_code }}
-                {%- if a.discount_naira|default(0) %} −₦{{ a.discount_naira|number_format }}{% endif %}</span>
-            {% endif %}
-          </td>
-          <td class="tx-code">{{ a.ticket_code|default('—') }}
-            {# The seat or table label. Inline and saved on blur rather than behind an edit
-               screen, because assigning a room full of tables is thirty of these in a row and
-               a page load between each one is the difference between doing it and not.
-
-               `seat_missing` rather than hiding it silently: an organiser who typed a table
-               number into a field that was never going to store it would find out at the
-               door. #}
-            {% if not seat_missing %}
-              <form method="post" action="/admin/events/{{ event.id }}/seat" class="tx-seat">
-                <input type="hidden" name="_token" value="{{ csrf_token }}">
-                <input type="hidden" name="reg_id" value="{{ a.id }}">
-                <input type="text" name="seat_label" value="{{ a.seat_label|default('') }}"
-                       maxlength="60" placeholder="Seat / table"
-                       aria-label="Seat or table for {{ a.name }}"
-                       data-ag-do="submit-form">
-              </form>
-            {% endif %}
-          </td>
-          <td>
-            {% if a.status == 'confirmed' %}<span class="tx-tag tx-tag--ok">confirmed</span>
-            {% elseif a.status == 'pending' %}<span class="tx-tag tx-tag--wait">{{ a.offered_at|default('') ? 'offered a seat' : 'mid-checkout' }}</span>
-            {% elseif a.status == 'waitlisted' %}<span class="tx-tag tx-tag--wait">waiting</span>
-            {% elseif a.status == 'cancelled' %}<span class="tx-tag tx-tag--no">cancelled</span>
-            {% else %}<span class="tx-tag">{{ a.status|default('—') }}</span>{% endif %}
-            {% if a.checked_in_at %}<br><span class="tx-tag tx-tag--ok">arrived</span>{% endif %}
-          </td>
-          <td style="color:#67797b">{{ a.created_at }}</td>
-          <td>
-            {# The other half of a waiting list: a seat only comes back if somebody can give
-               it back. Money is NOT refunded here — a withdrawal and a refund are different
-               decisions, and the confirmation says so out loud. #}
-            {% if a.status in ['confirmed', 'pending', 'waitlisted'] %}
-              <form method="post" action="/admin/events/{{ event.id }}/release" style="margin:0"
-                    x-data="{ sure: false }" @submit="if(!sure){ $event.preventDefault(); sure = true }">
-                <input type="hidden" name="_token" value="{{ csrf_token }}">
-                <input type="hidden" name="reg_id" value="{{ a.id }}">
-                <input type="hidden" name="why" value="withdrawn by an organiser">
-                <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit"
-                        :class="sure ? 'tx-btn--sure' : ''"
-                        x-text="sure ? 'Confirm release' : 'Release seat'">Release seat</button>
-              </form>
-            {% endif %}
-          </td>
-        </tr>
-      {% else %}
-        <tr><td colspan="8" style="padding:20px 0;text-align:center;color:#8a9a9c">Nobody yet.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="ad-table-wrap">
+    <table class="tx-list">
+      <thead><tr><th>Name</th><th>Contact</th><th>Ticket</th><th>Paid</th><th>Code</th><th>Status</th><th>Registered</th><th></th></tr></thead>
+      <tbody>
+        {% for a in attendees %}
+          <tr>
+            <td><strong>{{ a.name }}</strong>{% if (a.quantity|default(1)) > 1 %} <span class="tx-tag">{{ a.quantity }} seats</span>{% endif %}</td>
+            <td>{{ a.email }}{% if a.phone %}<br>{{ a.phone }}{% endif %}</td>
+            <td>{{ a.tier|default('—') }}</td>
+            <td>
+              {{ (a.amount_naira|default(0)) > 0 ? '₦' ~ a.amount_naira|number_format : 'Free' }}
+              {# What a code took off, read off the ROW rather than recomputed: a code can be
+                 edited or deleted after somebody bought against it, and a receipt that quietly
+                 restated history would make the money stop adding up. #}
+              {% if a.discount_code|default('') %}
+                <br><span class="tx-tag">{{ a.discount_code }}
+                  {%- if a.discount_naira|default(0) %} −₦{{ a.discount_naira|number_format }}{% endif %}</span>
+              {% endif %}
+            </td>
+            <td class="tx-code">{{ a.ticket_code|default('—') }}
+              {# The seat or table label. Inline and saved on blur rather than behind an edit
+                 screen, because assigning a room full of tables is thirty of these in a row and
+                 a page load between each one is the difference between doing it and not.
+  
+                 `seat_missing` rather than hiding it silently: an organiser who typed a table
+                 number into a field that was never going to store it would find out at the
+                 door. #}
+              {% if not seat_missing %}
+                <form method="post" action="/admin/events/{{ event.id }}/seat" class="tx-seat">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="reg_id" value="{{ a.id }}">
+                  <input type="text" name="seat_label" value="{{ a.seat_label|default('') }}"
+                         maxlength="60" placeholder="Seat / table"
+                         aria-label="Seat or table for {{ a.name }}"
+                         data-ag-do="submit-form">
+                </form>
+              {% endif %}
+            </td>
+            <td>
+              {% if a.status == 'confirmed' %}<span class="tx-tag tx-tag--ok">confirmed</span>
+              {% elseif a.status == 'pending' %}<span class="tx-tag tx-tag--wait">{{ a.offered_at|default('') ? 'offered a seat' : 'mid-checkout' }}</span>
+              {% elseif a.status == 'waitlisted' %}<span class="tx-tag tx-tag--wait">waiting</span>
+              {% elseif a.status == 'cancelled' %}<span class="tx-tag tx-tag--no">cancelled</span>
+              {% else %}<span class="tx-tag">{{ a.status|default('—') }}</span>{% endif %}
+              {% if a.checked_in_at %}<br><span class="tx-tag tx-tag--ok">arrived</span>{% endif %}
+            </td>
+            <td style="color:#67797b">{{ a.created_at }}</td>
+            <td>
+              {# The other half of a waiting list: a seat only comes back if somebody can give
+                 it back. Money is NOT refunded here — a withdrawal and a refund are different
+                 decisions, and the confirmation says so out loud. #}
+              {% if a.status in ['confirmed', 'pending', 'waitlisted'] %}
+                <form method="post" action="/admin/events/{{ event.id }}/release" style="margin:0"
+                      x-data="{ sure: false }" @submit="if(!sure){ $event.preventDefault(); sure = true }">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="reg_id" value="{{ a.id }}">
+                  <input type="hidden" name="why" value="withdrawn by an organiser">
+                  <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit"
+                          :class="sure ? 'tx-btn--sure' : ''"
+                          x-text="sure ? 'Confirm release' : 'Release seat'">Release seat</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="8" style="padding:20px 0;text-align:center;color:#8a9a9c">Nobody yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}
 

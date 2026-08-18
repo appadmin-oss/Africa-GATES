@@ -117,23 +117,25 @@
     Raise the stock on one of these and save — everybody waiting for that exact option is
     emailed once, automatically. Nothing to press here.
   </p>
-  <table class="so-list">
-    <thead><tr><th>Product</th><th>Option</th><th>People waiting</th><th>Most recent ask</th><th></th></tr></thead>
-    <tbody>
-      {% for d in demand %}
-      <tr>
-        <td><strong>{{ d.name }}</strong></td>
-        <td>{{ d.variant ?: '—' }}</td>
-        <td><strong style="font-size:14px">{{ d.waiting }}</strong></td>
-        <td style="color:#67797b">{{ d.latest }}</td>
-        <td>
-          <a class="so-btn so-btn--ghost so-btn--tiny" href="/admin/products/{{ d.product_id }}">Restock</a>
-          <a class="so-btn so-btn--ghost so-btn--tiny" href="/shop/{{ d.slug }}" target="_blank" rel="noopener noreferrer">View</a>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="ad-table-wrap">
+    <table class="so-list">
+      <thead><tr><th>Product</th><th>Option</th><th>People waiting</th><th>Most recent ask</th><th></th></tr></thead>
+      <tbody>
+        {% for d in demand %}
+        <tr>
+          <td><strong>{{ d.name }}</strong></td>
+          <td>{{ d.variant ?: '—' }}</td>
+          <td><strong style="font-size:14px">{{ d.waiting }}</strong></td>
+          <td style="color:#67797b">{{ d.latest }}</td>
+          <td>
+            <a class="so-btn so-btn--ghost so-btn--tiny" href="/admin/products/{{ d.product_id }}">Restock</a>
+            <a class="so-btn so-btn--ghost so-btn--tiny" href="/shop/{{ d.slug }}" target="_blank" rel="noopener noreferrer">View</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endif %}
 
@@ -164,92 +166,94 @@
 
 <div class="so-sec">
   <h2>{{ rows|length }} order{{ rows|length == 1 ? '' : 's' }}</h2>
-  <table class="so-list">
-    <thead>
-      <tr><th>Order</th><th>Buyer</th><th>What</th><th>Money</th><th>Payment</th><th>Delivery</th></tr>
-    </thead>
-    <tbody>
-      {% for o in rows %}
-      <tr class="{{ o.stock_short|default(0) and o.status == 'paid' ? 'is-short' : '' }}">
-        <td>
-          <a class="so-ref" href="/shop/order/{{ o.reference|url_encode }}" target="_blank" rel="noopener noreferrer">{{ o.reference }}</a>
-          <div style="color:#67797b;margin-top:4px">{{ o.created_at }}</div>
-          {% if o.provider %}<div style="color:#8a9a9c">{{ o.provider }}</div>{% endif %}
-        </td>
-        <td>
-          <strong>{{ o.name }}</strong><br>
-          <span style="color:#67797b">{{ o.email }}</span>
-          {% if o.phone %}<br><span style="color:#67797b">{{ o.phone }}</span>{% endif %}
-          <div style="color:#8a9a9c;margin-top:5px;white-space:pre-line;font-size:11.5px">{{ o.address }}</div>
-        </td>
-        <td>
-          {% for l in o.lines %}
-          <div class="so-item">
-            {{ l.qty }} × {{ l.name }}{% if l.variant|default('') %} <span class="so-var">{{ l.variant }}</span>{% endif %}
-          </div>
-          {% else %}
-          <span style="color:#8a9a9c">—</span>
-          {% endfor %}
-        </td>
-        <td>
-          <strong>₦{{ o.subtotal_naira|number_format }}</strong>
-          {% if o.goods_naira is defined and o.goods_naira is not null %}
-          <div style="color:#8a9a9c;font-size:11.5px;margin-top:4px;line-height:1.6">
-            goods ₦{{ o.goods_naira|number_format }}<br>
-            {% if (o.discount_naira|default(0)) > 0 %}
-              −₦{{ o.discount_naira|number_format }} {{ o.discount_code|default('') }}<br>
+  <div class="ad-table-wrap">
+    <table class="so-list">
+      <thead>
+        <tr><th>Order</th><th>Buyer</th><th>What</th><th>Money</th><th>Payment</th><th>Delivery</th></tr>
+      </thead>
+      <tbody>
+        {% for o in rows %}
+        <tr class="{{ o.stock_short|default(0) and o.status == 'paid' ? 'is-short' : '' }}">
+          <td>
+            <a class="so-ref" href="/shop/order/{{ o.reference|url_encode }}" target="_blank" rel="noopener noreferrer">{{ o.reference }}</a>
+            <div style="color:#67797b;margin-top:4px">{{ o.created_at }}</div>
+            {% if o.provider %}<div style="color:#8a9a9c">{{ o.provider }}</div>{% endif %}
+          </td>
+          <td>
+            <strong>{{ o.name }}</strong><br>
+            <span style="color:#67797b">{{ o.email }}</span>
+            {% if o.phone %}<br><span style="color:#67797b">{{ o.phone }}</span>{% endif %}
+            <div style="color:#8a9a9c;margin-top:5px;white-space:pre-line;font-size:11.5px">{{ o.address }}</div>
+          </td>
+          <td>
+            {% for l in o.lines %}
+            <div class="so-item">
+              {{ l.qty }} × {{ l.name }}{% if l.variant|default('') %} <span class="so-var">{{ l.variant }}</span>{% endif %}
+            </div>
+            {% else %}
+            <span style="color:#8a9a9c">—</span>
+            {% endfor %}
+          </td>
+          <td>
+            <strong>₦{{ o.subtotal_naira|number_format }}</strong>
+            {% if o.goods_naira is defined and o.goods_naira is not null %}
+            <div style="color:#8a9a9c;font-size:11.5px;margin-top:4px;line-height:1.6">
+              goods ₦{{ o.goods_naira|number_format }}<br>
+              {% if (o.discount_naira|default(0)) > 0 %}
+                −₦{{ o.discount_naira|number_format }} {{ o.discount_code|default('') }}<br>
+              {% endif %}
+              delivery {{ (o.shipping_naira|default(0)) > 0 ? '₦' ~ o.shipping_naira|number_format : 'free' }}
+            </div>
             {% endif %}
-            delivery {{ (o.shipping_naira|default(0)) > 0 ? '₦' ~ o.shipping_naira|number_format : 'free' }}
-          </div>
-          {% endif %}
-        </td>
-        <td>
-          {% if o.status == 'paid' %}<span class="so-tag so-tag--ok">paid</span>
-          {% elseif o.status == 'pending' %}<span class="so-tag so-tag--wait">pending</span>
-          {% else %}<span class="so-tag so-tag--no">{{ o.status }}</span>{% endif %}
-          {% if o.stock_short|default(0) and o.status == 'paid' %}
-          <div class="so-warn">Paid but short of stock — contact the buyer before it becomes a complaint.</div>
-          {% endif %}
-        </td>
-        <td>
-          {% if has_ful %}
-          {% set state = o.fulfilment|default('unfulfilled') ?: 'unfulfilled' %}
-          <div style="margin-bottom:6px">
-            {% if state == 'delivered' or state == 'shipped' %}<span class="so-tag so-tag--ok">{{ fulfilments[state] }}</span>
-            {% elseif state == 'cancelled' %}<span class="so-tag so-tag--no">Cancelled</span>
-            {% else %}<span class="so-tag">{{ fulfilments[state]|default(state) }}</span>{% endif %}
-          </div>
-          {% if o.tracking_note|default('') %}
-            <div style="color:#67797b;font-size:11.5px;margin-bottom:6px">{{ o.tracking_note }}</div>
-          {% endif %}
-          {% if o.status == 'paid' %}
-          <form method="post" action="/admin/shop/orders/fulfil" class="so-move">
-            <input type="hidden" name="_token" value="{{ csrf_token }}">
-            <input type="hidden" name="id" value="{{ o.id }}">
-            <select name="fulfilment" aria-label="Delivery state for {{ o.reference }}">
-              {% for key, label in fulfilments %}
-              <option value="{{ key }}" {% if key == state %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-            {# The note goes out in the shipped email and onto the buyer's own tracking page,
-               which is why it is saved before the mail is attempted: the page has to be right
-               even when the message bounces. #}
-            <input name="tracking_note" value="{{ o.tracking_note|default('') }}"
-                   placeholder="Tracking or a note" aria-label="Tracking note for {{ o.reference }}">
-            <button class="so-btn so-btn--tiny" type="submit">Save</button>
-          </form>
-          {% endif %}
-          {% else %}
-          <span style="color:#8a9a9c">—</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% else %}
-      <tr><td colspan="6" style="padding:22px 0;text-align:center;color:#8a9a9c">
-        {% if q or status or ful %}Nothing matches that filter.{% else %}No orders yet.{% endif %}
-      </td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+          </td>
+          <td>
+            {% if o.status == 'paid' %}<span class="so-tag so-tag--ok">paid</span>
+            {% elseif o.status == 'pending' %}<span class="so-tag so-tag--wait">pending</span>
+            {% else %}<span class="so-tag so-tag--no">{{ o.status }}</span>{% endif %}
+            {% if o.stock_short|default(0) and o.status == 'paid' %}
+            <div class="so-warn">Paid but short of stock — contact the buyer before it becomes a complaint.</div>
+            {% endif %}
+          </td>
+          <td>
+            {% if has_ful %}
+            {% set state = o.fulfilment|default('unfulfilled') ?: 'unfulfilled' %}
+            <div style="margin-bottom:6px">
+              {% if state == 'delivered' or state == 'shipped' %}<span class="so-tag so-tag--ok">{{ fulfilments[state] }}</span>
+              {% elseif state == 'cancelled' %}<span class="so-tag so-tag--no">Cancelled</span>
+              {% else %}<span class="so-tag">{{ fulfilments[state]|default(state) }}</span>{% endif %}
+            </div>
+            {% if o.tracking_note|default('') %}
+              <div style="color:#67797b;font-size:11.5px;margin-bottom:6px">{{ o.tracking_note }}</div>
+            {% endif %}
+            {% if o.status == 'paid' %}
+            <form method="post" action="/admin/shop/orders/fulfil" class="so-move">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <input type="hidden" name="id" value="{{ o.id }}">
+              <select name="fulfilment" aria-label="Delivery state for {{ o.reference }}">
+                {% for key, label in fulfilments %}
+                <option value="{{ key }}" {% if key == state %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              {# The note goes out in the shipped email and onto the buyer's own tracking page,
+                 which is why it is saved before the mail is attempted: the page has to be right
+                 even when the message bounces. #}
+              <input name="tracking_note" value="{{ o.tracking_note|default('') }}"
+                     placeholder="Tracking or a note" aria-label="Tracking note for {{ o.reference }}">
+              <button class="so-btn so-btn--tiny" type="submit">Save</button>
+            </form>
+            {% endif %}
+            {% else %}
+            <span style="color:#8a9a9c">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" style="padding:22px 0;text-align:center;color:#8a9a9c">
+          {% if q or status or ful %}Nothing matches that filter.{% else %}No orders yet.{% endif %}
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}
