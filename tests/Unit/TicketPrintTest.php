@@ -112,10 +112,19 @@ class TicketPrintTest extends TestCase
     /**
      * Date and venue must survive the colour dropping out.
      *
-     * On screen they live in the coloured header, which is right there. On paper
-     * `print-color-adjust` is a request a driver may refuse and a user may switch off — and
-     * a ticket printed for exactly the reason people print tickets, carrying no date and no
-     * address, is the one document this page exists to prevent.
+     * `print-color-adjust` is a request a driver may refuse and a user may switch off, and a
+     * ticket printed for exactly the reason people print tickets — carrying no date and no
+     * address — is the one document this page exists to prevent. So neither fact may live
+     * ONLY in the accent band behind the title.
+     *
+     * ── WHY THIS NO LONGER LOOKS FOR A PRINT-ONLY CELL ───────────────────────
+     *
+     * It used to assert `tk__cell--print` around the address, because on the old white card
+     * the address was in the coloured header on screen and revealed in the grid only on
+     * paper. The rebuilt ticket puts the address and the date on the cream stub at every
+     * size — the stub is a light panel in both media — so the guarantee is now stronger than
+     * the mechanism this test was pinning. What is asserted is the property: the address and
+     * the date are in the grid, and the grid is not hidden when the sheet is printed.
      */
     public function test_the_date_and_venue_are_repeated_on_white_for_print(): void
     {
@@ -123,13 +132,33 @@ class TicketPrintTest extends TestCase
         $reg = $this->makeReg((int) $e->id);
 
         $html = $this->ticketHtml($reg['reference']);
-        $this->assertStringContainsString('tk__cell--print', $html);
-        // The venue, in the grid rather than only over the image.
+
+        // In the grid, on the light stub — not only over the image.
         $this->assertMatchesRegularExpression(
-            '~tk__cell--print[^>]*>\s*<small>Where</small>~s',
+            '~class="tk__cell[^"]*"[^>]*>\s*<small>Where</small>~s',
             $html,
             'The address has to appear somewhere that is not a coloured fill.'
         );
+        $this->assertMatchesRegularExpression(
+            '~class="tk__cell[^"]*"[^>]*>\s*<small>Date</small>~s',
+            $html,
+            'A printed ticket with no date is the document this page exists to avoid.'
+        );
+
+        // The 46mm stub cannot carry the day name and the time as two cells, so print swaps
+        // in one joined line. Both halves of that swap have to be there, or the sheet prints
+        // either nothing or the same fact twice.
+        $this->assertStringContainsString('tk__cell--print', $html,
+            'the print-only joined date cell is missing');
+        $this->assertStringContainsString('tk__cell--screen', $html,
+            'the screen-only date and doors cells are missing');
+
+        $print = substr($html, (int) strpos($html, '@media print'));
+        $this->assertStringContainsString('.tk__cell--screen{display:none}',
+            str_replace([' ', "\n"], '', $print),
+            'the screen cells must be dropped on paper, or the date prints twice');
+        $this->assertStringNotContainsString('.tk__grid{display:none', str_replace(' ', '', $print),
+            'the grid carries every fact that survives the accent being dropped');
     }
 
     /** The self-service form was documented as dropped from print, and was not. */
