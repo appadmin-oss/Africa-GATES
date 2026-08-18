@@ -10,7 +10,7 @@ use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Services\{CacheService, OtpService, Notifier,
                          EventTicketService, EventTicketMailer, EventDiscount, EventWaitlist,
-                         EventAgenda, EventTicketDesign,
+                         EventAgenda, EventTicketDesign, StandCall,
                          GatewayHandoff, PaymentService, RateLimitService};
 
 /**
@@ -73,6 +73,11 @@ class EventsController
             'has_hero'         => true,
             'upcoming'         => $upcoming,
             'past'             => $past,
+            // Which of these are taking stand applications. Deliberately OUTSIDE the two
+            // caches above: a call opens and closes on its own clock, and a chip that says
+            // "stands open" for another fifteen minutes after the deadline sends vendors to a
+            // form that will refuse them. One query for the whole page — see StandCall::openFor().
+            'stand_calls'      => StandCall::openFor(array_column($upcoming, 'id')),
         ]);
     }
 
@@ -197,6 +202,11 @@ class EventsController
             'access_code'      => $code,
             'gateway_ready'    => $this->payments()->enabledProviderIds() !== [],
             'early_bird'       => $earlyBird,
+            // Whether a business can trade here, and on what terms. The call page has always
+            // existed at /events/{slug}/stands and nothing linked to it, so the only vendors
+            // applying were the ones the organiser had already told — which is the failure a
+            // published quota is meant to prevent.
+            'stand_call'       => StandCall::nudge((int) $event['id'], (string) $event['slug'], $isPast),
         ] + array_filter([
             'og_image'     => \AfricaGates\Support\Assets::absoluteOg($event['cover_image'] ?? null),
             'og_image_alt' => (string) $event['title'],

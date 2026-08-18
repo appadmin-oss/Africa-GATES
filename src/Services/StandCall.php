@@ -300,4 +300,115 @@ final class StandCall
         }
         return $out;
     }
+
+    // ──────────────────────── telling vendors it exists ─────────────────────
+
+    /**
+     * The one-line answer to "can a business trade at this event?", for the event pages.
+     *
+     * ── WHY THE EVENT PAGE HAS TO ASK AT ALL ─────────────────────────────────
+     *
+     * The call page is at `/events/{slug}/stands` and nothing linked to it. A vendor found it
+     * by being told the address, which means the only businesses applying were the ones the
+     * organiser already knew — which is the exact failure a published quota is supposed to
+     * prevent. An open call nobody can find is a private invitation with extra steps.
+     *
+     * ── AND WHY A CLOSED CALL STILL RETURNS SOMETHING ────────────────────────
+     *
+     * Same reason {@see \AfricaGates\Controllers\StandApplyController::call()} keeps serving a
+     * closed call instead of 404ing: a vendor who arrives a week late is owed "this closed on
+     * the 14th" rather than silence, and next year they will know when to look. The `state`
+     * says which it is so the page can be loud about an open call and quiet about a shut one.
+     *
+     * A DRAFT call returns null. Its terms are still being written, and half-published quotas
+     * are how a number gets quoted before it is decided.
+     *
+     * @return array{state:string, url:string, closes_at:string, opens_at:string,
+     *               left:int, quota:int, kinds:int, from:int}|null
+     */
+    public static function nudge(int $eventId, string $slug, bool $isPast = false): ?array
+    {
+        $call = self::forEvent($eventId);
+        if (!$call) return null;
+
+        $status = (string) ($call->status ?? '');
+        if ($status === self::STATUS_DRAFT || $status === '') return null;
+
+        // A finished event has nothing to apply for, whatever the call still says. `closes_at`
+        // is usually before the event and catches this, but it is nullable — and a call with
+        // no closing date on a past event would otherwise still read as open.
+        if ($isPast) return null;
+
+        $now   = date('Y-m-d H:i:s');
+        $opens = trim((string) ($call->opens_at ?? ''));
+
+        $state = match (true) {
+            self::isAccepting($call)          => 'open',
+            $opens !== '' && $opens > $now    => 'soon',
+            default                           => 'closed',
+        };
+
+        // Totals across the categories, not a per-category breakdown: the breakdown is the
+        // call page's job and repeating it here would be two places to disagree about how many
+        // stands are left. `capacity()` costs one query per stand type, which is fine for one
+        // event — see openFor() for the list page, which must not pay that per row.
+        $left = $quota = $kinds = 0;
+        $from = null;
+        foreach (self::capacity($eventId) as $c) {
+            $kinds++;
+            $left  += (int) $c['left'];
+            $quota += (int) $c['quota'];
+            $price  = (int) ($c['type']->price_naira ?? 0);
+            if ($price > 0 && ($from === null || $price < $from)) $from = $price;
+        }
+
+        return [
+            'state'     => $state,
+            'url'       => '/events/' . ltrim($slug, '/') . '/stands',
+            'closes_at' => trim((string) ($call->closes_at ?? '')),
+            'opens_at'  => $opens,
+            'left'      => $left,
+            'quota'     => $quota,
+            'kinds'     => $kinds,
+            // 0 rather than null for "every stand is free", so a template can print the
+            // figure without deciding what an absent price means.
+            'from'      => (int) ($from ?? 0),
+        ];
+    }
+
+    /**
+     * Which of these events are taking stand applications right now.
+     *
+     * ONE query for the whole list, and no capacity counting. The events index renders up to a
+     * few dozen cards; asking {@see nudge()} per card would be a query per stand type per
+     * event, to print a four-word chip. All a card needs is that the door is open.
+     *
+     * The clock check is done here rather than in SQL so it is the same comparison
+     * {@see isAccepting()} makes — two implementations of "is this call open" is how a card
+     * ends up advertising a call the apply page then refuses.
+     *
+     * @param  list<int> $eventIds
+     * @return array<int, array{closes_at:string}> keyed by event id; absent = not accepting
+     */
+    public static function openFor(array $eventIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $eventIds))));
+        if ($ids === []) return [];
+
+        try {
+            $rows = DB::table('gates_stand_calls')
+                ->whereIn('event_id', $ids)
+                ->where('status', self::STATUS_OPEN)
+                ->get();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $row) {
+            if (!self::isAccepting($row)) continue;
+            $out[(int) $row->event_id] = ['closes_at' => trim((string) ($row->closes_at ?? ''))];
+        }
+        return $out;
+    }
 }

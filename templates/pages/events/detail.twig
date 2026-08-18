@@ -80,6 +80,51 @@
   .ed-fine dt:first-child{ margin-top:0; }
   .ed-fine dd{ margin:5px 0 0; font-size:14px; line-height:1.7; color:#3a4448; white-space:pre-line; }
   .ed-fine a{ color:var(--ag-green); font-weight:600; text-decoration:none; }
+  /* ── THE VENDOR CALL ──────────────────────────────────────────────────────
+     A different audience from everything else on this page. Attendees are being sold a
+     seat in the rail on the right; this is a business being told it can trade here, and
+     the two do not compete for the same person's attention — which is exactly why it is
+     in the main column and low, rather than a second button beside Register.
+
+     Kale ground, not the page's white card. Not decoration: it is the one block here
+     addressed to somebody who did not come for a ticket, and a card identical to "About
+     this event" reads as more of the same and is scrolled past. */
+  .ed-vend{ position:relative; overflow:hidden; border-radius:20px; padding:clamp(1.4rem,3vw,1.8rem);
+    background:linear-gradient(135deg,#10292C,#164a2c); color:#eef5f0; }
+  .ed-vend__orb{ position:absolute; inset:auto -60px -90px auto; width:230px; height:230px;
+    border-radius:50%; background:radial-gradient(circle at 35% 35%,rgba(127,200,124,.34),transparent 68%);
+    pointer-events:none; }
+  .ed-vend__in{ position:relative; }
+  .ed-vend__kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:11px;
+    font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:#7FC87C; }
+  .ed-vend h2{ margin:8px 0 0; font-family:var(--ag-font-display,serif); font-weight:700;
+    font-size:1.35rem; line-height:1.25; color:#fff; }
+  .ed-vend p{ margin:9px 0 0; font-size:14.5px; line-height:1.7; color:#c9dbd2; white-space:normal; }
+  /* The facts, as a row of small statements rather than prose. A vendor is deciding on
+     three numbers — how many places, from what price, by when — and a paragraph makes
+     them read forty words to find each one. */
+  .ed-vend__facts{ display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 0; padding:0; list-style:none; }
+  .ed-vend__facts li{ display:inline-flex; align-items:center; gap:7px; padding:6px 12px;
+    border:1px solid rgba(255,255,255,.18); border-radius:999px; background:rgba(255,255,255,.06);
+    font-size:12.5px; font-weight:600; color:#eef5f0; }
+  .ed-vend__facts b{ font-family:var(--ag-font-mono,monospace); font-weight:700; color:#fff; }
+  .ed-vend__act{ display:flex; flex-wrap:wrap; align-items:center; gap:12px 16px; margin-top:18px; }
+  .ed-vend__cta{ display:inline-flex; align-items:center; gap:8px; padding:12px 22px;
+    border-radius:999px; background:#f3b416; color:#3a2800; font-weight:700; font-size:14.5px;
+    text-decoration:none; transition:transform .15s, background .15s; }
+  .ed-vend__cta:hover{ background:#ffc633; transform:translateY(-1px); }
+  .ed-vend__cta:focus-visible{ outline:3px solid #7FC87C; outline-offset:3px; }
+  /* #c9dbd2 on this ground measures 8.4:1; the gold used for the CTA fill would be 2.9:1
+     as text here, which is why the reassurance line is not gold. */
+  .ed-vend__free{ font-size:12.5px; color:#c9dbd2; }
+  .ed-vend__free b{ color:#fff; font-weight:600; }
+  /* A shut call gets a line, not a card. It is still worth saying — a vendor who arrived
+     late is owed the date rather than silence — but it is not worth a gold button. */
+  .ed-vend--shut{ background:none; border:1px solid rgba(16,41,44,.12); color:#3a4448;
+    padding:14px clamp(1rem,2.4vw,1.25rem); border-radius:16px; }
+  .ed-vend--shut .ed-vend__kick{ color:var(--ag-green,#237b22); }
+  .ed-vend--shut p{ color:#3a4448; font-size:14px; }
+  .ed-vend--shut a{ color:var(--ag-green,#237b22); font-weight:600; }
   /* discount code */
   .ed-disc{ display:flex; gap:8px; margin-top:6px; }
   .ed-disc .ed-input{ text-transform:uppercase; letter-spacing:.04em; }
@@ -253,6 +298,83 @@
           {% endif %}
         </dl>
       </div>
+      {% endif %}
+
+      {# ── TRADE AT THIS EVENT ────────────────────────────────────────────────
+         The call for vendor stands lived at /events/{slug}/stands and nothing on this site
+         linked to it, so the only businesses applying were the ones the organiser had
+         already phoned. That is precisely the outcome a published quota exists to prevent:
+         an open call nobody can find is a private invitation with extra steps.
+
+         LAST in the main column on purpose. This page's job is to sell a seat, and the
+         person reading it came for one — a vendor pitch above the agenda would be pushing a
+         different audience's business in front of the one that is actually here. Whoever
+         needs this is looking for it, and the people who are not lose nothing by scrolling
+         past it. #}
+      {% if stand_call|default(null) %}
+        {% if stand_call.state == 'closed' %}
+          {# One line, no button. Still said, because a vendor who arrived a fortnight late is
+             owed a date and a page rather than silence — and next year they will look earlier. #}
+          <div class="ed-vend ed-vend--shut">
+            <span class="ed-vend__kick">Vendor stands</span>
+            <p>
+              {%- if stand_call.closes_at %}Applications closed on
+                <b>{{ stand_call.closes_at|date('j F Y') }}</b>.
+              {%- else %}This event is not taking stand applications.{% endif %}
+              The quotas, the prices and the rules they were judged against are all still
+              published — <a href="{{ stand_call.url }}">see what was on offer</a>.
+            </p>
+          </div>
+        {% else %}
+          <div class="ed-vend">
+            <span class="ed-vend__orb" aria-hidden="true"></span>
+            <div class="ed-vend__in">
+              <span class="ed-vend__kick">Vendor stands</span>
+              <h2>Sell something at {{ event.title }}?</h2>
+              <p>Stands here are applied for and allocated against quotas published before
+                anyone applies — not sold to whoever pays first. Everything that decides your
+                application is on one page, in advance.</p>
+
+              {# Three numbers, as three statements. A vendor decides on how many places are
+                 left, what the cheapest one costs and when it shuts; buried in a paragraph
+                 each of those takes forty words to find. Any that is unknown is simply not
+                 printed — a chip reading "0 stands" or "from ₦0" is worse than no chip. #}
+              <ul class="ed-vend__facts">
+                {% if stand_call.left > 0 %}
+                  <li><b>{{ stand_call.left }}</b> of {{ stand_call.quota }} places open</li>
+                {% elseif stand_call.quota > 0 %}
+                  <li>All {{ stand_call.quota }} held · waiting list</li>
+                {% endif %}
+                {% if stand_call.from > 0 %}
+                  <li>From <b>₦{{ stand_call.from|number_format }}</b></li>
+                {% endif %}
+                {% if stand_call.kinds > 1 %}
+                  <li>{{ stand_call.kinds }} stand sizes</li>
+                {% endif %}
+                {% if stand_call.state == 'open' and stand_call.closes_at %}
+                  <li>Closes <b>{{ stand_call.closes_at|date('j M') }}</b></li>
+                {% elseif stand_call.state == 'soon' and stand_call.opens_at %}
+                  <li>Opens <b>{{ stand_call.opens_at|date('j M') }}</b></li>
+                {% endif %}
+              </ul>
+
+              <div class="ed-vend__act">
+                <a class="ed-vend__cta" href="{{ stand_call.url }}">
+                  {{ stand_call.state == 'open' ? 'Apply for a stand' : 'See the terms' }}
+                  <svg aria-hidden="true" focusable="false" width="15" height="15" viewBox="0 0 20 20" fill="none"><path d="M7.5 4.5 13 10 7.5 15.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+                <span class="ed-vend__free">
+                  {%- if stand_call.state == 'open' -%}
+                    <b>Applying is free</b> and you do not need an account first — the form
+                    makes one.
+                  {%- else -%}
+                    The terms are published now, so you can decide before it opens.
+                  {%- endif -%}
+                </span>
+              </div>
+            </div>
+          </div>
+        {% endif %}
       {% endif %}
     </div>
 
