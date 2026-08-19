@@ -2514,6 +2514,10 @@ return function(App $app) {
         $a->post('/logout',       AccountController::class.':logout');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
+        // The member's own points history as a file. Above the catch-all below, which would
+        // otherwise swallow it — and reachable by the owner alone, because there is no id in
+        // the path to change.
+        $a->get('/points.csv',    AccountController::class.':pointsCsv');
         $a->get('[/]',            AccountController::class.':dashboard');
     })->add(new UserAuthMiddleware());
 

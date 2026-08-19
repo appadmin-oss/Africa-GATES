@@ -250,6 +250,83 @@ final class PointsService
         } catch (\Throwable $e) { return []; }
     }
 
+    /**
+     * The balance over time, as one point per day — for the chart on the account page.
+     *
+     * ── WHY THE SERIES IS BUILT HERE AND NOT IN THE TEMPLATE ─────────────────
+     *
+     * A chart drawn from `ledger()` in Twig would be drawn from the LAST 30 ROWS, which is
+     * not a time series — it is however many events happened to fit, so a member with three
+     * years of quiet history and one busy week gets a chart of that week labelled as their
+     * account. The window has to be a window of TIME.
+     *
+     * ── AND WHY EVERY DAY IS PRESENT, INCLUDING THE EMPTY ONES ───────────────
+     *
+     * A balance is a running total: on a day with no transaction it is still whatever it was
+     * yesterday. Plotting only the days that have rows spaces them evenly along the x-axis,
+     * which draws a steady climb where there was one purchase and then eleven months of
+     * nothing. So the gaps are filled forward, and the line is flat where nothing happened —
+     * because nothing happening is the fact.
+     *
+     * The opening balance is derived by walking BACKWARDS from today's balance through the
+     * deltas inside the window, rather than summing history: `balance_after` on the oldest
+     * row in the window already includes everything before it, and re-summing a ledger is how
+     * a rounding or a reversal quietly disagrees with the number printed beside it.
+     *
+     * @return list<array{date: string, balance: int, delta: int}> oldest first; [] when the
+     *         member has no history at all
+     */
+    public static function series(int $userId, int $days = 90): array
+    {
+        $days = max(2, min(365, $days));
+        $from = date('Y-m-d', strtotime('-' . ($days - 1) . ' days'));
+
+        try {
+            $rows = DB::table('gates_points_ledger')
+                ->where('user_id', $userId)
+                ->where('created_at', '>=', $from . ' 00:00:00')
+                ->orderBy('id')
+                ->get(['delta', 'balance_after', 'created_at'])
+                ->map(fn ($r) => (array) $r)->all();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $balance = self::balance($userId);
+        if ($rows === [] ) {
+            // Nothing moved in the window. A flat line at today's balance is still true, and
+            // it is only worth drawing if there is a balance to be flat at — a member with
+            // nothing gets the empty state instead of a chart of zero.
+            if ($balance === 0) return [];
+            return [
+                ['date' => $from, 'balance' => $balance, 'delta' => 0],
+                ['date' => date('Y-m-d'), 'balance' => $balance, 'delta' => 0],
+            ];
+        }
+
+        // Closing balance and net movement for each day that actually has rows.
+        $close = [];
+        $moved = [];
+        foreach ($rows as $r) {
+            $d = substr((string) $r['created_at'], 0, 10);
+            $close[$d] = (int) $r['balance_after'];
+            $moved[$d] = ($moved[$d] ?? 0) + (int) $r['delta'];
+        }
+
+        // Where the window opened: today's balance, less everything that has moved inside it.
+        $opening = $balance;
+        foreach ($moved as $delta) { $opening -= $delta; }
+
+        $out  = [];
+        $held = $opening;
+        for ($i = 0; $i < $days; $i++) {
+            $d = date('Y-m-d', strtotime($from . ' +' . $i . ' days'));
+            if (isset($close[$d])) $held = $close[$d];
+            $out[] = ['date' => $d, 'balance' => $held, 'delta' => (int) ($moved[$d] ?? 0)];
+        }
+        return $out;
+    }
+
     private static function setting(string $key, ?string $default = null): ?string
     {
         try { $v = DB::table('gates_settings')->where('key_name', $key)->value('value'); }

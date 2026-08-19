@@ -1,307 +1,1160 @@
 {% extends "layout/gates.twig" %}
 
+{#
+  ══ THE MEMBER'S OWN PAGE ═══════════════════════════════════════════════════
+
+  ── WHAT WAS WRONG WITH IT ──────────────────────────────────────────────────
+
+  Eight full-width cards in one column, every one of them the same 20px-radius
+  white panel: points, how-you-earn, orders, tickets, votes, nominations, share
+  links, profile, saved threads, ledger. Everything had the same weight, so
+  nothing was important, and finding "where is my ticket" meant scrolling past
+  four unrelated cards to reach it. That is the absence of a decision rather
+  than a bad decision — the page had accreted.
+
+  It is sections now, with a rail. Six of them, named by the JOB a member came
+  to do — see what I have, check my points, find my order, see what I did, read
+  what I saved, change my details — and the rail carries counts, because a
+  section label with no number beside it is a door people open to find out
+  whether it was worth opening.
+
+  ── HOW THE SECTIONS SWITCH, AND WHY IT IS NOT ALPINE ───────────────────────
+
+  One attribute on <html>, set synchronously in the head from location.hash, and
+  six CSS rules keyed off it. That buys three things a JS-driven tab set does not:
+
+    · NO FLASH. The correct section is chosen before first paint, because the
+      attribute is set by a blocking script in the head rather than by a
+      deferred framework that boots after the page is already on screen.
+    · NO JAVASCRIPT, NO PROBLEM. With scripting off the attribute is never set,
+      no rule matches, and every section is visible — which is exactly the page
+      this replaced. The enhancement degrades to the thing it improved on.
+    · DEEP LINKS FOR FREE. /account#points is a real address, the back button
+      moves between sections, and a support reply can point at one.
+
+  ── AND THE CHART IS DRAWN ON THE SERVER ────────────────────────────────────
+
+  {@see AfricaGates\Support\Spark} works out the geometry and this prints it, so
+  the balance line is in the document: it needs no script to appear, it prints,
+  and it is there for a reader that does not run one. Every value on it is also
+  in a table behind a toggle, because a value only reachable by hovering is a
+  value some people cannot reach at all.
+#}
+
 {% block head_styles %}
+{# Synchronous and FIRST — it decides what is painted, so it cannot be deferred. #}
+<script nonce="{{ csp_nonce }}">
+  (function () {
+    var ok = ['overview','points','purchases','activity','saved','settings'];
+    var h  = (location.hash || '').replace('#','');
+    document.documentElement.setAttribute('data-me', ok.indexOf(h) >= 0 ? h : 'overview');
+  })();
+</script>
 <style nonce="{{ csp_nonce }}">
-  body[data-page="account"]{ background:#eef0ec; color:var(--ag-ink); }
-  .ac{ max-width:920px; margin:0 auto; padding:0 var(--ag-gutter,28px) 60px; }
-  .ac-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap; padding:26px 0 6px; }
-  .ac-head h1{ margin:0; font-family:var(--ag-font-display); font-weight:800; font-size:clamp(1.6rem,4.5vw,2.2rem); color:var(--ag-ink); }
-  .ac-head__sub{ font-size:13.5px; color:#5a6d6f; margin-top:3px; }
-  .ac-logout{ font-size:13px; font-weight:600; color:#5a6d6f; text-decoration:none; border:1px solid rgba(16,41,44,.14); padding:8px 14px; border-radius:999px; }
-  .ac-logout:hover{ color:var(--ag-ink); border-color:rgba(16,41,44,.28); }
-  .ac-ok{ background:#effaf0; border:1px solid #bfe6bd; color:#1a6118; border-radius:12px; padding:11px 14px; font-size:13.5px; margin-top:12px; }
+  /* ── the palette this page commits to ──────────────────────────────────────
+     Site tokens, tightened for a records screen. The two deliberate departures
+     from the rest of the site are the RADIUS (14px, not the 20–24px pillow the
+     marketing pages use — a dense list of rows inside a very round box reads as
+     a widget) and the SHADOWS (none; one hairline does the separating work, and
+     eight drop-shadowed cards in a column is the look this page had). */
+  body[data-page="account"]{ background:var(--me-paper); color:var(--me-ink); }
+  .me{
+    --me-paper:#f3f4f2;
+    --me-panel:#fff;
+    --me-ink:#10292c;
+    --me-mute:#5a6d6f;          /* 4.9:1 on white, 4.7:1 on the paper */
+    --me-line:rgba(16,41,44,.09);
+    --me-line-2:rgba(16,41,44,.16);
+    --me-accent:#237b22;        /* 4.6:1 on white */
+    --me-accent-wash:#f1f8f1;
+    --me-warn:#8a5a00;          /* 5.4:1 — the gold, made legible on light */
+    --me-warn-wash:#fdf6e6;
+    --me-bad:#a8321f;
+    --me-bad-wash:#fdf1ef;
+    --me-r:14px;
+    --me-r-sm:10px;
+    max-width:1080px; margin:0 auto; padding:0 var(--ag-gutter,28px) 72px;
+  }
 
-  .ac-grid{ display:grid; grid-template-columns:1.1fr 1fr; gap:18px; margin-top:16px; }
-  @media(max-width:680px){ .ac-grid{ grid-template-columns:1fr; } }
-  .ac-pts{ position:relative; overflow:hidden; border-radius:20px; background:radial-gradient(130% 130% at 85% 0%,#1d5b2a,#10292C 60%); color:#fff; padding:24px 26px; }
-  .ac-pts__orb{ position:absolute; right:-40px; bottom:-50px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle,rgba(212,154,14,.26),transparent 68%); }
-  .ac-pts__label{ position:relative; font-size:11px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:#ffd24a; }
-  .ac-pts__n{ position:relative; font-family:var(--ag-font-mono,monospace); font-weight:700; font-size:clamp(2.4rem,9vw,3.2rem); line-height:1; margin-top:8px; color:#fff; }
-  .ac-pts__sub{ position:relative; font-size:13.5px; color:rgba(255,255,255,.82); margin-top:8px; }
-  .ac-pts__cta{ position:relative; display:inline-flex; align-items:center; gap:7px; margin-top:16px; background:#fff; color:#10292C; font-weight:700; font-size:14px; padding:10px 18px; border-radius:999px; text-decoration:none; }
-  .ac-pts__cta:hover{ background:#eef3ee; }
+  /* ── identity bar ────────────────────────────────────────────────────────── */
+  .me-top{ display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+    padding:26px 0 20px; border-bottom:1px solid var(--me-line); }
+  /* Initials, not a gravatar and not a silhouette. There is no avatar upload on
+     this platform, so a generic person-icon would be the same picture on every
+     account — a person's own initials at least identify the account they are in. */
+  .me-ava{ flex:none; width:46px; height:46px; border-radius:50%; display:grid;
+    place-items:center; background:var(--me-ink); color:#fff;
+    font:700 16px/1 var(--ag-font-body,system-ui); letter-spacing:.02em; }
+  .me-who{ min-width:0; flex:1 1 220px; }
+  .me-who h1{ margin:0; font-family:var(--ag-font-display,serif); font-weight:800;
+    font-size:clamp(1.35rem,3.4vw,1.75rem); line-height:1.15; color:var(--me-ink);
+    overflow-wrap:anywhere; }
+  .me-who p{ margin:3px 0 0; font-size:13px; color:var(--me-mute); overflow-wrap:anywhere; }
+  .me-top__act{ display:flex; align-items:center; gap:8px; margin-left:auto; }
+  /* On a phone the identity bar is two rows, not one squeezed one: sharing 358px between
+     a search field and a button put "Sign out" on two lines inside a pill. */
+  @media (max-width:560px){
+    .me-top{ padding-top:20px }
+    .me-top__act{ width:100%; margin-left:0 }
+    .me-find{ flex:1 1 auto }
+  }
 
-  .ac-card{ background:var(--ag-surface,#fff); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px 24px; }
-  .ac-card h2{ margin:0 0 12px; font-family:var(--ag-font-display); font-weight:700; font-size:1.15rem; color:var(--ag-ink); }
-  .ac-earn__row{ display:flex; align-items:flex-start; gap:11px; font-size:13.5px; color:#3a4448; line-height:1.5; }
-  .ac-earn__row + .ac-earn__row{ margin-top:11px; }
-  .ac-earn__i{ flex:none; width:30px; height:30px; border-radius:9px; background:#effaf0; color:#1a6118; display:flex; align-items:center; justify-content:center; font-size:15px; }
+  /* ── search ──────────────────────────────────────────────────────────────── */
+  .me-find{ position:relative; flex:0 1 260px; min-width:180px; }
+  .me-find svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%);
+    color:var(--me-mute); pointer-events:none; }
+  .me-find input{ width:100%; box-sizing:border-box; height:40px; padding:0 14px 0 34px;
+    font:400 14px/1 inherit; color:var(--me-ink); background:var(--me-panel);
+    border:1px solid var(--me-line-2); border-radius:999px; }
+  .me-find input::placeholder{ color:var(--me-mute); }
+  .me-find input:focus-visible{ outline:3px solid var(--me-accent); outline-offset:2px;
+    border-color:var(--me-accent); }
 
-  .ac-ledger{ margin-top:18px; }
-  .ac-row{ display:flex; align-items:center; gap:12px; padding:13px 0; border-top:1px solid rgba(16,41,44,.07); }
-  .ac-row:first-of-type{ border-top:0; }
-  .ac-row__b{ flex:1; min-width:0; }
-  .ac-row__r{ font-weight:600; font-size:14px; color:var(--ag-ink); }
-  .ac-row__d{ font-size:12px; color:#5a6d6f; margin-top:1px; }
-  .ac-row__delta{ font:700 14px/1 var(--ag-font-mono,monospace); flex:none; }
-  .ac-row__delta.pos{ color:#1a6118; } .ac-row__delta.neg{ color:#b42318; }
-  .ac-row__bal{ font:600 12px/1 var(--ag-font-mono,monospace); color:var(--ag-ink-soft,#626a6e); flex:none; min-width:64px; text-align:right; }
-  .ac-empty{ color:#5a6d6f; font-size:14px; margin:0; }
+  .me-btn{ display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    min-height:40px; padding:0 15px; box-sizing:border-box; cursor:pointer;
+    font:600 13.5px/1 inherit; color:var(--me-ink); text-decoration:none; white-space:nowrap;
+    background:var(--me-panel); border:1px solid var(--me-line-2); border-radius:999px; }
+  .me-btn:hover{ border-color:var(--me-ink); }
+  .me-btn:focus-visible{ outline:3px solid var(--me-accent); outline-offset:2px; }
+  .me-btn--go{ background:var(--me-accent); border-color:var(--me-accent); color:#fff; }
+  .me-btn--go:hover{ background:var(--ag-green-dark,#1a6118); border-color:var(--ag-green-dark,#1a6118); }
+  .me-btn--quiet{ background:none; color:var(--me-mute); }
+  .me-btn--quiet:hover{ color:var(--me-ink); }
+  /* Copy confirmation, said twice on purpose: the border and tick are for people who can
+     see the button, and the aria-label swap in the script is for people who cannot. */
+  .me-btn.is-copied{ border-color:var(--me-accent); color:var(--me-accent);
+    background:var(--me-accent-wash); }
+  .me-btn.is-copied::after{ content:"Copied"; font-weight:700; }
+  .me-btn.is-copied svg, .me-btn.is-copied .me-code{ display:none; }
+
+  /* ── the rail + pane ─────────────────────────────────────────────────────── */
+  .me-body{ display:grid; grid-template-columns:216px minmax(0,1fr); gap:30px; margin-top:24px; }
+  .me-rail{ position:sticky; top:calc(var(--ag-nav-h,72px) + 14px); align-self:start;
+    display:flex; flex-direction:column; gap:2px; }
+  .me-rail__i{ display:flex; align-items:center; gap:10px; min-height:40px; padding:0 12px;
+    border-radius:var(--me-r-sm); border:0; background:none; cursor:pointer; text-align:left;
+    font:600 14px/1.2 inherit; color:var(--me-mute); text-decoration:none; width:100%;
+    box-sizing:border-box; }
+  .me-rail__i:hover{ background:rgba(16,41,44,.05); color:var(--me-ink); }
+  .me-rail__i:focus-visible{ outline:3px solid var(--me-accent); outline-offset:-1px; }
+  .me-rail__i[aria-selected="true"]{ background:var(--me-ink); color:#fff; }
+  .me-rail__i svg{ flex:none; }
+  .me-rail__n{ flex:1; min-width:0; }
+  /* Tabular, because these sit in a vertical column and ragged digits make the
+     column look broken. (The hero figure below is the opposite case.) */
+  .me-rail__c{ flex:none; font:600 11.5px/1 var(--ag-font-mono,monospace);
+    font-variant-numeric:tabular-nums; color:var(--me-mute);
+    background:rgba(16,41,44,.06); border-radius:999px; padding:4px 7px; }
+  .me-rail__i[aria-selected="true"] .me-rail__c{ background:rgba(255,255,255,.18); color:#fff; }
+
+  @media (max-width:900px){
+    .me-body{ grid-template-columns:minmax(0,1fr); gap:18px; }
+    /* A horizontal strip on a phone, scrolled rather than wrapped: wrapping puts
+       the last two sections on a second line that looks like a different control. */
+    .me-rail{ position:static; flex-direction:row; gap:6px; overflow-x:auto;
+      padding-bottom:4px; margin:0 calc(var(--ag-gutter,28px) * -1); padding-inline:var(--ag-gutter,28px);
+      scrollbar-width:none; }
+    .me-rail::-webkit-scrollbar{ display:none }
+    .me-rail__i{ width:auto; flex:none; min-height:44px; padding:0 14px;
+      border:1px solid var(--me-line-2); border-radius:999px; background:var(--me-panel); }
+    .me-rail__i[aria-selected="true"]{ border-color:var(--me-ink); }
+  }
+
+  /* ── sections: shown by the attribute the head script set ────────────────── */
+  .me-sec{ scroll-margin-top:90px; }
+  .me-sec + .me-sec{ margin-top:26px; }
+  [data-me] .me-sec{ display:none; }
+  [data-me] .me-sec + .me-sec{ margin-top:0; }
+  [data-me="overview"]  #me-overview,
+  [data-me="points"]    #me-points,
+  [data-me="purchases"] #me-purchases,
+  [data-me="activity"]  #me-activity,
+  [data-me="saved"]     #me-saved,
+  [data-me="settings"]  #me-settings{ display:block; }
+  /* While a search is running the rail is irrelevant: results come from every
+     section, so every section is on and the empty ones are hidden by the filter. */
+  [data-me].me-searching .me-sec{ display:block; }
+
+  .me-sec__h{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; margin:0 0 4px; }
+  .me-sec__h h2{ margin:0; font-family:var(--ag-font-display,serif); font-weight:700;
+    font-size:1.3rem; color:var(--me-ink); }
+  .me-sec__lead{ margin:0 0 16px; font-size:13.5px; line-height:1.6; color:var(--me-mute); max-width:62ch; }
+
+  .me-panel{ background:var(--me-panel); border:1px solid var(--me-line);
+    border-radius:var(--me-r); padding:20px 22px; }
+  .me-panel + .me-panel{ margin-top:14px; }
+  .me-panel__h{ margin:0 0 2px; font-size:14.5px; font-weight:700; color:var(--me-ink); }
+  .me-panel__s{ margin:0 0 14px; font-size:12.5px; color:var(--me-mute); }
+
+  /* ── rows ────────────────────────────────────────────────────────────────── */
+  .me-list{ list-style:none; margin:0; padding:0; }
+  .me-row{ display:flex; align-items:flex-start; gap:12px; padding:13px 0;
+    border-top:1px solid var(--me-line); }
+  .me-list > .me-row:first-child{ border-top:0; padding-top:2px; }
+  .me-row__b{ flex:1; min-width:0; }
+  .me-row__t{ font-size:14px; font-weight:600; color:var(--me-ink); overflow-wrap:anywhere; }
+  a.me-row__t{ text-decoration:none; }
+  a.me-row__t:hover{ text-decoration:underline; }
+  .me-row__m{ font-size:12.5px; color:var(--me-mute); margin-top:3px; line-height:1.55; }
+  .me-row__r{ flex:none; text-align:right; }
+  .me-code{ display:inline-block; margin-top:6px; font:700 13.5px/1 var(--ag-font-mono,monospace);
+    letter-spacing:.06em; color:var(--me-ink); }
+
+  /* Never colour alone — every one of these carries its own word. */
+  .me-tag{ display:inline-flex; align-items:center; gap:5px; font:700 11px/1 inherit;
+    border-radius:999px; padding:4px 9px; white-space:nowrap;
+    color:var(--me-mute); background:rgba(16,41,44,.06); }
+  .me-tag--ok{ color:#166534; background:#f0fdf4; }
+  .me-tag--wait{ color:var(--me-warn); background:var(--me-warn-wash); }
+  .me-tag--bad{ color:var(--me-bad); background:var(--me-bad-wash); }
+
+  /* ── the balance figure ──────────────────────────────────────────────────── */
+  .me-hero{ display:flex; align-items:flex-end; gap:20px; flex-wrap:wrap; }
+  .me-hero__k{ font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.16em;
+    text-transform:uppercase; color:var(--me-mute); }
+  /* The sans, and PROPORTIONAL figures. A display serif on a hero number reads as
+     decoration, and tabular digits at 3rem leave visible gaps inside `1,240` —
+     equal-width digits are for columns that align, which this is not. */
+  .me-hero__n{ display:block; margin-top:6px; font-family:var(--ag-font-body,system-ui);
+    font-weight:800; font-size:clamp(2.4rem,7vw,3.1rem); line-height:.95;
+    letter-spacing:-.02em; color:var(--me-ink); font-variant-numeric:proportional-nums; }
+  .me-hero__u{ font-size:.34em; font-weight:700; color:var(--me-mute); margin-left:6px;
+    letter-spacing:0; }
+  .me-hero__f{ display:flex; gap:22px; flex-wrap:wrap; margin-bottom:4px; }
+  .me-fact__k{ font:700 10.5px/1 var(--ag-font-mono,monospace); letter-spacing:.13em;
+    text-transform:uppercase; color:var(--me-mute); }
+  .me-fact__v{ font:700 15px/1.2 var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
+    color:var(--me-ink); margin-top:5px; }
+
+  /* ── chart ───────────────────────────────────────────────────────────────── */
+  /* `preserveAspectRatio:none` stretches it to the panel, which is right for a sparkline
+     and wrong for the real chart — the shape here is a gesture, not a measurement, and
+     `non-scaling-stroke` keeps the line 2px however far it is stretched. */
+  .me-spark{ display:block; width:100%; height:46px; margin-top:16px; }
+  .me-spark__c{ margin:6px 0 0; font:600 11px/1 var(--ag-font-mono,monospace);
+    letter-spacing:.1em; text-transform:uppercase; color:var(--me-mute); }
+  .me-chart{ margin-top:20px; }
+  .me-chart__box{ position:relative; }
+  .me-chart svg{ display:block; width:100%; height:auto; overflow:visible; }
+  .me-chart__grid{ stroke:var(--me-line); stroke-width:1; }
+  .me-chart__area{ fill:var(--me-accent); fill-opacity:.10; }
+  /* 2px, and the only saturated thing on the page. */
+  .me-chart__line{ fill:none; stroke:var(--me-accent); stroke-width:2;
+    stroke-linejoin:round; stroke-linecap:round; }
+  .me-chart__cursor{ stroke:var(--me-ink); stroke-width:1; opacity:.35; }
+  .me-chart__dot{ fill:var(--me-panel); stroke:var(--me-accent); stroke-width:2.5; }
+  .me-chart__ax{ font:600 10.5px/1 var(--ag-font-mono,monospace); fill:var(--me-mute); }
+  .me-chart__hit{ fill:transparent; cursor:crosshair; }
+  .me-chart__box:focus-visible{ outline:3px solid var(--me-accent); outline-offset:3px;
+    border-radius:6px; }
+  /* Reserved height, so the readout appearing on hover does not move the section
+     under the pointer. */
+  .me-chart__read{ min-height:20px; margin-top:10px; font-size:12.5px; color:var(--me-mute); }
+  .me-chart__read b{ color:var(--me-ink); font-family:var(--ag-font-mono,monospace);
+    font-variant-numeric:tabular-nums; }
+  .me-chart__foot{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    flex-wrap:wrap; margin-top:6px; }
+
+  /* ── table ───────────────────────────────────────────────────────────────── */
+  .me-tw{ overflow-x:auto; margin-top:12px; }
+  .me-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  .me-table th, .me-table td{ text-align:left; padding:9px 12px 9px 0;
+    border-top:1px solid var(--me-line); white-space:nowrap; }
+  .me-table thead th{ border-top:0; font:700 10.5px/1 var(--ag-font-mono,monospace);
+    letter-spacing:.13em; text-transform:uppercase; color:var(--me-mute); padding-bottom:8px; }
+  .me-table td.num{ font-family:var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
+    text-align:right; padding-right:0; }
+  .me-delta--pos{ color:#166534; font-weight:700; }
+  .me-delta--neg{ color:var(--me-bad); font-weight:700; }
+
+  /* ── checklist ───────────────────────────────────────────────────────────── */
+  .me-steps{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:8px; }
+  .me-step{ display:flex; align-items:center; gap:10px; min-height:44px; padding:9px 12px;
+    box-sizing:border-box; border:1px solid var(--me-line-2); border-radius:var(--me-r-sm);
+    text-decoration:none; font-size:13px; font-weight:600; color:var(--me-ink); }
+  .me-step:hover{ border-color:var(--me-ink); }
+  .me-step:focus-visible{ outline:3px solid var(--me-accent); outline-offset:2px; }
+  .me-step--done{ border-color:rgba(35,123,34,.3); background:var(--me-accent-wash);
+    color:#3f5a44; }
+  .me-step--done .me-step__n{ background:var(--me-accent); color:#fff; }
+  .me-step__n{ flex:none; width:22px; height:22px; border-radius:50%; display:grid;
+    place-items:center; font:800 11px/1 inherit; background:rgba(16,41,44,.07);
+    color:var(--me-mute); }
+  .me-meter{ display:flex; align-items:center; gap:9px; min-width:170px; }
+  .me-meter__t{ flex:1; height:6px; border-radius:99px; background:rgba(16,41,44,.08);
+    overflow:hidden; }
+  .me-meter__f{ height:100%; border-radius:99px; background:var(--me-accent); }
+  .me-meter__n{ font:700 12px/1 var(--ag-font-mono,monospace); color:var(--me-accent); }
+
+  /* ── forms ───────────────────────────────────────────────────────────────── */
+  .me-field{ display:block; margin-top:14px; }
+  .me-field > span{ display:block; font-size:12.5px; font-weight:600; color:var(--me-mute);
+    margin-bottom:5px; }
+  .me-in{ width:100%; box-sizing:border-box; min-height:44px; padding:11px 13px;
+    font:400 15px/1.3 inherit; color:var(--me-ink); background:var(--me-panel);
+    border:1px solid var(--me-line-2); border-radius:var(--me-r-sm); }
+  .me-in:focus-visible{ outline:3px solid var(--me-accent); outline-offset:1px;
+    border-color:var(--me-accent); }
+  .me-in[readonly]{ background:#f7f8f7; color:var(--me-mute); }
+  .me-grid2{ display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:0 16px; }
+  .me-hint{ font-size:12.5px; color:var(--me-mute); margin:8px 0 0; line-height:1.6; }
+
+  /* ── states ──────────────────────────────────────────────────────────────── */
+  .me-empty{ text-align:center; padding:34px 20px; }
+  .me-empty__i{ width:40px; height:40px; margin:0 auto 12px; border-radius:12px;
+    display:grid; place-items:center; background:rgba(16,41,44,.05); color:var(--me-mute); }
+  .me-empty h3{ margin:0; font-size:15px; font-weight:700; color:var(--me-ink); }
+  .me-empty p{ margin:6px auto 0; max-width:44ch; font-size:13.5px; line-height:1.65;
+    color:var(--me-mute); }
+  .me-empty .me-btn{ margin-top:14px; }
+  .me-note{ border-radius:var(--me-r-sm); padding:11px 14px; font-size:13.5px;
+    line-height:1.55; margin-bottom:16px; }
+  .me-note--ok{ background:var(--me-accent-wash); border:1px solid rgba(35,123,34,.28); color:#1a6118; }
+  .me-note--bad{ background:var(--me-bad-wash); border:1px solid rgba(168,50,31,.3); color:var(--me-bad); }
+
+  .me-flag{ display:none; }
+  .me-searching .me-flag{ display:block; }
+  [hidden]{ display:none !important; }
+
+  @media (prefers-reduced-motion:reduce){ .me *{ transition:none !important; animation:none !important } }
+  @media print{ .me-rail, .me-top__act, .me-find{ display:none } [data-me] .me-sec{ display:block } }
 </style>
 {% endblock %}
 
 {% block content %}
-{% set labels = {'earn.shop_order':'Shop order','earn.donation':'Donation','earn.event_ticket':'Event ticket','spend.vote':'Redeemed for votes','adjust.admin':'Admin adjustment'} %}
-<div class="ac">
-  <div class="ac-head">
-    <div>
-      <h1>Hello, {{ user.name|split(' ')|first }}</h1>
-      <div class="ac-head__sub">{{ user.email }}</div>
-    </div>
-    <a class="ac-logout" href="/account/logout">Sign out</a>
-  </div>
-  {% if flash_ok %}<div class="ac-ok">{{ flash_ok }}</div>{% endif %}
-  {% if flash_error %}<div class="ac-ok" style="background:#fdeaea;border-color:#f3c2c2;color:#b42318">{{ flash_error }}</div>{% endif %}
+{% import _self as ico %}
 
-  {# ── Onboarding checklist — hidden once everything is done ── #}
-  {% set _open_steps = checklist|default([])|filter(s => not s.done) %}
-  {% if _open_steps is not empty %}
-  <div class="ac-card" style="margin:0 0 18px">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">Get the most from your membership</h2>
-      {% if completeness is defined %}
-      <div style="display:flex;align-items:center;gap:8px;min-width:180px" title="Profile completeness">
-        <div style="flex:1;height:7px;background:rgba(16,41,44,.08);border-radius:99px;overflow:hidden"><div style="width:{{ completeness.pct }}%;height:100%;background:var(--ag-green,#237b22);border-radius:99px"></div></div>
-        <span style="font-size:12px;font-weight:700;color:var(--ag-green,#237b22)">{{ completeness.pct }}%</span>
+{#
+  Icons as a macro rather than a sprite file: there are nine of them, they are
+  used once or twice each, and a second HTTP request to draw 400 bytes of path
+  data is a request that costs more than it saves.
+#}
+{% macro i(name, size) %}
+{%- set s = size|default(17) -%}
+<svg width="{{ s }}" height="{{ s }}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{%- if name == 'overview' %}<rect x="3" y="3" width="7" height="9" rx="1.6"/><rect x="14" y="3" width="7" height="5" rx="1.6"/><rect x="14" y="12" width="7" height="9" rx="1.6"/><rect x="3" y="16" width="7" height="5" rx="1.6"/>
+{%- elseif name == 'points' %}<path d="M3 17.5 8.5 11l4 4L21 6"/><path d="M21 11V6h-5"/>
+{%- elseif name == 'bag' %}<path d="M4 8h16l-1.2 11a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8V6a3.5 3.5 0 0 1 7 0v2"/>
+{%- elseif name == 'activity' %}<path d="M3 12h4l2.5-6 4 13L16 12h5"/>
+{%- elseif name == 'saved' %}<path d="M6 4h12a1 1 0 0 1 1 1v15l-7-4-7 4V5a1 1 0 0 1 1-1Z"/>
+{%- elseif name == 'settings' %}<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2.2" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="2.2" fill="currentColor" stroke="none"/>
+{%- elseif name == 'search' %}<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+{%- elseif name == 'copy' %}<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>
+{%- elseif name == 'down' %}<path d="M12 4v11m0 0-4-4m4 4 4-4"/><path d="M4 17v1.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V17"/>
+{%- elseif name == 'go' %}<path d="M5 12h13m0 0-5-5m5 5-5 5"/>
+{%- elseif name == 'tick' %}<path d="m5 12.5 4.5 4.5L19 7" stroke-width="2.6"/>
+{%- elseif name == 'ticket' %}<path d="M4 9V7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a2.4 2.4 0 0 0 0 4.8V17a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3.2A2.4 2.4 0 0 0 4 9Z"/>
+{%- elseif name == 'spark' %}<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M17.7 6.3l-2.8 2.8M9.1 14.9l-2.8 2.8"/>
+{%- endif -%}
+</svg>
+{% endmacro %}
+
+{% set labels = {
+  'earn.shop_order':'Shop order', 'earn.donation':'Donation', 'earn.event_ticket':'Event ticket',
+  'spend.vote':'Redeemed for votes', 'adjust.admin':'Adjustment by the team'
+} %}
+{% set open_steps = checklist|default([])|filter(s => not s.done) %}
+{% set initials = (user.name|default('?')|split(' ')|map(w => w|first)|slice(0,2)|join)|upper %}
+
+<div class="me" id="me">
+
+  <header class="me-top">
+    <span class="me-ava" aria-hidden="true">{{ initials }}</span>
+    <div class="me-who">
+      <h1>{{ user.name }}</h1>
+      <p>{{ user.email }}{% if member_since|default('') %} · Member since {{ member_since|date('F Y') }}{% endif %}</p>
+    </div>
+    <div class="me-top__act">
+      {# One field, filtering everything. On a page that is somebody's whole record with this
+         platform, "where is that order" is the actual question, and it is faster to type four
+         characters of a product name than to reason about which section it lives in. #}
+      <div class="me-find">
+        {{ ico.i('search', 16) }}
+        {# No `/` shortcut and no key hint. The site already binds `/` to its own search
+           overlay on every page, and a second field claiming the same key would either
+           steal it here or — what actually happened when this was tried — advertise a
+           shortcut that opens somebody else's search box. The established binding wins. #}
+        <input id="meFind" type="search" autocomplete="off" spellcheck="false"
+               placeholder="Search your account" aria-label="Search your orders, tickets, votes and points"
+               aria-describedby="meFindNote">
       </div>
-      {% endif %}
+      <a class="me-btn me-btn--quiet" href="/account/logout">Sign out</a>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:12px">
-      {% for s in checklist %}
-      <a href="{{ s.href }}" style="display:flex;align-items:center;gap:9px;text-decoration:none;padding:10px 12px;border-radius:12px;border:1px solid {{ s.done ? 'rgba(35,123,34,.25)' : 'rgba(16,41,44,.10)' }};background:{{ s.done ? '#f2f9f2' : '#fff' }}">
-        <span aria-hidden="true" style="width:20px;height:20px;flex:none;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;{{ s.done ? 'background:#237b22;color:#fff' : 'background:rgba(16,41,44,.07);color:#5a6d6f' }}">{{ s.done ? '✓' : loop.index }}</span>
-        <span style="font-size:13px;font-weight:600;color:{{ s.done ? '#40554f' : 'var(--ag-ink,#10292c)' }};{{ s.done ? 'text-decoration:line-through;opacity:.7' : '' }}">{{ s.label }}</span>
-      </a>
+  </header>
+  <p id="meFindNote" class="me-flag me-hint" role="status" aria-live="polite" style="margin:12px 0 0"></p>
+
+  {% if flash_ok %}<div class="me-note me-note--ok" style="margin-top:16px" role="status">{{ flash_ok }}</div>{% endif %}
+  {% if flash_error %}<div class="me-note me-note--bad" style="margin-top:16px" role="alert">{{ flash_error }}</div>{% endif %}
+
+  <div class="me-body">
+
+    {# ── the rail ──────────────────────────────────────────────────────────
+       Real links, not buttons. The href IS the deep link, so the section is
+       reachable, shareable and back-buttonable with no script at all; the
+       script only stops the jump and swaps the attribute. `aria-selected` is
+       written server-side for the default so a reader is never told nothing. #}
+    <nav class="me-rail" id="meRail" aria-label="Your account">
+      {% set rail = [
+        {'id':'overview',  'label':'Overview',  'ico':'overview', 'n':null},
+        {'id':'points',    'label':'Points',    'ico':'points',   'n':counts.points|default(0)},
+        {'id':'purchases', 'label':'Purchases', 'ico':'bag',      'n':counts.purchases|default(0)},
+        {'id':'activity',  'label':'Activity',  'ico':'activity', 'n':counts.activity|default(0)},
+        {'id':'saved',     'label':'Saved',     'ico':'saved',    'n':counts.saved|default(0)},
+        {'id':'settings',  'label':'Settings',  'ico':'settings', 'n':null}
+      ] %}
+      {% for r in rail %}
+        {% if r.id != 'saved' or r.n > 0 %}
+        <a class="me-rail__i" href="#{{ r.id }}" data-me-go="{{ r.id }}"
+           aria-selected="{{ r.id == 'overview' ? 'true' : 'false' }}">
+          {{ ico.i(r.ico, 17) }}
+          <span class="me-rail__n">{{ r.label }}</span>
+          {% if r.n %}<span class="me-rail__c">{{ r.n }}</span>{% endif %}
+        </a>
+        {% endif %}
       {% endfor %}
-    </div>
-  </div>
-  {% endif %}
+    </nav>
 
-  <div class="ac-grid">
-    <div class="ac-pts">
-      <div class="ac-pts__orb" aria-hidden="true"></div>
-      <div class="ac-pts__label">Voting points</div>
-      <div class="ac-pts__n">{{ points|number_format }}</div>
-      <div class="ac-pts__sub" style="margin-top:6px">{{ summary.earned|number_format }} earned · {{ summary.spent|number_format }} redeemed</div>
-      {% if points_enabled %}
-        <div class="ac-pts__sub">≈ <strong>{{ redeemable }}</strong> vote{{ redeemable == 1 ? '' : 's' }} redeemable · {{ points_per_vote }} pts = 1 vote</div>
-        <a class="ac-pts__cta" href="/vote">Redeem at the ballot →</a>
-      {% else %}
-        <div class="ac-pts__sub">Earn points from your activity — redemption opens soon.</div>
-      {% endif %}
-    </div>
+    <div class="me-pane">
 
-    <div class="ac-card">
-      <h2>How you earn</h2>
-      <div class="ac-earn__row"><span class="ac-earn__i">🛍️</span><span>Buy from the <a href="/shop" style="color:var(--ag-green)">shop</a> — points scale with what you spend.</span></div>
-      <div class="ac-earn__row"><span class="ac-earn__i">🎟️</span><span>Register for paid events.</span></div>
-      <div class="ac-earn__row"><span class="ac-earn__i">♥</span><span>Make a <a href="/donate" style="color:var(--ag-green)">donation</a> to child leadership programmes.</span></div>
-      <div class="ac-earn__row"><span class="ac-earn__i">✓</span><span>Points convert to votes you can cast for your favourites.</span></div>
-    </div>
-  </div>
+      {# ══ OVERVIEW ══════════════════════════════════════════════════════ #}
+      <section class="me-sec" id="me-overview" aria-labelledby="me-overview-h">
+        <div class="me-sec__h"><h2 id="me-overview-h">Overview</h2></div>
 
-  {# ── WHAT YOU BOUGHT ────────────────────────────────────────────────────────
-     Placed ABOVE votes and nominations, and that ordering is the point. This dashboard was an
-     accurate picture of everything a member had contributed and said nothing about anything
-     they had paid for — so the only route to "has my order shipped" or "where is my ticket"
-     was a link in an email, and losing that email meant asking a human.
+        {% if is_new|default(false) %}
+        {# A first-run screen, not six empty sections. A dashboard where every panel says
+           "nothing yet" reads as a product that is not working, and it is the first thing
+           a new member sees. #}
+        <div class="me-panel">
+          <div class="me-empty">
+            <span class="me-empty__i">{{ ico.i('spark', 20) }}</span>
+            <h3>Welcome, {{ user.name|split(' ')|first }}</h3>
+            <p>Nothing has happened on this account yet. Points arrive from what you buy,
+              the events you book and what you give — and they convert into votes you can
+              cast in the awards.</p>
+            <a class="me-btn me-btn--go" href="/vote">See the ballot {{ ico.i('go', 15) }}</a>
+          </div>
+        </div>
+        {% endif %}
 
-     Shown only when there is something to show: an empty "your orders" card on the account of
-     somebody who has never bought anything is an advertisement dressed as a record. #}
-  {% if my_orders|default([]) or my_tickets|default([]) %}
-  <div class="ac-grid" style="margin-top:18px">
+        <div class="me-panel">
+          <div class="me-hero">
+            <div>
+              <span class="me-hero__k">Voting points</span>
+              <span class="me-hero__n" data-find="points balance">{{ points|number_format }}<span class="me-hero__u">pts</span></span>
+            </div>
+            <div class="me-hero__f">
+              <div>
+                <div class="me-fact__k">Earned</div>
+                <div class="me-fact__v">{{ summary.earned|number_format }}</div>
+              </div>
+              <div>
+                <div class="me-fact__k">Redeemed</div>
+                <div class="me-fact__v">{{ summary.spent|number_format }}</div>
+              </div>
+              {% if points_enabled %}
+              <div>
+                <div class="me-fact__k">Worth</div>
+                <div class="me-fact__v">{{ redeemable }} vote{{ redeemable == 1 ? '' : 's' }}</div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% if points_spark.ok|default(false) %}
+          {# Decorative BY DESIGN: every fact it carries — the balance, what was earned, what
+             was redeemed, the direction of travel — is written in text on this panel already,
+             and the reading of it day by day is the chart in Points. A second announced
+             figure here would be the same number said twice. #}
+          <svg class="me-spark" viewBox="0 0 {{ points_spark.w }} {{ points_spark.h }}"
+               preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <path class="me-chart__area" d="{{ points_spark.area }}"></path>
+            <path class="me-chart__line" d="{{ points_spark.line }}" vector-effect="non-scaling-stroke"></path>
+          </svg>
+          <p class="me-spark__c">Last 90 days · {% if points_chart.change > 0 %}up {{ points_chart.change|number_format }}{% elseif points_chart.change < 0 %}down {{ (points_chart.change * -1)|number_format }}{% else %}no change{% endif %}</p>
+          {% endif %}
 
-    {% if my_orders|default([]) %}
-    <section class="ac-card" aria-labelledby="ac-orders-h">
-      <h2 id="ac-orders-h">Your orders</h2>
-      <p style="font-size:13px;color:#5a6d6f;margin:4px 0 8px">Everything you have bought from the shop, and where each one has got to.</p>
-      <ul style="list-style:none;margin:0;padding:0">
-        {% for o in my_orders %}
-        {% set fb = {
-          'unfulfilled': ['#5a6d6f', '#f4f5f5', 'Being prepared'],
-          'packed':      ['#8a6d1a', '#fdf6e3', 'Packed'],
-          'shipped':     ['#166534', '#f0fdf4', 'Shipped'],
-          'delivered':   ['#166534', '#f0fdf4', 'Delivered'],
-          'cancelled':   ['#7f1d1d', '#fef2f2', 'Cancelled']
-        }[o.fulfilment]|default(['#5a6d6f', '#f4f5f5', 'Being prepared']) %}
-        <li style="padding:11px 0;border-top:1px solid rgba(16,41,44,.07)">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <a href="{{ o.url }}" style="font-weight:600;font-size:14px;color:var(--ag-ink,#10292c);text-decoration:none">{{ o.what }}</a>
-            {% if o.status == 'pending' %}
-              {# Its own badge, ahead of the delivery one: an unpaid order has not started
-                 being prepared, and showing "being prepared" would be a promise. #}
-              <span style="font-size:11px;font-weight:700;color:#8a6d1a;background:#fdf6e3;border-radius:99px;padding:3px 9px">Confirming payment</span>
+          <p class="me-hint">
+            {% if points_enabled %}
+              {{ points_per_vote }} points make one vote.
+              {% if redeemable > 0 %}You can cast {{ redeemable }} right now.{% else %}You need {{ (points_per_vote - points % points_per_vote) }} more for your first.{% endif %}
             {% else %}
-              <span style="font-size:11px;font-weight:700;color:{{ fb[0] }};background:{{ fb[1] }};border-radius:99px;padding:3px 9px">{{ fb[2] }}</span>
+              Points are being collected now. Redemption opens with the ballot.
+            {% endif %}
+          </p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+            {% if points_enabled and redeemable > 0 %}<a class="me-btn me-btn--go" href="/vote">Redeem at the ballot {{ ico.i('go', 15) }}</a>{% endif %}
+            <a class="me-btn" href="#points" data-me-go="points">Points history</a>
+          </div>
+        </div>
+
+        {% if open_steps is not empty %}
+        <div class="me-panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:12px">
+            <div>
+              <p class="me-panel__h">Finish setting up</p>
+              <p class="me-panel__s" style="margin:0">{{ open_steps|length }} thing{{ open_steps|length == 1 ? '' : 's' }} left.</p>
+            </div>
+            {% if completeness is defined and completeness.pct < 100 %}
+            {# Only while it means something. At 100% it sat beside "3 things left" — two true
+               statements that read as one contradiction, because the meter measures the
+               PROFILE and the list counts things to do. A full bar is not news. #}
+            <div class="me-meter">
+              <span class="me-fact__k" style="letter-spacing:.1em">Profile</span>
+              <span class="me-meter__t"><span class="me-meter__f" style="width:{{ completeness.pct }}%"></span></span>
+              <span class="me-meter__n">{{ completeness.pct }}%</span>
+            </div>
             {% endif %}
           </div>
-          <div style="font-size:12px;color:#5a6d6f;margin-top:3px">
-            ₦{{ o.total|number_format }} · {{ o.items }} item{{ o.items == 1 ? '' : 's' }} ·
-            <time datetime="{{ o.placed }}">{{ o.placed|date('j M Y') }}</time>
+          <div class="me-steps">
+            {% for s in checklist %}
+            <a class="me-step {{ s.done ? 'me-step--done' : '' }}" href="{{ s.href }}">
+              {# An SVG tick and not a `✓` character: the rest of this page's icons are
+                 drawn, and one glyph among them inherits whatever the reader's font does
+                 with it — which on this repo's own measurement is sometimes a tofu box. #}
+              <span class="me-step__n" aria-hidden="true">{% if s.done %}{{ ico.i('tick', 12) }}{% else %}{{ loop.index }}{% endif %}</span>
+              <span>{{ s.label }}{% if s.done %} <span class="sr-only">— done</span>{% endif %}</span>
+            </a>
+            {% endfor %}
           </div>
-          {% if o.tracking %}<div style="font-size:12px;color:#1a6118;font-weight:600;margin-top:3px">{{ o.tracking }}</div>{% endif %}
-        </li>
-        {% endfor %}
-      </ul>
-    </section>
-    {% endif %}
-
-    {% if my_tickets|default([]) %}
-    <section class="ac-card" aria-labelledby="ac-tickets-h">
-      <h2 id="ac-tickets-h">Your tickets</h2>
-      <p style="font-size:13px;color:#5a6d6f;margin:4px 0 8px">Events you are registered for — the code is what gets you in.</p>
-      <ul style="list-style:none;margin:0;padding:0">
-        {% for t in my_tickets %}
-        {% set tb = {
-          'confirmed': ['#166534', '#f0fdf4', 'Confirmed'],
-          'offered':   ['#7a4d00', '#fff8ec', 'Seat held for you'],
-          'waiting':   ['#7a4d00', '#fff8ec', 'On the waiting list'],
-          'unpaid':    ['#8a6d1a', '#fdf6e3', 'Payment not completed']
-        }[t.state]|default(['#5a6d6f', '#f4f5f5', t.state|capitalize]) %}
-        <li style="padding:11px 0;border-top:1px solid rgba(16,41,44,.07)">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <a href="{{ t.url }}" style="font-weight:600;font-size:14px;color:var(--ag-ink,#10292c);text-decoration:none">{{ t.event }}</a>
-            <span style="font-size:11px;font-weight:700;color:{{ tb[0] }};background:{{ tb[1] }};border-radius:99px;padding:3px 9px">{{ tb[2] }}</span>
-          </div>
-          <div style="font-size:12px;color:#5a6d6f;margin-top:3px">
-            {% if t.when %}<time datetime="{{ t.when }}">{{ t.when|date('j M Y') }}</time>{% endif %}
-            {%- if t.tier %} · {{ t.tier }}{% endif %}
-            {%- if t.seats > 1 %} · {{ t.seats }} seats{% endif %}
-            {%- if t.where %} · {{ t.where }}{% endif %}
-          </div>
-          {% if t.code %}
-          <div style="font-family:var(--ag-font-mono,monospace);font-weight:700;font-size:13.5px;letter-spacing:.05em;color:var(--ag-ink,#10292c);margin-top:5px">{{ t.code }}</div>
-          {% endif %}
-          {% if t.state == 'offered' and t.expires %}
-          {# The one line on this page with a clock on it: an unclaimed offer expires and the
-             seat passes to the next person waiting. #}
-          <div style="font-size:12px;color:#8a2020;font-weight:700;margin-top:4px">
-            Take it by {{ t.expires|date('j M, H:i') }} or it goes to the next person.
-          </div>
-          {% endif %}
-        </li>
-        {% endfor %}
-      </ul>
-    </section>
-    {% endif %}
-
-  </div>
-  {% endif %}
-
-  {# ── Your activity: votes cast + nominations made ── #}
-  <div class="ac-grid" style="margin-top:18px">
-    <section class="ac-card" aria-labelledby="ac-votes-h">
-      <h2 id="ac-votes-h">Your votes</h2>
-      {% if my_votes is empty %}
-        <p class="ac-empty">You haven't voted yet — <a href="/vote" style="color:var(--ag-green,#237b22);font-weight:600">explore the ballot</a> and back your favourites.</p>
-      {% else %}
-        <ul style="list-style:none;margin:0;padding:0">
-          {% for v in my_votes %}
-          <li style="padding:10px 0;border-top:1px solid rgba(16,41,44,.07)">
-            <div style="font-weight:600;font-size:14px;color:var(--ag-ink,#10292c)">{{ v.nominee }}</div>
-            <div style="font-size:12px;color:#5a6d6f;margin-top:2px">{{ v.category ?: 'Category' }} · <time datetime="{{ v.voted_at }}">{{ v.voted_at|date('j M Y') }}</time></div>
-          </li>
-          {% endfor %}
-        </ul>
-      {% endif %}
-    </section>
-    <section class="ac-card" aria-labelledby="ac-noms-h">
-      <h2 id="ac-noms-h">Your nominations</h2>
-      {% if my_nominations is empty %}
-        <p class="ac-empty">No nominations yet — <a href="/nominate" style="color:var(--ag-green,#237b22);font-weight:600">put someone forward</a> for continental recognition.</p>
-      {% else %}
-        <ul style="list-style:none;margin:0;padding:0">
-          {% for n in my_nominations %}
-          {% set badge = {'pending': ['#8a6d1a', '#fdf6e3', 'Pending review'], 'approved': ['#166534', '#f0fdf4', 'Approved'], 'rejected': ['#7f1d1d', '#fef2f2', 'Not approved']}[n.status]|default(['#5a6d6f', '#f4f5f5', n.status|capitalize]) %}
-          <li style="padding:10px 0;border-top:1px solid rgba(16,41,44,.07)">
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span style="font-weight:600;font-size:14px;color:var(--ag-ink,#10292c)">{{ n.nominee }}</span>
-              <span style="font-size:11px;font-weight:700;color:{{ badge[0] }};background:{{ badge[1] }};border-radius:99px;padding:3px 9px">{{ badge[2] }}</span>
-            </div>
-            <div style="font-size:12px;color:#5a6d6f;margin-top:2px">Ref <code style="font-size:11.5px">{{ n.reference }}</code> · <time datetime="{{ n.created_at }}">{{ n.created_at|date('j M Y') }}</time></div>
-          </li>
-          {% endfor %}
-        </ul>
-      {% endif %}
-    </section>
-  </div>
-
-  {% if my_links is not empty %}
-  <section class="ac-card" style="margin-top:18px" aria-labelledby="ac-links-h">
-    <h2 id="ac-links-h">Your share links</h2>
-    <p style="font-size:13px;color:#5a6d6f;margin:4px 0 8px">Links you created so others can second a nomination — opens counted live.</p>
-    <ul style="list-style:none;margin:0;padding:0">
-      {% for l in my_links %}
-      <li style="padding:10px 0;border-top:1px solid rgba(16,41,44,.07);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
-          <div style="font-weight:600;font-size:14px;color:var(--ag-ink,#10292c)">{{ l.nominee }}</div>
-          <div style="font-size:12px;color:#5a6d6f;margin-top:2px">{{ l.hits }} open{{ l.hits == 1 ? '' : 's' }} · {{ l.expired ? 'expired' : ('expires ' ~ l.expires_at|date('j M Y')) }}</div>
         </div>
-        {% if not l.expired %}
-        <button type="button" data-ag-do="copy-url"
-                data-url="{{ l.url }}" aria-label="Copy share link for {{ l.nominee }}"
-                style="background:#10292c;color:#fff;border:0;font-weight:600;font-size:12px;padding:8px 14px;border-radius:999px;cursor:pointer">Copy link</button>
         {% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-  </section>
-  {% endif %}
 
-  <div class="ac-card" id="profile" style="margin-top:18px" x-data="{edit:false, pw:false}">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-      <h2 style="margin:0">Profile &amp; security</h2>
-      <button type="button" @click="edit=!edit" style="border:1px solid rgba(16,41,44,.16);background:none;border-radius:999px;padding:7px 14px;font:600 13px/1 inherit;color:#5a6d6f;cursor:pointer" x-text="edit ? 'Close' : 'Edit'"></button>
-    </div>
-    <div x-show="!edit" style="margin-top:12px;font-size:14px;color:#3a4448;line-height:1.8">
-      <div><strong>Name</strong> · {{ user.name }}</div>
-      <div><strong>Email</strong> · {{ user.email }}</div>
-      <div><strong>Phone</strong> · {{ user.phone|default('—') }}</div>
-    </div>
-    <form x-show="edit" x-cloak method="post" action="/account/profile" style="margin-top:14px">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <label style="font-size:12.5px;color:#5a6d6f">Full name<input name="name" type="text" value="{{ user.name }}" required style="display:block;width:100%;margin-top:5px;border:1px solid rgba(16,41,44,.16);border-radius:10px;padding:10px 12px;font:inherit"></label>
-        <label style="font-size:12.5px;color:#5a6d6f">Phone<input name="phone" type="tel" value="{{ user.phone }}" required style="display:block;width:100%;margin-top:5px;border:1px solid rgba(16,41,44,.16);border-radius:10px;padding:10px 12px;font:inherit"></label>
-      </div>
-      <p style="font-size:12px;color:var(--ag-ink-soft,#626a6e);margin:10px 0 4px">Your email is fixed here — contact support to change it.</p>
-      <button type="button" @click="pw=!pw" style="border:none;background:#f4f7f4;border-radius:999px;padding:7px 13px;font:600 12.5px/1 inherit;color:#5a6d6f;cursor:pointer" x-text="pw ? '− Cancel password change' : '+ Change password'"></button>
-      <div x-show="pw" x-cloak style="margin-top:10px;display:grid;gap:10px">
-        {% if user.password_hash %}<label style="font-size:12.5px;color:#5a6d6f">Current password<input name="current_password" type="password" autocomplete="current-password" style="display:block;width:100%;margin-top:5px;border:1px solid rgba(16,41,44,.16);border-radius:10px;padding:10px 12px;font:inherit"></label>{% endif %}
-        <label style="font-size:12.5px;color:#5a6d6f">New password (min 8 chars)<input name="new_password" type="password" autocomplete="new-password" minlength="8" style="display:block;width:100%;margin-top:5px;border:1px solid rgba(16,41,44,.16);border-radius:10px;padding:10px 12px;font:inherit"></label>
-      </div>
-      <div style="margin-top:14px"><button type="submit" style="border:none;background:var(--ag-green,#237b22);color:#fff;font:600 14px/1 inherit;padding:11px 22px;border-radius:999px;cursor:pointer">Save changes</button></div>
-    </form>
-  </div>
-
-  {% if bookmarks is not empty %}
-  <div class="ac-card" style="margin-top:18px">
-    <h2>Saved discussions</h2>
-    {% for bm in bookmarks %}
-    <a href="/community/{{ bm.slug }}" style="display:block;padding:11px 0;border-top:1px solid rgba(16,41,44,.07);text-decoration:none">
-      <div style="font-weight:600;font-size:14px;color:var(--ag-ink)">{{ bm.title }}</div>
-      <div style="font-size:12px;color:var(--ag-ink-soft,#626a6e);margin-top:2px">{{ bm.reply_count|default(0) }} replies · {{ bm.cheer_count|default(0) }} reactions</div>
-    </a>
-    {% endfor %}
-  </div>
-  {% endif %}
-
-  <div class="ac-card ac-ledger">
-    <h2>Points history</h2>
-    {% if ledger is empty %}
-      <p class="ac-empty">No points yet — your earnings and redemptions will appear here.</p>
-    {% else %}
-      {% for e in ledger %}
-      <div class="ac-row">
-        <div class="ac-row__b">
-          <div class="ac-row__r">{{ labels[e.reason]|default(e.reason|replace({'.':' · ','_':' '})|capitalize) }}</div>
-          <div class="ac-row__d">{{ e.created_at|date('j M Y, H:i') }}{% if e.note %} · {{ e.note }}{% endif %}</div>
+        {% if not is_new|default(false) %}
+        <div class="me-panel">
+          <p class="me-panel__h">Where you are</p>
+          <p class="me-panel__s">Everything on this account, at a glance.</p>
+          <ul class="me-list">
+            <li class="me-row">
+              <div class="me-row__b"><div class="me-row__t">Purchases</div>
+                <div class="me-row__m">{{ my_orders|default([])|length }} order{{ my_orders|default([])|length == 1 ? '' : 's' }} · {{ my_tickets|default([])|length }} ticket{{ my_tickets|default([])|length == 1 ? '' : 's' }}</div></div>
+              <div class="me-row__r"><a class="me-btn" href="#purchases" data-me-go="purchases">Open</a></div>
+            </li>
+            <li class="me-row">
+              <div class="me-row__b"><div class="me-row__t">Activity</div>
+                <div class="me-row__m">{{ my_votes|length }} vote{{ my_votes|length == 1 ? '' : 's' }} · {{ my_nominations|length }} nomination{{ my_nominations|length == 1 ? '' : 's' }}</div></div>
+              <div class="me-row__r"><a class="me-btn" href="#activity" data-me-go="activity">Open</a></div>
+            </li>
+          </ul>
         </div>
-        <div class="ac-row__delta {{ e.delta >= 0 ? 'pos' : 'neg' }}">{{ e.delta >= 0 ? '+' : '' }}{{ e.delta|number_format }}</div>
-        <div class="ac-row__bal">{{ e.balance_after|number_format }}</div>
-      </div>
-      {% endfor %}
-    {% endif %}
+        {% endif %}
+      </section>
+
+      {# ══ POINTS ════════════════════════════════════════════════════════ #}
+      <section class="me-sec" id="me-points" aria-labelledby="me-points-h">
+        <div class="me-sec__h">
+          <h2 id="me-points-h">Points</h2>
+          {% if ledger is not empty %}
+          <a class="me-btn" href="/account/points.csv" download>{{ ico.i('down', 15) }} Download</a>
+          {% endif %}
+        </div>
+        <p class="me-sec__lead">Every point that has arrived or been spent, and what it was for.
+          This is the record behind the number — download it if you want to keep a copy.</p>
+
+        {% if points_chart.ok|default(false) %}
+        <div class="me-panel">
+          <p class="me-panel__h">Balance, last 90 days</p>
+          <p class="me-panel__s">
+            {% if points_chart.change > 0 %}Up {{ points_chart.change|number_format }} points over the period.
+            {%- elseif points_chart.change < 0 %}Down {{ (points_chart.change * -1)|number_format }} points over the period.
+            {%- else %}Unchanged over the period.{% endif %}
+          </p>
+
+          {# The plot is INSIDE a focusable box with the readout beneath it, so a keyboard
+             reaches every value the pointer does — and the table below reaches them without
+             either. `role="img"` with a real description, because the SVG's own text nodes
+             are axis labels and would otherwise be read as the content. #}
+          <div class="me-chart">
+            <div class="me-chart__box" id="meChartBox" tabindex="0" role="group"
+                 aria-label="Points balance over the last 90 days. Use the left and right arrow keys to read each day."
+                 data-points='{{ points_chart.points|json_encode }}'>
+              <svg viewBox="0 0 {{ points_chart.w }} {{ points_chart.h + 26 }}" role="img"
+                   aria-label="Balance from {{ points_chart.first.balance|number_format }} points on {{ points_chart.first.date|date('j M') }} to {{ points_chart.last.balance|number_format }} on {{ points_chart.last.date|date('j M') }}.">
+                {% for g in points_chart.grid %}
+                  <line class="me-chart__grid" x1="0" y1="{{ g.y }}" x2="{{ points_chart.w }}" y2="{{ g.y }}"></line>
+                  <text class="me-chart__ax" x="0" y="{{ g.y - 5 }}">{{ g.label }}</text>
+                {% endfor %}
+                <path class="me-chart__area" d="{{ points_chart.area }}"></path>
+                <path class="me-chart__line" d="{{ points_chart.line }}"></path>
+                <g id="meChartCur" hidden>
+                  <line class="me-chart__cursor" id="meChartCurLine" x1="0" y1="0" x2="0" y2="{{ points_chart.h }}"></line>
+                  <circle class="me-chart__dot" id="meChartCurDot" r="4.5" cx="0" cy="0"></circle>
+                </g>
+                {% for t in points_chart.ticks %}
+                  <text class="me-chart__ax" x="{{ t.x }}" y="{{ points_chart.h + 18 }}"
+                        text-anchor="{{ loop.first ? 'start' : (loop.last ? 'end' : 'middle') }}">{{ t.label }}</text>
+                {% endfor %}
+                <rect class="me-chart__hit" id="meChartHit" x="0" y="0"
+                      width="{{ points_chart.w }}" height="{{ points_chart.h }}"></rect>
+              </svg>
+            </div>
+            <p class="me-chart__read" id="meChartRead" aria-live="polite"></p>
+          </div>
+
+          <div class="me-chart__foot">
+            <p class="me-panel__s" style="margin:0">Peak on the axis: {{ points_chart.max|number_format }} points.</p>
+            <button type="button" class="me-btn" id="meTableToggle" aria-expanded="false" aria-controls="meChartTable">Show as a table</button>
+          </div>
+          <div class="me-tw" id="meChartTable" hidden>
+            <table class="me-table">
+              <caption class="sr-only">Points balance by day, last 90 days</caption>
+              <thead><tr><th scope="col">Day</th><th scope="col" style="text-align:right">Change</th><th scope="col" style="text-align:right">Balance</th></tr></thead>
+              <tbody>
+                {% for p in points_chart.points %}
+                  {% if p.delta != 0 or loop.first or loop.last %}
+                  <tr>
+                    <td>{{ p.date|date('j M Y') }}</td>
+                    <td class="num">{% if p.delta != 0 %}<span class="{{ p.delta > 0 ? 'me-delta--pos' : 'me-delta--neg' }}">{{ p.delta > 0 ? '+' : '' }}{{ p.delta|number_format }}</span>{% else %}—{% endif %}</td>
+                    <td class="num">{{ p.balance|number_format }}</td>
+                  </tr>
+                  {% endif %}
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="me-panel">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+            <div>
+              <p class="me-panel__h">History</p>
+              <p class="me-panel__s" style="margin:0">Newest first.</p>
+            </div>
+            {% if ledger is not empty %}
+            {# Three states and no dropdown: with three options a select costs a click to
+               open, a read and a click to choose, where the buttons cost one click. #}
+            <div role="group" aria-label="Filter the points history" style="display:flex;gap:6px">
+              <button type="button" class="me-btn" data-me-filter="all" aria-pressed="true">All</button>
+              <button type="button" class="me-btn" data-me-filter="pos" aria-pressed="false">Earned</button>
+              <button type="button" class="me-btn" data-me-filter="neg" aria-pressed="false">Redeemed</button>
+            </div>
+            {% endif %}
+          </div>
+
+          {% if ledger is empty %}
+            <div class="me-empty">
+              <span class="me-empty__i">{{ ico.i('points', 20) }}</span>
+              <h3>No points yet</h3>
+              <p>Points arrive when you buy from the shop, book a paid event or make a donation.
+                They appear here the moment the payment is confirmed.</p>
+              <a class="me-btn" href="/shop">Visit the shop {{ ico.i('go', 15) }}</a>
+            </div>
+          {% else %}
+            <ul class="me-list" id="meLedger" style="margin-top:12px">
+              {% for e in ledger %}
+              {% set what = labels[e.reason]|default(e.reason|replace({'.':' · ','_':' '})|capitalize) %}
+              <li class="me-row" data-me-sign="{{ e.delta >= 0 ? 'pos' : 'neg' }}"
+                  data-find="{{ what }} {{ e.note|default('') }} {{ e.created_at|date('j M Y') }}">
+                <div class="me-row__b">
+                  <div class="me-row__t">{{ what }}</div>
+                  <div class="me-row__m"><time datetime="{{ e.created_at }}">{{ e.created_at|date('j M Y, H:i') }}</time>{% if e.note %} · {{ e.note }}{% endif %}</div>
+                </div>
+                <div class="me-row__r">
+                  <div class="{{ e.delta >= 0 ? 'me-delta--pos' : 'me-delta--neg' }}" style="font:700 14px/1 var(--ag-font-mono,monospace);font-variant-numeric:tabular-nums">{{ e.delta >= 0 ? '+' : '' }}{{ e.delta|number_format }}</div>
+                  <div class="me-row__m" style="font-family:var(--ag-font-mono,monospace)">{{ e.balance_after|number_format }}</div>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+            <p class="me-hint" id="meLedgerNone" hidden>Nothing in the history matches that filter.</p>
+          {% endif %}
+        </div>
+      </section>
+
+      {# ══ PURCHASES ═════════════════════════════════════════════════════ #}
+      <section class="me-sec" id="me-purchases" aria-labelledby="me-purchases-h">
+        <div class="me-sec__h"><h2 id="me-purchases-h">Purchases</h2></div>
+        <p class="me-sec__lead">What you have bought and where each one has got to — so
+          "has it shipped" and "where is my ticket" never depend on finding an old email.</p>
+
+        {% if my_orders|default([]) is empty and my_tickets|default([]) is empty %}
+          <div class="me-panel"><div class="me-empty">
+            <span class="me-empty__i">{{ ico.i('bag', 20) }}</span>
+            <h3>Nothing bought yet</h3>
+            <p>Orders from the shop and tickets to events will show up here, with their
+              delivery status and the code that gets you in.</p>
+            <a class="me-btn" href="/events">See what is coming up {{ ico.i('go', 15) }}</a>
+          </div></div>
+        {% endif %}
+
+        {% if my_tickets|default([]) %}
+        <div class="me-panel">
+          <p class="me-panel__h">Tickets</p>
+          <p class="me-panel__s">The code is what gets you in. Tap it to copy.</p>
+          <ul class="me-list">
+            {% for t in my_tickets %}
+            {% set tb = {
+              'confirmed': ['ok',   'Confirmed'],
+              'offered':   ['wait', 'Seat held for you'],
+              'waiting':   ['wait', 'On the waiting list'],
+              'unpaid':    ['wait', 'Payment not completed']
+            }[t.state]|default(['', t.state|capitalize]) %}
+            <li class="me-row" data-find="{{ t.event }} {{ t.code|default('') }} {{ t.where|default('') }} ticket">
+              <div class="me-row__b">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <a class="me-row__t" href="{{ t.url }}">{{ t.event }}</a>
+                  <span class="me-tag {{ tb[0] ? 'me-tag--' ~ tb[0] : '' }}">{{ tb[1] }}</span>
+                </div>
+                <div class="me-row__m">
+                  {%- if t.when %}<time datetime="{{ t.when }}">{{ t.when|date('j M Y') }}</time>{% endif -%}
+                  {%- if t.tier %} · {{ t.tier }}{% endif -%}
+                  {%- if t.seats > 1 %} · {{ t.seats }} seats{% endif -%}
+                  {%- if t.where %} · {{ t.where }}{% endif -%}
+                </div>
+                {% if t.code %}
+                <button type="button" class="me-btn" data-me-copy="{{ t.code }}"
+                        style="margin-top:7px;min-height:36px;padding:0 12px"
+                        aria-label="Copy ticket code {{ t.code }}">
+                  <span class="me-code" style="margin:0">{{ t.code }}</span>{{ ico.i('copy', 14) }}
+                </button>
+                {% endif %}
+                {% if t.state == 'offered' and t.expires %}
+                <div class="me-row__m" style="color:var(--me-bad);font-weight:700;margin-top:6px">
+                  Take it by {{ t.expires|date('j M, H:i') }} or it goes to the next person waiting.
+                </div>
+                {% endif %}
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {% if my_orders|default([]) %}
+        <div class="me-panel">
+          <p class="me-panel__h">Orders</p>
+          <p class="me-panel__s">From the shop.</p>
+          <ul class="me-list">
+            {% for o in my_orders %}
+            {% set fb = {
+              'unfulfilled': ['',     'Being prepared'],
+              'packed':      ['wait', 'Packed'],
+              'shipped':     ['ok',   'Shipped'],
+              'delivered':   ['ok',   'Delivered'],
+              'cancelled':   ['bad',  'Cancelled']
+            }[o.fulfilment]|default(['', 'Being prepared']) %}
+            <li class="me-row" data-find="{{ o.what }} order {{ o.tracking|default('') }}">
+              <div class="me-row__b">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <a class="me-row__t" href="{{ o.url }}">{{ o.what }}</a>
+                  {% if o.status == 'pending' %}
+                    {# Ahead of the delivery badge, and instead of it: an unpaid order has not
+                       started being prepared, and "being prepared" would be a promise. #}
+                    <span class="me-tag me-tag--wait">Confirming payment</span>
+                  {% else %}
+                    <span class="me-tag {{ fb[0] ? 'me-tag--' ~ fb[0] : '' }}">{{ fb[1] }}</span>
+                  {% endif %}
+                </div>
+                <div class="me-row__m">
+                  ₦{{ o.total|number_format }} · {{ o.items }} item{{ o.items == 1 ? '' : 's' }} ·
+                  <time datetime="{{ o.placed }}">{{ o.placed|date('j M Y') }}</time>
+                </div>
+                {% if o.tracking %}<div class="me-row__m" style="color:#166534;font-weight:600">{{ o.tracking }}</div>{% endif %}
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </section>
+
+      {# ══ ACTIVITY ══════════════════════════════════════════════════════ #}
+      <section class="me-sec" id="me-activity" aria-labelledby="me-activity-h">
+        <div class="me-sec__h"><h2 id="me-activity-h">Activity</h2></div>
+        <p class="me-sec__lead">What you have put into the cycle — who you backed, who you
+          put forward, and the links you made so other people could second them.</p>
+
+        <div class="me-panel">
+          <p class="me-panel__h">Votes cast</p>
+          {% if my_votes is empty %}
+            <div class="me-empty">
+              <span class="me-empty__i">{{ ico.i('activity', 20) }}</span>
+              <h3>You have not voted yet</h3>
+              <p>The ballot is open to everyone — you do not have to spend points to look.</p>
+              <a class="me-btn" href="/vote">Explore the ballot {{ ico.i('go', 15) }}</a>
+            </div>
+          {% else %}
+            <ul class="me-list" style="margin-top:10px">
+              {% for v in my_votes %}
+              <li class="me-row" data-find="{{ v.nominee }} {{ v.category|default('') }} vote">
+                <div class="me-row__b">
+                  <div class="me-row__t">{{ v.nominee }}</div>
+                  <div class="me-row__m">{{ v.category ?: 'Category' }} · <time datetime="{{ v.voted_at }}">{{ v.voted_at|date('j M Y') }}</time></div>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+
+        <div class="me-panel">
+          <p class="me-panel__h">Nominations</p>
+          {% if my_nominations is empty %}
+            <div class="me-empty">
+              <span class="me-empty__i">{{ ico.i('saved', 20) }}</span>
+              <h3>No nominations yet</h3>
+              <p>If you know someone whose work deserves continental recognition, put them
+                forward. It takes a few minutes and costs nothing.</p>
+              <a class="me-btn" href="/nominate">Nominate someone {{ ico.i('go', 15) }}</a>
+            </div>
+          {% else %}
+            <ul class="me-list" style="margin-top:10px">
+              {% for n in my_nominations %}
+              {% set nb = {'pending':['wait','Pending review'],'approved':['ok','Approved'],'rejected':['bad','Not approved']}[n.status]|default(['', n.status|capitalize]) %}
+              <li class="me-row" data-find="{{ n.nominee }} {{ n.reference }} nomination">
+                <div class="me-row__b">
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span class="me-row__t">{{ n.nominee }}</span>
+                    <span class="me-tag {{ nb[0] ? 'me-tag--' ~ nb[0] : '' }}">{{ nb[1] }}</span>
+                  </div>
+                  <div class="me-row__m"><time datetime="{{ n.created_at }}">{{ n.created_at|date('j M Y') }}</time></div>
+                  <button type="button" class="me-btn" data-me-copy="{{ n.reference }}"
+                          style="margin-top:7px;min-height:36px;padding:0 12px"
+                          aria-label="Copy reference {{ n.reference }}">
+                    <span class="me-code" style="margin:0;font-size:12.5px">{{ n.reference }}</span>{{ ico.i('copy', 14) }}
+                  </button>
+                </div>
+              </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
+
+        {% if my_links is not empty %}
+        <div class="me-panel">
+          <p class="me-panel__h">Share links</p>
+          <p class="me-panel__s">Links you made so others could second a nomination. Opens are counted live.</p>
+          <ul class="me-list">
+            {% for l in my_links %}
+            <li class="me-row" data-find="{{ l.nominee }} share link">
+              <div class="me-row__b">
+                <div class="me-row__t">{{ l.nominee }}</div>
+                <div class="me-row__m">{{ l.hits }} open{{ l.hits == 1 ? '' : 's' }} · {{ l.expired ? 'expired' : ('expires ' ~ l.expires_at|date('j M Y')) }}</div>
+              </div>
+              {% if not l.expired %}
+              <div class="me-row__r">
+                <button type="button" class="me-btn" data-me-copy="{{ l.url }}"
+                        aria-label="Copy the share link for {{ l.nominee }}">{{ ico.i('copy', 14) }} Copy</button>
+              </div>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </section>
+
+      {# ══ SAVED ═════════════════════════════════════════════════════════ #}
+      {% if bookmarks is not empty %}
+      <section class="me-sec" id="me-saved" aria-labelledby="me-saved-h">
+        <div class="me-sec__h"><h2 id="me-saved-h">Saved</h2></div>
+        <p class="me-sec__lead">Discussions you bookmarked in the community.</p>
+        <div class="me-panel">
+          <ul class="me-list">
+            {% for bm in bookmarks %}
+            <li class="me-row" data-find="{{ bm.title }} discussion saved">
+              <div class="me-row__b">
+                <a class="me-row__t" href="/community/{{ bm.slug }}">{{ bm.title }}</a>
+                <div class="me-row__m">{{ bm.reply_count|default(0) }} repl{{ bm.reply_count|default(0) == 1 ? 'y' : 'ies' }} · {{ bm.cheer_count|default(0) }} reaction{{ bm.cheer_count|default(0) == 1 ? '' : 's' }}</div>
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+      {% endif %}
+
+      {# ══ SETTINGS ══════════════════════════════════════════════════════ #}
+      <section class="me-sec" id="me-settings" aria-labelledby="me-settings-h">
+        <div class="me-sec__h"><h2 id="me-settings-h">Settings</h2></div>
+        <p class="me-sec__lead">Your details and how you sign in.</p>
+
+        {# One form, always editable — no Edit button. The old page hid these behind a
+           toggle, which is a click and a mode for somebody who came here specifically to
+           change something. A read-only view is what the identity bar at the top is. #}
+        <form class="me-panel" method="post" action="/account/profile">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <p class="me-panel__h">Your details</p>
+          <p class="me-panel__s">Used on tickets, orders and anything the team sends you.</p>
+          <div class="me-grid2">
+            <label class="me-field"><span>Full name</span>
+              <input class="me-in" name="name" type="text" value="{{ user.name }}" required
+                     autocomplete="name" enterkeyhint="done"></label>
+            <label class="me-field"><span>Phone</span>
+              <input class="me-in" name="phone" type="tel" value="{{ user.phone }}" required
+                     autocomplete="tel" inputmode="tel"></label>
+          </div>
+          <label class="me-field"><span>Email</span>
+            {# Shown and not hidden: it is the address everything is sent to, and an account
+               screen that does not show you which address that is invites people to guess. #}
+            <input class="me-in" type="email" value="{{ user.email }}" readonly
+                   aria-describedby="meEmailNote"></label>
+          <p class="me-hint" id="meEmailNote">Your email is how this account is identified, so
+            it is changed by the team rather than here — write to support and they will move it.</p>
+          <div style="margin-top:18px"><button class="me-btn me-btn--go" type="submit">Save details</button></div>
+        </form>
+
+        <form class="me-panel" method="post" action="/account/profile">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          {# The name and phone ride along so the profile update does not blank them — the
+             endpoint writes both on every post. Hidden rather than duplicated as fields,
+             because two visible copies of the same value is how they end up different. #}
+          <input type="hidden" name="name" value="{{ user.name }}">
+          <input type="hidden" name="phone" value="{{ user.phone }}">
+          <p class="me-panel__h">Password</p>
+          <p class="me-panel__s">
+            {% if user.password_hash %}Change it here. You will stay signed in on this device.
+            {%- else %}You sign in with a one-time code by email. Setting a password is optional —
+            the code keeps working either way.{% endif %}
+          </p>
+          {% if user.password_hash %}
+          <label class="me-field"><span>Current password</span>
+            <input class="me-in" name="current_password" type="password" autocomplete="current-password"></label>
+          {% endif %}
+          <label class="me-field"><span>New password</span>
+            <input class="me-in" name="new_password" type="password" autocomplete="new-password"
+                   minlength="8" aria-describedby="mePwNote"></label>
+          <p class="me-hint" id="mePwNote">At least 8 characters. Longer beats complicated —
+            three unrelated words is stronger than one word with symbols in it.</p>
+          <div style="margin-top:18px"><button class="me-btn me-btn--go" type="submit">{{ user.password_hash ? 'Change password' : 'Set a password' }}</button></div>
+        </form>
+
+        <div class="me-panel">
+          <p class="me-panel__h">Your data</p>
+          <p class="me-panel__s">Take a copy of anything on this page.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+            <a class="me-btn" href="/account/points.csv" download>{{ ico.i('down', 15) }} Points history (CSV)</a>
+            <a class="me-btn me-btn--quiet" href="/account/logout">Sign out</a>
+          </div>
+        </div>
+      </section>
+
+    </div>
   </div>
 </div>
+
+<script nonce="{{ csp_nonce }}">
+(function () {
+  'use strict';
+  var root = document.documentElement;
+  var page = document.getElementById('me');
+  if (!page) return;
+
+  // ── sections ──────────────────────────────────────────────────────────────
+  // The head script already chose one. This only keeps it in step with clicks
+  // and the back button; the CSS does the showing.
+  var IDS  = ['overview','points','purchases','activity','saved','settings'];
+  var rail = document.getElementById('meRail');
+  // Declared up here because the section handler below clears a running search, and a
+  // `var` used before its assignment is `undefined` rather than an error — which would
+  // have been a silent no-op instead of a visible one.
+  var find  = document.getElementById('meFind');
+  var note  = document.getElementById('meFindNote');
+  var rows  = Array.prototype.slice.call(page.querySelectorAll('[data-find]'));
+  var timer = null;
+
+  function paint(id) {
+    if (IDS.indexOf(id) < 0) id = 'overview';
+    root.setAttribute('data-me', id);
+    if (!rail) return;
+    var items = rail.querySelectorAll('[data-me-go]');
+    for (var i = 0; i < items.length; i++) {
+      items[i].setAttribute('aria-selected', items[i].getAttribute('data-me-go') === id ? 'true' : 'false');
+    }
+  }
+  paint((location.hash || '').replace('#', ''));
+
+  page.addEventListener('click', function (e) {
+    var go = e.target.closest('[data-me-go]');
+    if (!go) return;
+    e.preventDefault();
+    var id = go.getAttribute('data-me-go');
+    if (find && find.value) { find.value = ''; runFind(); }
+    // A real history entry, so Back returns to the section they came from
+    // rather than leaving the page entirely.
+    if (location.hash !== '#' + id) history.pushState(null, '', '#' + id);
+    paint(id);
+    // Focus follows the switch, or a keyboard user is left where they were and
+    // the new section is somewhere below them with no way to know.
+    var sec = document.getElementById('me-' + id);
+    if (sec) { sec.setAttribute('tabindex', '-1'); sec.focus({ preventScroll: true }); }
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  });
+  window.addEventListener('popstate', function () { paint((location.hash || '').replace('#', '')); });
+
+  // Arrow keys along the rail, which is what a set of related navigation
+  // controls is expected to do.
+  if (rail) rail.addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    var items = Array.prototype.slice.call(rail.querySelectorAll('[data-me-go]'));
+    var at = items.indexOf(document.activeElement);
+    if (at < 0) return;
+    e.preventDefault();
+    var step = (e.key === 'ArrowDown' || e.key === 'ArrowRight') ? 1 : -1;
+    items[(at + step + items.length) % items.length].focus();
+  });
+
+  function runFind() {
+    var q = (find.value || '').trim().toLowerCase();
+    if (!q) {
+      page.classList.remove('me-searching');
+      root.classList.remove('me-searching');
+      for (var i = 0; i < rows.length; i++) rows[i].hidden = false;
+      var panels = page.querySelectorAll('.me-panel');
+      for (var p = 0; p < panels.length; p++) panels[p].hidden = false;
+      var back = page.querySelectorAll('.me-sec');
+      for (var k = 0; k < back.length; k++) back[k].hidden = false;
+      note.textContent = '';
+      return;
+    }
+    root.classList.add('me-searching');
+    page.classList.add('me-searching');
+    var hits = 0;
+    for (var j = 0; j < rows.length; j++) {
+      var hay = (rows[j].getAttribute('data-find') + ' ' + rows[j].textContent).toLowerCase();
+      var on  = hay.indexOf(q) >= 0;
+      rows[j].hidden = !on;
+      if (on) hits++;
+    }
+    // A panel whose every row is hidden is a heading over nothing — and a SECTION whose
+    // every panel is hidden is the same thing one level up. Both get hidden, or the
+    // results read as "Purchases: (nothing) Activity: (nothing) Settings: (nothing)".
+    var boxes = page.querySelectorAll('.me-panel');
+    for (var b = 0; b < boxes.length; b++) {
+      var mine = boxes[b].querySelectorAll('[data-find]');
+      if (!mine.length) { boxes[b].hidden = true; continue; }
+      var any = false;
+      for (var m = 0; m < mine.length; m++) if (!mine[m].hidden) { any = true; break; }
+      boxes[b].hidden = !any;
+    }
+    var secs = page.querySelectorAll('.me-sec');
+    for (var v = 0; v < secs.length; v++) {
+      var panels = secs[v].querySelectorAll('.me-panel');
+      var live = false;
+      for (var w = 0; w < panels.length; w++) if (!panels[w].hidden) { live = true; break; }
+      secs[v].hidden = !live;
+    }
+    note.textContent = hits === 0
+      ? 'Nothing matches “' + find.value.trim() + '”.'
+      : hits + (hits === 1 ? ' match' : ' matches') + ' for “' + find.value.trim() + '”.';
+  }
+
+  if (find) {
+    find.addEventListener('input', function () {
+      clearTimeout(timer);
+      // 120ms: long enough that a fast typist does not filter on every keystroke,
+      // short enough to feel like it is keeping up.
+      timer = setTimeout(runFind, 120);
+    });
+    find.addEventListener('keydown', function (e) { if (e.key === 'Escape') { find.value = ''; runFind(); } });
+  }
+
+  // ── ledger filter ─────────────────────────────────────────────────────────
+  var ledger = document.getElementById('meLedger');
+  var none   = document.getElementById('meLedgerNone');
+  page.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-me-filter]');
+    if (!b || !ledger) return;
+    var want = b.getAttribute('data-me-filter');
+    var all  = page.querySelectorAll('[data-me-filter]');
+    for (var i = 0; i < all.length; i++) all[i].setAttribute('aria-pressed', all[i] === b ? 'true' : 'false');
+    var items = ledger.querySelectorAll('[data-me-sign]');
+    var shown = 0;
+    for (var j = 0; j < items.length; j++) {
+      var on = want === 'all' || items[j].getAttribute('data-me-sign') === want;
+      items[j].hidden = !on;
+      if (on) shown++;
+    }
+    if (none) none.hidden = shown > 0;
+  });
+
+  // ── copy ──────────────────────────────────────────────────────────────────
+  page.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-me-copy]');
+    if (!b) return;
+    var text = b.getAttribute('data-me-copy');
+    var done = function () {
+      var was = b.getAttribute('aria-label');
+      b.setAttribute('aria-label', 'Copied');
+      // A visual tick AND an announcement: the icon swap is invisible to a
+      // screen reader and the label change is invisible to everyone else.
+      b.classList.add('is-copied');
+      setTimeout(function () { b.setAttribute('aria-label', was); b.classList.remove('is-copied'); }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {});
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (err) {}
+      document.body.removeChild(ta);
+    }
+  });
+
+  // ── chart ─────────────────────────────────────────────────────────────────
+  var box = document.getElementById('meChartBox');
+  if (box) {
+    var pts   = JSON.parse(box.getAttribute('data-points') || '[]');
+    var hit   = document.getElementById('meChartHit');
+    var cur   = document.getElementById('meChartCur');
+    var line  = document.getElementById('meChartCurLine');
+    var dot   = document.getElementById('meChartCurDot');
+    var read  = document.getElementById('meChartRead');
+    var at    = -1;
+
+    var fmt = function (n) { return n.toLocaleString(); };
+    function show(i) {
+      if (i < 0 || i >= pts.length) return;
+      at = i;
+      var p = pts[i];
+      line.setAttribute('x1', p.x); line.setAttribute('x2', p.x);
+      dot.setAttribute('cx', p.x);  dot.setAttribute('cy', p.y);
+      cur.removeAttribute('hidden');
+      var d = new Date(p.date + 'T00:00:00');
+      read.innerHTML = '<b>' + fmt(p.balance) + '</b> points on ' +
+        d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) +
+        (p.delta ? ' · <b>' + (p.delta > 0 ? '+' : '') + fmt(p.delta) + '</b> that day' : '');
+    }
+    function clear() { at = -1; cur.setAttribute('hidden', ''); read.textContent = ''; }
+
+    function nearest(clientX) {
+      var r = hit.getBoundingClientRect();
+      if (!r.width) return -1;
+      // The plot's own coordinate space, not the rendered one — the SVG scales
+      // with the panel and the two stop agreeing the moment it does.
+      var vx = ((clientX - r.left) / r.width) * pts[pts.length - 1].x;
+      var best = 0, bestD = Infinity;
+      for (var i = 0; i < pts.length; i++) {
+        var d = Math.abs(pts[i].x - vx);
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      return best;
+    }
+
+    hit.addEventListener('pointermove', function (e) { show(nearest(e.clientX)); });
+    hit.addEventListener('pointerleave', clear);
+    box.addEventListener('blur', clear);
+    box.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        var next = at < 0 ? pts.length - 1 : at + (e.key === 'ArrowRight' ? 1 : -1);
+        show(Math.max(0, Math.min(pts.length - 1, next)));
+      } else if (e.key === 'Home') { e.preventDefault(); show(0); }
+      else if (e.key === 'End')    { e.preventDefault(); show(pts.length - 1); }
+      else if (e.key === 'Escape') { clear(); }
+    });
+
+    var toggle = document.getElementById('meTableToggle');
+    var table  = document.getElementById('meChartTable');
+    if (toggle && table) toggle.addEventListener('click', function () {
+      var on = table.hasAttribute('hidden');
+      if (on) table.removeAttribute('hidden'); else table.setAttribute('hidden', '');
+      toggle.setAttribute('aria-expanded', on ? 'true' : 'false');
+      toggle.textContent = on ? 'Hide the table' : 'Show as a table';
+    });
+  }
+})();
+</script>
 {% endblock %}

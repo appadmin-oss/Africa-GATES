@@ -370,6 +370,15 @@ class AccountController
         $nominations = \AfricaGates\Services\MemberActivityService::nominationsFor((string) $user->email, 15);
         $shareLinks  = \AfricaGates\Services\MemberActivityService::shareLinksFor((int) $user->id, 8);
         $communityC  = \AfricaGates\Services\MemberActivityService::communityCountsFor((string) $user->email);
+        // Named rather than inlined, because the section rail counts them and the empty-state
+        // check asks whether they are all empty — three call sites for one query each.
+        $orders    = \AfricaGates\Services\MemberActivityService::ordersFor((string) $user->email, 10);
+        $tickets   = \AfricaGates\Services\MemberActivityService::ticketsFor((string) $user->email, 10);
+        $ledger    = PointsService::ledger((int) $user->id, 60);
+        // Fetched once and drawn twice, at two sizes — see 'points_spark' below.
+        $pointsSeries = PointsService::series((int) $user->id, 90);
+        $bookmarks = $this->community ? $this->community->bookmarkedThreads((int) $user->id, 12) : [];
+
         return $this->view->render($res, 'pages/account/dashboard.twig', [
             'page_title' => 'Your account — Africa GATES', 'gates_page' => 'account', 'has_hero' => false,
             'user'           => (array) $user,
@@ -378,21 +387,99 @@ class AccountController
             'points_per_vote'=> PointsService::pointsPerVote(),
             'redeemable'     => PointsService::votesForPoints(PointsService::balance((int) $user->id)),
             'summary'        => PointsService::summary((int) $user->id),
-            'ledger'         => PointsService::ledger((int) $user->id, 30),
-            'bookmarks'      => $this->community ? $this->community->bookmarkedThreads((int) $user->id, 12) : [],
+            'ledger'         => $ledger,
+            'bookmarks'      => $bookmarks,
             'my_votes'       => $votes,
             'my_nominations' => $nominations,
             'my_links'       => $shareLinks,
             // What they BOUGHT — absent until now. The dashboard was an accurate picture of
             // everything a member had contributed and said nothing about anything they had
             // paid for, so the only route to "has my order shipped" was a link in an email.
-            'my_orders'      => \AfricaGates\Services\MemberActivityService::ordersFor((string) $user->email, 10),
-            'my_tickets'     => \AfricaGates\Services\MemberActivityService::ticketsFor((string) $user->email, 10),
+            'my_orders'      => $orders,
+            'my_tickets'     => $tickets,
             'community_counts' => $communityC,
             'completeness'   => \AfricaGates\Services\MemberActivityService::completeness($user),
             'checklist'      => \AfricaGates\Services\MemberActivityService::checklist($user, $votes, $nominations, $communityC),
             'flash_ok'       => $this->flash('flash_ok'), 'flash_error' => $this->flash('flash_error'),
+
+            // ── WHAT THE NEW LAYOUT NEEDS ────────────────────────────────────
+            //
+            // The page is sections now rather than one column of cards, and a section rail
+            // with no counts on it is a list of words: "Purchases" tells nobody whether
+            // there is anything behind it, so half of them get opened to find out. The
+            // counts are the information scent that stops that.
+            'counts' => [
+                'purchases' => count($orders) + count($tickets),
+                'activity'  => count($votes) + count($nominations) + count($shareLinks),
+                'saved'     => count($bookmarks),
+                'points'    => count($ledger),
+            ],
+            // Ninety days, by TIME and not by row count — see PointsService::series() for
+            // why a chart of "the last 30 entries" is not a chart of anything.
+            'points_chart' => \AfricaGates\Support\Spark::chart($pointsSeries),
+            // The same 90 days at a glance, for the summary panel. Not the same chart
+            // shrunk: it has no axes, no gridlines and no hover, because a summary that
+            // repeats the detail view is two things to keep in step and one of them will
+            // drift. The numbers beside it are the accessible reading of it.
+            'points_spark' => \AfricaGates\Support\Spark::chart($pointsSeries, 300.0, 46.0),
+            'member_since' => (string) ($user->created_at ?? ''),
+            // Has this member ever done ANYTHING? It decides between the dashboard and a
+            // first-run screen, and a dashboard of six empty sections is the worst possible
+            // welcome — it reads as a product that is not working.
+            'is_new' => $ledger === [] && $orders === [] && $tickets === []
+                     && $votes === [] && $nominations === [] && $shareLinks === [],
         ]);
+    }
+
+    /**
+     * GET /account/points.csv — the member's own points history, as a file.
+     *
+     * Their record of their own money-adjacent balance, in the format anyone can open. It is
+     * not an export feature bolted on for completeness: the ledger is the evidence behind a
+     * number this platform uses to hand out votes, and a member who disputes it needs
+     * something they can keep, sort and send back.
+     *
+     * Reachable only by the signed-in owner and never by id — there is no user parameter here
+     * to tamper with, which is the whole of the authorization story.
+     */
+    public function pointsCsv(Request $req, Response $res): Response
+    {
+        $user = $this->accounts->current();
+        if (!$user) return $res->withHeader('Location', '/account/login')->withStatus(302);
+
+        $rows = PointsService::ledger((int) $user->id, 2000);
+
+        $out = fopen('php://temp', 'r+');
+        // A leading BOM, because the overwhelming majority of these are opened in Excel and
+        // without it a name like Ọlásùnkànmí arrives as mojibake — on the one document whose
+        // job is to be trustworthy.
+        fwrite($out, "\xEF\xBB\xBF");
+        // `$escape` stated rather than left to the default: PHP 8.4 deprecates relying on
+        // it, and the value it is changing to is `''` — the RFC-correct one. Passing it
+        // explicitly means this file writes the same bytes before and after that change,
+        // which matters on a document somebody keeps as evidence.
+        $put = static fn (array $row) => fputcsv($out, $row, ',', '"', '\\');
+        $put(['Date', 'Reason', 'Note', 'Change', 'Balance after']);
+        foreach ($rows as $r) {
+            $put([
+                (string) ($r['created_at'] ?? ''),
+                (string) ($r['reason'] ?? ''),
+                (string) ($r['note'] ?? ''),
+                (int) ($r['delta'] ?? 0),
+                (int) ($r['balance_after'] ?? 0),
+            ]);
+        }
+        rewind($out);
+        $csv = (string) stream_get_contents($out);
+        fclose($out);
+
+        $res->getBody()->write($csv);
+        return $res
+            ->withHeader('Content-Type', 'text/csv; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="africa-gates-points.csv"')
+            ->withHeader('X-Robots-Tag', 'noindex, nofollow')
+            // It is somebody's own record; nothing in front of it should keep a copy.
+            ->withHeader('Cache-Control', 'no-store, private');
     }
 
     /** POST /account/profile — update name/phone + optional password change. */
