@@ -214,9 +214,21 @@ final class ClaimNotifierTest extends TestCase
         $claimId = $this->claim();
         $ref = Reference::claim($claimId);
 
-        // No APP_URL and no request: ClaimNotifier cannot build a dispute URL.
-        $kept = $_ENV['APP_URL'] ?? null;
-        unset($_ENV['APP_URL']);
+        // ── NO APP_URL, FROM ANY SOURCE ──────────────────────────────────────
+        //
+        // `Env::raw()` reads $_ENV, then $_SERVER, then getenv(), and the .env loader writes
+        // the value into the first TWO. Clearing only $_ENV — which is what this test used to
+        // do — left it readable from $_SERVER, so a dispute URL was still built and every
+        // assertion below ran against the wrong branch. The test then failed on the last line
+        // for the right reason and the wrong cause, on any checkout whose .env sets APP_URL.
+        //
+        // The assertion that it is really gone is the load-bearing part: if a fourth source is
+        // ever added, this fails here, loudly, instead of quietly testing nothing.
+        $kept = ['env' => $_ENV['APP_URL'] ?? null, 'server' => $_SERVER['APP_URL'] ?? null];
+        unset($_ENV['APP_URL'], $_SERVER['APP_URL']);
+        $this->assertNull(\AfricaGates\Support\Env::get('APP_URL'),
+            'APP_URL is still readable from somewhere, so the no-freeze-link path is not '
+            . 'the path being tested');
 
         try {
             $mailer = new ClaimMailerSpy();
@@ -232,7 +244,8 @@ final class ClaimNotifierTest extends TestCase
             // And "also" must not dangle after an option that was never offered.
             $this->assertStringNotContainsString('You can also reply', $text);
         } finally {
-            if ($kept !== null) { $_ENV['APP_URL'] = $kept; }
+            if ($kept['env'] !== null)    { $_ENV['APP_URL'] = $kept['env']; }
+            if ($kept['server'] !== null) { $_SERVER['APP_URL'] = $kept['server']; }
         }
     }
 
