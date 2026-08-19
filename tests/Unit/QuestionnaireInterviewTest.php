@@ -500,6 +500,117 @@ final class QuestionnaireInterviewTest extends TestCase
         $this->assertStringContainsString('form', I::degradedMessage('no_ai'));
     }
 
+    // ══ 6. into the judges' dossier ══════════════════════════════════════════
+
+    private function evidence(): array
+    {
+        return DB::table('gates_nominee_evidence')->where('nominee_id', self::NOM)
+            ->orderBy('sort_order')->get()->all();
+    }
+
+    private function recordScale(string $token): void
+    {
+        $s = $this->sub($token);
+        L::record($s, 'scale', 'met', 'Reaches 4,000 farmers in eight states',
+                  'we now reach 4,000 farmers across eight states', $this->turns());
+    }
+
+    public function test_an_interview_can_actually_be_submitted(): void
+    {
+        // The whole feature is worthless if this fails. submit() validates against the
+        // QUESTION list, and a programme with its own outcome slugs has no question carrying
+        // them — so before this branch existed, every interview submission was refused with a
+        // list of things the nominee had never been asked.
+        [, $token] = $this->open();
+        I::open($token);
+        $this->recordScale($token);
+
+        $r = Q::submit($token, 'Ada Nwosu');
+        $this->assertTrue($r['ok'], (string) ($r['message'] ?? ''));
+        $this->assertSame('submitted', (string) $this->sub($token)->status);
+    }
+
+    public function test_a_required_outcome_still_missing_blocks_the_send(): void
+    {
+        [, $token] = $this->open();
+        I::open($token);
+
+        $r = Q::submit($token, 'Ada Nwosu');
+        $this->assertFalse($r['ok']);
+        // Named by its label, so the nominee is told what is missing rather than a slug.
+        $this->assertSame(['How far it reaches'], $r['missing']);
+    }
+
+    public function test_the_quotes_reach_a_judge_as_evidence_under_the_criterion(): void
+    {
+        [, $token] = $this->open();
+        I::open($token);
+        $this->recordScale($token);
+        Q::submit($token, 'Ada Nwosu');
+
+        $rows = $this->evidence();
+        $this->assertCount(1, $rows);
+        // The heading is the ADMINISTRATOR'S outcome label, never the model's summary — so
+        // nothing a machine composed reaches a panel as though a person wrote it.
+        $this->assertSame('How far it reaches', (string) $rows[0]->title);
+        $this->assertSame('we now reach 4,000 farmers across eight states', (string) $rows[0]->body);
+        $this->assertStringContainsString('own interview', (string) $rows[0]->source_label);
+        // Never verified: a self-supplied claim is a claim, and the dossier shows a judge the
+        // difference.
+        $this->assertSame(0, (int) $rows[0]->verified);
+        $this->assertSame('nominee_supplied', (string) $rows[0]->provenance);
+    }
+
+    public function test_a_correction_by_the_nominee_is_visible_to_the_panel(): void
+    {
+        [, $token] = $this->open();
+        I::open($token);
+        $this->recordScale($token);
+        L::correct($this->sub($token), 'scale', 'It is 3,200 farmers — I misspoke.');
+        Q::submit($token, 'Ada Nwosu');
+
+        $row = $this->evidence()[0];
+        $this->assertSame('It is 3,200 farmers — I misspoke.', (string) $row->body);
+        $this->assertStringContainsString('corrected by the nominee', (string) $row->source_label);
+    }
+
+    public function test_the_answers_map_is_filled_so_every_existing_reader_still_works(): void
+    {
+        [$id, $token] = $this->open();
+        I::open($token);
+        $this->recordScale($token);
+        Q::submit($token, 'Ada Nwosu');
+
+        $answers = json_decode((string) DB::table('gates_nominee_submissions')
+            ->where('id', $id)->value('answers_json'), true);
+        // The nominee's words, not the model's heading.
+        $this->assertSame('we now reach 4,000 farmers across eight states', $answers['scale']);
+    }
+
+    public function test_a_guided_form_submission_is_untouched_by_any_of_this(): void
+    {
+        S::saveConfig(self::PROG, ['style' => S::FORM]);
+        S::forget();
+
+        [$id, $token] = $this->open();
+        I::open($token);
+        $this->assertSame('form', (string) $this->sub($token)->style);
+
+        $answers = [];
+        foreach (Q::questionsFor($this->sub($token)) as $q) {
+            if ((int) ($q['is_required'] ?? 0) === 1) {
+                $answers[(string) $q['slug']] = 'A real answer with 4,000 in it, written out.';
+            }
+        }
+        Q::saveDraft($token, $answers, []);
+        $r = Q::submit($token, 'Ada Nwosu');
+
+        $this->assertTrue($r['ok'], (string) ($r['message'] ?? ''));
+        $rows = $this->evidence();
+        $this->assertNotEmpty($rows);
+        $this->assertStringContainsString('own questionnaire', (string) $rows[0]->source_label);
+    }
+
     public function test_an_interview_with_nothing_authored_still_has_outcomes(): void
     {
         // Switching a programme on before anybody opens the builder must produce a working

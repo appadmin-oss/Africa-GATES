@@ -100,6 +100,15 @@ final class QuestionnairesController
             'form'       => $form,
             'link'       => QuestionnaireService::url($id),
             'evidence'   => $this->evidenceFor((int) $s->nominee_id),
+            // ── THE INTERVIEW, WHEN THAT IS WHAT THIS WAS ────────────────────
+            //
+            // An operator looking at a submission needs to be able to answer two questions a
+            // list of answers cannot: where did this sentence come from, and what did the
+            // machine add? So the transcript and the ledger are both here, side by side, with
+            // every machine-derived value labelled and carrying the turn it was taken from.
+            'style'      => \AfricaGates\Services\QuestionnaireInterview::styleOf($s),
+            'iv'         => \AfricaGates\Services\QuestionnaireInterview::state((string) $s->invite_token),
+            'tokens'     => \AfricaGates\Services\QuestionnaireInterview::tokensUsed($s),
         ]);
     }
 

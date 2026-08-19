@@ -648,17 +648,52 @@ final class QuestionnaireService
             return ['ok' => true, 'message' => 'This was already sent to the panel.'];
         }
 
+        // ── AN INTERVIEW ARRIVES HERE AS ANSWERS, LIKE EVERYTHING ELSE ──────
+        //
+        // The conversation stores what it learned in a ledger of outcomes, not in
+        // `answers_json`. Every reader downstream — this validation, `publishEvidence()`, the
+        // dossier, the judge's screen — reads `answers_json` keyed by slug, and teaching each
+        // of them about a second shape would mean the first one nobody updated showing a judge
+        // an empty questionnaire beside a nominee who had answered everything.
+        //
+        // So the ledger is folded into the same map at the moment of submission. Only the
+        // nominee's own QUOTES go in; the model's headings do not, which is the same rule the
+        // guided chat has always followed and the reason a panel can read either style as
+        // "supplied by the nominee" without qualification.
+        //
+        // The form's own answers win where both exist. Somebody who left the conversation for
+        // the form and typed there meant the newer one.
+        self::foldInterviewAnswers($s);
+        $s = self::byToken($token) ?? $s;
+
         $answers = json_decode((string) ($s->answers_json ?? '{}'), true);
         $answers = is_array($answers) ? $answers : [];
 
         $missing = [];
-        // The FILTERED set. A required question that branching never showed them would
-        // otherwise block sending with an instruction to answer something no screen displays —
-        // a dead end whose only exit is support.
-        foreach (self::questionsFor($s) as $q) {
-            if ((int) ($q['is_required'] ?? 0) !== 1) continue;
-            $v = trim((string) ($answers[(string) $q['slug']] ?? ''));
-            if ($v === '') $missing[] = (string) $q['label'];
+        if (QuestionnaireInterview::styleOf($s) === QuestionnaireStyle::INTERVIEW) {
+            // An interview's contract is its OUTCOMES, not the question list. A programme that
+            // authored its own outcome slugs has no question with those slugs at all, so
+            // checking the questions would refuse every interview submission on the platform
+            // with a list of things the nominee was never asked.
+            //
+            // PARTIAL counts as enough, the same rule propose_complete uses. Refusing to send
+            // until every outcome is fully met would punish the nominee whose work genuinely
+            // has no funder, no referee or no figure — which is most of the people these
+            // awards exist to find.
+            foreach (QuestionnaireLedger::forSubmission($s) as $o) {
+                if ($o['required'] && $o['status'] === QuestionnaireLedger::UNMET) {
+                    $missing[] = $o['label'];
+                }
+            }
+        } else {
+            // The FILTERED set. A required question that branching never showed them would
+            // otherwise block sending with an instruction to answer something no screen
+            // displays — a dead end whose only exit is support.
+            foreach (self::questionsFor($s) as $q) {
+                if ((int) ($q['is_required'] ?? 0) !== 1) continue;
+                $v = trim((string) ($answers[(string) $q['slug']] ?? ''));
+                if ($v === '') $missing[] = (string) $q['label'];
+            }
         }
         if ($missing !== []) {
             return ['ok' => false, 'missing' => $missing,
@@ -692,6 +727,84 @@ final class QuestionnaireService
 
         return ['ok' => true, 'evidence' => $written,
                 'message' => 'Thank you — this has gone to the judging panel.'];
+    }
+
+    /**
+     * The evidence rows an interview produces, or an empty list for a form.
+     *
+     * `$order` is passed by reference so the rows that follow keep numbering from where these
+     * stopped — a dossier whose sort keys collide reorders itself between page loads.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private static function interviewEvidence(object $s, int $nomineeId, string $now, int &$order): array
+    {
+        if (QuestionnaireInterview::styleOf($s) !== QuestionnaireStyle::INTERVIEW) return [];
+
+        $labels = [];
+        try {
+            foreach (DB::table('gates_judge_criteria')->get() as $c) {
+                $labels[(int) $c->id] = (string) $c->label;
+            }
+        } catch (\Throwable) {}
+
+        $rows = [];
+        foreach (QuestionnaireLedger::forSubmission($s) as $o) {
+            $val = trim((string) $o['quote']);
+            if ($o['status'] === QuestionnaireLedger::UNMET || $val === '') continue;
+
+            $crit = $o['criterion_id'] !== null ? ($labels[$o['criterion_id']] ?? '') : '';
+            $rows[] = [
+                'nominee_id'   => $nomineeId,
+                'kind'         => 'note',
+                'title'        => mb_substr($o['label'], 0, 250),
+                'body'         => mb_substr($val, 0, 8000),
+                // The panel is told HOW this was collected, because a sentence taken from a
+                // conversation and a sentence typed into a box are not quite the same kind of
+                // claim, and a judge weighing them is entitled to know which they are reading.
+                'source_label' => 'The nominee\'s own interview'
+                                . ($crit !== '' ? ' · ' . $crit : '')
+                                . ($o['edited'] ? ' · corrected by the nominee' : ''),
+                'source_url'   => null,
+                'provenance'   => 'nominee_supplied',
+                'verified'     => 0,
+                'visible_to_judges' => 1,
+                'sort_order'   => $order++,
+                'created_at'   => $now,
+                'updated_at'   => $now,
+            ];
+        }
+        return $rows;
+    }
+
+    /**
+     * Write an interview's quotes into `answers_json`, without disturbing a form's.
+     *
+     * A no-op for a guided-form submission, and a no-op when the interview recorded nothing —
+     * in both cases the map it would write is empty and the existing one is already right.
+     */
+    private static function foldInterviewAnswers(object $s): void
+    {
+        if (QuestionnaireInterview::styleOf($s) !== QuestionnaireStyle::INTERVIEW) return;
+
+        $carried = QuestionnaireLedger::asAnswers($s);
+        if ($carried === []) return;
+
+        $stored = json_decode((string) ($s->answers_json ?? '{}'), true);
+        $stored = is_array($stored) ? $stored : [];
+
+        $merged = $carried;
+        foreach ($stored as $k => $v) {
+            if (trim((string) $v) !== '') $merged[(string) $k] = (string) $v;
+        }
+
+        try {
+            DB::table('gates_nominee_submissions')->where('id', (int) $s->id)
+                ->update(['answers_json' => (string) json_encode($merged),
+                          'updated_at' => Carbon::now()->toDateTimeString()]);
+        } catch (\Throwable $e) {
+            error_log('[questionnaire] could not fold interview answers: ' . $e->getMessage());
+        }
     }
 
     /** Re-open a submitted questionnaire so a nominee can correct or add to it. */
@@ -758,9 +871,24 @@ final class QuestionnaireService
         $rows  = [];
         $order = 10;
 
+        // ── AN INTERVIEW FILES ITS OUTCOMES, A FORM FILES ITS QUESTIONS ─────
+        //
+        // Same rows, same table, same provenance, same criteria — only the list differs, and
+        // it has to: a programme with its own outcome slugs has no question carrying them, so
+        // walking the questions would produce an empty dossier next to a nominee who had
+        // answered everything.
+        //
+        // What a judge reads is identical either way: a heading, the nominee's own words
+        // beneath it, and the criterion it speaks to. The heading is the outcome's LABEL —
+        // written by an administrator — never the model's summary, so nothing a machine
+        // composed reaches a panel as though a person had written it.
+        foreach (self::interviewEvidence($s, $nomineeId, $now, $order) as $row) {
+            $rows[] = $row;
+        }
+
         // Filtered too: filing an unasked question as "not answered" would let a panel read
         // a question the platform chose not to ask as a nominee declining to answer it.
-        foreach (self::questionsFor($s) as $q) {
+        foreach (($rows === [] ? self::questionsFor($s) : []) as $q) {
             $slug = (string) $q['slug'];
             $val  = trim((string) ($answers[$slug] ?? ''));
             if ($val === '') continue;

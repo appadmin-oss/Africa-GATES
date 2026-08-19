@@ -149,6 +149,65 @@
 </div>
 
 {# ── their works ─────────────────────────────────────────────────────────── #}
+{# ── THE INTERVIEW ──────────────────────────────────────────────────────────
+   Only for a submission answered as a conversation. Two panels, deliberately in this order:
+   what the machine concluded, then what was actually said. An operator checking a claim reads
+   the quote first and the transcript when the quote is not enough. #}
+{% if style == 'interview' %}
+<div class="qs-sec">
+  <h2>What the interview recorded</h2>
+  <p class="qs-sub">Every heading below was written by the model. Every quote is the nominee's
+     own words, checked against the transcript before it was stored — a quote that is not
+     found in what they typed is refused, which is what makes this readable as evidence at
+     all. {{ tokens|number_format }} tokens spent.</p>
+
+  {% for o in iv.ledger %}
+    <div class="qs-a">
+      <div class="qs-q">
+        {{ o.label }}
+        <span class="qs-tag">{{ o.status == 'met' ? 'met' : (o.status == 'partial' ? 'part-answered' : 'not covered') }}</span>
+        {% if not o.required %}<span class="qs-tag">optional</span>{% endif %}
+        {% if o.edited %}<span class="qs-tag">corrected by the nominee</span>{% endif %}
+      </div>
+      {% if o.quote %}
+        <div class="qs-v">“{{ o.quote }}”</div>
+        <div class="qs-v" style="font-size:12px; color:#5a6d6f">
+          {% if o.summary and not o.edited %}Machine-derived heading: {{ o.summary }} · {% endif %}
+          {% if o.turn is not null %}from turn {{ o.turn + 1 }}{% endif %}
+        </div>
+      {% else %}
+        <div class="qs-v qs-v--none">nothing recorded</div>
+      {% endif %}
+    </div>
+  {% else %}
+    <p class="qs-sub">Nothing recorded yet.</p>
+  {% endfor %}
+
+  {% if iv.notes|length %}
+    <h2 style="margin-top:20px">Notes for the programme team</h2>
+    <p class="qs-sub">Kept by the interviewer for staff, and never shown to the nominee as
+       their own words.</p>
+    {% for n in iv.notes %}
+      <div class="qs-a"><div class="qs-v">{{ n.text }}</div></div>
+    {% endfor %}
+  {% endif %}
+</div>
+
+<div class="qs-sec">
+  <h2>The conversation, in full</h2>
+  <p class="qs-sub">{{ iv.turns|length }} messages. The nominee's turns are stored exactly as
+     they typed them; nothing here has been tidied.</p>
+  {% for t in iv.turns %}
+    <div class="qs-a">
+      <div class="qs-q">{{ t.role == 'nominee' ? 'The nominee' : 'The interviewer' }}
+        <span class="qs-tag">turn {{ t.i + 1 }}</span>
+        {% if t.amended %}<span class="qs-tag">edited by them</span>{% endif %}</div>
+      <div class="qs-v">{{ t.text }}</div>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="qs-sec">
   <h2>Their works and evidence</h2>
   {% for w in (form.works ?? []) %}
