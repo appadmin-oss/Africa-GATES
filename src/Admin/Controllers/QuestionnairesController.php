@@ -6,6 +6,7 @@ namespace AfricaGates\Admin\Controllers;
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Services\OtpService;
 use AfricaGates\Services\QuestionnaireService;
+use AfricaGates\Services\QuestionnaireStyle;
 use AfricaGates\Services\SmsService;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -267,13 +268,37 @@ final class QuestionnairesController
 
         $own = DB::table('gates_programme_questions')->where('programme_id', $programmeId)->count();
 
+        QuestionnaireStyle::forget();
+        $cfg = QuestionnaireStyle::config($programmeId);
+
         return $this->view->render($res, 'admin/questionnaires/questions.twig', [
-            'page_title' => 'Questions — ' . $p->title,
+            'page_title' => 'Questionnaire — ' . $p->title,
             'admin_page' => 'questionnaires',
             'programme'  => (array) $p,
             'questions'  => QuestionnaireService::questions($programmeId),
             'has_own'    => $own > 0,
             'criteria'   => $this->criteria($programmeId),
+            // ── the interview half ───────────────────────────────────────────
+            'cfg'        => $cfg,
+            'knowledge'  => QuestionnaireStyle::knowledge($programmeId),
+            'outcomes'   => QuestionnaireStyle::outcomes($programmeId),
+            'rules'      => QuestionnaireStyle::rules($programmeId),
+            'own_outcomes' => DB::table('gates_questionnaire_outcomes')
+                                ->where('programme_id', $programmeId)->count(),
+            // Whether a nominee opening this page right now would actually get a
+            // conversation. A builder that let somebody configure an interview without
+            // saying "this will not run — there is no OpenAI key" is a builder that
+            // wastes an afternoon.
+            'live'       => QuestionnaireStyle::interviewPossible($programmeId),
+            'route_default' => QuestionnaireStyle::DEFAULT_ROUTE,
+            'branch_conditions' => [
+                'answered'   => 'they answered it at all',
+                'blank'      => 'they left it blank',
+                'yes'        => 'their answer was not a clear no',
+                'no'         => 'their answer was a clear no',
+                'has_number' => 'their answer contained a figure',
+                'no_number'  => 'their answer contained no figure',
+            ],
         ]);
     }
 
@@ -341,6 +366,25 @@ final class QuestionnairesController
                 'sort_order'    => ++$seen,
                 'is_active'     => 1,
                 'updated_at'    => $now,
+                'placeholder'   => mb_substr(trim((string) ($r['placeholder'] ?? '')), 0, 300) ?: null,
+                // ── BRANCHING, WHICH WAS READABLE AND NOT WRITABLE ───────────
+                //
+                // These four columns have existed since the adaptive migration and
+                // QuestionnaireRules has always read them, but this editor never wrote them.
+                // The consequence was invisible and bad: the shipped defaults branch, and the
+                // moment an operator pressed "copy the defaults in" so they could change one
+                // word, every branch was silently dropped. A nominee whose project had closed
+                // was then asked, in the present tense, how it is funded — the exact failure
+                // the adaptive work was done to remove.
+                'show_if_slug'  => mb_substr(preg_replace('/[^a-z0-9_]/', '',
+                                    strtolower((string) ($r['show_if_slug'] ?? ''))) ?: '', 0, 60) ?: null,
+                'show_if'       => self::branchCondition((string) ($r['show_if'] ?? '')),
+                'min_words'     => ($r['min_words'] ?? '') === '' ? null
+                                    : max(0, min(200, (int) $r['min_words'])),
+                'wants_number'  => !empty($r['wants_number']) ? 1 : 0,
+                // Only meaningful for select/checkbox, and stored as the JSON the reader
+                // already decodes. One option per line is what an operator can actually type.
+                'options_json'  => self::optionsJson((string) ($r['options'] ?? '')),
             ];
 
             if ($id > 0) {
@@ -354,6 +398,163 @@ final class QuestionnairesController
         $_SESSION['flash'] = $seen . ' question(s) saved for this programme.';
         $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.questions_saved',
             'programme', $programmeId, ['count' => $seen]);
+        return $this->back($res, '/admin/questionnaires/programme/' . $programmeId . '#questions');
+    }
+
+    /**
+     * A branch condition, or null.
+     *
+     * Anything unrecognised becomes NULL rather than being stored as typed. `applies()` fails
+     * open on an unknown condition — which is the right behaviour at read time and the wrong
+     * thing to rely on at write time, because it would let a typo sit in the database looking
+     * like a rule that works.
+     */
+    private static function branchCondition(string $raw): ?string
+    {
+        $c = strtolower(trim($raw));
+        if ($c === '') return null;
+        // `is:VALUE` compares against an exact answer — kept, with the value trimmed.
+        if (str_starts_with($c, 'is:')) {
+            $v = trim(substr($c, 3));
+            return $v === '' ? null : mb_substr('is:' . $v, 0, 40);
+        }
+        return in_array($c, ['answered', 'blank', 'yes', 'no', 'has_number', 'no_number'], true)
+            ? $c : null;
+    }
+
+    /** One option per line, in and out. Nobody hand-writes a JSON array into a textarea. */
+    private static function optionsJson(string $raw): ?string
+    {
+        $lines = array_values(array_filter(array_map(
+            static fn(string $l): string => trim($l),
+            preg_split('/\r\n|\r|\n/', $raw) ?: []
+        ), static fn(string $l): bool => $l !== ''));
+        return $lines === [] ? null : (string) json_encode(array_slice($lines, 0, 40));
+    }
+
+    // ══ the interview: style, brief, knowledge, outcomes ═════════════════════
+
+    /**
+     * The style toggle and the brief.
+     *
+     * One endpoint for both because they are one decision: choosing the conversation without
+     * writing what it is for produces an interview that asks generic questions, and writing a
+     * brief for a programme still set to 'form' produces nothing at all. Saving them together
+     * means the screen can say what will happen.
+     */
+    public function saveStyle(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $programmeId = (int) ($args['id'] ?? 0);
+        $body = (array) $req->getParsedBody();
+
+        $ok = QuestionnaireStyle::saveConfig($programmeId, [
+            'style'           => (string) ($body['style'] ?? QuestionnaireStyle::FORM),
+            'brief'           => (string) ($body['brief'] ?? ''),
+            'greeting'        => (string) ($body['greeting'] ?? ''),
+            'persona'         => (string) ($body['persona'] ?? ''),
+            'closing'         => (string) ($body['closing'] ?? ''),
+            'route'           => (string) ($body['route'] ?? ''),
+            'max_turns'       => (int) ($body['max_turns'] ?? 40),
+            'token_ceiling'   => (int) ($body['token_ceiling'] ?? 120000),
+            'kb_token_budget' => (int) ($body['kb_token_budget'] ?? 3000),
+        ]);
+
+        $_SESSION[$ok ? 'flash' : 'flash_error'] = $ok
+            ? 'Saved. Nominees who have already opened their link keep the style they started on.'
+            : 'Nothing was saved.';
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.style_saved',
+            'programme', $programmeId, ['style' => (string) ($body['style'] ?? '')]);
+        return $this->back($res, '/admin/questionnaires/programme/' . $programmeId . '#interview');
+    }
+
+    /** The knowledge base, saved as a set so a reorder is one submission. */
+    public function saveKnowledge(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $programmeId = (int) ($args['id'] ?? 0);
+        $body = (array) $req->getParsedBody();
+        $rows = is_array($body['k'] ?? null) ? $body['k'] : [];
+
+        $n = 0;
+        foreach (array_values($rows) as $i => $r) {
+            if (!is_array($r)) continue;
+            $id    = (int) ($r['id'] ?? 0) ?: null;
+            $title = trim((string) ($r['title'] ?? ''));
+            // An emptied title retires the entry, the same convention the questions use, so
+            // an operator learns one gesture rather than two.
+            if ($title === '') {
+                if ($id !== null) QuestionnaireStyle::retire('gates_questionnaire_knowledge', $id);
+                continue;
+            }
+            if (QuestionnaireStyle::saveKnowledge($programmeId, $id, $title,
+                    (string) ($r['body'] ?? ''), $i + 1) > 0) $n++;
+        }
+
+        $_SESSION['flash'] = $n . ' knowledge entr' . ($n === 1 ? 'y' : 'ies') . ' saved.';
+        return $this->back($res, '/admin/questionnaires/programme/' . $programmeId . '#knowledge');
+    }
+
+    /** The outcomes — the vocabulary the conversation is allowed to use. */
+    public function saveOutcomes(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $programmeId = (int) ($args['id'] ?? 0);
+        $body = (array) $req->getParsedBody();
+        $rows = is_array($body['o'] ?? null) ? $body['o'] : [];
+
+        $n = 0;
+        foreach (array_values($rows) as $i => $r) {
+            if (!is_array($r)) continue;
+            $id    = (int) ($r['id'] ?? 0) ?: null;
+            $label = trim((string) ($r['label'] ?? ''));
+            if ($label === '') {
+                if ($id !== null) QuestionnaireStyle::retire('gates_questionnaire_outcomes', $id);
+                continue;
+            }
+            if (QuestionnaireStyle::saveOutcome($programmeId, $id, [
+                'slug' => (string) ($r['slug'] ?? ''), 'label' => $label,
+                'description' => (string) ($r['description'] ?? ''),
+                'criterion_id' => (int) ($r['criterion_id'] ?? 0) ?: null,
+                'evidence_kind' => (string) ($r['evidence_kind'] ?? 'note'),
+                'required' => !empty($r['required']),
+                'sort_order' => $i + 1,
+            ]) > 0) $n++;
+        }
+
+        $_SESSION['flash'] = $n . ' outcome(s) saved.';
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.outcomes_saved',
+            'programme', $programmeId, ['count' => $n]);
+        return $this->back($res, '/admin/questionnaires/programme/' . $programmeId . '#outcomes');
+    }
+
+    /**
+     * Copy the derived outcomes into rows so they can be edited.
+     *
+     * The same gesture as seeding the questions, and for the same reason: a programme should
+     * be able to run an interview on its first day without designing one, and an operator who
+     * then wants to change a word should be refining something that already works rather than
+     * facing an empty screen.
+     */
+    public function seedOutcomes(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $programmeId = (int) ($args['id'] ?? 0);
+        $n = QuestionnaireStyle::seedOutcomes($programmeId);
+        $_SESSION[$n > 0 ? 'flash' : 'flash_error'] = $n > 0
+            ? $n . ' outcomes copied in from the questions. Edit them freely.'
+            : 'This programme already has its own outcomes.';
+        return $this->back($res, '/admin/questionnaires/programme/' . $programmeId . '#outcomes');
+    }
+
+    /** Switch one knowledge entry, outcome or rule back on after it was retired. */
+    public function restoreRow(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $programmeId = (int) ($args['id'] ?? 0);
+        $body = (array) $req->getParsedBody();
+        QuestionnaireStyle::restore('gates_questionnaire_' . (string) ($body['what'] ?? ''),
+                                    (int) ($body['row'] ?? 0));
         return $this->back($res, '/admin/questionnaires/programme/' . $programmeId);
     }
 }

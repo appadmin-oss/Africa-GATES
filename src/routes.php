@@ -2859,6 +2859,15 @@ return function(App $app) {
             $s->get('/programme/{id:[0-9]+}',      \AfricaGates\Admin\Controllers\QuestionnairesController::class.':questions');
             $s->post('/programme/{id:[0-9]+}',     \AfricaGates\Admin\Controllers\QuestionnairesController::class.':saveQuestions');
             $s->post('/programme/{id:[0-9]+}/seed',\AfricaGates\Admin\Controllers\QuestionnairesController::class.':seed');
+            // The interview half of the same builder screen. Four endpoints rather than one,
+            // because each section saves on its own — a screen this long that lost the
+            // knowledge base every time somebody fixed a typo in an outcome would not be used
+            // twice.
+            $s->post('/programme/{id:[0-9]+}/style',    \AfricaGates\Admin\Controllers\QuestionnairesController::class.':saveStyle');
+            $s->post('/programme/{id:[0-9]+}/knowledge',\AfricaGates\Admin\Controllers\QuestionnairesController::class.':saveKnowledge');
+            $s->post('/programme/{id:[0-9]+}/outcomes', \AfricaGates\Admin\Controllers\QuestionnairesController::class.':saveOutcomes');
+            $s->post('/programme/{id:[0-9]+}/outcomes/seed', \AfricaGates\Admin\Controllers\QuestionnairesController::class.':seedOutcomes');
+            $s->post('/programme/{id:[0-9]+}/restore',  \AfricaGates\Admin\Controllers\QuestionnairesController::class.':restoreRow');
             $s->get('/{id:[0-9]+}',                \AfricaGates\Admin\Controllers\QuestionnairesController::class.':show');
             $s->post('/{id:[0-9]+}/invite',        \AfricaGates\Admin\Controllers\QuestionnairesController::class.':invite');
             $s->post('/{id:[0-9]+}/reopen',        \AfricaGates\Admin\Controllers\QuestionnairesController::class.':reopen');

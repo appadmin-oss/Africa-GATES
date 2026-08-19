@@ -1,164 +1,653 @@
 {% extends 'admin/layout.twig' %}
 
 {#
-  THE QUESTIONS FOR ONE PROGRAMME.
+  THE QUESTIONNAIRE BUILDER FOR ONE PROGRAMME.
 
-  Until somebody presses "copy the defaults in", this programme has no rows of its own and the
-  default set — generated from its own scoring criteria — is what nominees see. That is
-  deliberate: a platform must be able to send a questionnaire on its first day without
-  designing one, and rows nobody asked for are rows nobody maintains.
+  Two styles live on this screen because they are one decision. An operator choosing between a
+  form and a conversation needs to see what each one would actually ask, and a separate page per
+  style would mean configuring the interview without ever looking at the questions it replaces.
 
-  Two things are stated on the screen rather than left to be discovered: emptying a label
-  deletes that question, and the criterion decides where the answer lands in a judge's dossier.
+  ── WHY THE QUESTIONS EDITOR IS A REPEATER NOW ──────────────────────────────
+
+  It used to render the stored rows plus ONE blank row, with no way to reorder, no delete other
+  than emptying a label, and no field at all for the four branching columns. Those columns have
+  existed since the adaptive migration and QuestionnaireRules has always read them — so pressing
+  "copy the defaults in" to change a single word silently dropped every branch, and a nominee
+  whose project had closed was asked in the present tense how it is funded.
+
+  ── EACH SECTION SAVES ON ITS OWN ───────────────────────────────────────────
+
+  Five forms, not one. A screen this long that lost the knowledge base every time somebody fixed
+  a typo in an outcome would not be used twice.
 #}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  .qq-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 18px }
-  .qq-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
-    padding:18px 20px; margin-bottom:14px }
-  .qq-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
-  .qq-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
-  .qq-q{ border:1px solid rgba(16,41,44,.13); border-radius:12px; padding:14px 15px;
+  .qb-sub{ font-size:13px; color:#5a6d6f; margin:2px 0 16px }
+  .qb-nav{ display:flex; gap:6px; flex-wrap:wrap; margin:0 0 18px; padding:0; list-style:none }
+  .qb-nav a{ display:inline-block; text-decoration:none; font:650 12.5px/1 inherit;
+    padding:10px 14px; border-radius:999px; background:#f2f5f2; color:#3d5254;
+    border:1px solid rgba(16,41,44,.08); min-height:40px; box-sizing:border-box }
+  .qb-nav a:hover{ background:#e7ece7; color:#10292C }
+
+  .qb-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px; scroll-margin-top:80px }
+  .qb-sec h2{ margin:0 0 3px; font-size:15px; color:#10292C }
+  .qb-sec p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f }
+  .qb-sec p.qb-tight{ margin-top:4px }
+
+  .qb-card{ border:1px solid rgba(16,41,44,.13); border-radius:12px; padding:14px 15px;
     margin-top:12px; background:#fbfdfb }
-  .qq-grid{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));
+  .qb-card--ghost{ border-style:dashed; background:#fff }
+  .qb-card--gone{ background:#fdf4f3; border-color:rgba(179,38,30,.25) }
+  .qb-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px }
+  .qb-num{ font:700 10px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.12em;
+    color:#5a6d6f; background:#eef2ee; border-radius:6px; padding:6px 8px }
+  .qb-head-sp{ flex:1 }
+
+  .qb-grid{ display:grid; gap:10px; grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));
     margin-top:10px }
-  .qq-lab{ display:block; font:700 10px/1 var(--ag-font-body,inherit); letter-spacing:.08em;
+  .qb-lab{ display:block; font:700 10px/1 inherit; letter-spacing:.08em;
     text-transform:uppercase; color:#5a6d6f; margin-bottom:5px }
-  .qq-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px; padding:9px 11px;
+  .qb-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px; padding:9px 11px;
     border:1px solid rgba(16,41,44,.18); border-radius:9px; background:#fff; color:#10292C }
-  textarea.qq-in{ min-height:60px; line-height:1.6; resize:vertical }
-  .qq-check{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#3d5254 }
-  .qq-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:10px 17px;
-    border-radius:999px; background:#10292C; color:#fff; text-decoration:none; display:inline-block }
-  .qq-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
-  .qq-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:16px }
-  .qq-warn{ background:#fff8df; border:1px solid #ecd9a0; border-radius:10px; padding:12px 14px;
+  textarea.qb-in{ min-height:58px; line-height:1.6; resize:vertical }
+  .qb-in:focus-visible{ outline:2px solid #237b22; outline-offset:1px }
+  .qb-check{ display:inline-flex; align-items:center; gap:7px; font-size:13px; color:#3d5254;
+    min-height:44px }
+
+  .qb-btn{ cursor:pointer; font:650 13px/1 inherit; border:none; padding:0 17px; min-height:44px;
+    border-radius:999px; background:#10292C; color:#fff; text-decoration:none;
+    display:inline-flex; align-items:center; justify-content:center }
+  .qb-btn:hover{ background:#1a3c40 }
+  .qb-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .qb-btn--ghost:hover{ background:#f2f5f2 }
+  .qb-btn--warn{ background:none; border:1px solid rgba(179,38,30,.3); color:#b3261e }
+  .qb-btn--warn:hover{ background:#fdf4f3 }
+  /* Icon-only controls still meet the 24px minimum target with room to spare, and they are
+     never the only way to do anything — a row can also be removed by emptying its wording. */
+  .qb-mini{ cursor:pointer; font:650 12px/1 inherit; border:1px solid rgba(16,41,44,.18);
+    background:#fff; color:#3d5254; border-radius:8px; min-width:34px; min-height:34px;
+    display:inline-flex; align-items:center; justify-content:center; padding:0 8px }
+  .qb-mini:hover{ background:#f2f5f2; color:#10292C }
+  .qb-mini[disabled]{ opacity:.35; cursor:default }
+
+  .qb-row{ display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-top:16px }
+  .qb-warn{ background:#fff8df; border:1px solid #ecd9a0; border-radius:10px; padding:12px 14px;
     font-size:12.5px; line-height:1.7; color:#6b5312; margin-top:12px }
+  .qb-note{ background:#f2f7f2; border:1px solid rgba(35,123,34,.2); border-radius:10px;
+    padding:12px 14px; font-size:12.5px; line-height:1.7; color:#22452a; margin-top:12px }
+  .qb-bad{ background:#fdf4f3; border:1px solid rgba(179,38,30,.25); border-radius:10px;
+    padding:12px 14px; font-size:12.5px; line-height:1.7; color:#7a1f19; margin-top:12px }
+
+  /* The style choice. Two real options side by side, because choosing between them is the
+     decision this screen exists to support — a single checkbox would hide the alternative. */
+  .qb-styles{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));
+    margin-top:14px }
+  .qb-style{ display:block; border:1.5px solid rgba(16,41,44,.14); border-radius:12px;
+    padding:14px 15px; cursor:pointer; background:#fff }
+  .qb-style:hover{ border-color:rgba(16,41,44,.3) }
+  .qb-style h3{ margin:0 0 4px; font-size:14px; color:#10292C; display:flex; align-items:center; gap:8px }
+  .qb-style p{ margin:0; font-size:12.5px; line-height:1.65; color:#5a6d6f }
+  .qb-style input{ margin-right:2px }
+  .qb-style:has(input:checked){ border-color:#237b22; background:#f6faf6 }
+  .qb-style:has(input:focus-visible){ outline:2px solid #237b22; outline-offset:2px }
+
+  .qb-pill{ font:700 9.5px/1 var(--ag-font-mono, ui-monospace, monospace); letter-spacing:.14em;
+    text-transform:uppercase; border-radius:999px; padding:5px 8px }
+  .qb-pill--on{ background:#e7f2e7; color:#1a6118 }
+  .qb-pill--off{ background:#f4e9e8; color:#8a2020 }
+
+  .qb-branch{ margin-top:10px; padding-top:10px; border-top:1px dashed rgba(16,41,44,.14) }
+  .qb-branch summary{ cursor:pointer; font:650 11.5px/1 inherit; color:#3d5254;
+    min-height:34px; display:flex; align-items:center }
+  .qb-branch summary:hover{ color:#10292C }
 </style>
 {% endblock %}
 
-{% block topbar_title %}Questions — {{ programme.title }}{% endblock %}
+{% block topbar_title %}Questionnaire — {{ programme.title }}{% endblock %}
 
 {% block content %}
-<p class="qq-sub">
+<p class="qb-sub">
   {{ questions|length }} question(s) ·
   {{ has_own ? 'this programme\'s own set' : 'the shared default set' }} ·
   <a href="/admin/questionnaires">back to questionnaires</a>
 </p>
 
+<ul class="qb-nav">
+  <li><a href="#style">Style</a></li>
+  <li><a href="#questions">Questions</a></li>
+  <li><a href="#interview">The brief</a></li>
+  <li><a href="#knowledge">Knowledge</a></li>
+  <li><a href="#outcomes">Outcomes</a></li>
+  <li><a href="/admin/questionnaires/programme/{{ programme.id }}/rehearse">Rehearse</a></li>
+</ul>
+
+{# ══ 1 · which style ═════════════════════════════════════════════════════ #}
+<form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/style" id="style">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="qb-sec">
+    <h2>How this programme's nominees answer</h2>
+    <p>Whichever you choose, a nominee who has <strong>already opened their link</strong> keeps the
+       style they started on. Changing this cannot rewrite the rules under somebody halfway
+       through.</p>
+
+    <div class="qb-styles">
+      <label class="qb-style">
+        <h3><input type="radio" name="style" value="form" {{ cfg.style != 'interview' ? 'checked' : '' }}>
+          Guided form</h3>
+        <p>The questions below, one screen at a time, with help beside each box. Works with no AI
+           key at all, saves as a draft, and can be finished over several sittings.</p>
+      </label>
+      <label class="qb-style">
+        <h3><input type="radio" name="style" value="interview" {{ cfg.style == 'interview' ? 'checked' : '' }}>
+          Live interview
+          {% if live %}<span class="qb-pill qb-pill--on">Ready</span>
+          {% else %}<span class="qb-pill qb-pill--off">Not running</span>{% endif %}</h3>
+        <p>A conversation that goes where the nominee takes it and stops when it has what the
+           panel needs. Steered by the <a href="#outcomes">outcomes</a>, not by the question list.</p>
+      </label>
+    </div>
+
+    {% if cfg.style == 'interview' and not live %}
+      <div class="qb-bad">
+        <strong>This is set to the interview and the interview cannot run.</strong>
+        It needs an OpenAI key — set <code>ai_openai_key</code> in
+        <a href="/admin/settings">Settings</a>. Until then every nominee opening their link gets
+        the guided form and is told why, so nobody is left waiting. The setting here is not
+        changed by the outage.
+      </div>
+    {% endif %}
+
+    {% if cfg.inherited %}
+      <div class="qb-note">This programme has no settings of its own yet, so it is using the
+        platform defaults shown here. Saving creates its own.</div>
+    {% endif %}
+
+    <div class="qb-row"><button class="qb-btn" type="submit">Save the style</button></div>
+  </div>
+</form>
+
+{# ══ 2 · the questions ═══════════════════════════════════════════════════ #}
 {% if not has_own %}
-  <div class="qq-sec">
+  <div class="qb-sec">
     <h2>This programme uses the default questions</h2>
     <p>They are generated from this programme's own scoring criteria, so nominees can be asked
        today without anybody designing a questionnaire. Nothing is stored until you copy them in
        — and until then, editing the criteria changes the questions with them.</p>
-    <form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/seed" class="qq-row">
+    <form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/seed" class="qb-row">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <button class="qq-btn" type="submit">Copy them in so I can edit them</button>
+      <button class="qb-btn" type="submit">Copy them in so I can edit them</button>
     </form>
   </div>
 {% endif %}
 
-<form method="post" action="/admin/questionnaires/programme/{{ programme.id }}">
+<form method="post" action="/admin/questionnaires/programme/{{ programme.id }}" id="questions"
+      x-data="qbQuestions()">
   <input type="hidden" name="_token" value="{{ csrf_token }}">
 
-  <div class="qq-sec">
-    <h2>{{ has_own ? 'Edit the questions' : 'What nominees are asked' }}</h2>
+  <div class="qb-sec">
+    <h2>{{ has_own ? 'The questions' : 'What nominees are asked' }}</h2>
     <p><strong>Judged under</strong> decides which scoring criterion an answer is filed against in
        the judge's dossier — it is the reason this is a questionnaire rather than a form.
-       <strong>Becomes</strong> is what the answer turns into: a note, or a link a judge can follow.
-       {% if has_own %}Emptying a question's wording <strong>deletes it</strong>.{% endif %}</p>
+       <strong>Becomes</strong> is what the answer turns into: a note, or a link a judge can follow.</p>
 
     {% if not has_own %}
-      <div class="qq-warn">These are read-only until you copy them in above.</div>
-    {% endif %}
+      <div class="qb-warn">These are read-only until you copy them in above.</div>
+    {% else %}
 
-    {% for q in questions %}
-      <div class="qq-q">
-        <input type="hidden" name="q[{{ loop.index0 }}][id]" value="{{ q.id }}">
-        <input type="hidden" name="q[{{ loop.index0 }}][slug]" value="{{ q.slug }}">
-
-        <label class="qq-lab" for="l{{ loop.index0 }}">The question, as the nominee reads it</label>
-        <textarea class="qq-in" id="l{{ loop.index0 }}" name="q[{{ loop.index0 }}][label]"
-                  maxlength="300" {{ has_own ? '' : 'readonly' }}>{{ q.label }}</textarea>
-
-        <label class="qq-lab" style="margin-top:10px" for="h{{ loop.index0 }}">
-          What a good answer looks like (shown under the question)</label>
-        <textarea class="qq-in" id="h{{ loop.index0 }}" name="q[{{ loop.index0 }}][help]"
-                  maxlength="600" {{ has_own ? '' : 'readonly' }}>{{ q.help }}</textarea>
-
-        <div class="qq-grid">
-          <div>
-            <label class="qq-lab" for="k{{ loop.index0 }}">Answer type</label>
-            <select class="qq-in" id="k{{ loop.index0 }}" name="q[{{ loop.index0 }}][kind]" {{ has_own ? '' : 'disabled' }}>
-              {% for k in ['textarea','text','url','number','date','email'] %}
-                <option value="{{ k }}" {{ q.kind == k ? 'selected' : '' }}>{{ k }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div>
-            <label class="qq-lab" for="c{{ loop.index0 }}">Judged under</label>
-            <select class="qq-in" id="c{{ loop.index0 }}" name="q[{{ loop.index0 }}][criterion_id]" {{ has_own ? '' : 'disabled' }}>
-              <option value="">— none —</option>
-              {% for c in criteria %}
-                <option value="{{ c.id }}" {{ q.criterion_id == c.id ? 'selected' : '' }}>{{ c.label }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div>
-            <label class="qq-lab" for="e{{ loop.index0 }}">Becomes</label>
-            <select class="qq-in" id="e{{ loop.index0 }}" name="q[{{ loop.index0 }}][evidence_kind]" {{ has_own ? '' : 'disabled' }}>
-              {% for e in ['note','link','document','media','award','press'] %}
-                <option value="{{ e }}" {{ q.evidence_kind == e ? 'selected' : '' }}>{{ e }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div>
-            <label class="qq-lab" for="m{{ loop.index0 }}">Max characters</label>
-            <input class="qq-in" id="m{{ loop.index0 }}" name="q[{{ loop.index0 }}][max_len]"
-                   type="number" min="50" max="8000" value="{{ q.max_len }}" {{ has_own ? '' : 'readonly' }}>
-          </div>
-          <div style="align-self:end">
-            <label class="qq-check">
-              <input type="checkbox" name="q[{{ loop.index0 }}][is_required]" value="1"
-                     {{ q.is_required ? 'checked' : '' }} {{ has_own ? '' : 'disabled' }}>
-              Must be answered</label>
-          </div>
+    <template x-for="(q, i) in rows" :key="q.uid">
+      <div class="qb-card" :class="q.removed && 'qb-card--gone'">
+        <div class="qb-head">
+          <span class="qb-num" x-text="'Q' + (i + 1)"></span>
+          <code style="font-size:11.5px; color:#5a6d6f" x-text="q.slug || 'no short name'"></code>
+          <span x-show="q.removed" x-cloak class="qb-pill qb-pill--off">Deleted on save</span>
+          <span class="qb-head-sp"></span>
+          <button type="button" class="qb-mini" x-show="q.removed" x-cloak @click="undo(i)"
+                  :aria-label="'Keep question ' + (i + 1)">Keep it</button>
+          <button type="button" class="qb-mini" @click="move(i, -1)" :disabled="i === 0"
+                  :aria-label="'Move question ' + (i + 1) + ' up'">&uarr;</button>
+          <button type="button" class="qb-mini" @click="move(i, 1)" :disabled="i === rows.length - 1"
+                  :aria-label="'Move question ' + (i + 1) + ' down'">&darr;</button>
+          <button type="button" class="qb-mini" @click="duplicate(i)"
+                  :aria-label="'Duplicate question ' + (i + 1)">Copy</button>
+          <button type="button" class="qb-mini" @click="remove(i)"
+                  :aria-label="'Remove question ' + (i + 1)" style="color:#b3261e">Remove</button>
         </div>
-      </div>
-    {% endfor %}
 
-    {% if has_own %}
-      {# One blank row, so adding a question needs no separate screen. #}
-      {% set n = questions|length %}
-      <div class="qq-q" style="border-style:dashed">
-        <input type="hidden" name="q[{{ n }}][id]" value="0">
-        <label class="qq-lab" for="new-l">Add another question</label>
-        <textarea class="qq-in" id="new-l" name="q[{{ n }}][label]" maxlength="300"
-                  placeholder="Leave blank if you are not adding one"></textarea>
-        <div class="qq-grid">
+        <input type="hidden" :name="'q[' + i + '][id]'" :value="q.id">
+
+        <label class="qb-lab" :for="'ql' + q.uid">The question, as the nominee reads it</label>
+        <textarea class="qb-in" :id="'ql' + q.uid" :name="'q[' + i + '][label]'" maxlength="300"
+                  x-model="q.label"></textarea>
+
+        <label class="qb-lab" style="margin-top:10px" :for="'qh' + q.uid">
+          What a good answer looks like (shown under the question)</label>
+        <textarea class="qb-in" :id="'qh' + q.uid" :name="'q[' + i + '][help]'" maxlength="600"
+                  x-model="q.help"></textarea>
+
+        <div class="qb-grid">
           <div>
-            <label class="qq-lab" for="new-s">Short name (letters and underscores)</label>
-            <input class="qq-in" id="new-s" name="q[{{ n }}][slug]" type="text" maxlength="60"
-                   placeholder="e.g. partnerships">
+            <label class="qb-lab" :for="'qs' + q.uid">Short name</label>
+            <input class="qb-in" :id="'qs' + q.uid" :name="'q[' + i + '][slug]'" type="text"
+                   maxlength="60" x-model="q.slug" placeholder="e.g. partnerships">
           </div>
           <div>
-            <label class="qq-lab" for="new-c">Judged under</label>
-            <select class="qq-in" id="new-c" name="q[{{ n }}][criterion_id]">
+            <label class="qb-lab" :for="'qk' + q.uid">Answer type</label>
+            <select class="qb-in" :id="'qk' + q.uid" :name="'q[' + i + '][kind]'" x-model="q.kind">
+              {% for k in ['textarea','text','url','number','date','email','select','checkbox'] %}
+                <option value="{{ k }}">{{ k }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="qb-lab" :for="'qc' + q.uid">Judged under</label>
+            <select class="qb-in" :id="'qc' + q.uid" :name="'q[' + i + '][criterion_id]'"
+                    x-model="q.criterion_id">
               <option value="">— none —</option>
               {% for c in criteria %}<option value="{{ c.id }}">{{ c.label }}</option>{% endfor %}
             </select>
           </div>
+          <div>
+            <label class="qb-lab" :for="'qe' + q.uid">Becomes</label>
+            <select class="qb-in" :id="'qe' + q.uid" :name="'q[' + i + '][evidence_kind]'"
+                    x-model="q.evidence_kind">
+              {% for e in ['note','link','document','media','award','press'] %}
+                <option value="{{ e }}">{{ e }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="qb-lab" :for="'qm' + q.uid">Max characters</label>
+            <input class="qb-in" :id="'qm' + q.uid" :name="'q[' + i + '][max_len]'" type="number"
+                   min="50" max="8000" x-model="q.max_len">
+          </div>
+          <div style="align-self:end">
+            <label class="qb-check">
+              <input type="checkbox" :name="'q[' + i + '][is_required]'" value="1"
+                     x-model="q.is_required"> Must be answered</label>
+          </div>
         </div>
-      </div>
 
-      <div class="qq-row">
-        <button class="qq-btn" type="submit">Save these questions</button>
-        <span style="font-size:12px; color:#67797b">Nominees who have already sent theirs keep the
-          answers they gave.</span>
+        <div class="qb-grid" x-show="q.kind === 'select' || q.kind === 'checkbox'" x-cloak>
+          <div style="grid-column:1/-1">
+            <label class="qb-lab" :for="'qo' + q.uid">The choices, one per line</label>
+            <textarea class="qb-in" :id="'qo' + q.uid" :name="'q[' + i + '][options]'"
+                      x-model="q.options"></textarea>
+          </div>
+        </div>
+
+        <details class="qb-branch">
+          <summary>When to ask it, and what to nudge for</summary>
+
+          <div class="qb-grid">
+            <div>
+              <label class="qb-lab" :for="'qb1' + q.uid">Only ask this after</label>
+              <select class="qb-in" :id="'qb1' + q.uid" :name="'q[' + i + '][show_if_slug]'"
+                      x-model="q.show_if_slug">
+                <option value="">— always ask it —</option>
+                <template x-for="o in rows.filter(r => r.uid !== q.uid && r.slug)" :key="o.uid">
+                  <option :value="o.slug" x-text="o.slug"></option>
+                </template>
+              </select>
+            </div>
+            <div x-show="q.show_if_slug" x-cloak>
+              <label class="qb-lab" :for="'qb2' + q.uid">…and only when</label>
+              <select class="qb-in" :id="'qb2' + q.uid" :name="'q[' + i + '][show_if]'"
+                      x-model="q.show_if">
+                {% for value, label in branch_conditions %}
+                  <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="qb-lab" :for="'qw' + q.uid">Nudge if shorter than (words)</label>
+              <input class="qb-in" :id="'qw' + q.uid" :name="'q[' + i + '][min_words]'"
+                     type="number" min="0" max="200" x-model="q.min_words" placeholder="no nudge">
+            </div>
+            <div style="align-self:end">
+              <label class="qb-check">
+                <input type="checkbox" :name="'q[' + i + '][wants_number]'" value="1"
+                       x-model="q.wants_number"> Nudge for a figure</label>
+            </div>
+            <div style="grid-column:1/-1">
+              <label class="qb-lab" :for="'qp' + q.uid">Placeholder inside the box</label>
+              <input class="qb-in" :id="'qp' + q.uid" :name="'q[' + i + '][placeholder]'"
+                     type="text" maxlength="300" x-model="q.placeholder">
+            </div>
+          </div>
+
+          <p class="qb-tight" x-show="q.show_if_slug" x-cloak>
+            A branch is never a hard skip. An answer this rule cannot read clearly still shows the
+            question, because being asked something unnecessary costs a moment and never being
+            asked costs a nomination.</p>
+        </details>
       </div>
+    </template>
+
+    <div class="qb-row">
+      <button class="qb-btn qb-btn--ghost" type="button" @click="add()">Add a question</button>
+      <span style="font-size:12px; color:#67797b" x-text="rows.length + ' question(s)'"></span>
+    </div>
+
+    <div class="qb-row">
+      <button class="qb-btn" type="submit">Save these questions</button>
+      <span style="font-size:12px; color:#67797b">Nominees who have already sent theirs keep the
+        answers they gave.</span>
+    </div>
     {% endif %}
   </div>
 </form>
+
+{# ══ 3 · the brief ═══════════════════════════════════════════════════════ #}
+<form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/style" id="interview">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <input type="hidden" name="style" value="{{ cfg.style }}">
+  <div class="qb-sec">
+    <h2>What the interviewer is trying to do</h2>
+    <p>This is the only field that says what the conversation is <em>for</em>. Everything else is
+       a limit. Write it as you would brief a person taking the interview for you: what this
+       award is looking for, what a weak answer usually looks like, what to press on gently and
+       what to leave alone.</p>
+
+    <label class="qb-lab" style="margin-top:14px" for="brief">The brief</label>
+    <textarea class="qb-in" id="brief" name="brief" style="min-height:170px"
+      placeholder="e.g. This award recognises people who have changed something in their own community…">{{ cfg.brief }}</textarea>
+
+    <label class="qb-lab" style="margin-top:14px" for="greeting">The opening line</label>
+    <textarea class="qb-in" id="greeting" name="greeting" style="min-height:90px">{{ cfg.greeting }}</textarea>
+    <p class="qb-tight">Written rather than generated, so opening the page never waits on an API
+       call and never fails at the worst possible moment.</p>
+
+    <div class="qb-grid">
+      <div>
+        <label class="qb-lab" for="persona">Who they are talking to</label>
+        <input class="qb-in" id="persona" name="persona" type="text" maxlength="120"
+               value="{{ cfg.persona }}" placeholder="e.g. a programme officer">
+      </div>
+      <div>
+        <label class="qb-lab" for="route">Model</label>
+        <input class="qb-in" id="route" name="route" type="text" maxlength="80"
+               value="{{ cfg.route }}" placeholder="{{ route_default }}">
+      </div>
+      <div>
+        <label class="qb-lab" for="max_turns">Longest conversation (messages)</label>
+        <input class="qb-in" id="max_turns" name="max_turns" type="number" min="4" max="200"
+               value="{{ cfg.max_turns }}">
+      </div>
+      <div>
+        <label class="qb-lab" for="token_ceiling">Token allowance per nominee</label>
+        <input class="qb-in" id="token_ceiling" name="token_ceiling" type="number"
+               min="10000" max="2000000" step="10000" value="{{ cfg.token_ceiling }}">
+      </div>
+      <div>
+        <label class="qb-lab" for="kb_token_budget">Knowledge allowed into each prompt</label>
+        <input class="qb-in" id="kb_token_budget" name="kb_token_budget" type="number"
+               min="0" max="60000" step="500" value="{{ cfg.kb_token_budget }}">
+      </div>
+    </div>
+
+    <label class="qb-lab" style="margin-top:14px" for="closing">Shown above their answers on the
+      review screen</label>
+    <textarea class="qb-in" id="closing" name="closing">{{ cfg.closing }}</textarea>
+
+    <p>The model is pinned to <code>{{ route_default }}</code> unless you name another. It is
+       pinned because the interview records evidence by quoting the nominee <em>exactly</em>, and
+       a model that quotes approximately produces a conversation that appears not to be
+       listening.</p>
+
+    <div class="qb-row"><button class="qb-btn" type="submit">Save the brief</button></div>
+  </div>
+</form>
+
+{# ══ 4 · the knowledge base ══════════════════════════════════════════════ #}
+<form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/knowledge"
+      id="knowledge" x-data="qbRows({{ knowledge|json_encode|e('html_attr') }}, ['title','body'])">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="qb-sec">
+    <h2>What the interviewer knows</h2>
+    <p>Facts about this award that help it ask better questions — what counts as evidence here,
+       what the criteria mean in plain words, what previous winners were recognised for. Put the
+       most important entry first: when the base outgrows the prompt allowance above, the last
+       entries are the ones dropped.</p>
+
+    <template x-for="(k, i) in rows" :key="k.uid">
+      <div class="qb-card" :class="k.removed && 'qb-card--gone'">
+        <div class="qb-head">
+          <span class="qb-num" x-text="i + 1"></span>
+          <span x-show="k.removed" x-cloak class="qb-pill qb-pill--off">Removed on save</span>
+          <span class="qb-head-sp"></span>
+          <button type="button" class="qb-mini" x-show="k.removed" x-cloak @click="undo(i)"
+                  :aria-label="'Keep entry ' + (i + 1)">Keep it</button>
+          <button type="button" class="qb-mini" @click="move(i, -1)" :disabled="i === 0"
+                  :aria-label="'Move entry ' + (i + 1) + ' up'">&uarr;</button>
+          <button type="button" class="qb-mini" @click="move(i, 1)" :disabled="i === rows.length - 1"
+                  :aria-label="'Move entry ' + (i + 1) + ' down'">&darr;</button>
+          <button type="button" class="qb-mini" @click="remove(i)" style="color:#b3261e"
+                  :aria-label="'Remove entry ' + (i + 1)">Remove</button>
+        </div>
+        <input type="hidden" :name="'k[' + i + '][id]'" :value="k.id">
+        <div x-show="!k.removed">
+        <label class="qb-lab" :for="'kt' + k.uid">Title</label>
+        <input class="qb-in" :id="'kt' + k.uid" :name="'k[' + i + '][title]'" type="text"
+               maxlength="160" x-model="k.title">
+        <label class="qb-lab" style="margin-top:10px" :for="'kb' + k.uid">What it says</label>
+        <textarea class="qb-in" :id="'kb' + k.uid" :name="'k[' + i + '][body]'"
+                  style="min-height:100px" x-model="k.body"></textarea>
+        </div>
+      </div>
+    </template>
+
+    <div class="qb-row">
+      <button class="qb-btn qb-btn--ghost" type="button" @click="add()">Add an entry</button>
+      <button class="qb-btn" type="submit">Save the knowledge base</button>
+    </div>
+  </div>
+</form>
+
+{# ══ 5 · the outcomes ════════════════════════════════════════════════════ #}
+<form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/outcomes"
+      id="outcomes" x-data="qbRows({{ outcomes|json_encode|e('html_attr') }}, ['slug','label','description'])">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <div class="qb-sec">
+    <h2>What the interview must come away with</h2>
+    <p>The conversation is free to go anywhere; these are what it has to bring back. The
+       interviewer names them by their short name in every record it makes, and a name that is
+       not on this list is rejected — so this is not a set of labels, it is the vocabulary the
+       conversation is allowed to use.</p>
+    <p><strong>What counts</strong> is the field that does the work. An outcome described only as
+       "impact" will be marked as met by any sentence containing the word impact.</p>
+
+    {% if own_outcomes == 0 %}
+      <div class="qb-note">
+        These are being <strong>derived from the questions above</strong>, so the interview works
+        today without anybody designing one and aims at exactly the criteria the form aims at.
+        Nothing is stored until you copy them in.
+        <form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/outcomes/seed"
+              class="qb-row" style="margin-top:10px">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="qb-btn" type="submit">Copy them in so I can edit them</button>
+        </form>
+      </div>
+    {% else %}
+
+    <template x-for="(o, i) in rows" :key="o.uid">
+      <div class="qb-card" :class="o.removed && 'qb-card--gone'">
+        <div class="qb-head">
+          <span class="qb-num" x-text="i + 1"></span>
+          <code style="font-size:11.5px; color:#5a6d6f" x-text="o.slug || 'no short name'"></code>
+          <span x-show="o.removed" x-cloak class="qb-pill qb-pill--off">Removed on save</span>
+          <span class="qb-head-sp"></span>
+          <button type="button" class="qb-mini" x-show="o.removed" x-cloak @click="undo(i)"
+                  :aria-label="'Keep outcome ' + (i + 1)">Keep it</button>
+          <button type="button" class="qb-mini" @click="move(i, -1)" :disabled="i === 0"
+                  :aria-label="'Move outcome ' + (i + 1) + ' up'">&uarr;</button>
+          <button type="button" class="qb-mini" @click="move(i, 1)" :disabled="i === rows.length - 1"
+                  :aria-label="'Move outcome ' + (i + 1) + ' down'">&darr;</button>
+          <button type="button" class="qb-mini" @click="remove(i)" style="color:#b3261e"
+                  :aria-label="'Remove outcome ' + (i + 1)">Remove</button>
+        </div>
+        <input type="hidden" :name="'o[' + i + '][id]'" :value="o.id">
+
+        <div class="qb-grid">
+          <div>
+            <label class="qb-lab" :for="'os' + o.uid">Short name</label>
+            <input class="qb-in" :id="'os' + o.uid" :name="'o[' + i + '][slug]'" type="text"
+                   maxlength="60" x-model="o.slug">
+          </div>
+          <div style="grid-column:span 2">
+            <label class="qb-lab" :for="'ol' + o.uid">What it is, in a few words</label>
+            <input class="qb-in" :id="'ol' + o.uid" :name="'o[' + i + '][label]'" type="text"
+                   maxlength="160" x-model="o.label">
+          </div>
+        </div>
+
+        <label class="qb-lab" style="margin-top:10px" :for="'od' + o.uid">
+          What counts as having got it</label>
+        <textarea class="qb-in" :id="'od' + o.uid" :name="'o[' + i + '][description]'"
+                  x-model="o.description"></textarea>
+
+        <div class="qb-grid">
+          <div>
+            <label class="qb-lab" :for="'oc' + o.uid">Judged under</label>
+            <select class="qb-in" :id="'oc' + o.uid" :name="'o[' + i + '][criterion_id]'"
+                    x-model="o.criterion_id">
+              <option value="">— none —</option>
+              {% for c in criteria %}<option value="{{ c.id }}">{{ c.label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="qb-lab" :for="'oe' + o.uid">Becomes</label>
+            <select class="qb-in" :id="'oe' + o.uid" :name="'o[' + i + '][evidence_kind]'"
+                    x-model="o.evidence_kind">
+              {% for e in ['note','link','document','media','award','press'] %}
+                <option value="{{ e }}">{{ e }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="align-self:end">
+            <label class="qb-check">
+              <input type="checkbox" :name="'o[' + i + '][required]'" value="1"
+                     x-model="o.required"> Required to finish</label>
+          </div>
+        </div>
+        <p class="qb-tight" x-show="!o.criterion_id" x-cloak>
+          With no criterion this produces a good transcript and nothing a judge's rubric can
+          score.</p>
+      </div>
+    </template>
+
+    <div class="qb-row">
+      <button class="qb-btn qb-btn--ghost" type="button" @click="add()">Add an outcome</button>
+      <button class="qb-btn" type="submit">Save the outcomes</button>
+    </div>
+    {% endif %}
+
+    {% if rules|length %}
+      <h2 style="margin-top:22px">Rules picked up while rehearsing</h2>
+      <p>Corrections captured from a turn that went wrong. They are appended to the brief.</p>
+      {% for r in rules %}
+        <div class="qb-card"><p style="margin:0; color:#3d5254">{{ r.body }}</p></div>
+      {% endfor %}
+    {% endif %}
+  </div>
+</form>
+
+<script nonce="{{ csp_nonce }}">
+  /*
+   * Two repeaters, one shape.
+   *
+   * The rows are held in Alpine and the field NAMES are rebuilt from the array index on every
+   * render, so reordering is a splice rather than a renumbering of the DOM. `uid` is the :key
+   * and is never submitted — using the database id would break for rows that do not have one
+   * yet, and using the index would make Alpine reuse the wrong <textarea> after a move, which
+   * silently swaps two questions' wording.
+   */
+  function qbRows(seed, textFields) {
+    let n = 0;
+    const stamp = (r) => Object.assign({ uid: 'r' + (++n), id: 0 }, r);
+    return {
+      rows: (seed || []).map(stamp),
+      blank() {
+        const r = { id: 0, criterion_id: '', evidence_kind: 'note', required: false };
+        (textFields || []).forEach(f => { r[f] = ''; });
+        return stamp(r);
+      },
+      add() {
+        this.rows.push(this.blank());
+      },
+      remove(i) {
+        // An existing row is EMPTIED rather than dropped from the list, because the server
+        // retires by an emptied label — a row simply spliced out of the DOM would never be
+        // submitted and would therefore quietly stay live, which is the worst possible
+        // outcome: it looks removed and is not. A brand new row has nothing to tell the
+        // server, so it really can go.
+        const r = this.rows[i];
+        if (!r) return;
+        if (Number(r.id) > 0) {
+          r.kept = {};
+          (textFields || []).forEach(f => { r.kept[f] = r[f]; r[f] = ''; });
+          r.removed = true;
+        } else {
+          this.rows.splice(i, 1);
+        }
+      },
+      undo(i) {
+        // Nothing has been sent yet, so this is a real undo rather than a re-creation.
+        const r = this.rows[i];
+        if (!r || !r.removed) return;
+        Object.keys(r.kept || {}).forEach(f => { r[f] = r.kept[f]; });
+        r.removed = false;
+        r.kept = null;
+      },
+      move(i, by) {
+        const j = i + by;
+        if (j < 0 || j >= this.rows.length) return;
+        const [row] = this.rows.splice(i, 1);
+        this.rows.splice(j, 0, row);
+      },
+      stamp
+    };
+  }
+
+  function qbQuestions() {
+    const seed = {{ questions|json_encode(JSON_SAFE)|raw }}.map(q => ({
+      id: q.id || 0,
+      slug: q.slug || '',
+      label: q.label || '',
+      help: q.help || '',
+      kind: q.kind || 'textarea',
+      criterion_id: q.criterion_id || '',
+      evidence_kind: q.evidence_kind || 'note',
+      max_len: q.max_len || 1200,
+      is_required: !!Number(q.is_required),
+      placeholder: q.placeholder || '',
+      options: (q.options || []).join('\n'),
+      show_if_slug: q.show_if_slug || '',
+      show_if: q.show_if || 'answered',
+      min_words: (q.min_words === null || q.min_words === undefined) ? '' : q.min_words,
+      wants_number: !!Number(q.wants_number)
+    }));
+
+    const base = qbRows(seed, ['label']);
+    return Object.assign(base, {
+      add() {
+        this.rows.push(this.stamp({
+          id: 0, slug: '', label: '', help: '', kind: 'textarea', criterion_id: '',
+          evidence_kind: 'note', max_len: 1200, is_required: false, placeholder: '',
+          options: '', show_if_slug: '', show_if: 'answered', min_words: '', wants_number: false
+        }));
+      },
+      duplicate(i) {
+        const copy = Object.assign({}, this.rows[i]);
+        // A duplicate must not carry the original's id or its short name: the first would make
+        // the save overwrite the row it was copied from, and the second would give two
+        // questions one slug, which is how an answer lands under the wrong question.
+        copy.id = 0;
+        copy.slug = (copy.slug || 'question') + '_copy';
+        this.rows.splice(i + 1, 0, this.stamp(copy));
+      }
+    });
+  }
+</script>
 {% endblock %}

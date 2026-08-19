@@ -306,6 +306,18 @@ final class QuestionnaireService
                 'is_active'     => 1,
                 'created_at'    => $now,
                 'updated_at'    => $now,
+                // ── THE BRANCHING TRAVELS WITH THEM ──────────────────────────
+                //
+                // It did not, and the consequence was invisible. The defaults branch; the
+                // stored copy did not; and copying them in is the ONLY way to change a single
+                // word of any question. So the first operator to fix a typo silently turned an
+                // adaptive questionnaire into a flat one, and from then on a nominee who had
+                // said their project closed in 2019 was asked, in the present tense, how it is
+                // funded — the exact failure the adaptive work was done to remove.
+                'show_if_slug'  => $d['show_if_slug'] ?? null,
+                'show_if'       => $d['show_if'] ?? null,
+                'min_words'     => $d['min_words'] ?? null,
+                'wants_number'  => (int) ($d['wants_number'] ?? 0),
             ]);
             $n++;
         }
