@@ -133,6 +133,110 @@ final class MyWorkController
     }
 
     /**
+     * The live interview: one turn in, the next question out.
+     *
+     * Separate from {@see chat()} rather than a mode inside it, because the two are different
+     * features that happen to look alike. `chat()` walks a question list and stores an answer
+     * against a slug; this holds a conversation and moves an outcome ledger. Folding them
+     * together would mean one method with two of everything and a branch at the top of each.
+     */
+    public function interview(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $body  = (array) $req->getParsedBody();
+        $said  = trim((string) ($body['say'] ?? ''));
+
+        $r = $said === ''
+            ? \AfricaGates\Services\QuestionnaireInterview::open($token)
+            : \AfricaGates\Services\QuestionnaireInterview::say($token, $said);
+
+        return $this->json($res, $r, ($r['ok'] ?? false) ? 200 : 422);
+    }
+
+    /**
+     * Leave the conversation for the form.
+     *
+     * A REDIRECT rather than JSON, because it is a navigation: the page that comes back is a
+     * different page. It is also the reason this works with the script broken — the escape
+     * hatch on every screen is a real form post, so a nominee whose JavaScript has failed can
+     * still get out.
+     */
+    public function interviewSwitch(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $r = \AfricaGates\Services\QuestionnaireInterview::switchToForm($token);
+        $_SESSION[($r['ok'] ?? false) ? 'mywork_notice' : 'mywork_error'] = (string) $r['message'];
+        return $res->withHeader('Location', '/my-work/' . $token)->withStatus(302);
+    }
+
+    /** Talk, show, review. The nominee moving themselves between the interview's phases. */
+    public function interviewPhase(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $body  = (array) $req->getParsedBody();
+        \AfricaGates\Services\QuestionnaireInterview::setPhase($token, (string) ($body['phase'] ?? 'talk'));
+        return $this->json($res, \AfricaGates\Services\QuestionnaireInterview::state($token));
+    }
+
+    /**
+     * The nominee taking one of their own messages back.
+     *
+     * The undo route a verbatim doctrine has to have. "Stored exactly as you said it" with no
+     * way out is a trap for anybody who mistypes a figure or names somebody who would rather
+     * not be named — in a record a judging panel reads.
+     */
+    public function interviewAmend(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $body  = (array) $req->getParsedBody();
+
+        $r = \AfricaGates\Services\QuestionnaireInterview::amend(
+            $token,
+            (int) ($body['turn'] ?? -1),
+            (string) ($body['how'] ?? ''),
+            (string) ($body['text'] ?? ''),
+        );
+        return $this->json($res, $r, ($r['ok'] ?? false) ? 200 : 422);
+    }
+
+    /**
+     * The nominee correcting, or deleting, one of the machine's readings.
+     *
+     * This is the whole point of the review screen. Every value the model produced is labelled
+     * machine-derived and carries the quote behind it, and none of it goes to a panel until a
+     * person has had the chance to say "that is not what I meant".
+     */
+    public function interviewOutcome(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $body  = (array) $req->getParsedBody();
+        $slug  = (string) ($body['slug'] ?? '');
+
+        $s = QuestionnaireService::byToken($token);
+        if (!$s) return $this->json($res, ['ok' => false, 'message' => 'That link is not valid.'], 422);
+
+        if ((string) ($body['action'] ?? '') === 'drop') {
+            \AfricaGates\Services\QuestionnaireLedger::drop($s, $slug);
+            $r = ['ok' => true, 'message' => 'Removed from what will be sent.'];
+        } else {
+            $r = \AfricaGates\Services\QuestionnaireLedger::correct($s, $slug, (string) ($body['text'] ?? ''));
+            $r['message'] = ($r['ok'] ?? false) ? 'Changed to your words.' : (string) $r['reason'];
+        }
+
+        return $this->json($res, $r + \AfricaGates\Services\QuestionnaireInterview::state($token),
+                           ($r['ok'] ?? false) ? 200 : 422);
+    }
+
+    /** JSON, with the headers a token-gated page needs on every one of its endpoints. */
+    private function json(Response $res, array $payload, int $code = 200): Response
+    {
+        $res->getBody()->write((string) json_encode($payload));
+        return $res->withHeader('Content-Type', 'application/json')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow')
+                   ->withStatus($code);
+    }
+
+    /**
      * Read one of the AI's questions aloud. Returns MP3 bytes, not JSON.
      *
      * Addressed by TURN INDEX, never by text: the page says "speak turn 4 of my own
@@ -379,6 +483,23 @@ final class MyWorkController
     private function render(Response $res, ?array $form, string $token,
                            string $notice, string $error, array $missing = []): Response
     {
+        // ── WHICH QUESTIONNAIRE IS THIS PERSON ANSWERING? ────────────────────
+        //
+        // Decided by the STAMP on their own submission, written when they first opened the
+        // link — never by the programme's current setting. An administrator switching a
+        // programme mid-cycle must not change the rules under somebody halfway through, and
+        // an AI outage must not convert their conversation into a form they never chose.
+        //
+        // `open()` is called here rather than on the first turn because the stamp has to exist
+        // before anything renders, and because the greeting is written rather than generated —
+        // so the first screen never waits on an API call and never fails at the worst possible
+        // moment.
+        if ($form !== null
+            && \AfricaGates\Services\QuestionnaireInterview::open($token)['style']
+               === \AfricaGates\Services\QuestionnaireStyle::INTERVIEW) {
+            return $this->renderInterview($res, $form, $token, $notice, $error);
+        }
+
         // The conversation's state is rendered WITH the page rather than fetched after it. A
         // nominee returning to a half-finished chat should see it already there — a panel that
         // arrives a second later, after a spinner, reads as a different feature that has lost
@@ -424,6 +545,43 @@ final class MyWorkController
                     return $c;
                 }, [])
                 : [],
+            'support_email' => Notifier::supportEmail(),
+        ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
+    }
+
+    /**
+     * The live interview, which is its own screen rather than a mode on the form.
+     *
+     * ── WHY A SECOND TEMPLATE AND A SECOND ALPINE SCOPE ──────────────────────
+     *
+     * The two styles are mutually exclusive per submission — the stamp decides, once — so they
+     * never appear on one page. Sharing a scope would mean every nominee in a conversation
+     * carrying the form's works list, its readiness panel and its spoken-introduction state,
+     * none of which their screen has, and it would mean one template holding two layouts that
+     * share nothing but a token.
+     *
+     * @param array<string,mixed> $form
+     */
+    private function renderInterview(Response $res, array $form, string $token,
+                                     string $notice, string $error): Response
+    {
+        $state = \AfricaGates\Services\QuestionnaireInterview::state($token);
+        $s     = QuestionnaireService::byToken($token);
+        $pid   = ($s->programme_id ?? null) !== null ? (int) $s->programme_id : null;
+
+        return $this->view->render($res, 'pages/my-work/interview.twig', [
+            'page_title' => 'Your interview',
+            'form'       => $form,
+            'token'      => $token,
+            'notice'     => $notice,
+            'error'      => $error,
+            'iv'         => $state,
+            // Same rule as the form: with no ElevenLabs key the page renders no speaker and no
+            // microphone at all, rather than disabled buttons. A nominee should never be shown
+            // the shape of a feature the operator has not bought.
+            'voice'      => \AfricaGates\Services\QuestionnaireVoice::enabled(),
+            'deadline'   => $form['deadline'] ?? '',
+            'persona'    => (string) (\AfricaGates\Services\QuestionnaireStyle::config($pid)['persona'] ?? ''),
             'support_email' => Notifier::supportEmail(),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }

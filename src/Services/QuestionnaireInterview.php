@@ -169,14 +169,22 @@ final class QuestionnaireInterview
         if (!$s) return self::state($token);
 
         if (trim((string) ($s->style ?? '')) === '') {
-            // INTENT, not availability. `styleFor()` with $live true degrades to the form when
-            // no provider can be reached, and stamping that would make a five-minute outage on
-            // the afternoon somebody opened their link permanently convert their submission to
-            // a form. Availability is a question for every turn, answered by degradation();
-            // this is a question answered once, and the honest answer is what the programme
-            // chose.
+            // ── STAMPED WITH WHAT WILL ACTUALLY WORK ─────────────────────
+            //
+            // `styleFor()` with $live true degrades to the form when the interview cannot run,
+            // and that is the right thing to write down. The alternative — stamping the
+            // programme's intent and letting the page explain the outage — means somebody
+            // opening their link on a deployment with no key meets an interview screen whose
+            // only content is an apology and a button back to the form. Two screens to reach
+            // the questionnaire, on a deadline, for no gain.
+            //
+            // The cost is real and smaller: a provider outage during the exact minute somebody
+            // first opens their link settles them on the form for good. They lose a nicer way
+            // to answer the same questions. An interview already under way is unaffected —
+            // once stamped, the stamp is never re-read — which is the case that actually
+            // matters, because that is where somebody's work is.
             $style = QuestionnaireStyle::styleFor(
-                ($s->programme_id ?? null) !== null ? (int) $s->programme_id : null, live: false);
+                ($s->programme_id ?? null) !== null ? (int) $s->programme_id : null);
             try {
                 DB::table('gates_nominee_submissions')->where('id', (int) $s->id)->update([
                     'style' => $style,
@@ -706,17 +714,31 @@ final class QuestionnaireInterview
      * quote is checked against THIS text rather than the raw transcript, so a quote can never
      * carry back a phone number the platform had just removed.
      *
-     * @return list<array{role:string,text:string}>
+     * ── EVERY ROW CARRIES ITS TRUE POSITION ──────────────────────────────────
+     *
+     * `i` is the index in the WHOLE transcript, not in this window. It has to be: this list is
+     * both what the model sees and what a quote is validated against, and the index that comes
+     * back is stored as `turn_index` and used by "see it in the conversation". Two things
+     * shift the positions — the last-N slice, and skipping turns the nominee has taken back —
+     * so a naive array position would attribute a quote to whatever message happened to sit at
+     * that offset. The failure would be invisible on screen and only ever wrong for a judge.
+     *
+     * @return list<array{i:int,role:string,text:string}>
      */
     private static function promptTurns(array $env): array
     {
-        $turns = array_slice((array) ($env['turns'] ?? []), -self::PROMPT_TURNS);
+        $turns = (array) ($env['turns'] ?? []);
+        $from  = max(0, count($turns) - self::PROMPT_TURNS);
         $out   = [];
-        foreach ($turns as $t) {
+        foreach ($turns as $i => $t) {
+            if ($i < $from) continue;
             $role = (string) ($t['role'] ?? 'nominee');
             $text = (string) ($t['text'] ?? '');
+            // A turn the nominee removed is gone from the conversation as far as the model is
+            // concerned. Sending it anyway would mean the interview still knew something a
+            // person had explicitly withdrawn.
             if (trim($text) === '') continue;
-            $out[] = ['role' => $role,
+            $out[] = ['i' => (int) $i, 'role' => $role,
                       'text' => $role === 'nominee' ? AiPrivacy::minimise($text)['text'] : $text];
         }
         return $out;
@@ -771,13 +793,21 @@ final class QuestionnaireInterview
         return ['role' => $role, 'text' => $text, 'at' => Carbon::now()->toDateTimeString()];
     }
 
-    /** What the page shows: role, text, and the turn index every quote can point back to. */
+    /**
+     * What the page shows: role, text, and the turn index every quote can point back to.
+     *
+     * Withdrawn turns are dropped from the list but their POSITIONS are not reused — `i` is
+     * the true index, so a quote recorded against turn 11 still jumps to turn 11 after turn 4
+     * has been taken back.
+     */
     private static function visibleTurns(array $env): array
     {
         $out = [];
         foreach ((array) ($env['turns'] ?? []) as $i => $t) {
+            if (trim((string) ($t['text'] ?? '')) === '') continue;
             $out[] = ['i' => (int) $i, 'role' => (string) ($t['role'] ?? 'nominee'),
-                      'text' => (string) ($t['text'] ?? ''), 'at' => (string) ($t['at'] ?? '')];
+                      'text' => (string) ($t['text'] ?? ''), 'at' => (string) ($t['at'] ?? ''),
+                      'amended' => isset($t['amended'])];
         }
         return $out;
     }
@@ -864,6 +894,96 @@ final class QuestionnaireInterview
                 'message' => $carried === []
                     ? 'Switched to the form.'
                     : 'Switched to the form — ' . count($carried) . ' of your answers came across.'];
+    }
+
+    /**
+     * The nominee taking one of their own turns back.
+     *
+     * ── WHY A VERBATIM DOCTRINE NEEDS AN UNDO ────────────────────────────────
+     *
+     * "Stored exactly as you said it" is the promise this feature is built on, and a promise
+     * with no way out is a trap: somebody who mistypes a figure, names a person who would
+     * rather not be named, or simply says something badly is otherwise stuck with it in a
+     * record a judging panel will read.
+     *
+     * Three routes, and the friction is scaled to what each one costs:
+     *
+     *   'edit'   replaces the words. The old version is NOT kept — keeping a hidden original
+     *            of something a person asked to change would be the opposite of what they
+     *            asked for.
+     *   'again'  appends a new turn instead, leaving the first in place. The honest option
+     *            when they want to add rather than replace.
+     *   'remove' takes the turn out of the transcript entirely.
+     *
+     * Any ledger row whose quote came from the affected turn is dropped in all three cases.
+     * Leaving it would mean a judge reading a quote attributed to a sentence that no longer
+     * exists — the one failure that would make the whole record untrustworthy.
+     */
+    public static function amend(string $token, int $index, string $how, string $text = ''): array
+    {
+        $s = QuestionnaireService::byToken($token);
+        if (!$s) return ['ok' => false, 'message' => 'That link is not valid.'];
+        if ((string) ($s->status ?? 'draft') !== 'draft') {
+            return ['ok' => false, 'message' => 'This has already gone to the judges.'];
+        }
+
+        $env   = self::envelope($s);
+        $turns = (array) ($env['turns'] ?? []);
+        $t     = $turns[$index] ?? null;
+
+        // Only their OWN words. A route that could rewrite the interviewer's turns would let
+        // the transcript be edited into a conversation that never happened.
+        if ($t === null || (string) ($t['role'] ?? '') !== 'nominee') {
+            return ['ok' => false, 'message' => 'That is not one of your messages.'];
+        }
+
+        $text = trim(mb_substr($text, 0, self::MAX_SAY_CHARS));
+
+        if ($how === 'again') {
+            if ($text === '') return ['ok' => false, 'message' => 'Nothing was typed.'];
+            $turns[] = self::turn('nominee', $text);
+        } elseif ($how === 'edit') {
+            if ($text === '') return ['ok' => false, 'message' => 'Nothing was typed.'];
+            $turns[$index]['text']    = $text;
+            $turns[$index]['amended'] = Carbon::now()->toDateTimeString();
+        } elseif ($how === 'remove') {
+            $turns[$index]['text']    = '';
+            $turns[$index]['removed'] = Carbon::now()->toDateTimeString();
+        } else {
+            return ['ok' => false, 'message' => 'Unknown change.'];
+        }
+
+        // Turns are BLANKED rather than spliced out, so every stored turn_index keeps pointing
+        // at the same message. Renumbering would silently re-attribute every quote recorded
+        // after the removed turn — a bug that would only ever be visible to a judge.
+        $env['turns'] = array_values($turns);
+        self::putEnvelope($s, $env);
+
+        if ($how !== 'again') self::dropOutcomesFromTurn($s, $index);
+
+        return ['ok' => true, 'message' => match ($how) {
+            'edit'   => 'Changed. The judges see the new version.',
+            'remove' => 'Taken out. The judges will never see it.',
+            default  => 'Added.',
+        }] + self::state($token);
+    }
+
+    /**
+     * Forget anything the model recorded from one turn.
+     *
+     * A nominee's own correction is preserved: they typed that on the review screen, it is not
+     * the machine's reading of a sentence, and it does not stop being true because the sentence
+     * behind an unrelated quote changed.
+     */
+    private static function dropOutcomesFromTurn(object $s, int $index): void
+    {
+        try {
+            DB::table('gates_submission_outcomes')
+                ->where('submission_id', (int) $s->id)
+                ->where('turn_index', $index)
+                ->where('edited_by_nominee', 0)
+                ->delete();
+        } catch (\Throwable) {}
     }
 
     /** Move between talk, show and review. Never backwards past a submitted state. */

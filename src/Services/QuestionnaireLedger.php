@@ -285,7 +285,11 @@ final class QuestionnaireLedger
             // the nominee's own punctuation. Where folding moved the offsets — a double space,
             // a curly apostrophe — the folded text is honest and still theirs.
             $at = mb_strpos($hayRaw, $quote);
-            return [$at !== false ? mb_substr($hayRaw, $at, mb_strlen($quote)) : $needle, (int) $i];
+            // The turn's OWN index when it carries one. The caller's list is a window over the
+            // transcript with withdrawn turns skipped, so its array position is not the
+            // position a judge's "see it in the conversation" link needs.
+            return [$at !== false ? mb_substr($hayRaw, $at, mb_strlen($quote)) : $needle,
+                    (int) ($t['i'] ?? $i)];
         }
         return null;
     }

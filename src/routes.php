@@ -2273,6 +2273,20 @@ return function(App $app) {
         // being asked the next question loses the thread — and the answer is already stored
         // by the time this responds, so a dropped connection costs the reply, not the work.
         $g->post('/my-work/{token:[a-f0-9]{32}}/chat',   \AfricaGates\Controllers\MyWorkController::class.':chat');
+        // ── the live interview ───────────────────────────────────────────────
+        //
+        // Reachable with the invite token alone, no account, which is existing doctrine for
+        // this page: a nominee has none, and demanding one to describe their own work shuts
+        // out exactly the people these awards exist to find.
+        //
+        // `switch` is a plain form post rather than JSON on purpose. It is the escape hatch
+        // shown on every screen of the conversation, and an escape hatch that needs working
+        // JavaScript is not one.
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview',         \AfricaGates\Controllers\MyWorkController::class.':interview');
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview/switch',  \AfricaGates\Controllers\MyWorkController::class.':interviewSwitch');
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview/phase',   \AfricaGates\Controllers\MyWorkController::class.':interviewPhase');
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview/amend',   \AfricaGates\Controllers\MyWorkController::class.':interviewAmend');
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview/outcome', \AfricaGates\Controllers\MyWorkController::class.':interviewOutcome');
         // Voice, both directions. `speak` returns MP3 bytes and is addressed by TURN INDEX,
         // never by text, so it cannot be used to have the platform's ElevenLabs account read
         // out a stranger's paragraph; `listen` transcribes a recording and hands the words
