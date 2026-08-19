@@ -2882,6 +2882,11 @@ return function(App $app) {
             $s->post('/programme/{id:[0-9]+}/outcomes', \AfricaGates\Admin\Controllers\QuestionnairesController::class.':saveOutcomes');
             $s->post('/programme/{id:[0-9]+}/outcomes/seed', \AfricaGates\Admin\Controllers\QuestionnairesController::class.':seedOutcomes');
             $s->post('/programme/{id:[0-9]+}/restore',  \AfricaGates\Admin\Controllers\QuestionnairesController::class.':restoreRow');
+            // Rehearsal. The pane drives a real test submission through the nominee's own
+            // endpoints, so there is no second implementation of the interview to keep in
+            // step — these two routes only set one up and act on what it found.
+            $s->get('/programme/{id:[0-9]+}/rehearse',  \AfricaGates\Admin\Controllers\QuestionnairesController::class.':rehearse');
+            $s->post('/programme/{id:[0-9]+}/rehearse', \AfricaGates\Admin\Controllers\QuestionnairesController::class.':rehearseAct');
             $s->get('/{id:[0-9]+}',                \AfricaGates\Admin\Controllers\QuestionnairesController::class.':show');
             $s->post('/{id:[0-9]+}/invite',        \AfricaGates\Admin\Controllers\QuestionnairesController::class.':invite');
             $s->post('/{id:[0-9]+}/reopen',        \AfricaGates\Admin\Controllers\QuestionnairesController::class.':reopen');

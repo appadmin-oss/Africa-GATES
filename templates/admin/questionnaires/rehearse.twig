@@ -1,0 +1,329 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  REHEARSING AN INTERVIEW BEFORE A NOMINEE MEETS IT.
+
+  The brief is prose in a textarea. There is no compiler for it. The only way to find out that
+  "press for a figure" makes the interviewer hound somebody whose work has no figures is to be
+  that person for ten minutes.
+
+  Without this screen the first person to discover a bad brief is a real nominee, on a
+  deadline, describing their life's work to something that is not listening — and they will
+  never tell anybody. They will simply stop.
+
+  It drives a REAL test submission through the nominee's own endpoints. Same prompt, same
+  tools, same quote check, same refusals. A preview mode would be a second implementation of
+  the one thing this feature cannot afford to have two of.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .rh{ display:grid; gap:16px; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);
+    align-items:start }
+  @media (max-width:1000px){ .rh{ grid-template-columns:1fr } }
+
+  .rh-sec{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:16px 18px }
+  .rh-sec h2{ margin:0 0 3px; font-size:14.5px; color:#10292C }
+  .rh-sec p{ margin:7px 0 0; font-size:12.5px; line-height:1.65; color:#5a6d6f }
+
+  .rh-log{ display:flex; flex-direction:column; gap:12px; margin-top:14px;
+    max-height:56vh; overflow-y:auto; padding-right:4px }
+  .rh-turn{ display:flex; flex-direction:column }
+  .rh-msg{ padding:11px 14px; font-size:13.5px; line-height:1.6; max-width:88%;
+    white-space:pre-wrap; overflow-wrap:anywhere }
+  .rh-msg--ai{ align-self:flex-start; background:#f1f6f1; color:#22332c;
+    border-radius:16px 16px 16px 5px }
+  .rh-msg--me{ align-self:flex-end; background:#10292C; color:#f2f6f3;
+    border-radius:16px 16px 5px 16px }
+  .rh-wrong{ align-self:flex-start; margin-top:5px; background:none; border:none; padding:0;
+    cursor:pointer; font:650 11px/1 inherit; color:#b3261e; min-height:28px }
+  .rh-wrong:hover{ text-decoration:underline }
+
+  .rh-ask{ display:flex; gap:8px; margin-top:12px; align-items:flex-end }
+  .rh-in{ width:100%; box-sizing:border-box; font-family:inherit; font-size:13.5px;
+    padding:10px 12px; border:1px solid rgba(16,41,44,.18); border-radius:10px; background:#fff;
+    color:#10292C }
+  textarea.rh-in{ min-height:52px; line-height:1.55; resize:vertical }
+  .rh-in:focus-visible{ outline:2px solid #237b22; outline-offset:1px }
+
+  .rh-btn{ cursor:pointer; font:650 12.5px/1 inherit; border:none; padding:0 15px; min-height:40px;
+    border-radius:999px; background:#10292C; color:#fff; text-decoration:none;
+    display:inline-flex; align-items:center; justify-content:center; white-space:nowrap }
+  .rh-btn:hover{ background:#1a3c40 }
+  .rh-btn--ghost{ background:none; border:1px solid rgba(16,41,44,.2); color:#10292C }
+  .rh-btn--ghost:hover{ background:#f2f5f2 }
+  .rh-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:12px }
+
+  .rh-lab{ display:block; font:700 10px/1 inherit; letter-spacing:.08em; text-transform:uppercase;
+    color:#5a6d6f; margin:12px 0 5px }
+  .rh-out{ display:grid; grid-template-columns:auto 1fr; gap:10px; padding:9px 0;
+    border-top:1px solid rgba(16,41,44,.09); align-items:start }
+  .rh-mark{ width:14px; height:14px; border-radius:50%; margin-top:3px; flex:none }
+  .rh-mark--met{ background:#237b22 }
+  .rh-mark--part{ border:2px solid #c9a24b }
+  .rh-mark--unmet{ border:2px solid rgba(16,41,44,.2) }
+  .rh-out b{ display:block; font:600 13px/1.4 inherit; color:#10292C }
+  .rh-out span{ display:block; font-size:11.5px; line-height:1.5; color:#5a6d6f; margin-top:2px }
+
+  .rh-persona{ display:block; width:100%; text-align:left; background:#f6f7f6; border:none;
+    border-radius:10px; padding:10px 12px; margin-top:7px; cursor:pointer; font-family:inherit }
+  .rh-persona:hover{ background:#eceeec }
+  .rh-persona b{ display:block; font:600 12.5px/1.35 inherit; color:#10292C }
+  .rh-persona span{ display:block; font-size:11.5px; line-height:1.5; color:#5a6d6f; margin-top:2px }
+
+  .rh-case{ border-top:1px solid rgba(16,41,44,.09); padding:10px 0 }
+  .rh-case b{ font:600 13px/1.4 inherit; color:#10292C }
+  .rh-case span{ display:block; font-size:11.5px; line-height:1.5; color:#5a6d6f; margin-top:2px }
+  .rh-case--lost span{ color:#8a2020 }
+
+  .rh-bad{ background:#fdf4f3; border:1px solid rgba(179,38,30,.28); border-radius:10px;
+    padding:11px 13px; font-size:12.5px; line-height:1.65; color:#7a1f19; margin-top:12px }
+  .rh-note{ background:#f2f7f2; border:1px solid rgba(35,123,34,.22); border-radius:10px;
+    padding:11px 13px; font-size:12.5px; line-height:1.65; color:#22452a; margin-top:12px }
+  [x-cloak]{ display:none !important }
+</style>
+{% endblock %}
+
+{% block topbar_title %}Rehearse — {{ programme.title }}{% endblock %}
+
+{% block content %}
+<p style="font-size:13px; color:#5a6d6f; margin:2px 0 16px">
+  Nothing here reaches a judge — it is a test submission and
+  <a href="/admin/questionnaires/programme/{{ programme.id }}">the builder</a> is where you
+  change what it does.
+</p>
+
+{% if not live %}
+  <div class="rh-bad"><strong>The interview cannot run.</strong> It needs an OpenAI key — set
+    <code>ai_openai_key</code> in <a href="/admin/settings">Settings</a>. Until then this pane
+    will not answer, and nominees get the guided form.</div>
+{% endif %}
+
+<div class="rh" x-data="rhPane()">
+
+  {# ── the conversation ──────────────────────────────────────────────── #}
+  <div class="rh-sec">
+    <h2>The conversation</h2>
+    <p>Answer it as a nominee would. When a reply is wrong, say so on the turn itself — that is
+       what turns a bad brief into a rule instead of a note nobody reads.</p>
+
+    <div class="rh-log" x-ref="log">
+      <template x-for="t in turns" :key="t.i">
+        <div class="rh-turn">
+          <div class="rh-msg" :class="t.role === 'nominee' ? 'rh-msg--me' : 'rh-msg--ai'"
+               x-text="t.text"></div>
+          <button type="button" class="rh-wrong" x-show="t.role !== 'nominee'"
+                  @click="flag(t)">This reply was wrong</button>
+        </div>
+      </template>
+      <p x-show="busy" x-cloak style="font-size:12px; color:#5a6d6f; margin:0">Thinking…</p>
+    </div>
+
+    <div class="rh-ask">
+      <label class="sr-only" for="rhSay">Your answer as the nominee</label>
+      <textarea class="rh-in" id="rhSay" x-model="say" x-ref="say"
+                @keydown.enter.exact.prevent="send()"
+                placeholder="Answer as a nominee would…"></textarea>
+      <button class="rh-btn" type="button" @click="send()" :disabled="busy || !say.trim()">Send</button>
+    </div>
+    <p x-show="err" x-cloak class="rh-bad" x-text="err"></p>
+
+    <form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/rehearse"
+          class="rh-row">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="do" value="reset">
+      <button class="rh-btn rh-btn--ghost" type="submit">Start again</button>
+    </form>
+  </div>
+
+  {# ── the right-hand rail ───────────────────────────────────────────── #}
+  <div style="display:grid; gap:16px">
+
+    <div class="rh-sec">
+      <h2>What it has recorded</h2>
+      <p>Straight from the ledger, exactly as a nominee's progress rail reads it. A heading here
+         with no quote under it would mean the quote check refused something.</p>
+      <template x-for="o in ledger" :key="o.slug">
+        <div class="rh-out">
+          <span class="rh-mark" :class="o.status === 'met' ? 'rh-mark--met'
+            : (o.status === 'partial' ? 'rh-mark--part' : 'rh-mark--unmet')"></span>
+          <div>
+            <b x-text="o.label"></b>
+            <span x-text="o.quote ? '“' + o.quote + '”'
+              : (o.required ? 'Not yet' : 'Optional · not yet')"></span>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <div class="rh-sec">
+      <h2>Be somebody difficult</h2>
+      <p>The nominees who break interviews. A suite made only of cooperative ones proves nothing
+         about the population this will meet.</p>
+      {% for key, p in personas %}
+        <button type="button" class="rh-persona"
+                @click="persona('{{ key }}', {{ p.lines|json_encode|e('html_attr') }})">
+          <b>{{ p.label }}</b><span>{{ p.note }}</span>
+        </button>
+      {% endfor %}
+      <p x-show="playing" x-cloak class="rh-note" x-text="'Playing: ' + playing
+        + ' — press Send to give the next line, or type your own.'"></p>
+    </div>
+
+    <div class="rh-sec">
+      <h2>Keep this run</h2>
+      <p>Saves the nominee half of this conversation. Run it again after you change the brief:
+         reaching <em>fewer</em> outcomes is the signal worth having, because it means the fix
+         for one thing cost something else.</p>
+      <form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/rehearse">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <input type="hidden" name="do" value="case">
+        <input type="hidden" name="token" value="{{ token }}">
+        <input type="hidden" name="persona" :value="playing || ''">
+        <label class="rh-lab" for="rhTitle">Call it something</label>
+        <input class="rh-in" id="rhTitle" name="title" type="text" maxlength="160"
+               placeholder="e.g. three-word answers, no register">
+        <div class="rh-row"><button class="rh-btn" type="submit">Save as a case</button></div>
+      </form>
+
+      {% if cases|length %}
+        <h2 style="margin-top:18px">Saved cases</h2>
+        {% for c in cases %}
+          <div class="rh-case {{ c.last_result starts with 'LOST' ? 'rh-case--lost' : '' }}">
+            <b>{{ c.title }}</b>
+            <span>
+              {% if c.persona %}{{ c.persona }} · {% endif %}
+              {% if c.last_run_at %}last run {{ c.last_run_at|slice(0, 16) }} — {{ c.last_result }}
+              {% else %}never run{% endif %}
+            </span>
+            <div class="rh-row">
+              <form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/rehearse">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="do" value="run">
+                <input type="hidden" name="case" value="{{ c.id }}">
+                <button class="rh-btn rh-btn--ghost" type="submit">Run it again</button>
+              </form>
+              <form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/rehearse">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="do" value="drop">
+                <input type="hidden" name="case" value="{{ c.id }}">
+                <button class="rh-btn rh-btn--ghost" type="submit">Remove</button>
+              </form>
+            </div>
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+
+    <div class="rh-sec">
+      <h2>Rules picked up here</h2>
+      <p>Appended to the brief, and applied from the next message onward.</p>
+      {% for r in rules %}
+        <div class="rh-case"><b style="font-weight:500">{{ r.body }}</b>
+          <span>{{ r.source == 'rehearsal' ? 'from a turn that went wrong' : 'typed by hand' }}</span></div>
+      {% else %}
+        <p>None yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── capturing a correction ────────────────────────────────────────── #}
+  <div x-show="flagged !== null" x-cloak
+       style="position:fixed; inset:0; background:rgba(8,17,15,.45); z-index:80;
+              display:flex; align-items:center; justify-content:center; padding:20px"
+       @click.self="flagged = null" @keydown.escape.window="flagged = null">
+    <form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/rehearse"
+          class="rh-sec" style="max-width:520px; width:100%" role="dialog" aria-modal="true"
+          aria-labelledby="rhFixH">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <input type="hidden" name="do" value="rule">
+      <input type="hidden" name="note" :value="flagged">
+      <h2 id="rhFixH">What should it have done instead?</h2>
+      <p>Write it as an instruction, not as a complaint — this line goes into the brief exactly
+         as typed. "Do not ask for a figure more than once" works; "stop nagging" does not.</p>
+      <p class="rh-note" x-text="flagged"></p>
+      <label class="rh-lab" for="rhRule">The rule</label>
+      <textarea class="rh-in" id="rhRule" name="body" maxlength="500" x-ref="rule"></textarea>
+      <div class="rh-row">
+        <button class="rh-btn" type="submit">Add it to the brief</button>
+        <button class="rh-btn rh-btn--ghost" type="button" @click="flagged = null">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script nonce="{{ csp_nonce }}">
+/* The pane talks to the NOMINEE's endpoint with the test submission's own token. That is the
+   whole design: there is no admin interview API to keep in step with the real one, so a
+   rehearsal cannot pass while the thing it rehearses is broken. */
+function rhPane(){
+  const TOKEN = {{ token|json_encode|raw }};
+  const CSRF  = {{ csrf_token|json_encode|raw }};
+  const seed  = {{ iv|json_encode(JSON_SAFE)|raw }};
+
+  return {
+    turns: seed.turns || [],
+    ledger: seed.ledger || [],
+    say: '', busy: false, err: '',
+    flagged: null,
+    playing: '', queue: [],
+
+    /* A persona loads its lines into a queue rather than firing them all at once. The point of
+       rehearsing is to watch each reply as it arrives; a transcript that appeared complete
+       would be read the way anybody reads a wall of text, which is not at all. */
+    persona(name, lines){
+      this.playing = name;
+      this.queue = (lines || []).slice();
+      this.say = this.queue.shift() || '';
+      this.$nextTick(() => this.$refs.say && this.$refs.say.focus());
+    },
+
+    async send(){
+      const t = this.say.trim();
+      if (!t || this.busy) return;
+      this.say = this.queue.length ? this.queue.shift() : '';
+      this.busy = true; this.err = '';
+      this.turns.push({ i: -1, role: 'nominee', text: t });
+      this.scroll();
+
+      try {
+        const r = await fetch('/my-work/' + TOKEN + '/interview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF,
+                     'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({ say: t })
+        });
+        const d = await r.json();
+        if (d.ok) {
+          this.turns = d.turns || this.turns;
+          this.ledger = d.ledger || this.ledger;
+        } else {
+          this.turns = this.turns.filter(x => x.i !== -1);
+          this.say = t;
+          this.err = d.message || 'That did not go through.';
+        }
+      } catch (e) {
+        this.turns = this.turns.filter(x => x.i !== -1);
+        this.say = t;
+        this.err = 'That did not go through.';
+      }
+      this.busy = false;
+      this.scroll();
+    },
+
+    flag(t){
+      this.flagged = t.text;
+      this.$nextTick(() => this.$refs.rule && this.$refs.rule.focus());
+    },
+
+    scroll(){
+      this.$nextTick(() => {
+        const el = this.$refs.log;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    }
+  };
+}
+</script>
+{% endblock %}

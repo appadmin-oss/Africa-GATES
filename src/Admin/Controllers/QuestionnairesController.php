@@ -556,6 +556,97 @@ final class QuestionnairesController
         return $this->back($res, '/admin/questionnaires/programme/' . $programmeId . '#outcomes');
     }
 
+    // ══ rehearsal ════════════════════════════════════════════════════════════
+
+    /**
+     * The rehearse pane.
+     *
+     * It drives a real test submission through the real endpoints, so what an administrator
+     * meets here is exactly what a nominee will. A preview mode would be a second
+     * implementation of the one thing this feature cannot afford to have two of.
+     */
+    public function rehearse(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $programmeId = (int) ($args['id'] ?? 0);
+
+        $p = DB::table('gates_award_programmes')->where('id', $programmeId)->first();
+        if (!$p) {
+            $_SESSION['flash_error'] = 'That programme could not be found.';
+            return $this->back($res, '/admin/questionnaires');
+        }
+
+        QuestionnaireStyle::forget();
+        $r = \AfricaGates\Services\QuestionnaireRehearsal::open(
+            $programmeId, (int) ($_SESSION['admin_id'] ?? 0) ?: null);
+
+        if (!($r['ok'] ?? false)) {
+            $_SESSION['flash_error'] = (string) $r['message'];
+            return $this->back($res, '/admin/questionnaires/programme/' . $programmeId);
+        }
+
+        $token = (string) $r['token'];
+        return $this->view->render($res, 'admin/questionnaires/rehearse.twig', [
+            'page_title' => 'Rehearse — ' . $p->title,
+            'admin_page' => 'questionnaires',
+            'programme'  => (array) $p,
+            'token'      => $token,
+            'iv'         => \AfricaGates\Services\QuestionnaireInterview::state($token),
+            'cfg'        => QuestionnaireStyle::config($programmeId),
+            'rules'      => QuestionnaireStyle::rules($programmeId),
+            'cases'      => \AfricaGates\Services\QuestionnaireRehearsal::cases($programmeId),
+            'personas'   => \AfricaGates\Services\QuestionnaireRehearsal::personas(),
+            'live'       => QuestionnaireStyle::interviewPossible($programmeId),
+        ]);
+    }
+
+    /** Every rehearsal action, so one screen posts to one place. */
+    public function rehearseAct(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $programmeId = (int) ($args['id'] ?? 0);
+        $body  = (array) $req->getParsedBody();
+        $admin = (int) ($_SESSION['admin_id'] ?? 0) ?: null;
+        $to    = '/admin/questionnaires/programme/' . $programmeId . '/rehearse';
+
+        switch ((string) ($body['do'] ?? '')) {
+            case 'rule':
+                // A correction becomes a RULE, with the turn that provoked it kept beside it.
+                // A note in a document changes nothing; this changes the next conversation.
+                $n = QuestionnaireStyle::addRule($programmeId, (string) ($body['body'] ?? ''),
+                        'rehearsal', (string) ($body['note'] ?? ''), $admin);
+                $_SESSION[$n > 0 ? 'flash' : 'flash_error'] = $n > 0
+                    ? 'Rule added. It is part of the brief from the next message onward.'
+                    : 'Nothing was written.';
+                break;
+
+            case 'case':
+                $r = \AfricaGates\Services\QuestionnaireRehearsal::saveCase(
+                        $programmeId, (string) ($body['token'] ?? ''),
+                        (string) ($body['title'] ?? ''), (string) ($body['persona'] ?? ''), $admin);
+                $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+                break;
+
+            case 'run':
+                $r = \AfricaGates\Services\QuestionnaireRehearsal::runCase(
+                        (int) ($body['case'] ?? 0), $admin);
+                $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+                break;
+
+            case 'drop':
+                \AfricaGates\Services\QuestionnaireRehearsal::dropCase((int) ($body['case'] ?? 0));
+                $_SESSION['flash'] = 'Case removed.';
+                break;
+
+            case 'reset':
+                \AfricaGates\Services\QuestionnaireRehearsal::reset($programmeId, $admin);
+                $_SESSION['flash'] = 'Started again.';
+                break;
+        }
+
+        return $this->back($res, $to);
+    }
+
     /** Switch one knowledge entry, outcome or rule back on after it was retired. */
     public function restoreRow(Request $req, Response $res, array $args): Response
     {
