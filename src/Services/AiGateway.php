@@ -236,6 +236,56 @@ final class AiGateway
     }
 
     /**
+     * Record one AI call that did NOT go through {@see run()}.
+     *
+     * ── WHY AN ESCAPE HATCH EXISTS AT ALL ────────────────────────────────────
+     *
+     * `run()` is built around `AiService::complete()`: one system string, one user string, one
+     * string back. Everything on this platform fitted that until the live interview, which
+     * needs a message array and tool calls and therefore calls `AiService::chat()` directly.
+     *
+     * The alternative to this method was for that feature to keep its own spend record. That
+     * would mean `spentToday()` under-reporting, `available()` never stopping the one
+     * capability capable of running away with a bill, and the admin spend panel showing a
+     * figure quietly missing its largest line. A budget with a hole in it is not a budget.
+     *
+     * So the CALL is elsewhere and the ACCOUNTING is here, in the one table that answers "what
+     * did this cost". Best-effort, like {@see log()}: a logging failure must never break a
+     * feature.
+     *
+     * @param array{provider?:?string, model?:?string, tokens_in?:int, tokens_out?:int,
+     *              latency_ms?:int, subject_type?:string, subject_id?:int,
+     *              output_summary?:?string, error?:?string} $meta
+     */
+    public static function record(string $capability, string $outcome, array $meta = []): void
+    {
+        try {
+            $cap = AiCapability::find($capability);
+            DB::table('gates_ai_calls')->insert([
+                'capability'     => mb_substr($capability, 0, 60),
+                'purpose'        => $cap?->purpose,
+                'provider'       => isset($meta['provider']) ? mb_substr((string) $meta['provider'], 0, 40) : null,
+                'model'          => isset($meta['model']) ? mb_substr((string) $meta['model'], 0, 80) : $cap?->model,
+                'subject_type'   => isset($meta['subject_type']) ? mb_substr((string) $meta['subject_type'], 0, 40) : null,
+                'subject_id'     => isset($meta['subject_id']) ? (int) $meta['subject_id'] : null,
+                // Hashed from what identifies the call rather than from its content: this
+                // method's callers hold conversations, and hashing a whole transcript into a
+                // log row would make the log a second copy of it.
+                'input_hash'     => hash('sha256', $capability . "\0" . (string) ($meta['subject_id'] ?? '')
+                                                 . "\0" . (string) ($meta['latency_ms'] ?? '')),
+                'output_summary' => isset($meta['output_summary'])
+                    ? mb_substr((string) $meta['output_summary'], 0, 300) : null,
+                'tokens_in'      => (int) ($meta['tokens_in'] ?? 0),
+                'tokens_out'     => (int) ($meta['tokens_out'] ?? 0),
+                'latency_ms'     => (int) ($meta['latency_ms'] ?? 0),
+                'outcome'        => mb_substr($outcome, 0, 24),
+                'error'          => isset($meta['error']) ? mb_substr((string) $meta['error'], 0, 300) : null,
+                'created_at'     => Carbon::now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable) { /* never break a feature to write a log row */ }
+    }
+
+    /**
      * Today's spend for a capability, from the audit log itself — so the budget
      * and the record can never disagree.
      *

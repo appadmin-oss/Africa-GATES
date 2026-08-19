@@ -455,6 +455,55 @@ final class AiCapability
                     . 'rewrites your answer, never comments on the work itself, and produces no '
                     . 'score of any kind.',
             ]),
+            // The live interview: a whole conversation, not one classification. Different from
+            // every other capability here on three axes, and each one is a deliberate choice.
+            //
+            // REASON tier, not FAST. The other questionnaire capabilities are advisory — a
+            // follow-up that arrives late is merely unhelpful. This one IS the questionnaire:
+            // it decides what to ask, reads whether an answer landed, and calls the tools that
+            // build the record a judging panel reads. A cheap model that quotes approximately
+            // rather than exactly produces a ledger of rejected calls and an interview that
+            // never converges.
+            //
+            // ADVISORY, like everything else here, and worth stating why given how central it
+            // looks. `advisory` does not mean "unimportant" — it means the result may not
+            // block, reject, approve or rank. This one cannot: it asks questions and quotes
+            // answers. It cannot refuse a submission, cannot score anybody, and cannot submit
+            // — the nominee does that by typing their own name, and propose_complete only
+            // opens the screen where they do it.
+            //
+            // What it does NOT degrade to is nothing. When it cannot run, the nominee is moved
+            // to the guided form with everything already said carried across — see
+            // QuestionnaireInterview::switchToForm() — and told why. A dead end on a deadline
+            // is the one failure this feature is not allowed to have.
+            //
+            // The daily ceilings are per PLATFORM and sit above the per-submission ceiling in
+            // gates_questionnaire_config. Two limits because they stop different things: the
+            // per-submission one stops one person's conversation running away, and this one
+            // stops a bad day across every conversation at once.
+            'questionnaire.interview' => $c('questionnaire.interview', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::PRIMARY[self::TIER_REASON],
+                'on_failure'      => self::FAIL_DEGRADE,
+                'advisory'        => true,
+                'max_tokens'      => 900,
+                'calls_per_day'   => 4000,
+                'tokens_per_day'  => 8_000_000,
+                'timeout'         => 45,
+                'max_attempts'    => 2,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'What you type in the conversation, and what the interviewer '
+                    . 'has already asked. Contact details in your messages are replaced with '
+                    . 'placeholders first. The award\'s own published guidance is sent as '
+                    . 'background. Nothing else from your file is sent, no score of any kind is '
+                    . 'sent, and your words are stored exactly as you wrote them.',
+                'data_purpose'    => 'To hold the interview: to decide what to ask you next, and to '
+                    . 'mark which of the things the panel needs you have now described — always '
+                    . 'by quoting your own words, never by writing an answer for you. It cannot '
+                    . 'send anything to the judges; only you can do that, by typing your name.',
+            ]),
             // ONE short question, while a person is waiting to ask it. FAST tier because a
             // follow-up that arrives after the interviewer has moved on is worse than none —
             // and one attempt only, for the same reason moderation on the nomination submit
