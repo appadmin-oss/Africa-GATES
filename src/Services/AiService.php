@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Support\AiReply;
 use AfricaGates\Support\Env;
 use AfricaGates\Support\ProviderBreaker;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -399,6 +400,377 @@ class AiService
     }
 
     /**
+     * Tools cannot be carried by every provider's API in the same shape, and Gemini's is
+     * different enough that a translation layer for it would be a third code path serving one
+     * key nobody has configured for this feature. So the tool-capable set is named, and a route
+     * asking for tools skips anything outside it rather than silently dropping them — a model
+     * that never sees the tools would answer in prose forever and the ledger would stay empty
+     * with nothing in the log to say why.
+     */
+    public const TOOL_PROVIDERS = ['openai', 'groq', 'anthropic'];
+
+    /**
+     * A conversational turn is not a 6-second job.
+     *
+     * `$timeout` is right for the calls this class was built for — classify a comment, draft a
+     * line of copy — and wrong by a factor of five for a turn that reads a brief, a knowledge
+     * base and twenty messages before it writes anything. Rather than raise the constructor
+     * default and slow every failure path across the platform, {@see chat()} lifts it for its
+     * own call and puts it back.
+     *
+     * Not a parameter on {@see httpPost()}: four test doubles override that method by signature,
+     * and widening it would break them all to express something only one caller needs.
+     */
+    private ?int $timeoutOverride = null;
+
+    /** Seconds allowed for one conversational turn, tools and all. */
+    public const CHAT_TIMEOUT = 45;
+
+    /**
+     * A multi-turn exchange, with tools, returning the reply as a structure.
+     *
+     * ── WHY THIS SITS BESIDE complete() RATHER THAN REPLACING IT ──────────────
+     *
+     * `complete(system, user)` has around thirty callers and every one of them wants exactly
+     * what it does: a string back from a single question. Rewriting them onto a message array
+     * would be churn with no beneficiary, and rewriting `complete()` to delegate here would put
+     * the whole platform's AI on a code path built for one feature on the day it shipped.
+     *
+     * So this is additive, and it reuses the parts worth reusing: the same provider chain, the
+     * same {@see resolveRoute()} ordering, the same {@see ProviderBreaker} learning, the same
+     * per-hop error record, the same {@see httpPost()} the tests already intercept.
+     *
+     * ── THE MESSAGE SHAPE IS PROVIDER-NEUTRAL ────────────────────────────────
+     *
+     * Callers speak one dialect and each provider adapter translates it, because the
+     * alternative — callers building OpenAI payloads directly — would make the fallback chain
+     * decorative. A route that falls through to Anthropic has to send Anthropic's shape or the
+     * fallback is not a fallback.
+     *
+     *   ['role' => 'system',    'content' => string]
+     *   ['role' => 'user',      'content' => string]
+     *   ['role' => 'assistant', 'content' => string,
+     *                           'tool_calls' => [['id'=>, 'name'=>, 'arguments'=>array]]]
+     *   ['role' => 'tool',      'tool_call_id' => string, 'name' => string, 'content' => string]
+     *
+     * Tools are declared neutrally too — `['name'=>, 'description'=>, 'parameters'=>schema]` —
+     * and each adapter wraps them the way its provider expects.
+     *
+     * @param list<array<string,mixed>> $messages
+     * @param array{tools?:list<array<string,mixed>>, max_tokens?:int, temperature?:float,
+     *              route?:list<string>, max_attempts?:int, tool_choice?:string} $opts
+     */
+    public function chat(array $messages, array $opts = []): ?AiReply
+    {
+        $this->lastUsage    = ['in' => 0, 'out' => 0];
+        $this->lastProvider = null;
+        $this->lastModel    = null;
+        $this->hopErrors    = [];
+
+        $tools     = array_values((array) ($opts['tools'] ?? []));
+        $maxTokens = max(16, (int) ($opts['max_tokens'] ?? 900));
+        $temp      = (float) ($opts['temperature'] ?? 0.4);
+        $choice    = (string) ($opts['tool_choice'] ?? 'auto');
+
+        $hops = $this->resolveRoute((array) ($opts['route'] ?? []),
+                                    (int) ($opts['max_attempts'] ?? 0));
+        if ($tools !== []) {
+            $hops = array_values(array_filter(
+                $hops, static fn(array $h): bool => in_array($h[0], self::TOOL_PROVIDERS, true)));
+        }
+        if ($hops === []) {
+            // Said out loud rather than returned as a bare null, because "no tool-capable
+            // provider is configured" and "every provider failed" need different fixes and the
+            // caller cannot tell them apart from a null.
+            $this->hopErrors[] = ['provider' => '-', 'model' => '-',
+                'error' => $tools !== []
+                    ? 'no tool-capable provider configured (need one of: '
+                      . implode(', ', self::TOOL_PROVIDERS) . ')'
+                    : 'no provider configured'];
+            error_log('[AiService] chat() could not run — ' . self::describeHops($this->hopErrors));
+            return null;
+        }
+
+        $this->timeoutOverride = self::CHAT_TIMEOUT;
+        try {
+            foreach ($hops as [$provider, $model]) {
+                $this->lastError = null;
+                try {
+                    $reply = match ($provider) {
+                        'openai', 'groq' => $this->openAiStyleChat($provider, $messages, $tools,
+                                                                   $maxTokens, $temp, $choice, $model),
+                        'anthropic'      => $this->anthropicToolChat($messages, $tools,
+                                                                     $maxTokens, $temp, $choice, $model),
+                        default          => null,
+                    };
+                    if ($reply !== null) {
+                        $this->lastProvider = $provider;
+                        $this->lastModel    = $model;
+                        return $reply;
+                    }
+                    $why = $this->lastError ?? 'empty/failed response';
+                } catch (\Throwable $e) {
+                    $why = $e->getMessage();
+                }
+                $this->hopErrors[] = ['provider' => $provider, 'model' => $model, 'error' => $why];
+                $this->lastError   = $provider . '/' . $model . ': ' . $why;
+                if (ProviderBreaker::isUnreachable($why)) ProviderBreaker::open($provider);
+            }
+        } finally {
+            $this->timeoutOverride = null;
+        }
+
+        error_log('[AiService] chat() failed — ' . self::describeHops($this->hopErrors));
+        return null;
+    }
+
+    /**
+     * OpenAI and Groq, which speak the same dialect.
+     *
+     * One method rather than two because the payload, the tool wrapper and the reply shape are
+     * byte-identical between them — Groq built its API as a drop-in — and two copies would be
+     * the drift this codebase keeps finding. Only the URL and the key differ.
+     */
+    private function openAiStyleChat(string $provider, array $messages, array $tools,
+                                     int $maxTokens, float $temp, string $choice,
+                                     ?string $model = null): ?AiReply
+    {
+        $payload = [
+            'model'       => $this->modelFor($provider, $model),
+            'max_tokens'  => $maxTokens,
+            'temperature' => $temp,
+            'messages'    => self::toOpenAiMessages($messages),
+        ];
+        if ($tools !== []) {
+            $payload['tools'] = array_map(static fn(array $t): array => [
+                'type'     => 'function',
+                'function' => [
+                    'name'        => (string) $t['name'],
+                    'description' => (string) ($t['description'] ?? ''),
+                    'parameters'  => (array) ($t['parameters'] ?? ['type' => 'object', 'properties' => []]),
+                ],
+            ], $tools);
+            $payload['tool_choice'] = $choice === 'required' ? 'required' : 'auto';
+        }
+
+        [$url, $auth] = $provider === 'groq'
+            ? ['https://api.groq.com/openai/v1/chat/completions', 'Bearer ' . $this->groqKey]
+            : ['https://api.openai.com/v1/chat/completions',      'Bearer ' . $this->openaiKey];
+
+        $j = $this->httpPost($url, ['Authorization: ' . $auth], $payload);
+        if ($j === null) return null;
+        $this->captureUsage($j);
+
+        $m = $j['choices'][0]['message'] ?? null;
+        if (!is_array($m)) return null;
+
+        $calls = [];
+        foreach ((array) ($m['tool_calls'] ?? []) as $c) {
+            $name = (string) ($c['function']['name'] ?? '');
+            if ($name === '') continue;
+            $calls[] = [
+                'id'   => (string) ($c['id'] ?? ''),
+                'name' => $name,
+                // Arguments arrive as a JSON STRING, and a model can emit one that does not
+                // parse. A malformed call becomes an empty argument set rather than an
+                // exception: the turn is still worth showing, and the validation layer refuses
+                // an empty call for its own reasons anyway.
+                'arguments' => self::decodeArguments((string) ($c['function']['arguments'] ?? '')),
+            ];
+        }
+
+        $text = trim((string) ($m['content'] ?? ''));
+        // A turn with neither prose nor a tool call is a failed turn, and treating it as
+        // success would show the nominee an empty bubble and move the conversation on.
+        if ($text === '' && $calls === []) return null;
+
+        return new AiReply($text, $calls, $this->lastUsage, $provider,
+                           $this->modelFor($provider, $model),
+                           self::stopReasonFrom((string) ($j['choices'][0]['finish_reason'] ?? '')));
+    }
+
+    /**
+     * Anthropic, whose messages are content BLOCKS and whose system prompt is its own field.
+     *
+     * Kept as a real adapter rather than a "close enough" one because the difference is not
+     * cosmetic: a tool result posted in OpenAI's shape is rejected outright, so a fallback that
+     * only looked like it worked would fail on exactly the turn the primary provider went down.
+     */
+    private function anthropicToolChat(array $messages, array $tools, int $maxTokens,
+                                       float $temp, string $choice, ?string $model = null): ?AiReply
+    {
+        [$system, $turns] = self::toAnthropicMessages($messages);
+
+        $payload = [
+            'model'       => $this->modelFor('anthropic', $model),
+            'max_tokens'  => $maxTokens,
+            'temperature' => $temp,
+            'messages'    => $turns,
+        ];
+        if ($system !== '') $payload['system'] = $system;
+        if ($tools !== []) {
+            $payload['tools'] = array_map(static fn(array $t): array => [
+                'name'         => (string) $t['name'],
+                'description'  => (string) ($t['description'] ?? ''),
+                'input_schema' => (array) ($t['parameters'] ?? ['type' => 'object', 'properties' => []]),
+            ], $tools);
+            if ($choice === 'required') $payload['tool_choice'] = ['type' => 'any'];
+        }
+
+        $j = $this->httpPost('https://api.anthropic.com/v1/messages', [
+            'x-api-key: ' . $this->anthropicKey,
+            'anthropic-version: 2023-06-01',
+        ], $payload);
+        if ($j === null) return null;
+        $this->captureUsage($j);
+
+        $text = '';
+        $calls = [];
+        foreach ((array) ($j['content'] ?? []) as $block) {
+            $type = (string) ($block['type'] ?? '');
+            if ($type === 'text') {
+                $text .= (string) ($block['text'] ?? '');
+            } elseif ($type === 'tool_use') {
+                $name = (string) ($block['name'] ?? '');
+                if ($name === '') continue;
+                $calls[] = ['id' => (string) ($block['id'] ?? ''), 'name' => $name,
+                            'arguments' => (array) ($block['input'] ?? [])];
+            }
+        }
+
+        $text = trim($text);
+        if ($text === '' && $calls === []) return null;
+
+        return new AiReply($text, $calls, $this->lastUsage, 'anthropic',
+                           $this->modelFor('anthropic', $model),
+                           self::stopReasonFrom((string) ($j['stop_reason'] ?? '')));
+    }
+
+    /**
+     * The neutral message list as OpenAI wants it.
+     *
+     * @param list<array<string,mixed>> $messages
+     * @return list<array<string,mixed>>
+     */
+    private static function toOpenAiMessages(array $messages): array
+    {
+        $out = [];
+        foreach ($messages as $m) {
+            $role = (string) ($m['role'] ?? 'user');
+            if ($role === 'tool') {
+                $out[] = ['role' => 'tool',
+                          'tool_call_id' => (string) ($m['tool_call_id'] ?? ''),
+                          'content' => (string) ($m['content'] ?? '')];
+                continue;
+            }
+            $row = ['role' => $role, 'content' => (string) ($m['content'] ?? '')];
+            if ($role === 'assistant' && !empty($m['tool_calls'])) {
+                $row['tool_calls'] = array_map(static fn(array $c): array => [
+                    'id'       => (string) ($c['id'] ?? ''),
+                    'type'     => 'function',
+                    'function' => ['name' => (string) ($c['name'] ?? ''),
+                                   'arguments' => (string) json_encode((array) ($c['arguments'] ?? []))],
+                ], (array) $m['tool_calls']);
+                // OpenAI rejects a null content on an assistant turn that carries tool_calls,
+                // and accepts an empty string. A model that called a tool without saying
+                // anything is the ordinary case, not an edge one.
+                $row['content'] = (string) ($m['content'] ?? '');
+            }
+            $out[] = $row;
+        }
+        return $out;
+    }
+
+    /**
+     * The neutral message list as Anthropic wants it: system hoisted out, everything else in
+     * content blocks.
+     *
+     * System messages are CONCATENATED rather than the last one winning, because the interview
+     * assembles its system side from three separately-authored parts — the admin's brief, the
+     * knowledge base, and the outcome list — and dropping any of them would change what the
+     * model is trying to achieve without any error to notice.
+     *
+     * @param list<array<string,mixed>> $messages
+     * @return array{0:string, 1:list<array<string,mixed>>}
+     */
+    private static function toAnthropicMessages(array $messages): array
+    {
+        $system = [];
+        $turns  = [];
+        foreach ($messages as $m) {
+            $role = (string) ($m['role'] ?? 'user');
+            $body = (string) ($m['content'] ?? '');
+
+            if ($role === 'system') {
+                if (trim($body) !== '') $system[] = $body;
+                continue;
+            }
+
+            if ($role === 'tool') {
+                // A tool RESULT is a user-role block in Anthropic's model. Consecutive results
+                // are merged into one user turn, because the API refuses two user turns in a
+                // row and a turn that recorded three outcomes produces three results.
+                $block = ['type' => 'tool_result',
+                          'tool_use_id' => (string) ($m['tool_call_id'] ?? ''),
+                          'content' => $body];
+                $last = array_key_last($turns);
+                if ($last !== null && $turns[$last]['role'] === 'user'
+                    && is_array($turns[$last]['content'] ?? null)
+                    && ($turns[$last]['content'][0]['type'] ?? '') === 'tool_result') {
+                    $turns[$last]['content'][] = $block;
+                } else {
+                    $turns[] = ['role' => 'user', 'content' => [$block]];
+                }
+                continue;
+            }
+
+            if ($role === 'assistant' && !empty($m['tool_calls'])) {
+                $blocks = [];
+                if (trim($body) !== '') $blocks[] = ['type' => 'text', 'text' => $body];
+                foreach ((array) $m['tool_calls'] as $c) {
+                    $blocks[] = ['type' => 'tool_use', 'id' => (string) ($c['id'] ?? ''),
+                                 'name' => (string) ($c['name'] ?? ''),
+                                 'input' => (array) ($c['arguments'] ?? [])];
+                }
+                $turns[] = ['role' => 'assistant', 'content' => $blocks];
+                continue;
+            }
+
+            $turns[] = ['role' => $role, 'content' => [['type' => 'text', 'text' => $body]]];
+        }
+        return [implode("\n\n", $system), $turns];
+    }
+
+    /**
+     * Tool arguments, which arrive as a JSON string from the OpenAI-style providers.
+     *
+     * Tolerant of a markdown fence for the same reason {@see stripJsonFence()} exists: some
+     * models wrap even an arguments payload, and a refused call over three backticks would look
+     * to the nominee like the interview simply not hearing them.
+     *
+     * @return array<string,mixed>
+     */
+    private static function decodeArguments(string $raw): array
+    {
+        $raw = trim($raw);
+        if ($raw === '') return [];
+        $j = json_decode(self::stripJsonFence($raw), true);
+        return is_array($j) ? $j : [];
+    }
+
+    /** Each provider's own word for why it stopped, folded to four we handle. */
+    private static function stopReasonFrom(string $raw): string
+    {
+        return match ($raw) {
+            'tool_calls', 'tool_use'    => 'tools',
+            'length', 'max_tokens'      => 'length',
+            'stop', 'stop_sequence',
+            'end_turn'                  => 'stop',
+            default                     => $raw === '' ? 'stop' : 'other',
+        };
+    }
+
+    /**
      * Per-hop failures as one readable line.
      *
      * Shared by the error log and the admin health check so an operator reading
@@ -681,7 +1053,7 @@ class AiService
             curl_setopt_array($ch, [
                 CURLOPT_POST           => true,
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => $this->timeout,
+                CURLOPT_TIMEOUT        => $this->timeoutOverride ?? $this->timeout,
                 CURLOPT_HTTPHEADER     => array_merge(['Content-Type: application/json'], $headers),
                 CURLOPT_POSTFIELDS     => $body,
             ]);
