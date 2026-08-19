@@ -65,8 +65,12 @@
   .mw__mode[aria-pressed="true"] small{ opacity:.92; color:#cfe6d3 }
 
   /* the conversation */
-  .mw__chat{ margin-top:6px; display:flex; flex-direction:column; gap:10px; max-height:58vh;
-    overflow-y:auto; padding:4px 2px 2px }
+  /* No fixed height. It was 58vh, which on a phone is about four exchanges — so a nominee
+     ten answers in was reading their own conversation through a letterbox while the page
+     around it stayed still. The log grows and the page scrolls, which is what every
+     conversation anybody has used does. */
+  .mw__chat{ margin-top:6px; display:flex; flex-direction:column; gap:10px;
+    padding:4px 2px 2px }
   .mw__msg{ max-width:88%; font-size:14.5px; line-height:1.65; border-radius:14px; padding:12px 14px;
     white-space:pre-wrap; word-break:break-word }
   .mw__msg--ai{ align-self:flex-start; background:#f1f6f1; color:#22332c; border:1px solid rgba(16,41,44,.08) }
@@ -125,7 +129,37 @@
   .mw__consent p{ margin:0; font-size:13px; line-height:1.7; color:#6b5312 }
 
   /* the form as a sequence */
+  /* ── DRAWN, NOT TYPED ────────────────────────────────────────────────────
+     The emoji here were 📝 🔊 🔈 🎤 📎. Two problems, and the second is the one that decided
+     it: several of them render as an empty box on the Android builds this page is most read
+     on, and an emoji is not a label — a screen reader announces "paperclip", which is not what
+     the row means. Every glyph below is CSS, sized in the flow, and every control carries real
+     text or an aria-label beside it. */
+  .mw__clip{ display:inline-block; width:11px; height:14px; border:1.5px solid currentColor;
+    border-radius:6px 6px 3px 3px; border-bottom-color:transparent; flex:none }
+  .mw__spk{ display:inline-block; width:0; height:0; flex:none;
+    border-top:5px solid transparent; border-bottom:5px solid transparent;
+    border-right:8px solid currentColor }
+  .mw__micglyph{ display:block; width:10px; height:16px; border-radius:5px; background:currentColor }
+  .mw__micglyph--stop{ width:12px; height:12px; border-radius:2px }
+  /* U+2713 is not in the default font on several Android builds and renders as a box. Drawn,
+     it is a box that is always the right shape. */
+  .mw__tick{ display:inline-block; width:5px; height:9px; border-right:2px solid currentColor;
+    border-bottom:2px solid currentColor; transform:rotate(42deg); margin:0 5px 2px 1px }
+
   .mw__steptop{ margin:0 0 14px }
+  .mw__map{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px }
+  .mw__dot{ position:relative; min-width:36px; min-height:36px; padding:0 6px; cursor:pointer;
+    border:1px solid rgba(16,41,44,.18); background:#fff; color:#3d5254; border-radius:10px;
+    font:650 12.5px/1 inherit; display:inline-flex; align-items:center; justify-content:center }
+  .mw__dot:hover{ border-color:rgba(16,41,44,.4); color:#10292C }
+  .mw__dot--done{ background:#eef6ee; border-color:rgba(35,123,34,.35); color:#1a6118 }
+  .mw__dot--here{ background:#10292c; border-color:#10292c; color:#fff }
+  /* Required is marked with a dot AND is named in the button's own label, because a colour
+     difference alone is not a difference to everybody reading this. */
+  .mw__dot i{ position:absolute; top:4px; right:4px; width:4px; height:4px; border-radius:50%;
+    background:#c9a24b }
+  .mw__dot--here i{ background:#e8c98a }
   .mw__steps{ display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-top:16px;
     padding-top:14px; border-top:1px solid rgba(16,41,44,.08) }
   .mw__seek{ margin:7px 0 0; font-size:12.5px; line-height:1.6; color:#1c5f1b;
@@ -223,7 +257,7 @@
       you the right link.
     </div>
   {% endif %}
-  <span class="mw__kick">📝 For the judging panel</span>
+  <span class="mw__kick">For the judging panel</span>
   <h1>{{ form.nominee }} — tell the judges about your work</h1>
   <p class="mw__lede">
     You have been nominated{% if form.category %} in <strong>{{ form.category }}</strong>{% endif %}.
@@ -463,7 +497,57 @@
       addWork(){ if(this.works.length < this.maxWorks)
         this.works.push({uid:"w"+Date.now().toString(36),title:"",kind:"",year:"",link:"",
                          description:"",confirm:"",file:"",file_name:""}) },
-      dropWork(i){ this.works.splice(i,1) }
+      dropWork(i){ this.works.splice(i,1) },
+
+      /* ── ATTACHING A FILE, WITHOUT MAKING ANYBODY SAVE FIRST ──────────────
+         The upload endpoint attaches to a work row by uid, so the row has to exist. That is a
+         true constraint and it was passed straight to the nominee as "save this page, then
+         attach a file below" — an instruction about our storage model, on the screen where
+         somebody is already least sure they are doing it right.
+         The page does both requests instead. The oversize case never ends in a bare refusal:
+         it names the size that was sent against the limit that applies, and points at the
+         route that always works. */
+      up: {},
+      async attach(w, file, input){
+        if(!file) return;
+        const max = {{ form.max_file_mb }} * 1024 * 1024;
+        if(file.size > max){
+          this.up[w.uid] = { note: (file.size / 1048576).toFixed(1) + "MB — the limit is "
+            + "{{ form.max_file_mb }}MB. Paste a link to it above instead; a judge can follow "
+            + "that just as well." };
+          if(input) input.value = "";
+          return;
+        }
+        this.up[w.uid] = { note: "Uploading " + file.name + "… keep this page open." };
+
+        const form = document.getElementById("mwForm");
+        try {
+          /* The draft first, so the row exists — then the file. Deliberately NOT the path the
+             submit button takes: this posts without `action`, which saveDraft() treats as a
+             draft and never validates, so attaching a file cannot fail because an unrelated
+             question is still blank.
+             (No apostrophes anywhere in this scope. The whole object is a single-quoted HTML
+             attribute, so one apostrophe truncates it and every binding on the page silently
+             stops existing — which is exactly how this comment came to be written.) */
+          await fetch("/my-work/{{ token }}", { method:"POST", body:new FormData(form),
+            headers:{ "X-CSRF-Token": {{ csrf_token|json_encode }},
+                      "X-Requested-With":"XMLHttpRequest" } });
+
+          const fd = new FormData();
+          fd.append("_token", {{ csrf_token|json_encode }});
+          fd.append("uid", w.uid);
+          fd.append("file", file);
+          const r = await fetch("/my-work/{{ token }}/upload", { method:"POST", body:fd,
+            headers:{ "X-CSRF-Token": {{ csrf_token|json_encode }} } });
+          if(!r.ok) throw new Error("upload");
+          w.file = file.name; w.file_name = file.name;
+          delete this.up[w.uid];
+        } catch(e) {
+          this.up[w.uid] = { note: "That did not upload. Paste a link to it above instead — a "
+            + "judge can follow that just as well." };
+        }
+        if(input) input.value = "";
+      }
     }'>
 
       {# ── progress ─────────────────────────────────────────────────────── #}
@@ -579,7 +663,8 @@
           <button type="button" class="mw__mic" :class="recording ? 'mw__mic--on' : ''"
                   :disabled="busy" @click="mic()"
                   :aria-label="recording ? 'Stop recording' : 'Start recording'"
-                  x-text="recording ? '■' : (busy ? '…' : '🎙')"></button>
+                  ><span class="mw__micglyph" :class="recording && 'mw__micglyph--stop'"
+                          aria-hidden="true"></span></button>
           <span class="mw__introhint" x-text="recording
                   ? 'Recording… ' + clock() + ' — press the red square when you have finished.'
                   : (busy ? 'Saving…' : 'Press to start. Somewhere quiet, phone close.')"></span>
@@ -610,7 +695,9 @@
             <button type="button" class="mw__go" style="margin-top:10px" :disabled="busy"
                     @click="act('consent')">Yes — the panel may hear this</button>
           </div>
-          <p class="mw__done" x-show="consented" x-cloak>✓ The panel will hear your introduction.</p>
+          <p class="mw__done" x-show="consented" x-cloak>
+            <span class="mw__tick" aria-hidden="true"></span> The panel will hear your
+            introduction.</p>
         </div>
 
         <div class="mw__bad" x-show="err" x-text="err" x-cloak></div>
@@ -639,7 +726,8 @@
         {% if voice %}
         <div class="mw__vbar">
           <button type="button" class="mw__vsw" :aria-pressed="voiceOn" @click="toggleVoice()">
-            <span x-text="voiceOn ? '🔊 Reading aloud' : '🔈 Read the questions to me'"></span>
+            <span class="mw__spk" aria-hidden="true"></span>
+            <span x-text="voiceOn ? 'Reading aloud' : 'Read the questions to me'"></span>
           </button>
           <span class="mw__vnote">You can also answer by talking — press the microphone, say it in
             your own words, and check what we heard before you send it.</span>
@@ -671,7 +759,8 @@
                     :disabled="hearing || busy" @click="mic()"
                     :aria-label="recording ? 'Stop recording' : 'Answer by talking'"
                     :aria-pressed="recording"
-                    x-text="recording ? '■' : (hearing ? '…' : '🎤')"></button>
+                    ><span class="mw__micglyph" :class="recording && 'mw__micglyph--stop'"
+                            aria-hidden="true"></span></button>
           {% endif %}
           <label class="sr-only" for="mwSay">Type your answer</label>
           <textarea class="mw__say" id="mwSay" x-model="say" x-ref="say" rows="1"
@@ -697,7 +786,7 @@
       </div>
 
       {# ══ THE FORM ══════════════════════════════════════════════════════ #}
-      <form method="post" action="/my-work/{{ token }}">
+      <form method="post" action="/my-work/{{ token }}" id="mwForm">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
 
         {# ── THE FORM, AS A SEQUENCE RATHER THAN A WALL ─────────────────────────
@@ -716,6 +805,19 @@
                go(n){ this.step = Math.max(0, Math.min(this.total - 1, n));
                       this.$nextTick(() => { const el = this.$refs.stepTop;
                                              if(el) el.scrollIntoView({ block: "start" }) }) },
+               /* Read from the LIVE field rather than from what the page was rendered with, so
+                  the map fills in as somebody types instead of only after a save. */
+               /* `typed` exists ONLY to be a reactive dependency. answered() reads the DOM,
+                  and Alpine cannot know a plain <textarea> changed — so without touching a
+                  reactive value here the map would render once at load and then never move,
+                  which is worse than no map: it would say "unanswered" beside a question
+                  somebody had just finished. */
+               typed: 0,
+               answered(slug){
+                 this.typed;
+                 const el = document.getElementById("q-" + slug);
+                 return !!(el && el.value && el.value.trim() !== "");
+               },
                /* One request per pause in typing, not per keystroke: this reads an answer, and
                   reading it four times a second would be noise for the nominee and a bill for
                   the operator. */
@@ -738,10 +840,32 @@
                  }catch(e){ /* a coach that cannot be reached simply says nothing */ }
                }
              }'>
+          {# ── A MAP, NOT JUST A COUNTER ────────────────────────────────────
+             The stepper knew where you were and gave you no way to go anywhere. "Question 4 of
+             11" with only Back and Next means somebody who remembers a detail for question 9
+             has to press Next five times to reach it and five times to come back — so they do
+             not, and the detail is lost.
+             Every question is a target, and each one says whether it has an answer yet, so the
+             map doubles as the answer to "how much is left" that a bar cannot give. #}
           <div class="mw__steptop" x-ref="stepTop">
             <span class="mw__slab" x-text="'Question ' + (step + 1) + ' of ' + total"></span>
             <div class="mw__bar" style="margin-top:8px">
               <i :style="'width:' + Math.round((step + 1) / total * 100) + '%'"></i></div>
+
+            <div class="mw__map" role="group" aria-label="Jump to a question">
+              {% for q in form.questions %}
+                <button type="button" class="mw__dot"
+                        :class="[step === {{ loop.index0 }} ? 'mw__dot--here' : '',
+                                 answered({{ q.slug|json_encode }}) ? 'mw__dot--done' : '']"
+                        :aria-current="step === {{ loop.index0 }} ? 'step' : false"
+                        @click="go({{ loop.index0 }})"
+                        aria-label="{{ loop.index }}. {{ q.label|e('html_attr') }}{% if q.is_required %} (needed){% endif %}"
+                        >{{ loop.index }}{% if q.is_required %}<i aria-hidden="true"></i>{% endif %}</button>
+              {% endfor %}
+            </div>
+            <p class="mw__hint" style="margin-top:7px">Every question is here — go straight to any
+              of them. Green means you have written something; a gold dot means that answer is
+              needed before you can send.</p>
           </div>
           <p class="mw__hint">Answers marked <span class="mw__req">*</span> are needed before you
             can send. The rest are optional and all of them are read. Nothing is submitted until
@@ -763,10 +887,11 @@
               {% if q.kind == 'textarea' %}
                 <textarea class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
                           maxlength="{{ q.max_len }}"
-                          @input="watch({{ q.slug|json_encode }}, $el)"
+                          @input="typed++; watch({{ q.slug|json_encode }}, $el)"
                           placeholder="{{ q.placeholder }}">{{ val }}</textarea>
               {% elseif q.kind == 'select' %}
-                <select class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]">
+                <select class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
+                        @change="typed++">
                   <option value="">Choose…</option>
                   {% for o in q.options %}
                     <option value="{{ o }}" {{ val == o ? 'selected' : '' }}>{{ o }}</option>
@@ -775,10 +900,11 @@
               {% else %}
                 <input class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
                        type="{{ q.kind == 'url' ? 'url' : (q.kind == 'number' ? 'number' : (q.kind == 'date' ? 'date' : 'text')) }}"
-                       maxlength="{{ q.max_len }}" value="{{ val }}"
+                       maxlength="{{ q.max_len }}" value="{{ val }}" @input="typed++"
                        placeholder="{{ q.placeholder ?: (q.kind == 'url' ? 'https://…' : '') }}">
               {% endif %}
-              {% if val %}<div class="mw__done">✓ answered</div>{% endif %}
+              {% if val %}<div class="mw__done"><span class="mw__tick" aria-hidden="true"></span>
+                answered</div>{% endif %}
 
               {# The live read. Help, never a mark: there is no score in it, no percentage and
                  no traffic light with a number behind it. A nominee being graded by the
@@ -858,9 +984,26 @@
                        placeholder="A name and role — we only contact them if the panel asks">
               </div>
               <div class="mw__file" x-show="w.file" x-cloak>
-                <span>📎</span><span x-text="w.file_name || 'File attached'"></span>
+                <span class="mw__clip" aria-hidden="true"></span>
+                <span x-text="w.file_name || 'File attached'"></span>
               </div>
-              <div class="mw__drop" x-show="!w.file">Save this page, then attach a file below.</div>
+
+              {# ── ATTACHING NO LONGER NEEDS A SAVE FIRST ────────────────────
+                 It said "Save this page, then attach a file below" — which is a step nobody
+                 should have to understand, on the screen where somebody is already least
+                 certain they are doing it right. The upload endpoint needs the row to exist,
+                 so the page saves the draft itself and then sends the file. Same two requests;
+                 the difference is who has to know about them. #}
+              <div class="mw__drop" x-show="!w.file && !up[w.uid]" x-cloak>
+                <label class="mw__mini" style="cursor:pointer" :for="'wf'+i">Attach a file</label>
+                <input type="file" class="sr-only" :id="'wf'+i"
+                       @change="attach(w, $event.target.files[0], $event.target)">
+                <span class="mw__hint" style="display:block; margin-top:6px">
+                  Up to {{ form.max_file_mb }}MB. For anything larger, a link is just as good.</span>
+              </div>
+              <div class="mw__drop" x-show="up[w.uid]" x-cloak>
+                <span x-text="up[w.uid] && up[w.uid].note"></span>
+              </div>
               <button type="button" class="mw__x" @click="dropWork(i)">Remove this item</button>
             </div>
           </template>
