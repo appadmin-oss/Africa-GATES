@@ -72,8 +72,8 @@ final class EventTicketDesign
      * @param object|array|null $event a `gates_site_events` row, or null
      * @return array{
      *   accent: string, accent_soft: string, ink: string, theme: string,
-     *   image: string, note: string, rows: list<string>, show_qr: bool,
-     *   customised: bool
+     *   image: string, image_src: string, note: string, rows: list<string>,
+     *   show_qr: bool, customised: bool
      * }
      */
     public static function forEvent(object|array|null $event): array
@@ -95,6 +95,11 @@ final class EventTicketDesign
             'ink'         => self::contrastInk($accent),
             'theme'       => $theme,
             'image'       => self::image($e),
+            // The MASTER the crop was cut from, for anything that needs bytes rather than a
+            // URL — see TicketPdf::artwork(). Always a same-site path by construction:
+            // TicketArtwork keeps the original local even when the delivered crop is on a
+            // CDN, precisely so it can be re-read.
+            'image_src'   => self::image(['ticket_image' => (string) ($e['ticket_image_src'] ?? '')]),
             'note'        => self::note((string) ($e['ticket_note'] ?? '')),
             'rows'        => self::rows($e['ticket_rows'] ?? null),
             'show_qr'     => self::showQr($e['ticket_show_qr'] ?? null),

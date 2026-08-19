@@ -388,7 +388,25 @@
        · AND THE URL IS PRINTED AS TEXT, because paper cannot be clicked and the
          link is how a lost ticket is recovered.
      ══════════════════════════════════════════════════════════════════════════ */
-  @page{ size:148mm 62mm landscape; margin:0 }
+  /* ── THE SHEET IS NOT THE TICKET ──────────────────────────────────────────
+     This used to read `size:148mm 62mm landscape`, which is not valid CSS: `size`
+     takes either two lengths OR a named page size with an orientation keyword, never
+     both. The whole declaration was therefore dropped — margin included — and every
+     ticket printed onto a default Letter page, jammed into the corner with no margin
+     and nothing to say where to cut. Measured, not guessed: with that declaration
+     Chromium reports a 215.9 × 279.4mm MediaBox, and with the keyword removed it
+     reports 148.2 × 62.1mm.
+
+     Removing the keyword would have made it work. It is not what this does, because a
+     card-sized @page is the wrong thing to ask for: no home printer has 148 × 62mm
+     media, so the driver scales the page to whatever is loaded — the ticket comes out
+     28% oversized on A4 and cannot be cut to the size it was designed at.
+
+     So the sheet is left alone. No `size`, which means the paper the person actually
+     chose; a real margin; and the ticket laid on it at its true 148 × 62mm with a cut
+     line around it. A4 and Letter both have well over 148mm of printable width, so the
+     same rule is right on both without asking which one it is. */
+  @page{ margin:10mm }
 
   @media print{
     /* Force the light palette onto BOTH themes. Written on `.tk` rather than
@@ -396,10 +414,21 @@
     .tk, .tk--dark{ --tk-frame:#fff; --tk-line:#b9c4c3; --tk-text:#000; --tk-mute:#3d4749;
       --tk-stub:#f6f2e6; --tk-on-frame:#000; --tk-on-frame-2:#3d4749; }
 
-    /* The sheet, and nothing outside it. A fixed size on both so nothing reflows. */
-    .tk{ width:148mm; height:62mm; max-width:none; min-height:0; margin:0; padding:0;
+    /* Centred at its true size on whatever paper turned up. `margin:0 auto` and not
+       `margin:0`: against the left edge of an A4 it reads as a printing error rather
+       than as a ticket somebody is meant to cut out. */
+    .tk{ width:180mm; height:86mm; max-width:none; min-height:0; margin:0 auto; padding:0;
       border-radius:0; background:#fff; display:block; gap:0;
+      /* An OUTLINE, not a border: outlines take no space, so the cut guide cannot push
+         the ticket off its own measurements. 2mm out, which is the width of a pair of
+         scissors' error and leaves the line itself on the offcut. */
+      outline:.25mm dashed #9aa8a6; outline-offset:2mm;
       -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    /* Said once, under the ticket, in the smallest type on the sheet. A printed page
+       with a card floating in the middle of it and no instruction is a page people
+       fold instead of cutting. */
+    .tk__cut{ display:block; width:180mm; margin:7mm auto 0; font-size:7.5pt;
+      line-height:1.4; color:#5a6462; text-align:center }
     /* ── THE SHEET, AND WHY THE DETAILS PRINT UNDER THE ART ─────────────────
        Art left, tear, stub right at 46mm — the artboard's split, and the spec's.
 
@@ -420,8 +449,22 @@
        Every fact still lands on a light ground, which is the point of the whole
        arrangement: `print-color-adjust` is a request a driver may refuse, and a ticket
        whose date and address were only ever on the accent fill prints as a blank. */
-    .tk__doc{ width:148mm; height:62mm; box-shadow:none; overflow:hidden;
-      display:grid; grid-template-columns:1fr 46mm; grid-template-rows:1fr auto;
+    /* ── 190 × 86MM, THE SAME CARD THE PDF PRINTS ───────────────────────────
+       This was 148 × 62 — the artboard's own measurements — and the PDF path has always
+       been 190 × 86, because a 30mm QR is the size below which the scanners a venue
+       actually owns start hunting for the symbol, and a stub that holds one cannot be
+       46mm wide. Two print paths producing two differently-sized tickets is a defect on
+       its own: the same booking came out as two different objects depending on which
+       button somebody pressed.
+       
+       So the browser follows the PDF, and 148 × 62 remains what it always was — the
+       shape the design was drawn at, now scaled to a card that fits a real scanner. It
+       still sits well inside A4's 190mm of printable width at a 10mm margin, and inside
+       Letter's 196mm. Everything below is re-measured against the new card rather than
+       multiplied: the artwork gains proportionally more than the type does, because at
+       62mm the picture was down to a 4.4:1 letterbox. */
+    .tk__doc{ width:180mm; height:86mm; box-shadow:none; overflow:hidden;
+      display:grid; grid-template-columns:1fr 56mm; grid-template-rows:1fr auto;
       -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     .tk__hero{ grid-area:1 / 1 }
     .tk__facts{ grid-area:2 / 1 }
@@ -433,13 +476,38 @@
        is off the sheet. The fold is physical here; nothing is drawn for it. */
     .tk__tear{ display:none }
 
-    /* ART LEFT. The image is decorative on paper, so if `D.image` is missing or
-       fails to load the flat accent ground is still a valid ticket. */
-    /* `min-height:0` so the 1fr row may shrink to whatever the facts band leaves it —
-       without it a grid item's automatic minimum size is its content, and the band gets
-       pushed off the sheet. */
-    .tk__hero{ height:auto; min-height:0; border-radius:0; }
-    .tk__shot{ -webkit-print-color-adjust:exact; print-color-adjust:exact }
+    /* ── ART LEFT, AND THE IMAGE COMES OUT OF THE POSITIONED LAYER ──────────
+       On screen `.tk__shot` is `position:absolute; inset:0` and the title floats over
+       its foot on a gradient. That is the right thing for a screen and the wrong thing
+       for paper twice over.
+
+       It is fragile: an absolutely-positioned element inside a paginated box is the
+       single most inconsistently-handled thing in print CSS, and this is the one part
+       of the document that is a photograph — when an engine drops it, the ticket prints
+       with a blank band and nothing says why.
+
+       And it is wasteful: the solid title band paints over the bottom 43% of the
+       artwork, so nearly half of the picture is printed and then covered.
+
+       So on paper the hero is a two-row grid, the image is an ordinary in-flow item in
+       the first row, and the title band is the second. No absolute positioning, no
+       overlap, and the art gets the whole of its own band.
+
+       `min-height:0` on both, so the 1fr rows may shrink to what is left — a grid
+       item's automatic minimum size is its content, and without it the details band
+       gets pushed off the sheet. */
+    .tk__hero{ height:auto; min-height:0; border-radius:0; overflow:hidden;
+      display:grid; grid-template-rows:1fr auto; }
+    .tk__shot{ position:static; grid-row:1; width:100%; height:100%; min-height:0;
+      object-fit:cover;
+      /* A framed image is already a 3:2 crop somebody chose — but this band is about
+         124 × 36mm, i.e. 3.4:1, so a slice of that choice still has to be taken and
+         somebody has to decide which. Centred loses the top of the picture, and the top
+         of an event poster is where faces are; the screen band picks 32% for exactly the
+         same reason. 38% rather than the screen's 32% because the slice here is much
+         thinner, so the same bias would walk the subject straight off the top edge. */
+      object-position:50% 38%;
+      -webkit-print-color-adjust:exact; print-color-adjust:exact }
     /* ── ON PAPER THE TYPE GETS A SOLID BAND, NOT A GRADIENT ────────────────
        The screen wash is calibrated against a 268px band. Printed, the artwork panel
        is about a third of that, so the same percentage stops put the 6.5pt date up
@@ -450,22 +518,20 @@
        print does not use one: the hero becomes art above and a solid accent band
        below, and `D.ink` is computed for exactly that accent. Same shape as the
        artboard, and legible by construction rather than by measurement. */
-    .tk__hero{ display:flex; flex-direction:column; justify-content:flex-end }
     .tk__scrim{ display:none }
-    /* `relative`, NOT `static`. `.tk__shot` is absolutely positioned, so it paints in
-       the positioned-descendant layer — above any in-flow sibling regardless of DOM
-       order. Taking the title out of that layer put the whole band behind the image
-       and printed a ticket with no title on it. Positioned, DOM order decides, and the
-       title comes after the image. */
-    .tk__title{ position:relative; left:auto; right:auto; bottom:auto;
-      padding:1.8mm 3mm 2.4mm; gap:.8mm; background:var(--tk-accent);
+    /* The second row of the hero grid, under the art rather than over it. `static` is
+       safe now precisely because the image is no longer in the positioned layer — when
+       it was, a static title painted underneath it and the ticket printed with no title
+       on it at all. Both are in flow, so grid placement decides and nothing overlaps. */
+    .tk__title{ position:static; grid-row:2; left:auto; right:auto; bottom:auto;
+      padding:2.4mm 4mm 3mm; gap:1mm; background:var(--tk-accent);
       -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    .tk__kick{ font-size:6.5pt; line-height:1.15; letter-spacing:.22em }
+    .tk__kick{ font-size:7.5pt; line-height:1.15; letter-spacing:.22em }
     /* 1.12 and not the screen's 1.0: Yoruba orthography puts dots under o and e, and at
        a line-height of 1 the band's own edge cut them off — which turns Ọmọ into Omo on
        the one document that carries somebody's name. */
-    .tk__title h1, .tk__title h1.is-long{ font-size:17pt; line-height:1.12 }
-    .tk__sub{ font-size:6.5pt; line-height:1.15; letter-spacing:.14em }
+    .tk__title h1, .tk__title h1.is-long{ font-size:21pt; line-height:1.12 }
+    .tk__sub{ font-size:7.5pt; line-height:1.15; letter-spacing:.14em }
 
     /* STUB RIGHT. 0.4mm dashed at 55% ink — a real perforation, and the one thing
        on the sheet that is heavier on paper than on screen, because the notches
@@ -475,20 +541,23 @@
        cut-to-size stub it must be the tail of the address — never the symbol, which is
        why the scan block is first in the DOM and therefore first on the sheet. */
     .tk__stub{ border-radius:0; border-left:.4mm dashed rgba(16,41,44,.55);
-      padding:3mm; gap:1.5mm; align-items:center; justify-content:center;
+      padding:4mm; gap:2mm; align-items:center; justify-content:center;
       overflow:hidden;
       -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     /* The details band. `align-content:end` so a short field set sits against the foot
        of the artwork rather than floating in the middle of its own row. */
-    .tk__facts{ border-radius:0; padding:2mm 3mm 2.5mm; gap:0; overflow:hidden;
+    .tk__facts{ border-radius:0; padding:2.6mm 4mm 3mm; gap:0; overflow:hidden;
       -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 
-    .tk__scan{ gap:1mm; width:100% }
-    .tk__qr{ width:26mm; padding:0 }
-    .tk__qr svg{ width:26mm; height:26mm; border-radius:0; shape-rendering:crispEdges }
-    .tk__codewrap{ gap:.8mm }
-    .tk__code{ font-size:9pt; line-height:1.05; letter-spacing:.18em; margin-right:-.18em }
-    .tk__who{ display:block; font-size:8pt; line-height:1.1; font-weight:700;
+    .tk__scan{ gap:1.4mm; width:100% }
+    /* 30mm, matching TicketPdf::QR_MM — the one measurement on this document that is a
+       physical fact rather than a taste. 26mm was what the old 46mm stub could hold, not
+       what a handheld reader wants off an inkjet. */
+    .tk__qr{ width:30mm; padding:0 }
+    .tk__qr svg{ width:30mm; height:30mm; border-radius:0; shape-rendering:crispEdges }
+    .tk__codewrap{ gap:1mm }
+    .tk__code{ font-size:11pt; line-height:1.05; letter-spacing:.18em; margin-right:-.18em }
+    .tk__who{ display:block; font-size:9.5pt; line-height:1.1; font-weight:700;
       text-align:center; color:#000 }
     /* The screen caption is an instruction for a person holding a phone. On paper
        the code is simply there to be read. */
@@ -518,18 +587,23 @@
        at equal thirds it wrapped onto a second line and cost the artwork 12px of band.
        Fixed, not `auto-fit`: against a print context auto-fit resolves the available
        width differently across engines and can put six cells on one line at 3pt. */
-    .tk__grid{ grid-template-columns:.85fr 1.3fr .85fr; gap:1.4mm 3mm;
+    .tk__grid{ grid-template-columns:1.35fr 1fr; gap:1.8mm 4mm;
       padding-top:0; border-top:0 }
     .tk__cell{ gap:0 }
     .tk__cell--wide{ grid-column:1 / -1 }
-    /* Lifted into the first row's third column by explicit placement rather than by
-       reordering the markup: on screen the holder belongs last, under the address,
-       which is the order the design document sets. Explicit placement wins over
-       document order, so the band is two rows instead of three and the artwork keeps
-       the height that difference buys. */
-    .tk__cell--holder{ grid-column:3; grid-row:1 }
-    .tk__cell small{ font-size:6pt; line-height:1.15; letter-spacing:.18em; color:#3d4749 }
-    .tk__cell b{ font-size:8.5pt; line-height:1.12; color:#000 }
+    /* ── THE HOLDER IS PRINTED ONCE, NOT TWICE ─────────────────────────────
+       It was in this band AND under the code on the stub, which is the same name
+       twice on a card 62mm tall. The stub's copy is the one that has to stay: the
+       stub is the half that tears off and is kept by the door, and a torn-off stub
+       with a code and no name is not a record of who came in.
+
+       Dropping it here is what pays for the rest. The band goes from three columns
+       to two, so the address gets a full 102mm line instead of sharing it, the date
+       stops wrapping, and the row that disappears is ~3mm of height that goes back
+       to the artwork. */
+    .tk__cell--holder{ display:none }
+    .tk__cell small{ font-size:6.5pt; line-height:1.15; letter-spacing:.18em; color:#3d4749 }
+    .tk__cell b{ font-size:10pt; line-height:1.14; color:#000 }
     .tk__cell--screen{ display:none }
     .tk__cell--print{ display:flex }
     /* The optional set stays on screen and comes off the sheet. The band is 102mm wide
@@ -543,8 +617,8 @@
     .tk__sig{ display:none }
     /* In the details band rather than on the stub: the band is 102mm wide, so the URL
        sits on one line there instead of breaking across three in a 40mm column. */
-    .tk__url{ display:block; margin-top:1.2mm; font-family:var(--ag-font-mono, monospace);
-      font-size:5.5pt; line-height:1.25; color:#3d4749; word-break:break-all }
+    .tk__url{ display:block; margin-top:1.6mm; font-family:var(--ag-font-mono, monospace);
+      font-size:6.5pt; line-height:1.25; color:#3d4749; word-break:break-all }
 
     /* A state that matters on paper is a state the door has to see. It goes under
        the stub's own fields, in words — never a colour alone. */
@@ -598,6 +672,10 @@
   .tk__fs legend{ font-size:13.5px; font-weight:700; color:#10292C; padding:0 }
   .tk__said{ margin:14px 0 0; font-size:13.5px; line-height:1.6; min-height:1.2em }
   .tk__said.is-ok{ color:#1c5f1b } .tk__said.is-no{ color:#a32b1f }
+  /* `@media screen`, not a bare rule. Bare, it sits AFTER the print block in this file and
+     wins on source order at equal specificity — so the print caption was in the document,
+     measured, and invisible on the one medium it exists for. */
+  @media screen { .tk__cut{ display:none } }
   @media print { .tk__self{ display:none } }
 </style>
 {% endblock %}
@@ -858,6 +936,12 @@
     {% endif %}
   </div>
   {% endif %}
+
+  {# Print only — `.tk__cut` has no screen rule at all, and `.tk__foot` beside it is the
+     screen's version of the same sentence and is hidden on paper. Two audiences, two
+     sentences, neither of them shown to the other. #}
+  <p class="tk__cut">Cut along the dotted line. At the door the stub tears off down the
+    dashes — or just show the code on your phone.</p>
 
   <p class="tk__foot">Keep this link — it is your ticket, and it works without signing in to
     anything.{% if event.slug|default('') %} Full details are on the

@@ -72,6 +72,112 @@ class TicketPrintTest extends TestCase
     }
 
     /**
+     * The `@page` declaration has to be one the browser will actually accept.
+     *
+     * ── WHY THIS IS WORTH A TEST OF ITS OWN ─────────────────────────────────
+     *
+     * It read `size:148mm 62mm landscape` for months. That is not valid CSS — `size` takes
+     * two lengths OR a named size with an orientation keyword, never both — so the whole
+     * declaration was dropped, MARGIN included, and every ticket printed onto a default
+     * Letter page jammed into the corner with nothing to say where to cut.
+     *
+     * Nothing failed. There is no console warning for a rejected `@page`, no visual
+     * difference on screen, and the print preview looks like a print preview. The only way
+     * to find it is to look at the declaration itself, which is what this does.
+     */
+    public function test_the_page_rule_is_something_a_browser_will_accept(): void
+    {
+        $e    = $this->makeEvent();
+        $reg  = $this->makeReg((int) $e->id);
+        $html = $this->ticketHtml($reg['reference']);
+
+        $this->assertSame(1, preg_match('~@page\s*\{([^}]*)\}~', $html, $m),
+            'the sheet has to be declared somewhere');
+        $rule = $m[1];
+
+        $this->assertSame(0, preg_match('~size\s*:[^;}]*\d+\s*(?:mm|cm|in|px|pt)[^;}]*\b(?:landscape|portrait)~i', $rule),
+            'an explicit page size and an orientation keyword cannot be combined — the whole '
+            . 'declaration is dropped, and the margin beside it goes too');
+
+        $this->assertMatchesRegularExpression('~margin\s*:\s*\d~', $rule,
+            'a ticket printed hard against the edge of the paper cannot be cut out');
+    }
+
+    /**
+     * The two print paths produce the same object.
+     *
+     * The stylesheet said 148 × 62mm and {@see \AfricaGates\Services\TicketPdf} said
+     * 190 × 86, so the same booking came out as two differently-sized tickets depending on
+     * which button somebody pressed. Whatever the number is, it has to be one number.
+     */
+    public function test_the_browser_and_the_pdf_print_the_same_card(): void
+    {
+        $e    = $this->makeEvent();
+        $reg  = $this->makeReg((int) $e->id);
+        $html = $this->ticketHtml($reg['reference']);
+
+        $this->assertSame(1, preg_match('~\.tk\{\s*width:(\d+(?:\.\d+)?)mm;\s*height:(\d+(?:\.\d+)?)mm~', $html, $m),
+            'the printed card has to declare its own size');
+
+        $pdf = new \ReflectionMethod(\AfricaGates\Services\TicketPdf::class, 'one');
+        $src = file_get_contents($pdf->getFileName());
+        $body = substr($src, $pdf->getStartLine() * 0, 0) . $src;   // whole file; `one()` is the only place these are set
+        $this->assertSame(1, preg_match('~\$w = (\d+(?:\.\d+)?);\s*\n\s*\$h = (\d+(?:\.\d+)?);~', $body, $p),
+            'TicketPdf::one() has to state the card it draws');
+
+        $this->assertSame((float) $p[1], (float) $m[1], 'the two print paths disagree about the card width');
+        $this->assertSame((float) $p[2], (float) $m[2], 'the two print paths disagree about the card height');
+    }
+
+    /**
+     * The artwork must not be in the positioned layer on paper.
+     *
+     * An absolutely-positioned element inside a paginated box is the most inconsistently
+     * handled thing in print CSS, and this particular one is the only photograph on the
+     * document — when an engine drops it the ticket prints with a blank band and nothing
+     * says why. It is also what let the solid title band paint over the bottom 43% of the
+     * picture, so the fix pays for itself twice.
+     */
+    public function test_the_printed_artwork_is_in_flow(): void
+    {
+        $e    = $this->makeEvent();
+        $reg  = $this->makeReg((int) $e->id);
+        $html = $this->ticketHtml($reg['reference']);
+
+        $print = self::printBlock($html);
+        $this->assertMatchesRegularExpression('~\.tk__shot\{[^}]*position:\s*static~', $print,
+            'the image has to leave the positioned layer for print');
+        $this->assertMatchesRegularExpression('~\.tk__title\{[^}]*position:\s*static~', $print,
+            'and the title with it, or the two fight over which paints on top');
+    }
+
+    /**
+     * Everything inside EVERY `@media print` block on the page, concatenated.
+     *
+     * Every, not the first: the page opens with a one-line print rule that paints the body
+     * white, and a helper that stopped there was asserting against that rule instead of
+     * against the ticket's.
+     */
+    private static function printBlock(string $html): string
+    {
+        $out = '';
+        $from = 0;
+        while (($at = strpos($html, '@media print', $from)) !== false) {
+            $open = strpos($html, '{', $at);
+            if ($open === false) break;
+            // Balanced to the closing brace, because each block is full of nested rules.
+            $depth = 0; $i = $open;
+            for ($n = strlen($html); $i < $n; $i++) {
+                if ($html[$i] === '{') $depth++;
+                elseif ($html[$i] === '}') { $depth--; if ($depth === 0) break; }
+            }
+            $out .= substr($html, $at, $i - $at + 1) . "\n";
+            $from = $i + 1;
+        }
+        return $out;
+    }
+
+    /**
      * The QR must be sized in MILLIMETRES for print.
      *
      * It is the one thing on the page whose size is a physical fact rather than a

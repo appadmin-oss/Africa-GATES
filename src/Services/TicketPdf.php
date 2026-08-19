@@ -86,12 +86,45 @@ final class TicketPdf
         $pdf = self::begin();
         // Centred, and at the width of the thing people expect to tear rather than stretched
         // to the paper. A ticket that fills A4 reads as a poster.
-        // 190 × 86mm. The design is 2.67:1 and this is 2.2:1 — the difference is the stub,
+        // 180 × 82mm. The design is 2.67:1 and this is 2.2:1 — the difference is the stub,
         // which has to be tall enough to hold a 30mm symbol above a column of labels. That is
         // the one proportion physics takes back.
-        $w = 190.0;
+        //
+        // It was 190 wide, which is exactly A4's printable width at a 10mm margin — so the
+        // corner marks had nowhere to sit and the browser's own print path, now matched to
+        // this card, had its cut line clipped off the edge of the paper. 180 leaves 15mm
+        // each side on A4 and 18mm on Letter, which is room for the marks and for the fact
+        // that plenty of printers cannot reach within 5mm of an edge at all.
+        //
+        // The HEIGHT is untouched at 86. Paper is only short in one direction and the stub
+        // spends every millimetre of the other: taking 4mm off it put the venue address
+        // back to `88 COLLEGE ROAD, NYSC BUS…`, with the town — the half somebody actually
+        // navigates by — on the floor.
+        $w = 180.0;
         $h = 86.0;
-        self::ticket($pdf, $reg, $event, $design, (self::PAGE_W - $w) / 2, 42.0, $w, $h, true, $url);
+        $x = (self::PAGE_W - $w) / 2;
+        $y = 46.0;
+        self::ticket($pdf, $reg, $event, $design, $x, $y, $w, $h, true, $url);
+
+        // ── A CUT LINE, BECAUSE THE PAGE IS NOT THE TICKET ──────────────────
+        //
+        // A ticket floating in the middle of a blank A4 with nothing else on it is a page
+        // people fold rather than cut, and a folded ticket goes through a scanner creased
+        // across the symbol. Four corner marks and one line of instruction is the whole of
+        // it — a full dashed rectangle would print a border around the artwork and read as
+        // part of the design.
+        $m = 4.0;                                            // how far the marks stand off
+        $t = 5.0;                                            // how long each arm is
+        foreach ([[$x - $m, $y - $m, 1, 1], [$x + $w + $m, $y - $m, -1, 1],
+                  [$x - $m, $y + $h + $m, 1, -1], [$x + $w + $m, $y + $h + $m, -1, -1]] as [$cx, $cy, $dx, $dy]) {
+            $pdf->line($cx, $cy, $cx + $t * $dx, $cy, self::LINE, 0.25);
+            $pdf->line($cx, $cy, $cx, $cy + $t * $dy, self::LINE, 0.25);
+        }
+
+        $note = 'Cut along the corner marks. At the door the stub tears off along the perforation — '
+              . 'or just show the code on your phone.';
+        $pdf->paragraph($note, $x, $y + $h + 14.0, $w, 'text', 8.0, 4.4, self::MUTE, 2);
+
         return $pdf->output();
     }
 
@@ -207,7 +240,12 @@ final class TicketPdf
 
         $wash = self::rgb((string) ($design['accent'] ?? '#2a0a4a'));
         $art  = self::artwork($design);
-        if ($art !== null) $pdf->image($art, $x, $y, $artW, $h, 0.28);
+        // `0.5`, not the 0.28 this used to bias to. That number was there to keep faces in
+        // frame on an uncropped portrait poster — the same guess `object-position:50% 32%`
+        // makes in the stylesheet, and the same one TicketArtwork now removes the need for.
+        // A framed image ALREADY is the crop the organiser chose; shifting it up by a fifth
+        // of the difference is this file overruling them.
+        if ($art !== null) $pdf->image($art, $x, $y, $artW, $h, 0.5);
 
         // Bottom-up over 62% of the height, at the design's own stops. It is what makes a
         // title legible over a photograph nobody chose, so it is drawn even on light artwork
@@ -219,9 +257,31 @@ final class TicketPdf
         // The tier, slanted, ivory at 40%, running off its own panel. At two metres in bad
         // light this is the only thing anybody reads off a ticket — it is what sorts a queue —
         // and it does that job long before the 5pt label beside the QR does.
+        //
+        // Its baseline sits 10mm up rather than 5mm: the foot of the panel is now carrying
+        // the recovery address, and the tier's descenders were landing on it.
         if ($tier !== '') {
-            $pdf->text($tier, $x + 7 * $s, $y + $h - 5 * $s, 'display', 30 * $s,
+            $pdf->text($tier, $x + 7 * $s, $y + $h - 10 * $s, 'display', 30 * $s,
                 self::IVORY, 0, 0.40, 0.21);
+        }
+
+        // ── THE ADDRESS THAT GETS A LOST TICKET BACK, ON THE TICKET ─────────
+        //
+        // This used to be set on the PAGE, six millimetres below the card. Cut the ticket
+        // out — which is exactly what the dashed line asks you to do — and the one line
+        // that recovers it is on the offcut. So it moves inside, onto the foot of the
+        // artwork panel, which is the only place on the whole ticket with 100mm of clear
+        // width: in the 60mm stub the same string sets at 3.5pt or wraps across three
+        // lines, and a URL with its tail missing looks like an address and is not one.
+        //
+        // Ivory over the foot of the wash, which is its opaque end — the same guarantee the
+        // title relies on, so it is legible over a photograph nobody chose.
+        //
+        // The scheme is dropped. `https://` is eleven characters of a line that has about
+        // ninety to spend, and nobody has typed it into a phone in a decade.
+        if ($url !== '') {
+            $pdf->text((string) preg_replace('#^https?://#i', '', $url),
+                $x + 7 * $s, $y + $h - 3.4 * $s, 'mono', 5 * $s, self::IVORY, 200, 0.72);
         }
 
         $ax = $x + 7 * $s;
@@ -287,29 +347,55 @@ final class TicketPdf
         // is the field a door checks against the person in front of it, and the first cut let
         // a three-line address push it off the bottom — the ticket still looked complete,
         // which is the dangerous part.
+        // ── THE FOUR MILLIMETRES THE ADDRESS NEEDED ─────────────────────────
+        //
+        // Between the scan block and the reserved holder there are about 40mm, and the
+        // fields that have to go in them are the date (label + one line) and the venue
+        // (label + two). Measured, the column was ~4mm short, so the address printed as
+        // `88 COLLEGE ROAD, NYSC BUS STOP…` — with the town cut off, which is the half of
+        // an address somebody actually needs to find the place.
+        //
+        // Nothing is removed to pay for it. It comes from three gaps that were larger than
+        // they had to be: the air under the symbol, the gap between fields, and the clear
+        // space above the holder's label. None is now below 1.5mm, which is still more
+        // separation than the 5pt labels need to read as separate rows.
         $footY   = $y + $h - $pad;
         $footH   = 7.0 * $s;
         $nameY   = $footY - $footH - 2.8 * $s;
         $nameLab = $nameY - 3.0 * $s;
-        $limit   = $nameLab - 2.0 * $s;
-        $sy      = $qrY + self::QR_MM + 5 * $s;
+        $limit   = $nameLab - 1.4 * $s;
+        $sy      = $qrY + self::QR_MM + 3.2 * $s;
 
-        // Measured, not reserved: assuming every field needs its maximum dropped the venue
-        // address to make room for space that then stayed empty, and the address is the one
-        // field on a ticket that cannot be reconstructed from the others.
+        // ── A FIELD SHRINKS BEFORE IT DISAPPEARS ────────────────────────────
+        //
+        // This used to ask for the field's full height and give up entirely if it did not
+        // fit. On a real ticket that meant the venue address — asking for three lines —
+        // vanished while the one-line TICKET TYPE below it printed happily into the space
+        // the address had just been refused. The ticket looked complete and had no address
+        // on it, which is the field that cannot be reconstructed from any of the others.
+        //
+        // So the question changes from "does this fit?" to "how much of this fits?". The
+        // room left is turned into a line count, the paragraph is set to that, and a field
+        // is only skipped when there is not room for even ONE line — at which point nothing
+        // was going to help. The tail of a long address is the right thing to lose, and it
+        // is the only thing that is lost.
         $field = static function (string $label, string $value, int $maxLines = 2) use (
             $pdf, $sx, $sw, $s, $limit, &$sy
         ): void {
             if (trim($value) === '') return;
-            $used = $pdf->lines($value, $sw, 'bold', 6.8 * $s, $maxLines);
-            $need = 3.0 * $s + $used * 3.2 * $s + 1.9 * $s;
-            if ($sy + $need > $limit) return;
+
+            $lead = 3.2 * $s;                                 // one line of the value
+            $room = $limit - $sy - 3.0 * $s - 1.5 * $s;       // minus the label and the gap
+            $fit  = (int) floor(($room + 0.01) / $lead);
+            if ($fit < 1) return;
+
+            $use = min($maxLines, $fit, max(1, $pdf->lines($value, $sw, 'bold', 6.8 * $s, $maxLines)));
 
             $pdf->text($label, $sx, $sy, 'mono', 5 * $s, self::LABEL, 220);
             $sy += 3.0 * $s;
-            $sy  = $pdf->paragraph($value, $sx, $sy, $sw, 'bold', 6.8 * $s, 3.2 * $s,
-                self::INK, $maxLines);
-            $sy += 1.9 * $s;
+            $sy  = $pdf->paragraph($value, $sx, $sy, $sw, 'bold', 6.8 * $s, $lead,
+                self::INK, $use);
+            $sy += 1.5 * $s;
         };
 
         $where = array_values(array_filter([
@@ -320,12 +406,25 @@ final class TicketPdf
         $money = in_array('price', (array) ($design['rows'] ?? []), true)
             ? ($paid ? '₦' . number_format((int) $reg['amount_naira']) : 'FREE') : '';
 
-        // Priority order for the space that is left: the address outranks the date, and both
-        // outrank the ticket type — because the artwork panel already carries the date as its
-        // kicker and the type as a word the height of a fist, while the address appears
-        // nowhere else on the ticket at all.
-        $field('LOCATION', $where !== [] ? mb_strtoupper(implode(', ', $where)) : '', 3);
+        // ── WHEN, THEN WHERE, THEN THE REST ─────────────────────────────────
+        //
+        // The date goes FIRST, and that is a correction rather than a preference. The order
+        // used to be address-then-date, on the reasoning that the artwork panel already
+        // carries the date as its kicker — and the result, measured on a real ticket, was
+        // that a two-line address left the date needing 9.6mm of a 7.5mm gap and `$field`
+        // silently dropped it. The ticket printed with an empty band where the date should
+        // be and no indication anything was missing, which is the worst way for a document
+        // to fail: a person at a gate on the wrong evening with a ticket that looks complete.
+        //
+        // The kicker is not a substitute. It is `05.09.26` at 6pt in gold over a photograph,
+        // with no day name and no time — a mark of identity, not a fact somebody plans
+        // around. And "doors at 5" is exactly what people get wrong.
+        //
+        // So the two fields nobody can reconstruct — when and where — are drawn before
+        // anything optional, and the address gives up its third line rather than the date
+        // giving up its existence.
         if ($ts > 0) $field('DATE', strtoupper(date('D d M Y', $ts)) . '  ·  ' . date('g:i a', $ts), 2);
+        $field('LOCATION', $where !== [] ? mb_strtoupper(implode(', ', $where)) : '', 3);
         $field('TICKET TYPE', trim(($tier !== '' ? $tier : 'ADMIT ONE')
             . ($money !== '' ? '   ' . $money : '')), 1);
         $field('SEAT', mb_strtoupper(trim((string) ($reg['seat_label'] ?? ''))), 1);
@@ -345,22 +444,14 @@ final class TicketPdf
         // is the job the mark was there to do.
         $pdf->text('AFROVANGUARD', $sx, $footY - $footH + 1.5 * $s, 'mono', 4.6 * $s,
             self::LABEL, 220);
-        $pdf->text('AFRICA GATES', $sx, $footY, 'display', 8 * $s, self::INK, 40);
 
-        $site = 'AGATES.ORG';
-        $rw   = $pdf->width($site, 'mono', 5 * $s, 100);
-        $pdf->text($site, $stubX + $stubW - $pad - $rw, $footY, 'mono', 5 * $s, self::MUTE, 100);
+        $pdf->text('AFRICA GATES', $sx, $footY, 'display', 8 * $s, self::INK, 40);
 
         $ref = (string) ($reg['reference'] ?? '');
         if ($ref !== '') {
             $rw2 = $pdf->width($ref, 'mono', 4.6 * $s, 40);
-            $pdf->text($ref, $stubX + $stubW - $pad - $rw2, $footY - 4 * $s, 'mono',
+            $pdf->text($ref, $stubX + $stubW - $pad - $rw2, $footY, 'mono',
                 4.6 * $s, self::LABEL, 40);
-        }
-
-        // Paper cannot be clicked, so the link that recovers a lost ticket is set below it.
-        if ($url !== '' && $large) {
-            $pdf->text($url, $x, $y + $h + 6, 'text', 7, self::MUTE);
         }
     }
 
@@ -379,15 +470,30 @@ final class TicketPdf
      */
     private static function artwork(array $design): ?string
     {
-        $src = trim((string) ($design['image'] ?? ''));
-        if ($src === '' || !function_exists('imagecreatefromstring')) return null;
+        if (!function_exists('imagecreatefromstring')) return null;
 
-        // Local files only. Fetching a remote URL here would put a third party's server in
-        // the path of a ticket download, and a slow host would hang the request.
-        if (preg_match('#^https?://#i', $src) === 1) return null;
-
-        $path = dirname(__DIR__, 2) . '/public/' . ltrim($src, '/');
-        if (!is_file($path) || !is_readable($path) || filesize($path) > 12 * 1024 * 1024) return null;
+        // ── LOCAL FILES ONLY, WHICH IS NOT THE SAME AS "NOT A CDN URL" ──────
+        //
+        // Fetching a remote URL here is still refused: it would put a third party's server
+        // in the path of a ticket download, and a slow host would hang the request.
+        //
+        // What changed is what happens next. This used to `return null` the moment the
+        // stored URL began `https://`, and with Cloudinary configured EVERY stored URL does
+        // — so on those deployments every ticket printed with no photograph, silently,
+        // while the file sat on disk the whole time. UploadService writes locally first and
+        // records where in `gates_uploads.local_path`; LocalMedia is the read of it.
+        //
+        // The originals are tried in turn rather than only the delivered image: `image` is
+        // the 3:2 crop the organiser framed and is what should print, and `ticket_image_src`
+        // is the master behind it — worth falling back to if the crop is ever missing from
+        // disk, because a ticket with the whole poster beats a ticket with a gold rectangle.
+        $path = '';
+        foreach ([(string) ($design['image'] ?? ''), (string) ($design['image_src'] ?? '')] as $candidate) {
+            if (trim($candidate) === '') continue;
+            $path = \AfricaGates\Support\LocalMedia::file($candidate);
+            if ($path !== '') break;
+        }
+        if ($path === '' || filesize($path) > 12 * 1024 * 1024) return null;
 
         try {
             $im = @imagecreatefromstring((string) file_get_contents($path));
