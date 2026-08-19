@@ -196,6 +196,23 @@
       <div class="qb-warn">These are read-only until you copy them in above.</div>
     {% else %}
 
+    {# ── ONE SHARED DATALIST, OUTSIDE THE REPEATER ─────────────────────────
+
+       The obvious shape — a suggestion list per question, excluding itself — put a
+       `<template x-for>` inside a `<select>` and then inside a `<datalist>`. Neither element
+       permits it: the parser hoists the template out before Alpine sees it, x-for then tries
+       to insert after a marker that has moved, and every question card threw "Cannot read
+       properties of undefined (reading 'after')" on load. Eleven questions, eleven errors,
+       before anybody touched anything.
+
+       So the list is server-rendered — no Alpine inside a `<datalist>` at all, because a
+       `<template>` there is hoisted wherever it sits. What it loses is that a question added
+       in this session and not yet saved is not offered as a branch target, which is a rare
+       thing to want and can still be typed by hand: the field is a text input, not a picker. #}
+    <datalist id="qbSlugs">
+      {% for q in questions %}<option value="{{ q.slug }}"></option>{% endfor %}
+    </datalist>
+
     <template x-for="(q, i) in rows" :key="q.uid">
       <div class="qb-card" :class="q.removed && 'qb-card--gone'">
         <div class="qb-head">
@@ -282,14 +299,21 @@
 
           <div class="qb-grid">
             <div>
+              {# A LIST, NOT A <SELECT>.
+
+                 `<template>` is not valid inside `<select>` — the parser hoists it out of the
+                 element before Alpine ever sees it, and x-for then tries to insert after a
+                 marker that is no longer where it thinks it is. Every question card threw
+                 "Cannot read properties of undefined (reading 'after')" on load, which on a
+                 screen with eleven questions is eleven errors before anybody touches anything.
+
+                 A text input with a datalist gives the same suggestions from the same live
+                 list, is valid everywhere, and additionally lets an operator name a question
+                 they are about to add. #}
               <label class="qb-lab" :for="'qb1' + q.uid">Only ask this after</label>
-              <select class="qb-in" :id="'qb1' + q.uid" :name="'q[' + i + '][show_if_slug]'"
-                      x-model="q.show_if_slug">
-                <option value="">— always ask it —</option>
-                <template x-for="o in rows.filter(r => r.uid !== q.uid && r.slug)" :key="o.uid">
-                  <option :value="o.slug" x-text="o.slug"></option>
-                </template>
-              </select>
+              <input class="qb-in" :id="'qb1' + q.uid" :name="'q[' + i + '][show_if_slug]'"
+                     type="text" maxlength="60" x-model="q.show_if_slug"
+                     list="qbSlugs" placeholder="always ask it">
             </div>
             <div x-show="q.show_if_slug" x-cloak>
               <label class="qb-lab" :for="'qb2' + q.uid">…and only when</label>
@@ -565,7 +589,17 @@
    */
   function qbRows(seed, textFields) {
     let n = 0;
-    const stamp = (r) => Object.assign({ uid: 'r' + (++n), id: 0 }, r);
+    /* The fresh uid goes on LAST, and that ordering is the whole function.
+     *
+     * It used to be first — `Object.assign({uid, id:0}, r)` — so any row that already carried
+     * a uid kept it. Duplicating a question therefore produced two rows with the same :key,
+     * which is not a cosmetic problem: Alpine's x-for tracks its inserted nodes by key, two
+     * identical keys make that bookkeeping ambiguous, and the next splice threw "Cannot read
+     * properties of undefined (reading 'after')". The visible symptoms were that Copy did
+     * nothing at all and that reordering afterwards DELETED a question from the list.
+     *
+     * `id` stays first so a real database id in `r` still overrides the 0. */
+    const stamp = (r) => Object.assign({ id: 0 }, r, { uid: 'r' + (++n) });
     return {
       rows: (seed || []).map(stamp),
       blank() {
@@ -642,7 +676,8 @@
         const copy = Object.assign({}, this.rows[i]);
         // A duplicate must not carry the original's id or its short name: the first would make
         // the save overwrite the row it was copied from, and the second would give two
-        // questions one slug, which is how an answer lands under the wrong question.
+        // questions one slug, which is how an answer lands under the wrong question. The uid
+        // is replaced by stamp() itself — see the note there.
         copy.id = 0;
         copy.slug = (copy.slug || 'question') + '_copy';
         this.rows.splice(i + 1, 0, this.stamp(copy));
