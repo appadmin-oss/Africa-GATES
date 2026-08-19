@@ -510,6 +510,10 @@ final class MyWorkController
 
         return $this->view->render($res, 'pages/my-work.twig', [
             'page_title'    => $form !== null ? 'Tell the judges about your work' : 'Your work',
+            // The same minimal chrome the interview gets, for the same reason: this page is
+            // reached by a token in an email, has exactly one thing to do, and every footer
+            // link on it is an invitation to leave in the middle of describing your own work.
+            'hide_chrome'   => true,
             'form'          => $form,
             'token'         => $token,
             'notice'        => $notice,
@@ -571,6 +575,19 @@ final class MyWorkController
 
         return $this->view->render($res, 'pages/my-work/interview.twig', [
             'page_title' => 'Your interview',
+            // ── NO SITE CHROME ON THIS SCREEN ────────────────────────────────
+            //
+            // No top nav, no mobile tab bar, no footer, no floating guide. Three reasons, and
+            // the third is the one that decided it:
+            //
+            //   • It is what the design specifies — the app surface is the whole screen.
+            //   • A conversation with a pinned composer cannot share a viewport with a fixed
+            //     tab bar. The composer ends up underneath it.
+            //   • Every one of those twenty footer links is an invitation to leave in the
+            //     middle of describing your life's work, on a deadline, to somebody who may
+            //     not find their way back. This page is reached by a token in an email and
+            //     has exactly one thing to do.
+            'hide_chrome' => true,
             'form'       => $form,
             'token'      => $token,
             'notice'     => $notice,

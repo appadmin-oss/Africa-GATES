@@ -253,12 +253,18 @@ final class QuestionnaireLedger
      *
      * ── EVERY DEGREE OF FREEDOM HERE IS ONE A MODEL COULD USE ────────────────
      *
-     * The comparison is deliberately narrow. Whitespace is normalised and the curly quotation
-     * marks a model tends to produce are folded to straight ones, because those two differences
-     * are typography rather than content and refusing over them would reject correct quotes all
-     * day. Nothing else is forgiven — not paraphrase, not a changed word, not "roughly what
-     * they said". A fuzzy match would be a fuzzy version of the only guarantee this feature
-     * makes.
+     * The comparison is deliberately narrow. Three differences are forgiven, and all three are
+     * typography rather than content: collapsed whitespace, the curly quotation marks a model
+     * tends to produce, and CASE. The last one is not a nicety — a model quoting from the
+     * middle of a sentence routinely lowercases the first letter, so "we now reach 4,000
+     * farmers" against a transcript reading "We now reach 4,000 farmers" is a correct quote
+     * that a case-sensitive check refuses. Every such refusal is an outcome that silently does
+     * not get recorded and a conversation that appears not to be listening.
+     *
+     * Nothing else is forgiven — not paraphrase, not a changed word, not "roughly what they
+     * said". A fuzzy match would be a fuzzy version of the only guarantee this feature makes.
+     * Forgiving case cannot launder content: no amount of recasing turns one sentence into
+     * another, and what gets STORED is the span as the nominee typed it either way.
      *
      * Matching is against the NOMINEE's turns only. The model quoting its own question back
      * and filing it as the nominee's evidence is the exact failure this prevents.
@@ -284,7 +290,7 @@ final class QuestionnaireLedger
             // Give back the ORIGINAL span where it can be located exactly, so the record keeps
             // the nominee's own punctuation. Where folding moved the offsets — a double space,
             // a curly apostrophe — the folded text is honest and still theirs.
-            $at = mb_strpos($hayRaw, $quote);
+            $at = mb_stripos($hayRaw, $quote);
             // The turn's OWN index when it carries one. The caller's list is a window over the
             // transcript with withdrawn turns skipped, so its array position is not the
             // position a judge's "see it in the conversation" link needs.
@@ -303,7 +309,7 @@ final class QuestionnaireLedger
             $s
         );
         $s = (string) preg_replace('/\s+/u', ' ', $s);
-        return trim($s);
+        return mb_strtolower(trim($s));
     }
 
     /** Anything not one of the three states is 'unmet' — the safe reading. */

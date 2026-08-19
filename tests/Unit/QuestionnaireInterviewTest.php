@@ -183,6 +183,23 @@ final class QuestionnaireInterviewTest extends TestCase
                                           $turns));
     }
 
+    public function test_a_lowered_first_letter_is_forgiven(): void
+    {
+        // A model quoting from mid-sentence routinely lowercases the opening letter. Refusing
+        // that is an outcome silently not recorded and a conversation that appears not to be
+        // listening — for a difference that cannot change what was said.
+        $found = L::quoteFrom('we started in 2019 and we now reach 4,000 farmers', $this->turns());
+        $this->assertNotNull($found);
+        // And what is STORED is still the transcript's own capitalisation.
+        $this->assertStringStartsWith('We started in 2019', $found[0]);
+    }
+
+    public function test_forgiving_case_still_refuses_a_changed_word(): void
+    {
+        $this->assertNull(L::quoteFrom('we now reach 5,000 farmers across eight states',
+                                       $this->turns()));
+    }
+
     public function test_a_two_word_quote_proves_nothing(): void
     {
         // "yes" appears in every transcript, so a short quote would let any outcome be

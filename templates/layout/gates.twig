@@ -333,7 +333,8 @@
    they are the same thing. The desk keeps its own page because that is where
    the ticket list and the forms live. #}
 {% set gee_suppressed = (gates_page|default('') == 'community' and is_member|default(false))
-                        or gates_page|default('') == 'support' %}
+                        or gates_page|default('') == 'support'
+                        or hide_chrome|default(false) %}
 {% if not gee_suppressed %}
 <div class="gee" id="gee"
      data-gee-page="{{ gates_page|default('') }}"
