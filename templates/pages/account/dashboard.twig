@@ -179,6 +179,16 @@
   /* While a search is running the rail is irrelevant: results come from every
      section, so every section is on and the empty ones are hidden by the filter. */
   [data-me].me-searching .me-sec{ display:block; }
+  /* ── AND NO LANDING FLASH ON A TAB SWITCH ───────────────────────────────
+     a11y.css rings a `:target` for 1.2s so an anchor jump deep into a long document is
+     visible when you arrive. Right for that; wrong here, because the hash names the
+     section that is ALREADY on screen — so every rail click drew an animated ring around
+     the whole pane, saying "you have arrived" to somebody who never left.
+
+     Scoped to when the attribute is set, which is exactly when JavaScript is switching
+     sections. With scripting off the page is a long scroll again and the flash is doing
+     its real job, so it stays. */
+  [data-me] .me-sec:target{ animation:none; }
 
   .me-sec__h{ display:flex; align-items:baseline; justify-content:space-between; gap:12px;
     flex-wrap:wrap; margin:0 0 4px; }
@@ -874,10 +884,10 @@
     // rather than leaving the page entirely.
     if (location.hash !== '#' + id) history.pushState(null, '', '#' + id);
     paint(id);
-    // Focus follows the switch, or a keyboard user is left where they were and
-    // the new section is somewhere below them with no way to know.
-    var sec = document.getElementById('me-' + id);
-    if (sec) { sec.setAttribute('tabindex', '-1'); sec.focus({ preventScroll: true }); }
+    // Focus STAYS on the rail item, which is the control the reader is using — moving it
+    // into the panel drew a focus ring around the whole section on a mouse click and took
+    // a keyboard user off the thing their next arrow key was for. `aria-selected` is what
+    // announces the change.
     window.scrollTo({ top: 0, behavior: 'auto' });
   });
   window.addEventListener('popstate', function () { paint((location.hash || '').replace('#', '')); });

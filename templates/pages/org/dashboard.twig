@@ -11,6 +11,16 @@
    handing a donor's contact details to a partner. #}
 
 {% block head_styles %}
+{# Synchronous and first — it decides which section is painted, so it cannot be deferred.
+   With scripting off the attribute is never set, no rule below matches, and every section
+   is visible: the enhancement degrades to the page it replaced. #}
+<script nonce="{{ csp_nonce }}">
+  (function () {
+    var ok = ['overview','documents','applications','donations','appeals','payouts','fees'];
+    var h  = (location.hash || '').replace('#','');
+    document.documentElement.setAttribute('data-pd', ok.indexOf(h) >= 0 ? h : 'overview');
+  })();
+</script>
 <style nonce="{{ csp_nonce }}">
   /* ══════════════════════════════════════════════════════════════════════════
      The same system as the application form the vendor arrived through, and as
@@ -99,30 +109,102 @@
      way to get from the top of it to any of them. Sticky on a desktop, a
      scrolling row on a phone. `scroll-margin-top` on the sections, or the site's
      own fixed header lands on top of every heading it jumps to. */
-  .pd-nav{ position:sticky; top:calc(var(--ag-nav-h,72px) + 6px); z-index:5;
-    margin:26px 0 0; padding:10px 0; background:var(--pd-paper);
-    border-top:1px solid var(--pd-line-2); border-bottom:1px solid var(--pd-line-2);
-    display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; }
-  .pd-nav::-webkit-scrollbar{ display:none }
-  .pd-nav a{ flex:none; display:inline-flex; align-items:center; gap:8px; min-height:40px;
-    padding:0 14px; border-radius:var(--pd-r-sm); font-family:var(--ag-font-mono,monospace);
-    font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
-    color:var(--pd-ink-2); text-decoration:none; white-space:nowrap; }
-  .pd-nav a:hover{ background:var(--pd-cream); color:var(--pd-ink) }
-  .pd-nav a:focus-visible{ outline:3px solid var(--pd-green); outline-offset:-2px }
-  /* A count beside the label, so the nav says what is behind it rather than only
-     where it goes. The one that needs attention is gold and says so in a word. */
-  .pd-nav b{ display:inline-flex; align-items:center; min-height:18px; padding:0 6px;
-    border-radius:3px; background:var(--pd-line); font-weight:700; font-size:10px;
-    letter-spacing:.08em; color:var(--pd-ink-2) }
-  .pd-nav .is-todo{ background:rgba(243,180,22,.28); color:#5f4805 }
+  /* ── THE RAIL ─────────────────────────────────────────────────────────────
+     This was a horizontal strip of anchors above four thousand pixels of cards. The
+     anchors worked — you could get to a section — but you arrived at the top of one
+     long document with five others still under it, so "am I done with documents" was a
+     question you answered by scrolling.
 
-  /* ── sections ────────────────────────────────────────────────────────────── */
-  /* ONE GUTTER for the whole section. With the number inside the header only, the heading
-     and its prose were indented past it and the table underneath was not — so every section
-     had two left edges. The number lives in a 34px column and everything else in the second.
-     Below 700px the gutter collapses, because 34px of a 320px screen is a tenth of the
-     measure for a two-character label. */
+     Sections now, switched by one attribute on <html> that the head script sets from
+     the hash. Same mechanism as the member's account page, and the same three reasons:
+     the right section is chosen before first paint, the hash is a real address that
+     Back moves through, and with no JavaScript nothing hides so the page is exactly
+     the long scroll it used to be. */
+  .pd-body{ display:grid; grid-template-columns:230px minmax(0,1fr); gap:30px;
+    margin-top:22px; }
+  .pd-rail{ position:sticky; top:calc(var(--ag-nav-h,72px) + 14px); align-self:start;
+    display:flex; flex-direction:column; gap:2px; }
+  .pd-rail__i{ display:flex; align-items:center; gap:10px; min-height:42px; padding:0 12px;
+    box-sizing:border-box; width:100%; border:0; border-radius:var(--ag-r-sm,10px);
+    background:none; cursor:pointer; text-align:left; text-decoration:none;
+    font:600 14px/1.2 inherit; color:var(--pd-mute); }
+  .pd-rail__i:hover{ background:var(--pd-cream); color:var(--pd-ink); }
+  .pd-rail__i:focus-visible{ outline:3px solid var(--pd-green); outline-offset:-1px; }
+  .pd-rail__i[aria-selected="true"]{ background:var(--pd-ink); color:#fff; }
+  /* A two-tone icon drawn for a white ground loses its stroke on the dark selected row.
+     Brightened rather than swapped for a monochrome copy: the hue is what tells the
+     sections apart, and dropping it on the selected one changes the icon's meaning at
+     the moment it is being looked at. */
+  .pd-rail__i[aria-selected="true"] .ico{ filter:brightness(1.9) saturate(1.15); }
+  .pd-rail__n{ flex:1; min-width:0; }
+  .pd-rail__c{ flex:none; font:600 11.5px/1 var(--ag-font-mono,monospace);
+    font-variant-numeric:tabular-nums; color:var(--pd-mute);
+    background:rgba(16,41,44,.06); border-radius:999px; padding:4px 7px; }
+  .pd-rail__i[aria-selected="true"] .pd-rail__c{ background:rgba(255,255,255,.18); color:#fff; }
+  /* The one that needs doing says so in a WORD. A bare "3" beside Documents reads as
+     three filed, which is the opposite of what it means. */
+  .pd-rail__c.is-todo{ background:rgba(243,180,22,.3); color:#5f4805; }
+  .pd-rail__i[aria-selected="true"] .pd-rail__c.is-todo{ background:#f3b416; color:#3a2800; }
+
+  @media (max-width:900px){
+    .pd-body{ grid-template-columns:minmax(0,1fr); gap:16px; }
+    .pd-rail{ position:static; flex-direction:row; gap:6px; overflow-x:auto;
+      padding-bottom:4px; scrollbar-width:none; }
+    .pd-rail::-webkit-scrollbar{ display:none }
+    .pd-rail__i{ width:auto; flex:none; min-height:44px; padding:0 14px;
+      border:1px solid var(--pd-line); border-radius:999px; background:#fff; }
+    .pd-rail__i[aria-selected="true"]{ border-color:var(--pd-ink); }
+  }
+
+  /* ── sections, shown by the attribute ─────────────────────────────────── */
+  [data-pd] .pd-sec{ display:none; }
+  [data-pd] .pd-sec{ margin-top:0; }
+  [data-pd="overview"]     #overview,
+  [data-pd="documents"]    #documents,
+  [data-pd="applications"] #applications,
+  [data-pd="donations"]    #donations,
+  [data-pd="appeals"]      #appeals,
+  [data-pd="payouts"]      #payouts,
+  [data-pd="fees"]         #fees{ display:block; }
+  [data-pd].pd-searching .pd-sec{ display:block; }
+  /* ── AND NO LANDING FLASH ON A TAB SWITCH ───────────────────────────────
+     a11y.css rings a `:target` for 1.2s so an anchor jump deep into a long document is
+     visible when you arrive. Right for that; wrong here, because the hash names the
+     section that is ALREADY on screen — so every rail click drew an animated ring around
+     the whole pane, saying "you have arrived" to somebody who never left.
+
+     Scoped to when the attribute is set, which is exactly when JavaScript is switching
+     sections. With scripting off the page is a long scroll again and the flash is doing
+     its real job, so it stays. */
+  [data-pd] .pd-sec:target{ animation:none; }
+
+  /* A white ground for a chart, inside a page whose sections are otherwise prose in a
+     numbered gutter. A plot on the paper colour has no edge, and its axis labels end up
+     floating in the margin. */
+  .pd-panel{ background:#fff; border:1px solid var(--pd-line); border-radius:14px;
+    padding:18px 20px; }
+
+  /* ── search ───────────────────────────────────────────────────────────── */
+  .pd-find{ position:relative; flex:0 1 250px; min-width:170px; }
+  .pd-find svg{ position:absolute; left:11px; top:50%; transform:translateY(-50%);
+    color:var(--pd-mute); pointer-events:none; }
+  .pd-find input{ width:100%; box-sizing:border-box; height:40px; padding:0 14px 0 34px;
+    font:400 14px/1 inherit; color:var(--pd-ink); background:#fff;
+    border:1px solid var(--pd-line); border-radius:999px; }
+  .pd-find input:focus-visible{ outline:3px solid var(--pd-green); outline-offset:2px;
+    border-color:var(--pd-green); }
+  /* One row on a phone, not two. The search flexes and Sign out keeps its width, which
+     is the only arrangement where a 40px field and a 90px button fit 358px without one of
+     them wrapping under the other. */
+  @media (max-width:560px){
+    .pd__head > div:last-child{ width:100%; margin-left:0; flex-wrap:nowrap; }
+    .pd-find{ flex:1 1 auto; min-width:0; }
+    .pd__out{ flex:none; }
+  }
+  .pd-hits{ margin:12px 0 0; font-size:13px; color:var(--pd-mute); }
+  .pd-hits:empty{ display:none }
+  [hidden]{ display:none !important }
+
   .pd-sec{ margin-top:clamp(32px,4.5vw,48px);
     scroll-margin-top:calc(var(--ag-nav-h,72px) + 64px);
     display:grid; grid-template-columns:34px minmax(0,1fr);
@@ -242,6 +324,8 @@
 {% endblock %}
 
 {% block content %}
+{% import "partials/icons.twig" as gi %}
+{% import "partials/viz.twig" as viz %}
 {% set ngn = '₦' %}
 
 {#
@@ -289,15 +373,63 @@
         upload, accept an offer or move money{% endif %}
       </div>
     </div>
-    <form method="post" action="/org/logout">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <button class="pd__out" type="submit">Sign out</button>
-    </form>
+    <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
+      {# One field over everything on the account. "Which appeal was that" and "did that
+         certificate get uploaded" are the questions people actually arrive with, and typing
+         four characters beats deciding which section they live in. No `/` shortcut: the site
+         already binds that key to its own search on every page. #}
+      <div class="pd-find">
+        {{ gi.ui('search', 16) }}
+        <input id="pdFind" type="search" autocomplete="off" spellcheck="false"
+               placeholder="Search this account" aria-describedby="pdHits"
+               aria-label="Search your documents, applications, appeals and donations">
+      </div>
+      <form method="post" action="/org/logout">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="pd__out" type="submit">Sign out</button>
+      </form>
+    </div>
   </div>
+  <p class="pd-hits" id="pdHits" role="status" aria-live="polite"></p>
 
   {% if flash_ok %}<div class="pd__flag pd__flag--ok" role="status">{{ flash_ok }}</div>{% endif %}
   {% if flash_error %}<div class="pd__flag pd__flag--err" role="alert">{{ flash_error }}</div>{% endif %}
 
+  {# ── THE RAIL ───────────────────────────────────────────────────────────
+     Real links, not buttons: the href IS the deep link, so a section is reachable,
+     shareable and back-buttonable with no script. `aria-selected` is written server-side
+     for the default so a reader is never told nothing. #}
+  <div class="pd-body">
+  <nav class="pd-rail" id="pdRail" aria-label="Sections of your dashboard">
+    {% set rail = [
+      {'id':'overview',     'label':'Overview',     'ico':'overview', 'n':null,                 'on':true},
+      {'id':'documents',    'label':'Documents',    'ico':'doc',
+       'n':(counts.to_do > 0 ? counts.to_do ~ ' to do' : (counts.documents ? 'done' : null)),
+       'todo':(counts.to_do > 0),                                                              'on':(required is not empty)},
+      {'id':'applications', 'label':'Stands',       'ico':'stand',
+       'n':(counts.offers > 0 ? counts.offers ~ ' offered' : (counts.applications ?: null)),
+       'todo':(counts.offers > 0),                                                             'on':(applications or is_vendor)},
+      {'id':'appeals',      'label':'Appeals',      'ico':'heart',   'n':(counts.appeals ?: null),   'on':show_money},
+      {'id':'donations',    'label':'Donations',    'ico':'money',   'n':(counts.donations ?: null), 'on':show_money},
+      {'id':'payouts',      'label':'Getting paid', 'ico':'points',  'n':null,                       'on':show_money},
+      {'id':'fees',         'label':'Stand fees',   'ico':'ticket',  'n':null,                       'on':(not show_money)}
+    ] %}
+    {% for r in rail %}
+      {% if r.on %}
+      <a class="pd-rail__i" href="#{{ r.id }}" data-pd-go="{{ r.id }}"
+         aria-selected="{{ r.id == 'overview' ? 'true' : 'false' }}">
+        {{ gi.sec(r.ico, 18) }}
+        <span class="pd-rail__n">{{ r.label }}</span>
+        {% if r.n %}<span class="pd-rail__c {{ r.todo|default(false) ? 'is-todo' : '' }}">{{ r.n }}</span>{% endif %}
+      </a>
+      {% endif %}
+    {% endfor %}
+  </nav>
+
+  <div class="pd-pane">
+
+  <section class="pd-sec" id="overview" aria-labelledby="pd-ov-h">
+  <h2 class="sr-only" id="pd-ov-h">Overview</h2>
   {# ── THE STATE PANEL ────────────────────────────────────────────────────
      Ordered by what stops what. A refusal outranks a missing certificate, which outranks
      a pending review, which outranks an offer waiting to be accepted — and an offer
@@ -366,29 +498,20 @@
     </div>
   {% endif %}
 
-  {# ── THE LOCAL NAV ──────────────────────────────────────────────────────
-     Four thousand pixels of single-column cards had no way to get from the top of the page
-     to any of them. Each entry carries its own count, so the nav says what is behind it
-     rather than only where it goes — and the one needing attention says so in a word. #}
-  <nav class="pd-nav" aria-label="Sections of your dashboard">
-    {% if required is not empty %}
-      <a href="#documents">Documents
-        {% if n_missing > 0 %}<b class="is-todo">{{ n_missing }} to do</b>
-        {% else %}<b>done</b>{% endif %}</a>
-    {% endif %}
-    {% if applications or is_vendor %}
-      <a href="#applications">Stand applications
-        {% if n_offers > 0 %}<b class="is-todo">{{ n_offers }} offered</b>
-        {% elseif applications %}<b>{{ applications|length }}</b>{% endif %}</a>
-    {% endif %}
-    {% if show_money %}
-      <a href="#appeals">Appeals{% if campaigns %}<b>{{ campaigns|length }}</b>{% endif %}</a>
-      <a href="#donations">Donations{% if totals.count > 0 %}<b>{{ totals.count }}</b>{% endif %}</a>
-      <a href="#payouts">Getting paid</a>
-    {% else %}
-      <a href="#fees">Stand fees</a>
-    {% endif %}
-  </nav>
+  {# ── THE MONEY, AS A LINE ────────────────────────────────────────────────
+     Cumulative and not a bar per day: a fundraiser's question is "how close am I", not
+     "what happened on Tuesday", and a rising line answers the first while still showing
+     the busy days as the steep bits.
+
+     Only for an account that has money to show. A partner still waiting on a review gets
+     the state panel above and nothing else — "Received, last 90 days: nothing yet" is a
+     graph of somebody's absence, shown to the person least in need of it. #}
+  {% if show_money and money_chart.ok|default(false) %}
+  <div class="pd-panel" style="margin-top:22px">
+    {{ viz.chart(money_chart) }}
+  </div>
+  {% endif %}
+  </section>
 
   {# ── DOCUMENTS ──────────────────────────────────────────────────────────────
      A vendor files their own. The alternative — emailing them to an administrator — makes
@@ -416,14 +539,14 @@
     <div class="pd-sec__b">
 
     <div class="pd__wrap">
-      <table class="pd__t">
+      <table class="pd__t" data-find-group>
         <caption class="sr-only">Documents required and held</caption>
         <thead><tr>
           <th scope="col">Required</th><th scope="col">Status</th>
         </tr></thead>
         <tbody>
         {% for slug, label in required %}
-          <tr>
+          <tr data-find="{{ label }} document required">
             <td>{{ label }}</td>
             <td>
               {% if missing[slug] is defined %}
@@ -440,7 +563,7 @@
 
     {% if documents %}
       <div class="pd__wrap">
-        <table class="pd__t">
+        <table class="pd__t" data-find-group>
           <caption class="sr-only">Documents you have uploaded</caption>
           <thead><tr>
             <th scope="col">Uploaded</th><th scope="col">Kind</th>
@@ -448,7 +571,7 @@
           </tr></thead>
           <tbody>
           {% for d in documents %}
-            <tr>
+            <tr data-find="{{ d.label|default(d.kind) }} document {{ d.created_at|slice(0,10) }}">
               <td class="pd__num">{{ d.created_at|slice(0,10) }}</td>
               <td>{{ doc_kinds[d.kind]|default(d.kind) }}</td>
               <td>{{ d.original_name }}</td>
@@ -527,7 +650,7 @@
         events are taking applications</a> — applying costs nothing.</p>
     {% else %}
     <div class="pd__wrap">
-      <table class="pd__t">
+      <table class="pd__t" data-find-group>
         <caption class="sr-only">Stand applications and their outcomes</caption>
         <thead><tr>
           <th scope="col">Event</th><th scope="col">Stand</th>
@@ -535,7 +658,7 @@
         </tr></thead>
         <tbody>
         {% for a in applications %}
-          <tr>
+          <tr data-find="{{ a.event ? a.event.title : '' }} {{ a.type ? a.type.name : '' }} stand application">
             <td>{{ a.event ? a.event.title : '—' }}</td>
             <td>{{ a.type ? a.type.name : '—' }}
               {% if a.type %}<div class="pd__num" style="font-size:12px;color:var(--ag-ink-soft,#626a6e)">
@@ -646,7 +769,7 @@
   
       {% if donations %}
         <div class="pd__wrap">
-          <table class="pd__t">
+          <table class="pd__t" data-find-group>
             <caption class="sr-only">Confirmed donations to {{ org.name }}</caption>
             <thead>
               <tr>
@@ -656,7 +779,7 @@
             </thead>
             <tbody>
             {% for d in donations %}
-              <tr>
+              <tr data-find="{{ d.name }} donation {{ d.when|date('d M Y') }}">
                 <td class="pd__num">{{ d.when|date('d M Y') }}</td>
                 <td>{{ d.name }}</td>
                 <td class="pd__num">{{ ngn }}{{ d.gross|number_format }}</td>
@@ -692,14 +815,14 @@
 
     {% if campaigns %}
       <div class="pd__wrap">
-        <table class="pd__t">
+        <table class="pd__t" data-find-group>
           <caption class="sr-only">Your appeals</caption>
           <thead><tr><th scope="col">Appeal</th><th scope="col">Raised</th><th scope="col">Status</th><th scope="col">&nbsp;</th></tr></thead>
           <tbody>
           {% for c in campaigns %}
             {% set st = c.row.status %}
             {% set cls = st == 'live' ? 'done' : (st == 'closed' ? 'dead' : 'open') %}
-            <tr>
+            <tr data-find="{{ c.row.title }} appeal {{ st }}">
               <td>
                 <strong>{{ c.row.title }}</strong>
                 {% if c.open %}<div class="pd__who"><a href="/donate/{{ org.slug }}/{{ c.row.slug }}">/donate/{{ org.slug }}/{{ c.row.slug }}</a></div>{% endif %}
@@ -827,14 +950,14 @@
 
     {% if payouts %}
       <div class="pd__wrap">
-        <table class="pd__t">
+        <table class="pd__t" data-find-group>
           <caption class="sr-only">Payout requests</caption>
           <thead><tr><th scope="col">Requested</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Reference</th></tr></thead>
           <tbody>
           {% for p in payouts %}
             {% set cls = p.status == 'success' ? 'done'
                        : (p.status in ['failed','reversed','abandoned','blocked','rejected'] ? 'dead' : 'open') %}
-            <tr>
+            <tr data-find="payout {{ p.status }} {{ p.reference }} {{ p.requested_at|date('d M Y') }}">
               <td class="pd__num">{{ p.requested_at|date('d M Y') }}</td>
               <td class="pd__num">{{ ngn }}{{ p.amount_naira|number_format }}</td>
               <td><span class="pd__chip pd__chip--{{ cls }}">{{ p.status|capitalize }}</span>
@@ -886,5 +1009,119 @@
   {% endif %}
 
 
+  </div>
+  </div>
 </div>
+{{ viz.assets(csp_nonce) }}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  'use strict';
+  var root = document.documentElement;
+  var page = document.querySelector('.pd');
+  if (!page) return;
+
+  var IDS  = ['overview','documents','applications','donations','appeals','payouts','fees'];
+  var rail = document.getElementById('pdRail');
+  var find = document.getElementById('pdFind');
+  var hits = document.getElementById('pdHits');
+  var rows = Array.prototype.slice.call(page.querySelectorAll('[data-find]'));
+  var timer = null;
+
+  // ── sections ──────────────────────────────────────────────────────────────
+  // The head script already chose one; this only keeps it in step with clicks and
+  // the back button. The CSS does the showing.
+  function paint(id) {
+    if (IDS.indexOf(id) < 0) id = 'overview';
+    root.setAttribute('data-pd', id);
+    if (!rail) return;
+    var items = rail.querySelectorAll('[data-pd-go]');
+    for (var i = 0; i < items.length; i++) {
+      items[i].setAttribute('aria-selected', items[i].getAttribute('data-pd-go') === id ? 'true' : 'false');
+    }
+  }
+  paint((location.hash || '').replace('#', ''));
+
+  page.addEventListener('click', function (e) {
+    var go = e.target.closest('[data-pd-go], [href^="#"]');
+    if (!go) return;
+    var id = go.getAttribute('data-pd-go') || (go.getAttribute('href') || '').replace('#', '');
+    if (IDS.indexOf(id) < 0) return;
+    e.preventDefault();
+    if (find && find.value) { find.value = ''; runFind(); }
+    if (location.hash !== '#' + id) history.pushState(null, '', '#' + id);
+    paint(id);
+    // Focus STAYS on the rail item. Moving it into the panel was the first attempt and it
+    // is wrong twice: it drew a focus ring around the whole section on a mouse click, and
+    // it took a keyboard user off the control they were using, so the next arrow key did
+    // nothing. `aria-selected` is what announces the change; the arrow keys keep working.
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  });
+  window.addEventListener('popstate', function () { paint((location.hash || '').replace('#', '')); });
+
+  if (rail) rail.addEventListener('keydown', function (e) {
+    if (['ArrowDown','ArrowUp','ArrowRight','ArrowLeft'].indexOf(e.key) < 0) return;
+    var items = Array.prototype.slice.call(rail.querySelectorAll('[data-pd-go]'));
+    var at = items.indexOf(document.activeElement);
+    if (at < 0) return;
+    e.preventDefault();
+    var step = (e.key === 'ArrowDown' || e.key === 'ArrowRight') ? 1 : -1;
+    items[(at + step + items.length) % items.length].focus();
+  });
+
+  // ── search across every section ───────────────────────────────────────────
+  function runFind() {
+    var q = (find.value || '').trim().toLowerCase();
+    var i, n;
+    if (!q) {
+      root.classList.remove('pd-searching');
+      for (i = 0; i < rows.length; i++) rows[i].hidden = false;
+      var back = page.querySelectorAll('[data-find-group], .pd-sec');
+      for (i = 0; i < back.length; i++) back[i].hidden = false;
+      hits.textContent = '';
+      return;
+    }
+    root.classList.add('pd-searching');
+    n = 0;
+    for (i = 0; i < rows.length; i++) {
+      var hay = (rows[i].getAttribute('data-find') + ' ' + rows[i].textContent).toLowerCase();
+      var on  = hay.indexOf(q) >= 0;
+      rows[i].hidden = !on;
+      if (on) n++;
+    }
+    // A card whose every row is hidden is a heading over nothing, and a section whose
+    // every card is hidden is the same thing one level up.
+    var groups = page.querySelectorAll('[data-find-group]');
+    for (i = 0; i < groups.length; i++) {
+      var mine = groups[i].querySelectorAll('[data-find]');
+      if (!mine.length) { groups[i].hidden = true; continue; }
+      var any = false;
+      for (var m = 0; m < mine.length; m++) if (!mine[m].hidden) { any = true; break; }
+      groups[i].hidden = !any;
+    }
+    var secs = page.querySelectorAll('.pd-sec');
+    for (i = 0; i < secs.length; i++) {
+      var kids = secs[i].querySelectorAll('[data-find-group]');
+      // A section with nothing searchable in it — the overview, the payout form — is not a
+      // result and is not evidence of no results either. It is simply not part of the search.
+      if (!kids.length) { secs[i].hidden = true; continue; }
+      var live = false;
+      for (var k = 0; k < kids.length; k++) if (!kids[k].hidden) { live = true; break; }
+      secs[i].hidden = !live;
+    }
+    hits.textContent = n === 0
+      ? 'Nothing matches “' + find.value.trim() + '”.'
+      : n + (n === 1 ? ' match' : ' matches') + ' for “' + find.value.trim() + '”.';
+  }
+
+  if (find) {
+    find.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(runFind, 120);
+    });
+    find.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { find.value = ''; runFind(); }
+    });
+  }
+})();
+</script>
 {% endblock %}

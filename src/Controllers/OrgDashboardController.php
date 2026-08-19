@@ -102,6 +102,14 @@ final class OrgDashboardController
 
         $totals = PartnerOrg::totals($orgId);
 
+        // Named rather than inlined, because the rail counts them and the counts are read
+        // in the same array literal that builds them — an inline expression cannot be.
+        $required     = PartnerOrg::requiredDocuments($orgId);
+        $missing      = StandApplication::missingDocuments($orgId);
+        $applications = $this->applicationRows($orgId);
+        $campaigns    = $this->campaignRows($orgId);
+        $payouts      = OrgPayout::history($orgId, 20);
+
         return $this->view->render($res, 'pages/org/dashboard.twig', [
             'page_title'  => $org->name . ' — partner dashboard',
             'gates_page'  => 'partner',
@@ -111,12 +119,12 @@ final class OrgDashboardController
             'me'          => $user,
             'totals'      => $totals,
             'available'   => OrgPayout::available($orgId),
-            'payouts'     => OrgPayout::history($orgId, 20),
+            'payouts'     => $payouts,
             'donations'   => $this->recentDonations($orgId),
             'payout_mode' => OrgPayout::mode(),
             'can_payout'  => OrgAuth::canRequestPayout($user),
             'min_payout'  => OrgPayout::MIN_NAIRA,
-            'campaigns'   => $this->campaignRows($orgId),
+            'campaigns'   => $campaigns,
             'shortfall'   => OrgCampaign::SHORTFALL,
             // ── THE VENDOR HALF ──────────────────────────────────────────
             //
@@ -126,15 +134,39 @@ final class OrgDashboardController
             // that has quietly decided what they are.
             'is_vendor'   => PartnerOrg::kindOf($org) === PartnerOrg::KIND_VENDOR,
             'individual'  => PartnerOrg::isIndividual($org),
-            'applications'=> $this->applicationRows($orgId),
+            'applications'=> $applications,
             'documents'   => $this->documentRows($orgId),
-            'required'    => PartnerOrg::requiredDocuments($orgId),
-            'missing'     => StandApplication::missingDocuments($orgId),
+            'required'    => $required,
+            'missing'     => $missing,
             'doc_kinds'   => PartnerOrg::DOCUMENT_KINDS,
             'uploads_on'  => $this->uploads !== null,
             'decisions'   => StandApplication::DECISIONS,
             'flash_ok'    => $_SESSION['org_flash_ok']    ?? null,
             'flash_error' => $_SESSION['org_flash_error'] ?? null,
+
+            // ── WHAT THE SECTIONED LAYOUT NEEDS ──────────────────────────────
+            //
+            // Counts on the rail, because a section label with no number beside it is a door
+            // people open to find out whether it was worth opening. The one that needs doing
+            // says so as a WORD — see the template; a bare "3" on Documents reads as three
+            // filed, which is the opposite of the truth.
+            'counts' => [
+                'documents'    => count($required),
+                'to_do'        => count($missing),
+                'applications' => count($applications),
+                'offers'       => count(array_filter($applications, static fn ($a) => !empty($a['live_offer']))),
+                'donations'    => (int) ($totals['count'] ?? 0),
+                'appeals'      => count($campaigns),
+                'payouts'      => count($payouts),
+            ],
+            'money_chart' => \AfricaGates\Support\Viz::area(
+                'viz-money', 'Received, last 90 days', $this->donationSeries($orgId),
+                [
+                    'unit' => '₦',
+                    'sub'  => 'Your share, after the platform fee — the figure that reaches your account.',
+                    'empty'=> 'The line starts with your first confirmed donation.',
+                ]
+            ),
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
 
@@ -396,6 +428,64 @@ final class OrgDashboardController
      *
      * @return array<int,array<string,mixed>>
      */
+    /**
+     * Money received, day by day, as a running total — for the chart on the dashboard.
+     *
+     * ── WHY CUMULATIVE AND NOT PER-DAY BARS ──────────────────────────────────
+     *
+     * A fundraiser's question is "how close am I", not "what happened on Tuesday". A bar per
+     * day answers the second and makes the first something the reader has to do in their
+     * head; a rising line answers the first and still shows the busy days as the steep bits.
+     *
+     * Empty days hold the previous total, for the same reason the points chart does: a total
+     * is a running figure, and plotting only the days with a donation draws a steady climb
+     * where there was one gift and then three weeks of nothing.
+     *
+     * @return list<array{date: string, balance: int, delta: int}> the shape Viz::area reads
+     */
+    private function donationSeries(int $orgId, int $days = 90): array
+    {
+        $days = max(2, min(365, $days));
+        $from = date('Y-m-d', strtotime('-' . ($days - 1) . ' days'));
+
+        try {
+            $rows = DB::table('gates_donations')
+                ->where('recipient_org_id', $orgId)
+                ->where('status', 'confirmed')
+                ->where('created_at', '>=', $from . ' 00:00:00')
+                ->orderBy('id')
+                ->get(['amount_naira', 'platform_fee_naira', 'created_at']);
+            // Everything before the window, so the line starts where the organisation
+            // actually stood rather than at zero — a partner two years in is not somebody
+            // who joined ninety days ago.
+            $before = (int) DB::table('gates_donations')
+                ->where('recipient_org_id', $orgId)
+                ->where('status', 'confirmed')
+                ->where('created_at', '<', $from . ' 00:00:00')
+                ->sum(DB::raw('amount_naira - COALESCE(platform_fee_naira, 0)'));
+        } catch (\Throwable) {
+            return [];
+        }
+
+        if (count($rows) === 0 && $before === 0) return [];
+
+        $moved = [];
+        foreach ($rows as $r) {
+            $net = max(0, (int) ($r->amount_naira ?? 0) - (int) ($r->platform_fee_naira ?? 0));
+            $d   = substr((string) $r->created_at, 0, 10);
+            $moved[$d] = ($moved[$d] ?? 0) + $net;
+        }
+
+        $out  = [];
+        $held = $before;
+        for ($i = 0; $i < $days; $i++) {
+            $d = date('Y-m-d', strtotime($from . ' +' . $i . ' days'));
+            $held += (int) ($moved[$d] ?? 0);
+            $out[] = ['date' => $d, 'balance' => $held, 'delta' => (int) ($moved[$d] ?? 0)];
+        }
+        return $out;
+    }
+
     private function recentDonations(int $orgId, int $limit = 25): array
     {
         try {
