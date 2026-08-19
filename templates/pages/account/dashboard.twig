@@ -138,6 +138,11 @@
   .me-rail__i:hover{ background:rgba(16,41,44,.05); color:var(--me-ink); }
   .me-rail__i:focus-visible{ outline:3px solid var(--me-accent); outline-offset:-1px; }
   .me-rail__i[aria-selected="true"]{ background:var(--me-ink); color:#fff; }
+  /* The selected item is dark, and a two-tone icon drawn for a white ground loses its
+     stroke against it. Brightened rather than swapped for a monochrome copy: the hue is
+     what tells the sections apart, and dropping it on the one that is selected would make
+     the icon change meaning at the moment it is being looked at. */
+  .me-rail__i[aria-selected="true"] .ico{ filter:brightness(1.9) saturate(1.15); }
   .me-rail__i svg{ flex:none; }
   .me-rail__n{ flex:1; min-width:0; }
   /* Tabular, because these sit in a vertical column and ragged digits make the
@@ -227,46 +232,9 @@
   .me-fact__v{ font:700 15px/1.2 var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
     color:var(--me-ink); margin-top:5px; }
 
-  /* ── chart ───────────────────────────────────────────────────────────────── */
-  /* `preserveAspectRatio:none` stretches it to the panel, which is right for a sparkline
-     and wrong for the real chart — the shape here is a gesture, not a measurement, and
-     `non-scaling-stroke` keeps the line 2px however far it is stretched. */
-  .me-spark{ display:block; width:100%; height:46px; margin-top:16px; }
-  .me-spark__c{ margin:6px 0 0; font:600 11px/1 var(--ag-font-mono,monospace);
-    letter-spacing:.1em; text-transform:uppercase; color:var(--me-mute); }
-  .me-chart{ margin-top:20px; }
-  .me-chart__box{ position:relative; }
-  .me-chart svg{ display:block; width:100%; height:auto; overflow:visible; }
-  .me-chart__grid{ stroke:var(--me-line); stroke-width:1; }
-  .me-chart__area{ fill:var(--me-accent); fill-opacity:.10; }
-  /* 2px, and the only saturated thing on the page. */
-  .me-chart__line{ fill:none; stroke:var(--me-accent); stroke-width:2;
+  .me-spark__a{ fill:var(--me-accent); fill-opacity:.10; }
+  .me-spark__l{ fill:none; stroke:var(--me-accent); stroke-width:2;
     stroke-linejoin:round; stroke-linecap:round; }
-  .me-chart__cursor{ stroke:var(--me-ink); stroke-width:1; opacity:.35; }
-  .me-chart__dot{ fill:var(--me-panel); stroke:var(--me-accent); stroke-width:2.5; }
-  .me-chart__ax{ font:600 10.5px/1 var(--ag-font-mono,monospace); fill:var(--me-mute); }
-  .me-chart__hit{ fill:transparent; cursor:crosshair; }
-  .me-chart__box:focus-visible{ outline:3px solid var(--me-accent); outline-offset:3px;
-    border-radius:6px; }
-  /* Reserved height, so the readout appearing on hover does not move the section
-     under the pointer. */
-  .me-chart__read{ min-height:20px; margin-top:10px; font-size:12.5px; color:var(--me-mute); }
-  .me-chart__read b{ color:var(--me-ink); font-family:var(--ag-font-mono,monospace);
-    font-variant-numeric:tabular-nums; }
-  .me-chart__foot{ display:flex; align-items:center; justify-content:space-between; gap:10px;
-    flex-wrap:wrap; margin-top:6px; }
-
-  /* ── table ───────────────────────────────────────────────────────────────── */
-  .me-tw{ overflow-x:auto; margin-top:12px; }
-  .me-table{ width:100%; border-collapse:collapse; font-size:13px; }
-  .me-table th, .me-table td{ text-align:left; padding:9px 12px 9px 0;
-    border-top:1px solid var(--me-line); white-space:nowrap; }
-  .me-table thead th{ border-top:0; font:700 10.5px/1 var(--ag-font-mono,monospace);
-    letter-spacing:.13em; text-transform:uppercase; color:var(--me-mute); padding-bottom:8px; }
-  .me-table td.num{ font-family:var(--ag-font-mono,monospace); font-variant-numeric:tabular-nums;
-    text-align:right; padding-right:0; }
-  .me-delta--pos{ color:#166534; font-weight:700; }
-  .me-delta--neg{ color:var(--me-bad); font-weight:700; }
 
   /* ── checklist ───────────────────────────────────────────────────────────── */
   .me-steps{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:8px; }
@@ -323,33 +291,13 @@
 {% endblock %}
 
 {% block content %}
-{% import _self as ico %}
+{# The shared set. Section icons are coloured — see the note in that file for why the
+   emoji this page used to carry were the right idea and the wrong mechanism. #}
+{% import "partials/icons.twig" as gi %}
+{# The site's one chart component — see partials/viz.twig for what interaction is for. #}
+{% import "partials/viz.twig" as viz %}
 
-{#
-  Icons as a macro rather than a sprite file: there are nine of them, they are
-  used once or twice each, and a second HTTP request to draw 400 bytes of path
-  data is a request that costs more than it saves.
-#}
-{% macro i(name, size) %}
-{%- set s = size|default(17) -%}
-<svg width="{{ s }}" height="{{ s }}" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-{%- if name == 'overview' %}<rect x="3" y="3" width="7" height="9" rx="1.6"/><rect x="14" y="3" width="7" height="5" rx="1.6"/><rect x="14" y="12" width="7" height="9" rx="1.6"/><rect x="3" y="16" width="7" height="5" rx="1.6"/>
-{%- elseif name == 'points' %}<path d="M3 17.5 8.5 11l4 4L21 6"/><path d="M21 11V6h-5"/>
-{%- elseif name == 'bag' %}<path d="M4 8h16l-1.2 11a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8V6a3.5 3.5 0 0 1 7 0v2"/>
-{%- elseif name == 'activity' %}<path d="M3 12h4l2.5-6 4 13L16 12h5"/>
-{%- elseif name == 'saved' %}<path d="M6 4h12a1 1 0 0 1 1 1v15l-7-4-7 4V5a1 1 0 0 1 1-1Z"/>
-{%- elseif name == 'settings' %}<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2.2" fill="currentColor" stroke="none"/><circle cx="8" cy="18" r="2.2" fill="currentColor" stroke="none"/>
-{%- elseif name == 'search' %}<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
-{%- elseif name == 'copy' %}<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>
-{%- elseif name == 'down' %}<path d="M12 4v11m0 0-4-4m4 4 4-4"/><path d="M4 17v1.5A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5V17"/>
-{%- elseif name == 'go' %}<path d="M5 12h13m0 0-5-5m5 5-5 5"/>
-{%- elseif name == 'tick' %}<path d="m5 12.5 4.5 4.5L19 7" stroke-width="2.6"/>
-{%- elseif name == 'ticket' %}<path d="M4 9V7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a2.4 2.4 0 0 0 0 4.8V17a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3.2A2.4 2.4 0 0 0 4 9Z"/>
-{%- elseif name == 'spark' %}<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M17.7 6.3l-2.8 2.8M9.1 14.9l-2.8 2.8"/>
-{%- endif -%}
-</svg>
-{% endmacro %}
+
 
 {% set labels = {
   'earn.shop_order':'Shop order', 'earn.donation':'Donation', 'earn.event_ticket':'Event ticket',
@@ -371,7 +319,7 @@
          platform, "where is that order" is the actual question, and it is faster to type four
          characters of a product name than to reason about which section it lives in. #}
       <div class="me-find">
-        {{ ico.i('search', 16) }}
+        {{ gi.ui('search', 16) }}
         {# No `/` shortcut and no key hint. The site already binds `/` to its own search
            overlay on every page, and a second field claiming the same key would either
            steal it here or — what actually happened when this was tried — advertise a
@@ -408,7 +356,7 @@
         {% if r.id != 'saved' or r.n > 0 %}
         <a class="me-rail__i" href="#{{ r.id }}" data-me-go="{{ r.id }}"
            aria-selected="{{ r.id == 'overview' ? 'true' : 'false' }}">
-          {{ ico.i(r.ico, 17) }}
+          {{ gi.sec(r.ico, 18) }}
           <span class="me-rail__n">{{ r.label }}</span>
           {% if r.n %}<span class="me-rail__c">{{ r.n }}</span>{% endif %}
         </a>
@@ -428,12 +376,12 @@
            a new member sees. #}
         <div class="me-panel">
           <div class="me-empty">
-            <span class="me-empty__i">{{ ico.i('spark', 20) }}</span>
+            <span class="me-empty__i">{{ gi.sec('spark', 24) }}</span>
             <h3>Welcome, {{ user.name|split(' ')|first }}</h3>
             <p>Nothing has happened on this account yet. Points arrive from what you buy,
               the events you book and what you give — and they convert into votes you can
               cast in the awards.</p>
-            <a class="me-btn me-btn--go" href="/vote">See the ballot {{ ico.i('go', 15) }}</a>
+            <a class="me-btn me-btn--go" href="/vote">See the ballot {{ gi.ui('go', 15) }}</a>
           </div>
         </div>
         {% endif %}
@@ -468,8 +416,8 @@
              figure here would be the same number said twice. #}
           <svg class="me-spark" viewBox="0 0 {{ points_spark.w }} {{ points_spark.h }}"
                preserveAspectRatio="none" aria-hidden="true" focusable="false">
-            <path class="me-chart__area" d="{{ points_spark.area }}"></path>
-            <path class="me-chart__line" d="{{ points_spark.line }}" vector-effect="non-scaling-stroke"></path>
+            <path class="me-spark__a" d="{{ points_spark.area }}"></path>
+            <path class="me-spark__l" d="{{ points_spark.line }}" vector-effect="non-scaling-stroke"></path>
           </svg>
           <p class="me-spark__c">Last 90 days · {% if points_chart.change > 0 %}up {{ points_chart.change|number_format }}{% elseif points_chart.change < 0 %}down {{ (points_chart.change * -1)|number_format }}{% else %}no change{% endif %}</p>
           {% endif %}
@@ -483,7 +431,7 @@
             {% endif %}
           </p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
-            {% if points_enabled and redeemable > 0 %}<a class="me-btn me-btn--go" href="/vote">Redeem at the ballot {{ ico.i('go', 15) }}</a>{% endif %}
+            {% if points_enabled and redeemable > 0 %}<a class="me-btn me-btn--go" href="/vote">Redeem at the ballot {{ gi.ui('go', 15) }}</a>{% endif %}
             <a class="me-btn" href="#points" data-me-go="points">Points history</a>
           </div>
         </div>
@@ -512,7 +460,7 @@
               {# An SVG tick and not a `✓` character: the rest of this page's icons are
                  drawn, and one glyph among them inherits whatever the reader's font does
                  with it — which on this repo's own measurement is sometimes a tofu box. #}
-              <span class="me-step__n" aria-hidden="true">{% if s.done %}{{ ico.i('tick', 12) }}{% else %}{{ loop.index }}{% endif %}</span>
+              <span class="me-step__n" aria-hidden="true">{% if s.done %}{{ gi.ui('tick', 12) }}{% else %}{{ loop.index }}{% endif %}</span>
               <span>{{ s.label }}{% if s.done %} <span class="sr-only">— done</span>{% endif %}</span>
             </a>
             {% endfor %}
@@ -545,73 +493,24 @@
         <div class="me-sec__h">
           <h2 id="me-points-h">Points</h2>
           {% if ledger is not empty %}
-          <a class="me-btn" href="/account/points.csv" download>{{ ico.i('down', 15) }} Download</a>
+          <a class="me-btn" href="/account/points.csv" download>{{ gi.ui('down', 15) }} Download</a>
           {% endif %}
         </div>
         <p class="me-sec__lead">Every point that has arrived or been spent, and what it was for.
           This is the record behind the number — download it if you want to keep a copy.</p>
 
+        {# The shared component. The bespoke SVG, hover handler and table toggle that
+           used to live here are gone — this page was the third implementation of "what
+           is a chart" on the site, and now there is one.
+
+           Still guarded. The component has its own empty state, which is the right thing
+           when a chart is expected and its data is momentarily absent — a filter with no
+           matches, an event with no bookings yet. It is the wrong thing on an account that
+           has never had a point: "Balance, last 90 days — nothing to chart yet" is a
+           promise of a graph, made to somebody who has not started. #}
         {% if points_chart.ok|default(false) %}
         <div class="me-panel">
-          <p class="me-panel__h">Balance, last 90 days</p>
-          <p class="me-panel__s">
-            {% if points_chart.change > 0 %}Up {{ points_chart.change|number_format }} points over the period.
-            {%- elseif points_chart.change < 0 %}Down {{ (points_chart.change * -1)|number_format }} points over the period.
-            {%- else %}Unchanged over the period.{% endif %}
-          </p>
-
-          {# The plot is INSIDE a focusable box with the readout beneath it, so a keyboard
-             reaches every value the pointer does — and the table below reaches them without
-             either. `role="img"` with a real description, because the SVG's own text nodes
-             are axis labels and would otherwise be read as the content. #}
-          <div class="me-chart">
-            <div class="me-chart__box" id="meChartBox" tabindex="0" role="group"
-                 aria-label="Points balance over the last 90 days. Use the left and right arrow keys to read each day."
-                 data-points='{{ points_chart.points|json_encode }}'>
-              <svg viewBox="0 0 {{ points_chart.w }} {{ points_chart.h + 26 }}" role="img"
-                   aria-label="Balance from {{ points_chart.first.balance|number_format }} points on {{ points_chart.first.date|date('j M') }} to {{ points_chart.last.balance|number_format }} on {{ points_chart.last.date|date('j M') }}.">
-                {% for g in points_chart.grid %}
-                  <line class="me-chart__grid" x1="0" y1="{{ g.y }}" x2="{{ points_chart.w }}" y2="{{ g.y }}"></line>
-                  <text class="me-chart__ax" x="0" y="{{ g.y - 5 }}">{{ g.label }}</text>
-                {% endfor %}
-                <path class="me-chart__area" d="{{ points_chart.area }}"></path>
-                <path class="me-chart__line" d="{{ points_chart.line }}"></path>
-                <g id="meChartCur" hidden>
-                  <line class="me-chart__cursor" id="meChartCurLine" x1="0" y1="0" x2="0" y2="{{ points_chart.h }}"></line>
-                  <circle class="me-chart__dot" id="meChartCurDot" r="4.5" cx="0" cy="0"></circle>
-                </g>
-                {% for t in points_chart.ticks %}
-                  <text class="me-chart__ax" x="{{ t.x }}" y="{{ points_chart.h + 18 }}"
-                        text-anchor="{{ loop.first ? 'start' : (loop.last ? 'end' : 'middle') }}">{{ t.label }}</text>
-                {% endfor %}
-                <rect class="me-chart__hit" id="meChartHit" x="0" y="0"
-                      width="{{ points_chart.w }}" height="{{ points_chart.h }}"></rect>
-              </svg>
-            </div>
-            <p class="me-chart__read" id="meChartRead" aria-live="polite"></p>
-          </div>
-
-          <div class="me-chart__foot">
-            <p class="me-panel__s" style="margin:0">Peak on the axis: {{ points_chart.max|number_format }} points.</p>
-            <button type="button" class="me-btn" id="meTableToggle" aria-expanded="false" aria-controls="meChartTable">Show as a table</button>
-          </div>
-          <div class="me-tw" id="meChartTable" hidden>
-            <table class="me-table">
-              <caption class="sr-only">Points balance by day, last 90 days</caption>
-              <thead><tr><th scope="col">Day</th><th scope="col" style="text-align:right">Change</th><th scope="col" style="text-align:right">Balance</th></tr></thead>
-              <tbody>
-                {% for p in points_chart.points %}
-                  {% if p.delta != 0 or loop.first or loop.last %}
-                  <tr>
-                    <td>{{ p.date|date('j M Y') }}</td>
-                    <td class="num">{% if p.delta != 0 %}<span class="{{ p.delta > 0 ? 'me-delta--pos' : 'me-delta--neg' }}">{{ p.delta > 0 ? '+' : '' }}{{ p.delta|number_format }}</span>{% else %}—{% endif %}</td>
-                    <td class="num">{{ p.balance|number_format }}</td>
-                  </tr>
-                  {% endif %}
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
+          {{ viz.chart(points_chart) }}
         </div>
         {% endif %}
 
@@ -634,11 +533,11 @@
 
           {% if ledger is empty %}
             <div class="me-empty">
-              <span class="me-empty__i">{{ ico.i('points', 20) }}</span>
+              <span class="me-empty__i">{{ gi.sec('points', 24) }}</span>
               <h3>No points yet</h3>
               <p>Points arrive when you buy from the shop, book a paid event or make a donation.
                 They appear here the moment the payment is confirmed.</p>
-              <a class="me-btn" href="/shop">Visit the shop {{ ico.i('go', 15) }}</a>
+              <a class="me-btn" href="/shop">Visit the shop {{ gi.ui('go', 15) }}</a>
             </div>
           {% else %}
             <ul class="me-list" id="meLedger" style="margin-top:12px">
@@ -670,11 +569,11 @@
 
         {% if my_orders|default([]) is empty and my_tickets|default([]) is empty %}
           <div class="me-panel"><div class="me-empty">
-            <span class="me-empty__i">{{ ico.i('bag', 20) }}</span>
+            <span class="me-empty__i">{{ gi.sec('bag', 24) }}</span>
             <h3>Nothing bought yet</h3>
             <p>Orders from the shop and tickets to events will show up here, with their
               delivery status and the code that gets you in.</p>
-            <a class="me-btn" href="/events">See what is coming up {{ ico.i('go', 15) }}</a>
+            <a class="me-btn" href="/events">See what is coming up {{ gi.ui('go', 15) }}</a>
           </div></div>
         {% endif %}
 
@@ -706,7 +605,7 @@
                 <button type="button" class="me-btn" data-me-copy="{{ t.code }}"
                         style="margin-top:7px;min-height:36px;padding:0 12px"
                         aria-label="Copy ticket code {{ t.code }}">
-                  <span class="me-code" style="margin:0">{{ t.code }}</span>{{ ico.i('copy', 14) }}
+                  <span class="me-code" style="margin:0">{{ t.code }}</span>{{ gi.ui('copy', 14) }}
                 </button>
                 {% endif %}
                 {% if t.state == 'offered' and t.expires %}
@@ -769,10 +668,10 @@
           <p class="me-panel__h">Votes cast</p>
           {% if my_votes is empty %}
             <div class="me-empty">
-              <span class="me-empty__i">{{ ico.i('activity', 20) }}</span>
+              <span class="me-empty__i">{{ gi.sec('activity', 24) }}</span>
               <h3>You have not voted yet</h3>
               <p>The ballot is open to everyone — you do not have to spend points to look.</p>
-              <a class="me-btn" href="/vote">Explore the ballot {{ ico.i('go', 15) }}</a>
+              <a class="me-btn" href="/vote">Explore the ballot {{ gi.ui('go', 15) }}</a>
             </div>
           {% else %}
             <ul class="me-list" style="margin-top:10px">
@@ -792,11 +691,11 @@
           <p class="me-panel__h">Nominations</p>
           {% if my_nominations is empty %}
             <div class="me-empty">
-              <span class="me-empty__i">{{ ico.i('saved', 20) }}</span>
+              <span class="me-empty__i">{{ gi.sec('saved', 24) }}</span>
               <h3>No nominations yet</h3>
               <p>If you know someone whose work deserves continental recognition, put them
                 forward. It takes a few minutes and costs nothing.</p>
-              <a class="me-btn" href="/nominate">Nominate someone {{ ico.i('go', 15) }}</a>
+              <a class="me-btn" href="/nominate">Nominate someone {{ gi.ui('go', 15) }}</a>
             </div>
           {% else %}
             <ul class="me-list" style="margin-top:10px">
@@ -812,7 +711,7 @@
                   <button type="button" class="me-btn" data-me-copy="{{ n.reference }}"
                           style="margin-top:7px;min-height:36px;padding:0 12px"
                           aria-label="Copy reference {{ n.reference }}">
-                    <span class="me-code" style="margin:0;font-size:12.5px">{{ n.reference }}</span>{{ ico.i('copy', 14) }}
+                    <span class="me-code" style="margin:0;font-size:12.5px">{{ n.reference }}</span>{{ gi.ui('copy', 14) }}
                   </button>
                 </div>
               </li>
@@ -835,7 +734,7 @@
               {% if not l.expired %}
               <div class="me-row__r">
                 <button type="button" class="me-btn" data-me-copy="{{ l.url }}"
-                        aria-label="Copy the share link for {{ l.nominee }}">{{ ico.i('copy', 14) }} Copy</button>
+                        aria-label="Copy the share link for {{ l.nominee }}">{{ gi.ui('copy', 14) }} Copy</button>
               </div>
               {% endif %}
             </li>
@@ -924,7 +823,7 @@
           <p class="me-panel__h">Your data</p>
           <p class="me-panel__s">Take a copy of anything on this page.</p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
-            <a class="me-btn" href="/account/points.csv" download>{{ ico.i('down', 15) }} Points history (CSV)</a>
+            <a class="me-btn" href="/account/points.csv" download>{{ gi.ui('down', 15) }} Points history (CSV)</a>
             <a class="me-btn me-btn--quiet" href="/account/logout">Sign out</a>
           </div>
         </div>
@@ -1093,68 +992,7 @@
     }
   });
 
-  // ── chart ─────────────────────────────────────────────────────────────────
-  var box = document.getElementById('meChartBox');
-  if (box) {
-    var pts   = JSON.parse(box.getAttribute('data-points') || '[]');
-    var hit   = document.getElementById('meChartHit');
-    var cur   = document.getElementById('meChartCur');
-    var line  = document.getElementById('meChartCurLine');
-    var dot   = document.getElementById('meChartCurDot');
-    var read  = document.getElementById('meChartRead');
-    var at    = -1;
-
-    var fmt = function (n) { return n.toLocaleString(); };
-    function show(i) {
-      if (i < 0 || i >= pts.length) return;
-      at = i;
-      var p = pts[i];
-      line.setAttribute('x1', p.x); line.setAttribute('x2', p.x);
-      dot.setAttribute('cx', p.x);  dot.setAttribute('cy', p.y);
-      cur.removeAttribute('hidden');
-      var d = new Date(p.date + 'T00:00:00');
-      read.innerHTML = '<b>' + fmt(p.balance) + '</b> points on ' +
-        d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) +
-        (p.delta ? ' · <b>' + (p.delta > 0 ? '+' : '') + fmt(p.delta) + '</b> that day' : '');
-    }
-    function clear() { at = -1; cur.setAttribute('hidden', ''); read.textContent = ''; }
-
-    function nearest(clientX) {
-      var r = hit.getBoundingClientRect();
-      if (!r.width) return -1;
-      // The plot's own coordinate space, not the rendered one — the SVG scales
-      // with the panel and the two stop agreeing the moment it does.
-      var vx = ((clientX - r.left) / r.width) * pts[pts.length - 1].x;
-      var best = 0, bestD = Infinity;
-      for (var i = 0; i < pts.length; i++) {
-        var d = Math.abs(pts[i].x - vx);
-        if (d < bestD) { bestD = d; best = i; }
-      }
-      return best;
-    }
-
-    hit.addEventListener('pointermove', function (e) { show(nearest(e.clientX)); });
-    hit.addEventListener('pointerleave', clear);
-    box.addEventListener('blur', clear);
-    box.addEventListener('keydown', function (e) {
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        var next = at < 0 ? pts.length - 1 : at + (e.key === 'ArrowRight' ? 1 : -1);
-        show(Math.max(0, Math.min(pts.length - 1, next)));
-      } else if (e.key === 'Home') { e.preventDefault(); show(0); }
-      else if (e.key === 'End')    { e.preventDefault(); show(pts.length - 1); }
-      else if (e.key === 'Escape') { clear(); }
-    });
-
-    var toggle = document.getElementById('meTableToggle');
-    var table  = document.getElementById('meChartTable');
-    if (toggle && table) toggle.addEventListener('click', function () {
-      var on = table.hasAttribute('hidden');
-      if (on) table.removeAttribute('hidden'); else table.setAttribute('hidden', '');
-      toggle.setAttribute('aria-expanded', on ? 'true' : 'false');
-      toggle.textContent = on ? 'Hide the table' : 'Show as a table';
-    });
-  }
 })();
 </script>
+{{ viz.assets(csp_nonce) }}
 {% endblock %}

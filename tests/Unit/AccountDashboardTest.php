@@ -127,13 +127,13 @@ class AccountDashboardTest extends TestCase
 
         $html = $this->page();
         $this->assertStringContainsString('Balance, last 90 days', $html);
-        $this->assertStringContainsString('class="me-chart__line"', $html);
+        $this->assertStringContainsString('class="viz__line"', $html);
         // Every value the hover shows is also in a table. A number only reachable by
         // pointing at it is a number some people cannot reach.
-        $this->assertStringContainsString('id="meChartTable"', $html);
-        $this->assertStringContainsString('Show as a table', $html);
+        $this->assertStringContainsString('id="viz-points-tbl"', $html);
+        $this->assertStringContainsString('data-viz-table', $html);
         // And the chart itself is reachable from a keyboard.
-        $this->assertMatchesRegularExpression('~id="meChartBox"[^>]*tabindex="0"~', $html);
+        $this->assertMatchesRegularExpression('~class="viz__plot"[^>]*tabindex="0"~', $html);
     }
 
     public function test_the_chart_is_drawn_on_the_server(): void
@@ -146,7 +146,7 @@ class AccountDashboardTest extends TestCase
         $this->earn($uid, 300, '-40 days');
         $this->earn($uid, 300, '-10 days');
 
-        $this->assertMatchesRegularExpression('~class="me-chart__line" d="M[\d. L]+"~', $this->page());
+        $this->assertMatchesRegularExpression('~class="viz__line" d="M[\d. L]+"~', $this->page());
     }
 
     public function test_the_points_export_is_the_owners_and_only_the_owners(): void

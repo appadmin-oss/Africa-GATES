@@ -377,6 +377,8 @@ class AccountController
         $ledger    = PointsService::ledger((int) $user->id, 60);
         // Fetched once and drawn twice, at two sizes — see 'points_spark' below.
         $pointsSeries = PointsService::series((int) $user->id, 90);
+        $pointsMove   = $pointsSeries === [] ? 0
+            : (int) end($pointsSeries)['balance'] - (int) $pointsSeries[0]['balance'];
         $bookmarks = $this->community ? $this->community->bookmarkedThreads((int) $user->id, 12) : [];
 
         return $this->view->render($res, 'pages/account/dashboard.twig', [
@@ -416,7 +418,22 @@ class AccountController
             ],
             // Ninety days, by TIME and not by row count — see PointsService::series() for
             // why a chart of "the last 30 entries" is not a chart of anything.
-            'points_chart' => \AfricaGates\Support\Spark::chart($pointsSeries),
+            // The shared chart spec — same component the partner dashboard and the stands
+            // admin render, so there is one answer on this site to "what is a hover".
+            'points_chart' => \AfricaGates\Support\Viz::area(
+                'viz-points', 'Balance, last 90 days', $pointsSeries,
+                [
+                    // The direction of travel, in a sentence. It is the one thing a reader
+                    // takes from a balance chart at a glance, and reading it off a line is
+                    // slower than reading it off four words.
+                    'sub' => match (true) {
+                        $pointsMove > 0 => 'Up ' . number_format($pointsMove) . ' points over the period.',
+                        $pointsMove < 0 => 'Down ' . number_format(-$pointsMove) . ' points over the period.',
+                        default         => 'Unchanged over the period.',
+                    },
+                    'empty' => 'Points appear here once something arrives.',
+                ]
+            ),
             // The same 90 days at a glance, for the summary panel. Not the same chart
             // shrunk: it has no axes, no gridlines and no hover, because a summary that
             // repeats the detail view is two things to keep in step and one of them will

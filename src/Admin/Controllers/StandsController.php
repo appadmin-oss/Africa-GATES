@@ -113,6 +113,43 @@ final class StandsController
             // place to discover that.
             'swatch_scale'=> $this->swatchScale($plan),
             'plan_scale'  => $this->planScale($plan),
+
+            // ── THE THREE CHARTS, AS SPECS ───────────────────────────────────
+            //
+            // Built here and rendered by templates/partials/viz.twig — the same component
+            // the account and partner dashboards use. They were three bespoke SVG macros in
+            // an admin-only partial, which is how this page ended up with charts that had no
+            // hover worth the name, no keyboard reading and no table behind them.
+            'viz_budget' => \AfricaGates\Support\Viz::budget(
+                'viz-floor', 'Floor committed against floor available',
+                (float) ($plan['committed_sqm'] ?? 0), (float) ($plan['usable_sqm'] ?? 0),
+                [
+                    'suffix' => ' m²', 'limit_word' => 'sellable',
+                    'used_name' => 'Committed by the quotas',
+                    'limit_name' => 'Sellable after aisles',
+                    'sub' => ($plan['aisle_pct'] ?? 35) . '% of the hall is set aside for aisles '
+                           . 'before anything is sold.',
+                ]
+            ),
+            'viz_plan' => \AfricaGates\Support\Viz::plan(
+                'viz-hall', 'Indicative block layout', $plan,
+                ['sub' => 'Hover or tab a pitch to name it. Use the legend to isolate a category.']
+            ),
+            'viz_mix' => \AfricaGates\Support\Viz::stack(
+                'viz-mix', 'The mix you have published',
+                array_map(static fn (array $c): array => [
+                    'key'   => 'cat-' . (int) $c['index'],
+                    'label' => (string) $c['label'],
+                    'value' => (int) $c['quota'],
+                    'slot'  => (int) $c['index'],
+                ], $plan['categories'] ?? []),
+                [
+                    'col' => 'Category',
+                    'suffix' => ' pitches',
+                    'sub' => 'Twelve jewellery stalls and nothing to eat is a shape you can see '
+                           . 'here and cannot see in a table. Fixed once the call opens.',
+                ]
+            ),
         ]);
     }
 

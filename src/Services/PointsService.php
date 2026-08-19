@@ -292,15 +292,15 @@ final class PointsService
             return [];
         }
 
-        $balance = self::balance($userId);
-        if ($rows === [] ) {
-            // Nothing moved in the window. A flat line at today's balance is still true, and
-            // it is only worth drawing if there is a balance to be flat at — a member with
-            // nothing gets the empty state instead of a chart of zero.
-            if ($balance === 0) return [];
+        if ($rows === []) {
+            // Nothing moved in the window. The line is flat at whatever the ledger last
+            // closed at — and a member with no ledger at all gets no chart, because a graph
+            // of somebody's absence is the worst possible first screen.
+            $held = self::closingBefore($userId, $from);
+            if ($held === null) return [];
             return [
-                ['date' => $from, 'balance' => $balance, 'delta' => 0],
-                ['date' => date('Y-m-d'), 'balance' => $balance, 'delta' => 0],
+                ['date' => $from, 'balance' => $held, 'delta' => 0],
+                ['date' => date('Y-m-d'), 'balance' => $held, 'delta' => 0],
             ];
         }
 
@@ -313,9 +313,19 @@ final class PointsService
             $moved[$d] = ($moved[$d] ?? 0) + (int) $r['delta'];
         }
 
-        // Where the window opened: today's balance, less everything that has moved inside it.
-        $opening = $balance;
-        foreach ($moved as $delta) { $opening -= $delta; }
+        // ── WHERE THE WINDOW OPENED, FROM THE LEDGER'S OWN ARITHMETIC ───────
+        //
+        // The first row inside the window records the balance AFTER it, so the balance
+        // before it is that figure less its own delta. One subtraction, and it is right by
+        // construction.
+        //
+        // The previous version worked backwards from `gates_users.points` instead, which is
+        // a cached total — and the moment the cache and the ledger disagree by any amount,
+        // that subtraction produces an opening balance that is wrong by the same amount and
+        // can be NEGATIVE, which draws a member who has only ever earned points as somebody
+        // who started in debt. Measured: a row set summing to +1,000 against a stale cache
+        // of 0 opened the chart at −1,000. The ledger is the record; the chart reads it.
+        $opening = (int) $rows[0]['balance_after'] - (int) $rows[0]['delta'];
 
         $out  = [];
         $held = $opening;
@@ -325,6 +335,26 @@ final class PointsService
             $out[] = ['date' => $d, 'balance' => $held, 'delta' => (int) ($moved[$d] ?? 0)];
         }
         return $out;
+    }
+
+    /**
+     * What the ledger last closed at before a given day, or NULL when there is no history.
+     *
+     * NULL and 0 are different answers and the caller acts on the difference: no history is
+     * an empty state, a balance of zero is a real flat line at zero.
+     */
+    private static function closingBefore(int $userId, string $day): ?int
+    {
+        try {
+            $row = DB::table('gates_points_ledger')
+                ->where('user_id', $userId)
+                ->where('created_at', '<', $day . ' 00:00:00')
+                ->orderByDesc('id')
+                ->first(['balance_after']);
+        } catch (\Throwable) {
+            return null;
+        }
+        return $row ? (int) $row->balance_after : null;
     }
 
     private static function setting(string $key, ?string $default = null): ?string

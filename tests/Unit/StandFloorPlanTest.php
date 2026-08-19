@@ -296,7 +296,7 @@ class StandFloorPlanTest extends TestCase
         $this->assertStringContainsString('not a site plan', $html);
         $this->assertStringContainsString('fire exits', $html);
         // Identity is never colour alone: the legend names each type beside its swatch.
-        $this->assertStringContainsString('viz-legend', $html);
+        $this->assertStringContainsString('viz__legend', $html);
         $this->assertStringContainsString('Craft table', $html);
     }
 
