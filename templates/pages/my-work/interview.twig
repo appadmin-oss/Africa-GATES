@@ -836,8 +836,8 @@
  *      that is unproven — so the typing indicator is the honest interim and nothing about the
  *      layout has to change if streaming lands later. */
 function ivApp(){
-  const TOKEN = {{ token|json_encode|raw }};
-  const CSRF  = {{ csrf_token|json_encode|raw }};
+  const TOKEN = {{ token|json_encode(JSON_SAFE)|raw }};
+  const CSRF  = {{ csrf_token|json_encode(JSON_SAFE)|raw }};
   const seed  = {{ iv|json_encode(JSON_SAFE)|raw }};
   const works = {{ (form.works ?: [])|json_encode(JSON_SAFE)|raw }};
   let uid = 0;

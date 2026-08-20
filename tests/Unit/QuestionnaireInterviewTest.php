@@ -611,6 +611,48 @@ final class QuestionnaireInterviewTest extends TestCase
         $this->assertStringContainsString('own questionnaire', (string) $rows[0]->source_label);
     }
 
+    // ══ 7. the door closes when it is sent ═══════════════════════════════════
+
+    public function test_the_ledger_refuses_every_change_once_it_has_been_sent(): void
+    {
+        // The token stays valid after submission on purpose, so a re-opened submission can be
+        // finished with the original link. That made the ledger writable after the panel had
+        // it: the quotes a judge would read could be rewritten, and the change landed the
+        // moment an operator pressed "Rewrite these rows" — with nothing recording that it
+        // had changed. saveDraft() and attachFile() have always refused; these did not.
+        [, $token] = $this->open();
+        I::open($token);
+        $this->recordScale($token);
+        Q::submit($token, 'Ada Nwosu');
+
+        $sent = $this->sub($token);
+        $this->assertSame('submitted', (string) $sent->status);
+
+        $this->assertFalse(L::correct($sent, 'scale', 'Actually it was 40,000.')['ok']);
+        $this->assertFalse(L::drop($sent, 'scale'));
+        $this->assertFalse(L::record($sent, 'scale', 'met', 'x',
+            'we now reach 4,000 farmers across eight states', $this->turns())['ok']);
+
+        // And the words the panel is reading are the ones that were sent.
+        $row = DB::table('gates_submission_outcomes')->where('submission_id', (int) $sent->id)
+            ->where('slug', 'scale')->first();
+        $this->assertSame('we now reach 4,000 farmers across eight states', (string) $row->quote);
+    }
+
+    public function test_reopening_makes_it_editable_again(): void
+    {
+        // Re-opening is the supported way to let somebody correct their own submission, and it
+        // has to actually work — otherwise the fix above turns a recoverable mistake into a
+        // support ticket.
+        [$id, $token] = $this->open();
+        I::open($token);
+        $this->recordScale($token);
+        Q::submit($token, 'Ada Nwosu');
+        Q::reopen($id, 'Please add a source for the figure.');
+
+        $this->assertTrue(L::correct($this->sub($token), 'scale', 'It is 3,200 — I misspoke.')['ok']);
+    }
+
     public function test_an_interview_with_nothing_authored_still_has_outcomes(): void
     {
         // Switching a programme on before anybody opens the builder must produce a working

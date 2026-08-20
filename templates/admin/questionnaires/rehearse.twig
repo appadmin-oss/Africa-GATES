@@ -258,8 +258,8 @@
    whole design: there is no admin interview API to keep in step with the real one, so a
    rehearsal cannot pass while the thing it rehearses is broken. */
 function rhPane(){
-  const TOKEN = {{ token|json_encode|raw }};
-  const CSRF  = {{ csrf_token|json_encode|raw }};
+  const TOKEN = {{ token|json_encode(JSON_SAFE)|raw }};
+  const CSRF  = {{ csrf_token|json_encode(JSON_SAFE)|raw }};
   const seed  = {{ iv|json_encode(JSON_SAFE)|raw }};
 
   return {

@@ -151,6 +151,10 @@ final class QuestionnaireLedger
             return ['ok' => false, 'reason' => 'unknown outcome'];
         }
 
+        if (!self::open($s)) {
+            return ['ok' => false, 'reason' => 'this has already gone to the judges'];
+        }
+
         $status = self::cleanStatus($status);
         if ($status === self::UNMET) {
             // Nothing to record. Recording an unmet outcome would let a model walk the ledger
@@ -202,6 +206,29 @@ final class QuestionnaireLedger
     }
 
     /**
+     * Is this submission still open to being changed?
+     *
+     * ── WHY THIS LIVES HERE AND NOT IN THE CONTROLLER ────────────────────────
+     *
+     * `saveDraft()` and `attachFile()` have always refused a submitted questionnaire, and
+     * these two methods did not — so a token still worked on a submission that had already
+     * gone to the panel, and the quotes a judge would read could be rewritten afterwards. The
+     * effect was not immediate, because `publishEvidence()` runs at submit time; it landed
+     * the moment an operator pressed "Rewrite these rows" on the admin screen, at which point
+     * the changed text reached the panel with nothing anywhere recording that it had changed.
+     *
+     * The token is not the problem — it stays valid on purpose, so a re-opened submission can
+     * be finished with the original link. The problem was that only two of the four writers
+     * asked whether the door was still open. It is asked here, in the writer, for the reason
+     * every other gate on this platform is: a screen can be bypassed, and the next caller
+     * added six months from now will not remember to check.
+     */
+    private static function open(object $s): bool
+    {
+        return (string) ($s->status ?? 'draft') === 'draft';
+    }
+
+    /**
      * The nominee correcting one of the machine's rows.
      *
      * Their text replaces the QUOTE, because on this screen the quote is the claim — and it is
@@ -210,6 +237,9 @@ final class QuestionnaireLedger
      */
     public static function correct(object $s, string $slug, string $text): array
     {
+        if (!self::open($s)) {
+            return ['ok' => false, 'reason' => 'this has already gone to the judges'];
+        }
         $slug = QuestionnaireStyle::slug($slug);
         $text = trim($text);
         if ($slug === '') return ['ok' => false, 'reason' => 'unknown outcome'];
@@ -241,6 +271,7 @@ final class QuestionnaireLedger
     /** Drop one row entirely — the nominee saying this is not evidence of anything. */
     public static function drop(object $s, string $slug): bool
     {
+        if (!self::open($s)) return false;
         try {
             return DB::table('gates_submission_outcomes')
                 ->where('submission_id', (int) $s->id)
