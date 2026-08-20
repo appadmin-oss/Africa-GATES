@@ -518,7 +518,7 @@
           if(input) input.value = "";
           return;
         }
-        this.up[w.uid] = { note: "Uploading " + file.name + "… keep this page open." };
+        this.up[w.uid] = { busy: true, note: "Uploading " + file.name + "… keep this page open." };
 
         const form = document.getElementById("mwForm");
         try {
@@ -1003,6 +1003,15 @@
               </div>
               <div class="mw__drop" x-show="up[w.uid]" x-cloak>
                 <span x-text="up[w.uid] && up[w.uid].note"></span>
+                {# A WAY OUT OF THE ERROR.
+
+                   Without this the message was a dead end: the attach control is hidden while
+                   `up[uid]` is set, and nothing cleared it — so somebody who picked a file
+                   that was too large, or whose upload dropped, had a red sentence and no
+                   second chance short of reloading the page and retyping the item. #}
+                <button type="button" class="mw__mini" style="margin-top:8px"
+                        x-show="up[w.uid] && !up[w.uid].busy"
+                        @click="delete up[w.uid]">Try a different file</button>
               </div>
               <button type="button" class="mw__x" @click="dropWork(i)">Remove this item</button>
             </div>

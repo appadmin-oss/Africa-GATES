@@ -50,6 +50,7 @@ final class QuestionnaireBuilderTest extends TestCase
         ]);
         $_SESSION['admin_role'] = 'admin';
         $_SESSION['admin_id']   = 1;
+        unset($_SESSION['flash'], $_SESSION['flash_error']);
     }
 
     /** Call a controller action directly — the routing and CSRF layers are tested elsewhere. */
@@ -260,6 +261,63 @@ final class QuestionnaireBuilderTest extends TestCase
         $this->assertFalse(S::outcomes(self::PROG)[0]['derived']);
         // Second press does nothing, rather than doubling the set.
         $this->assertSame(0, S::seedOutcomes(self::PROG));
+    }
+
+    // ══ 4. a refused row is named, never silently dropped ════════════════════
+
+    public function test_two_outcomes_cannot_share_a_short_name_and_the_screen_says_so(): void
+    {
+        // The database has a UNIQUE on (programme_id, slug). That failure was caught, logged
+        // and reported as success — the screen said "1 outcome saved" and the second row was
+        // gone, with the operator's paragraph in it.
+        $this->call('saveOutcomes', ['o' => [
+            ['id' => 0, 'slug' => 'scale', 'label' => 'How far it reaches'],
+            ['id' => 0, 'slug' => 'scale', 'label' => 'A second one by mistake'],
+        ]]);
+        S::forget();
+
+        $this->assertCount(1, S::outcomes(self::PROG));
+        $this->assertStringContainsString('A second one by mistake', $_SESSION['flash_error'] ?? '');
+        $this->assertStringContainsString('scale', $_SESSION['flash_error'] ?? '');
+    }
+
+    public function test_an_outcome_whose_short_name_folds_to_nothing_is_named(): void
+    {
+        $this->call('saveOutcomes', ['o' => [
+            ['id' => 0, 'slug' => '!!!', 'label' => 'No usable short name'],
+        ]]);
+        S::forget();
+
+        $this->assertCount(0, DB::table('gates_questionnaire_outcomes')
+            ->where('programme_id', self::PROG)->get()->all());
+        $this->assertStringContainsString('No usable short name', $_SESSION['flash_error'] ?? '');
+        $this->assertStringContainsString('short name', $_SESSION['flash_error'] ?? '');
+    }
+
+    public function test_two_questions_cannot_share_a_short_name_either(): void
+    {
+        // The questions table has no unique constraint, so both rows stored — and questions()
+        // dedupes by slug at READ time, so one simply never reached a nominee. The operator
+        // saw "2 questions saved" and the form asked one thing.
+        $this->call('saveQuestions', ['q' => [
+            ['id' => 0, 'slug' => 'reach', 'label' => 'Where has it spread?', 'kind' => 'textarea'],
+            ['id' => 0, 'slug' => 'reach', 'label' => 'A duplicate short name', 'kind' => 'textarea'],
+        ]]);
+
+        $this->assertSame(1, DB::table('gates_programme_questions')
+            ->where('programme_id', self::PROG)->where('slug', 'reach')->count());
+        $this->assertStringContainsString('A duplicate short name', $_SESSION['flash_error'] ?? '');
+    }
+
+    public function test_a_clean_save_reports_no_refusals(): void
+    {
+        unset($_SESSION['flash_error']);
+        $this->call('saveOutcomes', ['o' => [
+            ['id' => 0, 'slug' => 'scale', 'label' => 'How far it reaches'],
+            ['id' => 0, 'slug' => 'story', 'label' => 'One person it changed'],
+        ]]);
+        $this->assertArrayNotHasKey('flash_error', $_SESSION,
+            'a clean save must not raise an error banner');
     }
 
     public function test_a_slug_is_folded_so_the_model_cannot_mistype_it(): void

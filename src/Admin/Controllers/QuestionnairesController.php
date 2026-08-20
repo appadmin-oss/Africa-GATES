@@ -341,7 +341,15 @@ final class QuestionnairesController
         $rows = is_array($body['q'] ?? null) ? $body['q'] : [];
         $now  = Carbon::now()->toDateTimeString();
 
+        // gates_programme_questions has an index on slug but NOT a unique one, so two
+        // questions can be stored with the same short name — and `questions()` dedupes by slug
+        // when it reads them, so one of the two simply never reaches a nominee. Nothing errors
+        // and nothing is logged: the operator saves, sees "12 questions saved", and the form
+        // asks eleven things.
         $seen = 0;
+        $slugs = [];
+        $refused = [];
+
         foreach ($rows as $r) {
             if (!is_array($r)) continue;
             $label = trim((string) ($r['label'] ?? ''));
@@ -357,10 +365,18 @@ final class QuestionnairesController
                 continue;
             }
 
+            $slug = mb_substr((string) preg_replace('/[^a-z0-9_]/', '',
+                        strtolower((string) ($r['slug'] ?? ''))) ?: 'q' . ($seen + 1), 0, 60);
+            if (isset($slugs[$slug])) {
+                $refused[] = '“' . mb_substr($label, 0, 60) . '” uses the short name ' . $slug
+                           . ', which “' . $slugs[$slug] . '” already has.';
+                continue;
+            }
+            $slugs[$slug] = mb_substr($label, 0, 60);
+
             $data = [
                 'programme_id'  => $programmeId,
-                'slug'          => mb_substr(preg_replace('/[^a-z0-9_]/', '',
-                                    strtolower((string) ($r['slug'] ?? ''))) ?: 'q' . ($seen + 1), 0, 60),
+                'slug'          => $slug,
                 'kind'          => in_array((string) ($r['kind'] ?? ''),
                                     ['text','textarea','number','url','email','date','select','checkbox'], true)
                                     ? (string) $r['kind'] : 'textarea',
@@ -405,6 +421,13 @@ final class QuestionnairesController
         }
 
         $_SESSION['flash'] = $seen . ' question(s) saved for this programme.';
+        if ($refused !== []) {
+            // Named rather than renamed. Auto-suffixing a slug behind somebody's back changes
+            // where an answer is filed, which is the one thing on this screen that must never
+            // happen quietly.
+            $_SESSION['flash_error'] = count($refused) . ' were not saved — two questions cannot '
+                . 'share a short name. ' . implode(' ', array_slice($refused, 0, 4));
+        }
         $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.questions_saved',
             'programme', $programmeId, ['count' => $seen]);
         return $this->back($res, '/admin/questionnaires/programme/' . $programmeId . '#questions');
@@ -512,7 +535,21 @@ final class QuestionnairesController
         $body = (array) $req->getParsedBody();
         $rows = is_array($body['o'] ?? null) ? $body['o'] : [];
 
+        // ── A REFUSED ROW MUST BE NAMED ──────────────────────────────────────
+        //
+        // The database has a UNIQUE on (programme_id, slug) and a slug is folded to letters
+        // and underscores, so two rows sharing a short name — or one whose short name folds to
+        // nothing at all — cannot both be written. That failure was caught, logged, and
+        // reported as success: the screen said "5 outcomes saved" and the sixth was simply
+        // gone, with the operator's paragraph in it.
+        //
+        // Checked HERE rather than in the writer because this is the only layer holding the
+        // whole submitted set, which is what makes a duplicate visible at all. The constraint
+        // stays as the backstop.
         $n = 0;
+        $refused = [];
+        $seen = [];
+
         foreach (array_values($rows) as $i => $r) {
             if (!is_array($r)) continue;
             $id    = (int) ($r['id'] ?? 0) ?: null;
@@ -521,17 +558,39 @@ final class QuestionnairesController
                 if ($id !== null) QuestionnaireStyle::retire('gates_questionnaire_outcomes', $id);
                 continue;
             }
+
+            $slug = QuestionnaireStyle::slug((string) ($r['slug'] ?? ''));
+            $name = mb_substr($label, 0, 60);
+            if ($slug === '') {
+                $refused[] = '“' . $name . '” needs a short name — letters and underscores only.';
+                continue;
+            }
+            if (isset($seen[$slug])) {
+                $refused[] = '“' . $name . '” uses the short name ' . $slug
+                           . ', which “' . $seen[$slug] . '” already has.';
+                continue;
+            }
+            $seen[$slug] = $name;
+
             if (QuestionnaireStyle::saveOutcome($programmeId, $id, [
-                'slug' => (string) ($r['slug'] ?? ''), 'label' => $label,
+                'slug' => $slug, 'label' => $label,
                 'description' => (string) ($r['description'] ?? ''),
                 'criterion_id' => (int) ($r['criterion_id'] ?? 0) ?: null,
                 'evidence_kind' => (string) ($r['evidence_kind'] ?? 'note'),
                 'required' => !empty($r['required']),
                 'sort_order' => $i + 1,
-            ]) > 0) $n++;
+            ]) > 0) {
+                $n++;
+            } else {
+                $refused[] = '“' . $name . '” could not be saved.';
+            }
         }
 
         $_SESSION['flash'] = $n . ' outcome(s) saved.';
+        if ($refused !== []) {
+            $_SESSION['flash_error'] = count($refused) . ' were not saved. '
+                . implode(' ', array_slice($refused, 0, 4));
+        }
         $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.outcomes_saved',
             'programme', $programmeId, ['count' => $n]);
         return $this->back($res, '/admin/questionnaires/programme/' . $programmeId . '#outcomes');

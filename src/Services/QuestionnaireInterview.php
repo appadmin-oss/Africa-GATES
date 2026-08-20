@@ -95,7 +95,8 @@ final class QuestionnaireInterview
         if (!$s) {
             return ['ok' => false, 'turns' => [], 'ledger' => [], 'progress' => self::emptyProgress(),
                     'phase' => 'talk', 'focus' => null, 'notes' => [], 'style' => QuestionnaireStyle::FORM,
-                    'degraded' => 'unknown', 'message' => 'That link is not valid.'];
+                    'degraded' => 'unknown', 'submitted' => false, 'submitted_at' => '',
+                    'declared' => '', 'message' => 'That link is not valid.'];
         }
 
         $env      = self::envelope($s);
@@ -113,6 +114,16 @@ final class QuestionnaireInterview
             'notes'    => $env['notes'] ?? [],
             'proposed' => ($s->proposed_at ?? null) !== null,
             'closing'  => (string) $cfg['closing'],
+            // ── WHETHER THIS HAS ALREADY GONE TO THE PANEL ───────────────────
+            //
+            // The page could not tell. `degraded` said 'sent', and the screen treats every
+            // degraded state as "something went wrong, here is the way out" — so a nominee
+            // reopening their link after submitting was shown "Where we stopped" and a button
+            // into a conversation that then refused every turn. The guided form has said
+            // "Sent on …" since it shipped; this is the same thing.
+            'submitted'    => (string) ($s->status ?? 'draft') === 'submitted',
+            'submitted_at' => (string) ($s->submitted_at ?? ''),
+            'declared'     => (string) ($s->declared_name ?? ''),
             // Named rather than boolean, because the four ways this can be unavailable need
             // four different sentences and four different recovery actions on screen.
             'degraded' => self::degradation($s, $cfg, $env),
@@ -867,6 +878,15 @@ final class QuestionnaireInterview
     {
         $s = QuestionnaireService::byToken($token);
         if (!$s) return ['ok' => false, 'message' => 'That link is not valid.'];
+
+        // Not after it has gone. This flipped `style` to 'form' on a submitted interview and
+        // rewrote `answers_json` underneath it — so the admin screen, the dossier and every
+        // reader that branches on style would describe a conversation that had already been
+        // filed as though it had been a form all along. The token stays valid on purpose, for
+        // re-opening; that is the only thing it should still be able to do.
+        if ((string) ($s->status ?? 'draft') !== 'draft') {
+            return ['ok' => false, 'message' => 'This has already gone to the judges.'];
+        }
 
         $carried = QuestionnaireLedger::asAnswers($s);
         $stored  = json_decode((string) ($s->answers_json ?? '{}'), true);

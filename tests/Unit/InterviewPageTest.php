@@ -159,6 +159,37 @@ final class InterviewPageTest extends TestCase
         $this->assertStringContainsString('Carry on in the form', $html);
     }
 
+    public function test_a_submitted_interview_says_it_has_been_sent(): void
+    {
+        // Without this screen the page showed "Where we stopped" and a resume button into a
+        // conversation that then refused every turn — which reads as the submission having
+        // been lost, to somebody who has just finished describing their life's work.
+        $token = $this->open();
+        I::open($token);
+        $s = Q::byToken($token);
+        \AfricaGates\Services\QuestionnaireLedger::record($s, 'scale', 'met', 'x',
+            'we reach 4,000 farmers across eight states',
+            [['i' => 0, 'role' => 'nominee', 'text' => 'we reach 4,000 farmers across eight states']]);
+        Q::submit($token, 'Ada Nwosu');
+
+        $html = $this->get('/my-work/' . $token);
+        $this->assertStringContainsString('This has been sent.', $html);
+        $this->assertStringContainsString('Read what was sent', $html);
+        // And the reassurance that matters most to somebody who has just handed something over.
+        $this->assertStringContainsString('Nobody will ask you for money', $html);
+    }
+
+    public function test_the_composer_stops_a_paste_the_server_would_truncate(): void
+    {
+        // The server truncates at MAX_SAY_CHARS silently. Without a maxlength a nominee
+        // pasting three thousand words loses the tail with nothing to tell them, and the
+        // answer a panel reads stops mid-sentence.
+        $html = $this->get('/my-work/' . $this->open());
+        $this->assertStringContainsString(
+            'maxlength="' . \AfricaGates\Services\QuestionnaireInterview::MAX_SAY_CHARS . '"',
+            $html);
+    }
+
     public function test_every_machine_derived_value_is_labelled_as_such(): void
     {
         $html = $this->get('/my-work/' . $this->open());

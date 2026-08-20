@@ -478,7 +478,12 @@
           {% endif %}
           <div class="iv__field" :class="recording && 'iv__field--armed'">
             <label class="sr-only" for="ivSay">Your answer</label>
+            {# maxlength matches QuestionnaireInterview::MAX_SAY_CHARS. The server truncates at
+               the same number, silently — so without this a nominee pasting three thousand
+               words loses the tail with nothing to tell them, and the answer a panel reads
+               stops mid-sentence. The browser stopping them is the only version they can see. #}
             <textarea class="iv__say" id="ivSay" x-model="say" x-ref="say" rows="1"
+                      maxlength="{{ say_max }}"
                       @input="grow()" @keydown.enter.exact.prevent="send()"
                       placeholder="Type your answer…"></textarea>
             <button class="iv__send" type="button" :class="say.trim() && 'iv__send--on'"
@@ -492,6 +497,9 @@
         <p class="iv__rec" x-show="hearing" x-cloak style="color:#8a6a1c">Writing down what you
           said…</p>
         <p class="iv__rec" x-show="err" x-cloak x-text="err"></p>
+        <p class="iv__rec" x-show="say.length > {{ say_max - 400 }}" x-cloak style="color:#8a6a1c"
+           x-text="({{ say_max }} - say.length) + ' characters left in this message. Send it and '
+                 + 'carry on in the next one — there is no limit on how much you say overall.'"></p>
 
         <div class="iv__under">
           <button type="button" @click="go('show')">Show them your work</button>
@@ -690,8 +698,10 @@
 
       {# The submit is a REAL FORM POST to the questionnaire's own submit path, so the model
          cannot reach it and neither can a broken script. propose_complete opens this screen
-         and nothing more. #}
-      <form class="iv__sub" method="post" action="/my-work/{{ token }}">
+         and nothing more.
+         Hidden once it has gone: a second "Send this to the judges" on a submission already
+         with the panel invites somebody to press it and be told no. #}
+      <form class="iv__sub" method="post" action="/my-work/{{ token }}" x-show="!submitted">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
         <input type="hidden" name="action" value="submit">
         <label class="iv__lab" for="ivName">Type your full name to send it</label>
@@ -704,7 +714,40 @@
       </form>
 
       <button class="iv__text" type="button" style="width:100%; margin-top:12px"
-              @click="go('talk')">Not yet — back to the conversation</button>
+              @click="go(submitted ? 'done' : 'talk')"
+              x-text="submitted ? 'Back' : 'Not yet — back to the conversation'"></button>
+      <p class="iv__free">Nothing about this costs money</p>
+    </div>
+  </template>
+
+  {# ══ ALREADY SENT ══════════════════════════════════════════════════════
+
+     Not in the design pack, and needed: without it a nominee reopening their link after
+     submitting was shown "Where we stopped" and a button into a conversation that then
+     refused every turn — which reads as the submission having been lost. The guided form has
+     said "Sent on …" since it shipped. #}
+  <template x-if="screen === 'done'">
+    <div class="iv__welcome">
+      <p class="iv__eyebrow">With the judges</p>
+      <h1 class="iv__h1">This has been sent.</h1>
+      <p class="iv__lede">
+        <span x-show="submittedAt" x-cloak x-text="'Sent on ' + submittedAt + '.'"></span>
+        <span x-show="declared" x-cloak x-text="' Confirmed by ' + declared + '.'"></span>
+        There is nothing else you need to do.
+      </p>
+      <p class="iv__cap">You can still read back what went, and the panel can ask us to reopen
+        it if something needs correcting — write to us and say so rather than starting again.</p>
+
+      <div class="iv__facts">
+        <div class="iv__fact"><span>01</span>
+          <p><b>Nobody will ask you for money.</b> Not for a shortlisting, not for a place, not
+            at any stage. If anybody does, it is not us.</p></div>
+        <div class="iv__fact"><span>02</span>
+          <p><b>Your words were sent as you wrote them.</b> Nothing was rewritten on the way.</p></div>
+      </div>
+
+      <button class="iv__go" style="margin-top:26px" type="button" @click="go('review')">
+        Read what was sent</button>
       <p class="iv__free">Nothing about this costs money</p>
     </div>
   </template>
@@ -850,6 +893,9 @@ function ivApp(){
     phase: seed.phase || 'talk',
     proposed: !!seed.proposed,
     degraded: seed.degraded || '',
+    submitted: !!seed.submitted,
+    submittedAt: (seed.submitted_at || '').slice(0, 16).replace('T', ' '),
+    declared: seed.declared || '',
     savedWhen: (seed.saved_at || '').slice(0, 16).replace('T', ' '),
 
     /* ── screen state ───────────────────────────────────────────────────── */
@@ -859,6 +905,7 @@ function ivApp(){
     drawer: false, picked: null, amending: null, amendText: '',
     editing: null, editText: '',
     heard: null, recording: false, hearing: false, clock: '0:00',
+    pending: 0,
     works: (works || []).map(w => Object.assign({ uid: 'w' + (++uid) }, w)),
     uploads: {}, suggestions: [],
     kinds: [
@@ -870,7 +917,12 @@ function ivApp(){
     ],
 
     init(){
-      if (this.degraded && this.degraded !== 'sent') { this.screen = 'degraded'; }
+      /* Sent is checked FIRST and is not a degraded state. Every other value of `degraded`
+         means "something is stopping you, here is the way out"; this one means the work is
+         done. Treating them alike is what put a resume button in front of somebody whose
+         submission had already been filed. */
+      if (this.submitted) { this.screen = 'done'; }
+      else if (this.degraded) { this.screen = 'degraded'; }
       else if (this.phase === 'show')   { this.screen = 'show'; }
       else if (this.phase === 'review') { this.screen = 'review'; }
       // Everyone else lands on the welcome screen — first-timers to be told what this is,
@@ -933,6 +985,11 @@ function ivApp(){
     /* ── navigation ─────────────────────────────────────────────────────── */
     go(where){
       this.screen = where;
+      /* The proposals used to be generated only on the turn where propose_complete moved the
+         phase. Anybody who reached the files phase by pressing "Show them your work" — which
+         is on the composer of every screen — got no suggestions at all, and the block the
+         design calls "From what you told me" simply never appeared for them. */
+      if (where === 'show') this.suggest();
       if (where === 'talk' || where === 'show' || where === 'review') {
         this.post('/interview/phase', { phase: where === 'talk' ? 'talk' : where });
       }
@@ -949,7 +1006,11 @@ function ivApp(){
     },
     async retry(){
       const t = this.failed;
-      if (!t) return;
+      // The busy guard is on send() and was missing here. Two fast taps on "Try again" ran
+      // two turns, each pushing an optimistic bubble — and two bubbles sharing a :key is the
+      // exact ambiguity that breaks Alpine's x-for bookkeeping. The unique key below makes
+      // that harmless; this makes it not happen.
+      if (!t || this.busy) return;
       this.failed = '';
       await this.turn(t);
     },
@@ -957,8 +1018,13 @@ function ivApp(){
       this.busy = true; this.err = ''; this.failed = '';
       /* Shown immediately so the conversation does not appear to swallow what was typed. The
          server's copy replaces it the moment the reply lands, which is also what gives the
-         bubble its real turn index. */
-      this.turns.push({ i: -1, role: 'nominee', text });
+         bubble its real turn index.
+         The placeholder key COUNTS DOWN rather than being a fixed -1: two optimistic bubbles
+         sharing one :key makes Alpine's x-for bookkeeping ambiguous, and the next splice
+         throws — the same defect that made Copy silently do nothing in the admin builder.
+         Negative, so it can never collide with a real transcript index. */
+      const key = --this.pending;
+      this.turns.push({ i: key, role: 'nominee', text });
       this.$nextTick(() => this.scroll());
 
       const d = await this.post('/interview', { say: text });
@@ -967,7 +1033,7 @@ function ivApp(){
       if (!d || !d.ok) {
         /* The typed words are never lost. They come out of the optimistic list and into
            `failed`, which renders as an unsent bubble with a retry beside it. */
-        this.turns = this.turns.filter(x => x.i !== -1);
+        this.turns = this.turns.filter(x => x.i >= 0);
         this.failed = text;
         this.err = (d && d.message) || 'That did not get through.';
         if (d && d.degraded && d.degraded !== 'turn_failed') {
@@ -1059,6 +1125,7 @@ function ivApp(){
 
     /* ── taking a turn back ─────────────────────────────────────────────── */
     pick(t){
+      // Not while it is still in flight: there is no turn on the server to amend yet.
       if (t.i < 0) return;
       this.returnTo = document.activeElement;
       this.picked = t.i; this.amending = null; this.amendText = t.text;
@@ -1069,6 +1136,17 @@ function ivApp(){
       this.returnTo = null;
     },
     async amend(how){
+      /* "Say it again instead" is an ORDINARY TURN, not an amendment.
+         The server can append one — and appending is all it did, so the nominee was left
+         looking at their own new message with no reply, which reads as the interview having
+         stopped working. Sending it through turn() appends the same verbatim text AND gets an
+         answer, which is what "say it again" means to the person doing it. */
+      if (how === 'again') {
+        const text = this.amendText;
+        this.unpick();
+        await this.turn(text);
+        return;
+      }
       const d = await this.post('/interview/amend',
         { turn: this.picked, how, text: this.amendText });
       if (d && d.ok) { this.absorb(d); this.unpick(); }
