@@ -87,7 +87,11 @@
   .qb-style{ display:block; border:1.5px solid rgba(16,41,44,.14); border-radius:12px;
     padding:14px 15px; cursor:pointer; background:#fff }
   .qb-style:hover{ border-color:rgba(16,41,44,.3) }
-  .qb-style h3{ margin:0 0 4px; font-size:14px; color:#10292C; display:flex; align-items:center; gap:8px }
+  /* wrap, because the heading is a title beside a status pill and the two cannot share one
+     line on a narrow viewport. It was the only element on this screen that would not collapse
+     — reflow held at 320px, the width WCAG 1.4.10 actually asks about, and broke below it. */
+  .qb-style h3{ margin:0 0 4px; font-size:14px; color:#10292C; display:flex; align-items:center;
+    gap:8px; flex-wrap:wrap }
   .qb-style p{ margin:0; font-size:12.5px; line-height:1.65; color:#5a6d6f }
   .qb-style input{ margin-right:2px }
   .qb-style:has(input:checked){ border-color:#237b22; background:#f6faf6 }
