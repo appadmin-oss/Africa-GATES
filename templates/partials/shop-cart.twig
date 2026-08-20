@@ -1,3 +1,10 @@
+{# A bounced checkout's own values, merged over a complete blank shape so every key
+   exists whatever the caller passed. `pages/shop/item.twig` includes this partial without
+   a `checkout_retry` at all (nothing bounces to a product page), and this way that include
+   needs no special case — and the template keeps working if `strict_variables` is ever
+   turned on. #}
+{% set retry = {'name':'','email':'','phone':'','address':'','region':'','provider':'','discount':'','any':false}
+               |merge(checkout_retry|default({})) %}
 {# Shared shop cart — FAB + drawer + checkout modal. Uses the global Alpine
    $store.cart (registered below). Caller must render this INSIDE an x-data scope
    and provide `providers` (array of {id,label}) + csrf_token. #}
@@ -18,7 +25,11 @@
   .sc-line__n{ font-weight:600; font-size:13.5px; color:#10292C; }
   .sc-line__p{ font-size:12px; color:#5a6d6f; }
   .sc-qty{ display:flex; align-items:center; gap:8px; }
-  .sc-qty button{ cursor:pointer; width:26px; height:26px; border-radius:8px; border:1px solid rgba(16,41,44,.14); background:#fff; font-size:15px; color:#10292C; }
+  /* 40px on touch: these change what somebody is about to buy, and a mis-tap on the
+     minus at quantity 1 used to delete the line outright. 26px cleared WCAG 2.5.8's
+     24px floor by two pixels and nothing else. */
+  .sc-qty button{ cursor:pointer; width:32px; height:32px; border-radius:9px; border:1px solid rgba(16,41,44,.14); background:#fff; font-size:16px; color:#10292C; }
+  @media (hover:none){ .sc-qty button{ width:40px; height:40px; font-size:18px; } }
   .sc-qty span{ font:700 13px var(--ag-font-mono,monospace); min-width:14px; text-align:center; }
   .sc-empty{ text-align:center; padding:50px 20px; color:#5a6d6f; font-size:14px; }
   .sc-ft{ padding:18px 22px; border-top:1px solid rgba(16,41,44,.08); }
@@ -37,7 +48,9 @@
   .sc-mono{ font-family:var(--ag-font-mono,monospace); font-weight:700; }
   .sc-field{ margin-top:11px; }
   .sc-field label{ display:block; font-size:12px; font-weight:600; color:#4a5256; margin-bottom:5px; }
-  .sc-field input, .sc-field select, .sc-field textarea{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:11px; padding:12px 14px; font-family:inherit; font-size:14px; color:#10292C; outline:none; background:#fff; }
+  /* 16px, not 14: below 16 Safari on iOS zooms the viewport on focus, and it does it on
+     every field of a checkout that is mostly used on a phone. */
+  .sc-field input, .sc-field select, .sc-field textarea{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:11px; padding:12px 14px; font-family:inherit; font-size:16px; color:#10292C; outline:none; background:#fff; }
   .sc-field input:focus, .sc-field select:focus, .sc-field textarea:focus{ border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.1); }
   .sc-prov{ display:flex; gap:9px; flex-wrap:wrap; margin-top:6px; }
   .sc-prov label{ flex:1; min-width:120px; display:flex; align-items:center; justify-content:flex-start; gap:9px; border:1.5px solid rgba(16,41,44,.14); border-radius:11px; padding:11px 13px; cursor:pointer; font-size:13.5px; font-weight:600; color:#10292C; }
@@ -46,7 +59,12 @@
   .sc-prov input{ accent-color:#237b22; width:auto; flex:none; margin:0; }
   .sc-soon{ background:#fff8df; border:1px solid #ecdca0; color:#7a5a08; border-radius:12px; padding:14px 16px; font-size:13.5px; line-height:1.5; }
   .sc-soon a{ color:#237b22; font-weight:600; }
-  .sc-toast{ position:fixed; left:50%; bottom:90px; transform:translateX(-50%); z-index:95; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:12px 20px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); }
+  .sc-toast{ position:fixed; left:50%; bottom:90px; transform:translateX(-50%); z-index:95; background:#10292C; color:#fff; font-size:13.5px; font-weight:500; padding:12px 20px; border-radius:999px; box-shadow:0 16px 40px -12px rgba(0,0,0,.5); display:flex; align-items:center; gap:12px; max-width:92vw; }
+  .sc-toast__undo{ flex:none; cursor:pointer; border:1px solid rgba(255,255,255,.34); background:transparent; color:#fff; font-family:inherit; font-size:13px; font-weight:700; padding:6px 13px; border-radius:999px; }
+  .sc-toast__undo:hover{ background:rgba(255,255,255,.12); }
+  /* The focused dialog itself must show a ring — it takes focus on open, and without this
+     a keyboard user is given no indication of where they landed. */
+  .sc-drawer:focus-visible, .sc-modal:focus-visible{ outline:3px solid #237b22; outline-offset:-3px; }
   /* the variant a line is for — the difference between two cart rows that look identical */
   .sc-line__v{ display:inline-block; margin-top:3px; font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#4a5256; background:#eef2ee; padding:2px 8px; border-radius:999px; }
   /* discount code */
@@ -71,9 +89,12 @@
 </button>
 
 {# Drawer #}
-<div class="sc-ov" x-show="$store.cart.open" x-cloak @click="$store.cart.open=false">
-  <aside class="sc-drawer" @click.stop role="dialog" aria-modal="true" aria-labelledby="scCartTitle">
-    <div class="sc-hd"><h2 id="scCartTitle">Your cart</h2><button class="sc-x" @click="$store.cart.open=false" aria-label="Close cart">×</button></div>
+<div class="sc-ov" x-show="$store.cart.open" x-cloak
+     x-data="scDialog('open')" x-effect="sync()"
+     @keydown.escape.window="close()" @click="close()">
+  <aside class="sc-drawer" x-ref="panel" tabindex="-1" @click.stop @keydown.tab="cycle($event)"
+         role="dialog" aria-modal="true" aria-labelledby="scCartTitle">
+    <div class="sc-hd"><h2 id="scCartTitle">Your cart</h2><button class="sc-x" @click="close()" aria-label="Close cart">×</button></div>
     <div class="sc-lines">
       {# Keyed by `key`, not `slug`. A shirt in M and the same shirt in XL are two lines,
          and keying on the slug made the second choice overwrite the first. #}
@@ -86,9 +107,10 @@
             <div class="sc-line__p" x-text="$store.cart.ngn(l.price)"></div>
           </div>
           <div class="sc-qty">
-            <button @click="$store.cart.dec(l.key)" aria-label="Decrease">−</button>
+            <button @click="$store.cart.dec(l.key)"
+                    :aria-label="l.qty > 1 ? ('Decrease quantity of ' + l.name) : ('Remove ' + l.name + ' from cart')">−</button>
             <span x-text="l.qty"></span>
-            <button @click="$store.cart.inc(l.key)" aria-label="Increase">+</button>
+            <button @click="$store.cart.inc(l.key)" :aria-label="'Increase quantity of ' + l.name">+</button>
           </div>
         </div>
       </template>
@@ -104,15 +126,18 @@
          x-text="'Spend ' + $store.cart.ngn({{ ship_free_over }} - $store.cart.subtotal) + ' more for free delivery.'"></p>
       <p class="sc-nudge" style="color:#1a6118;font-weight:600" x-show="$store.cart.subtotal >= {{ ship_free_over }}" x-cloak>✓ Free delivery on this order.</p>
       {% endif %}
-      <button class="sc-go" @click="$store.cart.open=false; $store.cart.checkoutOpen=true; $store.cart.quote()">Checkout →</button>
+      <button class="sc-go" @click="$store.cart.toCheckout()">Checkout →</button>
     </div>
   </aside>
 </div>
 
 {# Checkout modal #}
-<div class="sc-ov" x-show="$store.cart.checkoutOpen" x-cloak @click="$store.cart.checkoutOpen=false">
-  <div class="sc-modal" @click.stop role="dialog" aria-modal="true" aria-labelledby="scCheckoutTitle">
-    <div class="sc-hd"><h2 id="scCheckoutTitle">Checkout</h2><button class="sc-x" @click="$store.cart.checkoutOpen=false" aria-label="Close checkout">×</button></div>
+<div class="sc-ov" x-show="$store.cart.checkoutOpen" x-cloak
+     x-data="scDialog('checkoutOpen')" x-effect="sync()"
+     @keydown.escape.window="close()" @click="close()">
+  <div class="sc-modal" x-ref="panel" tabindex="-1" @click.stop @keydown.tab="cycle($event)"
+       role="dialog" aria-modal="true" aria-labelledby="scCheckoutTitle">
+    <div class="sc-hd"><h2 id="scCheckoutTitle">Checkout</h2><button class="sc-x" @click="close()" aria-label="Close checkout">×</button></div>
     <div class="sc-co">
       {# What we changed while pricing it — a sold-out line dropped, a quantity trimmed.
          Silence here is how a total stops matching the last screen somebody saw. #}
@@ -155,16 +180,31 @@
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <input type="hidden" name="cart" :value="JSON.stringify($store.cart.items)">
           <input type="hidden" name="discount" :value="$store.cart.code">
-          <div class="sc-field"><label for="scCoName">Full name</label><input id="scCoName" type="text" name="name" required placeholder="Your name"></div>
-          <div class="sc-field"><label for="scCoEmail">Email</label><input id="scCoEmail" type="email" name="email" required placeholder="you@email.com" x-model="$store.cart.email" @change="$store.cart.quote()"></div>
-          <div class="sc-field"><label for="scCoPhone">Phone</label><input id="scCoPhone" type="tel" name="phone" required placeholder="+234…"></div>
-          <div class="sc-field"><label for="scCoAddress">Delivery address</label><textarea id="scCoAddress" name="address" rows="2" required placeholder="Street, city, state, country"></textarea></div>
-          <div class="sc-field"><label for="scCoRegion">Delivery region</label>
-            <select id="scCoRegion" name="region" required x-model="$store.cart.region" @change="$store.cart.quote()">
+          {# ── AUTOFILL ──────────────────────────────────────────────────────
+             `autocomplete` on every field that describes the buyer. These had none, so a
+             phone that already knows this person's name, email and address could not offer
+             any of it, and all five fields were typed by hand on the smallest screen we
+             serve. The free-vote ballot already does this correctly; the shop did not. #}
+          <div class="sc-field"><label for="scCoName">Full name</label><input id="scCoName" type="text" name="name" required autocomplete="name" placeholder="Your name" value="{{ retry.name }}"></div>
+          <div class="sc-field"><label for="scCoEmail">Email</label><input id="scCoEmail" type="email" name="email" required autocomplete="email" placeholder="you@email.com" x-model="$store.cart.email" @change="$store.cart.quote()"></div>
+          <div class="sc-field"><label for="scCoPhone">Phone</label><input id="scCoPhone" type="tel" name="phone" required autocomplete="tel" placeholder="+234…" value="{{ retry.phone }}"></div>
+
+          {# Region BEFORE the address, because it is what delivery is priced from — and the
+             address no longer asks for the state and country a second time. It used to say
+             "Street, city, state, country" with this select sitting under it, so the zone was
+             entered twice: once as prose the courier reads, once as the field the price comes
+             from, with no way to see when the two disagreed. #}
+          <div class="sc-field"><label for="scCoRegion">Delivery region <span style="font-weight:400;color:var(--ag-ink-soft,#626a6e)">(sets your delivery cost)</span></label>
+            <select id="scCoRegion" name="region" required autocomplete="address-level1" x-model="$store.cart.region" @change="$store.cart.quote()">
               <option value="" disabled>Select your region…</option>
-              {% for r in shop_regions %}<option value="{{ r }}" {% if r == region %}selected{% endif %}>{{ r }}</option>{% endfor %}
+              {% for r in shop_regions %}<option value="{{ r }}">{{ r }}</option>{% endfor %}
             </select>
           </div>
+          {# Kept as one freeform line on purpose: postcodes are unreliable across much of the
+             continent and informal directions are normal, so a rigid split-field address form
+             would lose detail a courier actually needs. `street-address` lets it autofill
+             anyway. #}
+          <div class="sc-field"><label for="scCoAddress">Delivery address</label><textarea id="scCoAddress" name="address" rows="2" required autocomplete="street-address" placeholder="Street, area and city — plus any landmark that helps the courier find you">{{ retry.address }}</textarea></div>
           {# ── DISCOUNT CODE ───────────────────────────────────────────────────
              A preview only: ShopCheckoutController::totals() prices it again from the code
              row at checkout, so what is shown here cannot change what anybody is charged. #}
@@ -182,7 +222,7 @@
           <div class="sc-field"><label>Pay with</label>
             <div class="sc-prov">
               {% for pv in providers %}
-              <label><input type="radio" name="provider" value="{{ pv.id }}" {% if loop.first %}checked{% endif %}> {{ pv.label }}</label>
+              <label><input type="radio" name="provider" value="{{ pv.id }}" {% if retry.provider == pv.id or (retry.provider == '' and loop.first) %}checked{% endif %}> {{ pv.label }}</label>
               {% endfor %}
             </div>
           </div>
@@ -196,10 +236,80 @@
   </div>
 </div>
 
-<div class="sc-toast" x-show="$store.cart.toast" x-cloak role="status" x-text="$store.cart.toast"></div>
+{# role="status" on the wrapper, so the message is announced without the Undo button being
+   read as part of it. The button is a real control, not a second reading of the text. #}
+<div class="sc-toast" x-show="$store.cart.toast" x-cloak>
+  <span role="status" x-text="$store.cart.toast"></span>
+  <button type="button" class="sc-toast__undo" x-show="$store.cart.undoable" x-cloak
+          @click="$store.cart.undo()">Undo</button>
+</div>
 
 <script nonce="{{ csp_nonce }}">
 window.AG_FX = {{ {cur: currency|default('NGN'), rate: fx_rate|default(1), sym: fx_symbol|default('₦')}|json_encode|raw }};
+/* ── Dialog behaviour for the cart drawer and the checkout modal ───────────────
+ *
+ * Both carry role="dialog" aria-modal="true". They previously had none of the three things
+ * that makes that markup true: nothing moved focus in, Tab walked straight out into the page
+ * behind — a page aria-modal has just told a screen reader is not there — and Escape did
+ * nothing, leaving a backdrop click as the only way out. Every other dialog in this codebase
+ * (gee.js, community-modal.js, ag-search.js, admin.js) already handles Escape; the cart was
+ * the one that did not.
+ *
+ * Hand-rolled because no Alpine focus plugin is loaded, so `x-trap` would be an attribute
+ * nothing reads. Same shape as the sheets in pages/my-work/interview.twig. */
+window.scDialog = (flag) => ({
+  returnTo: null, wasOpen: false,
+
+  get _cart(){ return Alpine.store('cart'); },
+
+  /* Driven by x-effect, so it runs whenever the store's flag changes. */
+  sync(){
+    const now = !!this._cart[flag];
+    if (now === this.wasOpen) return;
+    this.wasOpen = now;
+    if (now) {
+      this.returnTo = document.activeElement;
+      /* The dialog itself takes focus, not its first control: focusing the first button
+         scrolls a long checkout past its own heading, so it opens mid-form with no
+         indication of what it is. Tab still walks inward from here. */
+      this.$nextTick(() => { if (this.$refs.panel) this.$refs.panel.focus({ preventScroll: true }); });
+    } else {
+      const back = this.returnTo;
+      this.returnTo = null;
+      /* Without this, closing drops the caret at the top of the document and a keyboard
+         user walks the whole shop again to get back to where they were. Skipped when the
+         opener was <body> — which is the case when a bounced checkout reopens this on page
+         load, and there is nothing meaningful to go back to. */
+      if (back && back !== document.body && back.focus) back.focus();
+    }
+  },
+
+  close(){ this._cart[flag] = false; },
+
+  focusables(){
+    const el = this.$refs.panel;
+    if (!el) return [];
+    return Array.from(el.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )).filter(n => !n.disabled && n.offsetParent !== null);
+  },
+
+  cycle(e){
+    const f = this.focusables();
+    if (!f.length) return;
+    const first = f[0], last = f[f.length - 1];
+    // Focus sits on the panel itself on open, which is neither end of the list — Tab from
+    // there has to land inside rather than escaping to the page behind.
+    if (document.activeElement === this.$refs.panel) {
+      e.preventDefault();
+      (e.shiftKey ? last : first).focus();
+      return;
+    }
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  },
+});
+
 document.addEventListener('alpine:init', () => {
   Alpine.store('cart', {
     items: {}, open: false, checkoutOpen: false, toast: '', _t: null,
@@ -207,11 +317,28 @@ document.addEventListener('alpine:init', () => {
        ShopCheckoutController::totals() decides what is owed, and the same function runs again
        at checkout, so a number edited in this object changes what somebody is SHOWN and never
        what they are charged. */
-    code: '', email: '', region: {{ region|default('')|json_encode|raw }},
+    /* Seeded from a bounced checkout when there is one, so the modal reopens with the
+       buyer's own details rather than blank. See ShopCheckoutController::takeRetry(). */
+    code: {{ retry.discount|json_encode|raw }},
+    email: {{ retry.email|json_encode|raw }},
+    region: {{ (retry.region ?: region|default(''))|json_encode|raw }},
     q: {}, quoting: false, adjusted: [], _qt: null,
+    /* The last line a minus-tap removed, held only long enough to put it back. */
+    removed: null, undoable: false,
 
     init(){ try { this.items = JSON.parse(localStorage.getItem('afg_cart') || '{}') || {}; } catch (e) { this.items = {}; }
-      this.migrate(); },
+      this.migrate();
+      /* Bounced out of checkout: reopen it, already filled in. Without this the buyer lands
+         on the shop with a notice, and has to find the cart and the Checkout button again
+         before discovering whether anything they typed survived. */
+      if ({{ retry.any ? 'true' : 'false' }} && this.count > 0) {
+        this.checkoutOpen = true;
+        this.quote();
+      }
+    },
+
+    /* Cart → checkout, as one named step rather than three statements in an @click. */
+    toCheckout(){ this.open = false; this.checkoutOpen = true; this.quote(); },
     save(){ try { localStorage.setItem('afg_cart', JSON.stringify(this.items)); } catch (e) {} },
 
     /* A cart saved before variants existed is keyed by slug and has no `key`. Repaired in
@@ -247,7 +374,23 @@ document.addEventListener('alpine:init', () => {
       this.requote();
     },
     inc(k){ if (this.items[k]) { this.items[k].qty++; this.save(); this.requote(); } },
-    dec(k){ if (this.items[k]) { if (--this.items[k].qty <= 0) delete this.items[k]; this.save(); this.requote(); } },
+    /* A minus-tap at quantity 1 removes the line, and a 40px control next to a 40px control
+       gets mis-tapped. The line is kept for as long as the toast is up so it can come back,
+       rather than being confirmed away with a dialog nobody wants on every decrement. */
+    dec(k){
+      const l = this.items[k]; if (!l) return;
+      if (l.qty > 1) { l.qty--; this.save(); this.requote(); return; }
+      this.removed = JSON.parse(JSON.stringify(l));
+      delete this.items[k];
+      this.save(); this.requote();
+      this.ping((l.name || 'Item') + ' removed', true);
+    },
+    undo(){
+      if (!this.removed) return;
+      this.items[this.removed.key] = this.removed;
+      this.removed = null; this.undoable = false; this.toast = '';
+      this.save(); this.requote();
+    },
 
     get lines(){ return Object.values(this.items); },
     get count(){ return this.lines.reduce((a, i) => a + i.qty, 0); },
@@ -278,7 +421,15 @@ document.addEventListener('alpine:init', () => {
 
     ngn(n){ n = Number(n) || 0; var fx = window.AG_FX || {}; if (fx.cur && fx.cur !== 'NGN' && fx.rate) { var v = n * fx.rate; return (fx.sym || '') + v.toLocaleString(undefined, { maximumFractionDigits: v < 100 ? 2 : 0 }); } return '₦' + n.toLocaleString(); },
     ngnRaw(n){ return '₦' + (Number(n) || 0).toLocaleString(); },
-    ping(m){ this.toast = m; clearTimeout(this._t); this._t = setTimeout(() => this.toast = '', 1800); },
+    ping(m, undoable){
+      this.toast = m;
+      this.undoable = !!undoable;
+      clearTimeout(this._t);
+      /* Longer when there is something to undo — 1.8s is not enough time to read a message
+         and decide to reverse it. */
+      this._t = setTimeout(() => { this.toast = ''; this.undoable = false; this.removed = null; },
+                           undoable ? 7000 : 1800);
+    },
   });
 });
 </script>

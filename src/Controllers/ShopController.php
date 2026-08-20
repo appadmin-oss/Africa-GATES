@@ -143,6 +143,9 @@ class ShopController
             // itself when somebody adds a dearer product.
             'price_range'      => ShopCatalogue::priceRange($mult),
             'providers'        => $this->providers(),
+            // A bounced checkout's own values, so the modal reopens populated instead of
+            // blank. Read-and-clear — see ShopCheckoutController::takeRetry().
+            'checkout_retry'   => ShopCheckoutController::takeRetry(),
             'region'           => $region,
             'regions'          => ShopPricing::regions(),
             'region_priced'    => ShopPricing::isActive($mults),

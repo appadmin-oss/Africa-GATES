@@ -224,7 +224,23 @@ final class ShopCheckoutController
         $region   = trim((string)($b['region'] ?? ''));
         $ip       = (string)($req->getServerParams()['REMOTE_ADDR'] ?? '');
 
-        $bail = fn(string $why) => $this->redirect($res, $this->base($req) . '/shop?checkout=' . urlencode($why));
+        // Every bail below is somebody's half-finished order. Remember it, then bounce:
+        // the delivery details are re-typed on a PHONE otherwise, five fields at a time,
+        // and a cart that survives in localStorage while the address does not is the
+        // difference between one retry and an abandoned sale. Mirrors the paid-vote flow
+        // ({@see PaidVoteController::rememberOrder}).
+        $bail = function (string $why) use ($res, $req, $name, $email, $phone, $address, $region, $provider, $b) {
+            $this->rememberCheckout([
+                'name'     => $name,
+                'email'    => $email,
+                'phone'    => $phone,
+                'address'  => $address,
+                'region'   => $region,
+                'provider' => $provider,
+                'discount' => trim((string) ($b['discount'] ?? '')),
+            ]);
+            return $this->redirect($res, $this->base($req) . '/shop?checkout=' . urlencode($why));
+        };
 
         // Abuse control: cap pending-order + gateway churn per IP (prices are
         // server-authoritative, so this limits noise/table-growth, not fraud).
@@ -322,6 +338,55 @@ final class ShopCheckoutController
         return $this->redirect($res, \AfricaGates\Services\GatewayHandoff::remember(
             $reference, (string) $init['checkout_url'], $this->base($req) . '/shop/redirect', $provider
         ));
+    }
+
+    /**
+     * Flash a bounced checkout's own values so the modal can reopen populated.
+     *
+     * Cleared on read ({@see takeRetry}) so it prefills exactly the one page load it was
+     * written for. A flash that lingered would re-open a buyer's address and phone number
+     * on a shop page somebody else later opens from the same shared phone.
+     *
+     * @param array<string,string> $fields
+     */
+    private function rememberCheckout(array $fields): void
+    {
+        // `$_SESSION` as an array, not session_status() — the convention everywhere else in
+        // this codebase, and the only version that is testable.
+        if (!isset($_SESSION) || !is_array($_SESSION)) return;
+        $_SESSION['shop_checkout_retry'] = [
+            'name'     => mb_substr($fields['name'] ?? '', 0, 120),
+            'email'    => mb_substr($fields['email'] ?? '', 0, 191),
+            'phone'    => mb_substr($fields['phone'] ?? '', 0, 40),
+            'address'  => mb_substr($fields['address'] ?? '', 0, 500),
+            'region'   => mb_substr($fields['region'] ?? '', 0, 80),
+            'provider' => mb_substr($fields['provider'] ?? '', 0, 40),
+            'discount' => mb_substr($fields['discount'] ?? '', 0, 40),
+        ];
+    }
+
+    /**
+     * Read-and-clear the bounced checkout. Called by {@see ShopController} when it renders
+     * /shop, which is where every bail redirects to.
+     *
+     * @return array{name:string,email:string,phone:string,address:string,region:string,provider:string,discount:string,any:bool}
+     */
+    public static function takeRetry(): array
+    {
+        $blank = ['name' => '', 'email' => '', 'phone' => '', 'address' => '',
+                  'region' => '', 'provider' => '', 'discount' => '', 'any' => false];
+        if (!isset($_SESSION) || !is_array($_SESSION)) return $blank;
+        $r = $_SESSION['shop_checkout_retry'] ?? null;
+        unset($_SESSION['shop_checkout_retry']);
+        if (!is_array($r)) return $blank;
+        $out = $blank;
+        foreach (['name', 'email', 'phone', 'address', 'region', 'provider', 'discount'] as $k) {
+            $out[$k] = trim((string) ($r[$k] ?? ''));
+        }
+        // `any` so the template can decide whether to reopen the modal at all, without
+        // having to test seven strings in Twig.
+        $out['any'] = ($out['name'] . $out['email'] . $out['phone'] . $out['address']) !== '';
+        return $out;
     }
 
     /** GET /shop/callback — browser return; re-verified server-to-server. */

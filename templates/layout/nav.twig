@@ -172,12 +172,47 @@
       }
     });
     document.addEventListener('click', function(e){ if(!(e.target.closest && e.target.closest('.ag-mega-wrap'))) closeMegas(null); });
-    // Mobile overlay menu
+    // ── Mobile overlay menu ──────────────────────────────────────────────────
+    //
+    // This carries role="dialog" aria-modal="true", which is a claim about three things.
+    // Only the class toggle was here, so: focus stayed on the Menu BUTTON — which the
+    // open overlay has just hidden from assistive tech, leaving the caret on something a
+    // screen reader will not announce — Tab walked straight out into that hidden page, and
+    // closing dropped focus at the top of the document.
     var menu = document.getElementById('agMenu'), openB = document.getElementById('agMenuOpen'), closeB = document.getElementById('agMenuClose');
-    function setMenu(on){ if(!menu) return; menu.classList.toggle('is-open', on); document.documentElement.classList.toggle('ag-menu-open', on); if(openB) openB.setAttribute('aria-expanded', on?'true':'false'); }
+    function menuFocusables(){
+      if(!menu) return [];
+      return Array.prototype.slice.call(menu.querySelectorAll('a[href], button, [tabindex]:not([tabindex="-1"])'))
+        .filter(function(n){ return !n.disabled && n.offsetParent !== null; });
+    }
+    function setMenu(on){
+      if(!menu) return;
+      menu.classList.toggle('is-open', on);
+      document.documentElement.classList.toggle('ag-menu-open', on);
+      if(openB) openB.setAttribute('aria-expanded', on?'true':'false');
+      if(on){
+        // The close button, not the first link: it is the thing somebody who opened this by
+        // accident is looking for, and Tab from there walks the menu in reading order.
+        if(closeB) closeB.focus();
+      } else if(openB && typeof openB.focus === 'function'){
+        openB.focus();
+      }
+    }
     if(openB) openB.addEventListener('click', function(){ setMenu(true); });
     if(closeB) closeB.addEventListener('click', function(){ setMenu(false); });
-    document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ setMenu(false); closeMegas(null); } });
+    // Tab cannot leave the menu while it is open.
+    if(menu) menu.addEventListener('keydown', function(e){
+      if(e.key !== 'Tab' || !menu.classList.contains('is-open')) return;
+      var f = menuFocusables(); if(!f.length) return;
+      var first = f[0], last = f[f.length-1];
+      if(e.shiftKey && document.activeElement === first){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && document.activeElement === last){ e.preventDefault(); first.focus(); }
+    });
+    document.addEventListener('keydown', function(e){
+      if(e.key!=='Escape') return;
+      if(menu && menu.classList.contains('is-open')) setMenu(false);
+      closeMegas(null);
+    });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

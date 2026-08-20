@@ -48,7 +48,7 @@
   @media(prefers-reduced-motion:reduce){ .nm-panel{ animation:none !important; } }
 
   .nm-lab{ display:block; font-size:12px; font-weight:600; color:var(--soft); margin-bottom:7px; }
-  .nm-in{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:14.5px; color:var(--ink); outline:none; background:#fff; transition:border-color .18s,box-shadow .18s; appearance:none; }
+  .nm-in{ width:100%; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:16px; color:var(--ink); outline:none; background:#fff; transition:border-color .18s,box-shadow .18s; appearance:none; }
   .nm-in:focus{ border-color:var(--green); box-shadow:0 0 0 4px rgba(35,123,34,.1); }
   .nm-in.is-error{ border-color:#b4452f; box-shadow:0 0 0 4px rgba(180,69,47,.1); }
   textarea.nm-in{ min-height:150px; resize:vertical; line-height:1.55; }
@@ -230,6 +230,11 @@
         </div>
 
         {# STEP 1 · WHO #}
+        {# NOTE — no `autocomplete` anywhere in this step, on purpose. Step 1 describes
+           SOMEBODY ELSE. Tagging these with autocomplete="name"/"email"/"tel" would let a
+           browser drop the nominator's own details into the nominee's fields, which is worse
+           than no autofill: it is a wrong answer pre-filled and easy to submit unnoticed.
+           Step 4, which collects the nominator's own details, is tagged. #}
         <section class="nm-panel" data-step="1" x-show="step===1" x-cloak>
           <h2>Who are you nominating?</h2>
           <p class="lead">Tell us about the person you believe deserves recognition.</p>
@@ -375,11 +380,11 @@
           } only %}
           <div class="nm-stack">
             <div class="nm-row">
-              <div><label class="nm-lab" for="byName">Your full name *</label><input id="byName" name="nominator_name" class="nm-in" type="text" required pattern="^\s*\S+(\s+\S+)+.*$" title="Please enter your first and last name." placeholder="e.g. Chidi Okeke" value="{{ old.nominator_name ?? '' }}"></div>
-              <div><label class="nm-lab" for="byPhone">Your phone *</label><input id="byPhone" name="nominator_phone" class="nm-in" type="tel" required placeholder="e.g. +234 801 234 5678" value="{{ old.nominator_phone ?? '' }}"></div>
+              <div><label class="nm-lab" for="byName">Your full name *</label><input id="byName" name="nominator_name" class="nm-in" type="text" required autocomplete="name" pattern="^\s*\S+(\s+\S+)+.*$" title="Please enter your first and last name." placeholder="e.g. Chidi Okeke" value="{{ old.nominator_name ?? '' }}"></div>
+              <div><label class="nm-lab" for="byPhone">Your phone *</label><input id="byPhone" name="nominator_phone" class="nm-in" type="tel" required autocomplete="tel" placeholder="e.g. +234 801 234 5678" value="{{ old.nominator_phone ?? '' }}"></div>
             </div>
             <div class="nm-row">
-              <div><label class="nm-lab" for="byEmail">Your email *</label><input id="byEmail" name="nominator_email" class="nm-in" type="email" required placeholder="you@email.com" x-model="email"></div>
+              <div><label class="nm-lab" for="byEmail">Your email *</label><input id="byEmail" name="nominator_email" class="nm-in" type="email" required autocomplete="email" placeholder="you@email.com" x-model="email"></div>
               <div><label class="nm-lab" for="byAge">Your age range *</label>
                 <select id="byAge" name="nominator_age_range" class="nm-in" required>
                   <option value="" disabled selected hidden>Select…</option>
@@ -389,21 +394,21 @@
             </div>
             <div class="nm-row">
               <div><label class="nm-lab" for="byCountry">Your country *</label>
-                <select id="byCountry" name="nominator_country" class="nm-in" required x-model="nominatorCountry" @change="nominatorState=''">
+                <select id="byCountry" name="nominator_country" class="nm-in" required autocomplete="country" x-model="nominatorCountry" @change="nominatorState=''">
                   <option value="" disabled {% if not (old.nominator_country ?? '') %}selected{% endif %} hidden>Select…</option>
                   {% for code,name in COUNTRIES %}<option value="{{ code }}" {% if (old.nominator_country ?? '') == code %}selected{% endif %}>{{ name }}</option>{% endfor %}
                 </select>
               </div>
               <div>
                 <label class="nm-lab" for="byStateSel" x-show="nominatorStates.length">Your state / region *</label>
-                <select id="byStateSel" name="nominator_state" class="nm-in" required x-show="nominatorStates.length" :disabled="!nominatorStates.length" x-model="nominatorState" x-cloak>
+                <select id="byStateSel" name="nominator_state" class="nm-in" required autocomplete="address-level1" x-show="nominatorStates.length" :disabled="!nominatorStates.length" x-model="nominatorState" x-cloak>
                   <option value="" disabled selected hidden>Select…</option>
                   <template x-for="s in nominatorStates" :key="s"><option :value="s" x-text="s"></option></template>
                 </select>
                 <label class="nm-lab" for="byState" x-show="!nominatorStates.length">State / Region *</label>
-                <input id="byState" name="nominator_state" class="nm-in" type="text" required x-show="!nominatorStates.length" :disabled="nominatorStates.length>0" placeholder="e.g. state, region or province" value="{{ old.nominator_state ?? '' }}">
+                <input id="byState" name="nominator_state" class="nm-in" type="text" required autocomplete="address-level1" x-show="!nominatorStates.length" :disabled="nominatorStates.length>0" placeholder="e.g. state, region or province" value="{{ old.nominator_state ?? '' }}">
               </div>
-              <div><label class="nm-lab" for="byLGA">LGA / County *</label><input id="byLGA" name="nominator_lga" class="nm-in" type="text" required placeholder="e.g. Ikeja" value="{{ old.nominator_lga ?? '' }}"></div>
+              <div><label class="nm-lab" for="byLGA">LGA / County *</label><input id="byLGA" name="nominator_lga" class="nm-in" type="text" required autocomplete="address-level2" placeholder="e.g. Ikeja" value="{{ old.nominator_lga ?? '' }}"></div>
             </div>
             <label class="nm-check"><input type="checkbox" required><span>I confirm this nomination is genuine and I accept the <a :href="termsUrl()" target="_blank" rel="noopener">programme terms</a> &amp; <a href="/privacy" target="_blank" rel="noopener">privacy policy</a>.</span></label>
             {# Point-of-collection notice. Burying "we send this to a third party"

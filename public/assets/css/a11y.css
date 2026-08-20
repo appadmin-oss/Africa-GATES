@@ -85,3 +85,21 @@ button:disabled, [aria-disabled="true"] {
   cursor: not-allowed;
   opacity: .62;
 }
+
+/* ── 16px form controls: no auto-zoom on iOS ──────────────────────────────────
+   Safari on iOS zooms the viewport when a focused form control's font-size is under
+   16px, and it does it on every field of every form on the way to a vote, a nomination
+   or a payment — the flows this platform exists for, used mostly on a phone.
+
+   A guard for this DID exist (main.css: `.form-input, .form-select, .form-textarea`
+   inside a max-width:599px query) but those three classes are used by exactly one
+   template, `partials/comments.twig`. Every real form defines its own class, so the
+   rule protected a comment box and nothing else.
+
+   Element-level and unconditional, so it also covers controls that carry no class and
+   any form added later. Specificity 0,0,1: the dense ADMIN console keeps its own
+   compact sizing, which is correct for a desktop tool used all day — see the component
+   rules below for the public flows, which are raised deliberately. */
+input, select, textarea { font-size: 16px; }
+/* Anything genuinely meant to be small stays small by opting in. */
+input.is-compact, select.is-compact, textarea.is-compact { font-size: inherit; }

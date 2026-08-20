@@ -70,7 +70,9 @@
   display:none; align-items:flex-end; justify-content:space-between; }
 .ag-tab{ flex:1; background:none; border:0; cursor:pointer; text-decoration:none; display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--ag-ink); }
 .ag-tab svg{ width:23px; height:23px; }
-.ag-tab span{ font:600 10px/1 var(--ag-font-body); }
+/* 11.5px, not 10: this is the only persistent navigation on mobile and it carried the
+   smallest type in the product. Contrast was never the problem here (15.27:1) — size was. */
+.ag-tab span{ font:600 11.5px/1.1 var(--ag-font-body); }
 .ag-tab.is-active{ color:var(--ag-green); }
 .ag-tab--cta{ gap:5px; }
 .ag-tab--cta .ag-tab__fab{ width:50px; height:38px; margin-top:-14px; border-radius:16px; background:var(--ag-green);
