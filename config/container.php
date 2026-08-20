@@ -352,6 +352,10 @@ return [
     PaidVoteController::class     => fn(ContainerInterface $c)=>new PaidVoteController($c->get(PaymentService::class), $c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     \AfricaGates\Admin\Controllers\AssistantController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AssistantController($c->get(Twig::class), $c->get(RateLimitService::class), $c->get(\Psr\Log\LoggerInterface::class)),
     FlierController::class        => fn(ContainerInterface $c)=>new FlierController($c->get(Twig::class), new \AfricaGates\Services\FlierService()),
+    // No dependencies: it reads the cycle straight from the DB and draws. Bound
+    // explicitly anyway, because every other controller here is.
+    \AfricaGates\Controllers\CountdownController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\CountdownController(),
+    \AfricaGates\Controllers\EmailPrefsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\EmailPrefsController($c->get(Twig::class)),
     ActivityController::class     => fn(ContainerInterface $c)=>new ActivityController($c->get(Twig::class), new \AfricaGates\Services\ActivityFeedService()),
     // Support assistant. The agent gets AiService (Groq + Gemini, whichever the
     // admin configured) and the ticket service; the ticket service gets the

@@ -3,7 +3,7 @@ declare(strict_types=1);
 use AfricaGates\Support\Env;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
-use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController};
+use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController,CountdownController,EmailPrefsController};
 use AfricaGates\Judge\Controllers\{
     AuthController as JudgeAuthController,
     BallotController as JudgeBallotController
@@ -2340,6 +2340,17 @@ return function(App $app) {
         // Registered after the index, and the pattern excludes slashes, so it can
         // never shadow a deeper /help/... path added later.
         $g->get('/help/{slug:[a-z0-9-]+}', HelpController::class . ':article');
+
+        // ── Live countdown for email heroes ─────────────────────────────────
+        // Deliberately unauthenticated and un-personalised: it is fetched by an inbox,
+        // which sends no cookies. Carries no recipient identifier for the same reason
+        // a tracking pixel would be a disclosure — see CountdownController.
+        $g->get('/email/countdown.gif', CountdownController::class . ':gif');
+
+        // The stop link in every bulk email's footer. GET confirms, POST acts — mail
+        // scanners fetch links without a human involved. See EmailPrefsController.
+        $g->get('/email/unsubscribe',  EmailPrefsController::class . ':show');
+        $g->post('/email/unsubscribe', EmailPrefsController::class . ':stop');
 
         // SEO: robots.txt + sitemap.xml
         $g->get('/robots.txt', function($req, $res) {

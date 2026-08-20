@@ -36,12 +36,21 @@ class CsrfMiddleware {
     // InterviewLive. A synchronizer token protects a session; there is no session here to
     // protect, and an attacker holding the live token has no need of CSRF.
     //
+    // /email/unsubscribe is exempt for the same reason: the person clicking it arrived
+    // from an inbox with no session and no cookie, so there is no token to issue them and
+    // nothing for a synchroniser token to protect. The HMAC in the URL is the credential
+    // (see EmailOptOut::verify), and the worst a forged POST achieves is unsubscribing an
+    // address whose token the forger already had to possess. Refusing the POST instead
+    // would mean the unsubscribe link in every bulk email does not work, which is the one
+    // failure here with a legal dimension as well as a rudeness one.
+    //
     // The admin session cookie is deliberately left SameSite=Lax rather than being
     // loosened to make these work — that would weaken every form in the console to buy
     // one feature.
     private const OTP_EXEMPT = ['/api/vote', '/api/otp/request', '/api/v1/vote', '/api/v1/otp/request', '/api/agent/gee', '/api/v1/agent/gee', '/pay/webhook', '/__setup/admin',
         '/api/interview/live/hello', '/api/interview/live/say', '/api/interview/live/finish',
-        '/api/v1/interview/live/hello', '/api/v1/interview/live/say', '/api/v1/interview/live/finish'];
+        '/api/v1/interview/live/hello', '/api/v1/interview/live/say', '/api/v1/interview/live/finish',
+        '/email/unsubscribe'];
 
     public function __invoke(Request $req, Handler $handler): Response {
         if (!in_array($req->getMethod(), self::MUTATING, true)) {
