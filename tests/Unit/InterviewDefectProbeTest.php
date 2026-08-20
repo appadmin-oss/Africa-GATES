@@ -151,6 +151,39 @@ final class InterviewDefectProbeTest extends TestCase
             'a judge would read a quote attributed to a sentence that no longer exists');
     }
 
+    // ── PROBE 8: a turn that cannot be stored must not get a reply ───────────
+    public function test_a_turn_that_cannot_be_stored_is_refused_rather_than_answered(): void
+    {
+        // say() stores the nominee's words BEFORE calling the model precisely so a provider
+        // timeout costs the reply and never the answer. When the write itself failed it was
+        // logged and the call went ahead — so the reply arrived, the nominee saw their own
+        // bubble and an answer to it, and their words were not in the transcript. Invisible
+        // until they came back and found the turn gone.
+        $token = $this->open();
+        I::open($token);
+
+        // Make the write fail the only way that is honest. Dropping a table to prove a
+        // feature degrades without it is an established pattern in this suite — TestCase's
+        // setUp() runs schemaIntact() and rebuilds before the next test, which is documented
+        // in its own comments as the handling for exactly this.
+        DB::statement('DROP TABLE gates_nominee_submissions');
+
+        $ai = new class extends \AfricaGates\Services\AiService {
+            public int $calls = 0;
+            public function __construct() { parent::__construct(openaiKey: 'k'); }
+            protected function httpPost(string $u, array $h, array $p): ?array
+            {
+                $this->calls++;
+                return ['choices' => [['message' => ['content' => 'should never be asked']]]];
+            }
+        };
+        $r = I::say($token, 'We reach 4,000 farmers across eight states.', $ai);
+
+        $this->assertFalse($r['ok'] ?? true);
+        $this->assertSame(0, $ai->calls,
+            'the model answered a sentence that was never recorded');
+    }
+
     // ── PROBE 7: the state a submitted interview reports ─────────────────────
     public function test_a_submitted_interview_reports_itself_as_sent(): void
     {

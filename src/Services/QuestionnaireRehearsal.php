@@ -233,7 +233,21 @@ final class QuestionnaireRehearsal
         if ($said === []) return ['ok' => false, 'message' => 'That case has nothing in it.'];
 
         $pid = ($c->programme_id ?? null) !== null ? (int) $c->programme_id : null;
-        $r   = QuestionnaireService::openTest($pid, $adminId, 'Case replay');
+
+        // ── A REPLAY THAT CANNOT RUN MUST NOT REPORT A REGRESSION ────────────
+        //
+        // With no OpenAI key every turn was refused, nothing was recorded, and the verdict
+        // came out as "LOST: summary, impact_numbers" with ok=true. That is the worst possible
+        // wrong answer: it reads as "the brief change you just made broke the interview" and
+        // sends somebody to fix a brief that is fine. The cause is checked first and said
+        // plainly instead.
+        if (!QuestionnaireStyle::interviewPossible($pid)) {
+            return ['ok' => false, 'message' => 'The interview cannot run here, so this case '
+                . 'cannot be replayed — nothing about the brief has been measured. It needs an '
+                . 'OpenAI key in Settings.'];
+        }
+
+        $r = QuestionnaireService::openTest($pid, $adminId, 'Case replay');
         if (!($r['ok'] ?? false)) return ['ok' => false, 'message' => (string) $r['message']];
 
         $token = (string) $r['token'];
@@ -241,42 +255,64 @@ final class QuestionnaireRehearsal
             DB::table('gates_nominee_submissions')->where('id', (int) $r['id'])
                 ->update(['style' => QuestionnaireStyle::INTERVIEW]);
         } catch (\Throwable) {}
-        QuestionnaireInterview::open($token);
 
-        foreach ($said as $line) {
-            $out = QuestionnaireInterview::say($token, (string) $line);
-            if (!($out['ok'] ?? false)) break;
-        }
-
-        $s   = QuestionnaireService::byToken($token);
-        $got = [];
-        foreach (QuestionnaireLedger::forSubmission($s) as $o) {
-            if ($o['status'] !== QuestionnaireLedger::UNMET) $got[] = $o['slug'];
-        }
-
-        $want = json_decode((string) ($c->expect_json ?? '[]'), true);
-        $want = is_array($want) ? $want : [];
-        $lost = array_values(array_diff($want, $got));
-        $new  = array_values(array_diff($got, $want));
-
-        $verdict = $lost === []
-            ? ($new === [] ? 'Same as before.' : 'Same as before, plus ' . implode(', ', $new) . '.')
-            : 'LOST: ' . implode(', ', $lost) . '.';
-
+        // try/finally, so the replay row goes even if something below throws. It is a
+        // rehearsal of a rehearsal, and one left behind per failed run fills the submissions
+        // table with rows nobody will ever open.
         try {
-            DB::table('gates_questionnaire_cases')->where('id', $caseId)->update([
-                'last_run_at' => Carbon::now()->toDateTimeString(),
-                'last_result' => mb_substr($verdict, 0, 500),
-                'updated_at'  => Carbon::now()->toDateTimeString(),
-            ]);
-        } catch (\Throwable) {}
+            QuestionnaireInterview::open($token);
 
-        // The replay row is deleted: it is a rehearsal of a rehearsal, and leaving one behind
-        // per run would fill the table with rows nobody will ever open.
-        QuestionnaireService::deleteTest((int) $r['id']);
+            $stoppedAt = null;
+            foreach ($said as $n => $line) {
+                $out = QuestionnaireInterview::say($token, (string) $line);
+                if (!($out['ok'] ?? false)) {
+                    $stoppedAt = ['turn' => (int) $n + 1,
+                                  'why' => (string) ($out['message'] ?? 'the turn did not complete')];
+                    break;
+                }
+            }
 
-        return ['ok' => true, 'lost' => $lost, 'gained' => $new, 'reached' => $got,
-                'message' => $verdict];
+            $s   = QuestionnaireService::byToken($token);
+            $got = [];
+            foreach (QuestionnaireLedger::forSubmission($s) as $o) {
+                if ($o['status'] !== QuestionnaireLedger::UNMET) $got[] = $o['slug'];
+            }
+
+            $want = json_decode((string) ($c->expect_json ?? '[]'), true);
+            $want = is_array($want) ? $want : [];
+            $lost = array_values(array_diff($want, $got));
+            $new  = array_values(array_diff($got, $want));
+
+            // A run that stopped early is NOT a comparison. Reporting a diff from a partial
+            // replay attributes to the brief whatever the outage cost.
+            if ($stoppedAt !== null) {
+                $verdict = 'Did not finish — stopped on message ' . $stoppedAt['turn'] . ' of '
+                         . count($said) . ': ' . $stoppedAt['why']
+                         . ' Nothing about the brief has been measured.';
+                $ok = false;
+            } elseif ($lost !== []) {
+                $verdict = 'LOST: ' . implode(', ', $lost) . '.';
+                $ok = true;
+            } else {
+                $verdict = $new === []
+                    ? 'Same as before.'
+                    : 'Same as before, plus ' . implode(', ', $new) . '.';
+                $ok = true;
+            }
+
+            try {
+                DB::table('gates_questionnaire_cases')->where('id', $caseId)->update([
+                    'last_run_at' => Carbon::now()->toDateTimeString(),
+                    'last_result' => mb_substr($verdict, 0, 500),
+                    'updated_at'  => Carbon::now()->toDateTimeString(),
+                ]);
+            } catch (\Throwable) {}
+
+            return ['ok' => $ok, 'lost' => $lost, 'gained' => $new, 'reached' => $got,
+                    'message' => $verdict];
+        } finally {
+            QuestionnaireService::deleteTest((int) $r['id']);
+        }
     }
 
     /** Saved cases for a programme, newest first. */

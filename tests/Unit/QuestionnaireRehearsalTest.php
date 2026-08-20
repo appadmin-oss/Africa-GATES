@@ -139,6 +139,55 @@ final class QuestionnaireRehearsalTest extends TestCase
         $this->assertStringContainsString('write it', strtolower($p['writeit']['lines'][0]));
     }
 
+    // ══ replaying a case ═════════════════════════════════════════════════════
+
+    public function test_a_replay_that_cannot_run_says_so_instead_of_reporting_a_regression(): void
+    {
+        // With no key every turn was refused, nothing was recorded, and the verdict came out
+        // as "LOST: …" with ok=true. That is the worst possible wrong answer: an operator
+        // reads it as "the brief change you just made broke the interview" and goes to fix a
+        // brief that is fine.
+        $token = $this->rehearse();
+        R::saveCase(self::PROG, $token, 'Eight states', '', 1);
+        $id = (int) DB::table('gates_questionnaire_cases')->value('id');
+
+        DB::table('gates_settings')->where('key_name', 'ai_openai_key')->update(['value' => '']);
+        $r = R::runCase($id, 1);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringNotContainsString('LOST', $r['message']);
+        $this->assertStringContainsString('cannot run', $r['message']);
+        $this->assertStringContainsString('OpenAI key', $r['message']);
+    }
+
+    public function test_a_replay_leaves_no_test_submission_behind(): void
+    {
+        $token = $this->rehearse();
+        R::saveCase(self::PROG, $token, 'Eight states', '', 1);
+        $id = (int) DB::table('gates_questionnaire_cases')->value('id');
+
+        // The breaker, so the replay fails WITHOUT a network call. The key is still configured
+        // — so interviewPossible() passes and a replay row really is created — but every hop
+        // is skipped, which is the failure this needs to happen after the row exists and
+        // before the verdict. Reaching for a real 401 instead would make the suite depend on
+        // outbound HTTPS to answer a question about a DELETE.
+        \AfricaGates\Support\ProviderBreaker::open('openai');
+        try {
+            $before = DB::table('gates_nominee_submissions')->where('is_test', 1)->count();
+            $r = R::runCase($id, 1);
+
+            $this->assertSame($before, DB::table('gates_nominee_submissions')
+                ->where('is_test', 1)->count(),
+                'a replay row was left behind — one per failed run fills the table');
+            // And a run that stopped early is reported as not having finished, never as a diff.
+            $this->assertFalse($r['ok']);
+            $this->assertStringContainsString('Did not finish', $r['message']);
+            $this->assertStringNotContainsString('LOST', $r['message']);
+        } finally {
+            \AfricaGates\Support\ProviderBreaker::clearAll();
+        }
+    }
+
     public function test_a_case_can_be_removed(): void
     {
         $token = $this->rehearse();

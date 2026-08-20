@@ -611,7 +611,8 @@
               x-show="works.length < {{ form.max_works }}">Add another item</button>
 
       <div style="margin-top:26px">
-        <button class="iv__go" type="button" @click="saveWorks(true)"
+        <p class="iv__rec" x-show="err" x-cloak x-text="err" style="margin:0 0 12px"></p>
+        <button class="iv__go" type="button" :disabled="busy" @click="saveWorks(true)"
                 x-text="busy ? 'Saving…' : 'Done — read it back'"></button>
         <button class="iv__text" type="button" style="width:100%; margin-top:6px"
                 @click="skipWorks()">I have nothing to show — skip this</button>
@@ -1234,7 +1235,7 @@ function ivApp(){
     },
 
     async saveWorks(advance){
-      this.busy = true;
+      this.busy = true; this.err = '';
       const fd = new FormData();
       fd.append('_token', CSRF);
       this.works.forEach((w, i) => {
@@ -1242,11 +1243,25 @@ function ivApp(){
           fd.append('w[' + i + '][' + k + ']', w[k] || '');
         });
       });
+      /* A FAILURE HERE IS A REAL LOSS AND MUST STOP THE FLOW.
+         This used to swallow the error on the reasoning that "the draft is also saved on every
+         turn" — which is false: a turn saves the TRANSCRIPT, and nothing else writes the works
+         list. So a dropped connection here lost every item the nominee had just described, and
+         then moved them on to a review screen that listed them from memory and a submit button
+         that would file none of them. */
+      let ok = false;
       try {
-        await fetch('/my-work/' + TOKEN, { method: 'POST', body: fd,
+        const r = await fetch('/my-work/' + TOKEN, { method: 'POST', body: fd,
           headers: { 'X-CSRF-Token': CSRF, 'X-Requested-With': 'XMLHttpRequest' } });
-      } catch (e) { /* the draft is also saved on every turn; one failure is not a loss */ }
+        ok = r.ok;
+      } catch (e) { ok = false; }
       this.busy = false;
+
+      if (!ok) {
+        this.err = 'Those items could not be saved just now — nothing has been lost from this '
+                 + 'page. Try again in a moment.';
+        return;
+      }
       if (advance) this.go('review');
     },
     skipWorks(){ this.go('review') },

@@ -431,7 +431,16 @@ final class QuestionnaireStyle
         if (self::$configCache !== null) return self::$configCache;
         $by = [];
         try {
-            foreach (DB::table('gates_questionnaire_config')->where('is_active', 1)->get() as $r) {
+            // Ordered, so which row wins is decided rather than incidental.
+            //
+            // The UNIQUE on `programme_id` does not constrain NULLs — on either driver — so
+            // two platform-default rows are possible, and `saveConfig()` only checks-then-
+            // inserts, which a second admin saving at the same moment can slip past. Without
+            // an ORDER BY, whichever the engine happened to return last became the live
+            // configuration, and the interview would change character between page loads with
+            // nothing to point at. Highest id wins: the most recent save is the intended one.
+            foreach (DB::table('gates_questionnaire_config')->where('is_active', 1)
+                        ->orderBy('id')->get() as $r) {
                 $by[(int) ($r->programme_id ?? 0)] = $r;
             }
         } catch (\Throwable) {}

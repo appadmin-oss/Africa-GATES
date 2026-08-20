@@ -251,8 +251,16 @@ final class QuestionnaireInterview
         }
 
         // ── the nominee's words, first, verbatim ─────────────────────────────
+        //
+        // And the model is NOT called if they did not land. Calling it anyway would produce a
+        // reply to something no longer on record — the nominee reads an answer to a sentence
+        // that is not in their own transcript, and only finds out when they come back.
         $env['turns'][] = self::turn('nominee', $said);
-        self::putEnvelope($s, $env);
+        if (!self::putEnvelope($s, $env)) {
+            return ['ok' => false, 'degraded' => 'turn_failed',
+                    'message' => 'That could not be saved. Nothing has been lost from the page — '
+                               . 'try sending it again.'] + self::state($token);
+        }
 
         $reply = self::runTurn($s, $cfg, $env, $ai);
 
@@ -478,7 +486,7 @@ final class QuestionnaireInterview
 
         $env = self::envelope($s);
         $env['focus'] = $slug;
-        self::putEnvelope($s, $env);
+        if (!self::putEnvelope($s, $env)) return ['ok' => false, 'reason' => 'could not save'];
         return ['ok' => true];
     }
 
@@ -492,7 +500,7 @@ final class QuestionnaireInterview
             'text' => mb_substr($text, 0, 500),
             'at'   => Carbon::now()->toDateTimeString(),
         ]]), -20);
-        self::putEnvelope($s, $env);
+        if (!self::putEnvelope($s, $env)) return ['ok' => false, 'reason' => 'could not save'];
         return ['ok' => true];
     }
 
@@ -525,7 +533,13 @@ final class QuestionnaireInterview
                 'interview_phase' => 'show',
                 'updated_at' => Carbon::now()->toDateTimeString(),
             ]);
-        } catch (\Throwable) {}
+        } catch (\Throwable) {
+            // Told the truth rather than 'ok'. A tool result claiming review had opened when
+            // the phase never moved leaves the model saying "read it back now" about a screen
+            // the nominee cannot see, and no amount of the model trying again would help.
+            return ['ok' => false, 'reason' => 'could not open the review screen; ask them to '
+                                             . 'carry on and try again shortly'];
+        }
 
         return ['ok' => true, 'opened' => 'review'];
     }
@@ -777,8 +791,18 @@ final class QuestionnaireInterview
         ];
     }
 
-    /** Write the envelope back, and add this turn's tokens to the running total. */
-    private static function putEnvelope(object $s, array $env, int $addIn = 0, int $addOut = 0): void
+    /**
+     * Write the envelope back, and add this turn's tokens to the running total.
+     *
+     * Returns whether it landed, and the caller is obliged to care. This used to log and
+     * return void, which quietly broke the one promise the whole feature rests on: `say()`
+     * stores the nominee's words BEFORE calling the model precisely so a provider timeout
+     * costs the reply and never the answer. With the write failing silently the reply still
+     * arrived, the nominee saw their own bubble and an answer to it, and their words were not
+     * in the transcript — so the loss was invisible until they reloaded and found the turn
+     * gone.
+     */
+    private static function putEnvelope(object $s, array $env, int $addIn = 0, int $addOut = 0): bool
     {
         try {
             $row = ['transcript_json' => (string) json_encode($env),
@@ -793,8 +817,10 @@ final class QuestionnaireInterview
             $s->transcript_json = $row['transcript_json'];
             if (isset($row['ai_tokens_in']))  $s->ai_tokens_in  = $row['ai_tokens_in'];
             if (isset($row['ai_tokens_out'])) $s->ai_tokens_out = $row['ai_tokens_out'];
+            return true;
         } catch (\Throwable $e) {
             error_log('[questionnaire-interview] could not save transcript: ' . $e->getMessage());
+            return false;
         }
     }
 
