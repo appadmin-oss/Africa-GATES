@@ -14,12 +14,15 @@
      dilute the pages that should rank. `follow` stays on regardless: the links out
      of those pages (to the ballot, to /philosophy) are worth crawling even when the
      page itself is not worth indexing. #}
-  <meta name="robots" content="{{ robots|default('index, follow, max-image-preview:large') }}">
+  <meta name="robots" content="{{ robots|default(robots_auto|default('index, follow, max-image-preview:large')) }}">
   <meta name="author" content="Africa GATES — an Afrovanguard initiative">
   <meta name="keywords" content="{{ meta_keywords|default('Africa GATES, African awards, Cultural Power Index, CPI, Afrovanguard, African excellence, continental awards, African creatives, African nominations, African leaderboard, African cultural recognition') }}">
 
   {% set _site_url = site_url|default('https://africagates.org') %}
-  {% set _canonical = canonical_url|default(_site_url ~ (request_path|default('/'))) %}
+  {# canonical_path, not request_path: it keeps `?page=4` (a real, distinct page that
+     must self-canonicalise) and drops `?ref=`, `?utm_*` and the facets (which must not
+     mint an indexable URL each). See AfricaGates\Support\Canonical. #}
+  {% set _canonical = canonical_url|default(_site_url ~ (canonical_path|default(request_path|default('/')))) %}
   <link rel="canonical" href="{{ _canonical }}">
 
   {# ── PAGE SCHEMA ──────────────────────────────────────────────────────────
@@ -114,7 +117,25 @@
   <script nonce="{{ csp_nonce }}" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{% for b in breadcrumbs %}{"@type":"ListItem","position":{{ loop.index }},"name":{{ b.label|json_encode|raw }}{% if b.url %},"item":{{ (_site_url ~ b.url)|json_encode|raw }}{% endif %}}{% if not loop.last %},{% endif %}{% endfor %}]}</script>
   {% endif %}
 
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2310292C'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-family='Georgia,serif' font-size='34' font-weight='700' fill='%237FC87C'%3EG%3C/text%3E%3C/svg%3E">
+  {# ── FAVICON: FILES, NOT A DATA URI ─────────────────────────────────────────
+     This was an inline `data:image/svg+xml` of the letter G — the placeholder mark
+     the real artwork replaced — and it cost the site its favicon in search results.
+     Google requires a favicon it can CRAWL: a URL it can fetch, on its own, and
+     re-fetch later. A data URI has no URL, so the mobile result rendered with the
+     generic globe next to every Africa GATES listing.
+
+     /favicon.ico is at the document root because browsers and crawlers request it
+     there whether or not a page declares one, and it carries 16/32/48 so a tab and a
+     bookmarks bar each get a size drawn for them rather than a downscale.
+
+     The mark is the continent from the site's own committed silhouette, in the
+     logo's green. The full lockup cannot be the favicon: at 16px the "Africa
+     G.A.T.E.S." wordmark inside it is four grey pixels. #}
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" type="image/png" href="{{ asset('/assets/img/icon-32.png') }}" sizes="32x32">
+  <link rel="icon" type="image/png" href="{{ asset('/assets/img/icon-192.png') }}" sizes="192x192">
+  <link rel="apple-touch-icon" href="{{ asset('/assets/img/apple-touch-icon.png') }}">
+  <link rel="manifest" href="/site.webmanifest">
 
   {# ── PRECONNECT BUDGET ──────────────────────────────────────────────────────
      Seven preconnects were declared and Lighthouse warned about it explicitly: each

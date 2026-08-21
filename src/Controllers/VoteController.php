@@ -161,6 +161,14 @@ class VoteController {
             'phase'            => $p['phase'] ?? null,
             'voting_open'      => (bool) ($p['phase']['is_voting_open'] ?? false),
             'total_nominees'   => count($noms),
+            // Mirrors the trail this page already SHOWS. Every one of these pages had
+            // a visible breadcrumb and no BreadcrumbList, so the SERP printed a bare
+            // URL where it could have printed Vote › programme — and the trail is how
+            // a searcher sees that a nominee page belongs to an awards programme.
+            'breadcrumbs'      => [
+                ['label' => 'Vote',      'url' => '/vote'],
+                ['label' => $p['title'], 'url' => null],
+            ],
         ]);
     }
 
@@ -448,6 +456,37 @@ class VoteController {
             'standing_cta'     => \AfricaGates\Services\StandingsService::callToAction($standing),
             'flier_url'        => $nomPath . '/flier',
             'others'           => array_slice($others, 0, 5),
+            // Same trail the page prints above the hero. The category has no page of
+            // its own, so it is a label with no `item` — a BreadcrumbList entry
+            // pointing at a URL that does not exist is an invalid item, and Google
+            // drops the whole trail rather than the one entry.
+            'breadcrumbs'      => [
+                ['label' => 'Vote', 'url' => '/vote'],
+                ['label' => (string) $nom->programme_title,
+                 'url'   => '/vote/' . rawurlencode((string) $nom->programme_slug)],
+                ['label' => (string) $nom->category, 'url' => null],
+                ['label' => (string) $nom->name,     'url' => null],
+            ],
+            // Person JSON-LD on the ballot. This is the page people reach by typing a
+            // NOMINEE'S NAME, and it was the one content page on the site with no
+            // structured data at all — the registry profile had it, the leaderboard
+            // had an ItemList, and the highest-intent page of the three had nothing.
+            // `category_title` is mapped from the category so Schema::person emits the
+            // award line; the key names differ because that helper serves both
+            // profiles and nominees.
+            'schema'           => \AfricaGates\Support\Schema::person(
+                [
+                    'name'           => (string) $nom->name,
+                    'tagline'        => (string) ($nom->tagline ?? ''),
+                    'story'          => (string) ($nom->story ?? ''),
+                    'organisation'   => (string) ($nom->organisation ?? ''),
+                    'country_code'   => (string) ($nom->country_code ?? ''),
+                    'category_title' => (string) $nom->category,
+                ],
+                \AfricaGates\Support\SiteUrl::base($req),
+                \AfricaGates\Support\SiteUrl::base($req) . $nomPath,
+                (string) ($cardPng ?? '')
+            ),
             // COMPUTED phase, so a stale status column cannot present an open
             // ballot for a closed cycle.
             'phase'            => $phase,

@@ -184,14 +184,30 @@ Options -MultiViews
   # so a plain `Header set` is safe by scope rather than by directive. Only universally
   # supported directives are used there.
   #
-  # The uncovered case is a static file sitting directly in public/ (there is one:
-  # africa-gates-logo.svg) and a PHP fatal that dies before the middleware. Both are
-  # noted rather than papered over with a directive that can take the site down.
+  # The uncovered case is a static file sitting directly in public/ (three, now:
+  # favicon.ico, site.webmanifest and router.php's dev-only siblings) and a PHP fatal
+  # that dies before the middleware. Both are noted rather than papered over with a
+  # directive that can take the site down. None of the three can execute or carry
+  # script: an ICO, a JSON manifest, and a file only the built-in dev server reads.
+</IfModule>
+
+# MIME types the server may not know
+#
+# `.webmanifest` is the one that matters: served as application/octet-stream, Chrome
+# ignores the manifest and the installed-icon set silently reverts to a screenshot of
+# the page. AddType is mod_mime, which is compiled in almost everywhere, and is gated
+# anyway — an unrecognised directive here is a 500 for every URL in this directory
+# (see the CSP note above for what that cost last time).
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+  AddType image/vnd.microsoft.icon  .ico
 </IfModule>
 
 # Compression
 <IfModule mod_deflate.c>
-  AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json image/svg+xml
+  # The sitemaps are XML built by PHP; without a type here they go out uncompressed,
+  # and the nominee section is the largest text response the site serves.
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json image/svg+xml application/xml text/xml application/manifest+json
 </IfModule>
 
 # Cache
@@ -202,6 +218,8 @@ Options -MultiViews
   ExpiresByType image/webp "access plus 6 months"
   ExpiresByType image/jpeg "access plus 6 months"
   ExpiresByType image/png "access plus 6 months"
+  # A favicon is fetched on nearly every navigation and changes about once a rebrand.
+  ExpiresByType image/vnd.microsoft.icon "access plus 6 months"
   ExpiresByType text/html "access plus 0 seconds"
 </IfModule>
 

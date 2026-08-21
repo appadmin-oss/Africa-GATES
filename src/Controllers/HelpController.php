@@ -109,6 +109,10 @@ final class HelpController
             'articles'         => $articles,
             'categories'       => HelpCentre::CATEGORIES,
             'counts'           => array_map('count', $this->grouped()),
+            'breadcrumbs'      => [
+                ['label' => 'Help Centre',        'url' => '/help'],
+                ['label' => (string) $cat['title'], 'url' => null],
+            ],
         ]);
     }
 
@@ -201,6 +205,37 @@ final class HelpController
             // reassurance for somebody who is about to give up and open a ticket;
             // an honest small number is worth more here than precision.
             'read_minutes'     => max(1, (int) ceil(str_word_count(HelpCentre::plainText($article)) / 200)),
+            // The trail the page prints. The middle crumb points at /help/c/{cat} —
+            // the visible one used to link `/help?q={category title}`, a search URL,
+            // which is now `noindex` (see Support\Canonical) and was always a worse
+            // destination than the category page that exists.
+            'breadcrumbs'      => array_values(array_filter([
+                ['label' => 'Help Centre', 'url' => '/help'],
+                $cat !== null
+                    ? ['label' => (string) $cat['title'],
+                       'url'   => '/help/c/' . rawurlencode((string) $article['cat'])]
+                    : null,
+                ['label' => (string) $article['title'], 'url' => null],
+            ])),
+            // A help answer whose TITLE is the question and whose body is the answer
+            // is a FAQPage in the literal sense — every one of these was written as
+            // "I paid but my votes have not appeared", not as an essay. The answer
+            // text is the article's own summary plus its plain-text body, so the
+            // markup can never claim something the page does not visibly say.
+            'schema'           => [
+                '@context'   => 'https://schema.org',
+                '@type'      => 'FAQPage',
+                'mainEntity' => [[
+                    '@type'          => 'Question',
+                    'name'           => (string) $article['title'],
+                    'acceptedAnswer' => [
+                        '@type' => 'Answer',
+                        // plainText() already leads with the summary — concatenating
+                        // both printed the first sentence of every answer twice.
+                        'text'  => mb_substr(HelpCentre::plainText($article), 0, 1200),
+                    ],
+                ]],
+            ],
         ]);
     }
 

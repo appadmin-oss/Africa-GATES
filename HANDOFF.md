@@ -1,8 +1,8 @@
 # Handoff — Africa GATES
 
-**Written:** 21 August 2026 · **Last commit at handoff:** `ed394b1` (18 commits on the branch)
+**Written:** 21 August 2026 · **Last commit at handoff:** `8da9e6a` (19 commits on the branch)
 **Branch:** `claude/codebase-audit-v7o5tw` (pushed, green)
-**Suite:** 3569 tests / 19385 assertions passing (as of 21 Aug 2026) — `vendor/bin/phpunit --no-coverage` (~95s)
+**Suite:** 3646 tests / 19603 assertions passing (as of 21 Aug 2026) — `vendor/bin/phpunit --no-coverage` (~95s)
 **Live site:** `afg.afrovanguard.org.ng`
 **Not merged to master yet.** No PR opened — the user hasn't asked for one.
 
@@ -35,6 +35,9 @@ Nine audit severities fixed (the audit is in the session history, not a file), p
 - **Inbox optimisation** — fluid-hybrid wrapper, dark mode, image-blocked fallback.
 - **Timezone** — `DisplayTime`, admin-settable, storage stays UTC.
 - **Ticket fixes** — wrong domain, and missing artwork on Cloudinary deployments.
+- **SEO** — a real content sitemap (index + 9 sections), canonicals that survive
+  pagination and referral links, a crawlable favicon set, and BreadcrumbList /
+  Person / FAQPage markup on the pages that show a trail. See §11.
 - **Merged** `claude/clone-attendee-repo-7p9x53` twice — through `590429c`. Interview
   bot, voice, guard, three migrations, GCP runbook. **That workstream has its own
   handoff at `docs/INTERVIEW-BOT-HANDOFF.md` — read it before touching anything under
@@ -56,9 +59,10 @@ The user's list, unstarted. Each is a real feature, not a tweak.
    session: peer-to-peer campaigns per nominee (reuse the `ReferralService` shape),
    laddered asks ("₦25,000 sends a student"), thermometer with a real deadline,
    shareable artefact per donation via the existing `FlierService`.
-4. **Site-wide SEO.** `Event`/`Person`/`ItemList`/`FAQPage` JSON-LD, per-page OG
-   images wired to the existing flier generator, real `sitemap.xml` with priority,
-   canonicals, CWV on nominee pages. **`searchfit-seo` does this better — get it.**
+4. ~~**Site-wide SEO.**~~ **Done** — see §11. What is left is only what needs a
+   plugin or a design pass: `searchfit-seo` for a keyword/competitor audit, and
+   Core Web Vitals measured on a real device against production (the resource
+   hints and the LCP preload are already tuned; nothing here has been profiled).
 5. **Legal pages + tracking.** Blocked on plugins; see §4 and §8.
 6. **Move the broadcast into the admin UI, with editable content.** Currently the
    campaign is a fixed Twig file (`templates/emails/final-hours.twig`) sent from a
@@ -276,3 +280,76 @@ Their landmines section is worth reading in full. The one most likely to be undo
 accident: **do not remove `InterviewVoice::claimTurn()`.** It is one UPDATE doing the turn
 claim, the minimum gap and the utterance cap together, and `poll()` has two uncoordinated
 callers (cron sweep + webhook) that previously spoke over each other.
+
+---
+
+## 11. SEO — what was built, and the four bugs behind it
+
+Every one of these rendered a perfect page, returned 200, and told a crawler
+something false. That is why they survived: nothing in a browser shows any of them.
+
+**The sitemap listed no content.** `/sitemap.xml` was a fifteen-path array in
+`routes.php` — `/`, `/awards`, `/vote`, all of which a crawler finds from the home
+page anyway. Not one nominee ballot, registry profile, help answer, event or post was
+in it, and a nominee ballot is reachable only through a paginated category listing, so
+the deeper a nominee sat in a cycle the likelier a crawler never arrived. Now
+`SitemapService` + a sitemap **index** at `/sitemap.xml` with nine sections at
+`/sitemap-{section}.xml` (paged `-2`, `-3` past 5,000 URLs). Read that class's docblock
+before changing it; three things in it are deliberate:
+
+- **`lastmod` is true or absent.** The old file stamped `date('Y-m-d')` on every row.
+  A date that always says "today" carries no information and Google ignores a
+  `lastmod` it does not trust, so a page with no date column now omits the element.
+  The help section is the exception and the nicest one: its corpus is a PHP file, so
+  its `lastmod` is that file's mtime, which is exactly right.
+- **Filters mirror the controllers exactly** — public statuses, `notMerged`,
+  `status='approved'` for profiles, `is_active`, `is_published`. A merged nominee's
+  page 302s and an unapproved profile 404s; either in a sitemap is a quality signal
+  against the whole file. `test_a_merged_nominee_is_not_listed` and its siblings exist
+  because that is the failure that arrives quietly a year later.
+- **Every section is `hasTable`-guarded and try/caught.** One missing table costs one
+  section, not the sitemap — a deployment between a `git pull` and a migration must
+  still serve one, because a fetch error makes Search Console distrust the file.
+
+**Pagination collapsed and referral links became canonical.** The layout built its
+canonical from the path alone. `/registry?page=4` therefore declared `/registry`
+canonical — telling Google eighteen profiles it had just fetched were a copy of a page
+it already had. And the referral feature hands out `?ref=AGXXXX` links *designed to be
+shared*: each self-canonicalised to a distinct URL, so one page could accumulate as
+many indexable variants as it has referrers, splitting its own signals and putting
+somebody's referral code in a search result. `Support\Canonical` now sorts parameters
+into three classes (indexable / search / strip) and the layout reads `canonical_path`.
+`?q=` gets `noindex, follow`; a facet is canonicalised away but stays indexable —
+`noindex` on a filtered listing somebody already links to throws away a page that was
+earning.
+
+**The favicon was a data URI of the letter "G".** Google needs a favicon it can
+*crawl* — a URL it can fetch and re-fetch — so every mobile result rendered with the
+generic globe, and the mark was the placeholder the real artwork replaced. Now
+`/favicon.ico` (16/32/48), `icon-192`, `icon-512`, `apple-touch-icon` and a
+`site.webmanifest`, all generated from the committed `africa-silhouette.svg` in the
+logo's own green (`#006634`). The full lockup cannot be the favicon: at 16px the
+"Africa G.A.T.E.S." wordmark inside it is four grey pixels.
+
+**Nine pages showed a breadcrumb and marked up none of it.** The trail existed
+visually on the ballot, the programme page, the registry profile, the judge page and
+both help pages; only the `/vote` hub emitted `BreadcrumbList`. All now pass
+`breadcrumbs`, plus `Person` on the ballot (the highest-intent page on the site and
+the only content page with no structured data at all) and on judge pages, and
+`FAQPage` on help answers, whose titles are literally the questions.
+
+Two things to know before editing any of it:
+
+- **The layout's `BreadcrumbList` is hand-laid JSON in Twig**, with `|json_encode` per
+  value. That is the right shape, and its failure is invisible: a judge called
+  `Ọlá "The Bridge" O'Brien & Sons` in a `|raw` field produces a block Google silently
+  drops. `SeoStructuredDataTest` renders the real template and `json_decode`s every
+  block for exactly that name — it is not a grep for `"@type"`, because a grep passes
+  on unparseable JSON.
+- **The help breadcrumb used to link `/help?q={category}`**, a search URL that is now
+  `noindex`. It points at `/help/c/{cat}` now. Do not send a trail into a page marked
+  "do not index".
+
+Tests: `SeoSitemapTest` (14), `SeoCanonicalTest` (14), `SeoStructuredDataTest` (5).
+Each was mutation-checked — the service was broken four ways and each break failed
+exactly the one test that names it.

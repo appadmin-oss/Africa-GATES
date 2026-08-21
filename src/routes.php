@@ -2709,43 +2709,48 @@ return function(App $app) {
             $res->getBody()->write($body);
             return $res->withHeader('Content-Type', 'text/plain; charset=utf-8');
         });
-        $g->get('/sitemap.xml', function($req, $res) {
-            $scheme = $req->getUri()->getScheme();
-            $host = $req->getUri()->getHost();
-            $port = $req->getUri()->getPort();
-            $base = $scheme . '://' . $host . ($port && !in_array($port, [80, 443], true) ? ':' . $port : '');
-            $today = date('Y-m-d');
-            $paths = [
-                ['/', '1.0', 'daily'],
-                ['/awards', '0.9', 'weekly'],
-                ['/vote', '0.9', 'daily'],
-                ['/nominate', '0.9', 'weekly'],
-                ['/leaderboard', '0.9', 'daily'],
-                ['/registry', '0.8', 'daily'],
-                ['/legacy', '0.7', 'weekly'],
-                ['/events', '0.7', 'weekly'],
-                ['/blog', '0.6', 'weekly'],
-                ['/opportunities', '0.7', 'weekly'],
-                ['/community', '0.6', 'weekly'],
-                ['/partner', '0.6', 'monthly'],
-                ['/register', '0.5', 'monthly'],
-                ['/privacy', '0.3', 'yearly'],
-                ['/terms', '0.3', 'yearly'],
-            ];
-            $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-                 . "<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n";
-            foreach ($paths as [$p, $pri, $freq]) {
-                $xml .= "  <url>\n"
-                      . "    <loc>{$base}{$p}</loc>\n"
-                      . "    <lastmod>{$today}</lastmod>\n"
-                      . "    <changefreq>{$freq}</changefreq>\n"
-                      . "    <priority>{$pri}</priority>\n"
-                      . "  </url>\n";
-            }
-            $xml .= "</urlset>\n";
+        // ── /sitemap.xml is an INDEX, and the sections are real content ─────
+        //
+        // The old handler was a hand-written list of fifteen top-level paths, all of
+        // which a crawler finds from the home page anyway, and none of which is a page
+        // that can rank. Not one nominee ballot, registry profile or help answer was in
+        // it. See SitemapService for why that matters and why every `lastmod` here comes
+        // from a column rather than from `date('Y-m-d')`.
+        //
+        // `Cache-Control: public` with a short max-age on purpose: the body is rebuilt
+        // from cached section queries, and a crawler that fetches nine section files
+        // back to back should be served the same bytes from the edge.
+        $sitemapBase = static function ($req): string {
+            $uri  = $req->getUri();
+            $port = $uri->getPort();
+            return $uri->getScheme() . '://' . $uri->getHost()
+                 . ($port && !in_array($port, [80, 443], true) ? ':' . $port : '');
+        };
+        $g->get('/sitemap.xml', function($req, $res) use ($container, $sitemapBase) {
+            $xml = $container->get(\AfricaGates\Services\SitemapService::class)
+                             ->index($sitemapBase($req));
             $res->getBody()->write($xml);
-            return $res->withHeader('Content-Type', 'application/xml; charset=utf-8');
+            return $res->withHeader('Content-Type', 'application/xml; charset=utf-8')
+                       ->withHeader('Cache-Control', 'public, max-age=3600');
         });
+        // The paged variant is declared first for readability only — `[a-z]+` cannot
+        // match `nominees-2`, so the two patterns are disjoint either way.
+        $sitemapSection = function($req, $res, array $args) use ($container, $sitemapBase) {
+            $xml = $container->get(\AfricaGates\Services\SitemapService::class)->section(
+                (string) ($args['section'] ?? ''),
+                $sitemapBase($req),
+                (int) ($args['page'] ?? 1)
+            );
+            // A section that does not exist, or a page past the end, is genuinely not a
+            // URL — 404 rather than an empty <urlset>, which Search Console reports as a
+            // sitemap containing no URLs and which looks like a broken feed.
+            if ($xml === null) throw new \Slim\Exception\HttpNotFoundException($req);
+            $res->getBody()->write($xml);
+            return $res->withHeader('Content-Type', 'application/xml; charset=utf-8')
+                       ->withHeader('Cache-Control', 'public, max-age=3600');
+        };
+        $g->get('/sitemap-{section:[a-z]+}-{page:[0-9]+}.xml', $sitemapSection);
+        $g->get('/sitemap-{section:[a-z]+}.xml',                $sitemapSection);
         // ── API (versioned) ──────────────────────────────────────────────────
         // The same handlers are mounted under BOTH /api/v1 (canonical) and /api
         // (legacy alias == v1) so existing first-party callers keep working while

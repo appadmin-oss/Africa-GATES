@@ -176,6 +176,12 @@ return [
             // self-reported as the homepage). site_url tracks APP_URL so canonical
             // + Open Graph use the real deployed host.
             'request_path'      => parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/',
+            // The canonical path is NOT always request_path: `?page=4` is a distinct
+            // page and must self-canonicalise, while `?ref=`, `?utm_*` and every facet
+            // must not create one. `robots_auto` noindexes internal search results for
+            // the same reason. See AfricaGates\Support\Canonical for both bugs.
+            'canonical_path'    => \AfricaGates\Support\Canonical::path($_SERVER['REQUEST_URI'] ?? '/'),
+            'robots_auto'       => \AfricaGates\Support\Canonical::robots($_SERVER['REQUEST_URI'] ?? '/'),
             'site_url'          => rtrim(Env::get('APP_URL', ''), '/') ?: 'https://afg.afrovanguard.org.ng',
             'flash_ok'          => $_SESSION['flash_ok']    ?? null,
             // The per-request CSP nonce. Every inline <script> must carry it or the
@@ -271,6 +277,8 @@ return [
 
     // Public services
     CacheService::class         => fn()=>new CacheService(),
+    \AfricaGates\Services\SitemapService::class
+                                => fn(ContainerInterface $c)=>new \AfricaGates\Services\SitemapService($c->get(CacheService::class)),
     StatsService::class         => fn(ContainerInterface $c)=>new StatsService($c->get(CacheService::class)),
     ProfileService::class       => fn()=>new ProfileService(),
     AwardService::class         => fn(ContainerInterface $c)=>new AwardService($c->get(SpamService::class)),

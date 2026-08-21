@@ -40,6 +40,14 @@ class RegistryController {
             )),0,3);
         }
         return $this->view->render($res,'pages/registry/profile.twig',['page_title'=>$p['display_name'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$p['display_name'].' — Africa GATES','gates_page'=>'registry','has_hero'=>false,'current_section'=>'projects','profile'=>$p,'comments'=>$comments,'cheer_count'=>$cheerCount,'similar'=>$similar,
+            // The trail this page already shows. The category link goes to /registry
+            // because there is no per-category page yet — same URL as the visible
+            // crumb, so the markup and the page agree.
+            'breadcrumbs'=>array_values(array_filter([
+                ['label'=>'Registry','url'=>'/registry'],
+                !empty($p['category']) ? ['label'=>(string)$p['category'],'url'=>'/registry'] : null,
+                ['label'=>(string)$p['display_name'],'url'=>null],
+            ])),
             // Person JSON-LD. People search NAMES, and a name is the one query where a
             // small site outranks a large one — because the large one has no page for it.
             'schema'=>\AfricaGates\Support\Schema::person(

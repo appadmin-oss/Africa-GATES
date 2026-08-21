@@ -307,7 +307,10 @@
   <nav class="ha-crumb" aria-label="Breadcrumb">
     <a href="/help">Help Centre</a>
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
-    <a href="/help?q={{ category.title|url_encode }}">{{ category.title }}</a>
+    {# /help/c/{cat}, not /help?q={title}: the category page exists, and the search URL
+       it used to point at is now noindex — a breadcrumb should not walk a crawler into
+       a page marked "do not index". #}
+    <a href="/help/c/{{ category_key|url_encode }}">{{ category.title }}</a>
   </nav>
 
   <div class="ha-grid">

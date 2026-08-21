@@ -1,0 +1,281 @@
+<?php
+declare(strict_types=1);
+
+namespace Tests\Unit;
+
+use AfricaGates\Services\SitemapService;
+use Illuminate\Database\Capsule\Manager as DB;
+use Tests\TestCase;
+
+/**
+ * The sitemap must list real, fetchable content — and nothing else.
+ *
+ * ── WHAT WENT WRONG, AND WHY A TEST IS THE RIGHT GUARD ───────────────────────
+ *
+ * The old `/sitemap.xml` was a literal fifteen-path array in `routes.php`. Its
+ * defects were all of the invisible kind: nobody notices a sitemap that omits every
+ * nominee, nobody notices `lastmod` set to `date('Y-m-d')` on every row, and nobody
+ * notices `/register` in it 301-ing to `/account/register` — the file still parses,
+ * still returns 200, and Search Console still says "success".
+ *
+ * So the assertions here are about the things that go wrong SILENTLY:
+ *
+ *   • a merged nominee, whose page is a redirect, appearing anyway;
+ *   • an unapproved profile, whose page is a 404, appearing anyway;
+ *   • `lastmod` being invented for a page with no date behind it;
+ *   • a section quietly returning an empty `<urlset>` instead of a 404;
+ *   • an `&` in an image URL making the whole document unparseable.
+ *
+ * Each test states the bug it catches, and several were written by breaking the
+ * service first to confirm they fail.
+ */
+final class SeoSitemapTest extends TestCase
+{
+    private const BASE = 'https://afg.example.test';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        DB::table('gates_award_programmes')->insertOrIgnore([
+            'id' => 1, 'slug' => 'carol', 'title' => 'Carol Awards', 'is_active' => 1,
+            'created_at' => '2026-01-04 09:00:00',
+        ]);
+        DB::table('gates_award_cycles')->insertOrIgnore([
+            'id' => 1, 'programme_id' => 1, 'year' => 2026, 'status' => 'voting',
+        ]);
+        DB::table('gates_award_categories')->insertOrIgnore([
+            'id' => 1, 'cycle_id' => 1, 'title' => 'Music', 'slug' => 'music',
+        ]);
+    }
+
+    private function svc(): SitemapService
+    {
+        // No CacheService: each test wants the query it just seeded, not a cached
+        // answer from the test before it.
+        return new SitemapService(null);
+    }
+
+    private function nominee(int $id, string $name, string $status = 'approved', ?int $mergedInto = null): void
+    {
+        DB::table('gates_nominees')->insertOrIgnore(array_filter([
+            'id' => $id, 'category_id' => 1, 'name' => $name, 'status' => $status,
+            'merged_into' => $mergedInto, 'nominated_at' => '2026-02-11 12:00:00',
+        ], static fn($v) => $v !== null));
+    }
+
+    private function profile(string $slug, string $name, string $status): void
+    {
+        DB::table('gates_profiles')->insert([
+            'slug' => $slug, 'display_name' => $name, 'status' => $status,
+            'email' => $slug . '@example.test',
+            'updated_at' => '2026-03-02 08:00:00', 'registered_at' => '2026-03-01 08:00:00',
+        ]);
+    }
+
+    // ── The pages that can rank are actually in it ───────────────────────────
+
+    public function test_a_nominee_ballot_is_listed_at_its_canonical_url(): void
+    {
+        $this->nominee(101, 'Amara Okonkwo');
+
+        $paths = array_column($this->svc()->urls('nominees'), 'path');
+
+        // The id-led segment, not a bare slug: /vote/{programme}/{id}-{name} is the
+        // only shape VoteController serves without redirecting.
+        $this->assertContains('/vote/carol/101-amara-okonkwo', $paths);
+    }
+
+    public function test_the_index_names_a_file_per_non_empty_section(): void
+    {
+        $this->nominee(101, 'Amara Okonkwo');
+
+        $xml = $this->svc()->index(self::BASE);
+
+        $this->assertStringContainsString('<sitemapindex', $xml);
+        $this->assertStringContainsString(self::BASE . '/sitemap-nominees.xml', $xml);
+        $this->assertStringContainsString(self::BASE . '/sitemap-core.xml', $xml);
+        // Blog has no rows in this fixture. An empty section must not be advertised:
+        // Search Console reports it as a sitemap containing zero URLs, which reads
+        // as a broken feed rather than as an empty one.
+        $this->assertStringNotContainsString('/sitemap-blog.xml', $xml);
+    }
+
+    // ── The rows that must NOT be in it ──────────────────────────────────────
+
+    /**
+     * A merged nominee's ballot 302s to its survivor. Listing it fills the report
+     * with "page with redirect", which is a quality signal against the whole file.
+     */
+    public function test_a_merged_nominee_is_not_listed(): void
+    {
+        $this->nominee(101, 'Amara Okonkwo');
+        $this->nominee(102, 'Amara O.', 'approved', 101);
+
+        $paths = array_column($this->svc()->urls('nominees'), 'path');
+
+        $this->assertContains('/vote/carol/101-amara-okonkwo', $paths);
+        $this->assertNotContains('/vote/carol/102-amara-o', $paths);
+    }
+
+    /** A pending or rejected nominee has no public page at all. */
+    public function test_a_nominee_awaiting_review_is_not_listed(): void
+    {
+        $this->nominee(103, 'Not Yet Approved', 'pending');
+        $this->nominee(104, 'Turned Down', 'rejected');
+
+        $paths = array_column($this->svc()->urls('nominees'), 'path');
+
+        $this->assertSame([], $paths, 'only publicly viewable statuses belong in a sitemap');
+    }
+
+    /**
+     * ProfileService::getBySlug() requires `approved`. Anything else is a 404, and
+     * a sitemap of 404s is the fastest way to have the file discounted entirely.
+     */
+    public function test_only_approved_registry_profiles_are_listed(): void
+    {
+        $this->profile('live-one', 'Live One', 'approved');
+        $this->profile('waiting',  'Waiting',  'pending');
+
+        $paths = array_column($this->svc()->urls('registry'), 'path');
+
+        $this->assertContains('/registry/live-one', $paths);
+        $this->assertNotContains('/registry/waiting', $paths);
+    }
+
+    /**
+     * `/register` 301s to `/account/register`, and the hand-written sitemap
+     * advertised the redirect for as long as it existed.
+     */
+    public function test_the_core_section_points_at_destinations_not_redirects(): void
+    {
+        $paths = array_column($this->svc()->urls('core'), 'path');
+
+        $this->assertContains('/account/register', $paths);
+        $this->assertNotContains('/register', $paths);
+    }
+
+    // ── lastmod is true or absent ───────────────────────────────────────────
+
+    /**
+     * The bug: `date('Y-m-d')` on every row, every day. A `lastmod` that always says
+     * "today" carries no information, and Google's documentation is explicit that it
+     * ignores the value when it does not trust it — so the honest move on a page with
+     * no date column is to omit the element.
+     */
+    public function test_no_lastmod_is_invented_for_pages_with_no_date_behind_them(): void
+    {
+        foreach ($this->svc()->urls('core') as $u) {
+            $this->assertArrayNotHasKey('lastmod', $u, $u['path'] . ' has no date column to report');
+        }
+
+        $xml = (string) $this->svc()->section('core', self::BASE);
+        $this->assertStringNotContainsString('<lastmod>', $xml);
+    }
+
+    public function test_lastmod_comes_from_the_row(): void
+    {
+        $this->nominee(101, 'Amara Okonkwo');
+
+        $rows = $this->svc()->urls('nominees');
+
+        $this->assertSame('2026-02-11', $rows[0]['lastmod'] ?? null);
+    }
+
+    // ── Shape and safety ────────────────────────────────────────────────────
+
+    public function test_every_section_is_parseable_xml(): void
+    {
+        $this->nominee(101, 'Amara Okonkwo');
+        $this->profile('live-one', 'Live One', 'approved');
+
+        $prev = libxml_use_internal_errors(true);
+        foreach (SitemapService::sectionKeys() as $key) {
+            $xml = $this->svc()->section($key, self::BASE);
+            if ($xml === null) continue;
+            $this->assertInstanceOf(
+                \SimpleXMLElement::class, simplexml_load_string($xml),
+                "sitemap-{$key}.xml does not parse"
+            );
+        }
+        $this->assertInstanceOf(\SimpleXMLElement::class, simplexml_load_string($this->svc()->index(self::BASE)));
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+    }
+
+    /**
+     * An unescaped `&` — from a Cloudinary transform query, or a name — makes the
+     * whole document a parse error, and the report says "could not read" with no
+     * line number. So the escape has to survive a value that carries one.
+     */
+    public function test_an_ampersand_in_a_row_cannot_break_the_document(): void
+    {
+        $this->nominee(101, 'Sanwo & Sons');
+        DB::table('gates_site_events')->insert([
+            'slug' => 'gala&2026', 'title' => 'Gala "2026" & After',
+            'status' => 'published', 'cover_image' => 'https://cdn.test/x.png?a=1&b=2',
+            'event_date' => '2026-12-20', 'created_at' => '2026-04-01 10:00:00',
+        ]);
+
+        $prev = libxml_use_internal_errors(true);
+        $xml  = (string) $this->svc()->section('events', self::BASE);
+        $doc  = simplexml_load_string($xml);
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+
+        $this->assertInstanceOf(\SimpleXMLElement::class, $doc, 'an & in a row broke the XML');
+        $this->assertStringContainsString('&amp;', $xml, 'the & should be escaped, not dropped');
+    }
+
+    public function test_an_unknown_section_or_a_page_past_the_end_is_not_a_url(): void
+    {
+        $this->nominee(101, 'Amara Okonkwo');
+
+        $this->assertNull($this->svc()->section('nominees', self::BASE, 2), 'page 2 of a 1-page section');
+        $this->assertNull($this->svc()->section('admin', self::BASE), 'a section that does not exist');
+        $this->assertNull($this->svc()->section('nominees', self::BASE, 0), 'page 0 is not a page');
+    }
+
+    /** Absolute URLs, always: a <loc> without a host is invalid per the protocol. */
+    public function test_locs_are_absolute(): void
+    {
+        $this->nominee(101, 'Amara Okonkwo');
+
+        $xml = (string) $this->svc()->section('nominees', self::BASE);
+
+        preg_match_all('~<loc>(.*?)</loc>~', $xml, $m);
+        $this->assertNotEmpty($m[1]);
+        foreach ($m[1] as $loc) {
+            $this->assertStringStartsWith('https://', $loc);
+        }
+    }
+
+    /**
+     * The help corpus lives in a PHP file rather than a table, and it is the one
+     * section whose `lastmod` can be exact — the mtime of the file that holds it.
+     */
+    public function test_help_answers_are_listed_with_the_corpus_file_date(): void
+    {
+        $rows  = $this->svc()->urls('help');
+        $paths = array_column($rows, 'path');
+
+        $this->assertContains('/help', $paths);
+        $this->assertContains('/help/c/payments', $paths);
+        $this->assertContains('/help/paid-but-no-votes', $paths);
+        $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}$/', (string) ($rows[0]['lastmod'] ?? ''));
+    }
+
+    /**
+     * A deployment sitting between a `git pull` and a migration must still serve a
+     * sitemap. One missing table is one missing section, not a 500 — a fetch error
+     * makes Search Console stop trusting the file.
+     */
+    public function test_a_missing_table_costs_one_section_not_the_sitemap(): void
+    {
+        DB::statement('DROP TABLE gates_judges');
+
+        $this->assertSame([], $this->svc()->urls('judges'));
+        $this->assertStringContainsString('<sitemapindex', $this->svc()->index(self::BASE));
+    }
+}

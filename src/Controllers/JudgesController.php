@@ -66,6 +66,16 @@ class JudgesController
             'judge'            => $judge,
             'og_image'         => $ogImage,
             'og_image_alt'     => $ogImage ? ($judge['name'] . ' — Africa GATES judge') : null,
+            // A judge page is a NAME page, and a name is the one query where a site
+            // this size outranks a large one — because the large one has no page for
+            // it. Same reasoning as the registry profile; see Schema::person().
+            'schema'           => \AfricaGates\Support\Schema::person(
+                $judge, $base, $base . '/judges/' . $judge['slug'], (string) ($ogImage ?? '')
+            ),
+            'breadcrumbs'      => [
+                ['label' => 'The Jury',            'url' => '/judges'],
+                ['label' => (string) $judge['name'], 'url' => null],
+            ],
         ], fn($v) => $v !== null));
     }
 }
