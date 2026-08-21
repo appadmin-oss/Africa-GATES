@@ -325,13 +325,42 @@ final class AttendeeBot
         return in_array(self::normaliseState(strtolower((string) ($b['state'] ?? ''))), ['done', 'removed'], true);
     }
 
-    /** The recording, when post-processing has produced one. '' until then. */
+    /**
+     * The recording, when post-processing has produced one. '' until then.
+     *
+     * Only ever a plain https URL — see {@see isSafeRecordingUrl()}. Filtered HERE rather
+     * than at the point of display, because a value that must never be rendered must
+     * never be stored: a second template added later would not remember to re-check.
+     */
     public static function recordingUrl(string $botId): string
     {
         if (!self::configured() || trim($botId) === '') return '';
         $r = self::http('GET', self::base() . '/bots/' . rawurlencode(trim($botId)) . '/recording');
         if (isset($r['__error'])) return '';
-        return trim((string) ($r['url'] ?? $r['recording']['url'] ?? ''));
+
+        $url = trim((string) ($r['url'] ?? $r['recording']['url'] ?? ''));
+        return self::isSafeRecordingUrl($url) ? $url : '';
+    }
+
+    /**
+     * Is this safe to put in an href on an admin page?
+     *
+     * This string comes from another service and lands in an anchor in the console. Twig
+     * escapes the attribute value, which stops a quote breaking out of it — it does NOT
+     * stop `javascript:` executing when an admin clicks the link. An Attendee instance
+     * that was misconfigured or compromised would otherwise have a stored-XSS path into
+     * this console, against a session that can publish a transcript to a judging panel.
+     *
+     * https only: the Attendee instance must be served over TLS anyway (this platform
+     * refuses to register a webhook otherwise), so an http URL is a misconfiguration
+     * worth surfacing rather than a case to support.
+     *
+     * Public because the test asserts a property ABOUT this rule, and a test carrying its
+     * own copy of the pattern would keep passing after the real one changed.
+     */
+    public static function isSafeRecordingUrl(string $url): bool
+    {
+        return preg_match('~^https://[^\s<>"\'\\\\]+$~i', trim($url)) === 1;
     }
 
     // ── speaking, and leaving ────────────────────────────────────────────────

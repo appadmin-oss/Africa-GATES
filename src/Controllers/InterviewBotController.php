@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Controllers;
 
 use AfricaGates\Services\InterviewBot;
+use AfricaGates\Services\RateLimitService;
 use AfricaGates\Support\Env;
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -67,6 +68,22 @@ final class InterviewBotController
         $sent = trim($req->getHeaderLine(self::HEADER));
         if ($sent === '' || !hash_equals($secret, $sent)) {
             return $this->json($res, ['ok' => false, 'error' => 'Unauthorised.'], 401);
+        }
+
+        // ── the cap, AFTER the secret and BEFORE the work ────────────────────
+        //
+        // A valid caller here triggers InterviewBot::poll(), which makes two or three
+        // outbound HTTPS calls to the Attendee instance. That is an amplifier: a client
+        // holding the secret and looping can spend this platform's whole PHP-FPM pool on
+        // waiting for someone else's API.
+        //
+        // Attendee retries a failed delivery, and a genuine interview produces a callback
+        // every few seconds at most, so 120 a minute is far above anything real and far
+        // below anything that hurts. Keyed on the endpoint rather than the client IP:
+        // there is exactly one legitimate caller, so a per-IP key would just let an
+        // attacker rotate addresses.
+        if (!(new RateLimitService())->check('attendee-webhook', 'interview_bot_webhook', 120, 60)) {
+            return $this->json($res, ['ok' => false, 'error' => 'Too many requests.'], 429);
         }
 
         $body  = $this->body($req);

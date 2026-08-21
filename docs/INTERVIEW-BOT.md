@@ -155,12 +155,38 @@ Everything the bot is about to say — model-written **or typed by a panellist**
 | Rule | Refuses | Why it is first / where it sits |
 |---|---|---|
 | `injected` | "Ignore previous instructions…", "system prompt", "as an AI language model" | The transcript is untrusted text going into a prompt. `AiGateway` fences the input; this checks the **output**, because a fence that fails is invisible unless something downstream looks. |
-| `off_limits` | Religion, ethnicity, politics, health, marriage — and bank details, BVN, passwords | Before grounding, so it holds **even if the nominee raised it first**. An award partly decided on an answer about somebody's faith is a discrimination problem whatever the intent. |
-| `evaluative` | "Impressive", "well done", and also "unconvincing" | Praise from the machine conducting the interview reads as the panel's verdict, and shapes every remaining answer. |
-| `promise` | "You will be shortlisted", "the judges will call you" | A machine cannot commit the panel to a result, a timeline, or a callback. |
+| `off_limits` | **Your** religion, ethnicity, politics, health, marriage — and bank details, BVN, passwords | Before grounding, so it holds even if the nominee raised it first. Matched on *possessive framing*, not topic — see below. |
+| `evaluative` | "Well done", "that is impressive", "outstanding work" | Praise from the machine conducting the interview reads as the panel's verdict, and shapes every remaining answer. |
+| `promise` | "You will be shortlisted", "the judges will call you", "**I** guarantee" | A machine cannot commit the panel to a result, a timeline, or a callback. |
 | `not_a_question` | Statements | The bot asks; it does not opine. The fixed opening is exempt. |
 | `too_long` | Over 40 words (120 for the scripted opening) | A question, not a speech. |
 | `ungrounded` | **Any number or proper noun that appears nowhere on the record** | The one that catches invention. See below. |
+
+### Framing, not vocabulary — and why that matters here
+
+The first version of these rules listed bare topic words: `medical`, `church`, `disability`,
+`pregnan`, `transfer`, `weak`, `concerning`. Probed against ten questions a real panel would
+ask, **it blocked eight of them**:
+
+> "How many medical outreaches did the team run last year?"
+> "What does the church hall cost you each month?"
+> "How is the disability access funded at the centre?"
+> "How did you transfer the training to the other nine schools?"
+
+Every one is an ordinary question to a nominee in this platform's own categories. A guard
+that refuses those is not cautious, it is broken — it gets switched off, and then it
+protects nobody.
+
+The distinction it was missing: those questions are about the nominee's **work**. What a
+panel may not weigh is the nominee's **person** — their faith, their health, their marriage,
+who they vote for. Those are separated by possessive and second-person framing, so that is
+what the patterns match. `Which ethnic group do you belong to?` is refused; `Which
+communities do the pupils come from?` is not, because who a programme serves is how impact
+is evidenced.
+
+The corpus in `tests/Unit/InterviewGuardTest.php` is the specification — 14 questions that
+must pass, 18 that must not. **Extend it when a refusal turns out to be wrong**, and change
+the patterns only with the corpus green.
 
 Content is checked **before** shape deliberately. "Congratulations, you have won." is both
 a promise and not a question; recording it as a formatting complaint would hide, in the
@@ -202,7 +228,10 @@ question from a *useless* one. That needs a person, which is what `assisted` mod
 ### Reading the record
 
 Every refusal is a row in `gates_interview_guard_log`, with the sentence that was refused.
-The last five show on the sitting page; `InterviewGuard::tally()` counts by reason.
+The last five show on the sitting page; `InterviewGuard::tally()` counts by reason. Rows are
+pruned after **180 days** — the same window as the recordings — because a refused follow-up
+is generated from what a nominee said, and nothing else on this platform derived from a
+recorded interview is kept forever.
 
 Keeping the text is the point. "ungrounded × 14" is not actionable; the actual sentence
 tells you whether the pack is badly written, the recogniser is mangling a name, or the
@@ -243,7 +272,7 @@ turn loop, and pulls bots out 25 minutes past the end of their slot.
 
 | Where | Effect |
 |---|---|
-| `interview_bot_enabled=0` (Settings) | No bot is sent by any route. |
+| `interview_bot_enabled=0` (Settings) | No bot is sent, **any bot already in a call is withdrawn on the next sweep, and nothing can speak in the meantime.** |
 | `interview_voice_max=off` (Settings) | Bots record but nothing speaks. |
 | Blank `ATTENDEE_API_KEY` | The feature does not exist; interviews fall back to the extension. |
 | Blank `OPENAI_API_KEY` **and** `ELEVENLABS_API_KEY` | No voice at all; every sitting reads as `off`. |

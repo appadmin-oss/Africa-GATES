@@ -176,6 +176,11 @@ final class Maintenance
                 $ran[] = ['gwevents', $this->task('gwevents',
                     fn() => \AfricaGates\Services\GatewayEventLog::prune())];
                 $ran[] = ['triage-backfill', $this->task('triage-backfill', fn() => NominationTriageService::backfill(100))];
+                // Refused bot questions. Machine output, but generated FROM a nominee's
+                // recorded speech, so it expires like everything else here rather than
+                // being the one table kept forever.
+                $ran[] = ['guardlog', $this->task('guardlog',
+                    fn() => \AfricaGates\Services\InterviewGuard::prune())];
                 $ran[] = ['maillog', $this->task('maillog', fn() => (int) DB::table('gates_mail_log')->where('created_at', '<', Carbon::now()->subDays(30))->delete())];
             }
             // Every 6 hours: CPI recompute + tamper-evident standings snapshot
