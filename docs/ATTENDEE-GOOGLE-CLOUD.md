@@ -289,8 +289,8 @@ services:
     <<: *app
     # Keeps the image entrypoint on purpose: the bots need PulseAudio.
     command: ["celery", "-A", "attendee", "worker", "-l", "INFO", "--concurrency=2"]
-    # Docker's default 64 MB /dev/shm crashes Chrome under load.
-    shm_size: "2gb"
+    # No shm_size needed: bots/web_bot_adapter/web_bot_adapter.py passes
+    # --disable-dev-shm-usage, so Chrome uses /tmp and never touches /dev/shm.
 
   scheduler:
     <<: *app
@@ -388,9 +388,15 @@ ATTENDEE_LOG_LEVEL=INFO
 MASK_TRANSCRIPT_IN_LOGS=true
 ```
 
-If storage rejects your signature with `SignatureDoesNotMatch`, set
-`AWS_DEFAULT_REGION=auto` — GCS accepts both, and which one it wants depends on
-how the bucket was created.
+The region is *not* a failure mode here, contrary to how it looks. Attendee
+passes no region to boto3 (`base.py` builds the S3 options from `endpoint_url`
+and the keys alone), so boto3 reads this env var and uses it for SigV4 signing —
+but Cloud Storage does not validate it. Google's signature documentation is
+explicit: "For Cloud Storage resources, you can use any value for LOCATION. The
+recommended value to use is the location associated with the resource that the
+signature applies to." Google's own AWS-migration sample passes
+`region_name="auto"`. So set it to the bucket's location because that is the
+recommended value, not because a mismatch will cost you a recording.
 
 ---
 
@@ -610,9 +616,8 @@ the VM if you know you are keeping it.
 
 | Symptom | Cause |
 |---|---|
-| Bot never joins; worker logs show a Chrome crash | `/dev/shm` too small — confirm `shm_size: "2gb"` on the worker |
 | `Chrome failed to start: sandbox` | `ENABLE_CHROME_SANDBOX` must be `false` under Docker's default seccomp profile |
-| Recording upload fails, `SignatureDoesNotMatch` | GCS HMAC signing region — try `AWS_DEFAULT_REGION=auto` |
+| Recording upload fails, `AccessDenied` | The HMAC key's service account lacks `objectAdmin` on the bucket — re-run the IAM binding in §5. Not the region: GCS accepts any signing region |
 | `DisallowedHost` in the web logs | `ALLOWED_HOSTS` doesn't contain `$DOMAIN` |
 | CSRF failure on dashboard login | `CSRF_TRUSTED_ORIGINS` needs the full `https://` origin |
 | Bot stuck in `joining` on Google Meet | Nobody admitted it. See the signed-in-bot note in §9 |
