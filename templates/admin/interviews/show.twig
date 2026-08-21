@@ -215,9 +215,10 @@
      as they appear, so the transcript writes itself, and it shows the question pack beside the
      video with the criterion each question is testing. It also asks for a follow-up question
      based on what the nominee just said.</p>
-  <p><strong>It cannot speak in the call.</strong> Putting a voice into a Meet call needs a
-     participant seat through Google's Meet Media API, which this kind of hosting cannot run.
-     The next question appears on your screen and you read it out.</p>
+  <p><strong>The extension cannot speak in the call.</strong> It reads and displays; the next
+     question appears on your screen and you read it out. If you want a voice in the room,
+     that is the recording bot below — a separate thing, on separate hosting, and off unless
+     you switch it on for a sitting.</p>
 
   {% set L = iv.live %}
   <div class="is-fig">
@@ -275,6 +276,153 @@
       <label>What has been captured so far</label>
       <div class="is-link" style="max-height:14rem; overflow:auto; white-space:pre-wrap">{{ iv.live_text }}</div>
     </div>
+  {% endif %}
+</div>
+
+{# ── the recording bot ──────────────────────────────────────────────────────
+   The half the extension cannot do. Attendee holds a participant seat on its own
+   host, so it records, transcribes with a recogniser primed on this nominee's name,
+   and — only when a sitting says so — speaks.
+
+   The panel prints the EFFECTIVE voice mode, never the requested one: the platform
+   cap and a missing OpenAI key both lower it silently, and an operator who reads
+   "auto" here and gets a mute bot in the interview has been misled by this screen. #}
+{% set B = iv.bot %}
+<div class="is-sec">
+  <h2>The recording bot</h2>
+
+  {% if not B.available %}
+    <p>No bot is configured, so nothing is sent to any sitting and this section does nothing.
+       Interviews carry on exactly as before, on the extension above.</p>
+    <p style="font-size:12px; color:#67797b">To enable it: run an Attendee instance
+       (<code>github.com/attendee-labs/attendee</code>) and set <code>ATTENDEE_API_KEY</code> and
+       <code>ATTENDEE_BASE_URL</code>. Leaving the base URL blank points at the vendor's hosted
+       service, which is billed per meeting-hour.</p>
+  {% else %}
+    {% if not B.self_hosted %}
+      <div class="is-warn"><strong>This is the vendor's hosted instance</strong>
+        (<code>app.attendee.dev</code>), which bills per meeting-hour. Point
+        <code>ATTENDEE_BASE_URL</code> at your own instance to stop that.</div>
+    {% endif %}
+
+    <div class="is-fig">
+      <div class="is-fig__r {{ B.state == 'in_call' ? 'is-fig--confirmed'
+                              : (B.state in ['requested','joining'] ? 'is-fig--differs'
+                              : (B.state == 'error' ? 'is-fig--differs' : 'is-fig--unmentioned')) }}">
+        {% if B.state == 'in_call' %}
+          <strong>The bot is in the call</strong>{% if B.joined_at %}, since {{ B.joined_at }}{% endif %}.
+        {% elseif B.state == 'requested' %}
+          <strong>Sent.</strong> It joins at the scheduled start.
+        {% elseif B.state == 'joining' %}
+          <strong>Joining now</strong> — it may be waiting to be admitted. Let it in from Meet.
+        {% elseif B.state == 'done' %}
+          <strong>Finished.</strong> The transcript has been read into the capture buffer above.
+        {% elseif B.state == 'removed' %}
+          <strong>It has left the call.</strong>
+        {% elseif B.state == 'error' %}
+          <strong>It could not join.</strong> {{ B.error|default('No reason was given.') }}
+        {% else %}
+          <strong>No bot has been sent yet.</strong> One goes automatically a few minutes before
+          the start, once the nominee has given permission.
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not iv.consented %}
+      <div class="is-warn"><strong>No bot will be sent.</strong> The nominee has not given
+        permission to be recorded. This is stricter than the capture rule on purpose: a bot in
+        the room is a recording process, and it does not go in before somebody agrees to it.
+        Once they press the button on their own link, one is sent within a few minutes.</div>
+    {% endif %}
+
+    <div class="is-row" style="margin-top:12px">
+      {% if B.state not in ['requested','joining','in_call'] %}
+        <form method="post" action="/admin/interviews/{{ row.id }}/bot/send">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="is-btn" type="submit" {{ iv.consented ? '' : 'disabled' }}>Send the bot now</button>
+        </form>
+      {% else %}
+        <form method="post" action="/admin/interviews/{{ row.id }}/bot/remove">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="is-btn is-btn--ghost" type="submit">Take the bot out</button>
+        </form>
+      {% endif %}
+      {% if B.recording_url %}
+        <a class="is-btn is-btn--ghost" href="{{ B.recording_url }}" rel="noopener" target="_blank">The recording</a>
+      {% endif %}
+    </div>
+
+    {# ── the voice ─────────────────────────────────────────────────────────── #}
+    <h3 style="margin-top:22px">What it is allowed to say</h3>
+
+    {% if not B.voice_ready %}
+      <p>No <code>OPENAI_API_KEY</code> is set, so the bot records and transcribes but has no
+         voice. Every sitting below reads as <em>off</em> whatever it is set to.</p>
+    {% endif %}
+
+    <form method="post" action="/admin/interviews/{{ row.id }}/bot/voice">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="is-f">
+        <label for="voice_mode">Voice for this sitting</label>
+        <select class="is-in" id="voice_mode" name="voice_mode">
+          <option value="off"      {{ B.voice_mode == 'off'      ? 'selected' : '' }}>Off — records and transcribes, never speaks</option>
+          <option value="assisted" {{ B.voice_mode == 'assisted' ? 'selected' : '' }}>Assisted — it reads out a question when you press ask</option>
+          <option value="auto"     {{ B.voice_mode == 'auto'     ? 'selected' : '' }}>Auto — it asks and follows up on its own</option>
+        </select>
+      </div>
+      <button class="is-btn is-btn--ghost" type="submit">Save</button>
+    </form>
+
+    {% if B.voice_effective != B.voice_mode %}
+      <div class="is-warn" style="margin-top:10px">Set to <strong>{{ B.voice_mode }}</strong>, but this
+        sitting will actually run as <strong>{{ B.voice_effective }}</strong>
+        {%- if B.platform_max != 'auto' %} — the platform is capped at {{ B.platform_max }} in
+        Settings{% else %} — the voice provider is not configured{% endif %}.</div>
+    {% endif %}
+
+    {% if B.voice_effective == 'auto' %}
+      <div class="is-warn" style="margin-top:10px"><strong>A model will conduct this interview.</strong>
+        It asks the question pack, writes its own follow-ups from what the nominee says, and speaks
+        them without anybody approving each one. This sitting feeds a judging score, so record in the
+        outcome note that it was run this way. Turns take a few seconds each — it is a structured
+        interviewer, not a conversationalist, and a panellist should stay on the call.</div>
+    {% endif %}
+
+    {% if B.voice_effective != 'off' %}
+      <p style="font-size:12px; color:#67797b">It opens with, word for word:
+         &ldquo;{{ B.opening }}&rdquo;</p>
+    {% endif %}
+
+    {% if B.refused %}
+      <h3 style="margin-top:22px">What the guard stopped</h3>
+      <p>Questions refused before anybody heard them — usually because they named a figure or
+         a name nobody had mentioned. A few of these across a sitting is the guard working.
+         Many of them means the question pack needs attention, or the transcriber is mangling
+         a name badly enough that the model is guessing at it.</p>
+      <div class="is-link" style="max-height:12rem; overflow:auto">
+        {% for r in B.refused %}
+          <div style="padding:7px 0; border-bottom:1px solid rgba(16,41,44,.08)">
+            <code style="font-size:11px">{{ r.reason }}</code>
+            &nbsp;<span style="font-size:12.5px">&ldquo;{{ r.text }}&rdquo;</span>
+            <div style="font-size:11.5px; color:#67797b">{{ r.note }}</div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if B.voice_effective == 'assisted' and B.state == 'in_call' %}
+      <form method="post" action="/admin/interviews/{{ row.id }}/bot/say" style="margin-top:12px">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <div class="is-f">
+          <label for="botsay">Ask this out loud</label>
+          <input class="is-in" id="botsay" name="text" type="text" maxlength="600"
+                 placeholder="How many pupils were in the club last term?">
+        </div>
+        <button class="is-btn" type="submit">Ask it</button>
+        <span style="font-size:12px; color:#67797b">The bot reads it into the call and the line goes
+          into the transcript, attributed to the bot.</span>
+      </form>
+    {% endif %}
   {% endif %}
 </div>
 

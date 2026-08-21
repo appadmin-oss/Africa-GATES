@@ -50,6 +50,9 @@ class CsrfMiddleware {
     private const OTP_EXEMPT = ['/api/vote', '/api/otp/request', '/api/v1/vote', '/api/v1/otp/request', '/api/agent/gee', '/api/v1/agent/gee', '/pay/webhook', '/__setup/admin',
         '/api/interview/live/hello', '/api/interview/live/say', '/api/interview/live/finish',
         '/api/v1/interview/live/hello', '/api/v1/interview/live/say', '/api/v1/interview/live/finish',
+        // The recording bot's callback: server-to-server from the Attendee instance, no
+        // cookie and no Origin, guarded by a shared secret compared in the controller.
+        '/api/interview/bot/webhook', '/api/v1/interview/bot/webhook',
         '/email/unsubscribe'];
 
     public function __invoke(Request $req, Handler $handler): Response {

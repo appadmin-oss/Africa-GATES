@@ -805,6 +805,28 @@ final class InterviewService
             'live'       => InterviewLive::status($id),
             'live_key'   => InterviewLive::tokenFor($id),
             'live_text'  => InterviewLive::assemble($id),
+            // The recording bot's half. `voice_effective` is deliberately not the same
+            // field as the row's `voice_mode`: the platform cap and a missing provider key
+            // both lower it, and a console that printed the REQUESTED mode would tell an
+            // operator the bot will speak when it will not.
+            'bot' => [
+                'available'       => AttendeeBot::configured() && InterviewBot::enabled(),
+                'self_hosted'     => AttendeeBot::selfHosted(),
+                'state'           => (string) ($iv->bot_state ?? ''),
+                'error'           => (string) ($iv->bot_error ?? ''),
+                'joined_at'       => (string) ($iv->bot_joined_at ?? ''),
+                'recording_url'   => (string) ($iv->bot_recording_url ?? ''),
+                'voice_mode'      => (string) ($iv->voice_mode ?? 'off'),
+                'voice_effective' => InterviewVoice::mode($iv),
+                'voice_ready'     => InterviewVoice::configured(),
+                'platform_max'    => InterviewVoice::platformMax(),
+                'engine'          => InterviewVoice::engine(),
+                'opening'         => InterviewBot::opening($iv),
+                // What the guard stopped the bot saying in this sitting. On the screen
+                // rather than only in a table, because "the AI is safe, trust us" is not
+                // a claim a panel can check and a list of refused sentences is.
+                'refused'         => InterviewGuard::forInterview($id, 5),
+            ],
         ];
     }
 
