@@ -106,7 +106,16 @@ return [
             'og_image' => (function() use ($settings) {
                 $v = trim((string)($settings['og_image'] ?? ''));
                 if ($v !== '') return $v;
-                return (rtrim(Env::get('APP_URL', ''), '/') ?: 'https://afg.afrovanguard.org.ng') . '/gates-logo.png';
+                // /gates-logo.png DID NOT EXIST — 404 on disk and over HTTP. So every page
+                // that did not pass its own image advertised a broken og:image, and every
+                // share of the home page, the leaderboard, the awards index or the help
+                // centre rendered with an empty preview box. Silent, because a crawler
+                // does not complain and nobody views-source on a share.
+                //
+                // og-default.png is 1200x630, which is the size every network crops to —
+                // a square card gets centre-cropped, and on a logo the part that gets cut
+                // is the wordmark.
+                return rtrim(\AfricaGates\Support\SiteUrl::base(), '/') . '/assets/img/og-default.png';
             })(),
             // Admin-configurable social presence (footer links + rel=me). Empty = hidden.
             'social_links' => array_filter([

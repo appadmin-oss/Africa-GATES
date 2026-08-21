@@ -166,7 +166,12 @@ final class Assets
         $path = trim((string) $path);
         if ($path === '') return null;
         if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) return $path;
-        $base = rtrim((string) Env::get('APP_URL', ''), '/');
+        // SiteUrl, not APP_URL directly. Reading the env var alone returned NULL on any
+        // deployment that never set it — so every og:image fell back to nothing and every
+        // share rendered without a picture, silently. SiteUrl falls back to the request's
+        // own host. Same bug, and same fix, as the ticket's printed address.
+        $base = rtrim(SiteUrl::base(), '/');
+
         return $base !== '' ? $base . '/' . ltrim($path, '/') : null;
     }
 

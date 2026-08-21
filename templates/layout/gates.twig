@@ -39,7 +39,14 @@
   <meta property="og:url" content="{{ _canonical }}">
   <meta property="og:title" content="{{ og_title|default(page_title|default('Africa GATES — Continental Cultural Recognition')) }}">
   <meta property="og:description" content="{{ meta_description|default('Vote, nominate, and celebrate African excellence through the Cultural Power Index.') }}">
-  <meta property="og:image" content="{{ og_image }}">
+  {# A SITE-WIDE FALLBACK, and never an empty attribute.
+     `content="{{ og_image }}"` with nothing set emitted `content=""` — which is worse
+     than omitting the tag: a crawler treats it as a declared-but-broken image and several
+     render the share with a blank box rather than falling back to whatever they could find
+     on the page themselves. Most pages here (home, leaderboard, awards, help) pass no
+     og_image at all, so that was the common case, not the edge case. #}
+  {% set _og_image = og_image|default('') ?: (_site_url ~ '/assets/img/logo-africa-gates.png') %}
+  <meta property="og:image" content="{{ _og_image }}">
   <meta property="og:image:alt" content="{{ og_image_alt|default('Africa GATES — continental cultural recognition') }}">
   {# Dimensions and type let WhatsApp, Facebook and X reserve the right box and render
      the preview on the FIRST fetch. Without them a crawler has to download the image
@@ -56,7 +63,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{{ og_title|default(page_title|default('Africa GATES')) }}">
   <meta name="twitter:description" content="{{ meta_description|default('Vote, nominate, and celebrate African excellence.') }}">
-  <meta name="twitter:image" content="{{ og_image }}">
+  <meta name="twitter:image" content="{{ _og_image }}">
 
   {# Structured data — Organization + WebSite for richer SERP cards #}
   <script nonce="{{ csp_nonce }}" type="application/ld+json">

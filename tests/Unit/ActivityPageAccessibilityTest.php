@@ -337,7 +337,14 @@ class ActivityPageAccessibilityTest extends TestCase
         // positive an earlier XSS sweep already produced once.
         $this->assertStringNotContainsString($payload, $html,
             'the query must never be reflected unescaped');
-        $this->assertStringNotContainsString('<img ', $html, 'no tag may be formed from the query');
+        // Scoped to the PAYLOAD's own marker, not to `<img ` in general. The broad form
+        // was a proxy that only held while no page happened to contain a legitimate
+        // image — and the nav's brand mark became an <img> the moment the letter "G"
+        // was replaced with the real logo, so it began reporting a vulnerability on
+        // correctly-escaped output. Third false positive of exactly this shape in this
+        // file; the two above are documented for the same reason.
+        $this->assertStringNotContainsString('<img src=x', $html,
+            'no tag may be formed from the query');
         $this->assertStringContainsString('&lt;img', $html, 'escaped, not stripped');
 
         // Every reflection point, since the query reaches four of them.
