@@ -2490,6 +2490,16 @@ return function(App $app) {
             $a->post('/interview/live/hello',  \AfricaGates\Controllers\InterviewLiveController::class.':hello');
             $a->post('/interview/live/say',    \AfricaGates\Controllers\InterviewLiveController::class.':say');
             $a->post('/interview/live/finish', \AfricaGates\Controllers\InterviewLiveController::class.':finish');
+            // ── THE RECORDING BOT'S CALLBACK ─────────────────────────────────
+            //
+            // Server-to-server from the Attendee instance, so no cookie, no Origin, and
+            // CSRF-exempt for the same reason /pay/webhook is. Guarded by a shared secret
+            // in a header, and the body is used only to look up which sitting is meant —
+            // everything else is re-fetched from Attendee over an authenticated
+            // connection. Optional: the cron sweep recovers all of this by polling, and
+            // no callback is registered at all unless the secret is set. See
+            // InterviewBotController.
+            $a->post('/interview/bot/webhook', \AfricaGates\Controllers\InterviewBotController::class.':webhook');
         };
         $g->group('/api/v1', $apiRoutes)->add(new ApiVersionMiddleware('1'));
         $g->group('/api',    $apiRoutes)->add(new ApiVersionMiddleware('1', true));
@@ -2863,6 +2873,13 @@ return function(App $app) {
             // own endpoints are under /api/interview/live/… — see the note there.
             $s->post('/{id:[0-9]+}/live/rotate', \AfricaGates\Admin\Controllers\InterviewsController::class.':rotateLive');
             $s->post('/{id:[0-9]+}/live/save',   \AfricaGates\Admin\Controllers\InterviewsController::class.':saveLive');
+            // The recording bot. `send` and `remove` are the ordinary controls; `voice`
+            // changes what it may say in this sitting; `say` is the assisted path, where
+            // a panellist decides a question the model wrote will actually be asked.
+            $s->post('/{id:[0-9]+}/bot/send',    \AfricaGates\Admin\Controllers\InterviewsController::class.':botSend');
+            $s->post('/{id:[0-9]+}/bot/remove',  \AfricaGates\Admin\Controllers\InterviewsController::class.':botRemove');
+            $s->post('/{id:[0-9]+}/bot/voice',   \AfricaGates\Admin\Controllers\InterviewsController::class.':botVoice');
+            $s->post('/{id:[0-9]+}/bot/say',     \AfricaGates\Admin\Controllers\InterviewsController::class.':botSay');
         });
 
         // ── NOMINEE QUESTIONNAIRES ────────────────────────────────────

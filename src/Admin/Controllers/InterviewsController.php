@@ -477,6 +477,112 @@ final class InterviewsController
         return $this->back($res, '/admin/interviews/' . $id);
     }
 
+    // ══ the recording bot ════════════════════════════════════════════════════
+
+    /**
+     * Send the bot into this sitting now, rather than waiting for the sweep.
+     *
+     * The sweep sends it a few minutes before the scheduled start and is the ordinary
+     * path. This is for the two cases the schedule cannot cover: a sitting that started
+     * late, and one where the nominee only pressed the consent button once everybody was
+     * already in the room.
+     */
+    public function botSend(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+        $r  = \AfricaGates\Services\InterviewBot::dispatch($id);
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        if ($r['ok'] ?? false) {
+            $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'interview.bot_send',
+                'interview', $id, ['bot_id' => $r['bot_id'] ?? '']);
+        }
+        return $this->back($res, '/admin/interviews/' . $id);
+    }
+
+    /** Pull the bot out. Reads whatever it heard first — see InterviewBot::remove(). */
+    public function botRemove(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+        $r  = \AfricaGates\Services\InterviewBot::remove($id);
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'interview.bot_remove', 'interview', $id);
+        return $this->back($res, '/admin/interviews/' . $id);
+    }
+
+    /**
+     * Change what the bot is allowed to say in this sitting.
+     *
+     * Audited with the old value as well as the new one. "Who turned autonomous
+     * questioning on for the sitting that decided this award, and when" is a question a
+     * panel may have to answer to a nominee who appeals, and a log that records only the
+     * current state cannot answer it.
+     */
+    public function botVoice(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id   = (int) ($args['id'] ?? 0);
+        $want = trim((string) (((array) $req->getParsedBody())['voice_mode'] ?? ''));
+
+        if (!in_array($want, \AfricaGates\Services\InterviewVoice::MODES, true)) {
+            $_SESSION['flash_error'] = 'That is not a voice setting.';
+            return $this->back($res, '/admin/interviews/' . $id);
+        }
+
+        $iv = InterviewService::byId($id);
+        if (!$iv) {
+            $_SESSION['flash_error'] = 'No such interview.';
+            return $this->back($res, '/admin/interviews');
+        }
+        $was = (string) ($iv->voice_mode ?? 'off');
+
+        \Illuminate\Database\Capsule\Manager::table('gates_interviews')
+            ->where('id', $id)->update(['voice_mode' => $want]);
+
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'interview.bot_voice',
+            'interview', $id, ['from' => $was, 'to' => $want]);
+
+        // The effective mode, not the requested one. An operator who picks 'auto' under a
+        // platform cap of 'assisted' must be told they did not get it, here, rather than
+        // discovering it from a silent bot during the interview.
+        $effective = \AfricaGates\Services\InterviewVoice::mode(InterviewService::byId($id));
+        $_SESSION['flash'] = $effective === $want
+            ? 'Voice for this sitting is now: ' . $want . '.'
+            : 'Saved as ' . $want . ', but this platform is capped at ' . $effective
+                . ' — so that is what the bot will do. Change the cap in Settings.';
+
+        return $this->back($res, '/admin/interviews/' . $id);
+    }
+
+    /**
+     * Read a question aloud into the room.
+     *
+     * The 'assisted' path, and the reason that mode is worth having: the model wrote the
+     * question and a person decided it would be asked. `$autonomous` is false here and
+     * that is not a detail — it is what {@see InterviewVoice::maySpeak()} checks to keep
+     * the turn loop away from the microphone in a sitting that did not ask for it.
+     */
+    public function botSay(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id   = (int) ($args['id'] ?? 0);
+        $text = (string) (((array) $req->getParsedBody())['text'] ?? '');
+
+        $r = \AfricaGates\Services\InterviewVoice::say($id, $text, false);
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = ($r['ok'] ?? false)
+            ? 'Asked: ' . (string) $r['spoken']
+            : (string) $r['error'];
+        if ($r['ok'] ?? false) {
+            $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'interview.bot_say',
+                'interview', $id, ['text' => mb_substr((string) $r['spoken'], 0, 300)]);
+        }
+        return $this->back($res, '/admin/interviews/' . $id);
+    }
+
     /** Take a published transcript back out of the judges' dossier. */
     public function withdraw(Request $req, Response $res, array $args): Response
     {

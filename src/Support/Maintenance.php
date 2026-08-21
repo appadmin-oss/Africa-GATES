@@ -145,6 +145,14 @@ final class Maintenance
             // told it would move — and a list that only moves at 06:00 is a list that does
             // not move on the day the organiser is filling the last three pitches.
             $ran[] = ['standoffers',   $this->task('standoffers',   fn() => $this->expireStandOffers())];
+            // The interview recording bot. On every tick, and it has to be: this is the
+            // path that sends a bot to a sitting starting in ten minutes, reads the
+            // transcript out of one that is running, and pulls a bot out of one that
+            // finished. Attendee will also call the webhook, which is faster — but a
+            // cPanel host cannot be relied on to receive it (see InterviewBotController),
+            // so polling is the primary path and the callback is the optimisation.
+            $ran[] = ['interviewbot',  $this->task('interviewbot',
+                fn() => \AfricaGates\Services\InterviewBot::sweep())];
             // Every hour
             if ((int)$now->minute < 15) {
                 $ran[] = ['otp',        $this->task('otp',        fn() => $this->purgeExpiredOtp())];
