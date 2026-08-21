@@ -280,18 +280,68 @@ class CspTest extends TestCase
     {
         // Backstop for admin, judge, shop and account, which the render tests above
         // do not reach. 42 blocks across 42 files had to be updated.
+        //
+        // templates/emails/ is excluded, and the exclusion is asserted rather than
+        // assumed — see test_email_templates_carry_no_nonce below. Those templates are
+        // rendered into a MAIL BODY, never returned as an HTTP response: there is no
+        // Content-Security-Policy on a message sitting in an inbox, `csp_nonce` is not
+        // in scope when they render, and a nonce attribute there would be a dead
+        // attribute that only looks like security.
         $offenders = [];
-        $rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/templates'));
-        foreach ($rii as $file) {
-            if (!$file->isFile() || $file->getExtension() !== 'twig') continue;
-            $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($file->getPathname()));
+        foreach (self::templateFiles() as $path) {
+            if (self::isEmailTemplate($path)) continue;
+            $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($path));
             preg_match_all('/<style\b[^>]*>/i', $body, $m);
             foreach ($m[0] as $tag) {
-                if (!str_contains($tag, 'nonce=')) $offenders[] = basename($file->getPathname()) . ': ' . $tag;
+                if (!str_contains($tag, 'nonce=')) $offenders[] = basename($path) . ': ' . $tag;
             }
         }
 
         $this->assertSame([], $offenders);
+    }
+
+    /**
+     * The other half of the exclusion above: an email template must carry no nonce.
+     *
+     * Without this, "skip templates/emails/" is a hole somebody could park a real page
+     * in. With it, the rule is symmetric — web templates must have a nonce on every
+     * style block, mail templates must have none anywhere — so a page filed in the wrong
+     * directory fails one test or the other.
+     */
+    public function test_email_templates_carry_no_nonce(): void
+    {
+        $emails = array_values(array_filter(self::templateFiles(), fn($p) => self::isEmailTemplate($p)));
+        $this->assertNotSame([], $emails, 'No templates under templates/emails/ — has the directory moved?');
+
+        $offenders = [];
+        foreach ($emails as $path) {
+            $body = (string) preg_replace('/\{#.*?#\}/s', '', (string) file_get_contents($path));
+            if (str_contains($body, 'csp_nonce') || preg_match('/\bnonce=/i', $body) === 1) {
+                $offenders[] = basename($path);
+            }
+        }
+
+        $this->assertSame([], $offenders,
+            'An email template references a CSP nonce. Inboxes have no CSP; if this file is '
+            . 'actually a web page it belongs outside templates/emails/.');
+    }
+
+    /** @return list<string> every .twig under templates/ */
+    private static function templateFiles(): array
+    {
+        $out = [];
+        $rii = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/templates'));
+        foreach ($rii as $file) {
+            if ($file->isFile() && $file->getExtension() === 'twig') $out[] = $file->getPathname();
+        }
+        sort($out);
+
+        return $out;
+    }
+
+    private static function isEmailTemplate(string $path): bool
+    {
+        return str_contains(str_replace('\\', '/', $path), '/templates/emails/');
     }
 
     // ── Nonce reuse ─────────────────────────────────────────────────────────

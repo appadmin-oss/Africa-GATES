@@ -58,6 +58,24 @@ final class CountdownGif
     private const ACCENT = [0x23, 0x7b, 0x22];
 
     /**
+     * The URL to put in an email's <img src>.
+     *
+     * One builder, so a sender cannot forget the cycle. It matters: cycles are per
+     * PROGRAMME, several can be in voting at once, and the endpoint's no-cycle fallback
+     * is "whichever closes soonest" — which is the right answer for a Choral nominee
+     * only by coincidence. Pass the nominee's own cycle.
+     *
+     * Deliberately NOT parameterised by recipient. See CountdownController for why an
+     * image URL that identifies who opened it is a tracking pixel whatever it is called.
+     */
+    public static function urlFor(string $siteUrl, ?int $cycleId = null): string
+    {
+        $url = \rtrim($siteUrl, '/') . '/email/countdown.gif';
+
+        return ($cycleId !== null && $cycleId > 0) ? $url . '?cycle=' . $cycleId : $url;
+    }
+
+    /**
      * @param int $secondsLeft seconds until the deadline; <= 0 renders the closed state
      * @return string a complete image/gif payload
      */
