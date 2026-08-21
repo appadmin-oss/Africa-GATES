@@ -164,6 +164,19 @@ class EventsController
                 ?: mb_substr(strip_tags((string)($event['description'] ?? '')), 0, 150),
             'gates_page'       => 'events',
             'has_hero'         => false,
+            // Event JSON-LD. The only one of these types with a commercial rich result:
+            // date, venue and PRICE render in the search listing itself, which on a page
+            // that sells tickets is the difference between an impression and a click.
+            'schema'           => \AfricaGates\Support\Schema::event(
+                $event,
+                \AfricaGates\Support\SiteUrl::base($req),
+                array_map(static fn(array $t): array => [
+                    'name'      => (string) ($t['name'] ?? ''),
+                    'price'     => (int) ($t['price_naira'] ?? 0),
+                    'available' => ($t['sold_out'] ?? false) === false,
+                ], $tiers ?? []),
+                (string) ($event['cover_path'] ?? $event['image'] ?? '')
+            ),
             'event'            => $event,
             'member'           => \AfricaGates\Services\UserAccountService::memberForForms(),
             // Paid seats only. The template prints this as "N registered" on a past event and

@@ -39,7 +39,15 @@ class RegistryController {
                 fn($s)=>($s['slug']??'')!==$p['slug']
             )),0,3);
         }
-        return $this->view->render($res,'pages/registry/profile.twig',['page_title'=>$p['display_name'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$p['display_name'].' — Africa GATES','gates_page'=>'registry','has_hero'=>false,'current_section'=>'projects','profile'=>$p,'comments'=>$comments,'cheer_count'=>$cheerCount,'similar'=>$similar]+array_filter(['og_image'=>\AfricaGates\Support\Assets::absoluteOg($p['avatar_path']??null),'og_image_alt'=>$p['display_name'].' — Africa GATES profile'],fn($v)=>$v!==null));
+        return $this->view->render($res,'pages/registry/profile.twig',['page_title'=>$p['display_name'].' — Africa GATES','meta_description'=>$meta,'og_title'=>$p['display_name'].' — Africa GATES','gates_page'=>'registry','has_hero'=>false,'current_section'=>'projects','profile'=>$p,'comments'=>$comments,'cheer_count'=>$cheerCount,'similar'=>$similar,
+            // Person JSON-LD. People search NAMES, and a name is the one query where a
+            // small site outranks a large one — because the large one has no page for it.
+            'schema'=>\AfricaGates\Support\Schema::person(
+                $p,
+                \AfricaGates\Support\SiteUrl::base($req),
+                \AfricaGates\Support\SiteUrl::base($req).'/registry/'.rawurlencode((string)($p['slug']??'')),
+                (string)(\AfricaGates\Support\Assets::absoluteOg($p['avatar_path']??null) ?? '')
+            )]+array_filter(['og_image'=>\AfricaGates\Support\Assets::absoluteOg($p['avatar_path']??null),'og_image_alt'=>$p['display_name'].' — Africa GATES profile'],fn($v)=>$v!==null));
     }
     public function registerForm(Request $req,Response $res):Response {
         return $this->view->render($res,'pages/registry/register.twig',['page_title'=>'Register — Africa GATES','meta_description'=>'Join the Africa GATES registry. Create your verified profile, start building a Cultural Power Index score and become eligible for every awards cycle.','gates_page'=>'register','has_hero'=>false,'current_section'=>'projects']);

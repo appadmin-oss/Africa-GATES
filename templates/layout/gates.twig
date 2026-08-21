@@ -22,6 +22,18 @@
   {% set _canonical = canonical_url|default(_site_url ~ (request_path|default('/'))) %}
   <link rel="canonical" href="{{ _canonical }}">
 
+  {# ── PAGE SCHEMA ──────────────────────────────────────────────────────────
+     Built in PHP (AfricaGates\Support\Schema) and emitted here as one blob, so
+     json_encode owns the escaping: a nominee called O'Brien or an event titled
+     Gala "2026" breaks hand-written JSON in a template, and the failure is silent
+     — Google drops the block and nobody notices for a quarter.
+
+     UNESCAPED_SLASHES/UNICODE because escaped ones are legal JSON but make every
+     URL in the block unreadable when somebody is debugging it in view-source. #}
+  {% if schema is defined and schema %}
+  <script nonce="{{ csp_nonce }}" type="application/ld+json">{{ schema|json_encode(constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_UNESCAPED_UNICODE'))|raw }}</script>
+  {% endif %}
+
   <meta property="og:type" content="{{ og_type|default('website') }}">
   <meta property="og:site_name" content="Africa GATES">
   <meta property="og:url" content="{{ _canonical }}">
