@@ -45,6 +45,11 @@ cron tick that already runs. The webhook only makes `auto` mode quick.
 
 ## Deploying Attendee on Google Cloud
 
+> **Full runnable guide: [ATTENDEE-GOOGLE-CLOUD.md](ATTENDEE-GOOGLE-CLOUD.md).** What
+> follows is the summary and the reasoning; that document has the compose file, the
+> environment, the Cloud SQL and Cloud Storage wiring, and the troubleshooting table,
+> all verified against Attendee v1.64.1.
+
 Attendee is Django + Postgres + Redis + Celery, and it launches a **headless browser per
 meeting**. That last part drives the sizing: bots are CPU- and memory-hungry and they are
 not fractional.
@@ -96,14 +101,23 @@ gcloud compute addresses create attendee-ip --region=europe-west1
 
 # 2. HTTPS in, nothing else. Attendee's API must not be open to the internet
 #    on any other port, and Postgres/Redis must not be reachable at all.
-gcloud compute firewall-rules create attendee-https \
-  --allow=tcp:443 --target-tags=attendee
+#    Port 80 is included because Caddy's default certificate flow uses the
+#    ACME HTTP-01 challenge; drop it only if you switch Caddy to TLS-ALPN.
+gcloud compute firewall-rules create attendee-web \
+  --allow=tcp:80,tcp:443 --target-tags=attendee
 ```
 
-Then on the VM: install Docker, clone `github.com/attendee-labs/attendee`, follow its
-`README` for the production compose file, and put Caddy or nginx in front for TLS. Point a
+Then on the VM: install Docker, clone `github.com/attendee-labs/attendee`, and put Caddy in
+front for TLS. Note that **upstream ships no production compose file** — only
+`dev.docker-compose.yaml`, which binds the source as a volume and runs Django's dev server.
+[ATTENDEE-GOOGLE-CLOUD.md](ATTENDEE-GOOGLE-CLOUD.md) supplies the production one. Point a
 DNS record at the static IP — you need a real certificate, because this platform refuses to
 register a webhook over plain HTTP.
+
+Two other things that guide covers and this summary does not: there is **no published
+Docker image** (upstream CI builds with `push: false`, so you build it yourself), and the
+image is **amd64-only** — `zoom-meeting-sdk` is an x86 wheel, so an Arm machine type will
+not run it.
 
 ### Inside Attendee
 
