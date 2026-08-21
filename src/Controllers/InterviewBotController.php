@@ -29,18 +29,35 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  * {@see InterviewBot::webhookUrl()} declines to register a callback at all unless a shared
  * secret is configured over HTTPS, which is why the degraded path had to be the real one.
  *
- * ── WHY THE SECRET IS COMPARED, NOT TRUSTED ──────────────────────────────────
+ * ── TWO CREDENTIALS, EITHER OF WHICH IS ENOUGH ───────────────────────────────
  *
  * This endpoint appends to a judging transcript. A stranger who can POST here can put
  * words in a nominee's mouth in a document a panel uses to decide an award, which is a
  * more consequential forgery than anything else unauthenticated on this platform.
  *
- * Attendee signs its webhooks, but the signing scheme has moved between versions and a
- * self-hosted instance may be on either side of that change. Verifying a signature this
- * codebase cannot be sure of is worse than not claiming to: it reads as authentication
- * while failing open. So the credential is a shared secret this platform generated,
- * carried in a header, compared in constant time — the same shape as the GAS_SECRET that
- * guards {@see \AfricaGates\Services\GoogleMeetService}, and for the same reason.
+ * Attendee's real scheme is now pinned rather than guessed at. It sends
+ * `X-Webhook-Signature`: base64(HMAC-SHA256(canonical JSON, secret)), where the secret
+ * is the project's webhook secret from Settings → Webhooks — base64 in the dashboard,
+ * raw bytes in the HMAC — and canonical JSON means keys sorted at every level, no
+ * separator spaces, slashes and non-ASCII left unescaped. That is ATTENDEE_WEBHOOK_
+ * SIGNING_SECRET, and it is the credential to prefer.
+ *
+ * ONE HONEST LIMIT. The signature is computed over a re-serialisation of the payload,
+ * not over the bytes on the wire — Attendee posts with `requests(json=...)`, whose
+ * spacing and key order differ from what it signed, so the raw body cannot be hashed
+ * directly. PHP and Python agree on every payload shape this endpoint has been tested
+ * against (unicode, escaped slashes, empty objects, nested sorting, big integers,
+ * nulls) but NOT on floats: Python writes 1.0 where PHP writes 1. Attendee's own
+ * payload fields are integers, though a transcription provider's blob is passed through
+ * verbatim and could contain one. Such a delivery fails the check and is rejected,
+ * which costs the latency this endpoint exists to save and nothing else — the cron
+ * re-fetches the same transcript minutes later. Failing closed on an unverifiable
+ * request is the correct end of that trade.
+ *
+ * The shared-secret header is kept as the second path, for a deployment that injects
+ * one at a reverse proxy — the same shape as the GAS_SECRET guarding
+ * {@see \AfricaGates\Services\GoogleMeetService}. Either credential passing is enough;
+ * with neither configured the route reports itself absent.
  *
  * ── AND IT NEVER TRUSTS THE PAYLOAD'S CONTENTS ───────────────────────────────
  *
@@ -52,24 +69,40 @@ use Psr\Http\Message\ServerRequestInterface as Request;
  */
 final class InterviewBotController
 {
-    /** The header Attendee is configured to send. */
+    /** A shared secret injected by whatever fronts this host, if one is. */
     private const HEADER = 'X-Attendee-Secret';
+
+    /** Attendee's own signature over the canonical payload. */
+    private const SIG_HEADER = 'X-Webhook-Signature';
 
     public function webhook(Request $req, Response $res): Response
     {
-        $secret = trim((string) Env::get('ATTENDEE_WEBHOOK_SECRET', ''));
-        if ($secret === '') {
+        $signing = trim((string) Env::get('ATTENDEE_WEBHOOK_SIGNING_SECRET', ''));
+        $shared  = trim((string) Env::get('ATTENDEE_WEBHOOK_SECRET', ''));
+        if ($signing === '' && $shared === '') {
             // Not configured is not the same as wrong. 404 rather than 401, so a scanner
             // learns nothing about whether this platform has the feature at all.
             return $this->json($res, ['ok' => false, 'error' => 'Not enabled.'], 404);
         }
 
-        $sent = trim($req->getHeaderLine(self::HEADER));
-        if ($sent === '' || !hash_equals($secret, $sent)) {
+        // Read the body ONCE. A PSR-7 stream that has been cast to string is at its end,
+        // and reading it again yields '' — which would look like an empty payload rather
+        // than a spent stream.
+        $raw = $this->raw($req);
+
+        $authed = false;
+        if ($signing !== '') {
+            $authed = self::signatureOk($raw, $req->getHeaderLine(self::SIG_HEADER), $signing);
+        }
+        if (!$authed && $shared !== '') {
+            $sent   = trim($req->getHeaderLine(self::HEADER));
+            $authed = $sent !== '' && hash_equals($shared, $sent);
+        }
+        if (!$authed) {
             return $this->json($res, ['ok' => false, 'error' => 'Unauthorised.'], 401);
         }
 
-        $body  = $this->body($req);
+        $body  = $this->body($req, $raw);
         $botId = trim((string) (
             $body['bot_id']
             ?? $body['data']['bot_id']
@@ -111,15 +144,72 @@ final class InterviewBotController
     }
 
     /** @return array<string,mixed> */
-    private function body(Request $req): array
+    private function body(Request $req, ?string $raw = null): array
     {
         $parsed = $req->getParsedBody();
         if (is_array($parsed) && $parsed !== []) return $parsed;
 
-        $raw = (string) $req->getBody();
+        $raw ??= $this->raw($req);
         if ($raw === '' || strlen($raw) > 262144) return [];
         $json = json_decode($raw, true);
         return is_array($json) ? $json : [];
+    }
+
+    /** The request body as sent, rewinding first so a second reader is not handed ''. */
+    private function raw(Request $req): string
+    {
+        $stream = $req->getBody();
+        if ($stream->isSeekable()) $stream->rewind();
+        return (string) $stream;
+    }
+
+    /**
+     * Does `$signature` match what Attendee would have produced for this body?
+     *
+     * Mirrors bots/webhook_utils.py::sign_payload — keys sorted at every level, no
+     * separator spaces, slashes and non-ASCII unescaped, HMAC-SHA256 over the raw
+     * secret bytes, result base64'd. The dashboard shows that secret base64-encoded,
+     * so it is decoded before use; a value that is not valid base64 is treated as
+     * misconfiguration and fails rather than being hashed as text.
+     */
+    private static function signatureOk(string $raw, string $signature, string $secretB64): bool
+    {
+        $signature = trim($signature);
+        if ($signature === '' || $raw === '' || strlen($raw) > 262144) return false;
+
+        $secret = base64_decode($secretB64, true);
+        if ($secret === false || $secret === '') return false;
+
+        $canonical = self::canonicalJson($raw);
+        if ($canonical === null) return false;
+
+        $expected = base64_encode(hash_hmac('sha256', $canonical, $secret, true));
+        return hash_equals($expected, $signature);
+    }
+
+    /** Python's json.dumps(sort_keys=True, ensure_ascii=False, separators=(',',':')). */
+    private static function canonicalJson(string $raw): ?string
+    {
+        // Decoded to objects, NOT arrays: json_decode(assoc) turns {} into [], which
+        // re-encodes as [] and changes the bytes being signed.
+        $decoded = json_decode($raw, false);
+        if ($decoded === null && strtolower(trim($raw)) !== 'null') return null;
+
+        $out = json_encode(self::sortDeep($decoded), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        return $out === false ? null : $out;
+    }
+
+    private static function sortDeep(mixed $v): mixed
+    {
+        if ($v instanceof \stdClass) {
+            $a = (array) $v;
+            ksort($a, SORT_STRING);
+            $o = new \stdClass();
+            foreach ($a as $k => $vv) $o->{$k} = self::sortDeep($vv);
+            return $o;
+        }
+        if (is_array($v)) return array_map([self::class, 'sortDeep'], $v);
+        return $v;
     }
 
     /** @param array<string,mixed> $data */
