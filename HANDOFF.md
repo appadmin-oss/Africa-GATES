@@ -35,7 +35,10 @@ Nine audit severities fixed (the audit is in the session history, not a file), p
 - **Inbox optimisation** — fluid-hybrid wrapper, dark mode, image-blocked fallback.
 - **Timezone** — `DisplayTime`, admin-settable, storage stays UTC.
 - **Ticket fixes** — wrong domain, and missing artwork on Cloudinary deployments.
-- **Merged** `claude/clone-attendee-repo-7p9x53` (interview bot, voice, guard, GCP runbook).
+- **Merged** `claude/clone-attendee-repo-7p9x53` twice — through `590429c`. Interview
+  bot, voice, guard, three migrations, GCP runbook. **That workstream has its own
+  handoff at `docs/INTERVIEW-BOT-HANDOFF.md` — read it before touching anything under
+  `Interview*`.** Its open items are summarised in §10 below but not restated in full.
 
 ---
 
@@ -68,11 +71,12 @@ The user's list, unstarted. Each is a real feature, not a tweak.
 
 ## 4. Open decisions — do not guess these
 
-- **The logo green.** The user attached their logo but it never reached the
-  filesystem (only the earlier HTML upload did). `logo-africa-gates.png` and
-  `logo-mark.png` were rebuilt from the repo's own Africa path + bundled Playfair,
-  with the green matched **by eye at `#0B5D2E`**. Get the real hex or the real
-  file before rolling it into nav/favicon/OG.
+- ~~**The logo green.**~~ **Settled.** The committed artwork was already in the repo at
+  `africa-gates-logo.svg` (1.4MB SVG wrapping four embedded PNGs — two colour layers and
+  two alpha masks). Reconstructed by compositing colour+mask, trimmed of its strapline
+  band, and now the source of `logo-africa-gates.png`, `logo-mark.png` and
+  `og-default.png`. The SVG moved to `public/assets/img/logo-africa-gates.svg`; the
+  duplicate at `public/africa-gates-logo.svg` is gone. **No hand-drawn asset remains.**
 - **Referral payout.** Earnings accrue to `gates_referral_credits.paid_out_at`
   (nullable = owed). There is **no bank-details capture and no payout flow**. The
   user wants "credits converted to cash, withdrawable, and we retain the ability
@@ -227,3 +231,48 @@ and its docblocks explain *why*, not *what*. Specifically:
   static `setting()` helper per service.
 - Comments explain the failure that motivated the code. Match that register —
   terse "what" comments read as foreign here.
+
+---
+
+## 10. The interview-bot workstream (merged in, own handoff)
+
+Full detail in **`docs/INTERVIEW-BOT-HANDOFF.md`**. What a reader of *this* file needs
+to know, because two items reach beyond that workstream:
+
+**P0 — the docs state a false claim, in three places.** `InterviewBot`'s class docblock,
+`docs/INTERVIEW-BOT.md` §"What `auto` honestly is on this host", and the commit history
+all say real-time conversational interviewing is impossible on this host. **It is not.**
+Attendee's `voice_agent_settings.url` loads a page in an *Attendee-managed* container and
+streams its audio into the meeting — "no backend worker required", per its own docs. So
+the cPanel host never needs to be in the audio path.
+
+Correct those three places **even if nothing is built**. But do not simply switch it on:
+that path bypasses `InterviewGuard` entirely, because the guard sits in the PHP path
+between `AiGateway` and TTS while a realtime agent speaks from the browser. Trading every
+grounding, verdict, promise and protected-characteristic check for latency — in the
+feature that decides an award — is a blocker, not a footnote.
+
+**P1 — nothing has ever run against a live Attendee instance.** No instance exists. The
+tests deliberately do not mock cURL, so the first real proof is the smoke test in
+`docs/ATTENDEE-ON-GOOGLE-CLOUD.md` §8. Highest risk is `AttendeeBot::transcript()`'s
+cursor: `bot_cursor` is an **ordinal position in the response array**, not a provider ID,
+so if `/transcript` ever paginates or reorders, lines are silently skipped or repeated.
+
+**Reaches outside the workstream — worth pairing with work already listed here:**
+
+- **Privacy erasure does not reach the bot data** (their item 6c).
+  `PrivacyEraseUserCommand` clears neither `gates_interview_guard_log` nor Attendee's
+  `/delete_data`. **Fold this into §8's tracking/consent work** — the same command has to
+  grow anyway once analytics land, and erasure that misses a store is the failure that
+  turns a DSAR into a complaint.
+- **`ATTENDEE_BASE_URL` blank bills per meeting-hour**, and `ElevenLabs` shares the
+  questionnaire's quota — a season of interviews can exhaust it and the only symptom is a
+  play button that stops working.
+- **Recommended first-season posture: `voice_mode=off` everywhere.** Transcript quality is
+  the whole benefit and costs no governance argument; the voice is the part that invites
+  an appeal.
+
+Their landmines section is worth reading in full. The one most likely to be undone by
+accident: **do not remove `InterviewVoice::claimTurn()`.** It is one UPDATE doing the turn
+claim, the minimum gap and the utterance cap together, and `poll()` has two uncoordinated
+callers (cron sweep + webhook) that previously spoke over each other.
