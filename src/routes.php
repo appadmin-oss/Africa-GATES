@@ -156,6 +156,35 @@ return function(App $app) {
         $plan = $svc->plan($cycle, $only);
         $n    = $plan['counts'];
 
+        // ── &csv=1 — the two lists a person has to ACT on ─────────────────────
+        //
+        // The page can only count these; the console had --export-unreachable and this
+        // endpoint exists precisely because there is no console. Without a download the
+        // phone-only nominees — the ones needing a WhatsApp instead of an email — are
+        // visible as a number and reachable by nobody, and the ambiguous list is truncated
+        // to ten on screen.
+        if (($q['csv'] ?? '') === '1') {
+            $fh = fopen('php://temp', 'r+');
+            fputcsv($fh, ['kind', 'nominee_id', 'name', 'category', 'cycle_id', 'detail']);
+            foreach ($plan['unreachable'] as [$nom, $cyc]) {
+                fputcsv($fh, ['no-email', $nom->id, $nom->name, $nom->category_title ?? '', $cyc->id,
+                              'no address on file — check gates_nominations.nominee_phone']);
+            }
+            foreach ($plan['ambiguous'] as [$nom, $addrs]) {
+                fputcsv($fh, ['ambiguous', $nom->id, $nom->name, $nom->category_title ?? '', '',
+                              'two approved nominations share this name: ' . implode(' | ', $addrs)]);
+            }
+            rewind($fh);
+            $csv = (string) stream_get_contents($fh);
+            fclose($fh);
+
+            $res->getBody()->write($csv);
+            return $res->withHeader('Content-Type', 'text/csv; charset=utf-8')
+                       ->withHeader('Content-Disposition', 'attachment; filename="nominees-needing-attention.csv"')
+                       ->withHeader('Cache-Control', 'no-store')
+                       ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        }
+
         $lines = [];
         foreach ($plan['cycles'] as $c) {
             $lines[] = sprintf('cycle %d — %s · closes %s', $c->id,
@@ -229,6 +258,11 @@ return function(App $app) {
             . (!$send && $n['sendable'] > 0
                 ? '<a class="btn" href="' . $e($qs(true)) . '">Send to ' . $n['sendable'] . ' nominee(s)</a>'
                   . '<p>Sends in batches of ' . $batch . ', continuing on its own. Safe to reload or re-open.</p>'
+                : '')
+            . (($n['unreachable'] + $n['ambiguous']) > 0
+                ? '<p><a href="' . $e($qs(false) . '&csv=1') . '">Download the '
+                  . ($n['unreachable'] + $n['ambiguous']) . ' nominee(s) needing attention (CSV)</a> — '
+                  . 'no email on file, or two nominations sharing one name. Neither group is mailed.</p>'
                 : '')
             . ($auto ? '<p>If it stops advancing, reload — already-sent addresses are skipped.</p>' : '')
             . '</div></body></html>';
