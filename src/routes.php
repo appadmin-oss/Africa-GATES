@@ -151,10 +151,91 @@ return function(App $app) {
         $batch = min(100, max(1, (int) ($q['batch'] ?? 25)));
 
         $e    = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+        // One URL builder for this page, used by the test branch's back-link and by the
+        // send button and auto-continue below.
+        $qsBase = fn(string $t, int $c, string $o, int $b) => '/__setup/broadcast?token=' . rawurlencode($t)
+                  . ($c > 0 ? '&cycle=' . $c : '')
+                  . ($o !== '' ? '&only=' . rawurlencode($o) : '')
+                  . '&batch=' . $b;
         $site = \AfricaGates\Support\SiteUrl::base($req);
         $svc  = new \AfricaGates\Services\NomineeBroadcast();
         $plan = $svc->plan($cycle, $only);
         $n    = $plan['counts'];
+
+        // ── &test=<address> — send ONE copy to yourself ────────────────────────
+        //
+        // Not the same thing as &only=. `only` filters the resolved nominee list, so it can
+        // only reach somebody who is already a nominee in a live voting cycle — which the
+        // person doing the sending usually is not. Every real campaign should be looked at
+        // in a real inbox before it goes to anybody, and that has to work for an address
+        // that is not in the list at all.
+        //
+        // It borrows the first resolved recipient's data so the personalisation, the
+        // countdown's cycle and the vote link are all genuine rather than placeholders —
+        // what you read is what a nominee reads. It writes NOTHING to gates_broadcast_log:
+        // logging a test would mark that address as already-sent and quietly exclude it
+        // from the real run.
+        $testTo = trim((string) ($q['test'] ?? ''));
+        if ($testTo !== '') {
+            $lines = [];
+            if (!filter_var($testTo, FILTER_VALIDATE_EMAIL)) {
+                $lines[] = 'That does not look like an email address: ' . $testTo;
+            } elseif ($site === '') {
+                $lines[] = 'ABORTED: APP_URL is not set. Every link in this email is absolute.';
+            } elseif (($plan['queue'] ?? []) === []) {
+                $lines[] = 'No nominee resolved in a live voting cycle, so there is no real';
+                $lines[] = 'personalisation to preview. Check the counts on this page first.';
+            } else {
+                // The first resolved recipient, whether or not they are sendable — a
+                // suppressed or already-sent nominee is still a valid shape to preview.
+                $sample = $plan['queue'][0];
+                $mailer = new \AfricaGates\Services\OtpService([
+                    'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
+                    'port'         => Env::int('SMTP_PORT', 587),
+                    'username'     => Env::get('SMTP_USER', ''),
+                    'password'     => Env::get('SMTP_PASS', ''),
+                    'from_address' => Env::get('MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
+                    'from_name'    => Env::get('MAIL_FROM_NAME', 'Africa GATES'),
+                ]);
+                $preview = ['nominee' => $sample['nominee'], 'cycle' => $sample['cycle'],
+                            'email'   => $testTo];
+                $sent = $mailer->sendRawHtml(
+                    $testTo,
+                    '[TEST] ' . \AfricaGates\Services\NomineeBroadcast::SUBJECT,
+                    $svc->html($preview, $site), $svc->plain($preview, $site),
+                    'campaign-test',
+                    \AfricaGates\Services\EmailOptOut::url($site, $testTo)
+                );
+                $lines[] = ($sent['success'] ?? false)
+                    ? 'TEST SENT to ' . $testTo
+                    : 'TEST FAILED: ' . (string) ($sent['error'] ?? 'unknown');
+                $lines[] = '';
+                $lines[] = 'Personalised as: ' . (string) $sample['nominee']->name;
+                $lines[] = 'Subject carries a [TEST] prefix so it cannot be mistaken for the real one.';
+                $lines[] = 'Nothing was written to the send log, so ' . $testTo;
+                $lines[] = 'is still eligible for the real run.';
+                if (($sent['fallback'] ?? '') === 'log') {
+                    $lines[] = '';
+                    $lines[] = 'NOTE: SMTP is not configured, so this went to';
+                    $lines[] = 'var/logs/outgoing-mail.log instead of an inbox.';
+                }
+            }
+
+            $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+                . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+                . '<title>Africa GATES — test send</title>'
+                . '<style>body{font-family:system-ui,sans-serif;background:#10292C;color:#bcd;margin:0;padding:30px 16px}'
+                . '.box{max-width:780px;margin:0 auto}h1{color:#fff;font-size:18px;margin:0 0 10px}'
+                . 'pre{background:#06181a;color:#9fe6a0;padding:16px;border-radius:10px;font-size:12.5px;line-height:1.5}'
+                . 'a{color:#7FC87C}</style></head><body><div class="box">'
+                . '<h1>Africa GATES — test send</h1><pre>' . $e(implode("\n", $lines)) . '</pre>'
+                . '<p><a href="' . $e($qsBase($tok, $cycle, $only, $batch)) . '">← back to the broadcast page</a></p>'
+                . '</div></body></html>';
+            $res->getBody()->write($html);
+            return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
+                       ->withHeader('Cache-Control', 'no-store')
+                       ->withHeader('X-Robots-Tag', 'noindex, nofollow');
+        }
 
         // ── &csv=1 — the two lists a person has to ACT on ─────────────────────
         //
@@ -232,10 +313,7 @@ return function(App $app) {
         // More to do? Re-request. `sendable` was counted BEFORE this batch, so subtract it.
         $left    = $send ? max(0, $n['sendable'] - ($sent + $failed)) : $n['sendable'];
         $auto    = $send && $left > 0;
-        $qs      = fn(bool $go) => '/__setup/broadcast?token=' . rawurlencode($tok)
-                   . ($cycle > 0 ? '&cycle=' . $cycle : '')
-                   . ($only !== '' ? '&only=' . rawurlencode($only) : '')
-                   . '&batch=' . $batch . ($go ? '&send=1' : '');
+        $qs      = fn(bool $go) => $qsBase($tok, $cycle, $only, $batch) . ($go ? '&send=1' : '');
         $refresh = $auto ? '<meta http-equiv="refresh" content="2;url=' . $e($qs(true)) . '">' : '';
 
         [$cls, $msg] = !$send
