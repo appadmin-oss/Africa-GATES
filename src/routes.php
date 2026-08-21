@@ -118,6 +118,129 @@ return function(App $app) {
                    ->withStatus($r['ok'] ? 200 : 500);
     });
     /**
+     * GET /__setup/broadcast?token=… — send the nominee campaign with no SSH.
+     *
+     * ── WHY THIS EXISTS ─────────────────────────────────────────────────────
+     * `nominees:broadcast` needs a shell, and a cPanel deployment may not have one. The
+     * same job over HTTP, token-gated the same way /__setup/migrate is: 404 without the
+     * secret, so the endpoint is invisible to anyone who does not already hold a
+     * credential that can migrate the database.
+     *
+     * ── IT SENDS IN BATCHES BECAUSE SHARED HOSTING WILL KILL THE REQUEST ────
+     * A few thousand SMTP calls at a quarter-second each is far past any sane
+     * max_execution_time. So each request sends a small batch and the page re-requests
+     * itself — the same meta-refresh chaining /__setup/migrate already uses for
+     * migrations. gates_broadcast_log's unique key per (campaign, address) is what makes
+     * that safe: a batch that dies half-way resumes instead of repeating, and a browser
+     * closed mid-run loses nothing but time.
+     *
+     * ── DRY RUN UNLESS &send=1 ──────────────────────────────────────────────
+     * Landing on this URL shows the plan and sends nothing, so the token alone cannot
+     * mail anybody by accident — a link opened twice, or prefetched, is a report.
+     */
+    $app->get('/__setup/broadcast', function ($req, $res) use ($setupGuard) {
+        if (!$setupGuard($req)) return $res->withStatus(404);
+
+        $q     = $req->getQueryParams();
+        $tok   = (string) ($q['token'] ?? '');
+        $send  = ($q['send'] ?? '') === '1';
+        $cycle = max(0, (int) ($q['cycle'] ?? 0));
+        $only  = trim((string) ($q['only'] ?? ''));
+        // 25 keeps a batch near six seconds at the default pacing — comfortably inside
+        // even a mean max_execution_time, with room for a slow SMTP handshake.
+        $batch = min(100, max(1, (int) ($q['batch'] ?? 25)));
+
+        $e    = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+        $site = \AfricaGates\Support\SiteUrl::base($req);
+        $svc  = new \AfricaGates\Services\NomineeBroadcast();
+        $plan = $svc->plan($cycle, $only);
+        $n    = $plan['counts'];
+
+        $lines = [];
+        foreach ($plan['cycles'] as $c) {
+            $lines[] = sprintf('cycle %d — %s · closes %s', $c->id,
+                $c->programme_title ?? ('programme ' . $c->programme_id),
+                \Illuminate\Support\Carbon::parse((string) $c->voting_close)->format('D j M Y, H:i T'));
+        }
+        $lines[] = '';
+        foreach (['nominees in these cycles' => 'nominees', 'unique addresses' => 'addresses',
+                  'already unsubscribed' => 'unsubscribed', 'already sent' => 'already',
+                  'ambiguous (skipped)' => 'ambiguous', 'no address at all' => 'unreachable',
+                  // Named for when it was measured: plan() runs BEFORE this request's
+                  // batch, so next to a live "N left" an unqualified "still to send" reads
+                  // like the two numbers disagree.
+                  'to send (before this batch)' => 'sendable'] as $label => $key) {
+            $lines[] = sprintf('%-28s %d', $label, $n[$key]);
+        }
+        foreach (array_slice($plan['ambiguous'], 0, 10) as [$nom, $addrs]) {
+            $lines[] = sprintf('  ambiguous: nominee %d "%s" -> %s', $nom->id, $nom->name, implode(', ', $addrs));
+        }
+
+        $sent = $failed = 0;
+        if ($send) {
+            if ($site === '') {
+                $lines[] = '';
+                $lines[] = 'ABORTED: APP_URL is not set. Every link in this email is absolute.';
+                $send = false;
+            } else {
+                $mailer = new \AfricaGates\Services\OtpService([
+                    'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
+                    'port'         => Env::int('SMTP_PORT', 587),
+                    'username'     => Env::get('SMTP_USER', ''),
+                    'password'     => Env::get('SMTP_PASS', ''),
+                    'from_address' => Env::get('MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
+                    'from_name'    => Env::get('MAIL_FROM_NAME', 'Africa GATES'),
+                ]);
+                foreach (array_slice($plan['sendable'], 0, $batch) as $r) {
+                    $svc->sendOne($r, $site, $mailer)['ok'] ? $sent++ : $failed++;
+                    usleep(250000);
+                }
+                $lines[] = '';
+                $lines[] = sprintf('this batch: %d sent, %d failed', $sent, $failed);
+            }
+        }
+
+        // More to do? Re-request. `sendable` was counted BEFORE this batch, so subtract it.
+        $left    = $send ? max(0, $n['sendable'] - ($sent + $failed)) : $n['sendable'];
+        $auto    = $send && $left > 0;
+        $qs      = fn(bool $go) => '/__setup/broadcast?token=' . rawurlencode($tok)
+                   . ($cycle > 0 ? '&cycle=' . $cycle : '')
+                   . ($only !== '' ? '&only=' . rawurlencode($only) : '')
+                   . '&batch=' . $batch . ($go ? '&send=1' : '');
+        $refresh = $auto ? '<meta http-equiv="refresh" content="2;url=' . $e($qs(true)) . '">' : '';
+
+        [$cls, $msg] = !$send
+            ? ['run', 'DRY RUN — nothing has been sent. ' . $n['sendable'] . ' recipient(s) are ready.']
+            : ($auto ? ['run', "Sending… {$left} left — this page is auto-continuing. Leave it open."]
+                     : ['ok', 'DONE — ' . $sent . ' sent in this batch, nothing left to send.']);
+
+        $html = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            . $refresh . '<title>Africa GATES — nominee broadcast</title>'
+            . '<style>body{font-family:system-ui,"Segoe UI",Roboto,sans-serif;background:#10292C;color:#bcd;margin:0;padding:30px 16px}'
+            . '.box{max-width:780px;margin:0 auto}h1{color:#fff;font-size:18px;margin:0 0 6px}'
+            . 'pre{background:#06181a;color:#9fe6a0;padding:16px;border-radius:10px;overflow:auto;font-size:12.5px;line-height:1.5;max-height:55vh}'
+            . '.ok{color:#7FC87C;font-weight:600}.err{color:#ff9a9a;font-weight:600}.run{color:#ffd479;font-weight:600}'
+            . 'a{color:#7FC87C}.btn{display:inline-block;margin-top:14px;padding:11px 18px;border-radius:999px;'
+            . 'background:#7FC87C;color:#06181a;font-weight:700;text-decoration:none}</style></head><body><div class="box">'
+            . '<h1>Africa GATES — nominee broadcast</h1>'
+            . '<p class="' . $cls . '">' . $e($msg) . '</p>'
+            . '<pre>' . $e(implode("\n", $lines)) . '</pre>'
+            . (!$send && $n['sendable'] > 0
+                ? '<a class="btn" href="' . $e($qs(true)) . '">Send to ' . $n['sendable'] . ' nominee(s)</a>'
+                  . '<p>Sends in batches of ' . $batch . ', continuing on its own. Safe to reload or re-open.</p>'
+                : '')
+            . ($auto ? '<p>If it stops advancing, reload — already-sent addresses are skipped.</p>' : '')
+            . '</div></body></html>';
+
+        $res->getBody()->write($html);
+        return $res->withHeader('Content-Type', 'text/html; charset=utf-8')
+                   ->withHeader('Cache-Control', 'no-store')
+                   ->withHeader('X-Robots-Tag', 'noindex, nofollow')
+                   ->withStatus(200);
+    });
+
+    /**
      * GET /__setup/deployed?token=… — "is the thing I just uploaded actually live?"
      *
      * ── WHY THIS EXISTS ──────────────────────────────────────────────────────
@@ -1574,6 +1697,110 @@ return function(App $app) {
         $g->get('/judges/{slug}', JudgesController::class.':show');
         $g->get('/registry',      RegistryController::class.':index');
         $g->get('/registry/{slug}',RegistryController::class.':profile');
+        // ── NEAR-MISS URLS ───────────────────────────────────────────────────
+        //
+        // People type the word they have in mind, not the segment we chose. They type the
+        // plural of a singular page, the singular of a plural one, the noun instead of the
+        // verb, and the thing they are looking for instead of the section it lives in —
+        // /results rather than /leaderboard, /tickets rather than /events. Every one of
+        // those was a 404, which is the worst possible answer: it reads as "this platform
+        // has nothing for you" at the exact moment somebody was trying to reach us.
+        //
+        // /tickets is the case that proved it. The "final hours" email design linked to it
+        // for "get them a seat" and it was never a route here — confirmed 404 against the
+        // real router. A campaign to every nominee would have sent its readers into a dead
+        // end, and nobody would have reported it.
+        //
+        // 301 and not 302, because these are permanent facts about spelling rather than
+        // temporary moves, so browsers and search engines can stop asking. Same pattern the
+        // /register and /signin bounces below already use — this is that idea as a table,
+        // because thirty inline closures is a list nobody audits.
+        //
+        // THE QUERY STRING IS CARRIED. Losing it would silently drop the ?ref= on every
+        // campaign link that happens to arrive at an alias, which is the one thing making
+        // this measurable.
+        //
+        // Every entry here was checked against the running router: the alias 404s today
+        // (so nothing is shadowed) and the target answers 200 (so nothing lands on another
+        // dead end). AliasRedirectTest re-checks both, because the failure mode is a
+        // rename somewhere else quietly turning one of these into a redirect to nowhere.
+        // NOTE: there is deliberately NO /judge alias — /judge is the judge portal group.
+        $aliases = [
+            // plural ↔ singular
+            '/event'           => '/events',
+            '/award'           => '/awards',
+            '/opportunity'     => '/opportunities',
+            '/legacies'        => '/legacy',
+            '/blogs'           => '/blog',
+            '/communities'     => '/community',
+            '/pulses'          => '/pulse',
+            '/partners'        => '/partner',
+            '/shops'           => '/shop',
+            '/leaderboards'    => '/leaderboard',
+            '/registries'      => '/registry',
+            '/donation'        => '/donate',
+            '/donations'       => '/donate',
+            '/votes'           => '/vote',
+            '/cookie'          => '/cookies',
+            // the thing they want, not the section it lives in
+            '/ticket'          => '/events',
+            '/tickets'         => '/events',
+            '/ceremony'        => '/events',
+            '/results'         => '/leaderboard',
+            '/winners'         => '/leaderboard',
+            '/rank'            => '/leaderboard',
+            '/ranks'           => '/leaderboard',
+            '/ranking'         => '/leaderboard',
+            '/rankings'        => '/leaderboard',
+            '/nominee'         => '/leaderboard',
+            '/nominees'        => '/leaderboard',
+            '/profile'         => '/registry',
+            '/profiles'        => '/registry',
+            '/store'           => '/shop',
+            '/merch'           => '/shop',
+            '/sponsor'         => '/partner',
+            '/sponsors'        => '/partner',
+            '/news'            => '/blog',
+            '/press'           => '/blog',
+            '/about'           => '/philosophy',
+            '/contact'         => '/support',
+            '/contact-us'      => '/support',
+            // noun where the route is a verb
+            '/nomination'      => '/nominate',
+            '/nominations'     => '/nominate',
+            '/voting'          => '/vote',
+            '/ballot'          => '/vote',
+            // the names these pages have everywhere else on the web
+            '/faq'             => '/help',
+            '/faqs'            => '/help',
+            '/help-center'     => '/help',
+            '/integrity-center' => '/integrity',
+            '/policy'          => '/privacy',
+            '/privacy-policy'  => '/privacy',
+            '/tos'             => '/terms',
+            '/terms-of-service' => '/terms',
+            '/terms-and-conditions' => '/terms',
+            '/login'           => '/account/login',
+            '/log-in'          => '/account/login',
+            '/sign-in'         => '/account/login',
+            '/signup'          => '/account/register',
+            '/sign-up'         => '/account/register',
+            '/join'            => '/account/register',
+            // A bare /unsubscribe cannot identify anybody, so it lands on the page's
+            // "this link didn't work" state — which offers support rather than nothing.
+            // Better than a 404 for somebody actively trying to stop receiving mail.
+            '/unsubscribe'     => '/email/unsubscribe',
+            '/optout'          => '/email/unsubscribe',
+            '/opt-out'         => '/email/unsubscribe',
+        ];
+        foreach ($aliases as $from => $to) {
+            $g->get($from, function ($req, $res) use ($to) {
+                $qs = $req->getUri()->getQuery();
+                return $res->withHeader('Location', $to . ($qs !== '' ? '?' . $qs : ''))
+                           ->withStatus(301);
+            });
+        }
+
         // /register is retired — the member account sign-up (/account/register) is
         // the single canonical registration. Bounce old links/bookmarks there.
         $g->get('/register',         fn($req,$res)=>$res->withHeader('Location','/account/register')->withStatus(301));
