@@ -22,7 +22,7 @@ Three decisions already made for you, with reasons:
 
 | Decision | Why |
 |---|---|
-| One Compute Engine VM, Docker Compose | Cloud Run **cannot** host this — bots are long-lived processes holding a media session, not request-scoped containers. GKE is what Attendee's own manifests target and is correct above ~5 concurrent interviews; below that it is a cluster to operate for no gain. |
+| One Compute Engine VM, Docker Compose | Cloud Run **services** cannot hold a bot — see §11, which works through the request-driven model properly, including the one Cloud Run product that *is* a genuine fit. GKE is what Attendee's own manifests target and is right above ~5 concurrent interviews; below that it is a cluster to operate for no gain. |
 | `LAUNCH_BOT_METHOD` left **unset** | The non-obvious one. Unset means bots run as Celery tasks inside the worker. `docker-compose-multi-host` needs a *second* VM consuming a `bot_launcher_vm` queue, and `kubernetes` needs a cluster. Setting either on a single box gives you bots that never launch. |
 | Google Cloud Storage via its S3-compatible API | Attendee only speaks S3 or Azure. GCS's XML API is S3-compatible with HMAC keys, so you keep recordings in GCP and never open an AWS account. |
 
@@ -487,9 +487,100 @@ at the start of an interview.
 
 ---
 
+## 11. Cloud Run — the honest version
+
+"Serverless, scale to zero, no VM to patch" is the right instinct for a workload that runs
+three weeks a year. It is worth being precise about which half of it works, because Cloud
+Run is two products and they behave completely differently here.
+
+### Cloud Run **services**: fine for the web app, wrong for the bots
+
+A Cloud Run *service* is request-driven, and that breaks the worker in two independent
+ways:
+
+**CPU allocation.** Under the default request-based billing, "CPU is only allocated during
+request processing". A bot does not run inside a request — it runs inside a Celery task
+pulled off Redis. So the instance is throttled the moment the HTTP request that
+(hypothetically) started it returns, and the bot freezes mid-sentence in a nominee's
+interview.
+
+You can switch to **instance-based billing**, which allocates CPU for the whole container
+lifecycle and is explicitly the option Google names for background work. That fixes the
+throttling and runs straight into the second problem.
+
+**Instance lifetime.** Google's own wording: *"idle instances, including those kept warm
+using minimum instances, can be shut down at any time."* An instance with no in-flight
+requests is idle by Cloud Run's definition even while your bot is thirty minutes into
+recording a judging interview. There is no contract that keeps it alive, and losing it
+loses the recording — the single worst failure this system has.
+
+Two smaller nails: autoscaling is driven by *request* volume, which for a queue worker is
+permanently zero, so it will never scale up when three interviews start at once; and a
+service instance caps at **8 vCPU / 32 GiB**, which is a hard ceiling of roughly four
+concurrent bots per instance and no way to add a fifth.
+
+So the worker cannot go on a Cloud Run service. **The `app` service can** — it is an
+ordinary stateless Django app and a genuinely good fit. Whether that is worth doing is §11.3.
+
+### 11.2 Cloud Run **jobs**: the one that actually fits
+
+Cloud Run *jobs* are not request-driven at all. They run to completion, and the task
+timeout goes up to **168 hours** — against an interview that lasts forty minutes. One task
+per bot, scale to zero between them, pay for the exact seconds a bot is in a call.
+
+For a seasonal workload this is, on paper, the best-fit GCP-native design there is. No
+idle VM between judging rounds, no concurrency ceiling to size in advance, no capacity
+planning at all.
+
+**The catch is that Attendee cannot do it today.** `LAUNCH_BOT_METHOD` accepts exactly two
+values — `kubernetes` (creates pods) and `docker-compose-multi-host` (queues to a
+`bot_launcher_vm` worker running ephemeral Docker containers) — plus unset, which runs the
+bot inline in the Celery worker. There is no Cloud Run Jobs launcher.
+
+Writing one is a real but bounded piece of work: `bots/launch_bot_utils.py` is where the
+branch lives, and the closest model is `run_bot_in_ephemeral_container_task`. A third
+branch would call the Cloud Run Admin API to execute a job with the bot id as an env
+override. Perhaps 150 lines plus IAM. If interviews become year-round, or you ever need
+more than four at once, **this is the upgrade path — not GKE.**
+
+Until then, the VM is what runs today without forking Attendee.
+
+### 11.3 What "optimised" actually means here
+
+Ranked by how much they change the outcome. Note that the top two are not infrastructure
+choices at all.
+
+1. **Worker concurrency, matched to the machine.** `--concurrency=2` on an `e2-standard-4`
+   is the honest ceiling. Set it to 4 on that machine and all four interviews degrade —
+   choppy audio, dropped words, a worse transcript for everyone — rather than the fourth
+   one queueing. This is the single biggest quality lever and it costs nothing.
+2. **Region.** Put the VM near the panellists, not near you. Bot audio crosses this link
+   in real time, so latency here shows up as a worse recording, unlike a web app where it
+   shows up as a slower page. `europe-west1`/`europe-west2` for West Africa,
+   `africa-south1` for Southern Africa.
+3. **Stop the VM between rounds** (§9). For a three-week judging season this is roughly a
+   90% saving and it beats every architectural cleverness above.
+4. **Persistent disk type.** `pd-balanced` as specified. Bots write recording chunks
+   continuously; `pd-standard` is cheaper and its IOPS become the bottleneck under three
+   concurrent bots.
+5. **Do not move Postgres and Redis to managed services yet.** Cloud SQL plus a Memorystore
+   instance is roughly $50/month before any compute, for a database holding transcripts and
+   job state on a box you can snapshot. It is the right call when this stops being
+   seasonal, and an expensive reflex before then.
+
+**The Cloud Run service for the web app** (§11.1) is worth it only if you have already
+moved to Cloud SQL and Memorystore — a Cloud Run service cannot reach Postgres inside your
+VM's Docker network. So it is part of the "this is year-round now" package, not a quick
+win. In that world the shape is: Cloud Run service for `app`, Cloud Run jobs for bots,
+Cloud SQL, Memorystore, and no VM at all. That is the destination. It is not step one.
+
+---
+
 ## What this deliberately does not do
 
 - **No Kubernetes.** Correct above ~5 concurrent interviews, and a cluster to run below it.
+  If you outgrow this VM, read §11.2 first — Cloud Run jobs is the cheaper destination for
+  a seasonal workload, and GKE only wins if you are running bots continuously.
 - **No managed Cloud SQL / Memorystore.** Roughly doubles the monthly cost for a workload
   where the database holds transcripts and job state, and the VM's disk is snapshot-able.
   Worth revisiting if this ever stops being seasonal.

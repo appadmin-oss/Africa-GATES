@@ -416,7 +416,9 @@ final class InterviewBot
      */
     private static function speak(int $id, string $text, string $reason): array
     {
-        $res = InterviewVoice::say($id, $text, true);
+        // The opening is scripted: a fixed string a human wrote, so it is the ground rather
+        // than something to be grounded against. Every other guard rule still applies.
+        $res = InterviewVoice::say($id, $text, true, $reason === 'opening');
         if (!$res['ok']) {
             return ['spoke' => false, 'text' => '', 'why' => (string) $res['error']];
         }

@@ -430,10 +430,18 @@ final class InterviewLive
             },
         ]);
 
-        if ($res->ok && is_string($res->value) && $res->value !== '') {
-            return ['q' => $res->value, 'source' => 'ai'];
-        }
-        return null;
+        if (!$res->ok || !is_string($res->value) || $res->value === '') return null;
+
+        // The schema above checks SHAPE — is it one short sentence with a question mark.
+        // {@see InterviewGuard} checks CONTENT: whether it invented a figure nobody said,
+        // praises the nominee, promises a result, or strays onto ground a panel may not
+        // weigh. Applied here and not only in InterviewVoice, because in 'assisted' mode
+        // this suggestion goes onto a panellist's screen to be read aloud by a human — and
+        // a hallucinated premise does the same damage in a person's voice as in the bot's.
+        $verdict = InterviewGuard::check($res->value, $id);
+        if (!$verdict['ok']) return null;
+
+        return ['q' => $res->value, 'source' => 'ai'];
     }
 
     /** The tail of the buffer, as plain text. */

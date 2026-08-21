@@ -11,26 +11,37 @@ use Illuminate\Support\Carbon;
  * The voice in the room, and everything that has to be true before it uses it.
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * WHY OPENAI AND NOT THE ELEVENLABS ALREADY IN THIS CODEBASE
+ * TWO ENGINES, AND WHY THIS IS NOT {@see VoiceService}
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * {@see VoiceService} exists, works, and speaks through ElevenLabs. It is not reused here
- * and the reason is not preference.
+ * Either ElevenLabs or OpenAI can speak here, chosen by `INTERVIEW_TTS_ENGINE` and
+ * defaulting to whichever has a key. The model that decides WHAT to say is a separate
+ * question and stays with {@see AiGateway} — the brain and the mouth are billed by
+ * different vendors on different units, and coupling them would mean changing the voice
+ * required re-testing the questions.
  *
- * VoiceService returns audio for a BROWSER to play — a nominee pressing play on a
- * questionnaire prompt, on their own device, at their own pace. A cached MP3 served to a
- * page is a different problem from a stream that has to land in a live conversation
- * inside a few seconds or arrive after the moment it was for. The two have different
- * latency budgets, different failure behaviour (a silent play button is a nuisance; a
- * bot that says nothing for nine seconds is a broken interview), and different formats:
- * Attendee accepts MP3 and nothing else.
+ * VoiceService already speaks ElevenLabs, and this does not call it. Not preference:
  *
- * They also have different funding. ElevenLabs is charged per character against a quota
- * an operator tops up for the questionnaire; spending that quota on interviews would
- * exhaust the thing nominees use without anybody noticing until it was gone.
+ *   - It returns audio for a BROWSER to play, at a nominee's own pace on their own
+ *     device. A silent play button is a nuisance; a bot that says nothing for nine
+ *     seconds in a live interview is a broken sitting. Different latency budget,
+ *     different failure behaviour, and Attendee takes MP3 and nothing else.
+ *   - Its cache, counters and truncation are tuned for questionnaire prompts.
  *
- * So: same idea, separate path, and the two can be switched independently. If the voice
- * ever needs to change, it changes here and Attendee never knows.
+ * They DO share the ElevenLabs key and therefore the quota. That is worth knowing before
+ * switching this on: a season of interviews can exhaust what nominees use for the
+ * questionnaire, and nobody finds out until a play button stops working. The clip cache
+ * below is most of the mitigation.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════
+ * NOTHING REACHES THE ROOM UNGUARDED
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * Every utterance — model-written or typed by a panellist — passes {@see InterviewGuard}
+ * before it is synthesised. A question that names a figure nobody mentioned, praises the
+ * nominee, promises a result, or wanders into religion or health is refused and logged,
+ * and the bot stays quiet. See that file for why the checks are deterministic rather than
+ * a second model call.
  *
  * ══════════════════════════════════════════════════════════════════════════════
  * THE THREE MODES, AND WHAT EACH ONE IS ACTUALLY CLAIMING
@@ -73,7 +84,27 @@ final class InterviewVoice
     /** Ordered weakest to strongest, which is what makes the platform cap a `min()`. */
     public const MODES = [self::MODE_OFF, self::MODE_ASSISTED, self::MODE_AUTO];
 
-    private const TTS_URL = 'https://api.openai.com/v1/audio/speech';
+    // ── the two voices ───────────────────────────────────────────────────────
+
+    /**
+     * ElevenLabs first, and the ordering is the recommendation.
+     *
+     * Not on price — ElevenLabs is generally DEARER per character than OpenAI, and saying
+     * otherwise here would be the kind of comfortable lie this codebase keeps catching. It
+     * is first because of accent. A judging panel interviewing Nigerian, Ghanaian and
+     * Kenyan nominees is choosing a voice that will ask forty people about their life's
+     * work, and OpenAI's catalogue is eight American-English presets with no say in the
+     * matter. ElevenLabs has a library you can actually pick from.
+     *
+     * What genuinely saves money is neither: it is {@see cachePath()} below. The opening
+     * disclosure and every scripted pack question are byte-identical across sittings, so
+     * they are synthesised once for the whole season and replayed from disk after that.
+     * Only the generated follow-ups — one short sentence each — are ever paid for twice.
+     */
+    public const ENGINES = ['elevenlabs', 'openai'];
+
+    private const OPENAI_URL = 'https://api.openai.com/v1/audio/speech';
+    private const ELEVEN_URL = 'https://api.elevenlabs.io/v1/text-to-speech/';
 
     /**
      * `gpt-4o-mini-tts` rather than `tts-1-hd`: this is a voice asking a question over a
@@ -82,6 +113,17 @@ final class InterviewVoice
      * the only quality metric that matters mid-conversation.
      */
     private const DEFAULT_MODEL = 'gpt-4o-mini-tts';
+
+    /**
+     * ElevenLabs' multilingual model, matching what the questionnaire already uses.
+     *
+     * `_v2` and not a turbo variant: the latency difference is a few hundred milliseconds
+     * on one short sentence, and this is a voice that has to survive a conference codec.
+     */
+    private const DEFAULT_ELEVEN_MODEL = 'eleven_multilingual_v2';
+
+    /** Cached clips kept before the oldest are dropped. ~500 × 30KB ≈ 15MB. */
+    public const CACHE_FILES = 500;
 
     /**
      * A question, not a monologue. Anything longer is a bug upstream — the follow-up
@@ -115,9 +157,9 @@ final class InterviewVoice
     /**
      * What this sitting may actually do, after the ceiling and the configuration.
      *
-     * Configuration counts as policy here, not as an error: an operator who has not set
-     * an OpenAI key has, in effect, chosen 'off', and reporting that as a failure every
-     * time the console renders would train them to ignore it.
+     * Configuration counts as policy here, not as an error: an operator with no TTS key of
+     * either kind has, in effect, chosen 'off', and reporting that as a failure every time
+     * the console renders would train them to ignore the console.
      */
     public static function mode(object $iv): string
     {
@@ -135,7 +177,68 @@ final class InterviewVoice
 
     public static function configured(): bool
     {
-        return trim((string) Env::get('OPENAI_API_KEY', '')) !== '' && AttendeeBot::configured();
+        return self::engine() !== '' && AttendeeBot::configured();
+    }
+
+    /**
+     * Which voice will actually answer: 'elevenlabs', 'openai', or '' for none.
+     *
+     * `INTERVIEW_TTS_ENGINE` names one explicitly and is honoured ONLY if that engine has
+     * a key — an operator who names a provider they have not paid for should get the other
+     * one and a working interview, not silence and a log line. Unset, the order in
+     * {@see ENGINES} decides.
+     */
+    public static function engine(): string
+    {
+        $want = strtolower(trim(self::setting('interview_tts_engine')
+            ?: (string) Env::get('INTERVIEW_TTS_ENGINE', '')));
+
+        if (in_array($want, self::ENGINES, true) && self::engineKeyed($want)) return $want;
+
+        foreach (self::ENGINES as $e) {
+            if (self::engineKeyed($e)) return $e;
+        }
+        return '';
+    }
+
+    private static function engineKeyed(string $engine): bool
+    {
+        return match ($engine) {
+            'elevenlabs' => self::elevenKey() !== '',
+            'openai'     => trim((string) Env::get('OPENAI_API_KEY', '')) !== '',
+            default      => false,
+        };
+    }
+
+    /**
+     * The ElevenLabs key, shared with the questionnaire.
+     *
+     * Worth knowing before you switch this on: {@see VoiceService} spends the same quota
+     * reading questionnaire prompts to nominees on their own devices. A season of
+     * interviews can exhaust the thing nominees actually use, and nobody finds out until a
+     * play button stops working. The cache below is most of the mitigation; the rest is
+     * watching the ElevenLabs dashboard during a judging round.
+     */
+    private static function elevenKey(): string
+    {
+        $s = self::setting('voice_elevenlabs_key');
+        return $s !== '' ? $s : trim((string) Env::get('ELEVENLABS_API_KEY', ''));
+    }
+
+    /**
+     * The interview's own ElevenLabs voice, falling back to the questionnaire's.
+     *
+     * Separate because they are different jobs: the questionnaire coaxes a nominee through
+     * a form on their phone, and this asks a panel's questions in a room where the answer
+     * decides an award. An operator may well want the second to sound older.
+     */
+    private static function elevenVoiceId(): string
+    {
+        $v = trim((string) Env::get('INTERVIEW_ELEVEN_VOICE_ID', ''));
+        if ($v !== '') return $v;
+
+        $s = self::setting('voice_elevenlabs_voice');
+        return $s !== '' ? $s : VoiceService::DEFAULT_VOICE;
     }
 
     /**
@@ -190,9 +293,12 @@ final class InterviewVoice
      *
      * @param bool $autonomous true when the turn loop is calling, false when a panellist
      *                         pressed a button. See {@see maySpeak()}.
+     * @param bool $scripted   true for the fixed opening — text a human wrote, which is
+     *                         the ground rather than something to be grounded against.
+     *                         Every other guard rule still applies to it.
      * @return array{ok:bool, error:?string, spoken:string}
      */
-    public static function say(int $id, string $text, bool $autonomous = false): array
+    public static function say(int $id, string $text, bool $autonomous = false, bool $scripted = false): array
     {
         $iv = InterviewService::byId($id);
         if (!$iv) return ['ok' => false, 'error' => 'No such interview.', 'spoken' => ''];
@@ -202,6 +308,22 @@ final class InterviewVoice
 
         $text = self::tidy($text);
         if ($text === '') return ['ok' => false, 'error' => 'Nothing to say.', 'spoken' => ''];
+
+        // ── the guard, on BOTH paths ─────────────────────────────────────────
+        //
+        // A panellist typing a question gets checked as well as a model writing one, and
+        // that is deliberate rather than distrustful of the panel. The rules this enforces
+        // — no promise of a result, nothing about faith or health, no bank details on a
+        // recorded call — are things a tired human types at four in the afternoon too, and
+        // a guard that only watches the machine is a guard with a hole in it the size of
+        // the console.
+        //
+        // Scripted text (the fixed opening) skips only the grounding rule; see the note on
+        // InterviewGuard::check().
+        $verdict = InterviewGuard::check($text, $id, $scripted);
+        if (!$verdict['ok']) {
+            return ['ok' => false, 'error' => $verdict['note'], 'spoken' => ''];
+        }
 
         // Stamped BEFORE synthesis, for the reason InterviewLive::maybeFollowUp() stamps
         // its cooldown before the model call: a provider that takes six seconds and then
@@ -236,17 +358,121 @@ final class InterviewVoice
     /**
      * Text to MP3 bytes, or null.
      *
-     * Never throws. Every caller is either a live conversation or a cron tick.
+     * Never throws. Every caller is either a live conversation or a cron tick, and an
+     * exception in the first is a bot that stops mid-interview while the second is an
+     * invisible dead sweep.
+     *
+     * ── THE CACHE IS THE COST CONTROL, NOT THE ENGINE CHOICE ─────────────────
+     *
+     * Both providers bill per character. The opening disclosure is a fixed string and the
+     * pack questions are written once per sitting and re-read across the season, so the
+     * overwhelming majority of what this bot says is byte-identical to something it has
+     * said before. Keyed by engine, voice, model and text — so changing the voice in
+     * Settings does not keep serving the old one for the rest of the cycle.
      */
     public static function synthesise(string $text): ?string
     {
-        $key = trim((string) Env::get('OPENAI_API_KEY', ''));
-        if ($key === '' || !function_exists('curl_init')) return null;
+        $engine = self::engine();
+        if ($engine === '' || !function_exists('curl_init')) return null;
 
         $text = self::tidy($text);
         if ($text === '') return null;
 
-        $ch = curl_init(self::TTS_URL);
+        $path = self::cachePath($engine, $text);
+        if ($path !== null && is_file($path)) {
+            $bytes = (string) @file_get_contents($path);
+            if ($bytes !== '') {
+                // Touched so the pruner reads "played recently" as "worth keeping".
+                // Without it the opening line — replayed at every single sitting — is
+                // evicted on age while a follow-up nobody will ever hear again survives.
+                @touch($path);
+                return $bytes;
+            }
+        }
+
+        $mp3 = match ($engine) {
+            'elevenlabs' => self::viaElevenLabs($text),
+            'openai'     => self::viaOpenAi($text),
+            default      => null,
+        };
+        if ($mp3 === null) return null;
+
+        if ($path !== null) {
+            @file_put_contents($path, $mp3, LOCK_EX);
+            self::prune();
+        }
+        return $mp3;
+    }
+
+    /**
+     * ElevenLabs. Same key and the same 64kbps mono as the questionnaire.
+     *
+     * 64k rather than the 128k default because this is one spoken sentence about to be
+     * re-encoded by a conference codec anyway; the extra bytes buy nothing audible and
+     * cost latency in the pause the nominee is sitting through.
+     */
+    private static function viaElevenLabs(string $text): ?string
+    {
+        $key = self::elevenKey();
+        if ($key === '') return null;
+
+        return self::http(
+            self::ELEVEN_URL . rawurlencode(self::elevenVoiceId()) . '?output_format=mp3_44100_64',
+            [
+                'Content-Type: application/json',
+                'Accept: audio/mpeg',
+                'xi-api-key: ' . $key,
+            ],
+            [
+                'text'           => $text,
+                'model_id'       => trim((string) Env::get('INTERVIEW_ELEVEN_MODEL', self::DEFAULT_ELEVEN_MODEL)),
+                'voice_settings' => [
+                    // Steadier than the default, for the same reason VoiceService is: an
+                    // expressive read that varies line to line sounds like a performance,
+                    // and a nervous nominee reads performance as judgement.
+                    'stability'        => 0.55,
+                    'similarity_boost' => 0.75,
+                ],
+            ],
+            'ElevenLabs'
+        );
+    }
+
+    /** OpenAI. */
+    private static function viaOpenAi(string $text): ?string
+    {
+        $key = trim((string) Env::get('OPENAI_API_KEY', ''));
+        if ($key === '') return null;
+
+        return self::http(
+            self::OPENAI_URL,
+            [
+                'Authorization: Bearer ' . $key,
+                'Content-Type: application/json',
+            ],
+            [
+                'model'           => trim((string) Env::get('INTERVIEW_TTS_MODEL', self::DEFAULT_MODEL)),
+                'voice'           => trim((string) Env::get('INTERVIEW_TTS_VOICE', 'alloy')),
+                'input'           => $text,
+                'response_format' => 'mp3',
+                // Steers delivery, not wording. A panel interview is not a podcast, and
+                // the default reading of a hard question sounds like an accusation.
+                'instructions'    => 'Speak as a calm, courteous interview host. Even pace, '
+                    . 'warm but neutral. Do not sound excited, impressed, or sceptical.',
+            ],
+            'OpenAI'
+        );
+    }
+
+    /**
+     * One TTS call, for either provider.
+     *
+     * @param list<string>        $headers
+     * @param array<string,mixed> $payload
+     */
+    private static function http(string $url, array $headers, array $payload, string $who): ?string
+    {
+        $ch = curl_init($url);
         if ($ch === false) return null;
 
         curl_setopt_array($ch, [
@@ -257,20 +483,8 @@ final class InterviewVoice
             CURLOPT_TIMEOUT        => 8,
             CURLOPT_CONNECTTIMEOUT => 4,
             CURLOPT_POST           => true,
-            CURLOPT_HTTPHEADER     => [
-                'Authorization: Bearer ' . $key,
-                'Content-Type: application/json',
-            ],
-            CURLOPT_POSTFIELDS => json_encode([
-                'model'           => trim((string) Env::get('INTERVIEW_TTS_MODEL', self::DEFAULT_MODEL)),
-                'voice'           => trim((string) Env::get('INTERVIEW_TTS_VOICE', 'alloy')),
-                'input'           => $text,
-                'response_format' => 'mp3',
-                // Steers delivery, not wording. A panel interview is not a podcast, and
-                // the default reading of a hard question sounds like an accusation.
-                'instructions'    => 'Speak as a calm, courteous interview host. Even pace, '
-                    . 'warm but neutral. Do not sound excited, impressed, or sceptical.',
-            ], JSON_UNESCAPED_SLASHES),
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_POSTFIELDS     => (string) json_encode($payload, JSON_UNESCAPED_SLASHES),
         ]);
 
         $raw  = curl_exec($ch);
@@ -279,19 +493,68 @@ final class InterviewVoice
         curl_close($ch);
 
         if ($raw === false || $code >= 400) {
-            error_log('[interview-voice] OpenAI TTS ' . $code . ': '
+            error_log('[interview-voice] ' . $who . ' TTS ' . $code . ': '
                 . ($raw === false ? $cerr : mb_substr((string) $raw, 0, 300)));
             return null;
         }
 
+        // Both providers answer a bad key with a JSON error document, and a proxy in front
+        // of either can pass that through with a 200 — this deployment has exactly such a
+        // proxy. Playing it puts a burst of static into a judging interview.
+        // {@see VoiceService::looksLikeAudio()} is the same check the questionnaire uses.
         $raw = (string) $raw;
-        // A JSON body from an endpoint that returns audio is an error the status code did
-        // not carry. Playing it would put a few hundred bytes of noise into the meeting.
-        if ($raw === '' || str_starts_with(ltrim($raw), '{')) {
-            error_log('[interview-voice] OpenAI TTS returned no audio.');
+        if ($raw === '' || !VoiceService::looksLikeAudio($raw)) {
+            error_log('[interview-voice] ' . $who . ' TTS returned something that is not audio.');
             return null;
         }
         return $raw;
+    }
+
+    // ── the clip cache ───────────────────────────────────────────────────────
+
+    public static function cacheDir(): ?string
+    {
+        $dir = dirname(__DIR__, 2) . '/var/cache/interview-voice';
+        if (is_dir($dir)) return is_writable($dir) ? $dir : null;
+        return @mkdir($dir, 0775, true) || is_dir($dir) ? $dir : null;
+    }
+
+    private static function cachePath(string $engine, string $text): ?string
+    {
+        $dir = self::cacheDir();
+        if ($dir === null) return null;
+
+        $voice = $engine === 'elevenlabs'
+            ? self::elevenVoiceId() . '|' . Env::get('INTERVIEW_ELEVEN_MODEL', self::DEFAULT_ELEVEN_MODEL)
+            : Env::get('INTERVIEW_TTS_VOICE', 'alloy') . '|' . Env::get('INTERVIEW_TTS_MODEL', self::DEFAULT_MODEL);
+
+        return $dir . '/' . sha1($engine . '|' . $voice . '|' . $text) . '.mp3';
+    }
+
+    /**
+     * Keep the newest {@see CACHE_FILES} clips.
+     *
+     * Bounded rather than expiring, and enforced by the writer at the moment it writes —
+     * the same reasoning as {@see VoiceService::prune()}. This host has a disk quota where
+     * "no space left on device" takes the whole site down, and no cron a human trusts.
+     */
+    public static function prune(): void
+    {
+        $dir = self::cacheDir();
+        if ($dir === null) return;
+
+        $files = glob($dir . '/*.mp3') ?: [];
+        if (count($files) <= self::CACHE_FILES) return;
+
+        $byAge = [];
+        foreach ($files as $f) $byAge[$f] = (int) @filemtime($f);
+        asort($byAge);
+
+        $drop = count($byAge) - self::CACHE_FILES;
+        foreach (array_keys($byAge) as $f) {
+            if ($drop-- <= 0) break;
+            @unlink($f);
+        }
     }
 
     /**

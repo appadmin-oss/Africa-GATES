@@ -444,6 +444,122 @@ final class InterviewBotTest extends TestCase
         });
     }
 
+    // ══ 8b. two voices, and the cache that is the real saving ════════════════
+
+    /**
+     * ElevenLabs wins when both are keyed, and the ordering is not price.
+     *
+     * ElevenLabs is generally dearer per character. It is preferred because a panel
+     * interviewing across the continent should be able to choose an accent, and OpenAI's
+     * catalogue is eight American-English presets.
+     */
+    public function test_elevenlabs_is_preferred_when_both_are_configured(): void
+    {
+        $this->withEnv(['OPENAI_API_KEY' => 'sk-t', 'ELEVENLABS_API_KEY' => 'el-t'], function (): void {
+            $this->assertSame('elevenlabs', InterviewVoice::engine());
+        });
+    }
+
+    public function test_either_engine_alone_is_used(): void
+    {
+        $this->withEnv(['OPENAI_API_KEY' => 'sk-t'], function (): void {
+            $this->assertSame('openai', InterviewVoice::engine());
+        });
+        $this->withEnv(['ELEVENLABS_API_KEY' => 'el-t'], function (): void {
+            $this->assertSame('elevenlabs', InterviewVoice::engine());
+        });
+    }
+
+    public function test_no_key_at_all_means_no_engine(): void
+    {
+        $this->assertSame('', InterviewVoice::engine());
+    }
+
+    public function test_an_explicit_choice_is_honoured(): void
+    {
+        $this->withEnv([
+            'OPENAI_API_KEY' => 'sk-t', 'ELEVENLABS_API_KEY' => 'el-t',
+            'INTERVIEW_TTS_ENGINE' => 'openai',
+        ], function (): void {
+            $this->assertSame('openai', InterviewVoice::engine());
+        });
+    }
+
+    /**
+     * Naming a provider you have not paid for gets you the other one, not silence.
+     *
+     * An operator who typed the wrong thing should have a working interview and a voice
+     * they did not pick, rather than a mute bot and a line in a log file they will not
+     * read until afterwards.
+     */
+    public function test_choosing_an_unkeyed_engine_falls_back_rather_than_going_mute(): void
+    {
+        $this->withEnv([
+            'OPENAI_API_KEY' => 'sk-t', 'INTERVIEW_TTS_ENGINE' => 'elevenlabs',
+        ], function (): void {
+            $this->assertSame('openai', InterviewVoice::engine(),
+                'a typo in the engine name silenced a sitting');
+        });
+    }
+
+    public function test_a_nonsense_engine_name_is_ignored(): void
+    {
+        $this->withEnv(['OPENAI_API_KEY' => 'sk-t', 'INTERVIEW_TTS_ENGINE' => 'kazoo'], function (): void {
+            $this->assertSame('openai', InterviewVoice::engine());
+        });
+    }
+
+    /**
+     * The clip cache is what actually bounds the bill, so its key has to move with the
+     * voice.
+     *
+     * Both providers charge per character, and the opening disclosure plus every scripted
+     * pack question are byte-identical across an entire season. But a key that ignored the
+     * voice would keep serving the old one from disk for the rest of the cycle after an
+     * operator changed it in Settings — the same defect VoiceService documents.
+     */
+    public function test_the_cache_key_changes_with_engine_voice_and_model(): void
+    {
+        $keys = [];
+        foreach ([
+            ['OPENAI_API_KEY' => 'sk-t', 'INTERVIEW_TTS_VOICE' => 'alloy'],
+            ['OPENAI_API_KEY' => 'sk-t', 'INTERVIEW_TTS_VOICE' => 'sage'],
+            ['OPENAI_API_KEY' => 'sk-t', 'INTERVIEW_TTS_MODEL' => 'tts-1-hd', 'INTERVIEW_TTS_VOICE' => 'alloy'],
+            ['ELEVENLABS_API_KEY' => 'el-t', 'INTERVIEW_ELEVEN_VOICE_ID' => 'voice-a'],
+            ['ELEVENLABS_API_KEY' => 'el-t', 'INTERVIEW_ELEVEN_VOICE_ID' => 'voice-b'],
+        ] as $env) {
+            $this->withEnv($env, function () use (&$keys): void {
+                $keys[] = $this->cacheKeyFor('How many pupils were in the club?');
+            });
+        }
+
+        $this->assertSame(count($keys), count(array_unique($keys)),
+            'two different voices share a cache file, so changing the voice would not change the audio');
+    }
+
+    /** The same text, engine and voice must reuse the clip — that is the whole saving. */
+    public function test_the_same_text_on_the_same_voice_hits_one_cache_file(): void
+    {
+        $this->withEnv(['OPENAI_API_KEY' => 'sk-t', 'INTERVIEW_TTS_VOICE' => 'alloy'], function (): void {
+            $a = $this->cacheKeyFor('How was the 400 counted?');
+            $b = $this->cacheKeyFor('How was the 400 counted?');
+            $this->assertSame($a, $b);
+        });
+    }
+
+    /**
+     * The cache path is private, so reach it the way the code does and read the filename.
+     *
+     * Testing the observable artefact rather than the private method: what matters is that
+     * two configurations do not write to the same file on disk.
+     */
+    private function cacheKeyFor(string $text): string
+    {
+        $m = new \ReflectionMethod(InterviewVoice::class, 'cachePath');
+        $m->setAccessible(true);
+        return (string) $m->invoke(null, InterviewVoice::engine(), $text);
+    }
+
     // ══ 9. the console screen ════════════════════════════════════════════════
 
     /**

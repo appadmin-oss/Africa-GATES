@@ -820,7 +820,12 @@ final class InterviewService
                 'voice_effective' => InterviewVoice::mode($iv),
                 'voice_ready'     => InterviewVoice::configured(),
                 'platform_max'    => InterviewVoice::platformMax(),
+                'engine'          => InterviewVoice::engine(),
                 'opening'         => InterviewBot::opening($iv),
+                // What the guard stopped the bot saying in this sitting. On the screen
+                // rather than only in a table, because "the AI is safe, trust us" is not
+                // a claim a panel can check and a list of refused sentences is.
+                'refused'         => InterviewGuard::forInterview($id, 5),
             ],
         ];
     }
