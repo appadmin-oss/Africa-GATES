@@ -359,6 +359,30 @@ class AccountController
     }
 
     // ── Dashboard ─────────────────────────────────────────────────────────────
+    /**
+     * POST /account/referral — mint this member's referral code.
+     *
+     * A deliberate action rather than something every account gets at signup: most members
+     * will never refer anybody, and a table with a row per account is a table that says
+     * nothing. Pressing the button is the signal.
+     *
+     * Idempotent — {@see ReferralService::codeFor} returns the existing code — so a
+     * double-click or a refreshed POST cannot produce a second identity.
+     */
+    public function referral(Request $req, Response $res): Response
+    {
+        $id = (int) ($_SESSION['user_id'] ?? 0);
+        if ($id < 1) {
+            return $res->withHeader('Location', '/account/login')->withStatus(302);
+        }
+
+        \AfricaGates\Services\ReferralService::codeFor($id);
+
+        // Back to the dashboard, anchored on the panel, so the answer is on screen rather
+        // than at the top of a long page.
+        return $res->withHeader('Location', '/account#referral')->withStatus(303);
+    }
+
     public function dashboard(Request $req, Response $res): Response
     {
         $user = $this->accounts->current();
@@ -397,6 +421,11 @@ class AccountController
             // What they BOUGHT — absent until now. The dashboard was an accurate picture of
             // everything a member had contributed and said nothing about anything they had
             // paid for, so the only route to "has my order shipped" was a link in an email.
+            // Event referrals. Read here rather than minted here: a code appears when the
+            // member asks for one, so a dashboard visit does not create a row for every
+            // account that ever loads this page.
+            'referral'       => \AfricaGates\Services\ReferralService::stats((int) $user->id),
+            'referral_site'  => \AfricaGates\Support\SiteUrl::base($req),
             'my_orders'      => $orders,
             'my_tickets'     => $tickets,
             'community_counts' => $communityC,

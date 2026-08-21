@@ -9,7 +9,7 @@ use Slim\Views\Twig;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
 use AfricaGates\Services\{CacheService, OtpService, Notifier,
-                         EventTicketService, EventTicketMailer, EventDiscount, EventWaitlist,
+                         EventTicketService, EventTicketMailer, EventDiscount, EventCodeResolver, EventWaitlist,
                          EventAgenda, EventTicketDesign, StandCall,
                          GatewayHandoff, PaymentService, RateLimitService};
 
@@ -55,6 +55,7 @@ class EventsController
 
     public function index(Request $req, Response $res): Response
     {
+        self::captureRef($req);   // ?ref= — the primary referral path
         $now = Carbon::now()->toDateTimeString();
         $upcoming = $this->cache->remember('events:upcoming', 900, fn() =>
             DB::table('gates_site_events')->where('status', 'published')
@@ -84,6 +85,7 @@ class EventsController
     /** Public event detail page (with on-platform RSVP). */
     public function show(Request $req, Response $res, array $args): Response
     {
+        self::captureRef($req);   // ?ref= — the primary referral path
         $slug  = (string)($args['slug'] ?? '');
         $event = DB::table('gates_site_events')
             ->where('slug', $slug)->where('status', 'published')->first();
@@ -268,16 +270,70 @@ class EventsController
         }
 
         $gross = (int) $tier->price_naira * $qty;
-        if ($code === '') {
+
+        // The box takes a discount OR a referral, and a referral may also have arrived by
+        // link with nothing typed — so there is something to say even for an empty box.
+        // See EventCodeResolver for why one field rather than two.
+        $linked = self::linkedRef();
+        if ($code === '' && $linked === '') {
             return $json(['success' => true, 'applied' => false, 'gross' => $gross,
-                          'total' => $gross, 'off' => 0, 'message' => '']);
+                          'total' => $gross, 'off' => 0, 'message' => '', 'kind' => 'none']);
         }
 
-        $d = EventDiscount::apply($code, (int) $event->id, $tierId, $gross, $email, $qty);
-        return $json(['success' => true, 'applied' => (bool) $d['ok'], 'gross' => $gross,
-                      'off'     => (int) ($d['off'] ?? 0),
-                      'total'   => (int) ($d['total'] ?? $gross),
-                      'message' => (string) $d['message']]);
+        $r = EventCodeResolver::resolve($code, $linked, (int) $event->id, $tierId, $gross,
+                                        $email, $qty, self::memberId());
+
+        return $json(['success' => true, 'applied' => (bool) $r['ok'], 'gross' => $gross,
+                      'kind'    => (string) $r['kind'],
+                      'off'     => (int) $r['off'],
+                      'total'   => max(0, $gross - (int) $r['off']),
+                      'message' => (string) $r['message']]);
+    }
+
+    /**
+     * Remember a `?ref=` for the rest of the session.
+     *
+     * THE LINK IS THE PRIMARY PATH. A referrer shares a URL and the buyer does nothing at
+     * all — no code to remember between the tweet they saw and the checkout they reach ten
+     * minutes later. So the code is lifted off the query string the moment any events page
+     * is opened and held in the session until a ticket is actually reserved.
+     *
+     * Overwritten by a later ?ref=, deliberately: the most recent link somebody followed is
+     * the one that brought them to this purchase.
+     */
+    private static function captureRef(Request $req): void
+    {
+        $raw = (string) ($req->getQueryParams()['ref'] ?? '');
+        $code = \AfricaGates\Services\ReferralService::normalise($raw);
+        if ($code === '') return;
+        if (!isset($_SESSION) || !is_array($_SESSION)) return;
+        // Length-capped before it is stored: this string arrived from a URL.
+        $_SESSION['event_ref'] = mb_substr($code, 0, 32);
+    }
+
+    /** The referral code captured from a link earlier in this session, or ''. */
+    private static function linkedRef(): string
+    {
+        if (!isset($_SESSION) || !is_array($_SESSION)) return '';
+
+        return \AfricaGates\Services\ReferralService::normalise((string) ($_SESSION['event_ref'] ?? ''));
+    }
+
+    /**
+     * The signed-in member, or null. Referral needs an owner; buying does not.
+     *
+     * `user_id`, which is the key AccountController's own signed-in guards and every
+     * CommunityController handler read. (`member_id` appears in this codebase as a
+     * template and audit field, not as the session key — an easy and expensive thing to
+     * confuse, since reading the wrong one silently means "never signed in", and the
+     * self-referral check would then pass for everybody.)
+     */
+    private static function memberId(): ?int
+    {
+        if (!isset($_SESSION) || !is_array($_SESSION)) return null;
+        $id = (int) ($_SESSION['user_id'] ?? 0);
+
+        return $id > 0 ? $id : null;
     }
 
     /**
@@ -365,10 +421,25 @@ class EventsController
             }
         }
 
+        // The shared box may hold either kind of code, and a referral may have arrived by
+        // link with the box left empty. Resolved once, here, so the row records exactly
+        // what was decided rather than each layer guessing again.
+        $typed  = trim((string) ($data['discount'] ?? ''));
+        // Null-safe: $tierId is only known to be > 0 here, not to exist. reserve() is what
+        // validates it, and a crafted tier_id reaching a property read on null would be a
+        // 500 on a checkout instead of the refusal reserve() already gives.
+        $tierRow   = EventTicketService::tier($tierId);
+        $lineTotal = (int) ($tierRow->price_naira ?? 0) * $qty;
+        $picked = EventCodeResolver::resolve(
+            $typed, self::linkedRef(), (int) $event->id, $tierId, $lineTotal,
+            (string) ($who['email'] ?? ''), $qty, self::memberId()
+        );
+
         $r = EventTicketService::reserve(
             (int) $event->id, $tierId, $who, $qty, $code,
-            ((int) ($_SESSION['user_id'] ?? 0)) ?: null,
-            trim((string) ($data['discount'] ?? '')) ?: null
+            self::memberId(),
+            ($picked['discount'] ?? '') !== '' ? $picked['discount'] : null,
+            ($picked['referral'] ?? '') !== '' ? $picked['referral'] : null
         );
 
         if (!($r['ok'] ?? false)) {

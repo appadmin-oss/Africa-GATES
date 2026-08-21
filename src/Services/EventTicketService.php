@@ -330,12 +330,36 @@ final class EventTicketService
      *
      * @param array{name:string,email:string,phone:string} $who
      * @param string|null $discount a discount code typed by the buyer, or null
+     * @param string|null $referral a referral code, from a ?ref= link or the shared code
+     *                              box. Stamped here and turned into commission only once
+     *                              the ticket is CONFIRMED — see ReferralService. A FREE
+     *                              tier confirms on the spot at amount 0, so it is stamped
+     *                              but earns nothing and counts toward nothing: the
+     *                              threshold is ten PAID referrals.
      * @return array{ok:bool, message:string, id?:int, reference?:string, amount?:int,
      *                free?:bool, ticket_code?:string, state?:string}
      */
+    /**
+     * The referral code to stamp, or null.
+     *
+     * Refused for a self-referral. Without this the cheapest route to the ten-referral
+     * threshold is to buy ten tickets on your own link and take 10% back, which is not a
+     * referral scheme, it is a discount with extra steps. Checked here as well as at quote
+     * time because the quote is a preview and this is the row that pays.
+     */
+    private static function refFor(?string $referral, ?int $userId, string $buyerEmail): ?string
+    {
+        $code = \AfricaGates\Services\ReferralService::normalise((string) $referral);
+        if ($code === '') return null;
+
+        $u = \AfricaGates\Services\ReferralService::usable($code, $userId, $buyerEmail);
+
+        return ($u['ok'] ?? false) ? $code : null;
+    }
+
     public static function reserve(int $eventId, int $tierId, array $who, int $qty = 1,
                                    ?string $code = null, ?int $userId = null,
-                                   ?string $discount = null): array
+                                   ?string $discount = null, ?string $referral = null): array
     {
         $event = DB::table('gates_site_events')->where('id', $eventId)
             ->where('status', 'published')->first();
@@ -489,6 +513,10 @@ final class EventTicketService
                     // that silently restated history would make the money stop adding up.
                     'discount_code'  => $usedCode,
                     'discount_naira' => $off > 0 ? $off : null,
+                    // Who brought this booking in. Written at reservation and read at
+                    // confirmation, because commission is owed on a PAID ticket and this row
+                    // is the only place the referral survives the trip to the gateway.
+                    'referral_code'  => self::refFor($referral, $userId, $email),
                     'reference'    => $ref,
                     'user_id'      => $userId,
                     // A free seat is confirmed on the spot: there is nothing to wait for,
@@ -499,7 +527,8 @@ final class EventTicketService
                     'hold_expires_at' => $free ? null : $now->copy()->addMinutes(self::HOLD_MINUTES)->toDateTimeString(),
                     'created_at'   => $now->toDateTimeString(),
                 ], ['tier_id', 'quantity', 'status', 'ticket_code', 'confirmed_at',
-                    'hold_expires_at', 'user_id', 'discount_code', 'discount_naira'])
+                    'hold_expires_at', 'user_id', 'discount_code', 'discount_naira',
+                    'referral_code'])
             );
         } catch (\Throwable $e) {
             // UNIQUE(event_id, email) on the original table. Somebody registering twice is
@@ -618,6 +647,12 @@ final class EventTicketService
                         'ticket_code' => (string) ($fresh->ticket_code ?? ''),
                         'message' => 'This registration was confirmed a moment ago.'];
             }
+
+            // ONE winning transition reaches here, so this runs once per ticket for all
+            // time. Commission is a bonus on top of a sale and must never be the reason a
+            // confirmed payment reports an error, so credit() swallows everything —
+            // including the duplicate-key collision a raced confirmation produces.
+            \AfricaGates\Services\ReferralService::credit($reg);
 
             return ['ok' => true, 'id' => (int) $reg->id, 'ticket_code' => $code,
                     'message' => 'Payment received — your ticket is confirmed.'];

@@ -2798,6 +2798,8 @@ return function(App $app) {
         $a->post('/verify/resend', AccountController::class.':resendVerification');
         $a->get('/logout',        AccountController::class.':logout');
         $a->post('/logout',       AccountController::class.':logout');
+        // Mint this member's referral code. POST, because it creates something.
+        $a->post('/referral', AccountController::class . ':referral');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
         // The member's own points history as a file. Above the catch-all below, which would

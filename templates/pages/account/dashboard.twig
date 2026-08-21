@@ -166,6 +166,36 @@
   }
 
   /* ── sections: shown by the attribute the head script set ────────────────── */
+  /* ── Event referrals ─────────────────────────────────────────────────────
+     The link is the product, so it gets the full-width row and the only button. The
+     code is deliberately quieter type below it: it exists for a link that cannot be
+     clicked, and it should not compete with the thing people should send. */
+  .rf-card{ background:var(--ag-surface,#fff); border:1px solid var(--ag-line,rgba(16,41,44,.1));
+            border-radius:16px; padding:18px; }
+  .rf-label{ display:block; font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.14em;
+             text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); margin-bottom:9px; }
+  .rf-row{ display:flex; gap:9px; flex-wrap:wrap; }
+  /* 16px, so focusing it does not zoom the viewport on iOS. */
+  .rf-link{ flex:1 1 260px; min-width:0; font-size:16px; font-family:var(--ag-font-mono,monospace);
+            padding:13px 14px; border:1px solid var(--ag-line,rgba(16,41,44,.16)); border-radius:11px;
+            background:var(--ag-surface-2,#f6f7f6); color:var(--ag-ink,#10292c); }
+  .rf-copy,.rf-get{ flex:none; min-height:48px; padding:0 22px; border:0; border-radius:999px;
+            background:var(--ag-ink,#10292c); color:#fff; font-family:inherit; font-size:15px;
+            font-weight:600; cursor:pointer; }
+  .rf-copy:hover,.rf-get:hover{ background:#1b3d41; }
+  .rf-hint{ margin:10px 0 0; font-size:14px; line-height:1.55; color:var(--ag-ink-soft,#626a6e); }
+  .rf-code{ margin:14px 0 0; padding-top:13px; border-top:1px solid var(--ag-line,rgba(16,41,44,.1));
+            font-size:14px; line-height:1.55; color:var(--ag-ink-soft,#626a6e); }
+  .rf-code strong{ font-family:var(--ag-font-mono,monospace); letter-spacing:.06em; color:var(--ag-ink,#10292c); }
+  .rf-stats{ display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
+  .rf-stat{ flex:1 1 150px; background:var(--ag-surface-2,#f6f7f6); border-radius:14px; padding:14px 16px; }
+  .rf-stat__n{ display:block; font:700 24px/1.1 var(--ag-font-mono,monospace); color:var(--ag-ink,#10292c); }
+  .rf-stat__of{ font-size:15px; font-weight:600; color:var(--ag-ink-soft,#626a6e); }
+  .rf-stat__l{ display:block; margin-top:5px; font-size:13px; color:var(--ag-ink-soft,#626a6e); }
+  .rf-note{ margin:14px 0 0; font-size:15px; line-height:1.6; color:var(--ag-ink,#10292c); }
+  .rf-note--ok{ font-weight:600; color:#1a6118; }
+  .rf-note a{ color:var(--ag-green,#237b22); font-weight:600; }
+  .rf-small{ margin:10px 0 0; font-size:13px; line-height:1.55; color:var(--ag-ink-soft,#626a6e); }
   .me-sec{ scroll-margin-top:90px; }
   .me-sec + .me-sec{ margin-top:26px; }
   [data-me] .me-sec{ display:none; }
@@ -569,6 +599,77 @@
             <p class="me-hint" id="meLedgerNone" hidden>Nothing in the history matches that filter.</p>
           {% endif %}
         </div>
+      </section>
+
+      {# ══ EVENT REFERRALS ═══════════════════════════════════════════════
+         THE LINK IS THE PRODUCT. It leads, at full width, with one copy button — because
+         the referrer's entire job is to share a URL and the buyer's is to do nothing. The
+         code below it is the fallback for a link that cannot survive being read down a
+         phone or printed on a flyer, and it is shown small on purpose so it does not
+         compete with the thing people should actually send. #}
+      <section class="me-sec" id="referral" aria-labelledby="me-ref-h">
+        <div class="me-sec__h"><h2 id="me-ref-h">Refer people to events</h2></div>
+        <p class="me-sec__lead">Share your link. Once <strong>{{ referral.threshold }}</strong>
+          people have booked and paid through it, you earn
+          <strong>{{ referral.rate_pct|round(0) }}%</strong> of everything they paid —
+          including those first {{ referral.threshold }}.</p>
+
+        {% if referral.code %}
+          <div class="rf-card">
+            <label class="rf-label" for="rfLink">Your referral link</label>
+            <div class="rf-row">
+              <input id="rfLink" class="rf-link" type="text" readonly
+                     value="{{ referral_site }}/events?ref={{ referral.code }}"
+                     data-ag-do="select-all" aria-describedby="rfLinkHint">
+              <button type="button" class="rf-copy" data-rf-copy="rfLink">Copy</button>
+            </div>
+            <p class="rf-hint" id="rfLinkHint">Send this anywhere. Anyone who books an event
+              after opening it counts as your referral — they do not have to type anything.</p>
+
+            <p class="rf-code">Can’t share a link? Your code is
+              <strong>{{ referral.code }}</strong> — it goes in the discount-code box at
+              checkout. It doesn’t change their price.</p>
+          </div>
+
+          {# Progress before earnings. Below the threshold the money figure is not the
+             number that tells somebody what to do next; the count is. #}
+          <div class="rf-stats">
+            <div class="rf-stat">
+              <span class="rf-stat__n">{{ referral.referrals }}<span class="rf-stat__of">/{{ referral.threshold }}</span></span>
+              <span class="rf-stat__l">Paid referrals</span>
+            </div>
+            <div class="rf-stat">
+              <span class="rf-stat__n">₦{{ referral.accrued_naira|number_format }}</span>
+              <span class="rf-stat__l">Earned so far</span>
+            </div>
+            <div class="rf-stat">
+              <span class="rf-stat__n">₦{{ referral.payable_naira|number_format }}</span>
+              <span class="rf-stat__l">Ready to pay out</span>
+            </div>
+          </div>
+
+          {% if referral.unlocked %}
+            <p class="rf-note rf-note--ok">Unlocked. ₦{{ referral.payable_naira|number_format }}
+              is owed to you{% if referral.paid_out_naira > 0 %} (₦{{ referral.paid_out_naira|number_format }}
+              already paid){% endif %}. <a href="/support">Ask us to pay it out →</a></p>
+          {% else %}
+            {# The honest version: what is accrued is real and is not payable yet. Showing
+               ₦0 until the tenth would make the tenth look like a jackpot rather than a
+               threshold, and hiding the gate would be worse. #}
+            <p class="rf-note">{{ referral.remaining }} more paid
+              {{ referral.remaining == 1 ? 'booking' : 'bookings' }} and the
+              ₦{{ referral.accrued_naira|number_format }} above becomes yours to withdraw.</p>
+          {% endif %}
+
+          <p class="rf-small">A referral counts when the ticket is <strong>paid for</strong>,
+            not when it is reserved. Your own bookings don’t count.</p>
+        {% else %}
+          <p class="me-sec__lead" style="margin-bottom:14px">You don’t have a referral link yet.</p>
+          <form method="post" action="/account/referral">
+            <input type="hidden" name="_token" value="{{ csrf_token }}">
+            <button type="submit" class="rf-get">Create my referral link</button>
+          </form>
+        {% endif %}
       </section>
 
       {# ══ PURCHASES ═════════════════════════════════════════════════════ #}
@@ -1005,4 +1106,33 @@
 })();
 </script>
 {{ viz.assets(csp_nonce) }}
+<script nonce="{{ csp_nonce }}">
+/* Copy-to-clipboard for the referral link.
+   The input stays readonly-and-visible rather than hidden behind the button, so with no
+   JS — or a clipboard API the browser refuses — the link is still there to select by hand.
+   That matters more here than anywhere else on this page: the link IS the feature. */
+(function(){
+  var btn = document.querySelector('[data-rf-copy]');
+  if (!btn) return;
+  var field = document.getElementById(btn.getAttribute('data-rf-copy'));
+  if (!field) return;
+  var original = btn.textContent;
+  btn.addEventListener('click', function(){
+    field.select();
+    var done = function(ok){
+      btn.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+      if (window.agAnnounce) window.agAnnounce(ok ? 'Referral link copied' : 'Select and copy the link');
+      setTimeout(function(){ btn.textContent = original; }, 2200);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(field.value).then(function(){ done(true); }, function(){ done(false); });
+    } else {
+      /* Older Safari and any context where the async API is unavailable. */
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      done(ok);
+    }
+  });
+})();
+</script>
 {% endblock %}
