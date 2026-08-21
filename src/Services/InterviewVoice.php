@@ -255,6 +255,16 @@ final class InterviewVoice
     {
         $mode = self::mode($iv);
 
+        // The master switch, checked HERE and not only at dispatch.
+        //
+        // It used to gate InterviewBot::dispatch() and sweep() alone, which meant an
+        // operator flipping it mid-incident stopped new bots being sent and did nothing
+        // whatever about the bot already in a room — reachable from the console button and
+        // from the turn loop. A kill switch that does not stop the thing you are trying to
+        // stop is worse than none, because somebody believes they have stopped it.
+        if (!InterviewBot::enabled()) {
+            return [false, 'The interview bot is switched off for this platform.'];
+        }
         if ($mode === self::MODE_OFF) {
             return [false, 'Voice is off for this sitting.'];
         }
@@ -274,16 +284,59 @@ final class InterviewVoice
             return [false, 'The bot is not in the call (state: ' . ((string) ($iv->bot_state ?? 'unknown')) . ').'];
         }
 
-        $meta = self::meta((int) $iv->id);
-        if ((int) ($meta['said'] ?? 0) >= self::MAX_UTTERANCES) {
+        // Read from the columns, not from live_meta. This is a PREDICATE — the console
+        // calls it to decide whether to render the ask button — so it must not mutate
+        // anything, and the authoritative check happens in the atomic claim in say().
+        if ((int) ($iv->bot_said_count ?? 0) >= self::MAX_UTTERANCES) {
             return [false, 'This sitting has reached its limit of ' . self::MAX_UTTERANCES . ' spoken questions.'];
         }
-        $last = (int) ($meta['said_at'] ?? 0);
-        if ($last > 0 && (Carbon::now()->getTimestamp() - $last) < self::MIN_GAP_SECONDS) {
+        $last = trim((string) ($iv->bot_speaking_at ?? ''));
+        if ($last !== '' && ($ts = strtotime($last)) !== false
+            && (Carbon::now()->getTimestamp() - $ts) < self::MIN_GAP_SECONDS) {
             return [false, 'The bot spoke a moment ago; giving the nominee room to answer.'];
         }
 
         return [true, ''];
+    }
+
+    /**
+     * Take the turn, atomically, or find out somebody else already has.
+     *
+     * ── THE RACE THIS CLOSES ─────────────────────────────────────────────────
+     *
+     * {@see InterviewBot::poll()} has two uncoordinated callers: the cron sweep and
+     * Attendee's webhook. Both can be inside the turn loop for one sitting at the same
+     * moment. The pacing check above is a read; two processes can both pass it, and then
+     * the bot asks two questions over each other while a nominee tries to answer.
+     *
+     * So the decision to speak is one UPDATE the database serialises. Affected rows is the
+     * verdict: one caller gets 1 and speaks, the other gets 0 and stays quiet. Same
+     * optimistic-claim shape {@see QueueService} uses to stop two workers running one job.
+     *
+     * The claim window IS the minimum gap, which is why nothing has to be released: a
+     * process that dies mid-utterance self-heals once the gap expires, where an explicit
+     * lock would have left the sitting mute for the rest of the interview.
+     */
+    private static function claimTurn(int $id): bool
+    {
+        try {
+            $gapAgo = Carbon::now()->subSeconds(self::MIN_GAP_SECONDS)->toDateTimeString();
+
+            return DB::table('gates_interviews')
+                ->where('id', $id)
+                ->where('bot_said_count', '<', self::MAX_UTTERANCES)
+                ->where(static fn ($q) => $q->whereNull('bot_speaking_at')
+                                            ->orWhere('bot_speaking_at', '<', $gapAgo))
+                ->update([
+                    'bot_speaking_at' => Carbon::now()->toDateTimeString(),
+                    'bot_said_count'  => DB::raw('bot_said_count + 1'),
+                ]) > 0;
+        } catch (\Throwable $e) {
+            // A claim that cannot be recorded must not be granted. Silence is the safe
+            // failure here; two bots talking over a nominee is not.
+            error_log('[interview-voice] could not claim a turn for ' . $id . ': ' . $e->getMessage());
+            return false;
+        }
     }
 
     // ── speaking ─────────────────────────────────────────────────────────────
@@ -325,14 +378,14 @@ final class InterviewVoice
             return ['ok' => false, 'error' => $verdict['note'], 'spoken' => ''];
         }
 
-        // Stamped BEFORE synthesis, for the reason InterviewLive::maybeFollowUp() stamps
-        // its cooldown before the model call: a provider that takes six seconds and then
-        // fails would otherwise leave the gap unset, and an 'auto' loop polling every few
-        // seconds would queue a second utterance on top of the first.
-        $meta            = self::meta($id);
-        $meta['said']    = (int) ($meta['said'] ?? 0) + 1;
-        $meta['said_at'] = Carbon::now()->getTimestamp();
-        self::putMeta($id, $meta);
+        // Claimed BEFORE synthesis, and atomically. Before, because a provider that takes
+        // six seconds and then fails would otherwise leave the gap unset and a polling
+        // loop would queue a second utterance on top of the first. Atomically, because
+        // the cron and the webhook are both in here and a read-then-write loses that race.
+        if (!self::claimTurn($id)) {
+            return ['ok' => false, 'spoken' => '', 'error' =>
+                'The bot is already speaking, or has reached its limit for this sitting.'];
+        }
 
         $mp3 = self::synthesise($text);
         if ($mp3 === null) {

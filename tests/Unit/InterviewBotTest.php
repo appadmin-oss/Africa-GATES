@@ -560,6 +560,200 @@ final class InterviewBotTest extends TestCase
         return (string) $m->invoke(null, InterviewVoice::engine(), $text);
     }
 
+    // ══ 8c. the turn claim, which is the race the webhook created ════════════
+
+    /**
+     * Two callers, one turn.
+     *
+     * {@see InterviewBot::poll()} runs from the cron sweep AND from Attendee's webhook,
+     * uncoordinated. Before the claim, both read "last spoke 40 seconds ago", both decided
+     * they could speak, and the bot asked two questions over each other while a nominee
+     * tried to answer — with the second write silently discarding the first's counter.
+     *
+     * The claim is one UPDATE the database serialises. This asserts the property that
+     * matters: the second caller is refused, and the counter advanced exactly once.
+     */
+    public function test_only_one_caller_can_take_a_turn(): void
+    {
+        $this->withVoiceConfigured(function (): void {
+            [$id, ] = $this->sitting(true, 'assisted');
+            $this->putBotInCall($id);
+
+            $claim = new \ReflectionMethod(InterviewVoice::class, 'claimTurn');
+            $claim->setAccessible(true);
+
+            $this->assertTrue($claim->invoke(null, $id),  'the first caller could not claim the turn');
+            $this->assertFalse($claim->invoke(null, $id), 'a second caller claimed the same turn');
+
+            $this->assertSame(1, (int) InterviewService::byId($id)->bot_said_count,
+                'the utterance counter did not advance exactly once');
+        });
+    }
+
+    /**
+     * The counter is the cap, so it has to be enforced by the claim and not beside it.
+     *
+     * A cap checked in PHP against a value that a concurrent write can clobber is not a
+     * cap — it is the thing that was supposed to bound a stuck 'auto' loop.
+     */
+    public function test_the_claim_refuses_once_the_sitting_has_hit_its_limit(): void
+    {
+        $this->withVoiceConfigured(function (): void {
+            [$id, ] = $this->sitting(true, 'auto');
+            $this->putBotInCall($id);
+
+            DB::table('gates_interviews')->where('id', $id)->update([
+                'bot_said_count'  => InterviewVoice::MAX_UTTERANCES,
+                'bot_speaking_at' => null,
+            ]);
+
+            $claim = new \ReflectionMethod(InterviewVoice::class, 'claimTurn');
+            $claim->setAccessible(true);
+            $this->assertFalse($claim->invoke(null, $id));
+
+            [$may, $why] = InterviewVoice::maySpeak(InterviewService::byId($id), true);
+            $this->assertFalse($may);
+            $this->assertStringContainsString('limit', $why);
+        });
+    }
+
+    /**
+     * A crash mid-utterance must not mute the sitting for good.
+     *
+     * The claim window IS the minimum gap, which is why nothing has to be released. An
+     * explicit lock would have needed a release step, and a process that died between
+     * claiming and releasing would have left the bot silent for the rest of the interview.
+     */
+    public function test_a_stale_claim_expires_on_its_own(): void
+    {
+        $this->withVoiceConfigured(function (): void {
+            [$id, ] = $this->sitting(true, 'auto');
+            $this->putBotInCall($id);
+
+            $claim = new \ReflectionMethod(InterviewVoice::class, 'claimTurn');
+            $claim->setAccessible(true);
+            $this->assertTrue($claim->invoke(null, $id));
+            $this->assertFalse($claim->invoke(null, $id), 'the gap is not being enforced at all');
+
+            // As though the claiming process died and the gap has since passed.
+            DB::table('gates_interviews')->where('id', $id)->update([
+                'bot_speaking_at' => Carbon::now()
+                    ->subSeconds(InterviewVoice::MIN_GAP_SECONDS + 5)->toDateTimeString(),
+            ]);
+
+            $this->assertTrue($claim->invoke(null, $id),
+                'a dead claim left the sitting permanently mute');
+        });
+    }
+
+    /** The pacing predicate the console renders from must not itself claim anything. */
+    public function test_may_speak_is_a_predicate_and_does_not_consume_a_turn(): void
+    {
+        $this->withVoiceConfigured(function (): void {
+            [$id, ] = $this->sitting(true, 'assisted');
+            $this->putBotInCall($id);
+
+            for ($i = 0; $i < 3; $i++) {
+                [$may] = InterviewVoice::maySpeak(InterviewService::byId($id), false);
+                $this->assertTrue($may);
+            }
+            $this->assertSame(0, (int) InterviewService::byId($id)->bot_said_count,
+                'rendering the console burned the sitting\'s utterance budget');
+        });
+    }
+
+    // ══ 8d. what comes back from the other service ═══════════════════════════
+
+    /**
+     * A recording URL is written straight into an href on an admin page.
+     *
+     * Twig escapes the attribute, which stops a quote breaking out — it does not stop
+     * `javascript:` running when an admin clicks it. So an Attendee instance that was
+     * misconfigured or compromised would otherwise have a stored-XSS path into this
+     * console, holding an admin session.
+     *
+     * Checked at STORAGE, so a template added later cannot forget to re-check.
+     */
+    public function test_a_recording_url_that_is_not_https_is_refused(): void
+    {
+        foreach ([
+            'javascript:alert(document.cookie)',
+            'JaVaScRiPt:alert(1)',
+            'data:text/html;base64,PHNjcmlwdD4=',
+            'http://insecure.example.org/rec.mp4',
+            'https://ok.example.org/a" onmouseover="alert(1)',
+            "https://ok.example.org/a' onclick='x",
+            'https://ok.example.org/a b',
+            '',
+        ] as $bad) {
+            $this->assertFalse(AttendeeBot::isSafeRecordingUrl($bad),
+                'would have been put in an admin href: ' . $bad);
+        }
+    }
+
+    /** ...and the real thing still works. A validator that blocks everything is not one. */
+    public function test_a_real_signed_storage_url_is_accepted(): void
+    {
+        foreach ([
+            'https://storage.googleapis.com/bucket/rec.mp4?X-Goog-Signature=abc123&expires=99',
+            'https://meetbot.example.org/recordings/bot_abc/output.mp4',
+        ] as $good) {
+            $this->assertTrue(AttendeeBot::isSafeRecordingUrl($good), 'rejected a real URL: ' . $good);
+        }
+    }
+
+    // ══ 8e. the master switch, which must actually switch things off ═════════
+
+    /**
+     * Off means the bot in the room stops talking, not just that no new ones are sent.
+     *
+     * `interview_bot_enabled=0` used to gate dispatch() and sweep() alone. An operator
+     * flipping it mid-incident stopped nothing about the bot already in a call — reachable
+     * from the console button and from the turn loop. A kill switch that does not stop the
+     * thing you are trying to stop is worse than none, because somebody believes it did.
+     */
+    public function test_the_master_switch_silences_a_bot_already_in_the_call(): void
+    {
+        $this->withVoiceConfigured(function (): void {
+            [$id, ] = $this->sitting(true, 'assisted');
+            $this->putBotInCall($id);
+
+            [$may] = InterviewVoice::maySpeak(InterviewService::byId($id), false);
+            $this->assertTrue($may, 'precondition: it can speak while the switch is on');
+
+            DB::table('gates_settings')->updateOrInsert(
+                ['key_name' => 'interview_bot_enabled'], ['value' => '0']);
+
+            [$may, $why] = InterviewVoice::maySpeak(InterviewService::byId($id), false);
+            $this->assertFalse($may, 'the console button still works with the bot switched off');
+            $this->assertStringContainsString('switched off', $why);
+
+            // And the loop, which is the path nobody is watching.
+            [$mayAuto] = InterviewVoice::maySpeak(InterviewService::byId($id), true);
+            $this->assertFalse($mayAuto);
+        });
+    }
+
+    /**
+     * ...and the sweep evacuates rather than going quiet.
+     *
+     * Returning 0 left the bot recording in the room for the rest of the meeting, because
+     * the retire path lives inside the sweep it had just short-circuited.
+     */
+    public function test_the_master_switch_pulls_bots_out_instead_of_ignoring_them(): void
+    {
+        $this->withAttendeeConfigured(function (): void {
+            [$id, ] = $this->sitting();
+            $this->putBotInCall($id);
+
+            DB::table('gates_settings')->updateOrInsert(
+                ['key_name' => 'interview_bot_enabled'], ['value' => '0']);
+
+            $this->assertSame(1, InterviewBot::sweep(), 'the sweep did not withdraw the bot');
+            $this->assertSame('removed', (string) InterviewService::byId($id)->bot_state);
+        });
+    }
+
     // ══ 9. the console screen ════════════════════════════════════════════════
 
     /**

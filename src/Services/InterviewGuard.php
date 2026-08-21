@@ -99,51 +99,98 @@ final class InterviewGuard
     public const MAX_WORDS_SCRIPTED = 120;
 
     /**
-     * Praise and judgement. The bot must not signal a verdict.
+     * Praise and judgement, matched on FRAMING rather than on adjectives.
      *
-     * Not politeness policing — "impressive" from the machine conducting the interview is
-     * read as the panel's opinion, and the nominee's remaining answers are shaped by it.
-     * A neutral interviewer gets better evidence.
+     * ── WHY NOT A WORD LIST ──────────────────────────────────────────────────
+     *
+     * The first draft of this file listed bare adjectives, and a probe against ten
+     * questions a real panel would ask blocked eight of them. "What were the concerning
+     * findings in the pilot?" is a good question. "Which part of the plan turned out
+     * weak?" is a better one. "How many outstanding invoices are there?" is neutral
+     * bookkeeping. A guard that refuses those is not cautious, it is broken — and a bot
+     * that goes silent on the questions worth asking is worse than no bot.
+     *
+     * What is actually forbidden is the bot passing a VERDICT on the nominee or their
+     * work. That is a grammatical shape, not a vocabulary: praise addressed to a person,
+     * or a judgement predicated on their project. So these are patterns.
      */
     private const EVALUATIVE = [
-        'impressive', 'well done', 'congratulations', 'excellent', 'amazing', 'fantastic',
-        'brilliant', 'outstanding', 'incredible', 'remarkable', 'inspiring', 'wonderful',
-        'you should be proud', 'great job', 'great work', 'that is great', 'thats great',
-        'disappointing', 'concerning', 'weak', 'unconvincing', 'i am not convinced',
+        // Praise addressed to the nominee. No ambiguity possible.
+        '/\b(well done|congratulations|great job|great work|you should be proud)\b/u',
+        '/\b(i am|i\'m|we are|we\'re) (very |really |so )?(impressed|proud)\b/u',
+        '/\b(i am|i\'m|we are|we\'re) not convinced\b/u',
+        // A bare praise-adjective attached to their work: "Outstanding work.", "Great
+        // effort." The noun keeps it precise — "outstanding invoices" is bookkeeping.
+        '/\b(outstanding|excellent|impressive|brilliant|fantastic|amazing|remarkable|'
+            . 'wonderful|superb|great) (work|job|effort|result|results|achievement)\b/u',
+        // A verdict predicated on their work: "that is impressive", "the project sounds
+        // remarkable", "your work was disappointing".
+        '/\b(that|this|it|your work|your project|the project|the programme|the program|the club)\s+'
+            . '(is|was|sounds|seems|looks)\s+(really |very |quite |so )?'
+            . '(impressive|excellent|amazing|fantastic|brilliant|outstanding|incredible|remarkable|'
+            . 'inspiring|wonderful|disappointing|unconvincing|weak|poor)\b/u',
     ];
 
     /**
      * Anything the platform would then have to honour.
      *
-     * A machine cannot commit a judging panel to a result, a timeline or a callback, and
-     * a nominee who was told one has been misled by us and not by it.
+     * Also framing-matched. "What guarantee did the supplier give?" is a legitimate
+     * question about evidence; "I guarantee this will be considered" is the bot writing a
+     * cheque the panel has to cash.
      */
     private const PROMISE = [
-        'you will win', 'you have won', 'you will be shortlisted', 'you are shortlisted',
-        'you will receive', 'we will award', 'the judges will', 'guarantee', 'guaranteed',
-        'i will make sure', 'we will make sure', 'you can expect', 'rest assured',
-        'will get back to you', 'will call you', 'will email you', 'promise',
+        '/\byou (will|are going to) (win|be shortlisted|receive|get)\b/u',
+        '/\byou (have won|are shortlisted|have been shortlisted)\b/u',
+        '/\b(we|i) (will|shall) (award|make sure|ensure|see to it)\b/u',
+        '/\bthe judges will\b/u',
+        '/\b(i|we) (can |do )?(guarantee|promise)\b/u',
+        '/\b(you can expect|rest assured)\b/u',
+        '/\b(will|shall) (get back to you|call you|email you|be in touch)\b/u',
     ];
 
     /**
-     * Ground a judging panel may not weigh, and ground nobody should be asked for aloud.
+     * Asking a nominee about their OWN protected characteristic — not the subject matter.
      *
-     * The first group is protected characteristics: an award decided partly on an answer
-     * about somebody's faith or health is a discrimination problem, whatever the intent
-     * of the question. The second is material no interview should ever collect — a
-     * recorded, transcribed request for a bank detail is a fraud pattern, not a mistake.
+     * ── THE DISTINCTION THE FIRST DRAFT MISSED, AND WHY IT MATTERED ──────────
+     *
+     * A bare list of topic words ('medical', 'church', 'disability', 'pregnan') blocked
+     * every one of these, which are ordinary questions to nominees in this platform's own
+     * categories:
+     *
+     *     "How many medical outreaches did the team run last year?"
+     *     "What does the church hall cost you each month?"
+     *     "How is the disability access funded at the centre?"
+     *     "How many pregnant women did the clinic reach?"
+     *
+     * Those are about the nominee's WORK. What a panel may not weigh is the nominee's
+     * PERSON — their faith, their health, their marriage, who they vote for. The two are
+     * distinguished by possessive and second-person framing, so that is what is matched.
+     *
+     * This is deliberately narrower than the first draft and will miss creative phrasings.
+     * That is the right trade: a guard that blocks the questions worth asking gets turned
+     * off, and then it protects nobody. {@see InterviewVoice::MODE_ASSISTED} is where a
+     * human catches what a pattern cannot.
      */
     private const OFF_LIMITS = [
-        // protected characteristics
-        'religion', 'religious', 'church', 'mosque', 'your faith', 'christian', 'muslim',
-        'ethnic', 'ethnicity', 'tribe', 'tribal', 'your race',
-        'political party', 'who did you vote', 'your politics',
-        'sexual', 'sexuality', 'your marriage', 'are you married', 'pregnan',
-        'disability', 'your health', 'medical', 'diagnos', 'your illness',
-        'immigration status', 'your visa',
-        // never collect this on a recorded call
-        'bank account', 'account number', 'bvn', 'card number', 'password', 'one-time code',
-        'send money', 'transfer', 'pay a fee', 'your pin',
+        // The nominee's own characteristic, possessive or interrogative.
+        '/\byour (own )?(religion|faith|church|mosque|denomination|ethnicity|tribe|race|caste|'
+            . 'politics|political views|health|illness|diagnosis|medical (history|condition|records?)|'
+            . 'disability|marriage|sexuality|sexual orientation|immigration status|visa status)\b/u',
+        '/\bare you (married|single|divorced|pregnant|disabled|religious|christian|muslim|gay)\b/u',
+        '/\bdo you (have a disability|have any (health|medical)|belong to (a|any) (church|mosque|party)|worship)\b/u',
+        '/\bwhich (church|mosque|tribe|ethnic group|political party|denomination) (do )?you\b/u',
+        '/\bwho (did|do) you vote\b/u',
+        '/\bwhat (is|are) your (religion|tribe|ethnicity|politics|health)\b/u',
+        '/\bhave you (ever )?been (diagnosed|treated for|ill)\b/u',
+
+        // Material no interview should ever collect on a recorded, transcribed call.
+        // These stay broad: there is no legitimate framing in which an award interview
+        // asks for a card number, and a recorded request for one is a fraud pattern.
+        '/\b(bank account|account number|account details|bvn|card number|cvv|sort code|'
+            . 'routing number|swift code|iban)\b/u',
+        '/\byour (pin|password|passcode|one[- ]?time (code|password)|otp)\b/u',
+        '/\bsend (money|cash|funds|airtime)\b/u',
+        '/\bpay (a|the) (fee|deposit)\b/u',
     ];
 
     /**
@@ -205,26 +252,20 @@ final class InterviewGuard
         //
         // Off-limits runs before grounding too: a question about somebody's health is
         // refused whether or not they raised it first.
-        foreach (self::OFF_LIMITS as $needle) {
-            if (str_contains($low, $needle)) {
-                return self::no(self::R_OFF_LIMITS,
-                    'Touches ground a judging panel may not weigh, or must never collect on a '
-                    . 'recorded call ("' . $needle . '").', $id, $t);
-            }
+        if (($hit = self::firstMatch(self::OFF_LIMITS, $low)) !== null) {
+            return self::no(self::R_OFF_LIMITS,
+                'Asks the nominee about their own protected characteristic, or for something no '
+                . 'recorded call should collect ("' . $hit . '").', $id, $t);
         }
 
-        foreach (self::EVALUATIVE as $needle) {
-            if (str_contains($low, $needle)) {
-                return self::no(self::R_EVALUATIVE,
-                    'Signals a verdict ("' . $needle . '"). The interviewer stays neutral.', $id, $t);
-            }
+        if (($hit = self::firstMatch(self::EVALUATIVE, $low)) !== null) {
+            return self::no(self::R_EVALUATIVE,
+                'Passes a verdict ("' . $hit . '"). The interviewer stays neutral.', $id, $t);
         }
 
-        foreach (self::PROMISE as $needle) {
-            if (str_contains($low, $needle)) {
-                return self::no(self::R_PROMISE,
-                    'Commits the panel to something ("' . $needle . '").', $id, $t);
-            }
+        if (($hit = self::firstMatch(self::PROMISE, $low)) !== null) {
+            return self::no(self::R_PROMISE,
+                'Commits the panel to something ("' . $hit . '").', $id, $t);
         }
 
         // 3. Shape. The opening is a statement, so it is exempt from the question mark;
@@ -233,10 +274,11 @@ final class InterviewGuard
             return self::no(self::R_NOT_A_QUESTION,
                 'That is a statement, and the bot only asks questions.', $id, $t);
         }
-        $cap = $scripted ? self::MAX_WORDS_SCRIPTED : self::MAX_WORDS;
-        if (str_word_count($t) > $cap) {
+        $cap   = $scripted ? self::MAX_WORDS_SCRIPTED : self::MAX_WORDS;
+        $words = self::words($t);
+        if ($words > $cap) {
             return self::no(self::R_TOO_LONG,
-                'Too long to say out loud — ' . str_word_count($t) . ' words, limit ' . $cap . '.', $id, $t);
+                'Too long to say out loud — ' . $words . ' words, limit ' . $cap . '.', $id, $t);
         }
 
         // 4. Grounding. The expensive one, and the one that catches invention.
@@ -249,6 +291,42 @@ final class InterviewGuard
         }
 
         return ['ok' => true, 'reason' => self::R_OK, 'note' => ''];
+    }
+
+    /**
+     * The offending fragment, or null.
+     *
+     * Returns what actually matched rather than a boolean, because the refusal note is
+     * read by an operator deciding whether the rule was right. "Blocked by rule 4" sends
+     * them to the source; "passes a verdict (\"well done\")" does not.
+     *
+     * @param list<string> $patterns
+     */
+    private static function firstMatch(array $patterns, string $low): ?string
+    {
+        foreach ($patterns as $re) {
+            if (preg_match($re, $low, $m) === 1) {
+                return trim((string) ($m[0] ?? ''));
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Words, counting the way a continent does.
+     *
+     * `str_word_count()` is ASCII-oriented: it treats every accented character as a word
+     * boundary, so "Combien d'élèves participent à ce programme" counts as seven words and
+     * "Quantas crianças participaram" as four. On a platform whose nominees are
+     * Francophone and Lusophone as well as Anglophone, that miscounts the length cap and
+     * — through {@see InterviewBot} — miscounts when a nominee has finished answering.
+     *
+     * A Unicode-aware split has no such opinion about which alphabets are words.
+     */
+    public static function words(string $text): int
+    {
+        $parts = preg_split('/[^\p{L}\p{N}\'’-]+/u', trim($text), -1, PREG_SPLIT_NO_EMPTY);
+        return is_array($parts) ? count($parts) : 0;
     }
 
     /**
@@ -410,6 +488,33 @@ final class InterviewGuard
             $out[] = ['reason' => (string) $r->reason, 'n' => (int) $r->n];
         }
         return $out;
+    }
+
+    /**
+     * How long a refusal is kept.
+     *
+     * These rows are machine output, not a nominee's words — but a refused follow-up is
+     * GENERATED FROM what a nominee said, so a fragment of a recorded interview can end up
+     * in one. This platform prunes its mail log at thirty days, its rate limits, its share
+     * links and its gateway events; a table holding model text derived from somebody's
+     * recorded speech should not be the one thing kept forever.
+     *
+     * 180 days rather than 30, because the safety record has to outlive the judging round
+     * it describes and any appeal against it. Same window as the recording retention
+     * recommended in docs/ATTENDEE-ON-GOOGLE-CLOUD.md, so the two expire together.
+     */
+    public const KEEP_DAYS = 180;
+
+    /** Drop refusals past {@see KEEP_DAYS}. Called from the hourly maintenance block. */
+    public static function prune(): int
+    {
+        try {
+            return (int) DB::table('gates_interview_guard_log')
+                ->where('created_at', '<', Carbon::now()->subDays(self::KEEP_DAYS)->toDateTimeString())
+                ->delete();
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     /**

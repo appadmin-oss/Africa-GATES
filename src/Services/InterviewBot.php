@@ -202,7 +202,15 @@ final class InterviewBot
      */
     public static function sweep(int $limit = 25): int
     {
-        if (!self::enabled() || !AttendeeBot::configured()) return 0;
+        if (!AttendeeBot::configured()) return 0;
+
+        // Switched off means GET THE BOT OUT, not "stop noticing".
+        //
+        // Returning 0 here left any bot already in a call sitting in the room recording,
+        // for the rest of the meeting, because the retire path lives further down this
+        // same method. An operator flips this switch when something is wrong; the least it
+        // can do is evacuate.
+        if (!self::enabled()) return self::evacuate($limit);
 
         $touched = 0;
 
@@ -246,6 +254,35 @@ final class InterviewBot
         }
 
         return $touched;
+    }
+
+    /**
+     * Pull every bot out of every call. What the master switch actually does.
+     *
+     * Reads the transcript on the way, because {@see remove()} does — a sitting whose bot
+     * is withdrawn mid-interview should still keep the half nobody has read yet, which the
+     * nominee has already consented to.
+     */
+    private static function evacuate(int $limit): int
+    {
+        $live = DB::table('gates_interviews')
+            ->whereIn('bot_state', ['requested', 'joining', 'in_call'])
+            ->whereNotNull('bot_id')->where('bot_id', '!=', '')
+            ->limit($limit)->get();
+
+        $out = 0;
+        foreach ($live as $iv) {
+            try {
+                self::remove((int) $iv->id);
+                $out++;
+            } catch (\Throwable $e) {
+                error_log('[interview-bot] evacuate ' . $iv->id . ': ' . $e->getMessage());
+            }
+        }
+        if ($out > 0) {
+            error_log('[interview-bot] master switch is off — withdrew ' . $out . ' bot(s).');
+        }
+        return $out;
     }
 
     /**
@@ -440,7 +477,11 @@ final class InterviewBot
             if (!empty($line['bot'])) continue;
             $at = isset($line['at']) ? (int) strtotime((string) $line['at']) : 0;
             if ($sinceTs > 0 && $at > 0 && $at < $sinceTs) continue;
-            $words += str_word_count((string) ($line['text'] ?? ''));
+            // InterviewGuard::words(), not str_word_count(): the latter treats every
+            // accented character as a word boundary, so a Francophone or Lusophone
+            // nominee's answer is miscounted and the bot decides they have finished
+            // talking when they have not.
+            $words += InterviewGuard::words((string) ($line['text'] ?? ''));
             $lastAt = max($lastAt, $at);
         }
         if ($words < self::ADVANCE_MIN_WORDS) return false;
@@ -529,6 +570,10 @@ final class InterviewBot
 
         $url = AttendeeBot::recordingUrl($botId);
         if ($url === '') return;
+
+        // recordingUrl() has already refused anything that is not a plain https URL —
+        // see AttendeeBot::isSafeRecordingUrl() for why that matters on a page whose
+        // session can publish a transcript to a judging panel.
 
         self::mark($id, [
             'bot_recording_url' => mb_substr($url, 0, 1000),
