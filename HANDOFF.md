@@ -55,7 +55,13 @@ The user's list, unstarted. Each is a real feature, not a tweak.
 4. **Site-wide SEO.** `Event`/`Person`/`ItemList`/`FAQPage` JSON-LD, per-page OG
    images wired to the existing flier generator, real `sitemap.xml` with priority,
    canonicals, CWV on nominee pages. **`searchfit-seo` does this better — get it.**
-5. **Legal pages + tracking.** Blocked on plugins; see §4 and §6.
+5. **Legal pages + tracking.** Blocked on plugins; see §4 and §8.
+6. **Move the broadcast into the admin UI, with editable content.** Currently the
+   campaign is a fixed Twig file (`templates/emails/final-hours.twig`) sent from a
+   token-gated `/__setup/broadcast` page. That is a deploy-to-change-a-comma
+   workflow, and `/__setup/*` is a plumbing surface, not a place to compose a
+   message. See §6.
+
 
 ---
 
@@ -96,7 +102,65 @@ absolute — unset means broken links), `APP_KEY` (signs unsubscribe tokens).
 
 ---
 
-## 6. Traps — each of these was tried and is wrong
+## 6. Broadcast in the admin UI — the shape I would build
+
+**Why it matters:** editing a campaign currently means editing a Twig file and
+redeploying. The user has no SSH, so "change one line of copy" is a full deploy
+cycle. And `/__setup/broadcast` sits beside the database migrator — the wrong
+neighbourhood for something a comms person uses.
+
+**What already exists and must be reused, not rebuilt:**
+
+- `NomineeBroadcast` — recipient resolution, rendering, send log. It is already
+  the single definition of *who gets mail*, shared by the console command and the
+  setup endpoint. A third caller must go through it too, or the three will drift
+  into mailing somebody twice.
+- `EmailOptOut` — suppression, HMAC unsubscribe tokens, one-click headers.
+- `gates_broadcast_log` — `UNIQUE(campaign, email_hash)` is what makes a resumed
+  or re-run send safe. Do not bypass it.
+- `OtpService::sendRawHtml` — the only send path that does not wrap the body in
+  `brandWrap` (which would nest `<html>` inside `<html>`).
+- `EmailInboxCompatTest` — 12 assertions that hold the inbox properties. **A
+  WYSIWYG editor is the fastest way to break every one of them.** See below.
+
+**The design constraint nobody expects:** an editable campaign cannot be free-form
+HTML. Everything in §7 about email — fluid-hybrid wrapper, MSO conditionals, no
+`data:` URIs, styled alt text, `role="presentation"` tables, no CSP nonce — is
+invisible to whoever is typing, and a rich-text editor will emit `<div>`s and
+inline styles that Outlook drops on the floor. Ship **structured blocks, not a
+document**: the template keeps its table skeleton and the editor edits *fields*
+(headline, standfirst, the two asks, CTA label, closing note) plus an ordered list
+of typed blocks. Then run `EmailInboxCompatTest` against the rendered output in CI
+so a bad edit fails before it is sent, not after.
+
+**Rough shape:**
+
+1. `gates_email_campaigns` — id, slug, subject, preheader, `blocks_json`,
+   status (draft/approved/sent), timestamps, `updated_by`. Version the rows or
+   keep an audit trail; a campaign that went to 800 people needs to be
+   reconstructable.
+2. Admin screens under `/admin/campaigns` — matching the console's existing
+   conventions, not a new design language.
+3. **Preview and test-send in the editor**, reusing the `&test=` path already
+   built: it borrows a real recipient's data so the personalisation, countdown
+   cycle and vote link are genuine, and it writes nothing to the send log.
+4. **The dry-run table before the send button**, same counts as today
+   (resolved / unsubscribed / already-sent / ambiguous / unreachable). Nobody
+   should be able to reach "send" without having seen who it reaches.
+5. Keep the batching and the auto-continue. A few thousand SMTP calls at a
+   quarter-second each is far past any shared host's `max_execution_time`.
+6. **Two-person approval before a live send** is worth considering: the blast
+   radius is every nominee's inbox and there is no undo.
+
+**Optimisation to carry over, not rediscover:** the rendered email is currently
+16,702 bytes against Gmail's ~102KB clipping point. An editor that inlines images
+as `data:` URIs, or lets somebody paste Word markup, will blow through that — and
+what Gmail clips off a campaign is the footer, where the unsubscribe link lives.
+Cap the rendered size in validation and fail the save, loudly.
+
+---
+
+## 7. Traps — each of these was tried and is wrong
 
 - **Do NOT set `APP_TIMEZONE=Africa/Lagos`.** It pins the process clock, so new
   writes are WAT-local into columns whose existing rows are UTC, with no offset
@@ -128,7 +192,7 @@ absolute — unset means broken links), `APP_KEY` (signs unsubscribe tokens).
 
 ---
 
-## 7. Tracking — the one request that cannot be built as asked
+## 8. Tracking — the one request that cannot be built as asked
 
 The user wants "visitors tracked with names, email, location." **An anonymous
 visitor has no name or email to read.** Anything that claims otherwise is
@@ -150,7 +214,7 @@ inaccurate privacy notice is its own liability.
 
 ---
 
-## 8. Conventions worth matching
+## 9. Conventions worth matching
 
 Read the surrounding code first — this codebase has strong, deliberate patterns
 and its docblocks explain *why*, not *what*. Specifically:
