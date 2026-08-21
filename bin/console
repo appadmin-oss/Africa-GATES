@@ -30,6 +30,7 @@ use AfricaGates\Console\Commands\{
     DoctorCommand,
     MailCheckoutCommand,
     MediaMigrateCommand,
+    NomineeBroadcastCommand,
     MigrateCommand,
     PaymentReconcileCommand,
     PaymentClawbackCommand,
@@ -64,6 +65,16 @@ $app->add(new MediaMigrateCommand());
 $app->add(new MigrateCommand());
 $app->add(new PaymentReconcileCommand(
     new PaymentService(),
+    new OtpService([
+        'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
+        'port'         => Env::int('SMTP_PORT', 587),
+        'username'     => Env::get('SMTP_USER', ''),
+        'password'     => Env::get('SMTP_PASS', ''),
+        'from_address' => Env::get('MAIL_FROM_ADDRESS', 'noreply@afrovanguard.org.ng'),
+        'from_name'    => Env::get('MAIL_FROM_NAME', 'Africa GATES'),
+    ])
+));
+$app->add(new NomineeBroadcastCommand(
     new OtpService([
         'host'         => Env::get('SMTP_HOST', 'smtp-relay.brevo.com'),
         'port'         => Env::int('SMTP_PORT', 587),

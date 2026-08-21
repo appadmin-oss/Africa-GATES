@@ -39,8 +39,16 @@ final class EmailPrefsController
 
     public function stop(Request $req, Response $res): Response
     {
-        $b     = (array) $req->getParsedBody();
-        $email = EmailOptOut::verify((string) ($b['e'] ?? ''), (string) ($b['t'] ?? ''));
+        $b = (array) $req->getParsedBody();
+        $q = $req->getQueryParams();
+        // Body first (our own confirmation form), then the query string — because an
+        // RFC 8058 one-click unsubscribe POSTs a body of just `List-Unsubscribe=One-Click`
+        // and carries none of our fields, so the credential has to be readable from the
+        // URL the List-Unsubscribe header advertised.
+        $email = EmailOptOut::verify(
+            (string) ($b['e'] ?? $q['e'] ?? ''),
+            (string) ($b['t'] ?? $q['t'] ?? '')
+        );
 
         if ($email !== null) {
             EmailOptOut::record($email, 'unsubscribe-link');

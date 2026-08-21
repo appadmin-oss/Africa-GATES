@@ -162,6 +162,62 @@ class OtpService
     }
 
     /**
+     * Send a COMPLETE HTML document as-is, with no brand wrapper.
+     *
+     * {@see sendBranded} passes its body through {@see brandWrap}, which is right for the
+     * short transactional notes it was written for and wrong for a designed campaign: the
+     * result is an <html> document nested inside another one, which Outlook renders as
+     * literal markup. {@see sendCustom} is plain text only. So this exists for a template
+     * that is already a whole email — templates/emails/*.twig.
+     *
+     * ── LIST-UNSUBSCRIBE IS NOT OPTIONAL FOR BULK ────────────────────────────────
+     * Gmail and Yahoo's 2024 bulk-sender rules expect a one-click unsubscribe header on
+     * anything that looks like a campaign, and mail without it lands in Promotions or
+     * Spam regardless of how careful the content is. Both headers go together:
+     * List-Unsubscribe carries the URL, List-Unsubscribe-Post is what tells the client it
+     * may POST to it without asking the reader to confirm — which is why the endpoint
+     * accepts its parameters from the QUERY STRING as well as the body (see
+     * EmailPrefsController::stop), since a one-click POST body is just the RFC 8058
+     * marker and carries no fields of ours.
+     *
+     * @param string $unsubscribeUrl absolute URL; when '' no list headers are set, which
+     *                               is correct for one-to-one mail and wrong for a campaign
+     * @return array{success:bool, error?:string, fallback?:string}
+     */
+    public function sendRawHtml(string $to, string $subject, string $html, string $plainBody = '', string $category = 'campaign', string $unsubscribeUrl = ''): array
+    {
+        if (!$this->smtpConfigured()) {
+            $this->devLog($to, $subject, $plainBody ?: strip_tags($html));
+            if ($this->isProduction()) {
+                $this->log?->error('[mail] SMTP not configured in production — message NOT delivered', ['to' => $to, 'subject' => $subject]);
+                $this->mailLog($to, $subject, $category, 'failed', 'SMTP not configured (SMTP_USER / SMTP_PASS)');
+                return ['success' => false, 'fallback' => 'log',
+                        'error' => 'Email is not configured (set SMTP_USER / SMTP_PASS). The message was written to var/logs/outgoing-mail.log but was NOT delivered.'];
+            }
+            $this->mailLog($to, $subject, $category, 'logged_dev');
+            return ['success' => true, 'fallback' => 'log'];
+        }
+        try {
+            $m = $this->mailer($to);
+            $m->isHTML(true);
+            $m->Subject = $subject;
+            $m->Body    = $html;                       // verbatim — no brandWrap
+            $m->AltBody = $plainBody ?: strip_tags($html);
+            if ($unsubscribeUrl !== '') {
+                $m->addCustomHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
+                $m->addCustomHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
+            }
+            $m->send();
+            $this->mailLog($to, $subject, $category, 'sent');
+            return ['success' => true];
+        } catch (MailException|\Throwable $e) {
+            $this->log?->error('[mail] sendRawHtml failed: ' . $e->getMessage(), ['to' => $to]);
+            $this->mailLog($to, $subject, $category, 'failed', $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
      * Send a plain-text email (admin alerts, simple notifications).
      * Best-effort — falls back to log.
      */
