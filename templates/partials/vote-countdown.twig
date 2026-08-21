@@ -1,0 +1,52 @@
+{# ══ LIVE VOTE COUNTDOWN ═══════════════════════════════════════════════════
+   Expects `phase` — the CyclePolicy view-model (closes_at, seconds_left,
+   closing_soon, is_voting_open). Renders nothing when there is no deadline.
+
+   ── DRIVEN BY seconds_left, NOT BY THE BROWSER'S CLOCK ────────────────────
+   The obvious build parses closes_at and subtracts Date.now(). That makes the
+   number a function of the VISITOR'S system clock, and a phone an hour out — or
+   a year out, which is common on cheap Android after a flat battery — shows a
+   confident wrong answer about when their vote stops counting. The server sends
+   the remaining seconds it computed, and the browser only decrements. A wrong
+   local clock then costs nothing.
+
+   ── AND IT ESCALATES RATHER THAN SHOUTING THROUGHOUT ─────────────────────
+   Past CLOSING_SOON_SECONDS (48h) this is one quiet line, because a ticking
+   clock three weeks out is decoration that trains people to ignore it. Inside
+   48h it becomes the live panel. `closing_soon` already draws that line
+   server-side, so the escalation cannot disagree with the phase logic.
+
+   Absolute time via |when_zoned, so it reads in the operator's configured zone
+   (WAT) with the abbreviation attached — a deadline with no zone on it is the
+   thing people get wrong by exactly one hour.
+#}
+{% if phase is defined and phase and phase.closes_at and phase.seconds_left is not null and phase.seconds_left > 0 %}
+  {% set _soon = phase.closing_soon|default(false) %}
+
+  <div class="vc {{ _soon ? 'vc--soon' : '' }}"
+       data-vc
+       data-vc-left="{{ phase.seconds_left }}"
+       role="group"
+       {# The absolute deadline is the accessible label. The digits below are
+          aria-hidden and polite-off: a screen reader announcing a new value every
+          second is unusable, and the fixed date is the fact a decision hangs on. #}
+       aria-label="Voting closes {{ phase.closes_at|when_zoned }}">
+
+    <p class="vc__k">
+      {% if _soon %}<span class="vc__dot" aria-hidden="true"></span>Closing soon{% else %}Voting closes{% endif %}
+    </p>
+
+    {% if _soon %}
+      {# The live panel. Server-rendered first, so it is correct before any JS runs
+         and correct forever if none does. #}
+      <div class="vc__clock" aria-hidden="true">
+        <span class="vc__cell" data-vc-d hidden><b>--</b><i>days</i></span>
+        <span class="vc__cell" data-vc-h><b>--</b><i>hrs</i></span>
+        <span class="vc__cell" data-vc-m><b>--</b><i>min</i></span>
+        <span class="vc__cell vc__cell--s" data-vc-s><b>--</b><i>sec</i></span>
+      </div>
+    {% endif %}
+
+    <p class="vc__abs">{{ phase.closes_at|when_zoned }}</p>
+  </div>
+{% endif %}

@@ -613,7 +613,7 @@
              there is nothing to re-announce to assistive tech. `time` carries the
              machine-readable value. #}
           <p style="position:relative;margin:7px 0 0;font-size:12.5px;color:{{ phase.closing_soon ? '#fbc329' : 'rgba(255,255,255,.72)' }}">
-            {% if phase.closing_soon %}<strong>Closing soon</strong> · {% endif %}Closes <time datetime="{{ phase.closes_at|date('c') }}">{{ phase.closes_at|date('j M Y') }}</time>
+            {% if phase.closing_soon %}<strong>Closing soon</strong> · {% endif %}Closes <time datetime="{{ phase.closes_at|date('c') }}">{{ phase.closes_at|when_zoned('j M Y, H:i') }}</time>
           </p>
           {% endif %}
         </div>

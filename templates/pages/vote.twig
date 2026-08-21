@@ -134,7 +134,7 @@
            than clamping a negative remainder to a misleading "0 Days left". #}
         <div class="vh-stat">
           {% if meta.soonest %}
-            <div class="vh-stat__n vh-stat__n--g" style="font-size:19px;line-height:1.2">{{ meta.soonest.closes_at|date('j M') }}</div>
+            <div class="vh-stat__n vh-stat__n--g" style="font-size:19px;line-height:1.2">{{ meta.soonest.closes_at|when('j M') }}</div>
             <div class="vh-stat__l">Closes first</div>
           {% else %}
             <div class="vh-stat__n vh-stat__n--g">—</div>
@@ -267,7 +267,10 @@
            soon" can no longer sit above a date that has already passed. #}
         {% if meta.soonest %}
           <p class="vh-closing__k">{{ meta.soonest.closing_soon ? 'Closing soon' : 'Next deadline' }}</p>
-          <h3>Voting closes {{ meta.soonest.closes_at|date('j M Y') }}</h3>
+          <h3>Voting closes {{ meta.soonest.closes_at|when_zoned('j M Y, H:i') }}</h3>
+          {# The live panel, from the same phase object as the heading above, so the
+             clock and the sentence can never disagree. #}
+          {% include 'partials/vote-countdown.twig' with { phase: meta.soonest } only %}
           <p>{{ meta.soonest.detail }}. After it closes, judges review the top nominees per category before the Awards Gala — community votes are {{ split.community|default(45) }}% of the final score.</p>
         {% else %}
           <p class="vh-closing__k">How it works</p>

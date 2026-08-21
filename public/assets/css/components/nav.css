@@ -108,3 +108,42 @@
   .ag-mobnav,.ag-menu{ display:none!important; }
 }
 html.ag-menu-open{ overflow:hidden; }
+
+/* ── LIVE VOTE COUNTDOWN (partials/vote-countdown.twig) ──────────────────────
+   Two states from one block: a quiet line while the deadline is far off, and a
+   live panel inside the 48h `closing_soon` window. Deliberately reuses the
+   existing brand tokens rather than introducing a countdown palette — this sits
+   on pages that already have a visual language. */
+.vc{ border:1px solid var(--ag-line,rgba(16,41,44,.12)); border-radius:16px;
+     padding:16px 18px; background:var(--ag-surface,#fff); }
+.vc__k{ margin:0; font:700 11px/1 var(--ag-font-mono,monospace); letter-spacing:.16em;
+        text-transform:uppercase; color:var(--ag-ink-soft,#626a6e);
+        display:flex; align-items:center; gap:8px; }
+.vc__abs{ margin:10px 0 0; font-size:14px; line-height:1.5; color:var(--ag-ink,#10292c); }
+
+/* Closing soon: the accent moves to the panel itself, so it reads as urgent
+   without a second colour or a red that says "error" rather than "hurry". */
+.vc--soon{ border-color:rgba(35,123,34,.34); background:#f2f8f2; }
+.vc--soon .vc__k{ color:#1a6118; }
+.vc__dot{ width:8px; height:8px; border-radius:50%; background:#237b22; flex:none;
+          animation:vcPulse 1.8s ease-in-out infinite; }
+@keyframes vcPulse{ 0%,100%{ opacity:1 } 50%{ opacity:.35 } }
+
+.vc__clock{ display:flex; gap:10px; margin-top:12px; }
+.vc__cell{ flex:1 1 0; min-width:0; text-align:center; background:#fff;
+           border:1px solid rgba(35,123,34,.16); border-radius:12px; padding:9px 4px; }
+.vc__cell b{ display:block; font:700 26px/1 var(--ag-font-mono,monospace);
+             color:var(--ag-ink,#10292c); font-variant-numeric:tabular-nums; }
+.vc__cell i{ display:block; margin-top:4px; font-style:normal; font-size:11px;
+             letter-spacing:.06em; text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); }
+/* Seconds carry the accent — it is the digit that proves the clock is live. */
+.vc__cell--s b{ color:#237b22; }
+
+@media (max-width:420px){
+  .vc__cell b{ font-size:22px; }
+  .vc__clock{ gap:7px; }
+}
+/* The pulse is decoration; the numbers are the information. */
+@media (prefers-reduced-motion: reduce){
+  .vc__dot{ animation:none; }
+}

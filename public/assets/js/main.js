@@ -1037,3 +1037,77 @@
     boot();
   }
 })();
+
+/* ── LIVE VOTE COUNTDOWN ─────────────────────────────────────────────────────
+ * Decrements a server-supplied remaining-seconds value. It never reads the
+ * system clock: the number the server computed is authoritative, and a phone
+ * whose clock is wrong — common on cheap Android after a flat battery — would
+ * otherwise be shown a confident wrong answer about when its vote stops
+ * counting. See partials/vote-countdown.twig.
+ *
+ * One interval for however many panels are on the page, and it stops itself at
+ * zero rather than counting into negatives. */
+(function () {
+  var nodes = Array.prototype.slice.call(document.querySelectorAll('[data-vc][data-vc-left]'));
+  if (!nodes.length) return;
+
+  var panels = nodes.map(function (el) {
+    return {
+      el: el,
+      left: Math.max(0, parseInt(el.getAttribute('data-vc-left'), 10) || 0),
+      d: el.querySelector('[data-vc-d]'),
+      h: el.querySelector('[data-vc-h]'),
+      m: el.querySelector('[data-vc-m]'),
+      s: el.querySelector('[data-vc-s]')
+    };
+  }).filter(function (p) { return p.h && p.m && p.s; });   // only the live panels
+
+  if (!panels.length) return;
+
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  var put = function (cell, value) {
+    if (!cell) return;
+    var b = cell.firstElementChild;
+    if (b && b.textContent !== value) b.textContent = value;
+  };
+
+  function paint(p) {
+    var t = p.left,
+        days = Math.floor(t / 86400),
+        hrs  = Math.floor((t % 86400) / 3600),
+        mins = Math.floor((t % 3600) / 60),
+        secs = t % 60;
+
+    /* Days only appear once there is a day to show, so the last stretch reads
+       HRS · MIN · SEC instead of carrying a permanent "00" nobody needs. */
+    if (p.d) {
+      if (days > 0) { p.d.hidden = false; put(p.d, pad(days)); }
+      else          { p.d.hidden = true; }
+    }
+    put(p.h, pad(hrs));
+    put(p.m, pad(mins));
+    put(p.s, pad(secs));
+  }
+
+  panels.forEach(paint);
+
+  var timer = setInterval(function () {
+    var live = 0;
+    panels.forEach(function (p) {
+      if (p.left <= 0) return;
+      p.left--;
+      paint(p);
+      if (p.left > 0) live++;
+    });
+    if (!live) {
+      clearInterval(timer);
+      /* Reaching zero in the browser does not close the vote — the server does.
+         Say so rather than leaving 00:00:00 on screen looking authoritative. */
+      panels.forEach(function (p) {
+        var k = p.el.querySelector('.vc__k');
+        if (k) k.textContent = 'Voting has closed';
+        if (window.agAnnounce) window.agAnnounce('Voting has closed. Reload to see the result.');
+      });
+    }
+  }, 1000);
+})();
