@@ -868,7 +868,7 @@
          lost the email finds it again. A bare line rather than a labelled cell: on a sheet
          with three rows to spare, a `REFERENCE` label above a URL that already ends in the
          reference is a row spent saying the same thing twice. #}
-      <span class="tk__url">{{ site_url|default('https://africagates.org') }}/events/ticket/{{ reg.reference|url_encode }}</span>
+      <span class="tk__url">{{ site_url }}/events/ticket/{{ reg.reference|url_encode }}</span>
 
       {% if D.note %}<p class="tk__note2"><b>{{ D.note }}</b></p>{% endif %}
 

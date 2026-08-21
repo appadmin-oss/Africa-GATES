@@ -614,6 +614,11 @@ class EventsController
             return $this->view->render($res->withStatus(404), 'pages/events/ticket.twig', [
                 'page_title' => 'Ticket', 'gates_page' => 'events', 'has_hero' => false,
                 'reg' => null, 'event' => null, 'lite_page' => true, 'task_page' => true,
+                // The template prints this as the ticket's own web address. It was never
+                // passed, so its |default() fired and every ticket on every deployment
+                // showed africagates.org. SiteUrl falls back to the request host, so this
+                // is right even where APP_URL was never set.
+                'site_url' => \AfricaGates\Support\SiteUrl::base($req),
                 // The template reads `design` unconditionally, including on this branch —
                 // a "we cannot find this ticket" page that throws because there is no event
                 // to take a colour from would turn a mistyped link into a 500.
@@ -641,6 +646,7 @@ class EventsController
             'page_title'   => 'Your ticket — ' . (string) ($event->title ?? 'Africa GATES'),
             'gates_page'   => 'events',
             'has_hero'     => false,
+            'site_url'     => \AfricaGates\Support\SiteUrl::base($req),
             // LITE. This page uses none of the heavy stack — no map, no carousel, no video
             // player, no scroll cinema — and it is the one page in the site whose whole
             // design premise is that it renders on a phone with one bar of signal at a door.

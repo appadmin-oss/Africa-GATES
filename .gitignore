@@ -58,3 +58,4 @@ composer.phar
 # environment at /opt/pw-browsers.
 /node_modules/
 package-lock.json
+var/cache/ticket-art/

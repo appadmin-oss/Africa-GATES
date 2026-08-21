@@ -468,6 +468,92 @@ final class TicketPdf
      * Every failure returns null and the panel falls back to flat gold. A ticket without its
      * photograph is a ticket; a ticket that failed to render is not.
      */
+    /**
+     * Fetch a remote image once and keep it on disk.
+     *
+     * Deliberately narrow, because this is the one place a ticket download can be made to
+     * depend on somebody else's server:
+     *
+     *   · https only, and only a host the platform itself is configured to use. An
+     *     arbitrary URL out of the database must not become an outbound request — that is
+     *     an SSRF with extra steps.
+     *   · a short timeout, so a slow host degrades to "no photograph" rather than to a
+     *     download that hangs at a gate.
+     *   · a size cap read from the response, not trusted from a header.
+     *   · the cache key is a hash of the URL, so a re-crop is a different file and cannot
+     *     serve the previous artwork.
+     *
+     * Returns a local path, or '' — and '' is a ticket, so every failure here is silent
+     * by design.
+     */
+    private static function cachedRemote(string $url): string
+    {
+        if ($url === '' || !str_starts_with($url, 'https://')) return '';
+        if (!function_exists('curl_init')) return '';
+
+        $host = strtolower((string) (parse_url($url, PHP_URL_HOST) ?: ''));
+        if ($host === '' || !self::mediaHostAllowed($host)) return '';
+
+        $dir = \dirname(__DIR__, 2) . '/var/cache/ticket-art';
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) return '';
+
+        $file = $dir . '/' . hash('sha256', $url);
+        if (is_file($file) && is_readable($file) && filesize($file) > 0) return $file;
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 3,
+            CURLOPT_TIMEOUT        => 6,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_USERAGENT      => 'AfricaGATES-Ticket/1.0',
+        ]);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        if (!is_string($body) || $code !== 200 || $body === '') return '';
+        if (strlen($body) > 12 * 1024 * 1024) return '';
+        // It has to actually be an image, whatever the response claimed.
+        if (@imagecreatefromstring($body) === false) return '';
+
+        // Written via a temp file and renamed, so a download racing the first fetch can
+        // never read a half-written file.
+        $tmp = $file . '.' . bin2hex(random_bytes(4)) . '.part';
+        if (@file_put_contents($tmp, $body) === false) return '';
+        if (!@rename($tmp, $file)) { @unlink($tmp); return ''; }
+
+        return is_file($file) ? $file : '';
+    }
+
+    /**
+     * Is this a host the platform itself delivers media from?
+     *
+     * Derived from configuration rather than hard-coded, so it cannot drift from wherever
+     * uploads actually go. Cloudinary is the case this exists for; CDN_HOST covers a
+     * deployment fronting its own uploads.
+     */
+    private static function mediaHostAllowed(string $host): bool
+    {
+        $allowed = [];
+        foreach (['CDN_HOST', 'MEDIA_HOST'] as $k) {
+            $v = strtolower(trim((string) \AfricaGates\Support\Env::get($k, '')));
+            if ($v !== '') $allowed[] = (string) (parse_url(str_contains($v, '//') ? $v : '//' . $v, PHP_URL_HOST) ?: $v);
+        }
+        if (trim((string) \AfricaGates\Support\Env::get('CLOUDINARY_CLOUD_NAME', '')) !== ''
+            || trim((string) \AfricaGates\Support\Env::get('CLOUDINARY_URL', '')) !== '') {
+            $allowed[] = 'res.cloudinary.com';
+        }
+
+        foreach ($allowed as $a) {
+            if ($a !== '' && ($host === $a || str_ends_with($host, '.' . $a))) return true;
+        }
+
+        return false;
+    }
+
     private static function artwork(array $design): ?string
     {
         if (!function_exists('imagecreatefromstring')) return null;
@@ -493,6 +579,25 @@ final class TicketPdf
             $path = \AfricaGates\Support\LocalMedia::file($candidate);
             if ($path !== '') break;
         }
+
+        // ── AND IF IT IS ONLY EVER REMOTE ───────────────────────────────────
+        //
+        // LocalMedia resolves through gates_uploads.local_path. On a deployment where media
+        // lives on Cloudinary — or for any upload written before that column existed — it is
+        // empty, and this method used to return null: every ticket printed with a gold
+        // rectangle where the artwork should be, silently, on every download.
+        //
+        // The rule the comment above states is still the right one: no third party in the
+        // hot path of a ticket download. So this is not a fetch-per-download. It is a fetch
+        // ONCE, into var/cache/ticket-art, after which the file is local forever and the
+        // path above finds it. A gate with a queue behind it never waits on Cloudinary.
+        if ($path === '') {
+            foreach ([(string) ($design['image'] ?? ''), (string) ($design['image_src'] ?? '')] as $candidate) {
+                $path = self::cachedRemote(trim($candidate));
+                if ($path !== '') break;
+            }
+        }
+
         if ($path === '' || filesize($path) > 12 * 1024 * 1024) return null;
 
         try {
