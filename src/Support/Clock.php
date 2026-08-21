@@ -91,7 +91,8 @@ final class Clock
         return (new \DateTimeImmutable('now'))->format('P');
     }
 
-    private static function isValid(string $tz): bool
+    /** Public because {@see DisplayTime} validates the admin-chosen display zone with it. */
+    public static function isValid(string $tz): bool
     {
         return in_array($tz, \DateTimeZone::listIdentifiers(), true);
     }

@@ -154,6 +154,15 @@
       <div class="row">
         <div><label for="f-site_title">Site title</label><input type="text" name="site_title" id="f-site_title" value="{{ values.site_title|default('Africa GATES') }}"></div>
         <div><label for="f-contact_email">Contact email</label><input type="email" name="contact_email" id="f-contact_email" value="{{ values.contact_email|default('africa-gates@afrovanguard.org.ng') }}"></div>
+        {# Display timezone. Storage stays UTC; this is what the console SHOWS and how the
+           datetimes typed into it are READ. Labelled with the live abbreviation so an
+           operator setting a deadline can see which clock they are setting it on. #}
+        <div><label for="f-display_timezone">Timezone <span style="font-weight:400;color:var(--ad-text-mute,#5a6d6f)">— shown and entered in this zone (now: {{ tz_abbr }})</span></label>
+          <select name="display_timezone" id="f-display_timezone">
+            {% for tz in tz_choices|default([]) %}<option value="{{ tz }}"{% if tz == tz_current %} selected{% endif %}>{{ tz }}</option>{% endfor %}
+          </select>
+          <div style="font-size:12px;color:var(--ad-text-mute,#5a6d6f);margin-top:4px">Stored times stay in UTC, so changing this re-labels what you see — it does not move any existing deadline.</div>
+        </div>
       </div>
     </div>
   </div></div>

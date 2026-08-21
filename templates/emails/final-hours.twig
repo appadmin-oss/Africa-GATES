@@ -131,8 +131,16 @@
                   <td valign="middle">
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0">
                       <tr>
-                        <td valign="middle" width="34" style="padding-right:10px;">
-                          <img src="{{ site_url }}/assets/img/email-logo.png" width="34" height="34" alt="Africa GATES" style="display:block; border-radius:8px;">
+                        <td valign="middle" width="40" style="padding-right:10px;">
+                          {# THE MARK ONLY, not the full lockup. The wordmark version is
+                             illegible below about 96px, and the words "Africa GATES" are
+                             already set in live text in the cell beside this one — printing
+                             them twice, once as unreadable pixels, is worse than not
+                             printing them at all.
+
+                             Served at 2x (192px for a 40px box) so it is not soft on a
+                             retina phone, which is where most of these are opened. #}
+                          <img src="{{ site_url }}/assets/img/logo-mark.png" width="40" height="40" alt="Africa GATES" style="display:block;">
                         </td>
                         <td valign="middle">
                           <p style="margin:0; font-family:Helvetica, Arial, sans-serif; font-size:15px; font-weight:700; color:#ffffff; line-height:16px;">Africa</p>

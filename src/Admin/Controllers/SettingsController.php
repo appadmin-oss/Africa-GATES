@@ -33,6 +33,10 @@ class SettingsController
             'page_title'     => 'Settings — Admin',
             'admin_page'     => 'settings',
             'values'         => $this->settings->all(),
+            // Display timezone: the choices, and what is in force right now.
+            'tz_choices'     => \AfricaGates\Support\DisplayTime::choices(),
+            'tz_current'     => \AfricaGates\Support\DisplayTime::zone(),
+            'tz_abbr'        => \AfricaGates\Support\DisplayTime::abbr(),
             'admin_settings' => $adminSettings,
             'smtp_configured'=> $this->mailer?->smtpConfigured() ?? false,
             // Flash renders from the Twig globals via the layout — do not shadow them.
@@ -152,6 +156,23 @@ class SettingsController
                   'support_email'] as $k) {
             if (array_key_exists($k, $b)) {
                 $this->settings->set($k, trim((string)$b[$k]), $adminId);
+            }
+        }
+
+        // ── Display timezone ────────────────────────────────────────────────
+        //
+        // What operators SEE and TYPE. Storage stays UTC — see DisplayTime for why
+        // switching the process clock instead reinterprets every existing row by the
+        // offset, permanently and with nothing recording which rows are which.
+        //
+        // Validated against the real tz database rather than stored as typed: an invalid
+        // identifier here would make every date on every page throw.
+        if (array_key_exists('display_timezone', $b)) {
+            $tz = trim((string) $b['display_timezone']);
+            if ($tz !== '' && \AfricaGates\Support\Clock::isValid($tz)) {
+                $this->settings->set('display_timezone', $tz, $adminId);
+                // The zone is cached per request; this request has already read it.
+                \AfricaGates\Support\DisplayTime::forget();
             }
         }
 

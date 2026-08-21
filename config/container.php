@@ -203,6 +203,33 @@ return [
         // shell-less host does not have. Every asset was therefore `?v=v1` forever,
         // so a returning visitor kept last month's JS against this month's HTML.
         // See AfricaGates\Support\Assets::url().
+        // Stored (UTC) datetime → the zone the operator configured, WAT by default.
+        //
+        // A filter rather than each controller pre-formatting, because storage is UTC by
+        // this application's convention and EVERY date on every page therefore needs the
+        // same conversion — and the one template that forgets is the one showing somebody
+        // a deadline an hour out. `|when` reads as what it is at the call site.
+        // See AfricaGates\Support\DisplayTime for why storage is not simply switched.
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
+            'when',
+            [\AfricaGates\Support\DisplayTime::class, 'show']
+        ));
+        // The same, with the zone appended — for anything a decision hangs on.
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
+            'when_zoned',
+            [\AfricaGates\Support\DisplayTime::class, 'showZoned']
+        ));
+        // A stored datetime as a `datetime-local` value, in the display zone, so an admin
+        // form round-trips without shifting what it shows by the offset.
+        $twig->getEnvironment()->addFilter(new \Twig\TwigFilter(
+            'when_input',
+            [\AfricaGates\Support\DisplayTime::class, 'forInput']
+        ));
+        // `{{ tz_abbr() }}` → 'WAT'. For labelling a time field so nobody has to guess.
+        $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
+            'tz_abbr',
+            [\AfricaGates\Support\DisplayTime::class, 'abbr']
+        ));
         $twig->getEnvironment()->addFunction(new \Twig\TwigFunction(
             'asset',
             [\AfricaGates\Support\Assets::class, 'url']
