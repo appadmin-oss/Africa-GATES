@@ -203,7 +203,13 @@ STORAGE_PROTOCOL=s3
 AWS_ENDPOINT_URL=https://storage.googleapis.com
 AWS_ACCESS_KEY_ID=<HMAC access ID from §2>
 AWS_SECRET_ACCESS_KEY=<HMAC secret from §2>
-AWS_DEFAULT_REGION=auto
+# The BUCKET'S OWN location, not "auto" and not a made-up value. Attendee never
+# passes a region to boto3 for this backend (attendee/settings/base.py builds the
+# S3Storage options with endpoint_url and keys only), so boto3 reads this and uses
+# it for SigV4 signing. GCS validates the signing region against the bucket, and a
+# mismatch fails at UPLOAD time — after an interview, with the recording lost —
+# not at startup. §6b verifies it before that can happen.
+AWS_DEFAULT_REGION=europe-west1
 AWS_RECORDING_STORAGE_BUCKET_NAME=africa-gates-attendee-recordings
 
 # ── bots ──────────────────────────────────────────────────────────────────
@@ -251,7 +257,9 @@ x-app: &app
   env_file: .env
   networks: [attendee_network]
   restart: unless-stopped
-  depends_on: [postgres, redis]
+  depends_on:
+    postgres: {condition: service_healthy}
+    redis:    {condition: service_started}
 
 services:
   app:
@@ -285,6 +293,15 @@ services:
     volumes: [postgres:/data/postgres]
     networks: [attendee_network]
     restart: unless-stopped
+    # Plain `depends_on` waits for the container to START, not for Postgres to accept
+    # connections. The app runs migrations on boot, so without this the very first
+    # `up` races the database and dies on "connection refused" — which reads like a
+    # configuration error and is not one.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   redis:
     image: redis:7-alpine
@@ -361,6 +378,45 @@ Open that URL, then **close the door behind you**:
 sed -i 's/^DISABLE_SIGNUP=false/DISABLE_SIGNUP=true/' ~/attendee/.env
 docker compose -f docker-compose.prod.yaml up -d --force-recreate app
 ```
+
+---
+
+### 6b. Prove storage works — before an interview does it for you
+
+**Do not skip this.** Recording upload is the one failure that does not surface at startup.
+Attendee builds its S3 client from `endpoint_url` and the keys alone and lets boto3 read
+`AWS_DEFAULT_REGION` for SigV4 signing, so a region mismatch against GCS fails at *upload*
+— after a real interview, with the recording gone and a nominee who cannot be re-recorded.
+
+Sixty seconds to rule out:
+
+```bash
+cd ~/attendee
+docker compose -f docker-compose.prod.yaml exec app python - <<'PY'
+import os, boto3, uuid
+c = boto3.client("s3",
+    endpoint_url=os.environ["AWS_ENDPOINT_URL"],
+    aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+    aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+    region_name=os.environ.get("AWS_DEFAULT_REGION"))
+b, k = os.environ["AWS_RECORDING_STORAGE_BUCKET_NAME"], f"healthcheck-{uuid.uuid4()}.txt"
+c.put_object(Bucket=b, Key=k, Body=b"ok")
+assert c.get_object(Bucket=b, Key=k)["Body"].read() == b"ok"
+c.delete_object(Bucket=b, Key=k)
+print("storage OK — wrote, read and deleted", k)
+PY
+```
+
+`storage OK` and you are done. Anything else, in order of likelihood:
+
+| Error | Cause |
+|---|---|
+| `SignatureDoesNotMatch` / `InvalidArgument` mentioning region | `AWS_DEFAULT_REGION` is not the bucket's location. Set it to exactly what `gcloud storage buckets describe "gs://$BUCKET" --format='value(location)'` prints, lowercased. |
+| `AccessDenied` | The HMAC key belongs to a service account without `objectAdmin` on this bucket — re-run the IAM binding in §2. |
+| `NoSuchBucket` | Name typo, or the bucket is in another project. |
+| `EndpointConnectionError` | `AWS_ENDPOINT_URL` is wrong; it must be exactly `https://storage.googleapis.com`. |
+
+Fix, `docker compose -f docker-compose.prod.yaml up -d --force-recreate`, run it again.
 
 ---
 
@@ -480,7 +536,7 @@ at the start of an interview.
 | App will not start, Postgres connection error | `POSTGRES_SSL_REQUIRE` left at its `true` default against the plaintext container. |
 | Caddy will not get a certificate | DNS not propagated, or port 80 closed. |
 | Bot joins but records nothing | No OpenAI credential on the *project* (§7.3). It is per-project, not the `.env` key. |
-| Recording link 404s | Bucket name or HMAC key wrong, or the lifecycle rule already deleted it. |
+| Recording link 404s, or recordings never appear | Storage credentials or signing region. Run the §6b check — it isolates this in a minute. |
 | Bot joins, transcript arrives, never speaks | Expected unless the sitting's voice mode is on and Africa GATES has `OPENAI_API_KEY`. |
 | Everything slows down with 3+ interviews | Worker `--concurrency` exceeds what the machine can carry. Raise the machine or lower the concurrency. |
 | Credentials unreadable after a rebuild | `CREDENTIALS_ENCRYPTION_KEY` changed. Restore the original; there is no recovery without it. |
