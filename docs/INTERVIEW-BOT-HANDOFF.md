@@ -8,6 +8,62 @@ Read this before touching the code. It says what is built, what is verified, wha
 
 ---
 
+## 0. What changed on 22 August 2026
+
+A later session picked this up. `attendee-labs/attendee` **is** reachable for reads —
+`add_repo` refuses cross-tier *pushes*, not anonymous clones — and a fresh clone lands on
+`77e990ed`, the same commit this file was written against. Several things filed below as
+"only a live run can settle" were settled from that source instead.
+
+| Item | State |
+|---|---|
+| 1 — the false real-time claim | **Done.** Corrected in `InterviewBot`'s docblock and `docs/INTERVIEW-BOT.md`; the third place is commit history, so `CODEBASE-INDEX.md` §14 stands in for it. A fourth site this file missed — `InterviewLive`'s "STILL OPEN — the AI has no voice in the room" — is corrected too. Claim re-verified at source before writing. |
+| 2 — transcript cursor | **Fixed, and it was not hypothetical.** `/transcript` does not paginate; it reorders. Details below. |
+| 2 — response shapes | **Verified, not guessed.** `url` is flat (`RecordingSerializer` emits `["url","start_timestamp_ms"]`); `speaker_name` and `transcription.transcript` are correct. |
+| 4/5 — guard corpus, trajectory tracing | Untouched. Both need a real judging round. |
+| 6a — consent withdrawn mid-call | **Done.** Pause/resume wired, enforced from `poll()`. |
+| 6b — `admit_from_waiting_room` | **Will not be built.** It is Zoom-only; these interviews are on Google Meet. See below. |
+| 6c — privacy erasure | **Done.** Guard log scrubbed in place, Attendee `/delete_data` called. |
+| 6e — recordings expire | **Half done, and the framing here was wrong by two orders of magnitude.** See below. |
+
+**The cursor.** This file filed it conditionally — "if `/transcript` ever paginates or
+reorders". It does not paginate. It reorders, by design: `TranscriptView` builds its list
+as `filter(transcription__isnull=False).order_by("timestamp_ms")`, ordered by when the
+words were spoken and filtered to those already transcribed. Transcription is
+asynchronous, so an utterance whose text lands late inserts at its own offset, mid-list,
+shifting every ordinal after it. That skipped a line permanently *and* — worse — made the
+line id `att-7` name a different utterance than the `att-7` already in the buffer, so
+`append()` compared two unrelated sentences and kept both. Identity now comes from
+`timestamp_ms` + speaker uuid; `bot_cursor` is that offset, read back with five minutes of
+slack because a late insert lands behind it. Parsing is split into
+`AttendeeBot::parseTranscript()` so a fixture can drive it, and the tests were
+mutation-checked.
+
+**6b is a trap, not a task.** `/admit_from_waiting_room` returns 400 for any meeting type
+other than Zoom (`bots_api_views.py`). Wiring it here would produce a button that always
+fails. A test asserts the method does not exist, so nobody re-adds it from this file.
+
+**6e was mis-scoped.** Filed here as a 180-day GCS lifecycle problem. The real one:
+`/recording` mints a **presigned URL with `ExpiresIn=1800`** — thirty minutes, per
+`Recording.url` in the provider's `bots/models.py`. `collectRecording()` stored it once, at
+the end of the call, and a panel opens the sitting hours later, so every "The recording"
+link on the admin page was *always* dead. A sitting now records that a recording exists and
+`GET /admin/interviews/{id}/bot/recording` mints a link per click. The 180-day half is
+still open and still wants R2 if recordings must outlive the bucket.
+
+**Also fixed, and not in this file:** `normaliseState()` ended in `default => 'joining'`
+while `sweep()` polls exactly `['requested','joining','in_call']`, so four real provider
+states — `joined_recording_permission_denied`, `leaving`, `data_deleted`, and the breakout
+-room pair — became bots polled for the rest of the sitting. A refused recording permission
+read as "still joining" forever.
+
+**One thing this file does not mention that matters if item 1 is ever acted on:**
+`VOICE_AGENT_URL_PREFIX_ALLOWLIST` allows **every** URL when unset
+(`url_is_allowed_for_voice_agent()` returns true on an empty env var), so a self-hosted
+instance will load any URL a valid API key names into an Attendee-managed container.
+
+---
+
 ## 1. Orientation
 
 **What was built.** Africa GATES can now put a bot into a judging interview on Google Meet.
@@ -241,8 +297,9 @@ play button stops working.
 
 ## 4. Definition of done for this workstream
 
-- [ ] The false real-time claim corrected in all three places (item 1)
+- [x] The false real-time claim corrected in all three places (item 1) — 22 Aug 2026
 - [ ] Attendee deployed; runbook §8 smoke test passes; cursor behaviour confirmed live
+      (**the cursor no longer needs a live run to be safe** — see the 22 Aug note in §2)
 - [ ] Afrovanguard pointed at the same instance
 - [ ] One full judging round run at `voice_mode=off`, transcript quality reviewed
 - [ ] `InterviewGuard::tally()` read after that round; corpus extended from real refusals

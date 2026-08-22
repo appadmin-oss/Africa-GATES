@@ -243,7 +243,16 @@ and its docblocks explain *why*, not *what*. Specifically:
 Full detail in **`docs/INTERVIEW-BOT-HANDOFF.md`**. What a reader of *this* file needs
 to know, because two items reach beyond that workstream:
 
-**P0 — the docs state a false claim, in three places.** `InterviewBot`'s class docblock,
+> **Update, 22 Aug 2026.** The P0 below is **done**, along with items 6a, 6c and the real
+> form of 6e, and the transcript-cursor risk in P1 is fixed rather than merely documented.
+> `attendee-labs/attendee` turned out to be readable after all — `add_repo` refuses
+> cross-tier *pushes*, not anonymous clones — so several things filed as "only a live run
+> can settle" were settled against the source at `77e990ed`. Item 6b should **not** be
+> built: `/admit_from_waiting_room` is Zoom-only and these interviews are on Google Meet.
+> Full detail in §0 of `docs/INTERVIEW-BOT-HANDOFF.md`. What is still genuinely blocked on
+> a live instance: the smoke test, and everything downstream of a real judging round.
+
+**P0 — the docs state a false claim, in three places.** *(Done — 22 Aug 2026.)* `InterviewBot`'s class docblock,
 `docs/INTERVIEW-BOT.md` §"What `auto` honestly is on this host", and the commit history
 all say real-time conversational interviewing is impossible on this host. **It is not.**
 Attendee's `voice_agent_settings.url` loads a page in an *Attendee-managed* container and
@@ -264,11 +273,14 @@ so if `/transcript` ever paginates or reorders, lines are silently skipped or re
 
 **Reaches outside the workstream — worth pairing with work already listed here:**
 
-- **Privacy erasure does not reach the bot data** (their item 6c).
-  `PrivacyEraseUserCommand` clears neither `gates_interview_guard_log` nor Attendee's
-  `/delete_data`. **Fold this into §8's tracking/consent work** — the same command has to
-  grow anyway once analytics land, and erasure that misses a store is the failure that
-  turns a DSAR into a complaint.
+- ~~**Privacy erasure does not reach the bot data**~~ **(their item 6c — done, 22 Aug 2026.)**
+  `PrivacyEraseUserCommand` now scrubs `gates_interview_guard_log` in place (the refusal
+  survives for `InterviewGuard::tally()`, the quoted sentence goes) and calls Attendee's
+  `/delete_data` per bot, reporting each result without ever failing the run. Members are
+  not joined to interviews directly, so it resolves
+  email → `gates_profiles` → `gates_nominees.profile_id` → `gates_interviews.nominee_id`,
+  failing closed. **§8's tracking/consent work still has to extend the same command** when
+  analytics land — that part of the advice stands.
 - **`ATTENDEE_BASE_URL` blank bills per meeting-hour**, and `ElevenLabs` shares the
   questionnaire's quota — a season of interviews can exhaust it and the only symptom is a
   play button that stops working.

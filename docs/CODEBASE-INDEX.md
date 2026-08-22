@@ -560,6 +560,25 @@ trading every grounding and protected-characteristic check for latency in the fe
 decides 55% of a nominee's score is a blocker, not a footnote. Note also that
 `VOICE_AGENT_URL_PREFIX_ALLOWLIST` **defaults to allowing every URL** when unset.
 
+### The transcript cursor is an offset, not a position
+
+`bot_cursor` holds the highest `timestamp_ms` ingested, and line ids are
+`att-{ms}-{speaker}`. It used to be an ordinal into the response array, which was unsafe
+because `/transcript` reorders: it is built as
+`filter(transcription__isnull=False).order_by("timestamp_ms")`, so an utterance transcribed
+late inserts mid-list and shifts everything after it. That skipped a line *and* re-pointed
+every id under `append()`'s dedupe. The watermark is read back with `OVERLAP_MS` of slack
+because a late insert lands behind it. `AttendeeBot::parseTranscript()` is the pure half,
+so fixtures can drive it without a network.
+
+### The recording link is minted per click
+
+`/recording` returns a presigned URL valid for **thirty minutes**. Nothing stores it: a
+sitting records that a recording exists (`bot_recording_at`) and
+`GET /admin/interviews/{id}/bot/recording` redirects to a fresh one. The `bot_recording_url`
+column survives from the original migration and is deliberately unread — a test fails if
+anything reads it again.
+
 ### Two traps that are not guessable from Attendee's docs
 
 - **`LAUNCH_BOT_METHOD` must be left unset** on a single-VM deployment. Unset means bots run
