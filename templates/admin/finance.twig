@@ -28,7 +28,8 @@
   #fi-t-recon2:checked  ~ .fi-tabs label[for="fi-t-recon2"],
   #fi-t-growth:checked  ~ .fi-tabs label[for="fi-t-growth"],
   #fi-t-people:checked  ~ .fi-tabs label[for="fi-t-people"],
-  #fi-t-leak:checked    ~ .fi-tabs label[for="fi-t-leak"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
+  #fi-t-leak:checked    ~ .fi-tabs label[for="fi-t-leak"],
+  #fi-t-ref:checked     ~ .fi-tabs label[for="fi-t-ref"]{background:var(--ad-accent,#237b22);border-color:transparent;color:#fff}
 
   /* ── The wider read. Same CSS-only tab machinery as above; no new JS. ───── */
   .fx-note{margin:0 0 12px;font-size:12.5px;line-height:1.6;color:#5a6d6f;max-width:86ch}
@@ -81,7 +82,8 @@
   #fi-t-recon2:checked  ~ .fi-body #fi-p-recon2,
   #fi-t-growth:checked  ~ .fi-body #fi-p-growth,
   #fi-t-people:checked  ~ .fi-body #fi-p-people,
-  #fi-t-leak:checked    ~ .fi-body #fi-p-leak{display:block}
+  #fi-t-leak:checked    ~ .fi-body #fi-p-leak,
+  #fi-t-ref:checked     ~ .fi-body #fi-p-ref{display:block}
 
   .fi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px}
   .fi-kpi{background:var(--ad-surface,#fff);border:1px solid var(--ad-line,#e5eae8);border-radius:14px;padding:14px 16px}
@@ -140,6 +142,7 @@
     <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-growth">
     <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-people">
     <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-leak">
+    <input class="fi-tabs__radio" type="radio" name="fitab" id="fi-t-ref">
 
     <div class="fi-tabs" role="tablist" aria-label="Finance sections">
       <label for="fi-t-summary">Summary</label>
@@ -151,6 +154,7 @@
       <label for="fi-t-recon">Needs attention{% if uncredited|length or owed.count %} ({{ uncredited|length + owed.count }}){% endif %}</label>
       <label for="fi-t-votes">Paid votes</label>
       <label for="fi-t-recon2">Reconcile</label>
+      <label for="fi-t-ref">Referrals{% if referral.owed_members %} ({{ referral.owed_members }}){% endif %}</label>
     </div>
 
     <div class="fi-body">
@@ -837,6 +841,86 @@
             <p class="fx-empty">No checkout was started in this window.</p>
           {% endif %}
         </div>
+      </section>
+
+      {# ── REFERRALS ──────────────────────────────────────────────────────────
+         Commission owed to members. Deliberately NOT filtered by the date range
+         above: a debt does not stop existing because somebody narrowed the view to
+         last week, and a liability that shrinks when you change a filter is exactly
+         the number that ends up in front of a board.
+
+         There is no "mark as paid" button here, and that is not an omission. The
+         payout route is still an open decision (HANDOFF.md §4 — how money actually
+         leaves), and a button that stamps paid_out_at with no transfer behind it
+         makes the ledger claim somebody was paid when they were not, and destroys
+         the evidence that they were not. #}
+      <section class="fi-panel" id="fi-p-ref" aria-labelledby="fi-t-ref">
+        <p class="fx-note">
+          Event referral commission, at {{ referral.rate_pct }}% of what a referred buyer paid,
+          unlocked once a member reaches {{ referral.threshold }} paid referrals. All time —
+          not the period selected above.
+        </p>
+
+        <div class="fi-kpis">
+          <div class="fi-kpi {{ referral.payable_naira ? 'fi-kpi--warn' : '' }}">
+            <div class="fi-kpi__l">Payable now</div>
+            <div class="fi-kpi__v">₦{{ referral.payable_naira|number_format }}</div>
+            <div class="fi-kpi__s">{{ referral.owed_members|number_format }} member{{ referral.owed_members == 1 ? '' : 's' }} past the threshold</div>
+          </div>
+          <div class="fi-kpi">
+            <div class="fi-kpi__l">Not yet unlocked</div>
+            <div class="fi-kpi__v">₦{{ referral.locked_naira|number_format }}</div>
+            <div class="fi-kpi__s">accrued below the threshold — owed eventually, not today</div>
+          </div>
+          <div class="fi-kpi">
+            <div class="fi-kpi__l">Already paid out</div>
+            <div class="fi-kpi__v">₦{{ referral.paid_out_naira|number_format }}</div>
+            <div class="fi-kpi__s">stamped on the credit row</div>
+          </div>
+          <div class="fi-kpi fi-kpi--good">
+            <div class="fi-kpi__l">Referred ticket sales</div>
+            <div class="fi-kpi__v">₦{{ referral.gross_naira|number_format }}</div>
+            <div class="fi-kpi__s">{{ referral.referrals|number_format }} paid referral{{ referral.referrals == 1 ? '' : 's' }} by {{ referral.earners|number_format }} member{{ referral.earners == 1 ? '' : 's' }}</div>
+          </div>
+        </div>
+
+        {% if referral.rows %}
+          <table class="fx-tbl">
+            <thead>
+              <tr>
+                <th scope="col">Member</th>
+                <th scope="col">Referrals</th>
+                <th scope="col">Owed</th>
+                <th scope="col">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in referral.rows %}
+                <tr>
+                  <td>
+                    {{ r.name }}
+                    {% if r.email %}<br><span style="color:#5a6d6f;font-size:11.5px">{{ r.email }}</span>{% endif %}
+                  </td>
+                  <td>{{ r.referrals|number_format }}</td>
+                  <td>₦{{ r.owed|number_format }}{% if r.paid_out %}<br><span style="color:#5a6d6f;font-size:11.5px">₦{{ r.paid_out|number_format }} paid before</span>{% endif %}</td>
+                  <td>
+                    {% if r.unlocked %}
+                      <span class="fx-up">Payable</span>
+                    {% else %}
+                      <span class="fx-flat">{{ r.remaining }} more referral{{ r.remaining == 1 ? '' : 's' }}</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="fx-note" style="margin-top:12px">
+            Largest first. Settling one is a manual transfer today; there is no withdrawal
+            flow yet, and nothing on this page writes to the ledger.
+          </p>
+        {% else %}
+          <p class="fx-empty">Nothing is owed. Commission appears here once a referred ticket is confirmed.</p>
+        {% endif %}
       </section>
 
     </div>

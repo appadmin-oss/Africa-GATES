@@ -7,6 +7,7 @@ use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Services\FinanceInsights;
 use AfricaGates\Admin\Services\FinanceService;
 use AfricaGates\Services\PaymentReconciler;
+use AfricaGates\Services\ReferralService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Views\Twig;
@@ -132,6 +133,12 @@ class FinanceController
             'rhythm'      => FinanceInsights::rhythm($range === '0' ? 90 : max(14, (int) $range)),
             'leak'        => FinanceInsights::leakage($from, $to),
             'cumulative'  => FinanceInsights::cumulative($range === '0' ? 90 : max(7, (int) $range)),
+
+            // Referral commission owed to members. NOT filtered by the date range: a debt
+            // does not stop existing because you narrowed the view to last week, and a
+            // liability that shrinks when you change a filter is the kind of number
+            // somebody reports to a board.
+            'referral'    => ReferralService::liability(50),
         ]);
     }
 

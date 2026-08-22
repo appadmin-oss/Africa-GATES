@@ -222,6 +222,145 @@ final class ReferralService
     }
 
     /** The shareable link. The link is the primary path — see the class note. */
+    /**
+     * Who is owed what, across everybody. The other side of {@see stats()}.
+     *
+     * ── WHY THIS EXISTS ──────────────────────────────────────────────────────
+     *
+     * Commission accrues to `gates_referral_credits`, and `paid_out_at IS NULL` means
+     * owed. Until now nobody could see the total without opening a SQL client: the
+     * member's own page showed their balance, and no screen anywhere added them up. A
+     * liability nobody can read is one that gets discovered by the person chasing it.
+     *
+     * ── WHAT IT DELIBERATELY DOES NOT DO ─────────────────────────────────────
+     *
+     * It does not mark anything paid. `HANDOFF.md` §4 leaves the payout flow open on a
+     * question this cannot answer — how money actually leaves — and a "mark as paid"
+     * button that writes `paid_out_at` without a transfer behind it is worse than no
+     * button: it makes the ledger say somebody was paid when they were not, and the
+     * evidence they were not is gone.
+     *
+     * ── THE THRESHOLD IS PER MEMBER, SO THE TOTAL IS NOT ONE SUM ─────────────
+     *
+     * Earnings unlock at {@see THRESHOLD} referrals. So the platform's real liability is
+     * the sum of the PAYABLE balances — accrued minus paid, but only for members who have
+     * crossed the gate — and the accrued total is a larger, softer number that includes
+     * balances nobody can withdraw yet. Both are reported, because presenting either
+     * alone misleads: `accrued` overstates what is owed today and `payable` hides what is
+     * owed eventually.
+     *
+     * @return array{payable_naira:int, accrued_naira:int, locked_naira:int,
+     *               paid_out_naira:int, gross_naira:int, referrals:int,
+     *               earners:int, owed_members:int, threshold:int, rate_pct:float,
+     *               rows:list<array<string,mixed>>}
+     */
+    public static function liability(int $limit = 50): array
+    {
+        // The gate and the rate travel WITH the numbers. The panel states both in prose
+        // beside the totals, and a screen that hardcodes "10%" is a screen that lies the
+        // day RATE_BPS changes.
+        $empty = ['payable_naira' => 0, 'accrued_naira' => 0, 'locked_naira' => 0,
+                  'paid_out_naira' => 0, 'gross_naira' => 0, 'referrals' => 0,
+                  'earners' => 0, 'owed_members' => 0, 'rows' => [],
+                  'threshold' => self::THRESHOLD, 'rate_pct' => (float) (self::RATE_BPS / 100)];
+
+        try {
+            if (!DB::schema()->hasTable('gates_referral_credits')) return $empty;
+        } catch (\Throwable) {
+            return $empty;
+        }
+
+        try {
+            // Grouped per member, because the threshold is per member. Doing this in SQL
+            // and then deciding payable in PHP keeps the gate in ONE place — the same
+            // comparison stats() makes — rather than restating it as a HAVING clause that
+            // would quietly disagree the day THRESHOLD changes.
+            $per = DB::table('gates_referral_credits')
+                ->selectRaw('user_id, COUNT(*) as n, '
+                          . 'COALESCE(SUM(paid_naira),0) as gross, '
+                          . 'COALESCE(SUM(commission_naira),0) as accrued, '
+                          . 'COALESCE(SUM(CASE WHEN paid_out_at IS NULL THEN 0 ELSE commission_naira END),0) as paid_out')
+                ->groupBy('user_id')
+                ->get();
+        } catch (\Throwable) {
+            return $empty;
+        }
+
+        $out = $empty;
+        $rows = [];
+
+        foreach ($per as $r) {
+            $n       = (int) ($r->n ?? 0);
+            $accrued = (int) ($r->accrued ?? 0);
+            $paidOut = (int) ($r->paid_out ?? 0);
+            $owed    = max(0, $accrued - $paidOut);
+            $open    = $n >= self::THRESHOLD;
+
+            $out['referrals']      += $n;
+            $out['gross_naira']    += (int) ($r->gross ?? 0);
+            $out['accrued_naira']  += $accrued;
+            $out['paid_out_naira'] += $paidOut;
+            $out['earners']++;
+
+            if ($open) {
+                $out['payable_naira'] += $owed;
+                if ($owed > 0) $out['owed_members']++;
+            } else {
+                $out['locked_naira'] += $owed;
+            }
+
+            if ($owed <= 0) continue;
+            $rows[] = [
+                'user_id'   => (int) ($r->user_id ?? 0),
+                'referrals' => $n,
+                'owed'      => $owed,
+                'accrued'   => $accrued,
+                'paid_out'  => $paidOut,
+                'unlocked'  => $open,
+                'remaining' => max(0, self::THRESHOLD - $n),
+            ];
+        }
+
+        // Largest debts first: that is the order somebody settling them works in.
+        usort($rows, static fn (array $a, array $b): int => $b['owed'] <=> $a['owed']);
+        $out['rows'] = self::nameRows(array_slice($rows, 0, max(1, $limit)));
+
+        return $out;
+    }
+
+    /**
+     * Attach names and emails to liability rows.
+     *
+     * One query for the page rather than one per row, and a member erased under
+     * {@see \AfricaGates\Console\Commands\PrivacyEraseUserCommand} shows as the
+     * tombstone that command wrote — the debt survives the erasure, which is correct, and
+     * settling it is then a conversation rather than a lookup.
+     *
+     * @param  list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function nameRows(array $rows): array
+    {
+        if ($rows === []) return [];
+
+        $ids   = array_values(array_unique(array_map(static fn (array $r): int => (int) $r['user_id'], $rows)));
+        $names = [];
+        try {
+            foreach (DB::table('gates_users')->whereIn('id', $ids)->get(['id', 'name', 'email']) as $u) {
+                $names[(int) $u->id] = ['name' => (string) ($u->name ?? ''), 'email' => (string) ($u->email ?? '')];
+            }
+        } catch (\Throwable) {
+            // A name is a convenience; the debt is the point. Leave them blank.
+        }
+
+        foreach ($rows as $i => $r) {
+            $u = $names[(int) $r['user_id']] ?? null;
+            $rows[$i]['name']  = $u['name']  ?? ('Member #' . $r['user_id']);
+            $rows[$i]['email'] = $u['email'] ?? '';
+        }
+        return $rows;
+    }
+
     public static function link(string $siteUrl, string $code, string $eventSlug = ''): string
     {
         $base = rtrim($siteUrl, '/') . ($eventSlug !== '' ? '/events/' . rawurlencode($eventSlug) : '/events');
