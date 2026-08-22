@@ -1,9 +1,11 @@
 # Africa GATES — Codebase Index
 
 > **Continental Cultural Recognition Platform · An Afrovanguard Initiative**
-> Navigational map of the codebase. Originally generated 2026-06-24; **refreshed 2026-07-23**
+> Navigational map of the codebase. Originally generated 2026-06-24; refreshed 2026-07-23
 > to cover the Batch 3 wave (contact channels, share links, webhooks, member area, community v2,
-> AI-everywhere) and the follow-on admin-AI features (assistant, triage, dedup/merge, galleries).
+> AI-everywhere) and the follow-on admin-AI features (assistant, triage, dedup/merge, galleries);
+> **refreshed again 2026-08-22** for the interview-bot subsystem — see **§14**, which §1–§13
+> predate entirely.
 > Pair it with `README.md` (deployment), the Batch 3 design at
 > `docs/superpowers/specs/2026-07-04-batch3-design.md`, and the redesign plan at
 > `docs/superpowers/specs/2026-06-20-sitewide-redesign-plan.md`.
@@ -446,3 +448,103 @@ ambient admin console copilot (strict-CSP-safe vendored deps).
 indexes (`gates_messages` on created_at/status, `gates_nomination_links` unique token + expires,
 `gates_nomination_insights` PK on nomination_id); this index refreshed to match. Deferred items #5/#7/#10
 from §12 remain deliberately open for the reasons stated there.
+
+---
+
+## 14. The interview bot — a participant that is not a person (index pass 2026-08-22)
+
+The largest subsystem to land since §13, and the one §1–§13 above do not mention at all.
+It is what closed the gap `InterviewLive` had been honest about for months: *"the AI has no
+voice in the room. Occupying a participant seat and putting audio into a Meet call needs a
+persistent media process; an extension has neither, and this host has neither."*
+
+The second half of that is still true. This is PHP-FPM on cPanel and it will never hold a
+WebRTC session. What changed is that **the media process no longer lives here**.
+[Attendee](https://github.com/attendee-labs/attendee) — an open-source bot that joins a
+Meet, Zoom or Teams call, records it, transcribes it, and plays audio back into it — runs
+on its own host, and this platform talks to it exactly the way it talks to Paystack: an API
+key and a URL.
+
+### Files
+
+| File | What it owns |
+|---|---|
+| `src/Services/AttendeeBot.php` | **Transport only.** HTTP to the Attendee API, request-body construction, state normalisation. No policy. |
+| `src/Services/InterviewBot.php` | **The sitting.** `dispatch` / `sweep` / `poll` / `ingestFor` / `turn` / `remove`. |
+| `src/Services/InterviewVoice.php` | **The mouth.** ElevenLabs or OpenAI TTS, the clip cache, and the rules for using it. Deliberately *not* `VoiceService`. |
+| `src/Services/InterviewGuard.php` | **What the bot may say**, checked before it says it — invention, drift, and harm are three different failures. Every refusal logged. |
+| `src/Controllers/InterviewBotController.php` | Attendee's callback. Optional by construction — see below. |
+| `database/migrations/2026_09_27_interview_bot.php` | Bot columns on `gates_interviews`. |
+| `database/migrations/2026_09_28_interview_guard_log.php` | The refusal log. |
+| `database/migrations/2026_09_29_interview_speak_lock.php` | One utterance at a time. |
+| `tests/Unit/InterviewBotTest.php`, `tests/Unit/AttendeeBotRequestTest.php`, `tests/Unit/InterviewGuardTest.php` | 69 tests across the bot surface. |
+
+Runbooks: **`docs/INTERVIEW-BOT.md`** (the subsystem), **`docs/ATTENDEE-ON-GOOGLE-CLOUD.md`**
+(the default host — single VM, Postgres container), **`docs/ATTENDEE-GOOGLE-CLOUD.md`** (the
+Cloud SQL / private-VPC variant), **`docs/INTERVIEW-BOT-HANDOFF.md`** (open items).
+
+### Polling is the primary path; the webhook is only an accelerant
+
+`InterviewBot::sweep()` runs off `Support/Maintenance.php:155` on the cron tick that already
+exists, and recovers **everything** by asking Attendee. The callback at
+`POST /api/v1/interview/bot/webhook` only makes `auto` mode fast.
+
+That was designed for a cPanel host that cannot be relied on to receive a webhook, and it
+is the reason a real bug survived unnoticed for the life of the integration: `createBot()`
+had been sending **`webhook_url`**, a field Attendee does not have (it takes `webhooks`, a
+list of `{url, triggers}`), and DRF drops unrecognised keys silently. Every call succeeded,
+no callback was ever registered, and `auto` mode ran on the polling path the whole time.
+Fixed in the merge of 2026-08-22; `AttendeeBot::buildCreateBody()` exists as a separate
+public method precisely so a test can read the request body without a network.
+
+The controller **never trusts the payload's contents.** The body names a bot; that is used
+to look up a sitting and for nothing else. Everything is then re-fetched from Attendee over
+an authenticated connection by the same code the cron calls. A forged body with the right
+secret can cause an early poll of a real bot, and nothing else. Authentication takes either
+Attendee's own HMAC signature (`X-Webhook-Signature`, preferred) or a shared secret injected
+by a reverse proxy (`X-Attendee-Secret`); with neither configured the route answers **404**,
+not 401, so a scanner learns nothing. A 120/min cap sits after the secret and before the
+work, keyed on the endpoint rather than the caller IP — there is exactly one legitimate
+caller, so a per-IP key would just invite address rotation.
+
+### `voice_mode` is three values, not a boolean
+
+`'off'` records and transcribes, never speaks (the default, and what an operator gets by not
+thinking about the field). `'assisted'` puts a human click behind every utterance. `'auto'`
+lets the bot ask and follow up on its own. An award interview feeds **55% of a nominee's CPI**
+through expert judgement, so these carry genuinely different risk — which is why it is
+per-sitting. `interview_voice_max` in `gates_settings` caps the whole platform underneath it;
+`interview_bot_enabled` is the master switch, and turning it off withdraws live bots on the
+next sweep.
+
+**Consent is not re-invented here.** `consent_at` already gates capture via
+`InterviewLive::mayCapture()`, and the bot obeys the same gate — never dispatched to a
+sitting without consent, and nothing it hears is stored if consent is absent. What *is* new
+is `bot_disclosed_at`, stamped by the invitation rather than by an admin ticking a box,
+because a bot in the room is a materially different thing to consent to than a human taking
+notes.
+
+### Configuration
+
+`ATTENDEE_API_KEY` · `ATTENDEE_BASE_URL` · `ATTENDEE_BOT_NAME` · `ATTENDEE_BOT_IMAGE` (checked
+by its actual bytes — SVG is unsupported) · `ATTENDEE_JOIN_NOTICE` (`none` to say nothing;
+blank reads as *unset* and gets the default) · `ATTENDEE_STT_MODEL` ·
+`ATTENDEE_WEBHOOK_SIGNING_SECRET` · `ATTENDEE_WEBHOOK_SECRET` · `INTERVIEW_TTS_ENGINE` ·
+`INTERVIEW_TTS_MODEL` · `INTERVIEW_TTS_VOICE` · `INTERVIEW_ELEVEN_MODEL` ·
+`INTERVIEW_ELEVEN_VOICE_ID`. All off by default; `.env.example` carries the reasoning.
+
+### Admin surface
+
+`/admin/interviews/{id}/bot/{send,remove,voice,say}` — gated in the controller on
+superadmin/admin/**moderator**, not superadmin-only like `/admin/judges`, on the same
+reasoning as the rest of `/admin/interviews`: appointing a judge is a governance act, while
+running an interview is programme work a moderator does.
+
+### Two traps that are not guessable from Attendee's docs
+
+- **`LAUNCH_BOT_METHOD` must be left unset** on a single-VM deployment. Unset means bots run
+  as Celery tasks in the worker. `kubernetes` or `docker-compose-multi-host` dispatch them to
+  infrastructure that does not exist, and they *silently never launch*.
+- **There is no published Docker image** (upstream CI builds with `push: false`), and the
+  image is **amd64-only** — `zoom-meeting-sdk` is an x86 wheel, so an Arm machine type will
+  not run it.
