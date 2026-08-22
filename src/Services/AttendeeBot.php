@@ -145,15 +145,53 @@ final class AttendeeBot
     public static function createBot(string $meetingUrl, array $opts = []): array
     {
         if (!self::configured()) {
-            return ['ok' => false, 'bot_id' => '', 'error' => 'Attendee is not configured (set ATTENDEE_API_KEY).'];
+            return ['ok' => false, 'bot_id' => '', 'error' => 'Attendee is not configured (set ATTENDEE_API_KEY).', 'duplicate' => false];
         }
         $meetingUrl = trim($meetingUrl);
         if ($meetingUrl === '') {
-            return ['ok' => false, 'bot_id' => '', 'error' => 'This sitting has no meeting link yet.'];
+            return ['ok' => false, 'bot_id' => '', 'error' => 'This sitting has no meeting link yet.', 'duplicate' => false];
         }
 
+        $res = self::http('POST', self::base() . '/bots', self::buildCreateBody($meetingUrl, $opts));
+        if (isset($res['__error'])) {
+            $err = (string) $res['__error'];
+            // A dedup collision is the key doing its job, not a failure. The caller
+            // must not write bot_state=error over a sitting whose bot is already live.
+            return ['ok' => false, 'bot_id' => '', 'error' => $err, 'duplicate' => stripos($err, 'deduplication') !== false];
+        }
+
+        $id = trim((string) ($res['id'] ?? ''));
+        if ($id === '') {
+            return ['ok' => false, 'bot_id' => '', 'error' => 'Attendee accepted the request but returned no bot id.', 'duplicate' => false];
+        }
+        return ['ok' => true, 'bot_id' => $id, 'error' => null, 'duplicate' => false];
+    }
+
+    /**
+     * The create-bot request body, built where a test can read it without a network.
+     *
+     * ── THE FIELD THAT WAS NEVER REAL ────────────────────────────────────────
+     *
+     * This used to send `webhook_url`. Attendee has no such field — it takes
+     * `webhooks`, a list of `{url, triggers}` — and DRF drops unrecognised keys from
+     * a request without complaining. So every call succeeded, no callback was ever
+     * registered, and `auto` mode has been running on the polling path the whole
+     * time. It worked because {@see InterviewBotController} was written never to
+     * depend on the callback. That is the only reason this went unnoticed.
+     *
+     * HTTPS is a hard requirement, not a preference: Attendee's schema pins
+     * `^https://` and rejects the entire create call otherwise. An unusable callback
+     * URL therefore has to be dropped here — forwarding it would trade slow
+     * transcripts for a sitting with no bot in it at all.
+     *
+     * @param array{join_at?:string, webhook_url?:string, prompt?:string, language?:string,
+     *              record?:bool, metadata?:array<string,mixed>, dedup?:string} $opts
+     * @return array<string,mixed>
+     */
+    public static function buildCreateBody(string $meetingUrl, array $opts = []): array
+    {
         $body = [
-            'meeting_url' => $meetingUrl,
+            'meeting_url' => trim($meetingUrl),
             'bot_name'    => self::botName(),
         ];
 
@@ -162,7 +200,15 @@ final class AttendeeBot
 
         // Optional, and genuinely optional — see the class note on polling.
         $hook = trim((string) ($opts['webhook_url'] ?? ''));
-        if ($hook !== '') $body['webhook_url'] = $hook;
+        if ($hook !== '' && stripos($hook, 'https://') === 0) {
+            $body['webhooks'] = [[
+                'url'      => $hook,
+                // Only the two that make 'auto' mode fast. Subscribing to everything
+                // would have this endpoint woken by chat and participant traffic it
+                // has no handler for, each delivery retried three times on the 400.
+                'triggers' => ['bot.state_change', 'transcript.update'],
+            ]];
+        }
 
         $body['transcription_settings'] = self::transcriptionSettings(
             (string) ($opts['prompt'] ?? ''),
@@ -175,16 +221,99 @@ final class AttendeeBot
             $body['recording_settings'] = ['format' => 'none'];
         }
 
-        $res = self::http('POST', self::base() . '/bots', $body);
-        if (isset($res['__error'])) {
-            return ['ok' => false, 'bot_id' => '', 'error' => (string) $res['__error']];
-        }
+        $meta = self::metadata((array) ($opts['metadata'] ?? []));
+        if ($meta !== []) $body['metadata'] = $meta;
 
-        $id = trim((string) ($res['id'] ?? ''));
-        if ($id === '') {
-            return ['ok' => false, 'bot_id' => '', 'error' => 'Attendee accepted the request but returned no bot id.'];
+        $dedup = trim((string) ($opts['dedup'] ?? ''));
+        if ($dedup !== '') $body['deduplication_key'] = $dedup;
+
+        $notice = self::joinNotice();
+        if ($notice !== '') $body['bot_chat_message'] = ['to' => 'everyone', 'message' => $notice];
+
+        $image = self::botImage();
+        if ($image !== null) $body['bot_image'] = $image;
+
+        return $body;
+    }
+
+    /**
+     * What the bot says on arriving, or '' to say nothing.
+     *
+     * A nominee has already consented in writing before a bot is ever dispatched
+     * ({@see InterviewBot::dispatch} refuses without `consent_at`), so this is not
+     * the consent mechanism. It is the reminder — the moment in the room where a
+     * nominee who forgot what they agreed to a week ago can see it and object. That
+     * is worth more in a judging interview than it costs.
+     *
+     * `none` is the off switch rather than a blank value, because {@see Env::get}
+     * cannot tell an empty setting from an absent one and falls back to the default.
+     * Emoji are stripped: Attendee's chat endpoint rejects them outright, and losing
+     * the whole announcement over a decoration would be a poor trade.
+     */
+    public static function joinNotice(): string
+    {
+        $raw = (string) Env::get('ATTENDEE_JOIN_NOTICE',
+            'This interview is being recorded and transcribed for the judging panel.');
+        if (strcasecmp(trim($raw), 'none') === 0) return '';
+
+        // Strip, then collapse — the other order leaves the space the emoji sat in.
+        $txt = preg_replace('/[\x{1F000}-\x{1FAFF}\x{2600}-\x{27BF}\x{FE0F}\x{2190}-\x{21FF}]/u', '', $raw) ?? $raw;
+        $txt = trim(preg_replace('/\s+/u', ' ', $txt) ?? '');
+        return $txt === '' ? '' : mb_substr($txt, 0, 500);
+    }
+
+    /**
+     * Metadata stamped on the bot and echoed back on every read of it.
+     *
+     * The point is that a webhook or a poll result can name its own sitting without
+     * this platform's database being consulted first. Coerced hard, because Attendee
+     * validates it: string values only by default, and an over-long one fails the
+     * create call — losing a bot over a bookkeeping field.
+     *
+     * @param array<string,mixed> $in
+     * @return array<string,string>
+     */
+    public static function metadata(array $in): array
+    {
+        $out = [];
+        foreach ($in as $k => $v) {
+            $key = trim((string) $k);
+            if ($key === '' || is_array($v) || is_object($v)) continue;
+            if (is_bool($v)) $v = $v ? 'true' : 'false';
+            $val = trim((string) $v);
+            if ($val === '') continue;
+            $out[$key] = mb_substr($val, 0, 900);
         }
-        return ['ok' => true, 'bot_id' => $id, 'error' => null];
+        return $out;
+    }
+
+    /**
+     * The bot's avatar, or null when there is not a usable one configured.
+     *
+     * Identified by its magic bytes rather than its filename. Attendee validates the
+     * image itself and rejects a mislabelled one, so `africa-gates-logo.svg` copied
+     * to `.png` would fail the create call and the sitting would get no bot — a
+     * cosmetic setting taking down the recording. SVG is not supported at all.
+     *
+     * @return array{type:string, data:string}|null
+     */
+    public static function botImage(): ?array
+    {
+        $path = trim((string) Env::get('ATTENDEE_BOT_IMAGE', ''));
+        if ($path === '' || !is_file($path) || !is_readable($path)) return null;
+
+        $size = @filesize($path);
+        if ($size === false || $size > 1500000) return null;
+
+        $bytes = (string) @file_get_contents($path);
+        if ($bytes === '') return null;
+
+        $type = null;
+        if (str_starts_with($bytes, "\x89PNG\r\n\x1a\n")) $type = 'image/png';
+        elseif (str_starts_with($bytes, "\xff\xd8\xff"))    $type = 'image/jpeg';
+        if ($type === null) return null;
+
+        return ['type' => $type, 'data' => base64_encode($bytes)];
     }
 
     /**

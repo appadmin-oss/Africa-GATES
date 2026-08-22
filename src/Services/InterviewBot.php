@@ -143,7 +143,25 @@ final class InterviewBot
             'webhook_url' => self::webhookUrl(),
             'prompt'      => self::recogniserPrompt($iv),
             'language'    => (string) ($iv->language ?? 'en'),
+            // The sitting's own id, so a callback or a poll result names the interview
+            // it belongs to without a lookup. Deliberately nothing about the nominee:
+            // metadata lives on the bot host and is echoed in every webhook, and an id
+            // is all this platform needs to find the rest locally.
+            'metadata'    => ['ag_interview_id' => (string) $id, 'ag_source' => 'interview'],
+            // Attendee refuses a second bot under a key one live bot already holds,
+            // which closes the window where the cron sweep and a hand-pressed button
+            // land together. Omitted under $force: an operator replacing a bot on
+            // purpose is asking for exactly the second bot this would block.
+            'dedup'       => $force ? '' : 'ag-interview-' . $id,
         ]);
+
+        if (!empty($res['duplicate'])) {
+            // The key did its job — a live bot for this sitting already exists, put
+            // there by an earlier tick. Recording an error here would overwrite the
+            // bot_id of a bot that is on its way into the room.
+            return ['ok' => true, 'bot_id' => trim((string) ($iv->bot_id ?? '')),
+                    'message' => 'A bot is already on its way to this sitting.'];
+        }
 
         if (!$res['ok']) {
             self::mark($id, ['bot_state' => 'error', 'bot_error' => mb_substr((string) $res['error'], 0, 500)]);
@@ -620,7 +638,11 @@ final class InterviewBot
      */
     private static function webhookUrl(): string
     {
-        if (trim((string) Env::get('ATTENDEE_WEBHOOK_SECRET', '')) === '') return '';
+        // Either credential is enough to make the callback verifiable: Attendee's own
+        // HMAC signature, or a shared secret injected by whatever fronts this host.
+        // With neither, no callback is registered at all and polling carries the load.
+        if (trim((string) Env::get('ATTENDEE_WEBHOOK_SIGNING_SECRET', '')) === ''
+            && trim((string) Env::get('ATTENDEE_WEBHOOK_SECRET', '')) === '') return '';
         $base = rtrim((string) (SiteUrl::base() ?: Env::get('APP_URL', '')), '/');
         if ($base === '' || !str_starts_with($base, 'https://')) return '';
         return $base . '/api/v1/interview/bot/webhook';

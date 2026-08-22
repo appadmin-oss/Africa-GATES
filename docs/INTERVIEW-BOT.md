@@ -58,6 +58,18 @@ browser per meeting, so it needs its own host — roughly 2 vCPU and 4 GB **per 
 bot**. None of that can run on this platform's cPanel hosting, which is the whole reason it
 is a separate service.
 
+> **A second guide, [`ATTENDEE-GOOGLE-CLOUD.md`](ATTENDEE-GOOGLE-CLOUD.md), documents a
+> different shape**: managed **Cloud SQL** instead of a Postgres container, an optional
+> private VPC with Cloud NAT, and a section on scaling past one VM. Written against
+> Attendee **v1.64.1**. Take `ATTENDEE-ON-GOOGLE-CLOUD.md` as the default — it is the
+> newer of the two and is checked against a later source commit — and reach for this one
+> when you want the database managed or expect to outgrow a single box.
+
+Two other things that guide covers and this summary does not: there is **no published
+Docker image** (upstream CI builds with `push: false`, so you build it yourself), and the
+image is **amd64-only** — `zoom-meeting-sdk` is an x86 wheel, so an Arm machine type will
+not run it.
+
 ### Inside Attendee
 
 1. Create a project — one per consumer (Africa GATES, Afrovanguard). Copy its **API key**.
