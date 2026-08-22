@@ -3224,6 +3224,9 @@ return function(App $app) {
             // a panellist decides a question the model wrote will actually be asked.
             $s->post('/{id:[0-9]+}/bot/send',    \AfricaGates\Admin\Controllers\InterviewsController::class.':botSend');
             $s->post('/{id:[0-9]+}/bot/remove',  \AfricaGates\Admin\Controllers\InterviewsController::class.':botRemove');
+            // GET, and a redirect rather than a link in the page: the provider's download
+            // URL is presigned and expires in thirty minutes, so it is minted per click.
+            $s->get('/{id:[0-9]+}/bot/recording', \AfricaGates\Admin\Controllers\InterviewsController::class.':botRecording');
             $s->post('/{id:[0-9]+}/bot/voice',   \AfricaGates\Admin\Controllers\InterviewsController::class.':botVoice');
             $s->post('/{id:[0-9]+}/bot/say',     \AfricaGates\Admin\Controllers\InterviewsController::class.':botSay');
         });

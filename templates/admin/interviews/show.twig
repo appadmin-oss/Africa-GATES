@@ -347,8 +347,8 @@
           <button class="is-btn is-btn--ghost" type="submit">Take the bot out</button>
         </form>
       {% endif %}
-      {% if B.recording_url %}
-        <a class="is-btn is-btn--ghost" href="{{ B.recording_url }}" rel="noopener" target="_blank">The recording</a>
+      {% if B.has_recording %}
+        <a class="is-btn is-btn--ghost" href="/admin/interviews/{{ row.id }}/bot/recording" rel="noopener" target="_blank">The recording</a>
       {% endif %}
     </div>
 

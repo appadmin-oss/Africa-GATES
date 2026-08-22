@@ -55,7 +55,9 @@ use AfricaGates\Support\Env;
  * category. That is not a claim that it is unbiased; it is a claim that a recogniser you
  * can prime with the words you expect beats one you cannot. Where it still gets a name
  * wrong, {@see InterviewReview} quotes the transcript as it stands and a judge can hear
- * the recording, which is why `bot_recording_url` is kept.
+ * the recording, which is why a sitting records that it HAS one. Not a link to it: see
+ * {@see recordingUrl()} — the provider presigns that URL for thirty minutes, so it is
+ * minted per click and never stored.
  *
  * ══════════════════════════════════════════════════════════════════════════════
  * WHAT IS NOT HERE
@@ -551,6 +553,18 @@ final class AttendeeBot
      * Only ever a plain https URL — see {@see isSafeRecordingUrl()}. Filtered HERE rather
      * than at the point of display, because a value that must never be rendered must
      * never be stored: a second template added later would not remember to re-check.
+     */
+    /**
+     * A download link for the sitting's recording. **Valid for thirty minutes.**
+     *
+     * Not a guess any more: `Recording.url` in the provider's `bots/models.py` at
+     * 77e990ed calls `generate_presigned_url(..., ExpiresIn=1800)`, and the flat `url`
+     * key this reads is what `RecordingSerializer` emits (`fields = ["url",
+     * "start_timestamp_ms"]`). The `recording.url` fallback below was the guess, and it
+     * is kept only because it costs nothing.
+     *
+     * Never store what this returns. {@see \AfricaGates\Services\InterviewBot::collectRecording()}
+     * says what happened when it was.
      */
     public static function recordingUrl(string $botId): string
     {

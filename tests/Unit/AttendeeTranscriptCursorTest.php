@@ -213,6 +213,47 @@ final class AttendeeTranscriptCursorTest extends TestCase
         $this->assertSame([], AttendeeBot::parseTranscript(null));
     }
 
+    // ══ the recording link ═══════════════════════════════════════════════════
+
+    /**
+     * The provider presigns the recording URL for thirty minutes
+     * (`generate_presigned_url(..., ExpiresIn=1800)` in its `bots/models.py`). A sitting
+     * therefore records that a recording EXISTS and mints the link per click; storing one
+     * meant every link a panel clicked, hours or days later, was expired.
+     *
+     * This asserts the shape a template can rely on, since a live fetch is not available
+     * to the suite: the payload offers existence, not a URL.
+     */
+    public function test_a_sitting_exposes_that_a_recording_exists_not_a_link_to_it(): void
+    {
+        $src = (string) file_get_contents(
+            (new \ReflectionClass(\AfricaGates\Services\InterviewService::class))->getFileName()
+        );
+
+        $this->assertStringContainsString(
+            "'has_recording'",
+            $src,
+            'the bot payload should say whether a recording exists'
+        );
+    }
+
+    public function test_nothing_still_reads_the_expiring_url_column(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $hits = [];
+        foreach (['src', 'templates'] as $dir) {
+            $it = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root . '/' . $dir));
+            foreach ($it as $f) {
+                if (!$f->isFile()) continue;
+                if (!preg_match('/\.(php|twig)$/', $f->getFilename())) continue;
+                if (str_contains((string) file_get_contents($f->getPathname()), 'bot_recording_url')) {
+                    $hits[] = str_replace($root . '/', '', $f->getPathname());
+                }
+            }
+        }
+        $this->assertSame([], $hits, 'bot_recording_url holds a link that is expired by the time it is read');
+    }
+
     /**
      * `InterviewLive::append()` truncates a block id to 40 characters, so an id that
      * overruns collides with its neighbour — the same bug in a different coat.

@@ -502,6 +502,32 @@ final class InterviewsController
     }
 
     /** Pull the bot out. Reads whatever it heard first — see InterviewBot::remove(). */
+    /**
+     * Send the operator to the recording, on a link minted for this click.
+     *
+     * Attendee's download URL is presigned and expires in thirty minutes, so there is no
+     * durable link to put in the page — see {@see \AfricaGates\Services\InterviewBot::collectRecording()}
+     * for the bug that came of storing one. A redirect keeps the credential out of the
+     * rendered HTML as well, which matters on a page a panel can have open for an hour.
+     *
+     * Read-level access: listening to a sitting you can already read the transcript of
+     * changes nothing.
+     */
+    public function botRecording(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res, false)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+
+        $url = \AfricaGates\Services\InterviewBot::recordingLink($id);
+        if ($url === '') {
+            $_SESSION['flash_error'] = 'That recording is not available — it may still be processing, or the provider has expired it.';
+            return $this->back($res, '/admin/interviews/' . $id);
+        }
+
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'interview.bot_recording', 'interview', $id);
+        return $res->withHeader('Location', $url)->withStatus(302);
+    }
+
     public function botRemove(Request $req, Response $res, array $args): Response
     {
         if ($b = $this->blocked($res)) return $b;

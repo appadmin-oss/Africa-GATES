@@ -617,22 +617,61 @@ final class InterviewBot
      * actually pronounced should do it during the judging window, and the transcript is
      * the durable record.
      */
+    /**
+     * Note that a recording exists. Deliberately does NOT keep the link.
+     *
+     * ── WHY THE URL IS NOT STORED ────────────────────────────────────────────
+     *
+     * It used to be, and it was dead by the time anybody clicked it. Attendee's
+     * `/recording` mints a **presigned S3 URL with `ExpiresIn=1800`** — thirty minutes,
+     * per `Recording.url` in the provider's `bots/models.py`. Its own API description
+     * says "short-lived"; the previous code read that as a link and wrote it to a column.
+     *
+     * The two halves of the failure compounded. This method ran once per sitting (it
+     * returns early once the column is set), at the end of the call. A panel opens the
+     * sitting hours or days later. So every "The recording" link on the admin page was
+     * guaranteed expired — not usually, always — and the whole stated reason for keeping
+     * a recording at all is that {@see AttendeeBot}'s docblock promises a judge can hear
+     * a name the recogniser mangled.
+     *
+     * Nothing here can make a 30-minute credential last, so the link is minted when
+     * somebody actually asks for it — {@see InterviewsController::botRecording()}. What
+     * is stored is the fact that there is something to fetch.
+     *
+     * (This is the real shape of item 6e in the handoff, which filed it as a 180-day GCS
+     * lifecycle problem. That is also true, and it is the smaller half by two orders of
+     * magnitude. Copying the bytes somewhere durable — `R2Service` exists — is still the
+     * answer if recordings must outlive the bucket's retention.)
+     */
     private static function collectRecording(int $id, string $botId): void
     {
         $iv = InterviewService::byId($id);
-        if (!$iv || trim((string) ($iv->bot_recording_url ?? '')) !== '') return;
+        if (!$iv || trim((string) ($iv->bot_recording_at ?? '')) !== '') return;
 
-        $url = AttendeeBot::recordingUrl($botId);
-        if ($url === '') return;
+        // Ask once, so a sitting that produced no recording is not re-fetched forever.
+        // The answer is thrown away: it is the existence that is being recorded.
+        if (AttendeeBot::recordingUrl($botId) === '') return;
 
-        // recordingUrl() has already refused anything that is not a plain https URL —
-        // see AttendeeBot::isSafeRecordingUrl() for why that matters on a page whose
-        // session can publish a transcript to a judging panel.
+        self::mark($id, ['bot_recording_at' => Carbon::now()->toDateTimeString()]);
+    }
 
-        self::mark($id, [
-            'bot_recording_url' => mb_substr($url, 0, 1000),
-            'bot_recording_at'  => Carbon::now()->toDateTimeString(),
-        ]);
+    /**
+     * A fresh download link for a sitting's recording, or '' if there is none.
+     *
+     * Minted per request because it expires in thirty minutes — see
+     * {@see collectRecording()}. `recordingUrl()` has already refused anything that is
+     * not a plain https URL; see {@see AttendeeBot::isSafeRecordingUrl()} for why that
+     * matters on a page whose session can publish a transcript to a judging panel.
+     */
+    public static function recordingLink(int $id): string
+    {
+        $iv = InterviewService::byId($id);
+        if (!$iv) return '';
+
+        $botId = trim((string) ($iv->bot_id ?? ''));
+        if ($botId === '') return '';
+
+        return AttendeeBot::recordingUrl($botId);
     }
 
     // ── plumbing ─────────────────────────────────────────────────────────────

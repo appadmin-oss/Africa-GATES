@@ -815,7 +815,11 @@ final class InterviewService
                 'state'           => (string) ($iv->bot_state ?? ''),
                 'error'           => (string) ($iv->bot_error ?? ''),
                 'joined_at'       => (string) ($iv->bot_joined_at ?? ''),
-                'recording_url'   => (string) ($iv->bot_recording_url ?? ''),
+                // Whether there IS a recording, not a link to it. Attendee's download
+                // URL expires in thirty minutes, so it is minted on demand behind
+                // /admin/interviews/{id}/bot/recording — see InterviewBot::collectRecording().
+                'has_recording'   => trim((string) ($iv->bot_recording_at ?? '')) !== '',
+                'recording_at'    => (string) ($iv->bot_recording_at ?? ''),
                 'voice_mode'      => (string) ($iv->voice_mode ?? 'off'),
                 'voice_effective' => InterviewVoice::mode($iv),
                 'voice_ready'     => InterviewVoice::configured(),
