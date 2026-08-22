@@ -587,3 +587,44 @@ anything reads it again.
 - **There is no published Docker image** (upstream CI builds with `push: false`), and the
   image is **amd64-only** — `zoom-meeting-sdk` is an x86 wheel, so an Arm machine type will
   not run it.
+
+
+---
+
+## 15. Nominee campaigns (2026-08-22)
+
+`HANDOFF.md` §3.6/§6. The campaign copy moved out of `templates/emails/final-hours.twig`
+and into `gates_email_campaigns`, so changing a comma no longer needs a deploy — the
+operator has no SSH, and `/__setup/broadcast` sits beside the database migrator.
+
+| File | What it owns |
+|---|---|
+| `src/Services/EmailCampaign.php` | The block vocabulary, validation, placeholder substitution, HTML and plain-text rendering. |
+| `src/Services/EmailInboxGuard.php` | The inbox rules an *edit* can break, checked on rendered output. Refuses the save. |
+| `src/Admin/Controllers/CampaignsController.php` | The screens. Holds the send gate. |
+| `templates/emails/campaign.twig` | The skeleton — built from `final-hours.twig` so the proven structure is unchanged. |
+| `database/migrations/2026_08_22_email_campaigns.php` | `gates_email_campaigns` + `_versions`. |
+
+**Structured blocks, not a document.** A rich-text editor emits `<div>`s and inline styles
+Outlook drops on the floor, and `EmailInboxCompatTest` holds twelve properties a WYSIWYG
+would break in an afternoon. So the skeleton is fixed and the editor edits *fields*; every
+text value is `strip_tags`'d on the way in and there is no block type that emits raw markup.
+`CampaignInboxCompatTest` extends the original test so those twelve properties apply to the
+new skeleton by inheritance rather than being copied.
+
+**Link destinations are chosen from a whitelist, never typed** — `vote_url` differs per
+recipient so it could not be typed anyway, and free-text URLs in a template a non-developer
+edits is an open redirect with a mailing list attached.
+
+**One definition of who gets mail.** `NomineeBroadcast` still resolves recipients, applies
+`EmailOptOut` and writes `gates_broadcast_log` under its `UNIQUE(campaign, email_hash)`. A
+campaign changes only three things: the log key (its slug — fixed on create, because
+renaming one mid-send would re-mail everybody already done), the subject, and the body.
+
+**The plain-text part is generated from the blocks**, not hand-written — a hand-written
+alternative would keep sending the old copy after an edit.
+
+**The order of the screens is the safety mechanism**: edit → preview → test-send → approve
+→ read the plan → send, and `send` refuses unless the campaign is `approved`. Any edit
+clears the approval, because an approval is of specific words. Sends in batches of 25 with
+the same auto-continue the setup endpoint uses.

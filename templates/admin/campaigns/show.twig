@@ -1,0 +1,301 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_title %}{{ c.name }}{% endblock %}
+
+{#
+  Edit → preview → test → approve → read the plan → send.
+
+  ── WHY THE EDITOR IS FIELDS AND NOT A RICH TEXT BOX ─────────────────────────
+
+  Everything that makes a campaign render in a real inbox — the fluid-hybrid wrapper,
+  the MSO conditionals, styled alt text, role="presentation" on every layout table,
+  no data: URIs, no CSP nonce — is invisible to whoever is typing here, and a WYSIWYG
+  emits <div>s and inline styles that Outlook drops on the floor. EmailInboxCompatTest
+  holds twelve of those properties. So this edits FIELDS, the skeleton stays in
+  templates/emails/campaign.twig, and EmailInboxGuard refuses a save that would not
+  render.
+
+  ── AND WHY THE PLAN IS ABOVE THE SEND BUTTON, NOT BEHIND IT ─────────────────
+
+  Nobody should be able to reach "send" without having seen who it reaches. The blast
+  radius is every nominee's inbox and there is no undo.
+
+  No Alpine here: the reorder and add-block controls are plain form posts, because a
+  campaign editor that needs JavaScript to save is one that loses an afternoon's copy
+  when a script fails to load.
+#}
+{% block content %}
+<style nonce="{{ csp_nonce }}">
+  .cp-note{margin:0 0 14px;font-size:12.5px;line-height:1.6;color:#5a6d6f;max-width:86ch}
+  .cp-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:18px;align-items:start}
+  @media (max-width:1020px){.cp-grid{grid-template-columns:1fr}}
+  .cp-blk{border:1px solid rgba(16,41,44,.12);border-radius:10px;padding:12px 14px;margin-bottom:10px;background:#fff}
+  .cp-blk__h{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .cp-blk__t{font:700 10px/1 inherit;letter-spacing:.08em;text-transform:uppercase;color:#5a6d6f}
+  .cp-f{display:block;margin-bottom:8px}
+  .cp-f span{display:block;font-size:11.5px;font-weight:700;color:#5a6d6f;margin-bottom:3px}
+  .cp-f input,.cp-f textarea,.cp-f select{width:100%;font:inherit;font-size:13px;padding:7px 9px;
+    border:1px solid rgba(16,41,44,.18);border-radius:7px;background:#fff;color:#10292c}
+  .cp-f textarea{min-height:70px;resize:vertical;line-height:1.55}
+  .cp-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px}
+  .cp-kpi{border:1px solid rgba(16,41,44,.1);border-radius:9px;padding:10px 12px;background:#fff}
+  .cp-kpi__l{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#5a6d6f}
+  .cp-kpi__v{font-size:21px;font-weight:800;margin-top:3px;line-height:1.1}
+  .cp-bad{border-left:3px solid #a32020;background:#fdf3f3;padding:11px 13px;border-radius:8px;margin-bottom:12px}
+  .cp-bad li{font-size:12.5px;line-height:1.6;color:#7a1c1c;margin:0 0 5px 18px}
+  .cp-ok{border-left:3px solid #177015;background:#f2f9f1;padding:11px 13px;border-radius:8px;margin-bottom:12px;font-size:12.5px;color:#1c5c19}
+  .cp-pre{background:#0d1f21;color:#cfe6d0;padding:12px;border-radius:9px;font-size:11.5px;line-height:1.6;
+    white-space:pre-wrap;word-break:break-word;max-height:340px;overflow:auto}
+  .cp-pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700}
+  .cp-draft{background:#eef1f0;color:#5a6d6f} .cp-approved{background:#fff3d6;color:#8a6100} .cp-sent{background:#e4f5e3;color:#177015}
+  .cp-bar{height:6px;border-radius:4px;background:#eef1f0;overflow:hidden;margin-top:6px}
+  .cp-bar i{display:block;height:100%;background:#237b22}
+</style>
+
+<p class="cp-note">
+  <a href="/admin/campaigns">← all campaigns</a> ·
+  <span class="cp-pill cp-{{ c.status }}">{{ c.status }}</span>
+  · send key <code>{{ c.slug }}</code>
+  {% if c.sent_at %} · sent {{ c.sent_at|slice(0,16) }} to {{ c.sent_count|number_format }} people{% endif %}
+</p>
+
+{% if problems %}
+  <div class="cp-bad">
+    <strong style="font-size:12.5px;color:#7a1c1c">This would not render properly in an inbox:</strong>
+    <ul style="margin:7px 0 0;padding:0;list-style:disc">
+      {% for p in problems %}<li>{{ p }}</li>{% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+{% if not site_ok %}
+  <div class="cp-bad" style="border-left-color:#8a6100;background:#fffaf0">
+    <p style="margin:0;font-size:12.5px;color:#7a5200">
+      <strong>APP_URL is not set.</strong> Every link in this email is absolute, so a send now
+      would go out with broken links. Nothing can be sent until it is set.
+    </p>
+  </div>
+{% endif %}
+
+<div class="cp-grid">
+
+  {# ── LEFT: the copy ─────────────────────────────────────────────────────── #}
+  <div>
+    <form method="post" action="/admin/campaigns/{{ c.id }}">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+
+      <div class="ad-card" style="margin-bottom:14px">
+        <label class="cp-f">
+          <span>Subject line</span>
+          <input name="subject" required maxlength="200" value="{{ c.subject }}">
+        </label>
+        <label class="cp-f" style="margin-bottom:0">
+          <span>Preheader — the grey line after the subject in an inbox list</span>
+          <input name="preheader" maxlength="200" value="{{ c.preheader }}">
+        </label>
+      </div>
+
+      <p class="cp-note">
+        Placeholders work in any text field:
+        {% for k, label in tokens %}<code>{{ '{' }}{{ k }}{{ '}' }}</code>{{ not loop.last ? ' · ' : '' }}{% endfor %}.
+        Write <code>{{ '{first_name|Friend}' }}</code> to give one a fallback — a nominee's
+        first name and category are genuinely blank sometimes, and the fallback is what keeps
+        the sentence grammatical.
+      </p>
+
+      {% for i, b in blocks %}
+        <div class="cp-blk">
+          <div class="cp-blk__h">
+            <span class="cp-blk__t">{{ types[b.type].label|default(b.type) }}</span>
+            <span style="font-size:11px;color:#9aa">#{{ i + 1 }}</span>
+          </div>
+          <input type="hidden" name="blocks[{{ i }}][type]" value="{{ b.type }}">
+
+          {% for name, spec in types[b.type].fields %}
+            <label class="cp-f">
+              <span>{{ spec.label }}</span>
+              {% if spec.link is defined and spec.link %}
+                <select name="blocks[{{ i }}][{{ name }}]">
+                  {% for key, desc in links %}
+                    <option value="{{ key }}" {{ b[name] == key ? 'selected' : '' }}>{{ desc }}</option>
+                  {% endfor %}
+                </select>
+              {% elseif spec.multiline is defined and spec.multiline %}
+                <textarea name="blocks[{{ i }}][{{ name }}]" maxlength="{{ spec.max }}">{{ b[name] }}</textarea>
+              {% else %}
+                <input name="blocks[{{ i }}][{{ name }}]" maxlength="{{ spec.max }}" value="{{ b[name] }}">
+              {% endif %}
+            </label>
+          {% endfor %}
+
+          {% if types[b.type].fields is empty %}
+            <p style="margin:0;font-size:12px;color:#5a6d6f">A horizontal rule. Nothing to edit.</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+
+      {# Adding and removing blocks is done by editing this list and saving. A block
+         emptied of all its text is dropped by EmailCampaign::clean(), so clearing the
+         fields IS the delete — no separate button that could remove the wrong row. #}
+      <p class="cp-note">
+        To remove a block, clear its text and save — an empty block is dropped rather than
+        rendered as space nobody asked for. To add one, use the picker below.
+      </p>
+
+      <button class="ad-btn ad-btn--primary" type="submit"
+        {{ c.status == 'sent' ? 'disabled' : '' }}>Save the copy</button>
+      {% if c.status == 'sent' %}
+        <p class="cp-note" style="margin-top:8px">
+          This campaign has been sent. Its copy is the record of what went out, so it is
+          frozen — start a new campaign to send something similar.
+        </p>
+      {% endif %}
+    </form>
+
+    {% if c.status != 'sent' %}
+      <form method="post" action="/admin/campaigns/{{ c.id }}" class="ad-card" style="margin-top:14px">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        {# Re-post every existing block, then one more. Plain HTML, no JS. #}
+        {% for i, b in blocks %}
+          <input type="hidden" name="blocks[{{ i }}][type]" value="{{ b.type }}">
+          {% for name, spec in types[b.type].fields %}
+            <input type="hidden" name="blocks[{{ i }}][{{ name }}]" value="{{ b[name] }}">
+          {% endfor %}
+        {% endfor %}
+        <input type="hidden" name="subject" value="{{ c.subject }}">
+        <input type="hidden" name="preheader" value="{{ c.preheader }}">
+        <label class="cp-f" style="max-width:280px">
+          <span>Add a block at the end</span>
+          <select name="blocks[{{ blocks|length }}][type]">
+            {% for key, t in types %}<option value="{{ key }}">{{ t.label }}</option>{% endfor %}
+          </select>
+        </label>
+        {# A new block needs at least one non-empty field to survive clean(); this seeds
+           the common ones so the block appears and can then be edited. #}
+        <input type="hidden" name="blocks[{{ blocks|length }}][text]" value="New block — edit this.">
+        <input type="hidden" name="blocks[{{ blocks|length }}][headline]" value="New headline">
+        <input type="hidden" name="blocks[{{ blocks|length }}][title]" value="New ask">
+        <input type="hidden" name="blocks[{{ blocks|length }}][label]" value="Button">
+        <button class="ad-btn" type="submit">Add block</button>
+      </form>
+    {% endif %}
+  </div>
+
+  {# ── RIGHT: who it reaches, and the two previews ─────────────────────────── #}
+  <div>
+    <div class="ad-card" style="margin-bottom:14px">
+      <h3 style="margin:0 0 4px;font-size:14px">Who this reaches</h3>
+      <p class="cp-note" style="margin-bottom:10px">
+        Resolved from live voting cycles, minus anyone who unsubscribed and anyone this
+        campaign already reached. Read this before approving.
+      </p>
+      <div class="cp-kpis">
+        <div class="cp-kpi">
+          <div class="cp-kpi__l">Will be sent</div>
+          <div class="cp-kpi__v">{{ counts.sendable|number_format }}</div>
+        </div>
+        <div class="cp-kpi">
+          <div class="cp-kpi__l">Already sent</div>
+          <div class="cp-kpi__v">{{ counts.already|number_format }}</div>
+        </div>
+        <div class="cp-kpi">
+          <div class="cp-kpi__l">Unsubscribed</div>
+          <div class="cp-kpi__v">{{ counts.unsubscribed|number_format }}</div>
+        </div>
+        <div class="cp-kpi">
+          <div class="cp-kpi__l">No address</div>
+          <div class="cp-kpi__v">{{ counts.unreachable|number_format }}</div>
+        </div>
+        <div class="cp-kpi">
+          <div class="cp-kpi__l">Ambiguous</div>
+          <div class="cp-kpi__v">{{ counts.ambiguous|number_format }}</div>
+        </div>
+      </div>
+      {% if counts.ambiguous %}
+        <p class="cp-note" style="margin:0">
+          Ambiguous means two approved nominations share a name in one cycle, so the address
+          cannot be chosen safely — those are skipped, never guessed.
+          {% for pair in ambiguous %}<br><span style="font-size:11.5px">· {{ pair[0].name }} → {{ pair[1]|join(', ') }}</span>{% endfor %}
+        </p>
+      {% endif %}
+    </div>
+
+    <div class="ad-card" style="margin-bottom:14px">
+      <h3 style="margin:0 0 4px;font-size:14px">Size</h3>
+      <p class="cp-note" style="margin-bottom:6px">
+        {{ bytes|number_format }} of {{ max_bytes|number_format }} bytes, measured against a
+        deliberately long sample recipient. Gmail clips at about 102,400 and takes the footer
+        — with the unsubscribe link — with it.
+      </p>
+      <div class="cp-bar"><i style="width:{{ min(100, (bytes * 100 / max_bytes)|round) }}%"></i></div>
+    </div>
+
+    {% if c.status != 'sent' %}
+      <form method="post" action="/admin/campaigns/{{ c.id }}/test" class="ad-card" style="margin-bottom:14px">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <h3 style="margin:0 0 4px;font-size:14px">Send yourself one</h3>
+        <p class="cp-note" style="margin-bottom:8px">
+          A real email, personalised with a real nominee's data so the vote link and countdown
+          are genuine. Subject gets a <code>[TEST]</code> prefix, and nothing is written to the
+          send log — so this address stays eligible for the real run.
+        </p>
+        <label class="cp-f"><span>To</span><input type="email" name="to" required placeholder="you@example.com"></label>
+        <button class="ad-btn" type="submit">Send a test</button>
+      </form>
+
+      <div class="ad-card" style="margin-bottom:14px">
+        <h3 style="margin:0 0 4px;font-size:14px">
+          {{ c.status == 'approved' ? 'Approved — ready to send' : 'Approve before sending' }}
+        </h3>
+        <p class="cp-note" style="margin-bottom:8px">
+          {% if c.status == 'approved' %}
+            Approved {{ c.approved_at ? c.approved_at|slice(0,16) : '' }}. Any edit clears this,
+            because an approval is of specific words.
+          {% else %}
+            The send button is disabled until this is approved. Read the numbers above first.
+          {% endif %}
+        </p>
+        <form method="post" action="/admin/campaigns/{{ c.id }}/approve" style="display:inline">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="ad-btn" type="submit" {{ c.status == 'approved' ? 'disabled' : '' }}>Approve</button>
+        </form>
+        <form method="post" action="/admin/campaigns/{{ c.id }}/send" style="display:inline">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button class="ad-btn ad-btn--primary" type="submit"
+            {{ (c.status != 'approved' or problems or not site_ok or counts.sendable == 0) ? 'disabled' : '' }}>
+            Send to {{ counts.sendable|number_format }}
+          </button>
+        </form>
+        <p class="cp-note" style="margin:8px 0 0">
+          Sends in batches of 25 and reports what is left — press again to continue. A few
+          thousand SMTP calls is far past any shared host's time limit, and the send log's
+          unique key per address is what makes continuing safe rather than a re-send.
+        </p>
+      </div>
+    {% endif %}
+
+    <details class="ad-card" style="margin-bottom:14px">
+      <summary style="cursor:pointer;font-size:13px;font-weight:700">The plain-text version</summary>
+      <p class="cp-note" style="margin:8px 0">
+        Generated from the same blocks, so it cannot go stale after an edit. Every link is
+        spelled out, because a text client cannot show a label over a URL.
+      </p>
+      <div class="cp-pre">{{ plain }}</div>
+    </details>
+
+    {% if versions %}
+      <details class="ad-card">
+        <summary style="cursor:pointer;font-size:13px;font-weight:700">Saved versions ({{ versions|length }})</summary>
+        <p class="cp-note" style="margin:8px 0 0">
+          Every save is kept, so a campaign that went to eight hundred people can be quoted
+          back exactly. The question that arrives later is always "what did you actually send me".
+        </p>
+        <ul style="margin:8px 0 0;padding-left:18px;font-size:12px;color:#5a6d6f">
+          {% for v in versions %}
+            <li>{{ v.saved_at ? v.saved_at|slice(0,16) : '—' }} — {{ v.subject }}</li>
+          {% endfor %}
+        </ul>
+      </details>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

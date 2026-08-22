@@ -3188,6 +3188,26 @@ return function(App $app) {
         $a->post('/partners/{id:[0-9]+}/{status}', AdminPartnersController::class.':setStatus');
         $a->get('/partners/export.csv',          AdminPartnersController::class.':exportCsv');
 
+        // ── NOMINEE CAMPAIGNS ─────────────────────────────────────────
+        //
+        // The editable replacement for /__setup/broadcast. That endpoint stays — it is the
+        // no-SSH escape hatch for the fixed template and the runbook in HANDOFF.md §5 still
+        // points at it — but composing a campaign belongs on a screen a comms person opens,
+        // not beside the database migrator.
+        //
+        // /send is a POST that sends ONE BATCH and reports what is left. It refuses unless
+        // the campaign is approved; see CampaignsController::send() for why the order of
+        // these routes is the safety mechanism.
+        $a->group('/campaigns', function (RouteCollectorProxy $s) {
+            $s->get('',                      \AfricaGates\Admin\Controllers\CampaignsController::class.':index');
+            $s->post('/new',                 \AfricaGates\Admin\Controllers\CampaignsController::class.':create');
+            $s->get('/{id:[0-9]+}',          \AfricaGates\Admin\Controllers\CampaignsController::class.':show');
+            $s->post('/{id:[0-9]+}',         \AfricaGates\Admin\Controllers\CampaignsController::class.':save');
+            $s->post('/{id:[0-9]+}/approve', \AfricaGates\Admin\Controllers\CampaignsController::class.':approve');
+            $s->post('/{id:[0-9]+}/test',    \AfricaGates\Admin\Controllers\CampaignsController::class.':test');
+            $s->post('/{id:[0-9]+}/send',    \AfricaGates\Admin\Controllers\CampaignsController::class.':send');
+        });
+
         // ── JUDGING INTERVIEWS ────────────────────────────────────────
         //
         // Not superadmin-gated like /judges below: appointing a judge is a governance act,

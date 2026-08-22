@@ -64,11 +64,11 @@ The user's list, unstarted. Each is a real feature, not a tweak.
    Core Web Vitals measured on a real device against production (the resource
    hints and the LCP preload are already tuned; nothing here has been profiled).
 5. **Legal pages + tracking.** Blocked on plugins; see §4 and §8.
-6. **Move the broadcast into the admin UI, with editable content.** Currently the
-   campaign is a fixed Twig file (`templates/emails/final-hours.twig`) sent from a
-   token-gated `/__setup/broadcast` page. That is a deploy-to-change-a-comma
-   workflow, and `/__setup/*` is a plumbing surface, not a place to compose a
-   message. See §6.
+6. ~~**Move the broadcast into the admin UI, with editable content.**~~ **Done —
+   22 Aug 2026.** `/admin/campaigns`: structured blocks, preview, test-send,
+   approve, the dry-run counts above the send button, batching with auto-continue.
+   `/__setup/broadcast` stays as the no-SSH escape hatch for the fixed template —
+   §5 still points at it. Built to §6's design; what changed from it is noted there.
 
 
 ---
@@ -105,13 +105,43 @@ All token-gated by `SETUP_TOKEN` in `.env`; wrong/missing token returns **404**,
    &csv=1                     downloads nominees with no email / duplicate names
 ```
 
+**For a campaign whose copy you want to change, use `/admin/campaigns` instead** — same
+recipients, same suppression list, same send log, but the words live in a row rather than a
+Twig file. The endpoint above remains for the fixed `final-hours` template and for a
+deployment where the admin login itself is the problem.
+
 Required in `.env`: `APP_URL=https://afg.afrovanguard.org.ng` (every email link is
 absolute — unset means broken links), `APP_KEY` (signs unsubscribe tokens).
 **Tell them to delete `SETUP_TOKEN` when done** — it also gates the migrator.
 
 ---
 
-## 6. Broadcast in the admin UI — the shape I would build
+## 6. Broadcast in the admin UI — built 22 Aug 2026
+
+> **This section was the specification, and it was followed.** What is below is kept
+> because the reasoning is still the reason the thing has the shape it has. Four notes on
+> what the build added or changed:
+>
+> - **`EmailInboxGuard` is a service, not just a CI step.** §6 asks to "run
+>   `EmailInboxCompatTest` against the rendered output in CI". Failing the SAVE is strictly
+>   better: CI never sees the row, and the person who can fix a too-long campaign is the
+>   person who just wrote it. The twelve template-level properties now also apply to the new
+>   skeleton by inheritance (`CampaignInboxCompatTest`) rather than being copied.
+> - **Links are chosen from a list, never typed.** Not in §6, and it matters: `vote_url`
+>   differs per recipient, so it could not be typed anyway — and free-text URLs in a
+>   template a non-developer edits is an open redirect with a mailing list attached.
+> - **Placeholders have fallbacks** — `{first_name|Friend}`. A nominee's first name and
+>   category are genuinely blank sometimes; the old fixed template handled it with Twig
+>   conditionals, which is exactly what an operator cannot write.
+> - **The plain-text part is generated from the blocks.** §6 does not mention it. It had to
+>   be: the old one was hand-written prose, which would keep sending the OLD copy after an
+>   edit, and a text part that contradicts the HTML part is worse than a clumsy one.
+>
+> **Two-person approval** (item 6 below) is half-built: approval is a separate recorded act
+> by a named person and any edit clears it, but there is no second-approver model. That
+> needs a decision about who counts as the second person.
+
+## 6a. The original specification
 
 **Why it matters:** editing a campaign currently means editing a Twig file and
 redeploying. The user has no SSH, so "change one line of copy" is a full deploy

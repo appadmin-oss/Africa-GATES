@@ -22,8 +22,52 @@ use Twig\Loader\FilesystemLoader;
  */
 final class NomineeBroadcast
 {
+    /** The original file-based campaign, kept as the default so both old callers are unchanged. */
     public const CAMPAIGN = 'final-hours';
     public const SUBJECT  = 'Finish strong — voting closes soon';
+
+    /**
+     * An editable campaign to send instead of the fixed template, or null for it.
+     *
+     * ── WHY THIS IS A PROPERTY AND NOT A THIRD CLASS ─────────────────────────
+     *
+     * The class note above is the reason: this file is the single definition of "who gets
+     * mail", and two implementations of a recipient query drift. The way they drift on a
+     * mail sender is that one of them mails somebody the other already did.
+     *
+     * So the admin UI does not get its own resolver, its own suppression check or its own
+     * log write. It hands a campaign to THIS object and everything else — cycles, address
+     * resolution, the ambiguous/unreachable split, `EmailOptOut`, the
+     * `UNIQUE(campaign, email_hash)` write that makes a resumed send safe — is the code
+     * the console command and the setup endpoint already use.
+     *
+     * What the campaign changes is only the three things that are genuinely per-campaign:
+     * the log key, the subject, and the rendered body.
+     */
+    private ?object $campaign = null;
+
+    /** Send this stored campaign rather than the fixed template. */
+    public function forCampaign(?object $campaign): self
+    {
+        $this->campaign = $campaign;
+        return $this;
+    }
+
+    /**
+     * The log key for this run. It is the campaign's slug, which is why a slug is fixed on
+     * create and never editable: renaming one mid-send would re-mail everybody already done.
+     */
+    public function campaignKey(): string
+    {
+        $slug = trim((string) ($this->campaign->slug ?? ''));
+        return $slug !== '' ? $slug : self::CAMPAIGN;
+    }
+
+    public function subject(): string
+    {
+        $s = trim((string) ($this->campaign->subject ?? ''));
+        return $s !== '' ? $s : self::SUBJECT;
+    }
 
     /**
      * Work out who would be mailed, and why everybody else would not be.
@@ -96,9 +140,9 @@ final class NomineeBroadcast
     public function sendOne(array $r, string $site, OtpService $mailer): array
     {
         $res = $mailer->sendRawHtml(
-            $r['email'], self::SUBJECT,
+            $r['email'], $this->subject(),
             $this->html($r, $site), $this->plain($r, $site),
-            self::CAMPAIGN, EmailOptOut::url($site, $r['email'])
+            $this->campaignKey(), EmailOptOut::url($site, $r['email'])
         );
         $ok    = (bool) ($res['success'] ?? false);
         $error = (string) ($res['error'] ?? '');
@@ -119,7 +163,16 @@ final class NomineeBroadcast
             ['autoescape' => 'html']
         );
 
-        return $twig->render('emails/final-hours.twig', $this->vars($r, $site));
+        $vars = $this->vars($r, $site);
+
+        // An editable campaign renders through EmailCampaign, which owns the block
+        // vocabulary and the placeholder substitution. The fixed template stays the
+        // fallback so nothing that worked before this existed behaves differently.
+        if ($this->campaign !== null) {
+            return EmailCampaign::renderFor($this->campaign, $vars);
+        }
+
+        return $twig->render('emails/final-hours.twig', $vars);
     }
 
     /** @return array<string,mixed> @param array{nominee:object,cycle:object,email:string} $r */
@@ -166,6 +219,13 @@ final class NomineeBroadcast
     /** @param array{nominee:object,cycle:object,email:string} $r */
     public function plain(array $r, string $site): string
     {
+        // An editable campaign's plain text is generated FROM its blocks — see
+        // EmailCampaign::plainOf() for why a hand-written alternative would go stale the
+        // first time somebody edited the copy.
+        if ($this->campaign !== null) {
+            return EmailCampaign::plainFor($this->campaign, $this->vars($r, $site));
+        }
+
         $n     = $r['nominee'];
         $close = Carbon::parse((string) $r['cycle']->voting_close)->format('D j M Y, H:i T');
         $first = trim(explode(' ', trim((string) $n->name))[0] ?? '');
@@ -263,7 +323,7 @@ final class NomineeBroadcast
     {
         $out = [];
         foreach (DB::table('gates_broadcast_log')
-                     ->where('campaign', self::CAMPAIGN)->where('status', 'sent')
+                     ->where('campaign', $this->campaignKey())->where('status', 'sent')
                      ->pluck('email_hash') as $h) {
             $out[(string) $h] = true;
         }
@@ -275,7 +335,7 @@ final class NomineeBroadcast
     {
         try {
             DB::table('gates_broadcast_log')->updateOrInsert(
-                ['campaign' => self::CAMPAIGN, 'email_hash' => EmailOptOut::hash($r['email'])],
+                ['campaign' => $this->campaignKey(), 'email_hash' => EmailOptOut::hash($r['email'])],
                 ['email'      => $r['email'],
                  'nominee_id' => (int) $r['nominee']->id,
                  'status'     => $ok ? 'sent' : 'failed',

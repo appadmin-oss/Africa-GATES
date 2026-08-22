@@ -17,9 +17,20 @@ class EmailInboxCompatTest extends TestCase
 {
     private const TPL = __DIR__ . '/../../templates/emails/final-hours.twig';
 
+    /**
+     * The template under test. Overridable so the SAME twelve properties apply to every
+     * mail skeleton rather than only the first one written — see
+     * {@see CampaignInboxCompatTest}. Duplicating these assertions per template would mean
+     * twelve rules in two places and one of them silently behind.
+     */
+    protected static function tpl(): string
+    {
+        return self::TPL;
+    }
+
     private static function src(): string
     {
-        return (string) file_get_contents(self::TPL);
+        return (string) file_get_contents(static::tpl());
     }
 
     /** The template with Twig comments removed — those never reach a recipient. */

@@ -444,6 +444,14 @@ return [
         $c->get(OtpService::class),
         \AfricaGates\Services\SmsService::boot()
     ),
+    // Nominee campaigns. The mailer for test sends and the real thing; AuditService
+    // because "who pressed send on the mail to eight hundred people" is a question that
+    // gets asked afterwards.
+    \AfricaGates\Admin\Controllers\CampaignsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\CampaignsController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Admin\Services\AuditService::class),
+        $c->get(OtpService::class)
+    ),
     \AfricaGates\Controllers\InterviewController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\InterviewController(
         $c->get(Twig::class)
     ),
