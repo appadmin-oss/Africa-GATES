@@ -384,13 +384,36 @@ final class AttendeeBot
     {
         return match ($state) {
             'ready', 'scheduled', 'staged'                    => 'requested',
-            'joining', 'joining_call', 'waiting_room'         => 'joining',
+            'joining', 'joining_call', 'waiting_room'          => 'joining',
+
+            // Still in the room, and all of these must keep being polled. A paused
+            // recording is a sitting in progress with capture stopped — see
+            // {@see pauseRecording()} — not a bot on its way somewhere.
             'joined_recording', 'joined_not_recording',
+            'joined_recording_paused',
+            'joining_breakout_room', 'leaving_breakout_room',
             'in_call', 'in_meeting', 'in_waiting_room'        => 'in_call',
-            'post_processing', 'ended', 'done', 'complete'    => 'done',
-            'fatal_error', 'error', 'failed'                  => 'error',
+
+            'leaving', 'post_processing',
+            'ended', 'done', 'complete'                       => 'done',
+
+            // The provider erased this bot's data on request. Anything else would put it
+            // back in the sweep's live set, chasing a bot that no longer has anything to
+            // report.
+            'data_deleted'                                    => 'removed',
             'left', 'removed', 'kicked'                       => 'removed',
+
+            // A refused recording permission is a DEAD sitting, not a slow one. Under the
+            // old default it read as 'joining' and the sweep polled it for the rest of the
+            // call, reporting a bot that was never going to record.
+            'joined_recording_permission_denied',
+            'fatal_error', 'error', 'failed'                  => 'error',
+
             ''                                                => '',
+
+            // Unknown states stay in the live set rather than ending a real sitting on a
+            // string this release has not seen. Every state the provider defines at
+            // 77e990ed is named above, so reaching this means a newer instance.
             default                                           => 'joining',
         };
     }
@@ -640,6 +663,74 @@ final class AttendeeBot
      *
      * @return array{ok:bool, error:?string}
      */
+    /**
+     * Stop the provider recording, without taking the bot out of the room.
+     *
+     * The missing half of consent. `consent_at` already decides whether anything a bot
+     * hears is STORED here — {@see \AfricaGates\Services\InterviewLive::mayCapture()}
+     * refuses to keep a word without it — but refusing locally does nothing about the
+     * recording accumulating on the bot host. Until this existed the only way to act on a
+     * nominee withdrawing mid-call was to remove the bot entirely, which also ends the
+     * transcript the panel is reading and cannot be undone.
+     *
+     * Idempotence is the caller's job: the provider answers 400 for a bot that is not in a
+     * pausable state, including one already paused. {@see \AfricaGates\Services\InterviewBot::enforceConsent()}
+     * reads the state first rather than pausing every tick.
+     *
+     * Note this is NOT `admit_from_waiting_room`, which the handoff proposed wiring for
+     * the same class of problem. That endpoint is Zoom-only — `bots_api_views.py` answers
+     * 400 for any other meeting type — and these interviews are on Google Meet.
+     *
+     * @return array{ok:bool, error:?string}
+     */
+    public static function pauseRecording(string $botId): array
+    {
+        return self::command($botId, 'pause_recording');
+    }
+
+    /** Resume a recording paused by {@see pauseRecording()}. @return array{ok:bool, error:?string} */
+    public static function resumeRecording(string $botId): array
+    {
+        return self::command($botId, 'resume_recording');
+    }
+
+    /**
+     * Erase everything the provider holds for one bot: recording, transcript, and the
+     * metadata on its events and webhooks.
+     *
+     * Reached from {@see \AfricaGates\Console\Commands\PrivacyEraseUserCommand}, because
+     * an erasure that clears this platform's tables and leaves the recording on the bot
+     * host is not an erasure. The bot's state afterwards is `data_deleted`, which
+     * {@see normaliseState()} maps to `removed`.
+     *
+     * @return array{ok:bool, error:?string}
+     */
+    public static function deleteData(string $botId): array
+    {
+        return self::command($botId, 'delete_data');
+    }
+
+    /**
+     * One of the provider's POST-with-no-body bot actions.
+     *
+     * Their failure mode is worth naming: a 400 here is usually not a fault but a state
+     * disagreement — "this bot cannot pause from where it is" — and callers act on that
+     * differently from a transport error.
+     *
+     * @return array{ok:bool, error:?string}
+     */
+    private static function command(string $botId, string $action): array
+    {
+        if (!self::configured() || trim($botId) === '') {
+            return ['ok' => false, 'error' => 'Attendee is not configured.'];
+        }
+
+        $res = self::http('POST', self::base() . '/bots/' . rawurlencode(trim($botId)) . '/' . $action, []);
+        if (isset($res['__error'])) return ['ok' => false, 'error' => (string) $res['__error']];
+
+        return ['ok' => true, 'error' => null];
+    }
+
     public static function leave(string $botId): array
     {
         if (!self::configured() || trim($botId) === '') return ['ok' => true, 'error' => null];
@@ -694,7 +785,12 @@ final class AttendeeBot
             CURLOPT_FOLLOWLOCATION => false,
         ];
         if ($body !== null && $method !== 'GET') {
-            $opts[CURLOPT_POSTFIELDS] = json_encode($body, JSON_UNESCAPED_SLASHES);
+            // JSON_FORCE_OBJECT so an empty body serialises as {} and not []. The
+            // provider's action endpoints (pause/resume/delete_data) are posted with "{}"
+            // by its own tests, and DRF parses a bare [] as a list — a shape none of its
+            // serialisers expect.
+            $flags = JSON_UNESCAPED_SLASHES | ($body === [] ? JSON_FORCE_OBJECT : 0);
+            $opts[CURLOPT_POSTFIELDS] = json_encode($body, $flags);
         }
         curl_setopt_array($ch, $opts);
 

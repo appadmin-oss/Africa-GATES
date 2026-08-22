@@ -344,8 +344,15 @@ final class InterviewBot
         $botId = trim((string) ($iv->bot_id ?? ''));
         if ($botId === '') return ['state' => '', 'ingested' => 0];
 
-        $was   = (string) ($iv->bot_state ?? '');
-        $state = AttendeeBot::botStatus($botId);
+        $was = (string) ($iv->bot_state ?? '');
+
+        // One fetch, both readings. The raw state is needed as well as the normalised one
+        // because {@see enforceConsent()} has to tell an already-paused bot from a
+        // recording one, and normalisation folds both into 'in_call' — correctly, since a
+        // paused bot is still in the room and must keep being polled.
+        $bot   = AttendeeBot::fetchBot($botId);
+        $raw   = $bot === null ? '' : strtolower(trim((string) ($bot['state'] ?? '')));
+        $state = $raw === '' ? '' : AttendeeBot::normaliseState($raw);
 
         // Empty means the provider could not be reached, which is not news about the bot.
         // Overwriting `in_call` with an error here would end a sitting that is running.
@@ -362,6 +369,11 @@ final class InterviewBot
             $patch['bot_left_at'] = Carbon::now()->toDateTimeString();
         }
         self::mark($id, $patch);
+
+        // Consent, on the provider's side of the wire. Before ingest, because a sitting
+        // that lost consent should stop accumulating a recording at the far end too, not
+        // merely stop having one read from it.
+        self::enforceConsent($id, $botId, $state, $raw, $iv);
 
         $ingested = self::ingestFor($id, $botId);
 
@@ -387,6 +399,57 @@ final class InterviewBot
      *
      * @return int lines accepted
      */
+    /**
+     * Keep the provider's recording in step with consent.
+     *
+     * ── THE HALF OF CONSENT THAT WAS NOT ENFORCED ────────────────────────────
+     *
+     * `consent_at` gates three things, and it is deliberately one column: whether a bot
+     * is SENT, whether what it hears is STORED, and whether it may SPEAK. Storage was
+     * enforced where the words arrive — {@see InterviewLive::mayCapture()} refuses to keep
+     * one without consent — and dispatch refuses without it. Neither reaches the recording
+     * being written on the bot host.
+     *
+     * So a nominee who withdrew mid-call had this platform correctly refusing to keep
+     * their words while the recording of them kept growing on another machine. The only
+     * lever was {@see remove()}, which also ends the sitting for the panel and cannot be
+     * undone if the withdrawal was a misunderstanding.
+     *
+     * Pausing is the proportionate act, and it is reversible: consent returning resumes
+     * the recording on the next tick.
+     *
+     * ── WHY THIS READS THE RAW STATE ─────────────────────────────────────────
+     *
+     * The provider answers 400 for a bot that cannot pause from where it is, INCLUDING one
+     * already paused. Calling pause every tick would be harmless and would also mean a
+     * failed call a minute for the rest of the sitting, which is indistinguishable in a log
+     * from something actually wrong. So the raw state decides, and the normalised one
+     * cannot: {@see AttendeeBot::normaliseState()} folds `joined_recording_paused` into
+     * `in_call`, correctly — a paused bot is in the room and must keep being polled.
+     */
+    private static function enforceConsent(int $id, string $botId, string $state, string $raw, object $iv): void
+    {
+        if ($state !== 'in_call') return;
+
+        $consented = trim((string) ($iv->consent_at ?? '')) !== '';
+        $paused    = $raw === 'joined_recording_paused';
+
+        if (!$consented && !$paused) {
+            $r = AttendeeBot::pauseRecording($botId);
+            if ($r['ok']) {
+                self::mark($id, ['bot_error' => 'Recording paused: no consent is on file for this sitting.']);
+            }
+            return;
+        }
+
+        // Consent arrived, or came back. Resume rather than leaving a consented sitting
+        // silently unrecorded — that failure looks exactly like a working one.
+        if ($consented && $paused) {
+            $r = AttendeeBot::resumeRecording($botId);
+            if ($r['ok']) self::mark($id, ['bot_error' => '']);
+        }
+    }
+
     public static function ingestFor(int $id, string $botId): int
     {
         $iv = InterviewService::byId($id);
