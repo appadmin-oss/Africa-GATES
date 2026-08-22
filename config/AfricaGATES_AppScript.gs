@@ -113,9 +113,19 @@ function meetCreate(d) {
  * Two routes, tried in order:
  *
  *   1. The Meet REST API (meet.googleapis.com/v2). Authoritative, gives speaker names and
- *      timings, and needs the meetings.space.readonly + meetings.conference.readonly
- *      scopes — which Apps Script will ask you to grant the first time this runs. If your
- *      appsscript.json pins oauthScopes, add them there.
+ *      timings.
+ *
+ *      IT NEEDS A SCOPE APPS SCRIPT CANNOT WORK OUT FOR ITSELF. The call goes through
+ *      UrlFetchApp with ScriptApp.getOAuthToken(), so from the editor's point of view this
+ *      is an arbitrary HTTPS request — there is no Meet symbol for it to scan. Nothing
+ *      prompts you, the token comes back without the scope, Meet answers 403, and this
+ *      falls through to Drive looking exactly like "nobody turned transcription on".
+ *
+ *      So `https://www.googleapis.com/auth/meetings.space.readonly` MUST be declared in
+ *      the manifest — `config/appsscript.json` in this repo has it, along with everything
+ *      else the script touches. (An earlier version of this comment asked for
+ *      `meetings.conference.readonly`, which is not a scope that exists; the Meet API
+ *      defines only meetings.space.created, .readonly and .settings.)
  *   2. Drive. Meet saves transcripts as Google Docs in a "Meet Recordings" folder, named
  *      after the meeting. Cruder, but it works on accounts where the Meet API is not
  *      available, and it is the only route for a transcript somebody has already moved.
@@ -132,9 +142,15 @@ function meetTranscript(d) {
     const token = ScriptApp.getOAuthToken();
     const opts  = {method:'get', headers:{Authorization:'Bearer '+token}, muteHttpExceptions:true};
 
+    // The code goes in WITH its hyphens. Meet's own discovery document gives
+    // meetingCode the format [a-z]+-[a-z]+-[a-z]+ and its filter example verbatim as
+    // space.meeting_code = "abc-mnop-xyz". Stripping them — which this did — produced a
+    // filter that matched nothing, every time, and the failure was invisible: an empty
+    // result is indistinguishable from "nobody turned transcription on", so every fetch
+    // fell quietly through to the Drive branch below.
     const recs = UrlFetchApp.fetch(
       'https://meet.googleapis.com/v2/conferenceRecords?pageSize=20&filter=' +
-      encodeURIComponent('space.meeting_code="' + code.replace(/-/g,'') + '"'), opts);
+      encodeURIComponent('space.meeting_code="' + code + '"'), opts);
 
     if(recs.getResponseCode() === 200) {
       const list = JSON.parse(recs.getContentText()).conferenceRecords || [];
@@ -164,14 +180,35 @@ function meetTranscript(d) {
   }
 
   // ── 2. Drive ────────────────────────────────────────────────────────────────
+  //
+  // THIS BRANCH MUST BE SCOPED TO THE MEETING, AND IT WAS NOT.
+  //
+  // It used to search all of Drive for `title contains "Transcript"` and take the most
+  // recently created one after sinceIso — nothing in that ties a document to THIS
+  // interview. Two sittings on one day meant the second one's transcript was the newest,
+  // so fetching for the first returned the wrong nominee's words. Google names a Meet
+  // transcript after the calendar event, so the event title is the link, and the caller
+  // passes it as titleHint.
+  //
+  // With no hint, this returns nothing rather than guessing. "None found — paste it in"
+  // is the ordinary answer here anyway; attaching one nominee's answers to another
+  // nominee's judging record is not a failure that announces itself, and this feature
+  // feeds the expert score.
+  const hint = (d.titleHint||'').toString().trim();
+  if(!hint) return respond(true,'No transcript found',{ok:true,text:'',source:''});
+
   try {
     const since = d.sinceIso ? new Date(d.sinceIso) : null;
+    // Drive's `title contains` takes one term, not a phrase, so the hint is filtered
+    // again in JS below rather than trusted to the query alone.
     const files = DriveApp.searchFiles(
       'title contains "Transcript" and mimeType = "application/vnd.google-apps.document"');
+    const needle = hint.toLowerCase();
     let best = null;
     while(files.hasNext()) {
       const f = files.next();
       if(since && f.getDateCreated() < since) continue;
+      if(f.getName().toLowerCase().indexOf(needle) === -1) continue;
       if(!best || f.getDateCreated() > best.getDateCreated()) best = f;
     }
     if(best) {

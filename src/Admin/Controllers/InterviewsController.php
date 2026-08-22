@@ -283,7 +283,7 @@ final class InterviewsController
 
         $guests = array_values(array_filter(array_column($d['panel'], 'email')));
         $r = GoogleMeetService::boot()->createSpace([
-            'title'       => 'Africa GATES interview — ' . $d['nominee'],
+            'title'       => GoogleMeetService::eventTitle((string) $d['nominee']),
             'description' => 'Judging interview for ' . $d['nominee']
                            . ($d['category'] !== '' ? ' (' . $d['category'] . ')' : '') . ".\n\n"
                            . "Panel console: " . rtrim(\AfricaGates\Support\SiteUrl::base(), '/')
@@ -393,8 +393,14 @@ final class InterviewsController
 
         if ($text === '' && !empty($b2['fetch'])) {
             $iv = InterviewService::byId($id);
-            $r  = GoogleMeetService::boot()->transcript(
-                (string) ($iv->meet_code ?? ''), (string) ($iv->scheduled_at ?? ''));
+            // The event title scopes the Apps Script's Drive fallback to this sitting —
+            // without it that branch would take the newest transcript in the whole Drive,
+            // which on a two-interview day is somebody else's.
+            $det = InterviewService::detail($id);
+            $r   = GoogleMeetService::boot()->transcript(
+                (string) ($iv->meet_code ?? ''),
+                (string) ($iv->scheduled_at ?? ''),
+                GoogleMeetService::eventTitle((string) ($det['nominee'] ?? '')));
             if (!$r['ok']) {
                 $_SESSION['flash_error'] = $r['message'];
                 return $this->back($res, $to);

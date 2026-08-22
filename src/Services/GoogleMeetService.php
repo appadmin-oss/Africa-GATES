@@ -75,6 +75,20 @@ final class GoogleMeetService
         );
     }
 
+    /**
+     * The calendar event's title for a sitting.
+     *
+     * One definition, because it is used twice and the two uses are a day apart: once when
+     * the event is created, and once when the Apps Script looks for the transcript Google
+     * named after that event. If they ever disagree the fetch stops finding anything, and
+     * the symptom is "no transcript" — indistinguishable from nobody having switched
+     * transcription on.
+     */
+    public static function eventTitle(string $nominee): string
+    {
+        return mb_substr('Africa GATES interview — ' . trim($nominee), 0, 200);
+    }
+
     /** The door exists. */
     public function isConfigured(): bool
     {
@@ -165,9 +179,16 @@ final class GoogleMeetService
      * operator has to press it. So "not found" is the ORDINARY answer and is reported as a
      * next step rather than an error.
      *
+     * `$titleHint` is the calendar event's title, and it is what scopes the Apps Script's
+     * Drive fallback to THIS sitting. Google names a Meet transcript after the event, and
+     * without a hint that branch used to take the newest "Transcript" document in the whole
+     * Drive — so two interviews on one day meant the second one's transcript answered a
+     * fetch for the first. The script now returns nothing rather than guessing, which means
+     * omitting this argument silently disables the fallback: pass it.
+     *
      * @return array{ok:bool, text:string, source:string, found:bool, message:string}
      */
-    public function transcript(string $meetCode, string $since = ''): array
+    public function transcript(string $meetCode, string $since = '', string $titleHint = ''): array
     {
         $no = fn (string $m, bool $found = false): array =>
             ['ok' => false, 'text' => '', 'source' => '', 'found' => $found, 'message' => $m];
@@ -181,8 +202,9 @@ final class GoogleMeetService
 
         $ts  = $since !== '' ? strtotime($since) : 0;
         $res = $this->call('meet.transcript', [
-            'meetCode' => $meetCode,
-            'sinceIso' => $ts ? gmdate('Y-m-d\TH:i:s\Z', $ts - 3600) : '',
+            'meetCode'  => $meetCode,
+            'sinceIso'  => $ts ? gmdate('Y-m-d\TH:i:s\Z', $ts - 3600) : '',
+            'titleHint' => mb_substr(trim($titleHint), 0, 200),
         ], self::TIMEOUT_FETCH);
 
         if (!($res['ok'] ?? false)) {
