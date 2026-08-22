@@ -402,33 +402,115 @@ final class AttendeeBot
      *
      * @return list<array{index:int, speaker:string, text:string, at:string}>
      */
-    public static function transcript(string $botId, int $after = 0): array
+    /**
+     * Utterances for a sitting, newest work first, as stable-identity rows.
+     *
+     * ── WHY THIS NO LONGER COUNTS POSITIONS ──────────────────────────────────
+     *
+     * This used to take an ORDINAL cursor: "give me everything after the Nth row", and
+     * the line id handed to {@see InterviewLive::append()} was that same ordinal. Both
+     * were wrong, and not in the hypothetical way the handoff filed them under ("if
+     * /transcript ever paginates or reorders"). Read against the provider source at
+     * 77e990ed, `TranscriptView` does not paginate — it returns every utterance in one
+     * list — but it builds that list as:
+     *
+     *     Utterance.objects.filter(recording=…, transcription__isnull=False)
+     *                      .order_by("timestamp_ms")
+     *
+     * ordered by WHEN THE WORDS WERE SPOKEN and filtered to those already transcribed.
+     * Transcription is asynchronous. An utterance early in the call whose transcription
+     * lands late does not append to the end of that list — it INSERTS AT ITS OWN
+     * TIMESTAMP, in the middle, and shifts every ordinal after it by one.
+     *
+     * That broke twice over. The cursor skipped exactly one line, permanently. Worse, the
+     * id `att-7` now named a different utterance than the `att-7` already in the buffer,
+     * and `append()` dedupes on that id: it compared two unrelated sentences, found
+     * neither extended the other, and kept both — leaving the stale line misattributed
+     * beside the new one. A transcript that looks complete and quietly is not is the
+     * failure this whole subsystem is written to avoid.
+     *
+     * So identity comes from the utterance itself. `timestamp_ms` is its offset into the
+     * meeting and does not move; the speaker's uuid separates two people who begin on the
+     * same millisecond. Re-fetching, re-ordering and re-transcribing all leave it alone,
+     * which is what makes `append()`'s revise-in-place correct rather than lucky.
+     *
+     * The watermark is now that offset, and it is read back with {@see OVERLAP_MS} of
+     * slack precisely because a late insert lands BEHIND it. The slack costs nothing on
+     * the wire — the provider exposes no server-side offset filter, so the whole list
+     * arrives either way — and the stable id collapses whatever the overlap repeats.
+     * Sending the entire transcript every tick would do the same job, but `append()`
+     * trims to its last 4,000 lines, so a long sitting would re-add trimmed lines out of
+     * order.
+     *
+     * A cursor left over from the ordinal scheme is a small integer, reads as a few
+     * milliseconds, and simply makes the next fetch return everything once. No migration.
+     *
+     * @param int $sinceMs Highest `timestamp_ms` already ingested. 0 fetches everything.
+     * @return list<array{uid:string, index:int, speaker:string, text:string, ms:int, at:string}>
+     */
+    public static function transcript(string $botId, int $sinceMs = 0): array
     {
         if (!self::configured() || trim($botId) === '') return [];
 
         $res = self::http('GET', self::base() . '/bots/' . rawurlencode(trim($botId)) . '/transcript');
         if (isset($res['__error'])) return [];
 
+        return self::parseTranscript($res, $sinceMs);
+    }
+
+    /**
+     * How far behind the watermark to re-read, so an utterance transcribed out of order
+     * is still seen. Five minutes is far past any transcription lag and still a small
+     * slice of a sitting; the stable id means the cost of overshooting is a no-op.
+     */
+    public const OVERLAP_MS = 300000;
+
+    /**
+     * The parsing half, split out so a test can drive it without a network — the same
+     * reason {@see buildCreateBody()} exists. The bug above was invisible for exactly as
+     * long as this logic could only be exercised against a live instance.
+     *
+     * @param mixed $payload Decoded response: a bare list, or a paginated envelope.
+     * @return list<array{uid:string, index:int, speaker:string, text:string, ms:int, at:string}>
+     */
+    public static function parseTranscript(mixed $payload, int $sinceMs = 0): array
+    {
         // Attendee has returned both a bare list and a paginated envelope depending on
         // version. Accept either rather than tying the integration to one release.
-        $rows = $res;
-        if (isset($res['results']) && is_array($res['results'])) $rows = $res['results'];
+        $rows = $payload;
+        if (is_array($payload) && isset($payload['results']) && is_array($payload['results'])) {
+            $rows = $payload['results'];
+        }
         if (!is_array($rows)) return [];
+
+        $floor = $sinceMs > 0 ? max(0, $sinceMs - self::OVERLAP_MS) : 0;
 
         $out = [];
         $i   = 0;
         foreach ($rows as $row) {
             $i++;
             if (!is_array($row)) continue;
-            if ($i <= $after) continue;
 
             $text = trim((string) ($row['transcription']['transcript'] ?? $row['text'] ?? ''));
             if ($text === '') continue;
 
+            $ms = (int) ($row['timestamp_ms'] ?? 0);
+
+            // An utterance with no offset cannot be placed, so it is never filtered out —
+            // the id still de-duplicates it. Only rows that DO carry one are skipped, and
+            // only when they sit behind the overlap window.
+            if ($ms > 0 && $ms < $floor) continue;
+
+            $speaker = trim((string) ($row['speaker_name'] ?? $row['speaker'] ?? ''));
+            $who     = trim((string) ($row['speaker_uuid'] ?? $row['speaker_user_uuid'] ?? ''));
+            if ($who === '') $who = $speaker;
+
             $out[] = [
+                'uid'     => self::utteranceId($ms, $who, $i),
                 'index'   => $i,
-                'speaker' => trim((string) ($row['speaker_name'] ?? $row['speaker'] ?? '')),
+                'speaker' => $speaker,
                 'text'    => $text,
+                'ms'      => $ms,
                 'at'      => trim((string) ($row['timestamp_ms'] ?? $row['created_at'] ?? '')),
             ];
         }
@@ -436,13 +518,22 @@ final class AttendeeBot
     }
 
     /**
-     * Whether the provider considers the transcript finished.
+     * A line id that survives the list being rebuilt underneath it.
      *
-     * An older self-hosted instance may not report `transcription_state` at all, so a bot
-     * that has ended counts as ready and an empty fetch means "nothing was said" rather
-     * than "not yet". Waiting forever for a field that will never arrive is the worse
-     * failure: it leaves a held interview permanently unpublished.
+     * Capped well inside the 40 characters `InterviewLive::append()` keeps, because an id
+     * truncated to collide with another is the same bug wearing a different hat. The
+     * ordinal form is the last resort for a payload with no offsets at all — no worse
+     * than what this replaced, and reached only when the provider stops sending
+     * `timestamp_ms`.
      */
+    public static function utteranceId(int $ms, string $speakerKey, int $ordinal): string
+    {
+        if ($ms <= 0) return 'att-i' . $ordinal;
+
+        $who = $speakerKey === '' ? '' : '-' . substr(sha1($speakerKey), 0, 6);
+        return 'att-' . $ms . $who;
+    }
+
     public static function transcriptReady(string $botId): bool
     {
         $b = self::fetchBot($botId);

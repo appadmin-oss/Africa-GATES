@@ -392,6 +392,12 @@ final class InterviewBot
         $iv = InterviewService::byId($id);
         if (!$iv) return 0;
 
+        // `bot_cursor` is the highest `timestamp_ms` already ingested — an offset into
+        // the meeting, NOT a position in the response array. See the note on
+        // {@see AttendeeBot::transcript()} for why counting positions corrupted the
+        // transcript rather than merely skipping lines. A cursor written by the old
+        // ordinal scheme is a small integer, reads as a few milliseconds, and costs one
+        // over-wide fetch before it corrects itself.
         $cursor = (int) ($iv->bot_cursor ?? 0);
         $rows   = AttendeeBot::transcript($botId, $cursor);
         if ($rows === []) return 0;
@@ -399,11 +405,13 @@ final class InterviewBot
         $lines = [];
         $last  = $cursor;
         foreach ($rows as $r) {
-            $last    = max($last, (int) $r['index']);
+            $last    = max($last, (int) $r['ms']);
             $lines[] = [
-                // The provider's own ordinal makes the id stable, so the same utterance
-                // arriving by webhook and by poll collapses instead of doubling.
-                'id'      => 'att-' . $r['index'],
+                // Identity from the utterance itself, so the same words arriving by
+                // webhook and by poll collapse instead of doubling — and so a late
+                // transcription inserted earlier in the list cannot make this id point
+                // at somebody else's sentence.
+                'id'      => $r['uid'],
                 'speaker' => $r['speaker'],
                 'text'    => $r['text'],
             ];
