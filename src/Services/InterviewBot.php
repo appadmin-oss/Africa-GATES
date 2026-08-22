@@ -41,11 +41,39 @@ use Illuminate\Support\Carbon;
  * WHAT 'auto' MODE HONESTLY IS ON THIS HOST
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Worth stating plainly, because the word suggests something this cannot do.
+ * Worth stating plainly, because the word suggests something this does not do.
  *
  * A conversational voice agent — the kind that interrupts and back-channels — holds a
- * duplex audio stream and answers in a few hundred milliseconds. That needs the process
- * to live next to the media, which is precisely what this platform does not have.
+ * duplex audio stream and answers in a few hundred milliseconds. This host cannot be in
+ * that audio path: it is PHP-FPM on cPanel and it will never hold a WebRTC session.
+ *
+ * An earlier version of this docblock concluded from that that real-time interviewing is
+ * therefore impossible here. THAT WAS WRONG, and it was wrong in the direction that
+ * closes off a design rather than the one that oversells it — so it is corrected here
+ * rather than quietly dropped.
+ *
+ * Attendee's `voice_agent_settings.url` takes a URL to a page running a voice agent,
+ * loads it IN AN ATTENDEE-MANAGED CONTAINER, streams that page's audio into the meeting
+ * and feeds meeting audio back in as its microphone. Its own documentation is explicit —
+ * "No backend worker required" — and `url_is_allowed_for_voice_agent()` in
+ * `bots/serializers.py` confirms the API accepts it. So a static page running a realtime
+ * model in the browser would give genuine sub-second conversation, and this host would
+ * never carry a single audio packet. The constraint is real; the conclusion drawn from
+ * it was not.
+ *
+ * WHY IT IS STILL NOT SWITCHED ON, WHICH IS A DIFFERENT ARGUMENT:
+ *
+ * That path bypasses {@see InterviewGuard} completely. The guard sits in the PHP path
+ * between {@see AiGateway} and TTS; an agent speaking from its own browser page never
+ * passes through it. Taking it would trade every grounding, verdict, promise and
+ * protected-characteristic check for latency, in the feature that decides 55% of a
+ * nominee's score. That is a blocker, not a footnote. If real-time is ever wanted, the
+ * design question is how the guard survives it — most likely by reimplementing the
+ * checks inside the agent page and having it POST every utterance back to
+ * `gates_interview_guard_log`, so refusals stay auditable in one place.
+ *
+ * The turn-based path below stays regardless: it is the right default for a final panel
+ * even on a host that could do better.
  *
  * What 'auto' does here is turn-based. The nominee finishes a thought; the transcript
  * reaches us (webhook in a second or two, or the next cron tick otherwise); a model

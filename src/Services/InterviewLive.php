@@ -25,10 +25,20 @@ use Illuminate\Support\Carbon;
  * one question worth asking next?" — and that is the difference between a scripted
  * interview and an interview.
  *
- * STILL OPEN — the AI has no voice in the room. Occupying a participant seat and putting
- * audio into a Meet call needs Google's Meet Media API and a persistent media process; an
- * extension has neither, and this host has neither. The next question appears on the
- * interviewer's screen and a human reads it aloud. Ears and brain, borrowed mouth.
+ * CLOSED, since {@see InterviewBot} — but the reasoning is worth keeping, because the
+ * half of it that is still true is what shapes that service.
+ *
+ * This used to read "STILL OPEN — the AI has no voice in the room": occupying a
+ * participant seat and putting audio into a Meet call needs a persistent media process,
+ * and an extension has neither, nor does this host. The second half remains true and
+ * always will — this is PHP-FPM on cPanel and it will never hold a media session. What
+ * changed is that the media process no longer has to live here. Attendee occupies the
+ * seat on its own host and this platform talks to it over HTTP.
+ *
+ * So this path — captions scraped by the extension, next question on the interviewer's
+ * screen, a human reading it aloud — is no longer the only option. It is still the right
+ * one for a sitting at `voice_mode='off'`, which is the recommended posture for a first
+ * season, and it is the fallback whenever no bot is in the room.
  *
  * ══════════════════════════════════════════════════════════════════════════════
  * THE TOKEN IS THE WHOLE CREDENTIAL, AND IT IS DELIBERATELY SMALL

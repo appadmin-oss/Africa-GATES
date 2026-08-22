@@ -153,9 +153,42 @@ That is a few seconds per turn at best. It is a competent structured interviewer
 not a conversationalist — it will not interrupt, back-channel, or handle somebody talking
 over it. A panellist should stay on the call.
 
-If you need genuine real-time conversation, that needs a duplex audio agent sitting next to
-the media (OpenAI's Realtime API against Attendee's WebSocket audio stream), which is a
-different piece of work and does not run on this side of the wire at all.
+#### Real-time *is* possible here — a correction
+
+An earlier version of this section said genuine real-time conversation "does not run on
+this side of the wire at all". **That was wrong**, and it is corrected rather than quietly
+removed, because it ruled out a design on a false premise.
+
+Attendee offers two real-time paths, both present in its source at `77e990ed`:
+
+| Path | Needs a backend worker? | Verdict here |
+|---|---|---|
+| `websocket_settings.audio` (`docs/realtime_audio.md`) — bidirectional PCM at 8/16/24 kHz | **Yes** | Wrong for this deployment. This is the one the old text was describing. |
+| `voice_agent_settings.url` (`docs/voice_agents.md`) — you supply a URL to a page running a voice agent | **No** | Available. Attendee loads the page *in an Attendee-managed container*, streams its audio into the meeting, and feeds meeting audio back as its microphone. Its docs say it plainly: *"No backend worker required."* |
+
+So sub-second conversational interviewing is achievable without this host ever carrying an
+audio packet. The cPanel constraint is real; the conclusion drawn from it was not.
+
+**It is still not switched on, for a different reason.** That path bypasses
+`InterviewGuard` entirely — the guard sits in the PHP path between `AiGateway` and TTS, and
+an agent speaking from its own browser page never passes through it. Every grounding,
+verdict, promise and protected-characteristic check would be traded for latency, in the
+feature that decides 55% of a nominee's score. **Treat "we lose the guard" as a blocker,
+not a note.** If real-time is wanted, the design question is how the guard survives — most
+likely by reimplementing the checks in the agent page and having it POST every utterance
+back to `gates_interview_guard_log`, so refusals stay auditable in one place.
+
+Two things to know before anyone tries it:
+
+- **The agent page must be public HTTPS**, must ask for the microphone immediately without
+  a click, and is rendered at 1280x720. Pass state via query parameters.
+- **`VOICE_AGENT_URL_PREFIX_ALLOWLIST` defaults to allowing everything.**
+  `url_is_allowed_for_voice_agent()` returns `true` when the variable is unset, so a
+  self-hosted instance will load *any* URL a valid API key names into an
+  Attendee-managed container. Set it before using this path.
+
+The turn-based path stays regardless. It is the right default for a final panel even on a
+host that could do better.
 
 ---
 

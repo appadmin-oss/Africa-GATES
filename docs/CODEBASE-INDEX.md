@@ -540,6 +540,26 @@ superadmin/admin/**moderator**, not superadmin-only like `/admin/judges`, on the
 reasoning as the rest of `/admin/interviews`: appointing a judge is a governance act, while
 running an interview is programme work a moderator does.
 
+### Real-time conversation is possible here — the docs used to say otherwise
+
+`InterviewBot`'s docblock, `docs/INTERVIEW-BOT.md` and several commit messages stated that
+duplex conversational interviewing is impossible on this host. **It is not**, and the claim
+is corrected in the first two (the third is commit history and cannot be rewritten — this
+entry stands in for it).
+
+Attendee's **`voice_agent_settings.url`** loads a page you supply *inside an
+Attendee-managed container*, streams its audio into the meeting and feeds meeting audio
+back as its microphone — *"No backend worker required"*, per `docs/voice_agents.md` at
+`77e990ed`, and `url_is_allowed_for_voice_agent()` in `bots/serializers.py` confirms the
+API accepts it. The cPanel host would never carry an audio packet. (The *other* real-time
+path, `websocket_settings.audio`, does need a backend worker — that is the one the old
+text was really describing.)
+
+**It stays off for a different reason**: that path bypasses `InterviewGuard` entirely, and
+trading every grounding and protected-characteristic check for latency in the feature that
+decides 55% of a nominee's score is a blocker, not a footnote. Note also that
+`VOICE_AGENT_URL_PREFIX_ALLOWLIST` **defaults to allowing every URL** when unset.
+
 ### Two traps that are not guessable from Attendee's docs
 
 - **`LAUNCH_BOT_METHOD` must be left unset** on a single-VM deployment. Unset means bots run
