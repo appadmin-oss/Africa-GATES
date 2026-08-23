@@ -27,6 +27,8 @@
 
 <div class="ad-shell">
 
+  {% include 'admin/partials/nav-icons.twig' %}
+
   {# Sidebar #}
   <aside class="ad-side" id="adSide">
     <div class="ad-side__brand">
@@ -34,202 +36,35 @@
       <span class="label">Africa GATES<small>Admin Console</small></span>
     </div>
 
-    <nav class="ad-side__group" aria-label="Overview">
-      <p class="ad-side__grouptitle">Overview <span class="ad-info" data-tip="Dashboard and key platform metrics." tabindex="0" role="img" aria-label="Dashboard and key platform metrics.">i</span></p>
-      <a class="ad-side__link {% if admin_page == 'dashboard' %}is-active{% endif %}" href="/admin/dashboard">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-        Dashboard
-      </a>
-      <a class="ad-side__link {% if admin_page == 'assistant' %}is-active{% endif %}" href="/admin/assistant">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.1 5.4L19.5 10l-5.4 2.1L12 17l-2.1-4.9L4.5 10l5.4-1.6z"/><path d="M18.6 14.6l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/></svg>
-        AI Assistant
-      </a>
-    </nav>
+    {# ── THE NAVIGATION ─────────────────────────────────────────────────────
+       Was thirty-six hand-written links, every group expanded at once, each repeating
+       its own active test and its own inline SVG. The tree now lives in
+       AdminNav::sections() and this loops it; the icons live in one sprite.
 
-    {% if 'moderation' in admin_sections %}
-    <nav class="ad-side__group" aria-label="Moderation">
-      <p class="ad-side__grouptitle">Moderation <span class="ad-info" data-tip="Approve profiles, nominations and community content before it goes live." tabindex="0" role="img" aria-label="Approve profiles, nominations and community content before it goes live.">i</span></p>
-      <a class="ad-side__link {% if admin_page == 'profiles' %}is-active{% endif %}" href="/admin/profiles">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        Profiles
-      </a>
-      <a class="ad-side__link {% if admin_page == 'nominations' %}is-active{% endif %}" href="/admin/nominations">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 15.09 8.26 22 9.27l-5 4.87 1.18 6.88L12 17.77 5.82 21.02 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-        Nominations
-      </a>
-      <a class="ad-side__link {% if admin_page == 'nominees' %}is-active{% endif %}" href="/admin/nominees">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-        Nominees
-      </a>
-      <a class="ad-side__link {% if admin_page == 'moderation' %}is-active{% endif %}" href="/admin/moderation">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V5l-8-3z"/><path d="m9 11 2 2 4-4"/></svg>
-        Moderation Queue
-      </a>
-      {# Judging interviews. Here rather than under the superadmin-only Judges Panel:
-         appointing a judge is governance, running an interview is programme work. It is
-         also the only route by which a nominee's OWN words ever reach a judge — the
-         dossier is otherwise entirely what a nominator wrote about them. #}
-      <a class="ad-side__link {% if admin_page == 'interviews' %}is-active{% endif %}" href="/admin/interviews">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2"/></svg>
-        Interviews
-      </a>
-      {# The nominee's own case. The one route by which a judge sees evidence the NOMINEE
-         chose — everything else in a dossier was written about them by somebody else. #}
-      <a class="ad-side__link {% if admin_page == 'questionnaires' %}is-active{% endif %}" href="/admin/questionnaires">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6"/><path d="M9 11h2"/></svg>
-        Questionnaires
-      </a>
-      {# Nominee campaigns. The copy used to be a Twig file sent from /__setup/broadcast,
-         so changing a comma needed a deploy and the operator has no SSH. #}
-      <a class="ad-side__link {% if admin_page == 'campaigns' %}is-active{% endif %}" href="/admin/campaigns">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="m4 6 8 6 8-6"/></svg>
-        Campaigns
-      </a>
-      {# Tickets were stored here and answered in EMAIL — so a reply from an inbox
-         never reached the member's own thread and nothing was ever closed. #}
-      <a class="ad-side__link {% if admin_page == 'support' %}is-active{% endif %}" href="/admin/support">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.6-.7L3 21l1.9-5A8.2 8.2 0 0 1 4 11.5 8.4 8.4 0 0 1 12.5 3 8.4 8.4 0 0 1 21 11.5Z"/></svg>
-        Support Queue
-      </a>
-    </nav>
-
-    {% endif %}
-    {% if 'programmes' in admin_sections %}
-    <nav class="ad-side__group" aria-label="Programmes">
-      <p class="ad-side__grouptitle">Programmes <span class="ad-info" data-tip="Award programmes, cycles, categories and the judging panel." tabindex="0" role="img" aria-label="Award programmes, cycles, categories and the judging panel.">i</span></p>
-      <a class="ad-side__link {% if admin_page == 'programmes' %}is-active{% endif %}" href="/admin/programmes">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        Awards & Cycles
-      </a>
-      <a class="ad-side__link {% if admin_page == 'awards_page' %}is-active{% endif %}" href="/admin/awards-page">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v6H4z"/><path d="M4 14h10v6H4z"/><path d="M17 14h3v6h-3z"/></svg>
-        Awards Page
-      </a>
-    </nav>
-    {% endif %}
-    {% if 'content' in admin_sections %}
-    <nav class="ad-side__group" aria-label="Content">
-      <p class="ad-side__grouptitle">Content <span class="ad-info" data-tip="Public-facing content — events, blog, legacy, opportunities, partners, media, shop &amp; forms." tabindex="0" role="img" aria-label="Public-facing content — events, blog, legacy, opportunities, partners, media, shop and forms.">i</span></p>
-      <a class="ad-side__link {% if admin_page == 'events' %}is-active{% endif %}" href="/admin/events">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
-        Events
-      </a>
-      <a class="ad-side__link {% if admin_page == 'posts' %}is-active{% endif %}" href="/admin/posts">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        Blog Posts
-      </a>
-      <a class="ad-side__link {% if admin_page == 'legacy' %}is-active{% endif %}" href="/admin/legacy">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-        Legacy Events
-      </a>
-      <a class="ad-side__link {% if admin_page == 'opportunities' %}is-active{% endif %}" href="/admin/opportunities">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 12l-4-4-4 4"/><path d="M12 16V8"/></svg>
-        Opportunities
-      </a>
-      <a class="ad-side__link {% if admin_page == 'partners' %}is-active{% endif %}" href="/admin/partners">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Partner Enquiries
-      </a>
-      <a class="ad-side__link {% if admin_page == 'media' %}is-active{% endif %}" href="/admin/media">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-        Media
-      </a>
-      <a class="ad-side__link {% if admin_page == 'products' %}is-active{% endif %}" href="/admin/products">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-        Shop Products
-      </a>
-      {# Running the shop is a different job from editing the catalogue: an order gets packed
-         and posted on a completely different rhythm from the day a product page is written. #}
-      <a class="ad-side__link {% if admin_page == 'shop_orders' %}is-active{% endif %}" href="/admin/shop/orders">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 3h13v13H1zM14 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="1.5"/><circle cx="17.5" cy="18.5" r="1.5"/></svg>
-        Shop Orders
-      </a>
-      <a class="ad-side__link {% if admin_page == 'forms' %}is-active{% endif %}" href="/admin/forms">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6M9 9h1"/></svg>
-        Forms
-      </a>
-      <a class="ad-side__link {% if admin_page == 'legal' %}is-active{% endif %}" href="/admin/legal">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v5c0 5 3.4 9.4 8 10 4.6-.6 8-5 8-10V6z"/><path d="M9.5 12l2 2 3.5-4"/></svg>
-        Legal &amp; policies
-      </a>
-    </nav>
-
-    {% endif %}
-    {% if 'data' in admin_sections %}
-    <nav class="ad-side__group" aria-label="Data">
-      <p class="ad-side__grouptitle">Data <span class="ad-info" data-tip="Every dataset collected across the platform — browse, view details &amp; export." tabindex="0" role="img" aria-label="Every dataset collected across the platform — browse, view details and export.">i</span></p>
-      <a class="ad-side__link {% if admin_page == 'data' %}is-active{% endif %}" href="/admin/data">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></svg>
-        All data
-      </a>
-      <a class="ad-side__link {% if admin_page == 'analytics' %}is-active{% endif %}" href="/admin/analytics">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-        Analytics
-      </a>
-      <a class="ad-side__link {% if admin_page == 'registrations' %}is-active{% endif %}" href="/admin/registrations">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        Event Registrations
-      </a>
-    </nav>
-    {% endif %}
-    {% if 'finance' in admin_sections %}
-    <nav class="ad-side__group" aria-label="Finance">
-      <p class="ad-side__grouptitle">Finance <span class="ad-info" data-tip="Every naira the platform has taken — donations, paid votes, shop orders and event tickets, totalled in one place." tabindex="0" role="img" aria-label="Every naira the platform has taken — donations, paid votes, shop orders and event tickets, totalled in one place.">i</span></p>
-      <a class="ad-side__link {% if admin_page == 'finance' %}is-active{% endif %}" href="/admin/finance">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        Revenue
-      </a>
-      <a class="ad-side__link {% if admin_page == 'partner-orgs' %}is-active{% endif %}" href="/admin/partner-orgs">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg>
-        Partner Orgs
-      </a>
-      <a class="ad-side__link {% if admin_page == 'refunds' %}is-active{% endif %}" href="/admin/refunds">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 4v5h5"/></svg>
-        Refunds
-      </a>
-      <a class="ad-side__link {% if admin_page == 'vote-delivery' %}is-active{% endif %}" href="/admin/vote-delivery">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        Vote Delivery
-      </a>
-      <a class="ad-side__link {% if admin_page == 'payments' %}is-active{% endif %}" href="/admin/payments">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        Payment Triage
-      </a>
-      <a class="ad-side__link {% if admin_page == 'payments-ledger' %}is-active{% endif %}" href="/admin/payments/ledger">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7 2 12l3 5 3-5-3-5z"/><path d="m19 7-3 5 3 5 3-5-3-5z"/><path d="M4 5h6l2-2 2 2h6"/></svg>
-        Gateway Ledger
-      </a>
-      {# Disputes get their own entry rather than living inside triage. A chargeback is
-         the one thing here with an external clock on it — 16 hours, after which
-         Paystack concedes it for us and refunds from our balance — so it must be
-         reachable without first knowing which screen to look behind. #}
-      <a class="ad-side__link {% if admin_page == 'payments-disputes' %}is-active{% endif %}" href="/admin/payments/disputes">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        Disputes
-      </a>
-    </nav>
-    {% endif %}
-    {% if 'configuration' in admin_sections %}
-    <nav class="ad-side__group" aria-label="Configuration">
-      <p class="ad-side__grouptitle">Configuration <span class="ad-info" data-tip="Admin accounts, site settings and integrations — superadmin only." tabindex="0" role="img" aria-label="Admin accounts, site settings and integrations — superadmin only.">i</span></p>
-      <a class="ad-side__link {% if admin_page == 'admins' %}is-active{% endif %}" href="/admin/admins">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Admins
-      </a>
-      <a class="ad-side__link {% if admin_page == 'settings' %}is-active{% endif %}" href="/admin/settings">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        Settings
-      </a>
-      <a class="ad-side__link {% if admin_page == 'webhooks' %}is-active{% endif %}" href="/admin/webhooks">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-        Webhooks
-      </a>
-      <a class="ad-side__link {% if admin_page == 'judges' %}is-active{% endif %}" href="/admin/judges">
-        <svg class="ico" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21v-2a4 4 0 0 0-3-3.87"/><path d="M4 21v-2a4 4 0 0 1 3-3.87"/></svg>
-        Judges Panel
-      </a>
-    </nav>
-    {% endif %}
+       <details>/<summary>, not a JS accordion. It collapses, it is keyboard operable
+       and it is announced correctly by a screen reader with no script at all — which
+       matters on the page an operator opens to find out why the site is broken. The
+       section holding the current page is `open`, so arriving anywhere shows you where
+       you are without a click. #}
+    {% for sec in admin_nav %}
+      {% set here = sec.items|filter(i => i.page == admin_page)|length > 0 %}
+      <details class="ad-side__sec" {% if here %}open{% endif %}>
+        <summary class="ad-side__sectitle">
+          <span>{{ sec.label }}</span>
+          <span class="ad-info" data-tip="{{ sec.tip }}" tabindex="0" role="img" aria-label="{{ sec.tip }}">i</span>
+          <svg class="ad-side__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <nav aria-label="{{ sec.label }}">
+          {% for item in sec.items %}
+            <a class="ad-side__link {% if admin_page == item.page %}is-active{% endif %}"
+               href="{{ item.href }}"{% if admin_page == item.page %} aria-current="page"{% endif %}>
+              <svg class="ico" aria-hidden="true" focusable="false"><use href="#ic-{{ item.page }}"/></svg>
+              {{ item.label }}
+            </a>
+          {% endfor %}
+        </nav>
+      </details>
+    {% endfor %}
 
     <div class="ad-side__foot">
       <span class="avatar">{{ admin_name|default('A')|first|upper }}</span>
@@ -284,6 +119,29 @@
       </h1>
       <div class="ad-actions">{% block topbar_actions %}{% endblock %}</div>
     </div>
+
+    {# ── THE SECOND LEVEL ───────────────────────────────────────────────────
+       This page's siblings, as a strip under the title. The sidebar answers "where
+       else can I go"; this answers "what else is part of THIS job", which is the
+       question somebody actually has while doing it — and it survives the sidebar
+       being collapsed on a phone.
+
+       Rendered from the same AdminNav tree as the sidebar, so a page cannot appear in
+       one and not the other. Omitted for a lone page rather than drawn as a bar with a
+       single tab in it. #}
+    {% set here_sec = admin_nav|filter(s => s.items|filter(i => i.page == admin_page)|length > 0)|first %}
+    {% set siblings = here_sec ? here_sec.items : [] %}
+    {% if siblings|length > 1 %}
+      <nav class="ad-subnav" aria-label="{{ here_sec.label }}">
+        {% for item in siblings %}
+          <a class="ad-subnav__link {% if admin_page == item.page %}is-active{% endif %}"
+             href="{{ item.href }}"{% if admin_page == item.page %} aria-current="page"{% endif %}>
+            <svg class="ico" aria-hidden="true" focusable="false"><use href="#ic-{{ item.page }}"/></svg>
+            {{ item.label }}
+          </a>
+        {% endfor %}
+      </nav>
+    {% endif %}
 
     {% if migrations_pending is defined and migrations_pending|length > 0 %}
     <div class="ad-flash ad-flash--err" role="alert" style="align-items:flex-start">

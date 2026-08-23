@@ -80,6 +80,67 @@ body[data-page-admin] {
 .ad-side__brand .label small { display: block; font-weight: 500; color: rgba(255, 255, 255, 0.5); font-size: 11px; letter-spacing: 0.05em; margin-top: 2px; }
 
 .ad-side__group { padding: 16px 12px; }
+
+/* ── COLLAPSIBLE SECTIONS ───────────────────────────────────────────────────
+   The sidebar used to show every group expanded — thirty-six links, of which the two
+   or three anybody wanted were somewhere in the middle. These are <details>, so the
+   collapse is native: keyboard operable, correctly announced, and working with no
+   JavaScript at all, which matters on the console someone opens to find out why the
+   site is down. AdminNav marks the section holding the current page `open`. */
+.ad-side__sec { padding: 4px 12px; }
+.ad-side__sec + .ad-side__sec { border-top: 1px solid rgba(255,255,255,.06); }
+.ad-side__sectitle {
+  display: flex; align-items: center; gap: 5px;
+  list-style: none; cursor: pointer;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  /* Same .55 as the old group headings, for the same contrast reason recorded below. */
+  color: rgba(255, 255, 255, 0.55);
+  padding: 11px 10px;
+  border-radius: 6px;
+}
+/* Safari/Chrome draw their own triangle; we supply a chevron that can be animated. */
+.ad-side__sectitle::-webkit-details-marker { display: none; }
+.ad-side__sectitle::marker { content: ''; }
+.ad-side__sectitle:hover { color: rgba(255,255,255,.85); background: rgba(255,255,255,.04); }
+.ad-side__sectitle:focus-visible { outline: 2px solid #7FC87C; outline-offset: 2px; }
+.ad-side__chev { margin-left: auto; opacity: .5; transition: transform 140ms ease; flex: none; }
+.ad-side__sec[open] > .ad-side__sectitle > .ad-side__chev { transform: rotate(180deg); }
+.ad-side__sec > nav { padding: 2px 0 10px; }
+
+/* A collapsed section still has to show that something inside it is where you are. */
+.ad-side__sec:not([open]) > .ad-side__sectitle:has(+ nav .is-active) { color: #7FC87C; }
+
+@media (prefers-reduced-motion: reduce) { .ad-side__chev { transition: none; } }
+
+/* ── THE SECOND LEVEL ───────────────────────────────────────────────────────
+   This page's siblings, under the title. The sidebar answers "where else can I go";
+   this answers "what else is part of this job" — and it survives the sidebar being
+   collapsed off-canvas on a phone. Scrolls rather than wraps, so the strip stays one
+   line and the page below does not jump as sections change height. */
+.ad-subnav {
+  display: flex; gap: 4px; align-items: center;
+  margin: 0 0 16px; padding-bottom: 2px;
+  overflow-x: auto; scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.ad-subnav__link {
+  display: inline-flex; align-items: center; gap: 7px; flex: none;
+  padding: 7px 13px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 600; text-decoration: none; white-space: nowrap;
+  color: var(--ad-text-mute, #5a6d6f);
+  border: 1px solid var(--ad-line, #e5eae8);
+  background: var(--ad-surface, #fff);
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.ad-subnav__link .ico { width: 14px; height: 14px; flex: none; }
+.ad-subnav__link:hover { color: var(--ad-text, #10292c); border-color: var(--ad-text-mute, #5a6d6f); }
+.ad-subnav__link.is-active {
+  background: var(--ad-accent, #237b22); border-color: transparent; color: #fff;
+}
+.ad-subnav__link:focus-visible { outline: 2px solid var(--ad-accent, #237b22); outline-offset: 2px; }
+
 .ad-side__group h6, .ad-side__grouptitle {
   font-family: 'Space Mono', monospace;
   font-size: 10px; font-weight: 700;

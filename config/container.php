@@ -162,6 +162,13 @@ return [
             'admin_sections'    => isset($_SESSION['admin_role'])
                 ? \AfricaGates\Admin\Support\Permissions::allowedSections((string)$_SESSION['admin_role'])
                 : [],
+            // The nav tree, filtered to this role. One definition — see AdminNav for why
+            // thirty-six hand-written links in the layout was the thing to remove.
+            'admin_nav'         => \AfricaGates\Admin\Support\AdminNav::visible(
+                isset($_SESSION['admin_role'])
+                    ? \AfricaGates\Admin\Support\Permissions::allowedSections((string)$_SESSION['admin_role'])
+                    : []
+            ),
             'admin_role_label'  => isset($_SESSION['admin_role'])
                 ? \AfricaGates\Admin\Support\Permissions::label((string)$_SESSION['admin_role'])
                 : null,
@@ -447,6 +454,10 @@ return [
     // Nominee campaigns. The mailer for test sends and the real thing; AuditService
     // because "who pressed send on the mail to eight hundred people" is a question that
     // gets asked afterwards.
+    \AfricaGates\Admin\Controllers\PayoutsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\PayoutsController(
+        $c->get(Twig::class),
+        $c->get(\AfricaGates\Admin\Services\AuditService::class)
+    ),
     \AfricaGates\Admin\Controllers\CampaignsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\CampaignsController(
         $c->get(Twig::class),
         $c->get(\AfricaGates\Admin\Services\AuditService::class),
