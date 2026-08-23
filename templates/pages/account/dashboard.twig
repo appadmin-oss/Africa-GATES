@@ -57,7 +57,10 @@
 <script nonce="{{ csp_nonce }}">
   (function () {
     var ok = {{ me_tabs|json_encode|raw }};
-    var h  = (location.hash || '').replace('#','');
+    // The hash is the SECTION ID (`#me-referral`), because that is what makes `:target`
+    // work with no JavaScript at all — see the note on `.me-sec:target` below. The bare
+    // form is still accepted so links shared before this change keep working.
+    var h  = (location.hash || '').replace('#','').replace(/^me-/,'');
     document.documentElement.setAttribute('data-me', ok.indexOf(h) >= 0 ? h : 'overview');
   })();
 </script>
@@ -229,6 +232,20 @@
   .me-sec{ scroll-margin-top:90px; }
   .me-sec + .me-sec{ margin-top:26px; }
   [data-me] .me-sec{ display:none; }
+  /* ── THE HASH ALONE HAS TO WORK ─────────────────────────────────────────
+     Every rail link is a real `<a href="#me-…">`, and `:target` reveals the section the
+     browser navigated to. No listener, no `data-me`, no JavaScript.
+
+     This is the mechanism and the script below is the enhancement, which is the way round
+     this platform already treats the admin cycle switcher. It was the other way round —
+     the rail worked ONLY if a delegated click handler ran, so anything that stopped that
+     script left every tab dead and the reader stranded on Overview with the URL changing
+     under them. There is no shortage of things that stop a script: a 404 after a deploy,
+     a CSP mismatch, an extension, an error thrown by unrelated code earlier in the file.
+
+     `!important` because the hiding rule above is also an attribute+class selector and
+     this has to beat it whatever `data-me` currently says. */
+  .me-sec:target{ display:block !important; }
   [data-me] .me-sec + .me-sec{ margin-top:0; }
   [data-me="overview"]  #me-overview,
   [data-me="points"]    #me-points,
@@ -426,7 +443,7 @@
       ] %}
       {% for r in rail %}
         {% if r.id != 'saved' or r.n > 0 %}
-        <a class="me-rail__i" href="#{{ r.id }}" data-me-go="{{ r.id }}"
+        <a class="me-rail__i" href="#me-{{ r.id }}" data-me-go="{{ r.id }}"
            {# Not hardcoded to overview: the hash decides, and the server cannot see it.
               paint() sets this on load; the CSS above carries the visual meanwhile. #}
            aria-selected="false">
@@ -506,7 +523,7 @@
           </p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
             {% if points_enabled and redeemable > 0 %}<a class="me-btn me-btn--go" href="/vote">Redeem at the ballot {{ gi.ui('go', 15) }}</a>{% endif %}
-            <a class="me-btn" href="#points" data-me-go="points">Points history</a>
+            <a class="me-btn" href="#me-points" data-me-go="points">Points history</a>
           </div>
         </div>
 
@@ -550,12 +567,12 @@
             <li class="me-row">
               <div class="me-row__b"><div class="me-row__t">Purchases</div>
                 <div class="me-row__m">{{ my_orders|default([])|length }} order{{ my_orders|default([])|length == 1 ? '' : 's' }} · {{ my_tickets|default([])|length }} ticket{{ my_tickets|default([])|length == 1 ? '' : 's' }}</div></div>
-              <div class="me-row__r"><a class="me-btn" href="#purchases" data-me-go="purchases">Open</a></div>
+              <div class="me-row__r"><a class="me-btn" href="#me-purchases" data-me-go="purchases">Open</a></div>
             </li>
             <li class="me-row">
               <div class="me-row__b"><div class="me-row__t">Activity</div>
                 <div class="me-row__m">{{ my_votes|length }} vote{{ my_votes|length == 1 ? '' : 's' }} · {{ my_nominations|length }} nomination{{ my_nominations|length == 1 ? '' : 's' }}</div></div>
-              <div class="me-row__r"><a class="me-btn" href="#activity" data-me-go="activity">Open</a></div>
+              <div class="me-row__r"><a class="me-btn" href="#me-activity" data-me-go="activity">Open</a></div>
             </li>
           </ul>
         </div>
@@ -1088,25 +1105,33 @@
       items[i].setAttribute('aria-selected', items[i].getAttribute('data-me-go') === id ? 'true' : 'false');
     }
   }
-  paint((location.hash || '').replace('#', ''));
+  function fromHash() { return (location.hash || '').replace('#', '').replace(/^me-/, ''); }
+  paint(fromHash());
 
+  // ── THE CLICK IS NOT INTERCEPTED ────────────────────────────────────────
+  //
+  // No `preventDefault`. The links are real `<a href="#me-…">` and the browser's own hash
+  // navigation is what reveals the section, through `.me-sec:target` in the CSS above.
+  // This handler only keeps the RAIL HIGHLIGHT and the search box in step.
+  //
+  // It used to be the other way round: the handler swallowed the click and set `data-me`
+  // itself, so the entire rail depended on this script running. Anything that stopped it —
+  // a 404 after a deploy, a CSP mismatch, an error thrown earlier in the file, an
+  // extension — left every tab dead while the URL still changed, which reads as "the tabs
+  // do nothing" and is impossible to diagnose from the outside. Letting the browser do the
+  // navigation means the worst case is a stale highlight, not a broken page.
   page.addEventListener('click', function (e) {
-    var go = e.target.closest('[data-me-go]');
+    var go = e.target.closest ? e.target.closest('[data-me-go]') : null;
     if (!go) return;
-    e.preventDefault();
     var id = go.getAttribute('data-me-go');
     if (find && find.value) { find.value = ''; runFind(); }
-    // A real history entry, so Back returns to the section they came from
-    // rather than leaving the page entirely.
-    if (location.hash !== '#' + id) history.pushState(null, '', '#' + id);
     paint(id);
-    // Focus STAYS on the rail item, which is the control the reader is using — moving it
-    // into the panel drew a focus ring around the whole section on a mouse click and took
-    // a keyboard user off the thing their next arrow key was for. `aria-selected` is what
-    // announces the change.
-    window.scrollTo({ top: 0, behavior: 'auto' });
   });
-  window.addEventListener('popstate', function () { paint((location.hash || '').replace('#', '')); });
+
+  // The hash can also change without a click here — Back, Forward, a pasted link, or one
+  // of the in-page shortcuts. `hashchange` covers all of them; `popstate` alone did not.
+  window.addEventListener('hashchange', function () { paint(fromHash()); });
+  window.addEventListener('popstate',   function () { paint(fromHash()); });
 
   // Arrow keys along the rail, which is what a set of related navigation
   // controls is expected to do.

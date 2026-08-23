@@ -89,7 +89,13 @@ final class DemoSeeder
                 'scope'       => 'national',
                 'is_active'   => 0,
                 // Last, so it never sits above a real programme on an admin list.
-                'sort_order'  => 999,
+                //
+                // 200 and not 999: `gates_award_programmes.sort_order` is TINYINT UNSIGNED
+                // in MySQL, so 999 is out of range and strict mode REJECTS the insert — a
+                // 500 on the build button. SQLite does not enforce integer widths, so the
+                // whole seeder passed its tests and failed on the only database that
+                // matters. Any value over 255 is the same bug.
+                'sort_order'  => 200,
             ]);
 
             // ── the cycle ────────────────────────────────────────────────────

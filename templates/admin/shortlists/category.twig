@@ -107,6 +107,15 @@
   <div class="ad-card__head"><div class="ad-card__title">Preview — live
     <small>{{ preview.in }} of {{ preview.considered }} would be shortlisted right now. This moves as votes arrive; nothing here has been announced.</small>
   </div>
+  {# When the rule selects nobody there is no button — so the reason has to be HERE, where
+     the button would have been, not only in a callout further up the page. An organiser
+     looking for something to press should not have to hunt for why there is nothing. #}
+  {% if may_publish and preview.in == 0 and preview.considered > 0 %}
+  <p style="margin:0;max-width:44ch;font-size:12.5px;line-height:1.6;color:var(--ad-text-mute,#5a6d6f)">
+    <strong>Nothing to publish yet.</strong>
+    {{ preview.warnings|first|default('No nominee matches this rule.') }}
+  </p>
+  {% endif %}
   {% if may_publish and preview.in > 0 %}
   <form method="post" action="/admin/shortlists/category/{{ cat.id }}/publish" style="display:flex;gap:8px;align-items:center">
     <input type="hidden" name="_token" value="{{ csrf_token }}">

@@ -134,14 +134,54 @@ final class ShortlistCutTest extends TestCase
         }
     }
 
-    public function test_with_no_floor_a_zero_vote_nominee_can_be_shortlisted_and_that_is_warned(): void
+    /**
+     * The warning fires on the PREVIEW, not on the rule.
+     *
+     * It used to live in `ShortlistRule::warnings()` and fired whenever the floor was 0 —
+     * which is now the default, so it appeared on every screen before anybody had done
+     * anything. A warning that is always on is one people learn to scroll past. It now
+     * describes what is actually about to happen.
+     */
+    public function test_a_zero_vote_nominee_being_shortlisted_is_warned_about_when_it_happens(): void
     {
         $rule = new ShortlistRule('top_n', 10, 0);
         $r    = ShortlistService::apply($rule, $this->field([12, 0, 0]));
 
         $this->assertSame(3, $r['in'], 'the rule as written does admit them');
-        $this->assertNotSame([], array_filter($rule->warnings(),
-            fn ($w) => str_contains($w, 'zero votes')), 'the form must say so before it is saved');
+        $this->assertNotSame([], array_filter($r['warnings'],
+            fn ($w) => str_contains($w, 'no votes at all')),
+            'an organiser about to publish two people nobody voted for should be told');
+
+        // And it stays quiet when it is not happening.
+        $quiet = ShortlistService::apply($rule, $this->field([12, 9, 4]));
+        $this->assertSame([], array_filter($quiet['warnings'],
+            fn ($w) => str_contains($w, 'no votes at all')));
+    }
+
+    /**
+     * The default floor is ZERO, and it has to be.
+     *
+     * With a floor of 1, a category whose voting has not opened has every nominee on 0 —
+     * so nobody qualified, the preview said nought, and the publish button never rendered.
+     * The feature was unusable in the state an organiser first meets it in.
+     */
+    public function test_the_default_rule_can_shortlist_before_any_votes_exist(): void
+    {
+        $r = ShortlistService::apply(new ShortlistRule(), $this->field([0, 0, 0]));
+
+        $this->assertSame(3, $r['in'],
+            'a floor of 1 on a pre-voting category excludes everybody and hides the button');
+    }
+
+    /** When nothing qualifies, the reason names the term that excluded them. */
+    public function test_an_empty_selection_says_which_rule_term_emptied_it(): void
+    {
+        $r = ShortlistService::apply(new ShortlistRule('top_n', 10, 5), $this->field([1, 0, 0]));
+
+        $this->assertSame(0, $r['in']);
+        $this->assertNotSame([], array_filter($r['warnings'],
+            fn ($w) => str_contains($w, 'under the minimum')),
+            '"nobody matches" is not actionable; "everybody is under the minimum of 5" is');
     }
 
     // ══ percentages ══════════════════════════════════════════════════════════

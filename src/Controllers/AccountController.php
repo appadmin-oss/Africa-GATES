@@ -380,7 +380,7 @@ class AccountController
 
         // Back to the dashboard, anchored on the panel, so the answer is on screen rather
         // than at the top of a long page.
-        return $res->withHeader('Location', '/account#referral')->withStatus(303);
+        return $res->withHeader('Location', '/account#me-referral')->withStatus(303);
     }
 
     /**
@@ -414,7 +414,7 @@ class AccountController
 
         $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
 
-        return $res->withHeader('Location', '/account#referral')->withStatus(303);
+        return $res->withHeader('Location', '/account#me-referral')->withStatus(303);
     }
 
     /**
@@ -440,7 +440,7 @@ class AccountController
 
         $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
 
-        return $res->withHeader('Location', '/account#referral')->withStatus(303);
+        return $res->withHeader('Location', '/account#me-referral')->withStatus(303);
     }
 
     public function dashboard(Request $req, Response $res): Response

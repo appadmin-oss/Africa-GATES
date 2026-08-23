@@ -186,8 +186,24 @@ final class ShortlistService
         }
 
         $warnings = $rule->warnings();
+
         if ($total > 0 && $in === 0) {
-            $warnings[] = 'This rule shortlists nobody in this category.';
+            // Not just "nobody" — WHICH term excluded them. The two reasons need different
+            // fixes and an organiser staring at a zero has no way to tell them apart.
+            $byFloor = count(array_filter($rows, fn ($r) => $r['reason'] === 'under the minimum'));
+            $warnings[] = $byFloor === $total
+                ? 'This rule shortlists nobody: every nominee is under the minimum of '
+                  . $rule->floor() . ' vote' . ($rule->floor() === 1 ? '' : 's') . '. '
+                  . 'Lower the minimum to 0 if you are shortlisting before voting.'
+                : 'This rule shortlists nobody in this category.';
+        }
+
+        // Raised only when it is actually happening, rather than whenever the floor is 0.
+        // A warning that fires on the default setting is one people learn to scroll past.
+        $zero = count(array_filter($rows, fn ($r) => $r['in'] && (int) $r['count'] === 0));
+        if ($zero > 0) {
+            $warnings[] = $zero . ' of these have no votes at all. That is expected before '
+                        . 'voting opens; set a minimum if it is not what you meant.';
         }
         if ($ties > 1 && $rule->tieMode === 'exclude') {
             $warnings[] = "{$ties} nominees are level on {$cut} votes at the cut and all of them "

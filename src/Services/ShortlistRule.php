@@ -55,7 +55,20 @@ final class ShortlistRule
     /** Defaults for a cycle that has never had a rule set. */
     public const DEFAULT_MODE      = 'top_n';
     public const DEFAULT_THRESHOLD = 10;
-    public const DEFAULT_MIN_VOTES = 1;
+    /**
+     * ZERO, and that is a correction rather than a preference.
+     *
+     * It was 1, which reads as a sensible guard — "do not shortlist somebody nobody voted
+     * for" — and made the whole feature unusable in its most common first state. Before any
+     * votes exist every nominee has 0, so a floor of 1 excluded EVERYBODY, `in` was 0, and
+     * the publish button never rendered at all. An organiser setting up a cycle saw a
+     * category full of nominees, a preview saying nought, and no button to press.
+     *
+     * The guard is still available and still explained on the form; it just is not on by
+     * default. {@see warnings()} now raises the zero-vote case only when the preview
+     * ACTUALLY contains one, which is the honest time to mention it.
+     */
+    public const DEFAULT_MIN_VOTES = 0;
 
     public function __construct(
         public readonly string $mode = self::DEFAULT_MODE,
@@ -192,9 +205,7 @@ final class ShortlistRule
             $w[] = 'With ties excluded, a category where everyone is level produces an empty '
                  . 'shortlist. Preview each category before publishing.';
         }
-        if ($this->mode !== 'min_votes' && $this->minVotes === 0) {
-            $w[] = 'With no minimum, a nominee on zero votes can be shortlisted in a thin category.';
-        }
+
         if ($this->mode === 'top_n' && $this->threshold > 50) {
             $w[] = 'A shortlist of more than fifty is not a shortlist; the jury will read all of them.';
         }
