@@ -43,9 +43,20 @@
 
 {% block head_styles %}
 {# Synchronous and FIRST — it decides what is painted, so it cannot be deferred. #}
+{# ── THE TAB LIST, ONCE ──────────────────────────────────────────────────────
+   This existed twice — here and again in the script at the foot — and the two drifted
+   the moment a section was added. The referral panel was the casualty: it had no rail
+   tab, its id did not match the `#me-<tab>` the CSS un-hides, and neither list knew
+   about it, so `[data-me] .me-sec{display:none}` hid it on EVERY tab and
+   /account#referral fell back to Overview. The whole feature was unreachable for
+   anybody with JavaScript.
+
+   So the list is defined here and rendered into both. Adding a section now means
+   adding it in one place, and the rail loop below reads the same array. #}
+{% set me_tabs = ['overview','points','referral','purchases','activity','saved','settings'] %}
 <script nonce="{{ csp_nonce }}">
   (function () {
-    var ok = ['overview','points','purchases','activity','saved','settings'];
+    var ok = {{ me_tabs|json_encode|raw }};
     var h  = (location.hash || '').replace('#','');
     document.documentElement.setAttribute('data-me', ok.indexOf(h) >= 0 ? h : 'overview');
   })();
@@ -205,6 +216,7 @@
   [data-me="purchases"] #me-purchases,
   [data-me="activity"]  #me-activity,
   [data-me="saved"]     #me-saved,
+  [data-me="referral"]  #me-referral,
   [data-me="settings"]  #me-settings{ display:block; }
   /* While a search is running the rail is irrelevant: results come from every
      section, so every section is on and the empty ones are hidden by the filter. */
@@ -387,6 +399,7 @@
       {% set rail = [
         {'id':'overview',  'label':'Overview',  'ico':'overview', 'n':null},
         {'id':'points',    'label':'Points',    'ico':'points',   'n':counts.points|default(0)},
+        {'id':'referral',  'label':'Referrals', 'ico':'points',   'n':referral.referrals|default(0)},
         {'id':'purchases', 'label':'Purchases', 'ico':'bag',      'n':counts.purchases|default(0)},
         {'id':'activity',  'label':'Activity',  'ico':'activity', 'n':counts.activity|default(0)},
         {'id':'saved',     'label':'Saved',     'ico':'saved',    'n':counts.saved|default(0)},
@@ -607,7 +620,7 @@
          code below it is the fallback for a link that cannot survive being read down a
          phone or printed on a flyer, and it is shown small on purpose so it does not
          compete with the thing people should actually send. #}
-      <section class="me-sec" id="referral" aria-labelledby="me-ref-h">
+      <section class="me-sec" id="me-referral" aria-labelledby="me-ref-h">
         <div class="me-sec__h"><h2 id="me-ref-h">Refer people to events</h2></div>
         <p class="me-sec__lead">Share your link. Once <strong>{{ referral.threshold }}</strong>
           people have booked and paid through it, you earn
@@ -1005,7 +1018,7 @@
   // ── sections ──────────────────────────────────────────────────────────────
   // The head script already chose one. This only keeps it in step with clicks
   // and the back button; the CSS does the showing.
-  var IDS  = ['overview','points','purchases','activity','saved','settings'];
+  var IDS  = {{ me_tabs|json_encode|raw }};
   var rail = document.getElementById('meRail');
   // Declared up here because the section handler below clears a running search, and a
   // `var` used before its assignment is `undefined` rather than an error — which would
