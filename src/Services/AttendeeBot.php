@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Services;
 
 use AfricaGates\Support\Env;
+use Illuminate\Database\Capsule\Manager as DB;
 
 /**
  * The bot that can sit in a Meet call, because nothing here can.
@@ -98,20 +99,133 @@ final class AttendeeBot
 
     // ── configuration ────────────────────────────────────────────────────────
 
+    /**
+     * The admin settings that shadow each env var, and the default when neither is set.
+     *
+     * ── WHY THE DATABASE WINS OVER THE ENVIRONMENT ───────────────────────────
+     *
+     * Every one of these used to be env-only. This platform deploys to cPanel by upload
+     * with no SSH, so "set ATTENDEE_API_KEY" was not a thing an operator could do — which
+     * means the interview bot had no configuration surface at all, and the feature was
+     * unreachable on the deployment it was written for.
+     *
+     * The stored value therefore takes precedence and the env is the fallback, matching
+     * what the AI provider keys already do. The other order looks safer and is worse: a
+     * settings screen that silently does nothing whenever an env var happens to be set is
+     * the same class of defect as a sidebar offering a link the guard refuses. If the two
+     * disagree, the screen says which one is in force — see {@see configReport()}.
+     *
+     * @var array<string,array{env:string,default:string,secret:bool,label:string}>
+     */
+    public const SETTINGS = [
+        'attendee_api_key'   => ['env' => 'ATTENDEE_API_KEY',   'default' => '', 'secret' => true,
+                                 'label' => 'API key'],
+        'attendee_base_url'  => ['env' => 'ATTENDEE_BASE_URL',  'default' => '', 'secret' => false,
+                                 'label' => 'Base URL'],
+        'attendee_bot_name'  => ['env' => 'ATTENDEE_BOT_NAME',
+                                 'default' => 'Africa GATES Interview Assistant', 'secret' => false,
+                                 'label' => 'Bot display name'],
+        'attendee_join_notice' => ['env' => 'ATTENDEE_JOIN_NOTICE',
+                                 'default' => 'This interview is being recorded and transcribed for the judging panel.',
+                                 'secret' => false, 'label' => 'Notice posted on joining'],
+        'attendee_bot_image' => ['env' => 'ATTENDEE_BOT_IMAGE', 'default' => '', 'secret' => false,
+                                 'label' => 'Bot avatar (server path)'],
+        'attendee_stt_model' => ['env' => 'ATTENDEE_STT_MODEL', 'default' => 'gpt-4o-transcribe',
+                                 'secret' => false, 'label' => 'Transcription model'],
+    ];
+
+    /**
+     * One config value: stored setting, then environment, then default.
+     *
+     * The stored value is only honoured when NON-BLANK, so clearing a field in the admin
+     * form falls back to the env rather than forcing an empty string — which for a base URL
+     * would silently point the client at nothing.
+     */
+    public static function conf(string $key): string
+    {
+        $spec = self::SETTINGS[$key] ?? null;
+        if ($spec === null) return '';
+
+        try {
+            $stored = trim((string) (DB::table('gates_settings')
+                ->where('key_name', $key)->value('value') ?? ''));
+            if ($stored !== '') return $stored;
+        } catch (\Throwable) {
+            // No settings table yet (a deploy before db:migrate). Env still works.
+        }
+
+        $env = trim((string) Env::get($spec['env'], ''));
+
+        return $env !== '' ? $env : $spec['default'];
+    }
+
+    /**
+     * Where each value is actually coming from, for the setup screen.
+     *
+     * An operator who has typed a key into the form and still sees "not configured" needs
+     * to know whether the env is overriding them, whether the write failed, or whether they
+     * are looking at a stale page. Printing the source answers all three.
+     *
+     * @return array<string,array{key:string,label:string,source:string,value:string,secret:bool}>
+     */
+    public static function configReport(): array
+    {
+        $out = [];
+        foreach (self::SETTINGS as $key => $spec) {
+            $stored = '';
+            try {
+                $stored = trim((string) (DB::table('gates_settings')
+                    ->where('key_name', $key)->value('value') ?? ''));
+            } catch (\Throwable) {
+            }
+            $env = trim((string) Env::get($spec['env'], ''));
+
+            $source = $stored !== '' ? 'settings' : ($env !== '' ? 'env' : ($spec['default'] !== '' ? 'default' : 'unset'));
+            $value  = self::conf($key);
+
+            $out[$key] = [
+                'key'    => $key,
+                'label'  => $spec['label'],
+                'source' => $source,
+                // A secret is never echoed. The screen shows its length and its last four,
+                // which is enough to tell "the key I pasted" from "some other key" without
+                // putting a credential in a page that gets screenshotted.
+                'value'  => $spec['secret'] ? self::mask($value) : $value,
+                'secret' => $spec['secret'],
+                'env'    => $spec['env'],
+                // An env value BEHIND a stored one is worth surfacing: it is what the
+                // deployment thought it was configured with, and it is now inert.
+                'shadowed_env' => ($stored !== '' && $env !== '')
+                    ? ($spec['secret'] ? self::mask($env) : $env) : '',
+            ];
+        }
+
+        return $out;
+    }
+
+    /** "sk-…a1b2 (48 chars)", or '' when there is nothing set. */
+    private static function mask(string $v): string
+    {
+        if ($v === '') return '';
+        $n = strlen($v);
+
+        return ($n > 8 ? substr($v, 0, 3) . '…' . substr($v, -4) : '••••') . " ({$n} chars)";
+    }
+
     public static function apiKey(): string
     {
-        return trim((string) Env::get('ATTENDEE_API_KEY', ''));
+        return self::conf('attendee_api_key');
     }
 
     public static function botName(): string
     {
-        return trim((string) Env::get('ATTENDEE_BOT_NAME', 'Africa GATES Interview Assistant'));
+        return self::conf('attendee_bot_name');
     }
 
     /** The API root, with the version segment this client speaks. */
     public static function base(): string
     {
-        $b = trim((string) Env::get('ATTENDEE_BASE_URL', self::HOSTED_BASE));
+        $b = self::conf('attendee_base_url');
         return rtrim($b === '' ? self::HOSTED_BASE : $b, '/') . '/api/v1';
     }
 
@@ -128,8 +242,109 @@ final class AttendeeBot
      */
     public static function selfHosted(): bool
     {
-        $b = trim((string) Env::get('ATTENDEE_BASE_URL', ''));
+        $b = self::conf('attendee_base_url');
         return $b !== '' && stripos($b, 'attendee.dev') === false;
+    }
+
+    /**
+     * Check the configuration, and say what is wrong rather than that something is.
+     *
+     * ── WHY THIS IS NOT JUST "DOES A CALL SUCCEED" ───────────────────────────
+     *
+     * Because the interesting failures all look identical from the outside. A missing key,
+     * a key for the wrong instance, an `http://` base URL, a self-hosted box that is down,
+     * a host with no cURL, and a firewall that eats outbound HTTPS every one produce "it
+     * did not work" — and an operator with no SSH cannot tell them apart. The local checks
+     * therefore run FIRST and short-circuit, so a problem that needs no network is never
+     * reported as a network problem.
+     *
+     * `GET /bots` rather than creating anything: the test must not put a bot in a meeting.
+     * A 200 or a 404 both prove the credential was accepted; a 401/403 proves it was not,
+     * which is the one distinction that matters here.
+     *
+     * @return array{ok:bool, level:string, message:string, checks:list<array{name:string,ok:bool,detail:string}>}
+     */
+    public static function checkConnection(): array
+    {
+        $checks = [];
+        $add = static function (string $name, bool $ok, string $detail) use (&$checks): void {
+            $checks[] = ['name' => $name, 'ok' => $ok, 'detail' => $detail];
+        };
+
+        // ── 1 · things that need no network ─────────────────────────────────
+        $key = self::apiKey();
+        $add('API key', $key !== '', $key !== '' ? self::mask($key) : 'Not set. Nothing can be requested without it.');
+
+        $base = self::conf('attendee_base_url');
+        $host = $base === '' ? self::HOSTED_BASE : $base;
+        $add('Base URL', true, $base === ''
+            ? self::HOSTED_BASE . ' (the hosted service — nothing was configured)'
+            : $base . (self::selfHosted() ? ' (self-hosted)' : ' (hosted service)'));
+
+        if ($base !== '' && !str_starts_with(strtolower($base), 'https://')) {
+            // Redirects are deliberately not followed, so http:// does not merely warn —
+            // it fails, and it fails in a way that looks like the host being unreachable.
+            return ['ok' => false, 'level' => 'error', 'checks' => $checks,
+                    'message' => 'The base URL must start with https://. Redirects are not followed, '
+                               . 'because following one would replay your API key to wherever it points.'];
+        }
+
+        $curl = function_exists('curl_init');
+        $add('cURL', $curl, $curl ? 'available' : 'This PHP has no cURL, so Attendee cannot be reached at all.');
+
+        if ($key === '' || !$curl) {
+            return ['ok' => false, 'level' => 'error', 'checks' => $checks,
+                    'message' => $key === ''
+                        ? 'Paste an API key from your Attendee instance and save, then test again.'
+                        : 'Ask the host to enable the PHP cURL extension. Nothing else here can work without it.'];
+        }
+
+        // ── 2 · the one network call, and it creates nothing ────────────────
+        $res = self::http('GET', self::base() . '/bots');
+
+        if (isset($res['__error'])) {
+            $err = (string) $res['__error'];
+            $auth = stripos($err, '401') !== false || stripos($err, '403') !== false
+                 || stripos($err, 'authentication') !== false || stripos($err, 'credential') !== false;
+
+            $add('Reached the API', !$auth, $err);
+
+            return ['ok' => false, 'level' => 'error', 'checks' => $checks,
+                    'message' => $auth
+                        ? 'Reached ' . $host . ', but it refused the key. It is either the wrong key or '
+                          . 'a key for a different instance.'
+                        : 'Could not reach ' . $host . '. If this is self-hosted, check it is running and '
+                          . 'that outbound HTTPS is allowed from this server.'];
+        }
+
+        $add('Reached the API', true, 'the key was accepted');
+
+        // ── 3 · what will and will not work once it is connected ───────────
+        //
+        // Reported as warnings, not failures. A bot that records with the meeting's own
+        // captions is worse than one with a real recogniser and is still a bot; refusing
+        // to report success over it would hide a working integration.
+        $stt = trim((string) Env::get('OPENAI_API_KEY', ''));
+        $add('Transcription', true, $stt !== ''
+            ? self::conf('attendee_stt_model') . ' (OpenAI)'
+            : 'No OPENAI_API_KEY, so the bot falls back to the meeting platform\'s own captions.');
+
+        $notice = self::joinNotice();
+        $add('Join notice', true, $notice !== '' ? $notice : 'Off — the bot joins without announcing itself.');
+
+        $img = self::conf('attendee_bot_image');
+        if ($img !== '') {
+            $ok = self::botImage() !== null;
+            $add('Avatar', $ok, $ok ? $img
+                : $img . ' — not readable, or not a PNG/JPEG under 1.5MB. The bot will join with no picture.');
+        }
+
+        $warn = array_values(array_filter($checks, fn ($c) => !$c['ok']));
+
+        return ['ok' => true, 'level' => $warn === [] ? 'ok' : 'warn', 'checks' => $checks,
+                'message' => $warn === []
+                    ? 'Connected to ' . $host . '. The interview bot is ready.'
+                    : 'Connected to ' . $host . ', with ' . count($warn) . ' thing(s) worth fixing below.'];
     }
 
     // ── sending a bot ────────────────────────────────────────────────────────
@@ -247,15 +462,16 @@ final class AttendeeBot
      * nominee who forgot what they agreed to a week ago can see it and object. That
      * is worth more in a judging interview than it costs.
      *
-     * `none` is the off switch rather than a blank value, because {@see Env::get}
-     * cannot tell an empty setting from an absent one and falls back to the default.
+     * `none` is the off switch rather than a blank value, and that is now doubly true:
+     * {@see conf()} treats a blank stored setting as "not set" and falls through to the
+     * env and then the default, so clearing the field in the admin form CANNOT turn the
+     * notice off. Typing `none` is the only way to say it, and it is what the form says.
      * Emoji are stripped: Attendee's chat endpoint rejects them outright, and losing
      * the whole announcement over a decoration would be a poor trade.
      */
     public static function joinNotice(): string
     {
-        $raw = (string) Env::get('ATTENDEE_JOIN_NOTICE',
-            'This interview is being recorded and transcribed for the judging panel.');
+        $raw = self::conf('attendee_join_notice');
         if (strcasecmp(trim($raw), 'none') === 0) return '';
 
         // Strip, then collapse — the other order leaves the space the emoji sat in.
@@ -301,7 +517,7 @@ final class AttendeeBot
      */
     public static function botImage(): ?array
     {
-        $path = trim((string) Env::get('ATTENDEE_BOT_IMAGE', ''));
+        $path = self::conf('attendee_bot_image');
         if ($path === '' || !is_file($path) || !is_readable($path)) return null;
 
         $size = @filesize($path);
@@ -333,7 +549,7 @@ final class AttendeeBot
             return ['meeting_closed_captions' => ['merge_consecutive_captions' => true]];
         }
 
-        $openai = ['model' => trim((string) Env::get('ATTENDEE_STT_MODEL', 'gpt-4o-transcribe'))];
+        $openai = ['model' => self::conf('attendee_stt_model')];
 
         // The recogniser is primed with the names it is about to hear. Capped because
         // this rides on every utterance and a long prompt is charged for every one.

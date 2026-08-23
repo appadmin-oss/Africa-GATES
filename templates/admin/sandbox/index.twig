@@ -1,0 +1,99 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>System</small>{% endblock %}
+{% block topbar_title %}Test data{% endblock %}
+
+{% block content %}
+
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">A nominee you can drive through everything
+    <small>Builds a hidden rehearsal programme with three nominees, a questionnaire in each state, evidence, an interview, a judge with scores, and votes.</small>
+  </div></div>
+  <div class="ad-card__body">
+    <p style="margin:0 0 12px;font-size:13.5px;line-height:1.7">
+      Everything it creates lives inside one <strong>inactive</strong> programme called
+      <code>{{ slug }}</code>, and every name starts with <strong>{{ prefix }}</strong>.
+    </p>
+    {# The containment argument, stated where an operator can check it — because "will this
+       affect the real awards" is the only question that matters before pressing the button,
+       and "trust me" is not an answer. #}
+    <div class="ad-callout">
+      <strong>Why it cannot touch a real award</strong>
+      <ul>
+        <li>Tallies, ranks, gaps and shortlist cuts are all computed <em>per category</em>. The
+          sandbox has its own category, so a real one is never reached — not filtered out,
+          never queried.</li>
+        <li>The programme is inactive, and the public site only reads active programmes. It
+          does not appear on <code>/vote</code>, <code>/awards</code> or anywhere else.</li>
+        <li>Every email address is at <code>demo.invalid</code>, which no mail server will
+          ever accept — so a stray send cannot reach a person.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+{% if exists %}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title" style="color:var(--ad-accent,#237b22)">
+    A sandbox is live
+    <small>Walk these in order — it is roughly the path a real nominee takes.</small>
+  </div>
+  <form method="post" action="/admin/sandbox/remove">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="ad-btn ad-btn--sm ad-btn--danger" type="submit"
+      data-confirm="Remove the sandbox — the programme, its cycle, category, nominees, votes, questionnaires, evidence, interview and judge? Real data is untouched.">Remove it</button>
+  </form>
+  </div>
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <thead><tr><th scope="col">#</th><th scope="col">Screen</th></tr></thead>
+      <tbody>
+        {% for l in current.links %}
+        <tr>
+          <td style="color:var(--ad-text-mute);font-variant-numeric:tabular-nums">{{ loop.index }}</td>
+          <td><a href="{{ l.href }}" style="color:var(--ad-accent,#237b22);font-weight:600">{{ l.label }} →</a>
+            <br><span style="font-size:11.5px;color:var(--ad-text-mute)"><code>{{ l.href }}</code></span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="ad-card__body" style="border-top:1px solid var(--ad-line)">
+    <p style="margin:0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+      To sign into the judge portal as the test judge, use <code>judge@demo.invalid</code> and
+      send yourself a magic link from <a href="/admin/judges" style="color:var(--ad-accent,#237b22)">the panel screen</a>.
+      Nothing will be delivered to that address — copy the link out of the mail log instead
+      (<code>var/logs/outgoing-mail.log</code>), which is where an unroutable send lands.
+    </p>
+  </div>
+</div>
+
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Rebuild it
+    <small>Tears the current one down first. Pressing this is how you get a clean rehearsal.</small>
+  </div>
+  <form method="post" action="/admin/sandbox/build">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="ad-btn" type="submit"
+      data-confirm="Rebuild the sandbox? The current one is removed first, including any scores you added to it.">Rebuild</button>
+  </form>
+  </div>
+</div>
+
+{% else %}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">No sandbox yet</div>
+  <form method="post" action="/admin/sandbox/build">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="ad-btn ad-btn--primary" type="submit">Build it</button>
+  </form>
+  </div>
+  <div class="ad-card__body">
+    <p style="margin:0;font-size:13px;color:var(--ad-text-soft)">
+      Takes a moment. When it is done this page lists every screen the sandbox makes
+      reachable, so you can click straight through instead of hunting for the rows.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

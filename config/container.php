@@ -538,6 +538,8 @@ return [
     \AfricaGates\Admin\Controllers\LegalController::class    => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\LegalController($c->get(Twig::class), $c->get(AuditService::class)),
     \AfricaGates\Admin\Controllers\ShortlistsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\ShortlistsController($c->get(Twig::class), $c->get(AuditService::class)),
     \AfricaGates\Admin\Controllers\StandPresetsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\StandPresetsController($c->get(Twig::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\AttendeeController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AttendeeController($c->get(Twig::class), $c->get(\AfricaGates\Admin\Services\SettingsService::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\SandboxController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\SandboxController($c->get(Twig::class), $c->get(AuditService::class)),
     \AfricaGates\Admin\Controllers\AiAssistController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AiAssistController($c->get(RateLimitService::class)),
     // The mailer is the fourth argument: without it, restocking a sold-out size changes a
     // number and tells the people who asked to be told nothing.

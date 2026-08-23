@@ -48,6 +48,11 @@ function doPost(e) {
     try {
       if(action === 'meet.create')     return meetCreate(body.data||{});
       if(action === 'meet.transcript') return meetTranscript(body.data||{});
+      // Calendar sync and booking. See the block comment above calendarSync().
+      if(action === 'calendar.sync')    return calendarSync(body.data||{});
+      if(action === 'calendar.cancel')  return calendarCancel(body.data||{});
+      if(action === 'calendar.freebusy')return calendarFreeBusy(body.data||{});
+      if(action === 'calendar.slots')   return calendarSlots(body.data||{});
       return respond(false,'Unknown action: '+action);
     } catch(err) { return respond(false,err.message); }
   }
@@ -223,6 +228,282 @@ function meetTranscript(d) {
   }
 
   return respond(true,'No transcript found',{ok:true,text:'',source:''});
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CALENDAR SYNC AND APPOINTMENT BOOKING
+
+   ── WHY meet.create WAS NOT ENOUGH ───────────────────────────────────────────
+
+   meet.create inserts an event with `requestId: 'agates-' + Utilities.getUuid()`. That
+   uuid is right for the conference — it has to be unique or Google reuses the previous
+   Meet — and it means the CALL is not idempotent: run it twice for the same sitting and
+   the operator has two events, two Meet links, and two sets of invitations to a meeting
+   that happens once. Rescheduling had the same shape: there was no update path at all, so
+   moving a sitting meant a second event and a guest holding a stale invitation.
+
+   ── THE STABLE KEY ──────────────────────────────────────────────────────────
+
+   Every event this writes is stamped with `extendedProperties.private.agatesKey`, which
+   the platform sets to something durable about the sitting (an interview id). Calendar can
+   be SEARCHED by that — `privateExtendedProperty: 'agatesKey=<key>'` — so sync() looks
+   first and patches what it finds. Re-running is then a no-op that returns the same event
+   id and the same Meet link, however many times the cron fires.
+
+   Not a stored mapping table on our side: a mapping row and a calendar can disagree, and
+   when they do the calendar is right and the row is a lie. The key lives ON the event.
+
+   ── WHAT "APPOINTMENT BOOKING" CAN AND CANNOT MEAN HERE ─────────────────────
+
+   Google's Appointment Schedules — the booking pages with a public URL — have NO API. They
+   are not in Calendar v3, not in the Apps Script advanced service, and not readable by any
+   scope. So `calendar.slots` does NOT read an appointment schedule, and it must not claim
+   to: it computes free slots from the calendar's own free/busy, inside working hours the
+   caller passes in. That is a different thing built from what is actually available, and it
+   is the honest version of the feature.
+
+   Booking one is then just calendar.sync at the chosen time, which is what makes the
+   round trip work: slots → pick → sync → the guest gets an invitation with a Meet link.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** The Calendar advanced service, or a response explaining how to switch it on. */
+function calendarReady() {
+  if(typeof Calendar === 'undefined' || !Calendar.Events) {
+    return respond(false,'The Calendar advanced service is not enabled in this Apps Script project. Open the script, Services → + → Calendar API → Add, then redeploy.');
+  }
+  return null;
+}
+
+/** Find the one event carrying this key, or null. */
+function findByKey(calendarId, key) {
+  if(!key) return null;
+  try {
+    const found = Calendar.Events.list(calendarId, {
+      privateExtendedProperty: 'agatesKey=' + key,
+      // Cancelled events still match the search, and patching one back to life is not
+      // what a re-run should do — a cancelled sitting that returns should be a new event
+      // with its own invitation, not a resurrection nobody was told about.
+      showDeleted: false,
+      maxResults: 5,
+      singleEvents: true
+    });
+    const items = (found && found.items) || [];
+    return items.length ? items[0] : null;
+  } catch(err) {
+    // A search failure must not become a duplicate. Reported rather than swallowed.
+    throw new Error('Could not search the calendar for key ' + key + ': ' + err.message);
+  }
+}
+
+/**
+ * Create or update one sitting in the calendar. Idempotent on `key`.
+ *
+ * data: { key, startIso, endIso, title, description, guests[], timezone, calendarId,
+ *         withMeet (default true), notify (default true) }
+ */
+function calendarSync(d) {
+  const notReady = calendarReady(); if(notReady) return notReady;
+  if(!d.key)                   return respond(false,'A sync needs a stable key, or it cannot avoid duplicating.');
+  if(!d.startIso || !d.endIso) return respond(false,'Missing start or end time');
+
+  const calendarId = d.calendarId || 'primary';
+  const tz         = d.timezone || 'Africa/Lagos';
+  const guests     = (d.guests||[]).filter(function(x){ return /\S+@\S+\.\S+/.test(x); });
+  const notify     = d.notify === false ? 'none' : (guests.length ? 'all' : 'none');
+  const withMeet   = d.withMeet !== false;
+
+  const base = {
+    summary:     (d.title||'Africa GATES interview').substring(0,200),
+    description: (d.description||'').substring(0,2000),
+    start: { dateTime: d.startIso, timeZone: tz },
+    end:   { dateTime: d.endIso,   timeZone: tz },
+    attendees: guests.map(function(email){ return {email:email}; }),
+    // The key rides on the event, so the calendar is the single source of truth about
+    // which sitting this is. A mapping table on our side could disagree with it.
+    extendedProperties: { private: { agatesKey: String(d.key).substring(0,120), agatesApp: 'africa-gates' } },
+    reminders: { useDefault:false, overrides:[
+      {method:'email', minutes:1440}, {method:'popup', minutes:30}
+    ]}
+  };
+
+  const existing = findByKey(calendarId, d.key);
+
+  if(existing) {
+    // PATCH, not update: update() replaces the whole resource, which would drop the
+    // conferenceData a previous run created and hand every guest a new Meet link for a
+    // meeting they already have in their diary.
+    const patched = Calendar.Events.patch(base, calendarId, existing.id, {
+      conferenceDataVersion: 1,
+      sendUpdates: notify
+    });
+    return respond(true,'Updated', {
+      ok:true, created:false, eventId: patched.id||existing.id,
+      meetUrl: meetUrlOf(patched) || meetUrlOf(existing),
+      htmlLink: patched.htmlLink || existing.htmlLink || ''
+    });
+  }
+
+  if(withMeet) {
+    base.conferenceData = {
+      createRequest: {
+        // Unique per REQUEST — Google reuses the previous conference otherwise. The
+        // idempotency of the whole call comes from agatesKey above, not from this.
+        requestId: 'agates-' + Utilities.getUuid(),
+        conferenceSolutionKey: { type: 'hangoutsMeet' }
+      }
+    };
+  }
+
+  const created = Calendar.Events.insert(base, calendarId, {
+    conferenceDataVersion: withMeet ? 1 : 0,
+    sendUpdates: notify
+  });
+  const url = meetUrlOf(created);
+
+  return respond(true, (withMeet && !url) ? 'Created without a Meet link' : 'Created', {
+    ok:true, created:true, eventId: created.id||'', meetUrl: url,
+    htmlLink: created.htmlLink || ''
+  });
+}
+
+/** The video entry point of an event, however Google chose to express it. */
+function meetUrlOf(ev) {
+  if(!ev) return '';
+  if(ev.hangoutLink) return ev.hangoutLink;
+  let url = '';
+  if(ev.conferenceData && ev.conferenceData.entryPoints) {
+    ev.conferenceData.entryPoints.forEach(function(p){
+      if(!url && p.entryPointType === 'video' && p.uri) url = p.uri;
+    });
+  }
+  return url;
+}
+
+/**
+ * Cancel a sitting. Idempotent: cancelling one that is already gone is a success.
+ *
+ * Deleted rather than marked cancelled, because a cancelled-but-present event stays in
+ * every guest's calendar as a greyed-out row and reads as "maybe". `sendUpdates` is what
+ * actually tells them, and it is on by default — a cancellation nobody is told about is
+ * the guest turning up.
+ */
+function calendarCancel(d) {
+  const notReady = calendarReady(); if(notReady) return notReady;
+  if(!d.key) return respond(false,'A cancel needs the key the event was created with.');
+
+  const calendarId = d.calendarId || 'primary';
+  const existing = findByKey(calendarId, d.key);
+  if(!existing) return respond(true,'Nothing to cancel', {ok:true, cancelled:false});
+
+  Calendar.Events.remove(calendarId, existing.id, {
+    sendUpdates: d.notify === false ? 'none' : 'all'
+  });
+  return respond(true,'Cancelled', {ok:true, cancelled:true, eventId: existing.id});
+}
+
+/**
+ * Busy blocks in a window. The raw material for a booking screen.
+ *
+ * data: { fromIso, toIso, calendarId, timezone }
+ */
+function calendarFreeBusy(d) {
+  const notReady = calendarReady(); if(notReady) return notReady;
+  if(!d.fromIso || !d.toIso) return respond(false,'Missing fromIso or toIso');
+  if(!Calendar.Freebusy) {
+    return respond(false,'This Calendar service build has no Freebusy. Re-add the Calendar API advanced service (v3) and redeploy.');
+  }
+
+  const calendarId = d.calendarId || 'primary';
+  const q = Calendar.Freebusy.query({
+    timeMin: d.fromIso, timeMax: d.toIso,
+    timeZone: d.timezone || 'Africa/Lagos',
+    items: [{ id: calendarId }]
+  });
+
+  const cal  = (q.calendars && q.calendars[calendarId]) || {};
+  // An error here is per-calendar, not per-request: a wrong id returns 200 with an errors
+  // array, and treating that as "no busy blocks" would offer every slot in a full week.
+  if(cal.errors && cal.errors.length) {
+    return respond(false,'Calendar ' + calendarId + ': ' + (cal.errors[0].reason || 'not readable'));
+  }
+
+  return respond(true,'Free/busy read', {
+    ok:true, calendarId: calendarId,
+    busy: (cal.busy||[]).map(function(b){ return {start:b.start, end:b.end}; })
+  });
+}
+
+/**
+ * Open slots in a window, computed from free/busy.
+ *
+ * NOT an Appointment Schedule. Google's booking pages have no API at any scope, so this
+ * builds slots from the calendar's own busy blocks inside working hours the caller passes
+ * in. Booking one is calendar.sync at that time.
+ *
+ * data: { fromIso, toIso, minutes (default 30), gapMinutes (default 0),
+ *         dayStart (default '09:00'), dayEnd (default '17:00'),
+ *         days (default [1,2,3,4,5] — Mon..Fri, 0 = Sunday),
+ *         leadMinutes (default 120), max (default 100), calendarId, timezone }
+ */
+function calendarSlots(d) {
+  const fb = calendarFreeBusy(d);
+  const parsed = JSON.parse(fb.getContent());
+  if(!parsed.success) return fb;
+
+  const minutes = Math.max(5, Math.min(480, Number(d.minutes||30)));
+  const gap     = Math.max(0, Math.min(240, Number(d.gapMinutes||0)));
+  const step    = (minutes + gap) * 60000;
+  const lead    = Math.max(0, Number(d.leadMinutes === undefined ? 120 : d.leadMinutes)) * 60000;
+  const cap     = Math.max(1, Math.min(500, Number(d.max||100)));
+  const days    = Array.isArray(d.days) ? d.days.map(Number) : [1,2,3,4,5];
+
+  const from = new Date(d.fromIso).getTime();
+  const to   = new Date(d.toIso).getTime();
+  if(!from || !to || to <= from) return respond(false,'fromIso must be before toIso');
+
+  // The lead time is a real constraint, not politeness: a slot offered fifteen minutes
+  // from now is one a judge cannot actually be in, and it is the slot somebody books.
+  const earliest = Math.max(from, Date.now() + lead);
+
+  const busy = (parsed.busy||[]).map(function(b){
+    return { s: new Date(b.start).getTime(), e: new Date(b.end).getTime() };
+  }).filter(function(b){ return b.s && b.e; });
+
+  const tz = d.timezone || 'Africa/Lagos';
+  const hhmm = function(str, fallback) {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(str||''));
+    return m ? (Number(m[1]) * 60 + Number(m[2])) : fallback;
+  };
+  const openMin  = hhmm(d.dayStart, 9*60);
+  const closeMin = hhmm(d.dayEnd,  17*60);
+
+  const slots = [];
+  for(let t = Math.ceil(earliest / step) * step; t + minutes*60000 <= to && slots.length < cap; t += step) {
+    const start = new Date(t);
+    const end   = new Date(t + minutes*60000);
+
+    // Day-of-week and time-of-day are read IN THE TARGET TIMEZONE, not the script's. A
+    // script set to one zone offering slots for a calendar in another is how a 9am slot
+    // lands at 4am for the person taking the interview.
+    const dow  = Number(Utilities.formatDate(start, tz, 'u')) % 7;   // u: 1=Mon..7=Sun
+    const mins = Number(Utilities.formatDate(start, tz, 'H')) * 60
+               + Number(Utilities.formatDate(start, tz, 'm'));
+
+    if(days.indexOf(dow) === -1) continue;
+    if(mins < openMin || (mins + minutes) > closeMin) continue;
+
+    const clash = busy.some(function(b){ return b.s < end.getTime() && b.e > start.getTime(); });
+    if(clash) continue;
+
+    slots.push({ startIso: start.toISOString(), endIso: end.toISOString() });
+  }
+
+  return respond(true, slots.length + ' slot(s)', {
+    ok:true, minutes:minutes, timezone:tz, slots:slots,
+    // Said plainly, because somebody will ask why this does not match their booking page.
+    note:'Computed from calendar free/busy. Google Appointment Schedules have no API, so ' +
+         'this is not reading one.'
+  });
 }
 
 function writeRow(sheetName, data, source) {

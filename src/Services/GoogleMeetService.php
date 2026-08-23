@@ -172,6 +172,205 @@ final class GoogleMeetService
     }
 
     /**
+     * Create or move a sitting in the operator's calendar. Idempotent on `$key`.
+     *
+     * ── WHY THIS EXISTS BESIDE createSpace() ─────────────────────────────────
+     *
+     * {@see createSpace()} calls `meet.create`, which inserts an event with a fresh
+     * conference uuid every time. That is correct for the conference and means the CALL is
+     * not idempotent: run it twice for one sitting and the operator has two events, two
+     * Meet links and two sets of invitations to a meeting that happens once. There was also
+     * no update path at all, so rescheduling produced a second event and left every guest
+     * holding a stale invitation.
+     *
+     * This carries a STABLE key — stamped into the event's private extended properties, so
+     * the calendar itself is the record of which sitting it is — and the script looks it up
+     * before deciding whether to insert or patch. Re-running is then a no-op returning the
+     * same event and the same link, which is what makes it safe on a cron.
+     *
+     * The key is not stored on our side deliberately: a mapping row and a calendar can
+     * disagree, and when they do the calendar is right and the row is a lie.
+     *
+     * @param array{key:string, start:string, minutes?:int, title?:string, description?:string,
+     *              timezone?:string, guests?:list<string>, notify?:bool, with_meet?:bool,
+     *              calendar_id?:string} $opts
+     * @return array{ok:bool, created:bool, meet_url:string, meet_code:string, event_id:string,
+     *               html_link:string, message:string}
+     */
+    public function syncEvent(array $opts): array
+    {
+        $no = fn (string $m): array => ['ok' => false, 'created' => false, 'meet_url' => '',
+                                        'meet_code' => '', 'event_id' => '', 'html_link' => '',
+                                        'message' => $m];
+        if (!$this->canSchedule()) return $no($this->why());
+
+        $key = trim((string) ($opts['key'] ?? ''));
+        if ($key === '') return $no('A calendar sync needs a stable key, or it duplicates the event.');
+
+        $start = strtotime((string) ($opts['start'] ?? ''));
+        if (!$start) return $no('That start time could not be read.');
+        $mins = max(10, min(180, (int) ($opts['minutes'] ?? 30)));
+
+        $res = $this->call('calendar.sync', [
+            'key'         => mb_substr($key, 0, 120),
+            'title'       => mb_substr((string) ($opts['title'] ?? 'Africa GATES interview'), 0, 200),
+            'description' => mb_substr((string) ($opts['description'] ?? ''), 0, 2000),
+            'startIso'    => gmdate('Y-m-d\TH:i:s\Z', $start),
+            'endIso'      => gmdate('Y-m-d\TH:i:s\Z', $start + $mins * 60),
+            'timezone'    => (string) ($opts['timezone'] ?? 'Africa/Lagos'),
+            'guests'      => self::emails((array) ($opts['guests'] ?? [])),
+            'notify'      => ($opts['notify'] ?? true) !== false,
+            'withMeet'    => ($opts['with_meet'] ?? true) !== false,
+            'calendarId'  => (string) ($opts['calendar_id'] ?? 'primary'),
+        ], self::TIMEOUT_CREATE);
+
+        if (!($res['ok'] ?? false)) {
+            return $no((string) ($res['message'] ?? 'The Apps Script did not answer.'));
+        }
+
+        $url = trim((string) ($res['meetUrl'] ?? ''));
+
+        return ['ok' => true, 'created' => (bool) ($res['created'] ?? false),
+                'meet_url' => $url, 'meet_code' => InterviewService::meetCode($url),
+                'event_id' => trim((string) ($res['eventId'] ?? '')),
+                'html_link' => trim((string) ($res['htmlLink'] ?? '')),
+                'message' => (string) ($res['message'] ?? 'Synced.')];
+    }
+
+    /**
+     * Take a sitting out of the calendar.
+     *
+     * Idempotent: cancelling one that is already gone reports success, because "it is not
+     * there" is the state the caller asked for. Guests ARE notified by default — a
+     * cancellation nobody is told about is the guest turning up.
+     *
+     * @return array{ok:bool, cancelled:bool, message:string}
+     */
+    public function cancelEvent(string $key, bool $notify = true, string $calendarId = 'primary'): array
+    {
+        if (!$this->canSchedule()) return ['ok' => false, 'cancelled' => false, 'message' => $this->why()];
+        if (trim($key) === '')    return ['ok' => false, 'cancelled' => false,
+                                          'message' => 'A cancel needs the key the event was created with.'];
+
+        $res = $this->call('calendar.cancel', [
+            'key' => mb_substr(trim($key), 0, 120), 'notify' => $notify, 'calendarId' => $calendarId,
+        ], self::TIMEOUT_CREATE);
+
+        return ['ok' => (bool) ($res['ok'] ?? false),
+                'cancelled' => (bool) ($res['cancelled'] ?? false),
+                'message' => (string) ($res['message'] ?? 'The Apps Script did not answer.')];
+    }
+
+    /**
+     * Times an interview could actually be booked into.
+     *
+     * ── THIS IS NOT A GOOGLE APPOINTMENT SCHEDULE ────────────────────────────
+     *
+     * Google's Appointment Schedules — the booking pages with a shareable URL — have no API
+     * at any scope: not in Calendar v3, not in the Apps Script advanced service. So this
+     * cannot read one and does not pretend to. It computes open slots from the calendar's
+     * own free/busy inside working hours the caller passes in, which is the honest feature
+     * that can be built from what exists.
+     *
+     * Booking a slot is then {@see syncEvent()} at that time, so the round trip is:
+     * slots → the nominee picks one → sync → they get an invitation with a Meet link.
+     *
+     * `lead_minutes` defaults to two hours because a slot offered fifteen minutes from now
+     * is one a judge cannot be in, and it is the slot somebody books.
+     *
+     * @param array{from:string, to:string, minutes?:int, gap_minutes?:int, day_start?:string,
+     *              day_end?:string, days?:list<int>, lead_minutes?:int, max?:int,
+     *              timezone?:string, calendar_id?:string} $opts
+     * @return array{ok:bool, slots:list<array{start:string,end:string}>, minutes:int, message:string}
+     */
+    public function slots(array $opts): array
+    {
+        $no = fn (string $m): array => ['ok' => false, 'slots' => [], 'minutes' => 0, 'message' => $m];
+        if (!$this->canSchedule()) return $no($this->why());
+
+        $from = strtotime((string) ($opts['from'] ?? ''));
+        $to   = strtotime((string) ($opts['to'] ?? ''));
+        if (!$from || !$to)  return $no('That date range could not be read.');
+        if ($to <= $from)    return $no('The window has to end after it starts.');
+        // A month is already 100+ slots at 30 minutes; asking for a year would time the
+        // Apps Script out and return an HTML error page rather than an answer.
+        if ($to - $from > 90 * 86400) return $no('Ask for at most ninety days at a time.');
+
+        $res = $this->call('calendar.slots', [
+            'fromIso'     => gmdate('Y-m-d\TH:i:s\Z', $from),
+            'toIso'       => gmdate('Y-m-d\TH:i:s\Z', $to),
+            'minutes'     => max(5, min(480, (int) ($opts['minutes'] ?? 30))),
+            'gapMinutes'  => max(0, min(240, (int) ($opts['gap_minutes'] ?? 0))),
+            'dayStart'    => (string) ($opts['day_start'] ?? '09:00'),
+            'dayEnd'      => (string) ($opts['day_end'] ?? '17:00'),
+            'days'        => array_values(array_filter(
+                array_map('intval', (array) ($opts['days'] ?? [1, 2, 3, 4, 5])),
+                static fn (int $d): bool => $d >= 0 && $d <= 6
+            )),
+            'leadMinutes' => max(0, (int) ($opts['lead_minutes'] ?? 120)),
+            'max'         => max(1, min(500, (int) ($opts['max'] ?? 100))),
+            'timezone'    => (string) ($opts['timezone'] ?? 'Africa/Lagos'),
+            'calendarId'  => (string) ($opts['calendar_id'] ?? 'primary'),
+        ], self::TIMEOUT_CREATE);
+
+        if (!($res['ok'] ?? false)) {
+            return $no((string) ($res['message'] ?? 'The Apps Script did not answer.'));
+        }
+
+        $slots = [];
+        foreach ((array) ($res['slots'] ?? []) as $s) {
+            $a = trim((string) ($s['startIso'] ?? ''));
+            $b = trim((string) ($s['endIso'] ?? ''));
+            if ($a !== '' && $b !== '') $slots[] = ['start' => $a, 'end' => $b];
+        }
+
+        return ['ok' => true, 'slots' => $slots,
+                'minutes' => (int) ($res['minutes'] ?? 30),
+                'message' => (string) ($res['message'] ?? count($slots) . ' slot(s)')];
+    }
+
+    /**
+     * Busy blocks in a window, for a screen that wants to draw a calendar rather than a
+     * list of slots.
+     *
+     * @return array{ok:bool, busy:list<array{start:string,end:string}>, message:string}
+     */
+    public function busy(string $from, string $to, string $calendarId = 'primary'): array
+    {
+        if (!$this->canSchedule()) return ['ok' => false, 'busy' => [], 'message' => $this->why()];
+
+        $a = strtotime($from);
+        $b = strtotime($to);
+        if (!$a || !$b || $b <= $a) return ['ok' => false, 'busy' => [],
+                                            'message' => 'That date range could not be read.'];
+
+        $res = $this->call('calendar.freebusy', [
+            'fromIso' => gmdate('Y-m-d\TH:i:s\Z', $a),
+            'toIso'   => gmdate('Y-m-d\TH:i:s\Z', $b),
+            'calendarId' => $calendarId,
+        ], self::TIMEOUT_CREATE);
+
+        $busy = [];
+        foreach ((array) ($res['busy'] ?? []) as $x) {
+            $s = trim((string) ($x['start'] ?? ''));
+            $e = trim((string) ($x['end'] ?? ''));
+            if ($s !== '' && $e !== '') $busy[] = ['start' => $s, 'end' => $e];
+        }
+
+        return ['ok' => (bool) ($res['ok'] ?? false), 'busy' => $busy,
+                'message' => (string) ($res['message'] ?? '')];
+    }
+
+    /** @param array<mixed> $in @return list<string> the deliverable addresses in $in */
+    private static function emails(array $in): array
+    {
+        return array_values(array_filter(
+            array_map(static fn ($e): string => trim((string) $e), $in),
+            static fn (string $e): bool => filter_var($e, FILTER_VALIDATE_EMAIL) !== false
+        ));
+    }
+
+    /**
      * Fetch the transcript Google produced for a conference.
      *
      * A transcript only exists if somebody in the call switched transcription on — it is

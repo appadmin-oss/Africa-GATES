@@ -3394,6 +3394,32 @@ return function(App $app) {
             $s->post('/reconcile-payments', AdminSettingsController::class.':reconcilePayments');
         })->add(new RoleMiddleware('superadmin'));
 
+        // ── THE REHEARSAL SANDBOX ───────────────────────────────────────────
+        //
+        // Superadmin, and reachable from a browser rather than only `bin/console demo:seed`,
+        // for the same reason the legal seeder is: this deploys to cPanel where there is
+        // frequently no shell, and a capability that only exists behind SSH does not exist
+        // for the person running the awards. Both create and destroy data.
+        $a->get('/sandbox',         \AfricaGates\Admin\Controllers\SandboxController::class.':index')
+            ->add(new RoleMiddleware('superadmin'));
+        $a->post('/sandbox/build',  \AfricaGates\Admin\Controllers\SandboxController::class.':build')
+            ->add(new RoleMiddleware('superadmin'));
+        $a->post('/sandbox/remove', \AfricaGates\Admin\Controllers\SandboxController::class.':remove')
+            ->add(new RoleMiddleware('superadmin'));
+
+        // ── THE INTERVIEW BOT ───────────────────────────────────────────────
+        //
+        // Superadmin only, and in `configuration`, because this screen holds an API key
+        // for a third-party service that sits in judging interviews. It reads the
+        // environment as a fallback, so a deploy that already set the env vars keeps
+        // working with nothing typed here.
+        $a->get('/attendee',       \AfricaGates\Admin\Controllers\AttendeeController::class.':index')
+            ->add(new RoleMiddleware('superadmin'));
+        $a->post('/attendee',      \AfricaGates\Admin\Controllers\AttendeeController::class.':save')
+            ->add(new RoleMiddleware('superadmin'));
+        $a->post('/attendee/test', \AfricaGates\Admin\Controllers\AttendeeController::class.':test')
+            ->add(new RoleMiddleware('superadmin'));
+
         // Outbound webhooks — integration endpoints for AI agents & platforms.
         $a->group('/webhooks', function (RouteCollectorProxy $s) {
             $s->get('',                     AdminWebhooksController::class.':index');

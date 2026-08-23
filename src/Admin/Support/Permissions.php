@@ -108,6 +108,11 @@ final class Permissions
         'payments' => 'finance',
         // configuration (superadmin)
         'admins' => 'configuration', 'settings' => 'configuration', 'webhooks' => 'configuration', 'judges' => 'configuration',
+        // The interview bot's setup screen holds a third-party API key, so it sits with
+        // the other credential screens rather than with the interviews a moderator runs.
+        'attendee' => 'configuration',
+        // Building and destroying test data is a configuration act, not a moderation one.
+        'sandbox' => 'configuration',
         // overview — the dashboard and the AI console copilot (every role may use
         // the assistant; the controller enforces the per-role usage budget).
         'dashboard' => 'overview', 'assistant' => 'overview',
