@@ -169,6 +169,27 @@
   .ed-cal__alt a{ color:#237b22; font-weight:600; }
 
   @media (max-width:820px){ .ed-grid{ grid-template-columns:1fr; } .ed-rail{ position:static; } }
+
+  /* ── EARN FROM SHARING ──────────────────────────────────────────────────
+     Quiet on purpose. It sits beside the buy button and must not compete with it: a
+     supporter who came to buy a ticket and left having read about commission instead
+     is a worse outcome than one who never saw this. Hence a bordered card in the
+     sidebar rather than a coloured banner in the flow. */
+  .ed-earn{ margin-top:14px; padding:16px; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    background:var(--ag-surface,#fff); }
+  .ed-earn__k{ margin:0 0 8px; font-size:11px; font-weight:600; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ag-ink-soft,#626a6e); }
+  .ed-earn__t{ margin:0 0 12px; font-size:13.5px; line-height:1.6; color:var(--ag-ink,#10292C); }
+  .ed-earn__row{ display:flex; gap:6px; }
+  .ed-earn__in{ flex:1 1 auto; min-width:0; padding:9px 11px; font-size:12px;
+    font-family:var(--ag-font-mono,ui-monospace,monospace); border:1px solid rgba(16,41,44,.14);
+    border-radius:9px; background:#f7f9f9; color:var(--ag-ink,#10292C); }
+  .ed-earn__btn{ flex:none; padding:9px 14px; font-size:12.5px; font-weight:700; cursor:pointer;
+    border:1px solid #1a6118; border-radius:9px; background:#1a6118; color:#fff; }
+  .ed-earn__btn:hover{ background:#145012; }
+  .ed-earn__n{ margin:10px 0 0; font-size:12px; line-height:1.6; color:var(--ag-ink-soft,#626a6e); }
+  .ed-earn__n a{ color:#1a6118; font-weight:600; }
+  .ed-earn__cta{ display:inline-block; margin-bottom:4px; font-size:13px; }
 </style>
 {% endblock %}
 
@@ -574,6 +595,48 @@
         <span x-show="note" x-cloak x-text="note" style="display:block;text-align:center;margin-top:8px;font-size:12px;color:#1a6118;font-weight:600"></span>
       </div>
       {% endif %}
+
+      {# ── EARN FROM SHARING ────────────────────────────────────────────────
+         Directly under Share, deliberately: this is the one moment somebody is already
+         thinking about telling a friend, and it is where the offer means anything. The
+         referral programme existed and nobody knew — a member had to already know it was
+         there, sign in, and find the panel on their account page.
+
+         The rate and the threshold are printed from live values rather than written into
+         the copy. An admin can change both, and a page promising 10% after a change to 8%
+         is a promise the ledger will not honour. #}
+      {% if referral %}
+      <div class="ed-earn">
+        <p class="ed-earn__k">Earn from sharing</p>
+        {% if referral.link %}
+          <p class="ed-earn__t">Share <strong>your</strong> link. When someone buys a ticket
+            through it you earn <strong>{{ referral.pct }}%</strong>.</p>
+          {# The link leads and is a real input, so it can be selected by hand when the
+             clipboard API is refused or the script never loads. The link IS the feature. #}
+          <label class="sr-only" for="edRefLink">Your referral link for this event</label>
+          <div class="ed-earn__row">
+            <input class="ed-earn__in" id="edRefLink" type="text" readonly value="{{ referral.link }}">
+            <button type="button" class="ed-earn__btn" data-rf-copy="edRefLink">Copy</button>
+          </div>
+          <p class="ed-earn__n">
+            {% if referral.threshold > 1 %}
+              Paid once you have <strong>{{ referral.threshold }}</strong> referrals — and it is
+              backdated, so the {{ referral.threshold }}th makes all of them payable.
+            {% else %}
+              Paid from your first referral.
+            {% endif %}
+            <a href="/account#me-referral">Your referrals →</a>
+          </p>
+        {% else %}
+          <p class="ed-earn__t">Tell people about this event and earn
+            <strong>{{ referral.pct }}%</strong> of every ticket bought through your link.</p>
+          {# A link needs an owner: a code with nobody behind it is a code with nobody to
+             pay. So the offer is shown to everybody and the account is the next step. #}
+          <p class="ed-earn__n"><a class="ed-earn__cta" href="/account/login?next=/events/{{ event.slug|url_encode }}">Sign in to get your link</a>
+            <br>Free, and your link works on every event.</p>
+        {% endif %}
+      </div>
+      {% endif %}
     </aside>
   </div>
 </div>
@@ -717,6 +780,35 @@
       }
     };
   }
+{% if referral and referral.link %}
+  /* The copy button. Same shape as the account page's referral panel: the field is a real
+     input first, so a browser that refuses the clipboard API — or a page whose script never
+     arrived — still leaves the link there to select by hand. The link IS the feature.
+
+     Emitted only when there IS a link, so a page with no referral offer does not ship a
+     listener with nothing to listen to. */
+  (function(){
+    var btn = document.querySelector('[data-rf-copy]');
+    if (!btn) return;
+    var field = document.getElementById(btn.getAttribute('data-rf-copy'));
+    if (!field) return;
+    var original = btn.textContent;
+    btn.addEventListener('click', function(){
+      field.select();
+      var done = function(ok){
+        btn.textContent = ok ? 'Copied' : 'Press Ctrl+C';
+        if (window.agAnnounce) window.agAnnounce(ok ? 'Referral link copied' : 'Select and copy the link');
+        setTimeout(function(){ btn.textContent = original; }, 2200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(field.value).then(function(){ done(true); }, function(){ done(false); });
+      } else {
+        try { done(document.execCommand('copy')); } catch (e) { done(false); }
+      }
+    });
+  })();
+{% endif %}
+
   function evShare(){
     return {
       note:'',

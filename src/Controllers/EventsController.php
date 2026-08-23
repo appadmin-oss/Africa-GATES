@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
 use AfricaGates\Services\{CacheService, OtpService, Notifier,
                          EventTicketService, EventTicketMailer, EventDiscount, EventCodeResolver, EventWaitlist,
                          EventAgenda, EventTicketDesign, StandCall,
-                         GatewayHandoff, PaymentService, RateLimitService};
+                         GatewayHandoff, PaymentService, RateLimitService, ReferralService};
 
 /**
  * Events, and — new — tickets somebody can actually buy.
@@ -158,7 +158,39 @@ class EventsController
             ? ['text' => $ebText, 'deadline' => $ebUntil, 'url' => trim((string)($event['early_bird_url'] ?? ''))]
             : null;
 
+        // ── "YOU COULD EARN FROM THIS" ───────────────────────────────────────
+        //
+        // The referral programme existed and nobody knew: a member had to already know it
+        // was there, sign in, and find the panel on their account page. This is the one
+        // place where somebody is looking at a ticket they might tell a friend about — so
+        // it is the one place the offer means anything.
+        //
+        // The rate and the threshold are read LIVE rather than written into the copy,
+        // because an admin can change both and a page promising 10% after a change to 8%
+        // is a promise the ledger will not honour.
+        $referral = null;
+        if (ReferralService::enabled() && ReferralService::enabledForEvent((int) $event['id']) && !$isPast) {
+            $me = self::memberId();
+            $referral = [
+                'pct'       => ReferralService::ratePct(),
+                'threshold' => ReferralService::threshold(),
+                // Signed in: their real link, ready to copy. Not signed in: the offer and a
+                // route to an account, because a link needs an owner — a code with nobody
+                // behind it is a code with nobody to pay.
+                'code'      => $me !== null ? ReferralService::codeFor($me) : null,
+                'link'      => null,
+            ];
+            if ($referral['code'] !== null) {
+                $referral['link'] = ReferralService::link(
+                    \AfricaGates\Support\SiteUrl::base($req),
+                    (string) $referral['code'],
+                    (string) ($event['slug'] ?? '')
+                );
+            }
+        }
+
         return $this->view->render($res, 'pages/events/detail.twig', [
+            'referral'         => $referral,
             'page_title'       => $event['title'] . ' — Africa GATES',
             'meta_description' => ($event['tagline'] ?? null)
                 ?: mb_substr(strip_tags((string)($event['description'] ?? '')), 0, 150),
