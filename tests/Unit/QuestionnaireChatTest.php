@@ -398,16 +398,37 @@ final class QuestionnaireChatTest extends TestCase
     // ══ 7. the endpoint ══════════════════════════════════════════════════════
 
     /**
-     * This is a same-origin POST from our own page and NOT under /api/, so CsrfMiddleware
-     * demands the synchronizer token rather than accepting X-Requested-With. The first version
-     * of the page sent no token and got a 403 on every single turn.
+     * ── THIS TEST ONCE ASSERTED THE OPPOSITE, AND THE PREMISE WAS WRONG ─────
+     *
+     * It used to require the synchronizer token here and called a bare POST proof that
+     * "the chat endpoint is open to cross-site posts". It is not, and the token was never
+     * what stopped one.
+     *
+     * The authority on this route is the 32-hex invite token IN THE PATH, not a cookie.
+     * A cross-site attacker cannot post to `/my-work/<victim token>/chat` without knowing
+     * that token, and if they know it they can post from their own machine with no
+     * victim's browser involved. CSRF defends a cookie-authenticated session; there is no
+     * session here to defend. It is the same reasoning `/door/<64 hex>/check` was exempted
+     * under.
+     *
+     * Meanwhile the requirement had a real cost. The session cookie lasts seven days but
+     * PHP's server-side `session.gc_maxlifetime` defaults to 1440 seconds, so after about
+     * twenty-four idle minutes `$_SESSION` is collected, a fresh `csrf_token` is minted,
+     * and the token already rendered into the nominee's page stops matching — every save
+     * refused with "CSRF validation failed", to a population `saveDraft()` describes as
+     * "filling this in on a phone, between other work, over several days."
+     *
+     * So the property held here now is the one that actually protects the route: an
+     * unknown token is refused, and a real one works with or without a session.
      */
-    public function test_the_endpoint_needs_the_csrf_token_and_works_with_it(): void
+    public function test_the_endpoint_works_without_a_session_and_still_checks_the_invite_token(): void
     {
         [, $token] = $this->open();
 
-        $bare = $this->post('/my-work/' . $token . '/chat', ['say' => 'hello'], false);
-        $this->assertSame(403, $bare[0], 'the chat endpoint is open to cross-site posts');
+        // No CSRF header — the state a nominee returns to after a pause.
+        $bare = $this->post('/my-work/' . $token . '/chat', ['say' => ''], false);
+        $this->assertSame(200, $bare[0], 'a nominee cannot answer after their session expired');
+        $this->assertTrue($bare[1]['ok']);
 
         $ok = $this->post('/my-work/' . $token . '/chat', ['say' => ''], true);
         $this->assertSame(200, $ok[0], (string) json_encode($ok[1]));
