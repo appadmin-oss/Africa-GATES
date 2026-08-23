@@ -143,6 +143,18 @@
     }
   }
 
+  // A select that submits its own form on choice — the cycle switcher on the shortlist
+  // screen, and anything after it that wants the same.
+  //
+  // Delegated on `data-ag-do`, NOT an inline `onchange`: the admin CSP has no
+  // 'unsafe-inline' in script-src, so an inline handler is not merely discouraged here —
+  // it silently never runs, and CspTest fails the build over it. Every such form also
+  // keeps a visible submit button, so choosing a cycle works with this file absent.
+  document.addEventListener('change', function (e) {
+    const el = e.target.closest('[data-ag-do="submit-form"]');
+    if (el && el.form) el.form.submit();
+  });
+
   // Tippy.js tooltips
   if (window.tippy) {
     window.tippy('[data-tip]', {

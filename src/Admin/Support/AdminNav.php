@@ -100,6 +100,7 @@ final class AdminNav
                 'tip' => 'Award programmes, cycles, categories and the judging panel.',
                 'items' => [
                     ['page' => 'programmes',  'label' => 'Awards & Cycles', 'href' => '/admin/programmes'],
+                    ['page' => 'shortlists',  'label' => 'Shortlists',      'href' => '/admin/shortlists'],
                     ['page' => 'awards_page', 'label' => 'Awards Page',     'href' => '/admin/awards-page'],
                 ],
             ],

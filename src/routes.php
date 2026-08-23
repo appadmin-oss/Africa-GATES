@@ -17,6 +17,7 @@ use AfricaGates\Admin\Controllers\{
     NominationsController as AdminNominationsController,
     ModerationController as AdminModerationController,
     ProgrammesController as AdminProgrammesController,
+    ShortlistsController as AdminShortlistsController,
     NomineesController as AdminNomineesController,
     LegacyController as AdminLegacyController,
     OpportunitiesController as AdminOpportunitiesController,
@@ -2984,6 +2985,24 @@ return function(App $app) {
         $a->post('/programmes/{id:[0-9]+}/cycle',    AdminProgrammesController::class.':cycleSave')->add(new RoleMiddleware('superadmin'));
         $a->post('/programmes/{id:[0-9]+}/categories', AdminProgrammesController::class.':categorySave');
         $a->post('/categories/{catId:[0-9]+}/delete', AdminProgrammesController::class.':categoryDelete');
+
+        // ── SHORTLISTS ──────────────────────────────────────────────────────
+        //
+        // Reading a preview and changing a threshold are `programmes` work, which an editor
+        // holds. PUBLISHING is not: it cuts the field, and it carries the weight of
+        // announcing a result. Hence the narrower guard on the three routes that make a
+        // shortlist real, withdraw one, or hand somebody the document.
+        $a->get('/shortlists',                                 AdminShortlistsController::class.':index');
+        $a->post('/shortlists/rule',                            AdminShortlistsController::class.':saveRule');
+        $a->get('/shortlists/category/{catId:[0-9]+}',          AdminShortlistsController::class.':category');
+        $a->post('/shortlists/category/{catId:[0-9]+}/rule',    AdminShortlistsController::class.':saveRule');
+        $a->post('/shortlists/category/{catId:[0-9]+}/inherit', AdminShortlistsController::class.':clearRule');
+        $a->post('/shortlists/category/{catId:[0-9]+}/publish', AdminShortlistsController::class.':publish')
+            ->add(new RoleMiddleware('superadmin', 'admin'));
+        $a->post('/shortlists/category/{catId:[0-9]+}/withdraw', AdminShortlistsController::class.':withdraw')
+            ->add(new RoleMiddleware('superadmin', 'admin'));
+        $a->get('/shortlists/category/{catId:[0-9]+}.pdf',      AdminShortlistsController::class.':pdf')
+            ->add(new RoleMiddleware('superadmin', 'admin'));
 
         // Editorial copy for the public /awards page (programme cards stay live data).
         $a->get('/awards-page',  AdminAwardsPageController::class.':form');

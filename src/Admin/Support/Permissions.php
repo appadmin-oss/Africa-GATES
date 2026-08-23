@@ -62,6 +62,12 @@ final class Permissions
         'questionnaires' => 'moderation',
         // programmes
         'programmes' => 'programmes', 'categories' => 'programmes', 'awards-page' => 'programmes',
+        // Shortlisting is drawn from the categories and cycles this section already owns,
+        // so it is mapped here rather than left to fail closed to superadmin — an
+        // unmapped path would show the link to an editor and then bounce them.
+        // Publishing a shortlist is narrower than reading one and carries its own
+        // RoleMiddleware('superadmin','admin') in routes.php.
+        'shortlists' => 'programmes',
         // content
         'events' => 'content', 'posts' => 'content', 'legacy' => 'content', 'opportunities' => 'content',
         'partners' => 'content', 'media' => 'content', 'products' => 'content', 'forms' => 'content',

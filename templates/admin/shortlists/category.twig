@@ -1,0 +1,169 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Programmes · Shortlists</small>{% endblock %}
+{% block topbar_title %}{{ cat.title }}{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn" href="/admin/shortlists?cycle={{ cat.cycle_id }}">← All categories</a>
+  {% if published and may_publish %}<a class="ad-btn ad-btn--gold" href="/admin/shortlists/category/{{ cat.id }}.pdf" target="_blank" rel="noopener">Download PDF</a>{% endif %}
+{% endblock %}
+
+{% block content %}
+
+{# ── WHAT IS PUBLISHED, BEFORE WHAT WOULD BE ────────────────────────────────
+   The published list is the fact. The preview is a proposal. Putting the proposal
+   first invites somebody to read a number, act on it, and be wrong about what
+   nominees have actually been told. #}
+{% if published %}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Published shortlist
+    <small>{{ published.entry_count }} nominee{{ published.entry_count == 1 ? '' : 's' }} · {{ published.rule_text }}{% if published.published_at %} · published {{ published.published_at|date('j M Y') }}{% endif %}</small>
+  </div>
+  {% if may_publish %}
+  <form method="post" action="/admin/shortlists/category/{{ cat.id }}/withdraw">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Withdraw this shortlist? The record of it is kept, but it stops being the published list.">Withdraw</button>
+  </form>
+  {% endif %}
+  </div>
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <thead><tr><th scope="col">#</th><th scope="col">Nominee</th><th scope="col" style="text-align:right">Votes at publication</th></tr></thead>
+      <tbody>
+        {% for e in entries %}
+        <tr>
+          <td style="font-variant-numeric:tabular-nums;color:var(--ad-text-mute)">{{ e.rank_no }}</td>
+          <td><strong>{{ e.nominee_name }}</strong>{% if e.tied_at_cut %} <span class="ad-chip ad-chip--gold" title="Level with the cut line. Included because the rule says ties are included.">level at cut</span>{% endif %}
+            {% if e.organisation or e.country_code %}<br><span style="font-size:12px;color:var(--ad-text-mute)">{{ [e.organisation, e.country_code]|filter(v => v)|join(' · ') }}</span>{% endif %}
+          </td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums">{{ e.vote_count|number_format }}{% if e.organic_vote_count != e.vote_count %}<br><span style="font-size:11px;color:var(--ad-text-mute)">{{ e.organic_vote_count|number_format }} organic</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── THE RULE FOR THIS CATEGORY ──────────────────────────────────────────── #}
+<form class="ad-form" method="post" action="/admin/shortlists/category/{{ cat.id }}/rule">
+  <input type="hidden" name="_token" value="{{ csrf_token }}">
+  <input type="hidden" name="cycle_id" value="{{ cat.cycle_id }}">
+  <input type="hidden" name="category_id" value="{{ cat.id }}">
+  <div class="ad-card">
+    <div class="ad-card__head"><div class="ad-card__title">Rule
+      <small>{% if scope == 'category' %}This category has its own rule.{% elseif scope == 'cycle' %}Inherited from the cycle. Saving here creates an override for this category only.{% else %}No rule has been set — these are the defaults.{% endif %}</small>
+    </div>
+    {#
+      `formaction` rather than a second <form>. This heading sits INSIDE the rule form, and
+      a nested form is not merely invalid HTML — every browser drops the inner one silently,
+      so the button would post the rule it was meant to delete.
+    #}
+    {% if scope == 'category' %}
+    <button class="ad-btn ad-btn--sm" type="submit"
+            formaction="/admin/shortlists/category/{{ cat.id }}/inherit" formnovalidate>Follow the cycle rule instead</button>
+    {% endif %}
+    </div>
+    <div class="ad-card__body"><div class="ad-form">
+      <div class="row">
+        <div>
+          <label for="c-mode">How the line is drawn</label>
+          <select name="mode" id="c-mode">
+            {% for k, label in modes %}<option value="{{ k }}" {% if rule.mode == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="c-threshold">Number, percentage or vote floor</label>
+          <input type="number" name="threshold" id="c-threshold" min="0" max="10000" value="{{ rule.threshold }}" required>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="c-min">Minimum votes to qualify at all</label>
+          <input type="number" name="min_votes" id="c-min" min="0" max="1000000" value="{{ rule.minVotes }}">
+        </div>
+        <div>
+          <label for="c-tie">At the cut line</label>
+          <select name="tie_mode" id="c-tie">
+            {% for k, label in ties %}<option value="{{ k }}" {% if rule.tieMode == k %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div><label class="checkbox"><input type="checkbox" name="organic_only" value="1" {% if rule.organicOnly %}checked{% endif %}> Count organic votes only — exclude purchased bonus votes</label></div>
+
+      {% if preview.warnings %}
+        <div class="ad-callout ad-callout--warn">
+          <strong>Worth knowing</strong>
+          <ul>{% for w in preview.warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+        </div>
+      {% endif %}
+    </div></div>
+    <div class="ad-card__body" style="padding-top:0"><div class="ad-form__actions" style="justify-content:flex-end">
+      <button class="ad-btn ad-btn--primary" type="submit">Save rule for this category</button>
+    </div></div>
+  </div>
+</form>
+
+{# ── THE PREVIEW, WITH THE LINE ACTUALLY DRAWN ───────────────────────────── #}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Preview — live
+    <small>{{ preview.in }} of {{ preview.considered }} would be shortlisted right now. This moves as votes arrive; nothing here has been announced.</small>
+  </div>
+  {% if may_publish and preview.in > 0 %}
+  <form method="post" action="/admin/shortlists/category/{{ cat.id }}/publish" style="display:flex;gap:8px;align-items:center">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label for="c-note" class="sr-only">Note</label>
+    <input type="text" name="note" id="c-note" maxlength="200" placeholder="Note for the document (optional)" style="width:230px">
+    <button class="ad-btn ad-btn--primary" type="submit"
+      data-confirm="Publish {{ preview.in }} nominee{{ preview.in == 1 ? '' : 's' }} as the shortlist for {{ cat.title }}? The list is fixed at that point — later votes will not change it.">
+      {{ published ? 'Republish' : 'Publish' }} {{ preview.in }}
+    </button>
+  </form>
+  {% endif %}
+  </div>
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <thead><tr>
+        <th scope="col">#</th>
+        <th scope="col">Nominee</th>
+        <th scope="col" style="text-align:right">{{ rule.organicOnly ? 'Organic votes' : 'Votes' }}</th>
+        <th scope="col">Status</th>
+      </tr></thead>
+      <tbody>
+        {% for r in preview.rows %}
+          {#
+            The cut line, drawn as an actual line in the table. A column of ticks and
+            crosses makes a reader count; a rule across the page makes it obvious.
+
+            Positioned by INDEX, not by a first-out flag: a `{% set %}` inside a Twig loop
+            does not survive to the next iteration, so a flag would draw the line above
+            every excluded row. It does not need one — the cut is monotone in vote count,
+            so every included nominee sorts above every excluded one and the boundary is
+            always exactly `preview.in` rows down. ShortlistCutTest pins that ordering.
+          #}
+          {% if loop.index0 == preview.in and preview.in < preview.considered %}
+            <tr class="ad-cut"><td colspan="4">
+              cut line{% if preview.cut is not null %} — {{ preview.cut|number_format }} vote{{ preview.cut == 1 ? '' : 's' }}{% endif %}
+              · {{ preview.in }} above
+            </td></tr>
+          {% endif %}
+          <tr{% if not r.in %} class="ad-out"{% endif %}>
+            <td style="font-variant-numeric:tabular-nums;color:var(--ad-text-mute)">{{ r.rank }}</td>
+            <td>
+              <strong>{{ r.name }}</strong>
+              {% if r.tied %} <span class="ad-chip ad-chip--gold" title="Level with the cut line.">level at cut</span>{% endif %}
+              {% if r.organisation or r.country_code %}<br><span style="font-size:12px;color:var(--ad-text-mute)">{{ [r.organisation, r.country_code]|filter(v => v)|join(' · ') }}</span>{% endif %}
+            </td>
+            <td style="text-align:right;font-variant-numeric:tabular-nums">{{ r.count|number_format }}</td>
+            <td>
+              {% if r.in %}<span class="ad-chip ad-chip--green">in</span>
+              {% else %}<span class="ad-chip ad-chip--grey">{{ r.reason }}</span>{% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="4" style="text-align:center;color:var(--ad-text-mute);padding:30px">No approved nominees in this category yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

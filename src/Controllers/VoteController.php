@@ -148,6 +148,26 @@ class VoteController {
         }
         unset($c);
 
+        // ── THE SHORTLIST BADGE ──────────────────────────────────────────────
+        //
+        // ONE query for the whole page, not one per card. `shortlistedIn()` returns an
+        // id-keyed set, so marking sixty cards is sixty array lookups rather than sixty
+        // round trips — the same reason the race framing above is computed in memory.
+        //
+        // Read from the PUBLISHED snapshot and never recomputed here: a badge derived from
+        // a live threshold would appear and disappear as votes landed, telling a nominee
+        // they were shortlisted and then that they were not, on a page they did not reload.
+        $shortlisted = \AfricaGates\Services\ShortlistService::shortlistedIn((int) ($p['cycle']['id'] ?? 0));
+        if ($shortlisted !== []) {
+            foreach ($cats as &$c) {
+                foreach ($c['nominees'] as &$n) {
+                    $n['shortlisted'] = isset($shortlisted[(int) $n['id']]);
+                }
+                unset($n);
+            }
+            unset($c);
+        }
+
         return $this->view->render($res, 'pages/vote-program.twig', [
             'page_title'       => $p['title'] . ' — Vote — Africa GATES',
             'meta_description' => 'Vote in ' . $p['title'] . ' — browse the nominees by category and back the African excellence you believe deserves continental recognition.',

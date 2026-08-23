@@ -663,3 +663,41 @@ body[data-page-admin] {
 }
 .nr-cat:hover,
 .nr-cat:focus-within { border-color: var(--ad-primary); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SHORTLISTS — the callout, and the cut line drawn as an actual line
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* A callout, not a flash. `.ad-flash` is centred on one line for a single
+   sentence delivered after an action; this holds a list of things that are true
+   about a rule while you are still editing it, and has to sit in the form flow. */
+.ad-callout {
+  padding: 12px 14px; border-radius: 8px; font-size: 13px; line-height: 1.55;
+  border: 1px solid var(--ad-line); background: var(--ad-bg, #f4f6fa);
+  color: var(--ad-text);
+}
+.ad-callout strong { display: block; margin-bottom: 4px; font-size: 12.5px; }
+.ad-callout ul { margin: 0; padding-left: 18px; }
+.ad-callout li + li { margin-top: 3px; }
+.ad-callout--warn { background: #fffaf0; border-color: #f2dfae; color: #7a4f07; }
+
+/* THE CUT LINE.
+   A row that is a boundary rather than a record, so it is styled as a rule with a
+   label on it rather than as another line of data: no hover, no cell padding
+   rhythm, and the label in the same mono the rest of the console uses for
+   machine facts. The 2px top border is the line; everything else keeps it from
+   reading as a nominee. */
+tr.ad-cut > td {
+  padding: 6px 14px;
+  border-top: 2px solid var(--ad-gold, #f3b416);
+  background: #fffdf5;
+  font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ad-text-mute, #5a6d6f);
+}
+tr.ad-cut:hover > td { background: #fffdf5; }
+
+/* Below the line. Dimmed rather than hidden — an organiser deciding where to put
+   a threshold needs to see who the next three are, and by how much they missed. */
+tr.ad-out > td { opacity: .62; }
+tr.ad-out:hover > td { opacity: 1; }

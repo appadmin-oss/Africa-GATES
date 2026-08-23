@@ -36,6 +36,11 @@
   .vp-card__mono{ font-family:var(--ag-font-display,serif); font-weight:800; font-size:24px; color:#7FC87C; }
   .vp-card__b{ flex:1; min-width:0; }
   .vp-card__name{ font-weight:700; font-size:15px; color:var(--ag-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* Shortlisted. Deliberately quiet: it is a fact about a nominee, not a call to
+     action, and a loud badge beside a "Vote →" button competes with the button. */
+  .vp-short{ display:inline-flex; align-items:center; gap:4px; margin-top:5px; padding:2px 8px 2px 6px;
+    border-radius:999px; background:#e8f6ec; color:#146c37; border:1px solid #bfe5cb;
+    font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; align-self:flex-start; }
   .vp-card__tag{ font-size:12.5px; color:#5a6d6f; margin-top:2px; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
   /* The CTA is pushed to the right edge so votes and gap read as one group, and the
      row is allowed to wrap rather than squeezing three items into a narrow card. */
@@ -167,6 +172,14 @@
           </span>
           <span class="vp-card__b">
             <span class="vp-card__name">{{ n.name }}</span>
+            {# On a PUBLISHED shortlist. Not computed from a live threshold — see the note
+               in VoteController::program(). #}
+            {% if n.shortlisted|default(false) %}
+            <span class="vp-short" title="On the published shortlist for this category">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+              Shortlisted
+            </span>
+            {% endif %}
             {# The school or organisation. Collected on the nomination form and, until
                now, dropped at approval — so it existed in the database and appeared
                nowhere a supporter could see it. #}

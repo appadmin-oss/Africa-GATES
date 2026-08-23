@@ -536,6 +536,7 @@ return [
     AdminAwardsPageController::class   => fn(ContainerInterface $c)=>new AdminAwardsPageController($c->get(Twig::class), $c->get(SettingsService::class), $c->get(AuditService::class)),
     AdminMediaController::class        => fn(ContainerInterface $c)=>new AdminMediaController($c->get(Twig::class), $c->get(AuditService::class)),
     \AfricaGates\Admin\Controllers\LegalController::class    => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\LegalController($c->get(Twig::class), $c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\ShortlistsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\ShortlistsController($c->get(Twig::class), $c->get(AuditService::class)),
     \AfricaGates\Admin\Controllers\AiAssistController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AiAssistController($c->get(RateLimitService::class)),
     // The mailer is the fourth argument: without it, restocking a sold-out size changes a
     // number and tells the people who asked to be told nothing.
