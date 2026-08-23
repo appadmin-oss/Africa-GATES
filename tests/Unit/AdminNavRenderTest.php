@@ -41,7 +41,7 @@ final class AdminNavRenderTest extends TestCase
         $this->assertStringContainsString('ad-side__sec', $html, 'the sidebar did not render the tree');
         $this->assertStringContainsString('<summary class="ad-side__sectitle"', $html);
         // Every section heading should be present, collapsed or not.
-        foreach (['Overview', 'Entries', 'Judging', 'Outreach', 'Finance', 'Payments'] as $label) {
+        foreach (['Overview', 'Entries &amp; panel', 'Programmes', 'Content', 'Money', 'Data', 'System'] as $label) {
             $this->assertStringContainsString('>' . $label . '<', $html, "missing the {$label} section");
         }
     }
@@ -51,10 +51,10 @@ final class AdminNavRenderTest extends TestCase
     {
         $html = $this->render(\AfricaGates\Admin\Controllers\PayoutsController::class, 'index');
 
-        // The Finance section holds `payouts`, so it — and only a section holding the
+        // The Money section holds `payouts`, so it — and only a section holding the
         // current page — carries `open`.
         $this->assertMatchesRegularExpression(
-            '~<details class="ad-side__sec" open>\s*<summary[^>]*>\s*<span>Finance</span>~',
+            '~<details class="ad-side__sec" open>\s*<summary[^>]*>\s*<span>Money</span>~',
             $html,
             "the current page's section did not open"
         );
@@ -98,8 +98,8 @@ final class AdminNavRenderTest extends TestCase
         );
 
         $html = (string) $res->getBody();
-        $this->assertStringContainsString('>Judging<', $html, 'the moderator lost their own section');
-        $this->assertStringNotContainsString('>Configuration<', $html, 'a moderator was offered the superadmin rail');
+        $this->assertStringContainsString('>Entries &amp; panel<', $html, 'the moderator lost their own section');
+        $this->assertStringNotContainsString('>System<', $html, 'a moderator was offered the superadmin rail');
         $this->assertStringNotContainsString('/admin/payouts', $html, 'a moderator was offered payouts');
     }
 }

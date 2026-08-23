@@ -25,16 +25,29 @@ namespace AfricaGates\Admin\Support;
  * route, and no entry moves a page into a section its permission gate does not cover.
  *
  * ══════════════════════════════════════════════════════════════════════════════
- * WHY THE SECTIONS ARE SMALLER THAN THEY WERE
+ * WHY SEVEN SECTIONS, AND WHY THAT IS THE FLOOR
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * The sidebar showed every group expanded at once — thirty-six links, of which the two or
- * three anybody wanted were somewhere in the middle. Collapsing helps only if the sections
- * are small enough that opening one is not a second scroll: "Moderation" held eight items
- * and "Content" ten, and neither name told you which one you wanted.
+ * This was thirty-six links in one flat rail, then twelve collapsed groups, and the
+ * twelve were wrong for a reason worth writing down: NN/g's study with WhatUsersDo (179
+ * participants, six live sites) measured discoverability dropping by roughly half when
+ * main navigation is hidden — on desktop as well as mobile, with users about 39% slower
+ * on desktop. Twelve accordions is hidden navigation. The documented resolution is a
+ * HYBRID: a few destinations visible, the tail behind something else.
  *
- * So the largest groups are split by what the work actually IS — entries, judging,
- * outreach — rather than by which permission happens to cover them.
+ * So the tail moved to two other places — the in-page sub-nav under the page title, and
+ * the Cmd+K palette — and the rail holds seven headings.
+ *
+ * Seven is the floor, not a taste call. There are exactly seven distinct
+ * `admin_sections` gates, and a section can only carry one gate, so fewer sections would
+ * mean moving a page to a different gate. That is an access change, and it must never
+ * ride along inside a navigation change.
+ *
+ * Sections are therefore uneven — two items in Programmes, ten in Content. That is fine
+ * and deliberate: only one is open at a time, the sub-nav repeats it inside the page, and
+ * the palette reaches any of the thirty-seven pages in one keystroke. Labels use task
+ * vocabulary rather than the org chart ("Money", not "Finance & Payments"), which is what
+ * information-foraging predicts people scan for.
  *
  * ══════════════════════════════════════════════════════════════════════════════
  * AND WHY NOTHING CROSSED A PERMISSION BOUNDARY WHILE THAT HAPPENED
@@ -68,35 +81,20 @@ final class AdminNav
                     ['page' => 'assistant', 'label' => 'AI Assistant', 'href' => '/admin/assistant'],
                 ],
             ],
-
-            // ── was one eight-item "Moderation" group ────────────────────────
             [
-                'key' => 'entries', 'label' => 'Entries', 'gate' => 'moderation',
-                'tip' => 'Approve profiles, nominations and community content before it goes live.',
+                'key' => 'entries', 'label' => 'Entries & panel', 'gate' => 'moderation',
+                'tip' => 'Everything that moves a nomination from arriving to being judged.',
                 'items' => [
-                    ['page' => 'profiles',    'label' => 'Profiles',         'href' => '/admin/profiles'],
-                    ['page' => 'nominations', 'label' => 'Nominations',      'href' => '/admin/nominations'],
-                    ['page' => 'nominees',    'label' => 'Nominees',         'href' => '/admin/nominees'],
-                    ['page' => 'moderation',  'label' => 'Moderation Queue', 'href' => '/admin/moderation'],
+                    ['page' => 'profiles',       'label' => 'Profiles',         'href' => '/admin/profiles'],
+                    ['page' => 'nominations',    'label' => 'Nominations',      'href' => '/admin/nominations'],
+                    ['page' => 'nominees',       'label' => 'Nominees',         'href' => '/admin/nominees'],
+                    ['page' => 'moderation',     'label' => 'Moderation Queue', 'href' => '/admin/moderation'],
+                    ['page' => 'interviews',     'label' => 'Interviews',       'href' => '/admin/interviews'],
+                    ['page' => 'questionnaires', 'label' => 'Questionnaires',   'href' => '/admin/questionnaires'],
+                    ['page' => 'campaigns',      'label' => 'Campaigns',        'href' => '/admin/campaigns'],
+                    ['page' => 'support',        'label' => 'Support Queue',    'href' => '/admin/support'],
                 ],
             ],
-            [
-                'key' => 'judging', 'label' => 'Judging', 'gate' => 'moderation',
-                'tip' => 'Interviews and the nominee questionnaire — programme work, not governance.',
-                'items' => [
-                    ['page' => 'interviews',     'label' => 'Interviews',     'href' => '/admin/interviews'],
-                    ['page' => 'questionnaires', 'label' => 'Questionnaires', 'href' => '/admin/questionnaires'],
-                ],
-            ],
-            [
-                'key' => 'outreach', 'label' => 'Outreach', 'gate' => 'moderation',
-                'tip' => 'Email to nominees, and the support queue people write into.',
-                'items' => [
-                    ['page' => 'campaigns', 'label' => 'Campaigns',     'href' => '/admin/campaigns'],
-                    ['page' => 'support',   'label' => 'Support Queue', 'href' => '/admin/support'],
-                ],
-            ],
-
             [
                 'key' => 'programmes', 'label' => 'Programmes', 'gate' => 'programmes',
                 'tip' => 'Award programmes, cycles, categories and the judging panel.',
@@ -105,71 +103,47 @@ final class AdminNav
                     ['page' => 'awards_page', 'label' => 'Awards Page',     'href' => '/admin/awards-page'],
                 ],
             ],
-
-            // ── was one ten-item "Content" group ─────────────────────────────
             [
                 'key' => 'content', 'label' => 'Content', 'gate' => 'content',
-                'tip' => 'Public-facing content — events, blog, legacy and opportunities.',
+                'tip' => 'Everything the public sees — pages, events, shop and legal.',
                 'items' => [
-                    ['page' => 'events',        'label' => 'Events',        'href' => '/admin/events'],
-                    ['page' => 'posts',         'label' => 'Blog Posts',    'href' => '/admin/posts'],
-                    ['page' => 'legacy',        'label' => 'Legacy Events', 'href' => '/admin/legacy'],
-                    ['page' => 'opportunities', 'label' => 'Opportunities', 'href' => '/admin/opportunities'],
-                    ['page' => 'media',         'label' => 'Media',         'href' => '/admin/media'],
+                    ['page' => 'events',        'label' => 'Events',            'href' => '/admin/events'],
+                    ['page' => 'posts',         'label' => 'Blog Posts',        'href' => '/admin/posts'],
+                    ['page' => 'legacy',        'label' => 'Legacy Events',     'href' => '/admin/legacy'],
+                    ['page' => 'opportunities', 'label' => 'Opportunities',     'href' => '/admin/opportunities'],
+                    ['page' => 'media',         'label' => 'Media',             'href' => '/admin/media'],
+                    ['page' => 'products',      'label' => 'Shop Products',     'href' => '/admin/products'],
+                    ['page' => 'shop_orders',   'label' => 'Shop Orders',       'href' => '/admin/shop/orders'],
+                    ['page' => 'forms',         'label' => 'Forms',             'href' => '/admin/forms'],
+                    ['page' => 'partners',      'label' => 'Partner Enquiries', 'href' => '/admin/partners'],
+                    ['page' => 'legal',         'label' => 'Legal & policies',  'href' => '/admin/legal'],
                 ],
             ],
             [
-                'key' => 'shop', 'label' => 'Shop', 'gate' => 'content',
-                'tip' => 'Products and the orders placed against them.',
+                'key' => 'money', 'label' => 'Money', 'gate' => 'finance',
+                'tip' => 'Every naira taken, what is owed out, and everything needing chasing.',
                 'items' => [
-                    ['page' => 'products',    'label' => 'Shop Products', 'href' => '/admin/products'],
-                    ['page' => 'shop_orders', 'label' => 'Shop Orders',   'href' => '/admin/shop/orders'],
+                    ['page' => 'finance',           'label' => 'Revenue',           'href' => '/admin/finance'],
+                    ['page' => 'payouts',           'label' => 'Referral payouts',  'href' => '/admin/payouts'],
+                    ['page' => 'partner-orgs',      'label' => 'Partner Orgs',      'href' => '/admin/partner-orgs'],
+                    ['page' => 'payments',          'label' => 'Payment Triage',    'href' => '/admin/payments'],
+                    ['page' => 'payments-ledger',   'label' => 'Gateway Ledger',    'href' => '/admin/payments/ledger'],
+                    ['page' => 'payments-disputes', 'label' => 'Disputes',          'href' => '/admin/payments/disputes'],
+                    ['page' => 'refunds',           'label' => 'Refunds',           'href' => '/admin/refunds'],
+                    ['page' => 'vote-delivery',     'label' => 'Vote Delivery',     'href' => '/admin/vote-delivery'],
                 ],
             ],
-            [
-                'key' => 'site', 'label' => 'Site', 'gate' => 'content',
-                'tip' => 'Forms, partner enquiries and the legal documents.',
-                'items' => [
-                    ['page' => 'forms',    'label' => 'Forms',             'href' => '/admin/forms'],
-                    ['page' => 'partners', 'label' => 'Partner Enquiries', 'href' => '/admin/partners'],
-                    ['page' => 'legal',    'label' => 'Legal & policies',  'href' => '/admin/legal'],
-                ],
-            ],
-
             [
                 'key' => 'data', 'label' => 'Data', 'gate' => 'data',
-                'tip' => 'Every dataset collected across the platform — browse, view details and export.',
+                'tip' => 'Every dataset collected — browse, view details and export.',
                 'items' => [
                     ['page' => 'data',          'label' => 'All data',            'href' => '/admin/data'],
                     ['page' => 'analytics',     'label' => 'Analytics',           'href' => '/admin/analytics'],
                     ['page' => 'registrations', 'label' => 'Event Registrations', 'href' => '/admin/registrations'],
                 ],
             ],
-
-            // ── was one seven-item "Finance" group ───────────────────────────
             [
-                'key' => 'finance', 'label' => 'Finance', 'gate' => 'finance',
-                'tip' => 'Every naira the platform has taken, and what it owes out.',
-                'items' => [
-                    ['page' => 'finance',      'label' => 'Revenue',      'href' => '/admin/finance'],
-                    ['page' => 'payouts',      'label' => 'Referral payouts', 'href' => '/admin/payouts'],
-                    ['page' => 'partner-orgs', 'label' => 'Partner Orgs', 'href' => '/admin/partner-orgs'],
-                ],
-            ],
-            [
-                'key' => 'payments', 'label' => 'Payments', 'gate' => 'finance',
-                'tip' => 'What the gateway did, and everything that needs chasing.',
-                'items' => [
-                    ['page' => 'payments',          'label' => 'Payment Triage', 'href' => '/admin/payments'],
-                    ['page' => 'payments-ledger',   'label' => 'Gateway Ledger', 'href' => '/admin/payments/ledger'],
-                    ['page' => 'payments-disputes', 'label' => 'Disputes',       'href' => '/admin/payments/disputes'],
-                    ['page' => 'refunds',           'label' => 'Refunds',        'href' => '/admin/refunds'],
-                    ['page' => 'vote-delivery',     'label' => 'Vote Delivery',  'href' => '/admin/vote-delivery'],
-                ],
-            ],
-
-            [
-                'key' => 'configuration', 'label' => 'Configuration', 'gate' => 'configuration',
+                'key' => 'configuration', 'label' => 'System', 'gate' => 'configuration',
                 'tip' => 'Admin accounts, site settings and integrations — superadmin only.',
                 'items' => [
                     ['page' => 'admins',   'label' => 'Admins',       'href' => '/admin/admins'],

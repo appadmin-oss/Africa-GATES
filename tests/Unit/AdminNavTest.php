@@ -131,16 +131,52 @@ final class AdminNavTest extends TestCase
     // ══ the point of the exercise ════════════════════════════════════════════
 
     /**
-     * Collapsing only helps if the sections are small enough that opening one is not a
-     * second scroll. "Moderation" held eight and "Content" ten.
+     * The rail is scanned top-to-bottom before it is read, so what costs an operator time
+     * is the number of HEADINGS, not the number of links — an open section is a list you
+     * are already looking at, a heading is a decision you have to make.
+     *
+     * Seven is the floor, not a taste call. There are exactly seven distinct
+     * `admin_sections` gates and a section can only carry one gate, so a shorter rail
+     * would mean moving a page to a different gate. That is an access change, and it must
+     * never ride along inside a navigation change — which is what
+     * {@see test_the_restructure_moved_no_page_across_a_permission_boundary} guards.
      */
-    public function test_no_section_is_large_enough_to_need_scrolling(): void
+    public function test_the_rail_is_no_longer_than_the_permission_model_forces(): void
+    {
+        $sections = AdminNav::sections();
+        $distinct = count(array_unique(array_column($sections, 'gate'), SORT_REGULAR));
+
+        $this->assertCount($distinct, $sections,
+            'two sections share a gate — merge them, the rail is longer than the permissions require');
+        $this->assertLessThanOrEqual(8, count($sections),
+            'the rail grew back past what a single glance can hold');
+    }
+
+    public function test_no_section_is_empty(): void
     {
         foreach (AdminNav::sections() as $s) {
-            $this->assertLessThanOrEqual(6, count($s['items']),
-                "the '{$s['key']}' section has " . count($s['items']) . ' items — split it');
             $this->assertNotSame([], $s['items'], "the '{$s['key']}' section is empty");
+            $this->assertNotSame('', trim($s['label']), "the '{$s['key']}' section has no heading");
         }
+    }
+
+    /**
+     * Consolidating headings only works if depth stops costing anything, and that is the
+     * palette's job. It must be generated from the same tree — a hand-written list would
+     * rot exactly the way the hand-written sidebar did.
+     */
+    public function test_the_command_palette_is_generated_from_the_same_tree(): void
+    {
+        $layout = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/layout.twig'
+        );
+
+        $palette = substr($layout, strpos($layout, 'id="adCmdList"') ?: 0);
+        $palette = substr($palette, 0, strpos($palette, '</ul>') ?: strlen($palette));
+
+        $this->assertStringContainsString('{% for sec in admin_nav %}', $palette,
+            'the palette holds a hand-written list instead of looping the nav tree');
+        $this->assertStringContainsString('{{ item.href }}', $palette);
     }
 
     // ══ role filtering ═══════════════════════════════════════════════════════
@@ -153,7 +189,7 @@ final class AdminNavTest extends TestCase
         $this->assertContains('overview', $keys, 'the ungated section must always show');
         $this->assertContains('entries', $keys);
         $this->assertNotContains('configuration', $keys, 'a moderator was offered the superadmin section');
-        $this->assertNotContains('finance', $keys);
+        $this->assertNotContains('money', $keys, 'a moderator was offered the finance rail');
     }
 
     public function test_no_role_is_offered_a_section_its_permissions_deny(): void

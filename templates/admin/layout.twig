@@ -29,6 +29,39 @@
 
   {% include 'admin/partials/nav-icons.twig' %}
 
+  {# ── THE COMMAND PALETTE ─────────────────────────────────────────────────────
+     Cmd/Ctrl+K. The reason the rail can hold seven headings instead of thirty-seven
+     links: NN/g measured discoverability halving when navigation is hidden, and the
+     documented resolution is a hybrid — a few destinations visible, the tail reachable
+     another way. This is that other way, and for an interface somebody is in all day it
+     is the expected one (VS Code and Sublime first, now Figma, Notion and Linear).
+
+     Built as a <dialog> so focus trapping, Escape and the backdrop are the browser's job
+     rather than ours. Progressive: with no JavaScript the rail and the in-page sub-nav
+     still reach every page, and this simply never opens. #}
+  <dialog class="ad-cmd" id="adCmd" aria-label="Jump to a page">
+    <form method="dialog" class="ad-cmd__box">
+      <input class="ad-cmd__in" id="adCmdIn" type="search" autocomplete="off"
+             placeholder="Jump to…  (type a page name)" aria-label="Search admin pages"
+             aria-controls="adCmdList" aria-expanded="true">
+      <ul class="ad-cmd__list" id="adCmdList" role="listbox" aria-label="Pages">
+        {% for sec in admin_nav %}
+          {% for item in sec.items %}
+            <li role="option" aria-selected="false">
+              <a class="ad-cmd__i" href="{{ item.href }}"
+                 data-cmd="{{ (item.label ~ ' ' ~ sec.label)|lower }}">
+                <svg class="ico" aria-hidden="true" focusable="false"><use href="#ic-{{ item.page }}"/></svg>
+                <span class="ad-cmd__l">{{ item.label }}</span>
+                <span class="ad-cmd__s">{{ sec.label }}</span>
+              </a>
+            </li>
+          {% endfor %}
+        {% endfor %}
+      </ul>
+      <p class="ad-cmd__none" id="adCmdNone" hidden>Nothing matches that.</p>
+    </form>
+  </dialog>
+
   {# Sidebar #}
   <aside class="ad-side" id="adSide">
     <div class="ad-side__brand">
@@ -49,9 +82,11 @@
     {% for sec in admin_nav %}
       {% set here = sec.items|filter(i => i.page == admin_page)|length > 0 %}
       <details class="ad-side__sec" {% if here %}open{% endif %}>
-        <summary class="ad-side__sectitle">
+        {# The (i) badge that used to sit here is gone. Twelve of them competed with the
+           labels they were explaining; the text is on the heading itself, which a screen
+           reader reads and a pointer surfaces without adding a second target. #}
+        <summary class="ad-side__sectitle" title="{{ sec.tip }}">
           <span>{{ sec.label }}</span>
-          <span class="ad-info" data-tip="{{ sec.tip }}" tabindex="0" role="img" aria-label="{{ sec.tip }}">i</span>
           <svg class="ad-side__chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="6 9 12 15 18 9"/></svg>
         </summary>
         <nav aria-label="{{ sec.label }}">
@@ -117,7 +152,15 @@
         {% block topbar_title %}{{ page_title }}{% endblock %}
         {% if admin_help[admin_page] is defined %}<span class="ad-info" data-tip="{{ admin_help[admin_page] }}" tabindex="0" role="img" aria-label="About this page: {{ admin_help[admin_page] }}">i</span>{% endif %}
       </h1>
-      <div class="ad-actions">{% block topbar_actions %}{% endblock %}</div>
+      <div class="ad-actions">
+        {# The hint is visible on purpose: an unlabelled shortcut is a feature only the
+           person who built it has. #}
+        <button class="ad-cmd__open" id="adCmdOpen" type="button" aria-haspopup="dialog">
+          <svg class="ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <span>Jump to…</span><kbd>⌘K</kbd>
+        </button>
+        {% block topbar_actions %}{% endblock %}
+      </div>
     </div>
 
     {# ── THE SECOND LEVEL ───────────────────────────────────────────────────
@@ -208,6 +251,7 @@
 <script defer src="{{ asset('/assets/js/vendor/tippy-6.3.7.umd.min.js') }}"></script>
 {% block foot_scripts %}{% endblock %}
 <script defer src="{{ asset('/assets/js/admin.js') }}"></script>
+{% include 'admin/partials/cmdk.twig' %}
 {% include 'admin/partials/richtext.twig' %}
 {% include 'admin/partials/ui.twig' %}
 </body>
