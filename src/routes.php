@@ -2901,6 +2901,9 @@ return function(App $app) {
         // Ask to be paid what the referrals earned. Creates a request; an admin settles it
         // against a real transfer reference — see ReferralPayout.
         $a->post('/payout', AccountController::class . ':payout');
+        // Save the bank details a withdrawal defaults to. Each payout still snapshots
+        // them, so changing these never restates an earlier transfer.
+        $a->post('/bank', AccountController::class . ':bank');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
         // The member's own points history as a file. Above the catch-all below, which would

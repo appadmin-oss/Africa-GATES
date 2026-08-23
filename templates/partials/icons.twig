@@ -54,7 +54,8 @@
   'stand':     ['#d0ebff', '#1864ab'],
   'team':      ['#d3f9d8', '#2b8a3e'],
   'spark':     ['#fff3bf', '#a97a00'],
-  'heart':     ['#ffdeeb', '#bf2c5e']
+  'heart':     ['#ffdeeb', '#bf2c5e'],
+  'refer':     ['#d3f9d8', '#1a7f4b']
 } -%}
 {{- map[name]|default(['#e9ecef', '#495057'])|join('|') -}}
 {% endmacro %}
@@ -83,6 +84,13 @@
     <path d="M3 18.5 8.5 12l4 3.8L20.5 6v13.5H3Z" fill="{{ fill }}"/>
     <g fill="none" stroke="{{ ink }}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
       <path d="M3 18.5 8.5 12l4 3.8L21 6"/><path d="M21 11.4V6h-5.4"/></g>
+  {%- elseif name == 'refer' %}
+    <circle cx="7.5" cy="8" r="3.4" fill="{{ fill }}"/><circle cx="16.5" cy="8" r="3.4" fill="{{ fill }}"/>
+    <g fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="7.5" cy="8" r="3.4"/><circle cx="16.5" cy="8" r="3.4"/>
+      <path d="M2.4 20.2c.6-2.9 2.6-4.5 5.1-4.5s4.5 1.6 5.1 4.5"/>
+      <path d="M16.5 15.7c2.5 0 4.5 1.6 5.1 4.5"/>
+      <path d="M10.9 8h2.2" stroke-dasharray="1.4 1.8"/></g>
   {%- elseif name == 'bag' %}
     <path d="M4.4 8h15.2l-1.1 11.1a1.9 1.9 0 0 1-1.9 1.7H7.4a1.9 1.9 0 0 1-1.9-1.7Z" fill="{{ fill }}"/>
     <g fill="none" stroke="{{ ink }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">

@@ -249,6 +249,62 @@ final class ReferralPayoutTest extends TestCase
         $this->assertTrue($again['ok'], $again['message']);
     }
 
+    // ══ saved bank details ═══════════════════════════════════════════════════
+
+    /**
+     * A default, not the record. The point is that a ten-digit account number is typed
+     * once — including before there is anything to withdraw.
+     */
+    public function test_bank_details_can_be_saved_and_read_back(): void
+    {
+        DB::table('gates_users')->insert([
+            'id' => self::USER, 'name' => 'Ada', 'email' => 'ada@x.test', 'points' => 0, 'email_verified' => 1,
+        ]);
+
+        $r = ReferralPayout::saveBank(self::USER, 'GTBank', 'Ada Nwosu', '0123 4567-89');
+        $this->assertTrue($r['ok'], $r['message']);
+
+        $b = ReferralPayout::bankFor(self::USER);
+        $this->assertSame('GTBank', $b['bank']);
+        $this->assertSame('Ada Nwosu', $b['account_name']);
+        $this->assertSame('0123456789', $b['account_number'], 'the number was not normalised');
+    }
+
+    /** Saving must apply the same rules as withdrawing, or a saved value fails at use. */
+    public function test_saving_rejects_what_a_withdrawal_would_reject(): void
+    {
+        $this->assertFalse(ReferralPayout::saveBank(self::USER, '', 'Ada', '0123456789')['ok']);
+        $this->assertFalse(ReferralPayout::saveBank(self::USER, 'GTBank', '', '0123456789')['ok']);
+        $this->assertFalse(ReferralPayout::saveBank(self::USER, 'GTBank', 'Ada', '12')['ok']);
+    }
+
+    public function test_no_saved_details_reads_as_blank_not_an_error(): void
+    {
+        $b = ReferralPayout::bankFor(4242);
+
+        $this->assertSame(['bank' => '', 'account_name' => '', 'account_number' => ''], $b);
+    }
+
+    /**
+     * Changing the saved details must not restate where an earlier transfer went — the
+     * payout row's own snapshot is the record.
+     */
+    public function test_changing_saved_details_does_not_rewrite_a_past_payout(): void
+    {
+        DB::table('gates_users')->insert([
+            'id' => self::USER, 'name' => 'Ada', 'email' => 'ada@x.test', 'points' => 0, 'email_verified' => 1,
+        ]);
+        $this->unlocked();
+        $r = ReferralPayout::request(self::USER, 'GTBank', 'Ada Nwosu', '0123456789');
+        ReferralPayout::markPaid($r['id'], 'REF-1', 1);
+
+        ReferralPayout::saveBank(self::USER, 'Zenith', 'Ada N Nwosu', '9876543210');
+
+        $p = ReferralPayout::find($r['id']);
+        $this->assertSame('GTBank', $p->bank_name, 'a settled payout was rewritten');
+        $this->assertSame('0123456789', $p->account_number);
+    }
+
     // ══ the admin queue ══════════════════════════════════════════════════════
 
     public function test_the_queue_carries_the_member_and_the_totals(): void

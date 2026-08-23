@@ -417,6 +417,32 @@ class AccountController
         return $res->withHeader('Location', '/account#referral')->withStatus(303);
     }
 
+    /**
+     * POST /account/bank — save the member's payout bank details.
+     *
+     * A default for the withdraw form, not the record of a payment: each payout row keeps
+     * its own snapshot, so changing these never restates where an earlier transfer went.
+     */
+    public function bank(Request $req, Response $res): Response
+    {
+        $id = (int) ($_SESSION['user_id'] ?? 0);
+        if ($id < 1) {
+            return $res->withHeader('Location', '/account/login')->withStatus(302);
+        }
+
+        $b = (array) $req->getParsedBody();
+        $r = \AfricaGates\Services\ReferralPayout::saveBank(
+            $id,
+            (string) ($b['bank'] ?? ''),
+            (string) ($b['account_name'] ?? ''),
+            (string) ($b['account_number'] ?? '')
+        );
+
+        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
+
+        return $res->withHeader('Location', '/account#referral')->withStatus(303);
+    }
+
     public function dashboard(Request $req, Response $res): Response
     {
         $user = $this->accounts->current();
@@ -467,6 +493,9 @@ class AccountController
             'payout_amount'  => $pa['amount'],
             'payout_why'     => $pa['reason'],
             'payout_history' => \AfricaGates\Services\ReferralPayout::historyFor((int) $user->id, 8),
+            // Saved defaults, so a ten-digit account number is typed once rather than
+            // once per withdrawal.
+            'payout_bank'    => \AfricaGates\Services\ReferralPayout::bankFor((int) $user->id),
             'my_orders'      => $orders,
             'my_tickets'     => $tickets,
             'community_counts' => $communityC,

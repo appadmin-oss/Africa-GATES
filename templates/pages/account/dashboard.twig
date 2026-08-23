@@ -148,11 +148,27 @@
     box-sizing:border-box; }
   .me-rail__i:hover{ background:rgba(16,41,44,.05); color:var(--me-ink); }
   .me-rail__i:focus-visible{ outline:3px solid var(--me-accent); outline-offset:-1px; }
+  /* ── THE HIGHLIGHT FOLLOWS THE SECTION, NOT A SCRIPT ────────────────────
+     `aria-selected` was rendered server-side as overview="true", and the FOOT script's
+     paint() was the only thing that corrected it. The head script sets `data-me` before
+     first paint, so arriving at /account#referral showed the referral SECTION with the
+     Overview tab highlighted — and if the foot script never ran, it stayed that way.
+
+     CSS cannot compare two attributes, so this is one rule per tab, generated from the
+     same `me_tabs` list the scripts read. It cannot drift from them, and the highlight is
+     correct in the first frame with no JavaScript involved. `aria-selected` stays for
+     assistive tech and is still maintained by paint(). */
+  {% for t in me_tabs %}
+  [data-me="{{ t }}"] .me-rail__i[data-me-go="{{ t }}"],
+  {% endfor %}
   .me-rail__i[aria-selected="true"]{ background:var(--me-ink); color:#fff; }
   /* The selected item is dark, and a two-tone icon drawn for a white ground loses its
      stroke against it. Brightened rather than swapped for a monochrome copy: the hue is
      what tells the sections apart, and dropping it on the one that is selected would make
      the icon change meaning at the moment it is being looked at. */
+  {% for t in me_tabs %}
+  [data-me="{{ t }}"] .me-rail__i[data-me-go="{{ t }}"] .ico,
+  {% endfor %}
   .me-rail__i[aria-selected="true"] .ico{ filter:brightness(1.9) saturate(1.15); }
   .me-rail__i svg{ flex:none; }
   .me-rail__n{ flex:1; min-width:0; }
@@ -161,6 +177,9 @@
   .me-rail__c{ flex:none; font:600 11.5px/1 var(--ag-font-mono,monospace);
     font-variant-numeric:tabular-nums; color:var(--me-mute);
     background:rgba(16,41,44,.06); border-radius:999px; padding:4px 7px; }
+  {% for t in me_tabs %}
+  [data-me="{{ t }}"] .me-rail__i[data-me-go="{{ t }}"] .me-rail__c,
+  {% endfor %}
   .me-rail__i[aria-selected="true"] .me-rail__c{ background:rgba(255,255,255,.18); color:#fff; }
 
   @media (max-width:900px){
@@ -399,7 +418,7 @@
       {% set rail = [
         {'id':'overview',  'label':'Overview',  'ico':'overview', 'n':null},
         {'id':'points',    'label':'Points',    'ico':'points',   'n':counts.points|default(0)},
-        {'id':'referral',  'label':'Referrals', 'ico':'points',   'n':referral.referrals|default(0)},
+        {'id':'referral',  'label':'Referrals', 'ico':'refer',    'n':referral.referrals|default(0)},
         {'id':'purchases', 'label':'Purchases', 'ico':'bag',      'n':counts.purchases|default(0)},
         {'id':'activity',  'label':'Activity',  'ico':'activity', 'n':counts.activity|default(0)},
         {'id':'saved',     'label':'Saved',     'ico':'saved',    'n':counts.saved|default(0)},
@@ -408,7 +427,9 @@
       {% for r in rail %}
         {% if r.id != 'saved' or r.n > 0 %}
         <a class="me-rail__i" href="#{{ r.id }}" data-me-go="{{ r.id }}"
-           aria-selected="{{ r.id == 'overview' ? 'true' : 'false' }}">
+           {# Not hardcoded to overview: the hash decides, and the server cannot see it.
+              paint() sets this on load; the CSS above carries the visual meanwhile. #}
+           aria-selected="false">
           {{ gi.sec(r.ico, 18) }}
           <span class="me-rail__n">{{ r.label }}</span>
           {% if r.n %}<span class="me-rail__c">{{ r.n }}</span>{% endif %}
@@ -691,17 +712,47 @@
                 </p>
                 <div class="rf-row" style="flex-wrap:wrap;gap:8px">
                   <input id="poBank" class="rf-link" type="text" name="bank" required maxlength="120"
-                         placeholder="Bank (e.g. GTBank)" style="flex:1 1 150px">
+                         placeholder="Bank (e.g. GTBank)" style="flex:1 1 150px"
+                         value="{{ payout_bank.bank|default('') }}">
                   <input class="rf-link" type="text" name="account_name" required maxlength="160"
-                         placeholder="Account name" style="flex:1 1 170px">
+                         placeholder="Account name" style="flex:1 1 170px"
+                         value="{{ payout_bank.account_name|default('') }}">
                   <input class="rf-link" type="text" name="account_number" required
-                         inputmode="numeric" maxlength="20" placeholder="Account number" style="flex:1 1 150px">
+                         inputmode="numeric" maxlength="20" placeholder="Account number" style="flex:1 1 150px"
+                         value="{{ payout_bank.account_number|default('') }}">
                   <button type="submit" class="rf-copy">Request payout</button>
                 </div>
               </form>
             {% elseif payout_why %}
               <p class="rf-note">{{ payout_why }}</p>
             {% endif %}
+
+            <details class="rf-card" {% if not payout_bank.account_number|default('') %}open{% endif %}>
+              <summary style="cursor:pointer;font-size:14px;font-weight:600">
+                {{ payout_bank.account_number|default('') ? 'Change your bank details' : 'Save your bank details' }}
+              </summary>
+              <p class="rf-hint" style="margin:8px 0 10px">
+                Saved once and reused for every withdrawal. Each payout keeps its own copy,
+                so changing these never alters where an earlier transfer went. We pay by
+                ordinary bank transfer — nothing is set up on your behalf with the payment
+                provider.
+              </p>
+              <form method="post" action="/account/bank">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <div class="rf-row" style="flex-wrap:wrap;gap:8px">
+                  <input class="rf-link" type="text" name="bank" required maxlength="120"
+                         placeholder="Bank (e.g. GTBank)" style="flex:1 1 150px"
+                         value="{{ payout_bank.bank|default('') }}">
+                  <input class="rf-link" type="text" name="account_name" required maxlength="160"
+                         placeholder="Account name — must be yours" style="flex:1 1 170px"
+                         value="{{ payout_bank.account_name|default('') }}">
+                  <input class="rf-link" type="text" name="account_number" required
+                         inputmode="numeric" maxlength="20" placeholder="Account number" style="flex:1 1 150px"
+                         value="{{ payout_bank.account_number|default('') }}">
+                  <button type="submit" class="rf-copy">Save details</button>
+                </div>
+              </form>
+            </details>
 
             {% if payout_history %}
               <ul class="rf-small" style="list-style:none;padding:0;margin:10px 0 0">

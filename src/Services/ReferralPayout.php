@@ -136,7 +136,73 @@ final class ReferralPayout
                            . '. Withdrawals are paid by bank transfer — you will hear from us when it is done.'];
     }
 
-    /** This member's open request, if any. */
+    /**
+     * The member's saved bank details, as defaults for the withdraw form.
+     *
+     * A default, not the record. {@see request()} copies these onto the payout row, and
+     * the row is what says where a given transfer went — see the migration note on why a
+     * single mutable field would misdescribe every earlier payment.
+     *
+     * @return array{bank:string, account_name:string, account_number:string}
+     */
+    public static function bankFor(int $userId): array
+    {
+        $empty = ['bank' => '', 'account_name' => '', 'account_number' => ''];
+        if ($userId < 1) return $empty;
+
+        try {
+            $u = DB::table('gates_users')->where('id', $userId)
+                ->first(['payout_bank', 'payout_account_name', 'payout_account_number']);
+        } catch (\Throwable) {
+            return $empty;
+        }
+        if (!$u) return $empty;
+
+        return [
+            'bank'           => (string) ($u->payout_bank ?? ''),
+            'account_name'   => (string) ($u->payout_account_name ?? ''),
+            'account_number' => (string) ($u->payout_account_number ?? ''),
+        ];
+    }
+
+    /**
+     * Save the member's bank details for next time.
+     *
+     * Validated the same way {@see request()} validates them, so a member cannot save
+     * something that would then be refused at withdrawal — a stored value that fails the
+     * check it was stored for is worse than no stored value.
+     *
+     * @return array{ok:bool, message:string}
+     */
+    public static function saveBank(int $userId, string $bank, string $accountName, string $accountNumber): array
+    {
+        if ($userId < 1) return ['ok' => false, 'message' => 'Sign in first.'];
+
+        $bank   = trim($bank);
+        $name   = trim($accountName);
+        $number = preg_replace('/\D+/', '', $accountNumber) ?? '';
+
+        if ($bank === '' || $name === '') {
+            return ['ok' => false, 'message' => 'We need the bank name and the account name.'];
+        }
+        if (strlen($number) < 8 || strlen($number) > 20) {
+            return ['ok' => false, 'message' => 'That account number does not look right.'];
+        }
+
+        try {
+            DB::table('gates_users')->where('id', $userId)->update([
+                'payout_bank'           => mb_substr($bank, 0, 120),
+                'payout_account_name'   => mb_substr($name, 0, 160),
+                'payout_account_number' => mb_substr($number, 0, 32),
+            ]);
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'message' => 'Could not save those details just now.'];
+        }
+
+        return ['ok' => true, 'message' => 'Saved. Withdrawals will use these details unless you change them.'];
+    }
+
+    /** This member's open request, if any. */    /** This member's open request, if any. */
     public static function openFor(int $userId): ?object
     {
         try {
