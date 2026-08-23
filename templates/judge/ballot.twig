@@ -367,7 +367,9 @@ function ballotApp(initial){
     setScore(critId, val){
       var n=this.cur; if(!n || this.locked) return;
       var sc = Object.assign({}, n.scores); sc[critId] = parseInt(val); n.scores = sc;
-      n.complete = this.criteria.every(function(c){ return n.scores[c.id] !== undefined; });
+      // `[].every()` is TRUE, so with no rubric every nominee marked itself complete on a
+      // ballot with no score inputs. Same guard as JudgeService::ballot().
+      n.complete = this.criteria.length > 0 && this.criteria.every(function(c){ return n.scores[c.id] !== undefined; });
       n.avg = this._avg(n.scores);
       this._debouncedSave(n);
     },

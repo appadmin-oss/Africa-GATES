@@ -55,6 +55,7 @@ final class DoctorCommand extends Command
             'mail'     => $this->mail(),
             'assets'   => $this->assets(),
             'csp'      => $this->csp(),
+            'judging'  => $this->judging(),
         ];
         $problems = $this->problems($report);
 
@@ -349,6 +350,63 @@ final class DoctorCommand extends Command
         ];
     }
 
+    /**
+     * Can the panel actually score?
+     *
+     * ── WHY THIS IS A DOCTOR CHECK ───────────────────────────────────────────
+     *
+     * The rubric is seeded by an OPTIONAL migrate flag (`--with-seed-rubric`). A
+     * deployment that ran plain `db:migrate` has `gates_judge_criteria` empty, and until
+     * this was fixed the consequence was invisible from both sides: judges got a ballot
+     * with no score inputs on which every nominee already read as complete, and saving
+     * answered ok:true while storing nothing.
+     *
+     * Both halves are fixed, so a judge now sees the real reason. But the person who can
+     * FIX it is an organiser, and nothing told them. That is what this is for — the
+     * failure is a setup omission, which is exactly what a doctor command is meant to
+     * find before a round rather than during one.
+     *
+     * @return array<string,string>
+     */
+    private function judging(): array
+    {
+        try {
+            if (!DB::schema()->hasTable('gates_judge_criteria')) {
+                return ['rubric' => 'NO — gates_judge_criteria does not exist; run db:migrate'];
+            }
+
+            $active = (int) DB::table('gates_judge_criteria')->where('is_active', 1)->count();
+            $out = ['rubric_criteria_active' => (string) $active];
+
+            if ($active === 0) {
+                $out['rubric'] = 'NO ACTIVE CRITERIA — the panel cannot score anything';
+                return $out;
+            }
+
+            // A programme in the judging phase with no rubric of its own AND no global
+            // rubric is the case that actually bites, so name the programmes.
+            $global = (int) DB::table('gates_judge_criteria')
+                ->where('is_active', 1)->whereNull('programme_id')->count();
+
+            $blind = [];
+            foreach (DB::table('gates_award_cycles as cy')
+                         ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
+                         ->where('cy.status', 'judging')
+                         ->get(['p.id', 'p.title']) as $row) {
+                $own = (int) DB::table('gates_judge_criteria')
+                    ->where('is_active', 1)->where('programme_id', (int) $row->id)->count();
+                if ($own === 0 && $global === 0) $blind[] = (string) $row->title;
+            }
+
+            $out['rubric'] = $blind === []
+                ? 'OK'
+                : 'NO RUBRIC for a programme in the judging phase: ' . implode(', ', $blind);
+            return $out;
+        } catch (\Throwable $e) {
+            return ['rubric' => '(could not check: ' . $e->getMessage() . ')'];
+        }
+    }
+
     private function database(): array
     {
         try {
@@ -548,6 +606,15 @@ final class DoctorCommand extends Command
                  . "directly, bypassing the CDN. This is the same unresolved problem behind every "
                  . "CSP refusal reported from production: blocked CDN scripts and stylesheets, and "
                  . "every paid vote refused by `form-action 'self'`. All of it is already fixed here.";
+        }
+        $rubric = (string) ($r['judging']['rubric'] ?? '');
+        if (str_starts_with($rubric, 'NO')) {
+            $p[] = 'THE JUDGING PANEL CANNOT SCORE. ' . $rubric . '. The rubric lives in '
+                 . 'gates_judge_criteria and is seeded by an OPTIONAL migrate flag, so a plain '
+                 . '`db:migrate` leaves it empty — run `php bin/console db:migrate '
+                 . '--with-seed-rubric`, or add criteria under /admin/programmes. Until then every '
+                 . 'ballot is locked with that reason shown to the judge, which is the honest '
+                 . 'behaviour but not a working round.';
         }
         if (($r['code']['Csp_class'] ?? '') !== 'loaded') {
             $p[] = 'Support\\Csp is not present in this deployment — the running code predates the CSP rebuild.';

@@ -181,7 +181,10 @@ class JudgeService
             $n['scores'] = $byNominee[$n['id']] ?? [];
             $n['notes']  = isset($notes[$n['id']]) ? (string)$notes[$n['id']]->notes : '';
             $n['avg']    = $this->avgFromScores($n['scores'], $criteria);
-            $n['complete'] = count($n['scores']) === count($criteria);
+            // `count([]) === count([])` is TRUE, so with no rubric every nominee reported
+            // itself COMPLETE and the progress counter read "N of N scored" on a ballot
+            // where nothing had been or could be scored. The guard is the whole fix.
+            $n['complete'] = $criteria !== [] && count($n['scores']) === count($criteria);
             $n['evidence'] = $dossiers[(int) $n['id']] ?? ['items' => [], 'interviews' => [], 'coverage' => null];
             $byCategory[$n['category_id']]['nominees'][] = $n;
         }
@@ -190,13 +193,27 @@ class JudgeService
         // saveScore() enforces server-side. The template uses it to render a
         // read-only ballot with a clear reason instead of live sliders that
         // would only fail on submit.
+        // ── AND A MISSING RUBRIC IS A LOCK, NOT A BALLOT WITH NOTHING ON IT ──
+        //
+        // The rubric is seeded by an OPTIONAL migrate flag (`--with-seed-rubric`), so a
+        // deployment that ran `db:migrate` without it has no criteria at all. Every gate
+        // below passed, the page rendered, and the panel got a ballot with no score
+        // inputs on which every nominee already read as complete. Locking it states the
+        // cause instead, and names the fix, because the person who hits this cannot apply
+        // it themselves.
         $coi = $this->hasConflict($judgeId, $programmeId);
-        $judgingOpen = ($cycle->status === 'judging') && !$coi;
+        $noRubric = $criteria === [];
+
+        $judgingOpen = ($cycle->status === 'judging') && !$coi && !$noRubric;
         $lockReason = $coi
             ? 'You have declared a conflict of interest for this programme, so scoring is disabled.'
-            : (($cycle->status !== 'judging')
-                ? 'Scoring is closed — this cycle is not in the judging phase yet.'
-                : '');
+            : ($noRubric
+                ? 'No scoring rubric has been set up for this programme, so there is nothing to score '
+                  . 'yet. This is a setup step for the organisers, not something you can fix — please '
+                  . 'tell them the rubric is missing.'
+                : (($cycle->status !== 'judging')
+                    ? 'Scoring is closed — this cycle is not in the judging phase yet.'
+                    : ''));
 
         return [
             'cycle' => (array)$cycle,
@@ -204,10 +221,14 @@ class JudgeService
             'categories' => array_values($byCategory),
             'judging_open' => $judgingOpen,
             'coi' => $coi,
+            'no_rubric' => $noRubric,
             'lock_reason' => $lockReason,
             'progress' => [
                 'total' => count($nominees),
-                'scored' => count(array_filter($nominees, fn($n) => count($byNominee[$n['id']] ?? []) === count($criteria))),
+                'scored' => $criteria === [] ? 0 : count(array_filter(
+                    $nominees,
+                    fn($n) => count($byNominee[$n['id']] ?? []) === count($criteria)
+                )),
             ],
         ];
     }
@@ -261,6 +282,21 @@ class JudgeService
         // Only accept criteria belonging to THIS programme's rubric — silently
         // ignore unknown/injected criterion ids from a crafted request.
         $allowed = array_map('intval', array_column($this->criteria((int)$cy->programme_id), 'id'));
+
+        // ── A RUBRIC THAT DOES NOT EXIST IS NOT A SUCCESSFUL SAVE ────────────
+        //
+        // This method used to end `return ['ok' => true, 'saved' => $valid]` unconditionally.
+        // With no rubric, $allowed is empty, every posted score is skipped as unrecognised,
+        // $valid stays 0 — and it answered ok:true. The ballot showed its green "saved"
+        // state and stored nothing, for every nominee, for the whole panel. Reporting
+        // success for work that was discarded is the worst failure this file can have:
+        // a judge has no way to discover it, and the scores are simply absent afterwards.
+        if ($allowed === []) {
+            return ['ok' => false, 'saved' => 0,
+                    'message' => 'No scoring rubric is set up for this programme, so scores cannot be '
+                               . 'recorded. Please tell the organisers — this needs fixing on their side.'];
+        }
+
         $valid = 0;
         foreach ($criteriaScores as $criterionId => $score) {
             $cid = (int)$criterionId;
@@ -286,6 +322,18 @@ class JudgeService
                 ]
             );
         }
+        // Scores were offered and none of them landed: every id was outside this
+        // programme's rubric. Silently reporting success here is what let a crafted or
+        // stale payload look accepted; a judge whose page is out of date needs to be told
+        // to reload rather than believing their work was kept.
+        if ($valid === 0 && $criteriaScores !== []) {
+            return ['ok' => false, 'saved' => 0,
+                    'message' => 'None of those scores matched this programme\'s rubric, so nothing was '
+                               . 'saved. Reload the page and try again.'];
+        }
+
+        // $valid === 0 with no scores posted is a NOTES-ONLY save, which is legitimate —
+        // a judge writing a note before scoring anything.
         return ['ok' => true, 'saved' => $valid];
     }
 
