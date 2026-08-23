@@ -2893,6 +2893,9 @@ return function(App $app) {
         $a->post('/logout',       AccountController::class.':logout');
         // Mint this member's referral code. POST, because it creates something.
         $a->post('/referral', AccountController::class . ':referral');
+        // Ask to be paid what the referrals earned. Creates a request; an admin settles it
+        // against a real transfer reference — see ReferralPayout.
+        $a->post('/payout', AccountController::class . ':payout');
         $a->post('/redeem',       AccountController::class.':redeem');
         $a->post('/profile',      AccountController::class.':profileUpdate');
         // The member's own points history as a file. Above the catch-all below, which would
@@ -3104,6 +3107,15 @@ return function(App $app) {
         // Its own section in Permissions::MATRIX (superadmin + admin), deliberately
         // narrower than /admin/data; the controller re-checks rather than trusting the nav.
         $a->get('/finance',                      AdminFinanceController::class.':index');
+
+        // ── REFERRAL PAYOUTS ──────────────────────────────────────────────
+        //
+        // Its own screen rather than a button on the finance panel: marking one paid
+        // requires the bank transfer REFERENCE, which is what makes it a record of a
+        // payment rather than a claim that one happened. See PayoutsController.
+        $a->get('/payouts',                      \AfricaGates\Admin\Controllers\PayoutsController::class.':index');
+        $a->post('/payouts/{id:[0-9]+}/pay',     \AfricaGates\Admin\Controllers\PayoutsController::class.':pay');
+        $a->post('/payouts/{id:[0-9]+}/reject',  \AfricaGates\Admin\Controllers\PayoutsController::class.':reject');
         $a->get('/finance/export',               AdminFinanceController::class.':export');
         // Re-verify stale pending payments against the gateway. POST because it makes
         // outbound calls and, in apply mode, moves money — a GET would let a prefetch

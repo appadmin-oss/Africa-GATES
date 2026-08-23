@@ -651,7 +651,58 @@
           {% if referral.unlocked %}
             <p class="rf-note rf-note--ok">Unlocked. ₦{{ referral.payable_naira|number_format }}
               is owed to you{% if referral.paid_out_naira > 0 %} (₦{{ referral.paid_out_naira|number_format }}
-              already paid){% endif %}. <a href="/support">Ask us to pay it out →</a></p>
+              already paid){% endif %}.</p>
+
+            {# ── WITHDRAWING ──────────────────────────────────────────────
+               This used to say "ask us to pay it out" and link to /support, which meant
+               the only route to somebody's own money was a support ticket. The bank
+               details are asked for HERE and stored on the request rather than on the
+               account, so each payment records where that money actually went. #}
+            {% if payout_open %}
+              <div class="rf-card">
+                <p class="rf-note">
+                  <strong>₦{{ payout_open.amount_naira|number_format }} requested</strong>
+                  on {{ payout_open.requested_at ? payout_open.requested_at|slice(0,10) : '' }},
+                  to {{ payout_open.bank_name }} · {{ payout_open.account_name }}.
+                  We pay by bank transfer and will be in touch once it has gone.
+                </p>
+              </div>
+            {% elseif payout_can %}
+              <form class="rf-card" method="post" action="/account/payout">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <label class="rf-label" for="poBank">Withdraw ₦{{ payout_amount|number_format }} to your bank</label>
+                <p class="rf-hint" style="margin:0 0 10px">
+                  Paid by bank transfer, usually within a few working days. Make sure the
+                  account name matches your own — a mismatch is the usual reason one is
+                  refused.
+                </p>
+                <div class="rf-row" style="flex-wrap:wrap;gap:8px">
+                  <input id="poBank" class="rf-link" type="text" name="bank" required maxlength="120"
+                         placeholder="Bank (e.g. GTBank)" style="flex:1 1 150px">
+                  <input class="rf-link" type="text" name="account_name" required maxlength="160"
+                         placeholder="Account name" style="flex:1 1 170px">
+                  <input class="rf-link" type="text" name="account_number" required
+                         inputmode="numeric" maxlength="20" placeholder="Account number" style="flex:1 1 150px">
+                  <button type="submit" class="rf-copy">Request payout</button>
+                </div>
+              </form>
+            {% elseif payout_why %}
+              <p class="rf-note">{{ payout_why }}</p>
+            {% endif %}
+
+            {% if payout_history %}
+              <ul class="rf-small" style="list-style:none;padding:0;margin:10px 0 0">
+                {% for h in payout_history %}
+                  <li style="margin-bottom:4px">
+                    ₦{{ h.amount_naira|number_format }} —
+                    {% if h.status == 'paid' %}paid{% if h.payment_ref %} ({{ h.payment_ref }}){% endif %}
+                    {% elseif h.status == 'rejected' %}refused{% if h.note %} — {{ h.note }}{% endif %}
+                    {% else %}waiting{% endif %}
+                    <span style="opacity:.7">· {{ h.requested_at ? h.requested_at|slice(0,10) : '' }}</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% endif %}
           {% else %}
             {# The honest version: what is accrued is real and is not payable yet. Showing
                ₦0 until the tenth would make the tenth look like a jackpot rather than a

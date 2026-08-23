@@ -383,6 +383,40 @@ class AccountController
         return $res->withHeader('Location', '/account#referral')->withStatus(303);
     }
 
+    /**
+     * POST /account/payout — ask to be paid what the referrals earned.
+     *
+     * Before this the only route to somebody's own money was a support ticket: the panel
+     * said "ask us to pay it out" and linked to /support.
+     *
+     * The bank details are captured here and stored ON THE REQUEST rather than on the
+     * account, so every payment records where that money actually went — a single mutable
+     * field on the profile would show only the latest details and silently misdescribe
+     * every earlier transfer.
+     *
+     * Nothing is paid by this. It creates a request an admin settles against a real
+     * transfer reference; see {@see \AfricaGates\Services\ReferralPayout}.
+     */
+    public function payout(Request $req, Response $res): Response
+    {
+        $id = (int) ($_SESSION['user_id'] ?? 0);
+        if ($id < 1) {
+            return $res->withHeader('Location', '/account/login')->withStatus(302);
+        }
+
+        $b = (array) $req->getParsedBody();
+        $r = \AfricaGates\Services\ReferralPayout::request(
+            $id,
+            (string) ($b['bank'] ?? ''),
+            (string) ($b['account_name'] ?? ''),
+            (string) ($b['account_number'] ?? '')
+        );
+
+        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
+
+        return $res->withHeader('Location', '/account#referral')->withStatus(303);
+    }
+
     public function dashboard(Request $req, Response $res): Response
     {
         $user = $this->accounts->current();
@@ -426,6 +460,13 @@ class AccountController
             // account that ever loads this page.
             'referral'       => \AfricaGates\Services\ReferralService::stats((int) $user->id),
             'referral_site'  => \AfricaGates\Support\SiteUrl::base($req),
+            // Withdrawing. `available()` answers both "can they" and "why not", so the
+            // page can say the reason instead of hiding the form with no explanation.
+            'payout_open'    => \AfricaGates\Services\ReferralPayout::openFor((int) $user->id),
+            'payout_can'     => ($pa = \AfricaGates\Services\ReferralPayout::available((int) $user->id))['ok'],
+            'payout_amount'  => $pa['amount'],
+            'payout_why'     => $pa['reason'],
+            'payout_history' => \AfricaGates\Services\ReferralPayout::historyFor((int) $user->id, 8),
             'my_orders'      => $orders,
             'my_tickets'     => $tickets,
             'community_counts' => $communityC,
