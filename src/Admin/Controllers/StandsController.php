@@ -104,6 +104,13 @@ final class StandsController
             'filter'      => $filter,
             'filter_type' => (int) ($q['type'] ?? 0),
             'offer_hours' => StandApplication::OFFER_HOURS,
+            // The reason typed into a refused decision, so it comes back in its own row's
+            // box. One-shot: consumed on render.
+            'kept_reason' => $this->keptReason(),
+            // Notices the tick has not sent yet. "Recorded" and "emailed" are different
+            // facts and an organiser watching for a vendor's reply needs to know which one
+            // they are in.
+            'notices_pending' => \AfricaGates\Services\StandNotice::pending(),
             'may_decide'  => $this->mayDecide(),
             // ── SIZES AND THE FLOOR PLAN ─────────────────────────────────
             'sizes'       => StandType::SIZES,
@@ -164,6 +171,23 @@ final class StandsController
                 ]
             ),
         ]);
+    }
+
+    /**
+     * The reason from a refused decision, once.
+     *
+     * In the session rather than a query string because it is free text somebody typed
+     * about a named business, and a rejection reason in a URL ends up in an access log, a
+     * referrer header and the browser history of a shared office machine.
+     *
+     * @return array<int,string>
+     */
+    private function keptReason(): array
+    {
+        $kept = $_SESSION['stand_reason'] ?? null;
+        unset($_SESSION['stand_reason']);
+
+        return is_array($kept) ? $kept : [];
     }
 
     /**
@@ -523,6 +547,16 @@ final class StandsController
         $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
         if ($r['ok']) {
             $this->audit->record($this->adminId(), 'stand_app.' . $decision, 'stand_application', (int) $app->id);
+            unset($_SESSION['stand_reason']);
+        } else {
+            // ── KEEP WHAT THEY TYPED ────────────────────────────────────────
+            //
+            // A rejection with no reason is refused on purpose, so this branch is REACHED
+            // by design and reached most often by somebody who has just written three
+            // sentences explaining a decision. Losing them and returning to the top of a
+            // two-hundred-row page is the shape of WCAG 3.3.7 Redundant Entry, and in
+            // practice it is how a considered reason becomes "not selected".
+            if ($reason !== '') $_SESSION['stand_reason'] = [(int) $app->id => $reason];
         }
         return $this->back($res, $eventId, '#apps');
     }

@@ -520,28 +520,38 @@ final class PartnerOrg
         $entity = (string) ($in['entity_type'] ?? self::ENTITY_BUSINESS);
         if (!isset(self::ENTITIES[$entity])) $entity = self::ENTITY_BUSINESS;
 
+        // ── EVERY REFUSAL NAMES ITS FIELD ───────────────────────────────────
+        //
+        // `field` is not decoration. The vendor application is a long form on a phone, and
+        // returning one banner at the top of it satisfies nothing: WCAG 3.3.1 requires the
+        // ITEM IN ERROR to be identified, and a person who has to re-read eleven inputs to
+        // find the one we objected to frequently just closes the tab. The form uses this to
+        // mark the input, describe it, and put the cursor in it.
         if ($name === '') {
-            return $fail + ['message' => $entity === self::ENTITY_INDIVIDUAL
+            return $fail + ['field' => 'name', 'message' => $entity === self::ENTITY_INDIVIDUAL
                 ? 'Give the name you trade under — it can be your own name.'
                 : 'Give the name of the business.'];
         }
         if ($legal === '') {
-            return $fail + ['message' => $entity === self::ENTITY_INDIVIDUAL
+            return $fail + ['field' => 'legal_name', 'message' => $entity === self::ENTITY_INDIVIDUAL
                 ? 'Give your full name as it appears on your bank account and your ID.'
                 : 'Give the registered name of the business exactly as it appears at the CAC.'];
         }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return $fail + ['message' => 'That is not a valid email address.'];
+            return $fail + ['field' => 'contact_email',
+                            'message' => 'That is not a valid email address.'];
         }
         if (\AfricaGates\Services\OrgAuth::findByEmail($email)) {
             // Deliberately explicit, unlike the sign-in screen. This is a registration form,
             // where "that address is taken" is information the person needs in order to
             // proceed, and where they can discover it in one attempt anyway.
-            return $fail + ['message' => 'That email address already has a sign-in. '
+            return $fail + ['field' => 'contact_email',
+                            'message' => 'That email address already has a sign-in. '
                                        . 'Sign in and apply from your dashboard instead.'];
         }
         if (strlen($pass) < 12) {
-            return $fail + ['message' => 'Use a password of at least 12 characters — this sign-in '
+            return $fail + ['field' => 'password',
+                            'message' => 'Use a password of at least 12 characters — this sign-in '
                                        . 'can later request payouts.'];
         }
         // A registered business must say what it is registered as. An individual is not
@@ -558,7 +568,8 @@ final class PartnerOrg
             $entity === self::ENTITY_BUSINESS
         );
         if (!$cacIn['ok']) {
-            return $fail + ['message' => $entity === self::ENTITY_BUSINESS && trim((string) ($in['cac_number'] ?? '')) === ''
+            return $fail + ['field' => 'cac_number',
+                            'message' => $entity === self::ENTITY_BUSINESS && trim((string) ($in['cac_number'] ?? '')) === ''
                 ? 'Give the CAC registration number of the business, or apply as an individual '
                   . 'if you are not registered.'
                 : $cacIn['message']];
@@ -566,7 +577,10 @@ final class PartnerOrg
         $cac = $cacIn['stored'];
 
         $slug = self::uniqueSlug($name);
-        if ($slug === '') return $fail + ['message' => 'That name does not make a usable web address.'];
+        if ($slug === '') {
+            return $fail + ['field' => 'name',
+                            'message' => 'That name does not make a usable web address.'];
+        }
 
         $orgId = (int) DB::table('gates_partner_orgs')->insertGetId([
             'slug'            => $slug,

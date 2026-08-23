@@ -120,7 +120,8 @@ final class StandApplyController
      * application.
      */
     private function render(
-        Response $res, object $event, ?object $call, ?object $org, array $old, ?string $error
+        Response $res, object $event, ?object $call, ?object $org, array $old, ?string $error,
+        string $field = ''
     ): Response {
         return $this->view->render($res, 'pages/stands/apply.twig', [
             'page_title' => 'Apply for a stand — ' . (string) $event->title,
@@ -143,6 +144,14 @@ final class StandApplyController
                 PartnerOrg::ENTITY_BUSINESS   => PartnerOrg::vendorDocuments(PartnerOrg::ENTITY_BUSINESS),
             ],
             'old'        => $old,
+            // Which input the message is about, so the form can mark it, describe it and
+            // focus it. Empty means "no single field" — a closed call, a rate limit — and
+            // the banner stands alone, which is the right treatment for those.
+            'bad_field'  => $field,
+            // The textarea's maxlength, from the same constant the server enforces. Two
+            // literals is how a browser lets 3,000 characters through into a column that
+            // keeps 2,000.
+            'sells_max'  => StandApplication::SELLS_MAX,
             'error'      => $error,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
@@ -172,7 +181,8 @@ final class StandApplyController
         $typeId = (int) ($b['stand_type_id'] ?? 0);
         $type   = StandType::find($typeId);
         if (!$type || (int) $type->event_id !== (int) $event->id) {
-            return $this->render($res, $event, $call, $org, $b, 'Choose which kind of stand you want.');
+            return $this->render($res, $event, $call, $org, $b,
+                                 'Choose which kind of stand you want.', 'stand_type_id');
         }
 
         // ── registering, if they are not already somebody ────────────────────
@@ -189,7 +199,8 @@ final class StandApplyController
 
             $r = PartnerOrg::registerVendor($b);
             if (!$r['ok']) {
-                return $this->render($res, $event, $call, null, $b, $r['message']);
+                return $this->render($res, $event, $call, null, $b, $r['message'],
+                                     (string) ($r['field'] ?? ''));
             }
 
             $user = $r['user'];
@@ -204,7 +215,8 @@ final class StandApplyController
         // ── and applying ────────────────────────────────────────────────────
         $r = StandApplication::submit((int) $user->org_id, $typeId, $b);
         if (!$r['ok']) {
-            return $this->render($res, $event, $call, $org, $b, $r['message']);
+            return $this->render($res, $event, $call, $org, $b, $r['message'],
+                                 (string) ($r['field'] ?? ''));
         }
 
         // Straight to the dashboard, because what happens next is uploading documents — and

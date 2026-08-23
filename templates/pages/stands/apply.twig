@@ -291,7 +291,22 @@
   </div>
 
   {% if error %}
-    <div class="ap-err" role="alert"><b>That did not go through.</b> {{ error }}</div>
+    {# ── THE BANNER, AND A WAY BACK TO THE FIELD IT IS ABOUT ────────────────
+       This page is 500 lines of form on a phone. A banner at the top saying "that did
+       not go through" and nothing else fails WCAG 3.3.1 — the item in error has to be
+       identified — and in practice it means re-reading eleven inputs to find the one we
+       objected to. The service now returns which field it was; the banner links to it,
+       the input carries aria-invalid and aria-describedby, and the browser puts the
+       cursor there on load. #}
+    <div class="ap-err" role="alert" id="apErr" tabindex="-1">
+      <b>That did not go through.</b> {{ error }}
+      {% if bad_field %}
+        <br><a href="#{{ {'name':'apName','legal_name':'apLegal','cac_number':'apCac',
+                          'contact_email':'apEmail','password':'apPass',
+                          'what_they_sell':'apSell','stand_type_id':'apStandFirst'}[bad_field]
+                        |default('apErr') }}">Go to the field</a>
+      {% endif %}
+    </div>
   {% endif %}
 
   <form method="post" action="/events/{{ event.slug }}/stands/apply" class="ap-f">
@@ -313,6 +328,8 @@
           {% for c in capacity %}
             <label class="ap-stand{% if c.left == 0 %} is-full{% endif %}">
               <input type="radio" name="stand_type_id" value="{{ c.type.id }}" required
+                     {% if loop.first %}id="apStandFirst"{% endif %}
+                     {% if loop.first and bad_field == 'stand_type_id' %}aria-invalid="true" aria-describedby="apErr" autofocus{% endif %}
                      {% if old.stand_type_id is defined and old.stand_type_id == c.type.id %}checked{% endif %}>
               <span>
                 <span class="ap-stand__n">{{ c.type.name }}</span>
@@ -415,12 +432,14 @@
             <div class="ap-field">
               <label for="apName">Name you trade under</label>
               <input id="apName" name="name" type="text" maxlength="200" required
+                     {% if bad_field == 'name' %}aria-invalid="true" aria-describedby="apErr" autofocus{% endif %}
                      value="{{ old.name|default('') }}" placeholder="Mama Ngozi’s Kitchen">
               <small>This is what appears on the stand list. It can be your own name.</small>
             </div>
             <div class="ap-field">
               <label for="apLegal">Full legal name</label>
               <input id="apLegal" name="legal_name" type="text" maxlength="200" required
+                     {% if bad_field == 'legal_name' %}aria-invalid="true" aria-describedby="apErr" autofocus{% endif %}
                      value="{{ old.legal_name|default('') }}" placeholder="Ngozi Chioma Okafor">
               <small>Your own full name, or the registered name if you are a business. It
                 must match the bank account we settle to — we check that with your bank.</small>
@@ -435,6 +454,7 @@
                  because a browser that silently refuses a real number teaches nothing,
                  while the server's refusal names the three prefixes and can be read. #}
               <input id="apCac" name="cac_number" type="text" maxlength="60"
+                     {% if bad_field == 'cac_number' %}aria-invalid="true" aria-describedby="apErr" autofocus{% endif %}
                      value="{{ old.cac_number|default('') }}" placeholder="BN1234567"
                      autocapitalize="characters" spellcheck="false"
                      pattern="[A-Za-z]{2}[ /-]*[0-9]{1,10}"
@@ -446,12 +466,14 @@
             <div class="ap-field">
               <label for="apEmail">Email</label>
               <input id="apEmail" name="contact_email" type="email" maxlength="190" required
+                     {% if bad_field == 'contact_email' %}aria-invalid="true" aria-describedby="apErr" autofocus{% endif %}
                      autocomplete="email" value="{{ old.contact_email|default('') }}">
               <small>This becomes your sign-in, and it is where the decision goes.</small>
             </div>
             <div class="ap-field">
               <label for="apPass">Choose a password</label>
               <input id="apPass" name="password" type="password" minlength="12" required
+                     {% if bad_field == 'password' %}aria-invalid="true" aria-describedby="apErr" autofocus{% endif %}
                      autocomplete="new-password">
               <small>At least 12 characters. This sign-in can later request payouts, so it
                 is held to a higher bar than a shopping account.</small>
@@ -487,6 +509,8 @@
         <div class="ap-field">
           <label for="apSell">Describe your goods</label>
           <textarea id="apSell" name="what_they_sell" rows="5" required
+            maxlength="{{ sells_max }}"
+            {% if bad_field == 'what_they_sell' %}aria-invalid="true" aria-describedby="apErr" autofocus{% endif %}
             placeholder="Jollof rice, moi moi and chin chin, cooked on site. Two staff.">{{ old.what_they_sell|default('') }}</textarea>
           <small>A few plain sentences is enough. What you sell, how it is made or served,
             and how many of you there will be.</small>

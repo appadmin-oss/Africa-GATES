@@ -631,6 +631,112 @@ class StandSurfacesTest extends TestCase
         $this->assertStringNotContainsString('onchange=', $html);
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // THE UX AUDIT FIXES
+    // ═══════════════════════════════════════════════════════════════════════
+
+    public function test_the_list_is_ordered_the_way_the_published_tiebreak_ranks_it(): void
+    {
+        // §5.4 ranks equal applications by who became COMPLETE FIRST, and the public form
+        // says so twice. The order was `orderBy('completed_at')` alone — and NULL sorts
+        // FIRST ascending in both MySQL and SQLite, so every incomplete application floated
+        // above the vendors who had actually got their certificates in. An organiser working
+        // down the page was reading it in the inverse of the rule they had published.
+        $event = $this->makeEvent();
+        $this->openCall($event, 5);
+        $type  = StandType::forEvent((int) $event->id)[0];
+        $call  = StandCall::forEvent((int) $event->id);
+
+        $ids = [];
+        foreach (['late', 'never', 'early'] as $which) {
+            $app = StandApplication::submit($this->makeVendor(), (int) $type->id,
+                                            ['what_they_sell' => $which]);
+            $ids[$which] = (int) $app['id'];
+        }
+
+        DB::table('gates_stand_applications')->where('id', $ids['early'])
+            ->update(['completed_at' => '2026-01-01 09:00:00']);
+        DB::table('gates_stand_applications')->where('id', $ids['late'])
+            ->update(['completed_at' => '2026-01-02 09:00:00']);
+        DB::table('gates_stand_applications')->where('id', $ids['never'])
+            ->update(['completed_at' => null]);
+
+        $order = array_map(static fn ($a): int => (int) $a->id,
+                           StandApplication::forCall((int) $call->id));
+
+        $this->assertSame([$ids['early'], $ids['late'], $ids['never']], $order,
+            'complete first, earliest-complete first among them, incomplete last');
+    }
+
+    public function test_a_refused_decision_keeps_the_reason_that_was_typed(): void
+    {
+        // A rejection with no reason is refused BY DESIGN, so this branch is reached most
+        // often by somebody who has just written three sentences explaining a decision.
+        // Losing them and returning to the top of a two-hundred-row page is how a considered
+        // reason becomes "not selected".
+        $event = $this->makeEvent();
+        $this->openCall($event, 2);
+        $type  = StandType::forEvent((int) $event->id)[0];
+        $app   = StandApplication::submit($this->makeVendor(), (int) $type->id,
+                                          ['what_they_sell' => 'Jollof.']);
+        $this->asAdmin();
+
+        // An offer is refused while eligibility is unchecked — a real refusal path.
+        $res = $this->admin()->decide($this->post('/x', [
+            'decision' => 'offered', 'reason' => 'Strongest menu range of the three.',
+        ]), new Response(), ['id' => (int) $event->id, 'app' => (int) $app['id']]);
+        $this->assertSame(302, $res->getStatusCode());
+
+        $html = (string) $this->admin()->index($this->get('/x'), new Response(),
+                                               ['id' => (int) $event->id])->getBody();
+        $this->assertStringContainsString('Strongest menu range of the three.', $html);
+
+        // One-shot: it does not follow the organiser around the rest of the session.
+        $again = (string) $this->admin()->index($this->get('/x'), new Response(),
+                                                ['id' => (int) $event->id])->getBody();
+        $this->assertStringNotContainsString('Strongest menu range of the three.', $again);
+    }
+
+    public function test_the_decide_control_does_not_open_on_the_option_that_sends_an_offer(): void
+    {
+        // It opened on "Offer a stand" beside a button labelled "Record", on a table of
+        // two hundred identical rows — and a decision now emails the vendor and starts a
+        // 72-hour clock, which editing the row cannot take back.
+        $event = $this->makeEvent();
+        $this->openCall($event, 2);
+        $type  = StandType::forEvent((int) $event->id)[0];
+        StandApplication::submit($this->makeVendor(), (int) $type->id,
+                                 ['what_they_sell' => 'Jollof.']);
+        $this->asAdmin();
+
+        $html = (string) $this->admin()->index($this->get('/x'), new Response(),
+                                               ['id' => (int) $event->id])->getBody();
+
+        $this->assertStringContainsString('<option value="" selected>Choose…</option>', $html);
+        $this->assertStringNotContainsString('<option value="offered" selected', $html);
+        // And the press is confirmed, naming the consequence rather than asking "are you sure".
+        $this->assertStringContainsString('data-confirm="Record this decision for', $html);
+    }
+
+    public function test_the_screen_distinguishes_recorded_from_actually_emailed(): void
+    {
+        // There is no worker on this host, so a decision queues its message and the tick
+        // sends it. In between, a vendor has been offered a pitch and does not know — which
+        // is a different state from "told, and has not replied".
+        $event = $this->makeEvent();
+        $this->openCall($event, 2);
+        $type  = StandType::forEvent((int) $event->id)[0];
+        $app   = StandApplication::submit($this->makeVendor(), (int) $type->id,
+                                          ['what_they_sell' => 'Jollof.']);
+        StandApplication::checkEligibility((int) $app['id']);
+        StandApplication::offer((int) $app['id'], 1);
+        $this->asAdmin();
+
+        $html = (string) $this->admin()->index($this->get('/x'), new Response(),
+                                               ['id' => (int) $event->id])->getBody();
+        $this->assertStringContainsString('still to go out', $html);
+    }
+
     public function test_the_catalogue_quota_box_does_not_start_empty_while_being_required(): void
     {
         // A `required` box with only a placeholder is a form that refuses itself on the
@@ -643,5 +749,87 @@ class StandSurfacesTest extends TestCase
         $this->assertMatchesRegularExpression(
             '~id="stPresetQty"[^>]*\brequired\b[^>]*value="[1-9][0-9]*"~', $html
         );
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // THE PUBLIC FORM: SAYING WHICH FIELD IS WRONG
+    // ═══════════════════════════════════════════════════════════════════════
+
+    public function test_a_refusal_names_the_field_it_is_about(): void
+    {
+        // WCAG 3.3.1 requires the ITEM IN ERROR to be identified. This form is five hundred
+        // lines on a phone and every refusal returned one banner at the top of it, so
+        // finding the objection meant re-reading eleven inputs.
+        $event = $this->makeEvent();
+        $this->openCall($event);
+        $type = StandType::forEvent((int) $event->id)[0];
+
+        $res = $this->publicCtrl()->submit($this->post('/x', [
+            'stand_type_id' => (string) $type->id,
+            'entity_type'   => 'individual',
+            'name'          => 'Mama Ngozi Kitchen',
+            'legal_name'    => 'Ngozi Chioma Okafor',
+            'contact_email' => 'not-an-email',
+            'password'      => 'correct horse battery staple',
+        ]), new Response(), ['slug' => (string) $event->slug]);
+
+        $html = (string) $res->getBody();
+        $this->assertSame(200, $res->getStatusCode(), 'a refusal re-renders, it does not redirect');
+        $this->assertStringContainsString('aria-invalid="true"', $html);
+        $this->assertStringContainsString('aria-describedby="apErr"', $html);
+        $this->assertStringContainsString('autofocus', $html);
+        // And a link back to it, for a reader who has scrolled past.
+        $this->assertStringContainsString('href="#apEmail"', $html);
+        // Nothing they typed is lost.
+        $this->assertStringContainsString('Mama Ngozi', $html);
+    }
+
+    public function test_a_field_the_refusal_is_not_about_is_left_unmarked(): void
+    {
+        // Marking every field is the same as marking none.
+        $event = $this->makeEvent();
+        $this->openCall($event);
+        $type = StandType::forEvent((int) $event->id)[0];
+
+        $html = (string) $this->publicCtrl()->submit($this->post('/x', [
+            'stand_type_id' => (string) $type->id, 'entity_type' => 'individual',
+            'name' => 'Mama Ngozi Kitchen', 'legal_name' => 'Ngozi Chioma Okafor',
+            'contact_email' => 'not-an-email', 'password' => 'correct horse battery staple',
+        ]), new Response(), ['slug' => (string) $event->slug])->getBody();
+
+        $this->assertSame(1, substr_count($html, 'aria-invalid="true"'));
+    }
+
+    public function test_a_long_description_is_refused_rather_than_quietly_cut(): void
+    {
+        // The column takes 2,000 characters and the server used to mb_substr() silently, in
+        // the one field the panel actually reads. Somebody who wrote 2,400 lost 400 of them
+        // without being told.
+        $event = $this->makeEvent();
+        $this->openCall($event);
+        $type  = StandType::forEvent((int) $event->id)[0];
+        $orgId = $this->makeVendor();
+
+        $r = StandApplication::submit($orgId, (int) $type->id, [
+            'what_they_sell' => str_repeat('a', StandApplication::SELLS_MAX + 400),
+        ]);
+
+        $this->assertFalse($r['ok']);
+        $this->assertSame('what_they_sell', $r['field']);
+        $this->assertStringContainsString('400 characters longer', $r['message']);
+        // Nothing was written, so they can shorten it and try again.
+        $this->assertSame([], StandApplication::forOrg($orgId));
+    }
+
+    public function test_the_textarea_cap_and_the_server_cap_are_the_same_number(): void
+    {
+        // Two literals is exactly how a silent truncation happens: the browser lets 3,000
+        // through into a column that keeps 2,000.
+        $event = $this->makeEvent();
+        $this->openCall($event);
+
+        $html = (string) $this->publicCtrl()->form($this->get('/x'), new Response(),
+                                                   ['slug' => (string) $event->slug])->getBody();
+        $this->assertStringContainsString('maxlength="' . StandApplication::SELLS_MAX . '"', $html);
     }
 }

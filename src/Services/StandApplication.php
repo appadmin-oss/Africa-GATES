@@ -52,18 +52,51 @@ final class StandApplication
     /** How long a vendor has to accept before the place goes to the waiting list. */
     public const OFFER_HOURS = 72;
 
+    /**
+     * How much of "what you will sell" is kept.
+     *
+     * A constant rather than a literal in two places, because the form's `maxlength` and the
+     * server's limit disagreeing is exactly how a silent truncation happens: the browser
+     * lets 3,000 through and the database keeps 2,000.
+     */
+    public const SELLS_MAX = 2000;
+
     public static function find(int $id): ?object
     {
         if ($id < 1) return null;
         return DB::table('gates_stand_applications')->where('id', $id)->first();
     }
 
-    /** @return array<int,object> */
+    /**
+     * Every application in a call, in the order the published tiebreak defines.
+     *
+     * ── THE `IS NULL` IS THE WHOLE POINT ────────────────────────────────────
+     *
+     * §5.4 ranks equal applications by WHO BECAME COMPLETE FIRST, and the public form says
+     * so twice. This used to be `orderBy('completed_at')` alone — and in both MySQL and
+     * SQLite, NULL sorts FIRST in an ascending order. So every INCOMPLETE application, the
+     * ones that cannot be offered anything, floated to the top of the list, above the
+     * vendors who had actually got their certificates in.
+     *
+     * An organiser working down a two-hundred-row page in the order it was handed to them
+     * was therefore reading it in almost exactly the inverse of the rule they had published.
+     * Nothing in the code was wrong about the rule; the SQL just quietly disagreed with it.
+     *
+     * `(completed_at IS NULL)` yields 0 for complete and 1 for not, in both engines, so
+     * complete rows come first and are then ordered among themselves by when. `id` last, so
+     * two applications completed in the same second are still deterministic — the same
+     * reasoning as the shortlist cut.
+     *
+     * @return array<int,object>
+     */
     public static function forCall(int $callId): array
     {
         try {
             return DB::table('gates_stand_applications')->where('call_id', $callId)
-                ->orderBy('stand_type_id')->orderBy('completed_at')->orderBy('id')
+                ->orderBy('stand_type_id')
+                ->orderByRaw('(completed_at IS NULL)')
+                ->orderBy('completed_at')
+                ->orderBy('id')
                 ->get()->all();
         } catch (\Throwable) {
             return [];
@@ -125,8 +158,26 @@ final class StandApplication
 
         $sells = trim((string) ($in['what_they_sell'] ?? ''));
         if ($sells === '') {
-            return $fail + ['message' => 'Say what you intend to sell — it is what the panel scores '
+            // `field`, so the form can mark THIS input rather than showing a banner at the
+            // top of a page the person then has to re-read. See PartnerOrg::registerVendor.
+            return $fail + ['field' => 'what_they_sell',
+                            'message' => 'Say what you intend to sell — it is what the panel scores '
                                        . 'and what decides which certificates you need.'];
+        }
+        // ── REFUSED, NOT TRUNCATED ──────────────────────────────────────────
+        //
+        // The column takes 2,000 characters and this used to mb_substr() silently. Somebody
+        // who wrote 2,400 words about their business had 400 of them deleted without being
+        // told, in the one field the panel actually reads. The form now caps the textarea at
+        // the same number and this is the server saying the same thing, so a paste that
+        // exceeds it is a message rather than a quiet edit.
+        if (mb_strlen($sells) > self::SELLS_MAX) {
+            return $fail + ['field' => 'what_they_sell',
+                            'message' => 'That is ' . number_format(mb_strlen($sells) - self::SELLS_MAX)
+                                       . ' characters longer than the '
+                                       . number_format(self::SELLS_MAX) . ' this field holds. '
+                                       . 'Shorten it rather than letting us cut it — the panel '
+                                       . 'reads what is here.'];
         }
 
         $now = date('Y-m-d H:i:s');
@@ -135,7 +186,7 @@ final class StandApplication
             'event_id'        => (int) $type->event_id,
             'org_id'          => $orgId,
             'stand_type_id'   => $standTypeId,
-            'what_they_sell'  => mb_substr($sells, 0, 2000),
+            'what_they_sell'  => mb_substr($sells, 0, self::SELLS_MAX),
             'needs_power'     => !empty($in['needs_power'])     ? 1 : 0,
             'needs_step_free' => !empty($in['needs_step_free']) ? 1 : 0,
             'submitted_at'    => $now,
@@ -283,7 +334,20 @@ final class StandApplication
             'offer_expires_at' => date('Y-m-d H:i:s', time() + self::OFFER_HOURS * 3600),
         ]);
 
-        return ['ok' => true, 'message' => 'Offered. They have ' . self::OFFER_HOURS
+        // ── AND TELL THEM, WHICH NOTHING DID ────────────────────────────────
+        //
+        // The clock above starts now. Before this line existed, the only way a vendor could
+        // learn that it had started was to log in unprompted — and when it ran out,
+        // Maintenance::expireStandOffers() released the pitch, silently. So the most likely
+        // outcome of a successful application was losing the place without ever knowing it
+        // had been won. The public application page promises "You hear either way, with a
+        // reason"; this is the half of that promise with a deadline attached.
+        //
+        // Queued, so an SMTP hiccup cannot fail or slow the decision itself.
+        StandNotice::queue($appId, self::DECISION_OFFERED);
+
+        return ['ok' => true, 'message' => 'Offered, and they have been emailed. They have '
+                                         . self::OFFER_HOURS
                                          . ' hours to accept before the place returns to the pool.'];
     }
 
@@ -315,7 +379,14 @@ final class StandApplication
             'decided_at'      => date('Y-m-d H:i:s'),
         ]);
 
-        return ['ok' => true, 'message' => self::DECISIONS[$decision] . ' recorded.'];
+        // A rejection is refused above without a reason, precisely so the applicant is owed
+        // an explanation — and that reason was then stored and never sent. `declined` is the
+        // vendor's own act and needs no message back; the other outcomes are ours to report.
+        StandNotice::queue($appId, $decision);
+
+        return ['ok' => true, 'message' => self::DECISIONS[$decision]
+            . (isset(StandNotice::KINDS[$decision]) ? ' recorded, and they have been emailed.'
+                                                    : ' recorded.')];
     }
 
     /**
@@ -376,6 +447,11 @@ final class StandApplication
                 'decision_reason' => 'The offer was not accepted before it expired.',
                 'decided_at'      => date('Y-m-d H:i:s'),
             ]);
+            // `expired` and not `waitlisted`: the stored decision is the same, but the
+            // message a person needs is completely different. "You are on the waiting list"
+            // to somebody who was offered a pitch and lost it reads as though we never
+            // offered it at all.
+            StandNotice::queue((int) $r->id, 'expired');
             $n++;
         }
         return $n;

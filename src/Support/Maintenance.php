@@ -867,6 +867,18 @@ final class Maintenance
             $q->on(\AfricaGates\Services\QuestionnaireInvites::JOB_INVITE, function (array $p) use ($mailer) {
                 \AfricaGates\Services\QuestionnaireInvites::deliver($p, $mailer);
             });
+            // ── WHAT HAPPENED TO A STAND APPLICATION ───────────────────────────
+            //
+            // Queued by the decision, sent here. Nothing sent these before they existed: a
+            // pitch was offered with a 72-hour clock, the vendor was never told, and the
+            // expiry sweep below then gave the place away — silently, to somebody who had
+            // gathered certificates on the strength of "you hear either way, with a reason".
+            //
+            // deliver() re-reads the row, so a decision changed or accepted between the
+            // press and this tick does not send the superseded message.
+            $q->on(\AfricaGates\Services\StandNotice::JOB_NOTICE, function (array $p) use ($mailer) {
+                \AfricaGates\Services\StandNotice::deliver($p, $mailer);
+            });
             // ── the register, asked away from the form ─────────────────────────
             //
             // A vendor's submit creates an account AND an application in one request, on a

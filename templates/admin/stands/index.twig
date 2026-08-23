@@ -667,7 +667,8 @@
 <div class="ad-card" id="apps">
   <div class="ad-card__head">
     <div class="ad-card__title">Applications
-      <small>eligibility is a rule; selection is a judgement — they are shown separately</small></div>
+      <small>complete ones first, in the order they became complete — the published
+        tiebreak, so the list reads in the order the rule ranks it</small></div>
     {% if may_decide and summary.total > 0 %}
       <form method="post" action="/admin/events/{{ event.id }}/stands/check">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -675,6 +676,23 @@
       </form>
     {% endif %}
   </div>
+
+  {# ── RECORDED IS NOT THE SAME FACT AS EMAILED ─────────────────────────────
+     A decision queues its message and the maintenance tick sends it, because there is no
+     worker process on this host. So there is a real interval in which a vendor has been
+     offered a pitch and does not yet know — and an organiser waiting for a reply needs to
+     be able to tell that state from "they were told and have not answered". #}
+  {% if notices_pending > 0 %}
+    <div class="ad-card__body" style="padding-bottom:0">
+      <p class="viz-caveat" style="margin:0">
+        <strong>{{ notices_pending }} message(s) still to go out.</strong>
+        Decisions are emailed by the scheduled task rather than at the moment you press
+        Record, so nobody is kept waiting on a slow mail server. Until these send, the
+        vendors concerned do not yet know — including anyone whose acceptance clock has
+        already started.
+      </p>
+    </div>
+  {% endif %}
 
   <div class="ad-card__body" style="padding-bottom:0">
     <nav class="st-tabs" aria-label="Filter applications by outcome">
@@ -760,12 +778,22 @@
           </td>
           <td>
             {% if may_decide %}
-              <form method="post" action="/admin/events/{{ event.id }}/stands/{{ r.app.id }}/decide">
+              {# ── NOTHING HERE IS PRE-SELECTED, AND THAT IS THE POINT ──────────
+                 The select used to open on "Offer a stand", beside a button labelled
+                 "Record", on a table that routinely runs to two hundred identical rows.
+                 One misdirected click sent a real offer — and now that decisions are
+                 actually emailed, it sends a real offer with a {{ offer_hours }}-hour
+                 clock to the wrong business, which cannot be taken back by editing a
+                 row. A placeholder plus `required` makes the consequential option one
+                 somebody chose, not one they failed to change. #}
+              <form method="post" action="/admin/events/{{ event.id }}/stands/{{ r.app.id }}/decide"
+                    data-confirm="Record this decision for {{ r.org ? r.org.name : 'this application' }}? They are emailed immediately, and an offer starts a {{ offer_hours }}-hour acceptance clock.">
                 <input type="hidden" name="_token" value="{{ csrf_token }}">
                 <div class="st-dec">
                   <div>
                     <label class="sr-only" for="dec{{ r.app.id }}">Decision for {{ r.org ? r.org.name : 'this application' }}</label>
-                    <select id="dec{{ r.app.id }}" name="decision">
+                    <select id="dec{{ r.app.id }}" name="decision" required>
+                      <option value="" selected>Choose…</option>
                       <option value="offered">Offer a stand</option>
                       <option value="waitlisted">Waiting list</option>
                       <option value="rejected">Not selected</option>
@@ -774,8 +802,13 @@
                   <button class="ad-btn ad-btn--sm" type="submit">Record</button>
                 </div>
                 <label class="sr-only" for="rsn{{ r.app.id }}">Reason</label>
+                {# Repopulated. A rejection with no reason is refused — deliberately — and
+                   the refusal used to come back with the typed reason gone, on a page
+                   scrolled to the top. Somebody who has just written three sentences
+                   explaining a decision does not write them twice. #}
                 <input id="rsn{{ r.app.id }}" name="reason" type="text" maxlength="400"
-                       style="margin-top:6px" placeholder="Reason — required to reject">
+                       style="margin-top:6px" value="{{ kept_reason[r.app.id]|default('') }}"
+                       placeholder="Reason — required to reject, and they read it">
               </form>
             {% else %}
               <span style="color:var(--ad-text-soft)">Read only</span>
