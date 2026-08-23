@@ -191,6 +191,52 @@
                        x-text="'Download ' + (it.source_label || 'the file')"></a>
                   </div>
                 </template>
+
+                {# ── WHAT A MODEL MADE OF THE DOCUMENT ────────────────────────────
+                   BELOW the document and never instead of it. A judge who reads a
+                   summary first has already been told what to see, and the summary is
+                   the one thing on this card that no person has checked.
+
+                   It carries its own label saying so, is collapsed by default, and
+                   states no score and no verdict — the capability is declared advisory
+                   and the registry enforces it. Present only when an administrator has
+                   already run the analysis; nothing here calls a provider. #}
+                <template x-if="it.analysis">
+                  <details class="jc-ai">
+                    <summary class="jc-ai__sum">
+                      <span class="jc-prov jc-prov--ai">Machine reading &mdash; not checked by a person</span>
+                      <span class="jc-ai__type" x-text="it.analysis.doc_type"></span>
+                    </summary>
+                    <p class="jc-ev__body" x-text="it.analysis.summary"></p>
+
+                    <template x-if="(it.analysis.claims || []).length">
+                      <div class="jc-ai__grp">
+                        <p class="jc-klabel">What the document states</p>
+                        <ul class="jc-ai__list">
+                          <template x-for="(c, ci) in it.analysis.claims" :key="'c'+ci">
+                            <li x-text="c"></li>
+                          </template>
+                        </ul>
+                      </div>
+                    </template>
+
+                    <template x-if="(it.analysis.concerns || []).length">
+                      <div class="jc-ai__grp">
+                        <p class="jc-klabel">Worth looking at yourself</p>
+                        <ul class="jc-ai__list jc-ai__list--warn">
+                          <template x-for="(c, ci) in it.analysis.concerns" :key="'w'+ci">
+                            <li x-text="c"></li>
+                          </template>
+                        </ul>
+                      </div>
+                    </template>
+
+                    <span class="jc-ev__src"
+                          x-text="'Read by ' + it.analysis.model
+                                + (it.analysis.legibility !== null
+                                    ? ' · scan ' + it.analysis.legibility + '% legible' : '')"></span>
+                  </details>
+                </template>
               </div>
             </template>
 
@@ -316,6 +362,23 @@
   .jc-ev__tx{ max-height:340px; overflow:auto; padding-right:6px; }
   .jc-ev__src{ display:inline-block; margin:9px 0 0; font-size:12px; color:#5a6d6f; }
   a.jc-ev__src{ color:#237b22; text-decoration:underline; }
+
+  /* Machine reading. Deliberately the quietest thing on the card and deliberately
+     collapsed: it sits below the document it describes so the judge meets the
+     evidence first, and it is styled as an aside rather than as a finding because
+     nobody has checked it. */
+  .jc-ai{ margin:11px 0 0; padding:0; border-top:1px dashed rgba(16,41,44,.16); }
+  .jc-ai__sum{ display:flex; align-items:center; gap:9px; flex-wrap:wrap;
+    padding:10px 0 0; cursor:pointer; list-style:none; }
+  .jc-ai__sum::-webkit-details-marker{ display:none; }
+  .jc-ai__sum::after{ content:'show'; font-size:11.5px; color:#5a6d6f; text-decoration:underline; }
+  .jc-ai[open] .jc-ai__sum::after{ content:'hide'; }
+  .jc-prov--ai{ background:#eef1f6; color:#4a5568; }
+  .jc-ai__type{ font-size:12.5px; color:#5a6d6f; font-style:italic; }
+  .jc-ai__grp{ margin:12px 0 0; }
+  .jc-ai__list{ margin:6px 0 0; padding-left:19px; font-size:13.5px; line-height:1.65; color:#3a4448; }
+  .jc-ai__list li{ margin:3px 0 0; }
+  .jc-ai__list--warn li{ color:#7a5605; }
 
   /* ── AN UPLOADED FILE, PREVIEWED IN PLACE ────────────────────────────────
      Sized so the document is readable beside the criteria rather than replacing

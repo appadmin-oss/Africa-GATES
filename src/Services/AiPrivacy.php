@@ -156,7 +156,14 @@ final class AiPrivacy
      * `primary` or not, because "usually OpenAI, occasionally Google" is materially
      * different information from "OpenAI" and a reader is entitled to both.
      *
-     * @return list<array{provider:string, label:string, primary:bool, capabilities:list<array{name:string, purpose:string, sends:string, minimised:bool, advisory:bool}>}>
+     * `primary` is carried on each CAPABILITY and not only on the provider group, because
+     * one provider can be both at once. Google is the pin for reading uploaded documents —
+     * no other configured provider can see a file — and simultaneously the first fallback
+     * for capabilities pinned to Groq. A single boolean on the heading would have had to
+     * choose one of those and print the other as false, so the caveat now sits beside the
+     * feature it is true of.
+     *
+     * @return list<array{provider:string, label:string, primary:bool, capabilities:list<array{name:string, purpose:string, sends:string, minimised:bool, advisory:bool, primary:bool}>}>
      */
     public static function disclosure(): array
     {
@@ -174,7 +181,7 @@ final class AiPrivacy
             foreach ($cap->route() as $i => $hop) {
                 $provider = explode(':', $hop, 2)[0];
                 if ($provider === '') continue;
-                $byProvider[$provider][$cap->name] = $entry;
+                $byProvider[$provider][$cap->name] = $entry + ['primary' => $i === 0];
                 // Primary for this provider if ANY capability pins it first.
                 $isPrimary[$provider] = ($isPrimary[$provider] ?? false) || $i === 0;
             }

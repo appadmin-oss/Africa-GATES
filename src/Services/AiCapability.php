@@ -825,6 +825,47 @@ final class AiCapability
                     . 'what timeframe — so the search can filter as well as match text. Your words '
                     . 'are also searched literally either way.',
             ]),
+            // Reads the documents a nominee attached as evidence and describes them for a
+            // reviewer. Pinned to Gemini by NECESSITY rather than preference: it is the
+            // only configured provider that can see a file at all. The default ladder
+            // would fall back to Groq, which is text-only and would cheerfully describe a
+            // document it never received, so the fallback list is deliberately EMPTY.
+            'evidence.analyse' => $c('evidence.analyse', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => 'gemini:gemini-3.6-flash',
+                // One attempt, no alternates. Not a limitation to be fixed later: a
+                // fallback here would be worse than a failure, because a text-only model
+                // asked about an attachment it cannot see returns a confident,
+                // well-formed, entirely invented description — and it would be stored
+                // beside real ones with no way for a reviewer to tell them apart.
+                'max_attempts'    => 1,
+                'fallbacks'       => [],
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                // A batch of six documents, each answered with a summary, claims, dates
+                // and names. The batch size and this ceiling are set together.
+                'max_tokens'      => 1600,
+                // Deliberately small. Each call carries up to six documents at ~258
+                // tokens a page, so a hundred calls is already a large amount of input,
+                // and results are cached on content hash — a second look at the same file
+                // costs nothing. A runaway loop should stop long before the bill does.
+                'calls_per_day'   => 300,
+                'tokens_per_day'  => 3_000_000,
+                // Long: this uploads files, waits for the provider to finish processing
+                // them, and then reasons over several at once.
+                'timeout'         => 120,
+                'untrusted_input' => true,
+                'minimise'        => true,
+                'public_content'  => true,
+                'data_sent'       => 'The documents you attached to your nomination — certificates, letters, '
+                    . 'photographs, reports — and the titles you gave them, with contact details in those '
+                    . 'titles replaced by placeholders. The files are held by the provider for up to 48 '
+                    . 'hours and then deleted.',
+                'data_purpose'    => 'To describe each document for the reviewer reading your entry: what it '
+                    . 'is, what it claims, and whether it is legible. It produces notes for a person, never '
+                    . 'a score, and it cannot approve or reject anything.',
+            ]),
             'integrity.brief' => $c('integrity.brief', [
                 'purpose'        => 'assist',
                 'tier'           => self::TIER_REASON,

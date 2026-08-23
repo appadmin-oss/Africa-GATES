@@ -3358,6 +3358,10 @@ return function(App $app) {
             $s->post('/{id:[0-9]+}/invite',        \AfricaGates\Admin\Controllers\QuestionnairesController::class.':invite');
             $s->post('/{id:[0-9]+}/reopen',        \AfricaGates\Admin\Controllers\QuestionnairesController::class.':reopen');
             $s->post('/{id:[0-9]+}/republish',     \AfricaGates\Admin\Controllers\QuestionnairesController::class.':republish');
+            // Read the attached documents. Synchronous, budgeted by the capability, and
+            // cached on file content — pressing it twice on an unchanged dossier costs
+            // nothing. The result is advisory notes for a reviewer, never a score.
+            $s->post('/{id:[0-9]+}/analyse',       \AfricaGates\Admin\Controllers\QuestionnairesController::class.':analyse');
             // Only a test can be deleted; the service refuses anything else, so a mistyped id
             // cannot take a nominee's own account of their work with it.
             $s->post('/{id:[0-9]+}/delete-test',   \AfricaGates\Admin\Controllers\QuestionnairesController::class.':deleteTest');

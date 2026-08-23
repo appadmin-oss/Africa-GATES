@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace AfricaGates\Admin\Controllers;
 
 use AfricaGates\Admin\Services\AuditService;
+use AfricaGates\Services\EvidenceAnalysis;
 use AfricaGates\Services\OtpService;
 use AfricaGates\Services\QuestionnaireInvites;
 use AfricaGates\Services\QuestionnairePolicy;
@@ -102,6 +103,10 @@ final class QuestionnairesController
             'form'       => $form,
             'link'       => QuestionnaireService::url($id),
             'evidence'   => $this->evidenceFor((int) $s->nominee_id),
+            // What a model made of the files, and whether it can be asked to. Read-only
+            // on render: the analysis costs money and is started by the button below,
+            // never by looking at the page.
+            'ai'         => EvidenceAnalysis::status((int) $s->nominee_id),
             // ── THE INTERVIEW, WHEN THAT IS WHAT THIS WAS ────────────────────
             //
             // An operator looking at a submission needs to be able to answer two questions a
@@ -126,12 +131,54 @@ final class QuestionnairesController
                 ->where('nominee_id', $nomineeId)
                 ->where('provenance', 'nominee_supplied')
                 ->orderBy('sort_order')
-                ->get(['kind', 'title', 'source_url', 'visible_to_judges'])
+                ->get(['id', 'kind', 'title', 'source_url', 'visible_to_judges'])
                 ->map(fn ($r) => (array) $r)->all();
         } catch (\Throwable) { return []; }
     }
 
     // ══ actions ══════════════════════════════════════════════════════════════
+
+    /**
+     * Ask the model to read the files attached to this submission.
+     *
+     * SYNCHRONOUS AND DELIBERATELY SO, unlike the invitations beside it. That queue exists
+     * because a bulk send is hundreds of operations against people's inboxes and must
+     * survive a dropped request; this is one dossier, started by an administrator who is
+     * looking at the screen and wants to see the result. Queueing it would mean a page
+     * that says "started" and no way to tell whether it worked.
+     *
+     * It is capped by the capability's own daily budget rather than by anything here, and
+     * each file is cached on content hash — pressing it twice costs one call, not two.
+     */
+    public function analyse(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $id = (int) ($args['id'] ?? 0);
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+
+        $row = null;
+        try {
+            $row = DB::table('gates_questionnaire_submissions')->where('id', $id)
+                ->first(['id', 'nominee_id', 'is_test']);
+        } catch (\Throwable) {
+        }
+        if (!$row) {
+            $_SESSION['flash_error'] = 'That submission no longer exists.';
+            return $this->back($res, '/admin/questionnaires');
+        }
+
+        $force = !empty(((array) $req->getParsedBody())['force']);
+        $out = EvidenceAnalysis::forNominee((int) $row->nominee_id, $adminId, $force);
+
+        $_SESSION[$out['ok'] ? 'flash' : 'flash_error'] = $out['message'];
+        $this->audit?->record($adminId ?: null, 'evidence.analyse', 'nominee',
+            (int) $row->nominee_id,
+            ['analysed' => $out['analysed'], 'cached' => $out['cached'],
+             'skipped' => $out['skipped'], 'failed' => $out['failed'], 'forced' => $force]);
+
+        return $this->back($res, '/admin/questionnaires/' . $id . '#qsAi');
+    }
 
     /** Open one, or one for everybody who has none. */
     public function open(Request $req, Response $res): Response

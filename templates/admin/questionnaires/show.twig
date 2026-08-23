@@ -273,6 +273,94 @@
     {% endif %}
   </div>
 </div>
+
+{# ── READING THE ATTACHED DOCUMENTS ────────────────────────────────────────────
+   A separate section from the dossier above, and below it, because these two things
+   are not the same kind of fact. Above is what the nominee supplied. Here is what a
+   model made of it — useful for a reviewer with forty dossiers and a morning, and
+   checked by nobody. The heading says so rather than leaving it to be inferred. #}
+<div class="qs-sec" id="qsAi">
+  <h2>Reading the attached documents</h2>
+  <p>A model can read the files above and write down what each one is, what it states, and
+     whether it is legible. <strong>It produces notes, never a score</strong> — nothing here
+     can approve, reject or rank anybody, and a reviewer still opens the document. Results
+     are kept against the file's contents, so a nominee who replaces a file gets read again
+     and one who does not costs nothing to look at twice.</p>
+
+  {% if not ai.available %}
+    <p class="qs-v">{{ ai.reason }}</p>
+  {% else %}
+    <p class="qs-v">
+      {{ ai.readable }} of {{ ai.files }} attached file(s) can be sent.
+      {% if ai.unread > 0 %}{{ ai.unread }} not yet read.{% else %}All of them have been read.{% endif %}
+      Using {{ ai.model }}.
+    </p>
+    <div class="qs-row">
+      <form method="post" action="/admin/questionnaires/{{ row.id }}/analyse">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="qs-btn{% if ai.unread == 0 %} qs-btn--ghost{% endif %}"
+                type="submit"{% if ai.readable == 0 %} disabled{% endif %}>
+          {% if ai.unread > 0 %}Read {{ ai.unread }} document(s){% else %}Nothing new to read{% endif %}
+        </button>
+      </form>
+      {% if ai.items|length %}
+        <form method="post" action="/admin/questionnaires/{{ row.id }}/analyse">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <input type="hidden" name="force" value="1">
+          {# Spends the budget again on files already read. Worth having and worth being
+             the quieter of the two buttons: the reason to press it is a changed prompt or
+             a bad first answer, not routine use. #}
+          <button class="qs-btn qs-btn--ghost" type="submit">Read them all again</button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  {% for e in evidence %}
+    {% set a = ai.items[e.id]|default(null) %}
+    {% if a %}
+      <div class="qs-a">
+        <div class="qs-q">
+          {{ e.title }}
+          {% if a.status == 'ok' %}
+            <span class="qs-tag">{{ a.doc_type }}</span>
+            {% if a.legibility is not null %}<span class="qs-tag">scan {{ a.legibility }}% legible</span>{% endif %}
+          {% elseif a.status == 'skipped' %}
+            <span class="qs-tag">not sent</span>
+          {% else %}
+            <span class="qs-tag qs-tag--no">failed</span>
+          {% endif %}
+        </div>
+
+        {% if a.status == 'ok' %}
+          <div class="qs-v">{{ a.summary }}</div>
+          {% if a.claims|length %}
+            <div class="qs-v" style="margin-top:8px"><strong>States:</strong>
+              <ul style="margin:5px 0 0;padding-left:18px">
+                {% for c in a.claims %}<li>{{ c }}</li>{% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          {% if a.concerns|length %}
+            <div class="qs-v" style="margin-top:8px"><strong>Worth checking yourself:</strong>
+              <ul style="margin:5px 0 0;padding-left:18px">
+                {% for c in a.concerns %}<li>{{ c }}</li>{% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          {% if a.names|length or a.dates|length %}
+            <div class="qs-v" style="margin-top:8px;font-size:12px">
+              {% if a.names|length %}Names: {{ a.names|join(', ') }}.{% endif %}
+              {% if a.dates|length %} Dates: {{ a.dates|join(', ') }}.{% endif %}
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="qs-v">{{ a.error ?: 'No reason was recorded.' }}</div>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
 {% endif %}
 
 {# ── letting them change it ──────────────────────────────────────────────── #}

@@ -106,6 +106,14 @@ final class LegalDocument
             foreach ((array) ($group['capabilities'] ?? []) as $cap) {
                 $line = '<li><strong>' . $e((string) ($cap['purpose'] ?? '')) . '</strong><br>'
                       . $e((string) ($cap['sends'] ?? ''));
+                // Per FEATURE, not per provider. One provider can be the pin for one
+                // feature and the standby for another — Google reads uploaded documents
+                // because nothing else can, and also stands in for Groq elsewhere — so a
+                // heading-level caveat would be wrong about half the list beneath it. The
+                // note is only printed where the heading did not already say it.
+                if (($group['primary'] ?? false) && !($cap['primary'] ?? true)) {
+                    $line .= ' <em>This one only comes here when the usual provider is unavailable.</em>';
+                }
                 if (!($cap['minimised'] ?? false)) {
                     $line .= ' <em>Contact details in this request are not altered, because the '
                            . 'request is made by an administrator about data they already hold.</em>';

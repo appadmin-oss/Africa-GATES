@@ -182,6 +182,12 @@ final class Maintenance
                 $ran[] = ['guardlog', $this->task('guardlog',
                     fn() => \AfricaGates\Services\InterviewGuard::prune())];
                 $ran[] = ['maillog', $this->task('maillog', fn() => (int) DB::table('gates_mail_log')->where('created_at', '<', Carbon::now()->subDays(30))->delete())];
+                // Expired Gemini file-upload handles. The provider deletes the file itself
+                // after 48 hours; this drops OUR record of it, which is the half that
+                // matters — a stale row would be handed to generateContent as a live
+                // reference and the call would fail on a file that no longer exists.
+                $ran[] = ['aifiles', $this->task('aifiles',
+                    fn() => \AfricaGates\Services\GeminiFiles::prune())];
             }
             // Every 6 hours: CPI recompute + tamper-evident standings snapshot
             if ($now->hour % 6 === 0 && (int)$now->minute < 15) {

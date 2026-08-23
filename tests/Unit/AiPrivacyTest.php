@@ -309,10 +309,30 @@ class AiPrivacyTest extends TestCase
         $this->assertArrayHasKey('groq', $byProvider, 'the pinned provider');
         $this->assertTrue($byProvider['groq']['primary']);
 
-        $fallbackProviders = array_filter($byProvider, static fn (array $g): bool => !$g['primary']);
-        $this->assertNotSame([], $fallbackProviders,
-            'every capability declares fallbacks, so at least one non-primary '
-            . 'destination must be disclosed');
+        // A destination reached only as a standby must still be disclosed AND still be
+        // marked as a standby. That used to be a provider-level flag, and it stopped being
+        // true of a provider the moment one public capability pinned Google directly while
+        // others reached it as a fallback: the heading would have said "primary" over a
+        // list of features that mostly do not go there first. So the flag now lives on the
+        // capability, and the property under test is about pairs, not providers.
+        $standby = [];
+        foreach ($groups as $g) {
+            foreach ($g['capabilities'] as $cap) {
+                if (!$cap['primary']) $standby[] = $g['provider'] . '/' . $cap['name'];
+            }
+        }
+        $this->assertNotSame([], $standby,
+            'capabilities declare fallback ladders, so at least one destination must be '
+            . 'disclosed as a standby');
+
+        // And the flag is not simply false everywhere: something must be disclosed as a pin.
+        $pinned = [];
+        foreach ($groups as $g) {
+            foreach ($g['capabilities'] as $cap) {
+                if ($cap['primary']) $pinned[] = $g['provider'] . '/' . $cap['name'];
+            }
+        }
+        $this->assertNotSame([], $pinned);
 
         // And each disclosed destination is genuinely reachable — no phantom entries.
         foreach ($groups as $g) {

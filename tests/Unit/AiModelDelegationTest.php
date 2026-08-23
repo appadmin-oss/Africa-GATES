@@ -255,10 +255,37 @@ class AiModelDelegationTest extends TestCase
     {
         $this->assertSame('gemini-3.6-flash', AiService::DEFAULT_MODELS['gemini']);
 
-        // And it is the first fallback everywhere, so a GPT outage lands there.
+        // And it is the first fallback everywhere, so a Groq outage lands there.
+        //
+        // Everywhere EXCEPT a capability already pinned to Gemini for a reason no other
+        // provider can satisfy. `evidence.analyse` reads an attached document, and Groq is
+        // text-only: a fallback would hand the file to a model that cannot see it and get
+        // back a fluent, well-formed, entirely invented description, stored next to the
+        // real ones. An empty ladder there is the safety property, not an oversight — so
+        // the rule is "a Gemini pin may stand alone; anything else must fall back to it".
         foreach (AiCapability::all() as $cap) {
-            $this->assertNotSame([], $cap->fallbacks, "{$cap->name} declares no fallback");
+            if ($cap->fallbacks === []) {
+                $this->assertStringStartsWith('gemini:', $cap->model,
+                    "{$cap->name} declares no fallback, which is only allowed for a Gemini pin");
+                $this->assertSame(1, $cap->maxAttempts,
+                    "{$cap->name} has no ladder to climb, so it must not claim more than one attempt");
+                continue;
+            }
             $this->assertStringStartsWith('gemini:', $cap->fallbacks[0], $cap->name);
+        }
+    }
+
+    public function test_a_file_reading_capability_can_never_route_to_a_text_only_model(): void
+    {
+        // The failure this guards against is not an outage, it is a HALLUCINATION with an
+        // audit trail: the log would record a successful call and a stored analysis, and
+        // nothing on the screen would distinguish it from a document actually read.
+        $cap = AiCapability::find('evidence.analyse');
+        $this->assertNotNull($cap);
+
+        foreach ($cap->route() as $hop) {
+            $this->assertStringStartsWith('gemini:', $hop,
+                'evidence.analyse may only ever reach a provider that can receive a file');
         }
     }
 

@@ -158,6 +158,10 @@ final class EvidenceService
 
         $grouped = array_fill_keys($want, []);
 
+        // One query for every nominee on the screen, before the loop. Inside it, this
+        // would be a query per evidence row.
+        $analyses = EvidenceAnalysis::forNomineesMap($want);
+
         try {
             $rows = DB::table('gates_nominee_evidence')
                 ->whereIn('nominee_id', $want)
@@ -200,6 +204,22 @@ final class EvidenceService
                     $item['file_kind'] = $fileKind;
                     // Not a link. Leaving it set would render the broken anchor as well.
                     $item['source_url'] = '';
+                }
+
+                // ── WHAT A MODEL MADE OF THE FILE, IF ANYBODY HAS ASKED ──────
+                //
+                // READ ONLY. Nothing here calls a provider: it serves an analysis an
+                // administrator already ran and paid for. A judge opening a ballot must
+                // not be able to start a hundred uploads by scrolling, and a page that
+                // spends money on render is a page that spends money on a refresh.
+                //
+                // Attached ONLY when it succeeded. A row whose status is `failed` or
+                // `skipped` is operational detail for the admin screen that triggered it —
+                // on a ballot it would read as a finding about the document ("could not be
+                // read") when it is a fact about our own plumbing.
+                $an = $analyses[(int) $r->nominee_id][(int) $r->id] ?? null;
+                if ($an !== null && ($an['status'] ?? '') === 'ok') {
+                    $item['analysis'] = $an;
                 }
 
                 $grouped[(int) $r->nominee_id][] = $this->shape($item);
