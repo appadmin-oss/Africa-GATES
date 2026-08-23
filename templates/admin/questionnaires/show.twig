@@ -135,6 +135,20 @@
   {% elseif row.status == 'withdrawn' %}
     <div class="qs-warn">This questionnaire has been <strong>closed</strong>. The nominee's link
       no longer accepts changes.</div>
+  {% elseif row.status == 'disqualified' %}
+    {# The reason is printed rather than implied. A disqualification that cannot answer "why
+       is this nominee gone?" is the failure QuestionnairePolicy exists to avoid. #}
+    <div class="qs-warn"><strong>Disqualified.</strong>
+      {{ row.disqualify_note|default('No reason was recorded.') }}
+      {% if row.autodisqualify_at %}Applied {{ row.autodisqualify_at }}.{% endif %}
+      {% if may_reinstate %}
+      <form method="post" action="/admin/questionnaires/{{ row.id }}/reinstate" style="margin-top:10px">
+        <input type="hidden" name="_token" value="{{ csrf_token }}">
+        <button class="ad-btn ad-btn--sm" type="submit"
+          data-confirm="Reinstate this nominee? Their questionnaire opens again and the disqualification is removed entirely.">Reinstate</button>
+      </form>
+      {% endif %}
+    </div>
   {% endif %}
 
   {% for q in (form.questions ?? []) %}

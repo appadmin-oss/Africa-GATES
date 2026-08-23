@@ -91,6 +91,7 @@ final class AdminNav
                     ['page' => 'moderation',     'label' => 'Moderation Queue', 'href' => '/admin/moderation'],
                     ['page' => 'interviews',     'label' => 'Interviews',       'href' => '/admin/interviews'],
                     ['page' => 'questionnaires', 'label' => 'Questionnaires',   'href' => '/admin/questionnaires'],
+                    ['page' => 'invitations',    'label' => 'Invitations',     'href' => '/admin/questionnaires/invitations'],
                     ['page' => 'campaigns',      'label' => 'Campaigns',        'href' => '/admin/campaigns'],
                     ['page' => 'support',        'label' => 'Support Queue',    'href' => '/admin/support'],
                 ],

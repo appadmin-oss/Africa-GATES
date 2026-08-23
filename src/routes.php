@@ -3304,6 +3304,24 @@ return function(App $app) {
             // first person to meet a confusing question was always a nominee.
             $s->post('/test',                      \AfricaGates\Admin\Controllers\QuestionnairesController::class.':openTest');
             $s->post('/invite-all',                \AfricaGates\Admin\Controllers\QuestionnairesController::class.':inviteAll');
+
+            // ── INVITATIONS ─────────────────────────────────────────────────
+            //
+            // Its own screen, not another button on the queue. The queue answers "what is
+            // the state of this nominee"; this answers "who have we not reached" — and a
+            // bulk send sitting on a list of three hundred rows is one somebody presses by
+            // accident. `/invitations` is declared BEFORE `/{id}` for the same reason
+            // `/programme/{id}` is, even though a word cannot match the numeric pattern.
+            $s->get('/invitations',                \AfricaGates\Admin\Controllers\QuestionnairesController::class.':invitations');
+            $s->post('/invitations/policy',        \AfricaGates\Admin\Controllers\QuestionnairesController::class.':savePolicy');
+            $s->post('/invitations/send',          \AfricaGates\Admin\Controllers\QuestionnairesController::class.':send');
+            // Running the disqualification rule by hand is deliberately narrower than
+            // setting it: a moderator may chase nominees, but taking a nomination away is
+            // not a moderation act.
+            $s->post('/invitations/disqualify',    \AfricaGates\Admin\Controllers\QuestionnairesController::class.':disqualify')
+                ->add(new RoleMiddleware('superadmin', 'admin'));
+            $s->post('/{id:[0-9]+}/reinstate',     \AfricaGates\Admin\Controllers\QuestionnairesController::class.':reinstate')
+                ->add(new RoleMiddleware('superadmin', 'admin'));
             // BEFORE /{id}: "programme" is not a number, so they cannot collide — but the
             // ordering convention in this file is worth keeping.
             $s->get('/programme/{id:[0-9]+}',      \AfricaGates\Admin\Controllers\QuestionnairesController::class.':questions');

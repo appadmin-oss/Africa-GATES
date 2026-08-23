@@ -194,6 +194,11 @@ final class Maintenance
                 $ran[] = ['reminder',  $this->task('reminder',  fn() => $this->sendVotingReminders())];
                 $ran[] = ['nom-ack',   $this->task('nom-ack',   fn() => $this->sendPendingAcknowledgements())];
                 $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())];
+                // Questionnaire disqualification. DAILY at 06:00 and never on the
+                // every-tick path: this takes nominations away, and a rule that acts on
+                // people should fire on a schedule an organiser can predict and be awake
+                // for — not at 03:12 because that is when a cron happened to land.
+                $ran[] = ['qdisqualify', $this->task('qdisqualify', fn() => $this->enforceQuestionnaireDeadlines())];
                 $ran[] = ['cronlog',   $this->task('cronlog',   fn() => $this->trimCronLog())];
                 $ran[] = ['chain',     $this->task('chain',     fn() => $this->verifyChain())];
             }
@@ -213,6 +218,7 @@ final class Maintenance
                 'payouts'   => $ran[] = ['payouts', $this->task('payouts', fn() => $this->sweepPartnerPayouts())],
                 'standoffers' => $ran[] = ['standoffers', $this->task('standoffers', fn() => $this->expireStandOffers())],
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
+                'qdisqualify' => $ran[] = ['qdisqualify', $this->task('qdisqualify', fn() => $this->enforceQuestionnaireDeadlines())],
                 'chain'     => $ran[] = ['chain', $this->task('chain', fn() => $this->verifyChain())],
                 'all'       => (function () use (&$ran) {
                     $ran[] = ['queue', $this->task('queue', fn() => $this->drainJobs())];
@@ -1030,5 +1036,22 @@ final class Maintenance
             $this->log('Digest: ' . json_encode($stats));
         } catch (\Throwable $e) {}
         return 1;
+    }
+
+    /**
+     * Disqualify nominees who never sent their questionnaire, where an organiser asked for it.
+     *
+     * Opt-in per cycle and off by default, so this walks only the cycles that armed it.
+     * {@see QuestionnairePolicy::enforce()} owns the decision, including the grace period
+     * and the reversible record — this is only the clock.
+     */
+    private function enforceQuestionnaireDeadlines(): int
+    {
+        $n = 0;
+        foreach (\AfricaGates\Services\QuestionnairePolicy::armedCycles() as $cycleId) {
+            $r = \AfricaGates\Services\QuestionnairePolicy::enforce($cycleId, false);
+            $n += (int) ($r['done'] ?? 0);
+        }
+        return $n;
     }
 }

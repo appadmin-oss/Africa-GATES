@@ -105,10 +105,20 @@ final class AdminNavTest extends TestCase
 
         foreach (AdminNav::sections() as $s) {
             foreach ($s['items'] as $i) {
-                // Routes are declared relative to their group, so match the tail.
+                // Routes are declared relative to their group, so match the tail — and the
+                // tail can appear three ways. `/admin/legal` is declared `'/legal'` at the
+                // admin group; `/admin/shop/orders` is `'/orders'` inside a `/shop` group.
+                // The last segment WITH its slash is the third form, and leaving it out
+                // failed `/admin/questionnaires/invitations`, whose route is a perfectly
+                // real `$s->get('/invitations', …)` inside the questionnaires group.
                 $tail = substr($i['href'], strlen('/admin'));
+                $last = basename($tail);
+                $alts = array_map(
+                    fn ($v) => '[\'"]' . preg_quote($v, '~') . '[\'"]',
+                    [$tail, $last, '/' . $last]
+                );
                 $this->assertMatchesRegularExpression(
-                    '~[\'"]' . preg_quote($tail, '~') . '[\'"]|[\'"]' . preg_quote(basename($tail), '~') . '[\'"]~',
+                    '~' . implode('|', $alts) . '~',
                     $routes,
                     "{$i['href']} is in the nav but not in routes.php"
                 );

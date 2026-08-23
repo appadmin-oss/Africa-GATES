@@ -5,6 +5,8 @@ namespace AfricaGates\Admin\Controllers;
 
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Services\OtpService;
+use AfricaGates\Services\QuestionnaireInvites;
+use AfricaGates\Services\QuestionnairePolicy;
 use AfricaGates\Services\QuestionnaireService;
 use AfricaGates\Services\QuestionnaireStyle;
 use AfricaGates\Services\SmsService;
@@ -109,6 +111,10 @@ final class QuestionnairesController
             'style'      => \AfricaGates\Services\QuestionnaireInterview::styleOf($s),
             'iv'         => \AfricaGates\Services\QuestionnaireInterview::state((string) $s->invite_token),
             'tokens'     => \AfricaGates\Services\QuestionnaireInterview::tokensUsed($s),
+            // Reinstating is narrower than reading: taking a nomination back is not a
+            // moderation act, and the route guard says the same thing.
+            'may_reinstate' => in_array((string) ($_SESSION['admin_role'] ?? ''), ['superadmin', 'admin'], true)
+                               && (string) ($s->status ?? '') === 'disqualified',
         ]);
     }
 
@@ -232,6 +238,187 @@ final class QuestionnairesController
         $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.invite_all',
             null, null, ['sent' => $sent, 'unreachable' => $silent]);
         return $this->back($res, '/admin/questionnaires');
+    }
+
+    // ══ invitations: the deadline, the audience, and the send ════════════════
+
+    /**
+     * One screen for everything about ASKING: when it is due, what a missed deadline costs,
+     * who is going to be written to, and how many.
+     *
+     * Split from the queue because they answer different questions. The queue is "what is
+     * the state of this nominee"; this is "who have we not reached". Putting a bulk send
+     * behind one button on a list of three hundred rows is how somebody presses it by
+     * accident.
+     */
+    public function invitations(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res, false)) return $b;
+
+        $qs      = $req->getQueryParams();
+        $cycles  = $this->cycles();
+        $cycleId = (int) ($qs['cycle'] ?? 0);
+        if ($cycleId === 0 || !isset($cycles[$cycleId])) $cycleId = (int) (array_key_first($cycles) ?? 0);
+
+        // The selection round-trips through the URL rather than living in the session, so
+        // the count an operator is looking at is always the count for the selection in
+        // front of them — and the page is linkable and refreshable without re-choosing.
+        $picked   = array_values(array_filter(array_map('intval', (array) ($qs['p'] ?? []))));
+        $audience = (string) ($qs['audience'] ?? 'not_submitted');
+        $again    = (string) ($qs['again'] ?? '') === '1';
+
+        $plan = $cycleId > 0
+            ? QuestionnaireInvites::plan($cycleId, $picked, $audience, $again)
+            : ['rows' => [], 'counts' => [], 'skipped' => [], 'audience' => $audience,
+               'cycle_id' => 0, 'batch' => QuestionnaireInvites::BATCH];
+
+        return $this->view->render($res, 'admin/questionnaires/invitations.twig', [
+            'page_title'  => 'Questionnaire invitations',
+            'admin_page'  => 'questionnaires',
+            'cycles'      => $cycles,
+            'cycle_id'    => $cycleId,
+            'cycle'       => $cycles[$cycleId] ?? null,
+            'programmes'  => $cycleId > 0 ? $this->cycleProgrammes($cycleId) : [],
+            'picked'      => $picked,
+            'audiences'   => QuestionnaireInvites::AUDIENCES,
+            'audience'    => $plan['audience'],
+            'again'       => $again,
+            'plan'        => $plan,
+            'history'     => $cycleId > 0 ? QuestionnaireInvites::history($cycleId) : null,
+            'policy'      => QuestionnairePolicy::forCycle($cycleId),
+            'policy_text' => QuestionnairePolicy::describe(QuestionnairePolicy::forCycle($cycleId)),
+            'enforce'     => $cycleId > 0 ? QuestionnairePolicy::enforce($cycleId, true) : null,
+            'may_write'   => in_array((string) ($_SESSION['admin_role'] ?? ''),
+                                      ['superadmin', 'admin', 'moderator'], true),
+        ]);
+    }
+
+    /** Save the deadline and whether missing it disqualifies. */
+    public function savePolicy(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $body    = (array) $req->getParsedBody();
+        $cycleId = (int) ($body['cycle_id'] ?? 0);
+        $r       = QuestionnairePolicy::save($cycleId, $body, (int) ($_SESSION['admin_id'] ?? 0));
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.policy', 'cycle', $cycleId);
+
+        return $this->back($res, '/admin/questionnaires/invitations?cycle=' . $cycleId);
+    }
+
+    /**
+     * Send one batch to the selected programmes.
+     *
+     * A batch and not "all", because this runs in the request that asked for it — there is
+     * no worker process on this host — and PHP's time limit is the real ceiling. The
+     * response says what is left, which is the part the old inviteAll() never did: it
+     * capped at 500 silently, so a cycle with 600 nominees invited 500 and said so nowhere.
+     */
+    public function send(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $body    = (array) $req->getParsedBody();
+        $cycleId = (int) ($body['cycle_id'] ?? 0);
+        $picked  = array_values(array_filter(array_map('intval', (array) ($body['p'] ?? []))));
+        $audience = (string) ($body['audience'] ?? 'not_submitted');
+        $again    = (string) ($body['again'] ?? '') === '1';
+
+        $qs = '/admin/questionnaires/invitations?cycle=' . $cycleId
+            . '&audience=' . urlencode($audience) . ($again ? '&again=1' : '')
+            . implode('', array_map(fn ($i) => '&p[]=' . $i, $picked));
+
+        if ($this->mailer === null) {
+            $_SESSION['flash_error'] = 'Email is not configured on this deployment, so nothing was sent.';
+            return $this->back($res, $qs);
+        }
+        if ($cycleId <= 0) {
+            $_SESSION['flash_error'] = 'Pick a cycle first.';
+            return $this->back($res, $qs);
+        }
+
+        $r = QuestionnaireInvites::sendBatch($cycleId, $picked, $audience, $again, $this->mailer);
+
+        $_SESSION[$r['sent'] > 0 ? 'flash' : 'flash_error'] = $r['message'];
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.invite_batch',
+            'cycle', $cycleId, ['sent' => $r['sent'], 'failed' => $r['failed'],
+                                'remaining' => $r['remaining'], 'programmes' => $picked]);
+
+        return $this->back($res, $qs);
+    }
+
+    /** Run the disqualification rule now, rather than waiting for the cron. */
+    public function disqualify(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $cycleId = (int) (((array) $req->getParsedBody())['cycle_id'] ?? 0);
+        $r = QuestionnairePolicy::enforce($cycleId, false, (int) ($_SESSION['admin_id'] ?? 0));
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.disqualify',
+            'cycle', $cycleId, ['count' => $r['done'] ?? 0]);
+
+        return $this->back($res, '/admin/questionnaires/invitations?cycle=' . $cycleId);
+    }
+
+    /** Undo one. */
+    public function reinstate(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+
+        $id = (int) ($args['id'] ?? 0);
+        $r  = QuestionnairePolicy::reinstate($id, (int) ($_SESSION['admin_id'] ?? 0));
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.reinstate', 'submission', $id);
+
+        return $this->back($res, '/admin/questionnaires/' . $id);
+    }
+
+    /** @return array<int,object> cycles, newest first, keyed by id */
+    private function cycles(): array
+    {
+        try {
+            return DB::table('gates_award_cycles AS cy')
+                ->leftJoin('gates_award_programmes AS p', 'p.id', '=', 'cy.programme_id')
+                ->orderByDesc('cy.year')->orderByDesc('cy.id')
+                ->get(['cy.id', 'cy.year', 'cy.edition_label', 'cy.status', 'p.title AS programme'])
+                ->keyBy('id')->all();
+        } catch (\Throwable) { return []; }
+    }
+
+    /**
+     * The programmes that actually have a questionnaire in this cycle, with their counts.
+     *
+     * Listing every programme on the platform would offer an organiser twenty checkboxes,
+     * eighteen of which select nobody. The count beside each is what makes the choice
+     * answerable rather than a guess.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function cycleProgrammes(int $cycleId): array
+    {
+        try {
+            $rows = DB::table('gates_nominee_submissions AS s')
+                ->leftJoin('gates_award_programmes AS p', 'p.id', '=', 's.programme_id')
+                ->where('s.cycle_id', $cycleId)
+                ->where(fn ($w) => $w->whereNull('s.is_test')->orWhere('s.is_test', 0))
+                ->groupBy('s.programme_id', 'p.title')
+                ->get([DB::raw('s.programme_id AS id'), DB::raw('p.title AS title'),
+                       DB::raw('COUNT(*) AS n'),
+                       DB::raw("SUM(CASE WHEN s.status = 'submitted' THEN 1 ELSE 0 END) AS done")]);
+
+            return $rows->map(fn ($r) => [
+                'id'    => (int) $r->id,
+                'title' => (string) ($r->title ?? 'Unassigned'),
+                'n'     => (int) $r->n,
+                'done'  => (int) $r->done,
+                'open'  => (int) $r->n - (int) $r->done,
+            ])->all();
+        } catch (\Throwable) { return []; }
     }
 
     /** Let a nominee change what they sent. */

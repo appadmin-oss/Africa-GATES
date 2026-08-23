@@ -578,26 +578,24 @@ final class QuestionnaireService
     }
 
     /**
-     * When the answers stop being useful: the close of judging for this cycle.
+     * The deadline a nominee is told, as a date they can read.
      *
-     * Shown to the nominee because "there is no rush" and "this closes on Friday" produce
-     * very different behaviour, and only one of them is true.
+     * Shown because "there is no rush" and "this closes on Friday" produce very different
+     * behaviour, and only one of them is true.
+     *
+     * This used to derive the date from the cycle's `results_date` — so the deadline an
+     * organiser communicated was a side effect of when they scheduled the results, and
+     * moving that date silently changed what every invitation already sent had meant. It
+     * now defers to {@see QuestionnairePolicy}, which keeps the derived value as a fallback
+     * so nothing changes for a cycle nobody has configured.
+     *
+     * It is a DATE ONLY and never a gate: the questionnaire stays fillable past it. What a
+     * missed deadline costs is the organiser's decision, made once, in
+     * {@see QuestionnairePolicy::enforce()}.
      */
     public static function deadline(int $cycleId): string
     {
-        if ($cycleId <= 0) return '';
-        try {
-            $c = DB::table('gates_award_cycles')->where('id', $cycleId)
-                ->first(['results_date', 'voting_close', 'status']);
-            if (!$c) return '';
-            $raw = trim((string) ($c->results_date ?? $c->voting_close ?? ''));
-            if ($raw === '') return '';
-            // "15 October 2026", not "2026-10-15 18:00:00". A nominee reading a date with
-            // seconds on it is reading a database column, and the seconds are noise on a
-            // deadline that is really about which day.
-            try { return Carbon::parse($raw)->format('j F Y'); }
-            catch (\Throwable) { return $raw; }
-        } catch (\Throwable) { return ''; }
+        return QuestionnairePolicy::humanFor($cycleId);
     }
 
     /**
