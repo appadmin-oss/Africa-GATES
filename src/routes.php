@@ -2877,6 +2877,11 @@ return function(App $app) {
         $j->post('/score/{nomineeId:[0-9]+}',   JudgeBallotController::class.':saveScore');
         $j->post('/conflict/{programmeId:[0-9]+}', JudgeBallotController::class.':declareConflict');
         $j->post('/conflict/{programmeId:[0-9]+}/withdraw', JudgeBallotController::class.':withdrawConflict');
+
+        // A nominee's uploaded evidence, streamed rather than linked. The stored path is
+        // relative and PDFs are deliberately kept off the CDN, so a bare link 404s and a
+        // public path would expose private moderation material — see EvidenceController.
+        $j->get('/evidence/{id:[0-9]+}', \AfricaGates\Judge\Controllers\EvidenceController::class.':stream');
     })->add(new JudgeAuthMiddleware());
 
     // ═══ MEMBER ACCOUNTS ══════════════════════════════════════════════

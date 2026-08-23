@@ -156,8 +156,41 @@
                 <a class="jc-ev__src" x-show="it.source_url" :href="it.source_url"
                    target="_blank" rel="noopener noreferrer nofollow"
                    x-text="it.source_label || 'Source'"></a>
-                <span class="jc-ev__src" x-show="!it.source_url && it.source_label"
+                <span class="jc-ev__src" x-show="!it.source_url && !it.file_url && it.source_label"
                       x-text="it.source_label"></span>
+
+                {# ── AN UPLOADED FILE, SHOWN RATHER THAN LINKED ──────────────────
+                   This was rendered as `<a :href="it.source_url">` against a RELATIVE
+                   stored path, so from /judge/ballot the browser asked for
+                   /judge/uploads/… and got a 404. Only Cloudinary images worked, because
+                   those are absolute — which is why it looked like "only images save".
+
+                   Now it previews in place. A judge scoring a dossier should not have to
+                   open a tab per document and lose their place on the ballot; the whole
+                   point of the panel is reading the evidence beside the criteria. The
+                   download link stays for anything the frame cannot render. #}
+                <template x-if="it.file_url">
+                  <div class="jc-ev__file">
+                    <template x-if="it.file_kind === 'image'">
+                      <a :href="it.file_url" target="_blank" rel="noopener">
+                        <img class="jc-ev__img" :src="it.file_url" :alt="it.title" loading="lazy">
+                      </a>
+                    </template>
+                    <template x-if="it.file_kind === 'pdf'">
+                      {# `object` rather than `iframe`: it degrades to its own children when
+                         the browser has no PDF viewer, which is the common case on Android
+                         — an empty iframe there looks like a missing document. #}
+                      <object class="jc-ev__pdf" :data="it.file_url" type="application/pdf">
+                        <p class="jc-ev__body">
+                          This browser cannot show the PDF inline.
+                          <a :href="it.file_url + '?download=1'">Download it instead</a>.
+                        </p>
+                      </object>
+                    </template>
+                    <a class="jc-ev__src" :href="it.file_url + '?download=1'"
+                       x-text="'Download ' + (it.source_label || 'the file')"></a>
+                  </div>
+                </template>
               </div>
             </template>
 
@@ -283,6 +316,22 @@
   .jc-ev__tx{ max-height:340px; overflow:auto; padding-right:6px; }
   .jc-ev__src{ display:inline-block; margin:9px 0 0; font-size:12px; color:#5a6d6f; }
   a.jc-ev__src{ color:#237b22; text-decoration:underline; }
+
+  /* ── AN UPLOADED FILE, PREVIEWED IN PLACE ────────────────────────────────
+     Sized so the document is readable beside the criteria rather than replacing
+     them: a judge who has to open a tab per document loses their place on the
+     ballot, which is the one thing this screen exists to hold. Capped by vh so a
+     long PDF cannot push the score inputs off-screen on a laptop. */
+  .jc-ev__file{ margin:11px 0 0; }
+  .jc-ev__img{ display:block; width:100%; max-width:520px; height:auto;
+    border:1px solid rgba(16,41,44,.14); border-radius:8px; background:#fff; }
+  .jc-ev__pdf{ display:block; width:100%; height:min(60vh,520px);
+    border:1px solid rgba(16,41,44,.14); border-radius:8px; background:#fff; }
+  /* On a phone the frame is too small to read a document in, so it becomes a
+     download rather than a postage stamp of page one. */
+  @media (max-width:640px){
+    .jc-ev__pdf{ height:220px; }
+  }
   .jc-ev__none{ margin:12px 0 0; font-size:13.5px; line-height:1.6; color:#6a767a; }
 
   .jc-crits{ padding:22px 28px; }

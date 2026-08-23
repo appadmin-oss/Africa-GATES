@@ -94,6 +94,31 @@ final class EvidenceService
      * @param list<int> $nomineeIds
      * @return array<int, array{items:list<array<string,mixed>>, interviews:list<array<string,mixed>>, coverage:array<string,mixed>}>
      */
+    /**
+     * Is this `source_url` actually an uploaded file, and if so how should it be shown?
+     *
+     * A stored path has no scheme; a real source is an absolute http(s) URL. Cloudinary
+     * images are absolute and stay links — they are already served from a delivery URL and
+     * nothing is gained by proxying them — but a LOCAL path becomes the judge-gated stream.
+     *
+     * @return array{0:string, 1:string} [url, kind] — kind is 'pdf', 'image' or ''
+     */
+    public static function fileFor(string $sourceUrl, int $evidenceId): array
+    {
+        $v = trim($sourceUrl);
+        if ($v === '' || $evidenceId < 1) return ['', ''];
+
+        // An absolute URL is a source, not a file on this disk.
+        if (preg_match('~^https?://~i', $v)) return ['', ''];
+        // Anything else that is not inside the uploads tree is not ours to stream.
+        if (!str_starts_with(ltrim($v, '/'), 'uploads/')) return ['', ''];
+
+        $ext  = strtolower(pathinfo($v, PATHINFO_EXTENSION));
+        $kind = $ext === 'pdf' ? 'pdf' : (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true) ? 'image' : '');
+
+        return ['/judge/evidence/' . $evidenceId, $kind];
+    }
+
     public function forBallot(array $nomineeIds): array
     {
         $nomineeIds = array_values(array_unique(array_map('intval', $nomineeIds)));
@@ -140,7 +165,26 @@ final class EvidenceService
                 ->orderBy('sort_order')->orderBy('id')
                 ->get();
             foreach ($rows as $r) {
-                $grouped[(int) $r->nominee_id][] = $this->shape([
+                // ── A FILE IS NOT A LINK, AND TREATING IT AS ONE BROKE IT ────
+                //
+                // `source_url` holds one of two very different things: a real external URL,
+                // or the STORED PATH of a file the nominee uploaded — see
+                // QuestionnaireService::publishEvidence(), which writes `works[].file`
+                // straight into this column.
+                //
+                // The ballot rendered it as `<a :href="it.source_url">` either way. For a
+                // path like `uploads/nominee-evidence/2026/08/<uuid>.pdf` — no leading
+                // slash — the browser resolved it against the current page and asked for
+                // `/judge/uploads/...`, which is a 404. Images survived only because they
+                // go to Cloudinary and come back as an absolute https URL; every locally
+                // stored PDF was a dead link. That is the reported "they save as images and
+                // cannot be previewed in the judges portal": the images were the ones that
+                // happened to work.
+                //
+                // So a file is emitted as a file, behind a route that authorises the judge
+                // against THIS nominee — never as a bare path, which would also put private
+                // moderation material on a guessable public URL.
+                $item = [
                     'kind'         => (string) $r->kind,
                     'title'        => (string) $r->title,
                     'body'         => (string) ($r->body ?? ''),
@@ -148,7 +192,17 @@ final class EvidenceService
                     'source_url'   => (string) ($r->source_url ?? ''),
                     'provenance'   => (string) $r->provenance,
                     'verified'     => (bool) $r->verified,
-                ]);
+                ];
+
+                [$fileUrl, $fileKind] = self::fileFor((string) ($r->source_url ?? ''), (int) $r->id);
+                if ($fileUrl !== '') {
+                    $item['file_url']  = $fileUrl;
+                    $item['file_kind'] = $fileKind;
+                    // Not a link. Leaving it set would render the broken anchor as well.
+                    $item['source_url'] = '';
+                }
+
+                $grouped[(int) $r->nominee_id][] = $this->shape($item);
             }
         } catch (\Throwable $e) {
             error_log('[evidence] could not read evidence: ' . $e->getMessage());

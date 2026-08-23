@@ -92,6 +92,44 @@ class JudgeService
             ->get()->map(fn($r) => (array)$r)->all();
     }
 
+    /**
+     * An evidence row this judge is entitled to read, or null.
+     *
+     * ── THE CHAIN IS RE-DERIVED, NOT TRUSTED ─────────────────────────────────
+     *
+     * evidence → nominee → category → cycle → programme, checked against this judge's own
+     * assignments. Nothing in the request contributes to the answer except the id, so a
+     * judge on one panel cannot reach another panel's dossier by incrementing it — which
+     * is the shape Broken Access Control takes in an application like this one.
+     *
+     * `visible_to_judges` is honoured too: an item withheld from the panel stays withheld
+     * from every judge, including one otherwise entitled to the nominee.
+     */
+    public function evidenceFor(int $judgeId, int $evidenceId): ?object
+    {
+        if ($judgeId < 1 || $evidenceId < 1) return null;
+
+        $mine = array_map(static fn (array $p): int => (int) $p['id'], $this->programmes($judgeId));
+        if ($mine === []) return null;
+
+        try {
+            return DB::table('gates_nominee_evidence as e')
+                ->join('gates_nominees as n', 'n.id', '=', 'e.nominee_id')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                ->where('e.id', $evidenceId)
+                ->where('e.visible_to_judges', 1)
+                ->whereIn('cy.programme_id', $mine)
+                // A tombstone left the ballot; its dossier goes with it.
+                ->whereNull('n.merged_into')
+                ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
+                ->first(['e.id', 'e.title', 'e.source_url', 'e.nominee_id']);
+        } catch (\Throwable $ex) {
+            error_log('[judge] evidence lookup ' . $evidenceId . ': ' . $ex->getMessage());
+            return null;
+        }
+    }
+
     /** All criteria (currently global; programme-specific override supported). */
     public function criteria(int $programmeId): array
     {
