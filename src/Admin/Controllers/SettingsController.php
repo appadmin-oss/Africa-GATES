@@ -194,6 +194,33 @@ class SettingsController
             $this->settings->set('disposable_require_mx', !empty($b['disposable_require_mx']) ? '1' : '0', $adminId);
         }
 
+        // ── REFERRAL TERMS ──────────────────────────────────────────────────
+        //
+        // Marker-gated like the sections above, so a save from a form without this panel
+        // cannot rewrite what people earn.
+        //
+        // The two numbers behave differently and the screen says so. The RATE is stamped
+        // onto every credit row when it is earned, so changing it governs future referrals
+        // and leaves settled balances untouched. The THRESHOLD is evaluated live, so
+        // lowering it makes balances payable that were locked and raising it locks
+        // balances that were payable — real money owed to real people, which is why it is
+        // clamped and why the help text beside it is blunt.
+        if (array_key_exists('referral_settings', $b)) {
+            $this->settings->set('referrals_enabled', !empty($b['referrals_enabled']) ? '1' : '0', $adminId);
+
+            // A percentage on screen, basis points in storage: an operator thinks in "10%",
+            // and the money is computed with intdiv on bps so it can never round up.
+            $pct = (float) str_replace(',', '.', trim((string) ($b['referral_rate_pct'] ?? '')));
+            if ($pct >= 0 && $pct <= 50) {
+                $this->settings->set('referral_rate_bps', (string) (int) round($pct * 100), $adminId);
+            }
+
+            $threshold = (int) ($b['referral_threshold'] ?? 0);
+            if ($threshold >= 1 && $threshold <= 1000) {
+                $this->settings->set('referral_threshold', (string) $threshold, $adminId);
+            }
+        }
+
         // ── WHERE EACH KIND OF MONEY SETTLES ────────────────────────────────
         //
         // Ticket money, shop money and vote money are three kinds of money to whoever has to

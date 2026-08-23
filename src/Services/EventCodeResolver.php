@@ -48,7 +48,7 @@ final class EventCodeResolver
         // The link first, so it is already decided before the box is read.
         $linked = '';
         if (ReferralService::normalise($linkedRef) !== '') {
-            $u = ReferralService::usable($linkedRef, $buyerUserId, $buyerEmail);
+            $u = ReferralService::usable($linkedRef, $buyerUserId, $buyerEmail, $eventId);
             // A refused link (self-referral, unknown code) is not surfaced as an error:
             // the buyer did not type it and cannot act on it. It is simply not applied.
             if ($u['ok']) $linked = ReferralService::normalise($linkedRef);
@@ -86,7 +86,7 @@ final class EventCodeResolver
             ]);
         }
 
-        $r = ReferralService::usable($typed, $buyerUserId, $buyerEmail);
+        $r = ReferralService::usable($typed, $buyerUserId, $buyerEmail, $eventId);
         if ($r['ok']) {
             return array_merge($blank, [
                 'referral' => $typedNorm, 'kind' => 'referral', 'ok' => true,

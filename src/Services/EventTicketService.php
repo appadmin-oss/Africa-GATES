@@ -347,12 +347,12 @@ final class EventTicketService
      * referral scheme, it is a discount with extra steps. Checked here as well as at quote
      * time because the quote is a preview and this is the row that pays.
      */
-    private static function refFor(?string $referral, ?int $userId, string $buyerEmail): ?string
+    private static function refFor(?string $referral, ?int $userId, string $buyerEmail, ?int $eventId = null): ?string
     {
         $code = \AfricaGates\Services\ReferralService::normalise((string) $referral);
         if ($code === '') return null;
 
-        $u = \AfricaGates\Services\ReferralService::usable($code, $userId, $buyerEmail);
+        $u = \AfricaGates\Services\ReferralService::usable($code, $userId, $buyerEmail, $eventId);
 
         return ($u['ok'] ?? false) ? $code : null;
     }
@@ -516,7 +516,7 @@ final class EventTicketService
                     // Who brought this booking in. Written at reservation and read at
                     // confirmation, because commission is owed on a PAID ticket and this row
                     // is the only place the referral survives the trip to the gateway.
-                    'referral_code'  => self::refFor($referral, $userId, $email),
+                    'referral_code'  => self::refFor($referral, $userId, $email, $eventId),
                     'reference'    => $ref,
                     'user_id'      => $userId,
                     // A free seat is confirmed on the spot: there is nothing to wait for,

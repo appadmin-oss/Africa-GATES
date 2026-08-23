@@ -631,6 +631,57 @@
       </div>
     </div>
   </div></div>
+  {# ── REFERRAL TERMS ──────────────────────────────────────────────────────
+     What a member earns for bringing a ticket buyer, and how many they need before it
+     is payable. Both were class constants until now, so changing either meant a deploy —
+     and the operator has no SSH. HANDOFF.md §4 asked for exactly this.
+
+     The two numbers are NOT equivalent and the copy below says so: the rate is stamped
+     onto each credit when it is earned, so a change governs future referrals only; the
+     threshold is evaluated live, so changing it moves money that is already owed. #}
+  <div class="ad-card" data-sec="money" data-keys="referral referrals commission rate threshold earn link code payout affiliate" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Referrals<small>What a member earns for bringing a ticket buyer.</small></div></div><div class="ad-card__body">
+    <input type="hidden" name="referral_settings" value="1">
+
+    <label class="checkbox" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:12px">
+      <input type="checkbox" name="referrals_enabled" value="1"
+             {% if values.referrals_enabled is not defined or values.referrals_enabled == '1' %}checked{% endif %}>
+      <span>
+        <strong>Referrals are live</strong><br>
+        <small style="color:var(--ad-text-mute,#5a6d6f)">
+          Members get a link from their account page and earn on tickets bought through it.
+          Turning this off stops new commission and stops new links being issued — it does
+          not delete balances already earned, and links already shared keep working for
+          the buyer. Individual events can opt out on the event form.
+        </small>
+      </span>
+    </label>
+
+    <div class="ad-form" style="display:flex;gap:14px;flex-wrap:wrap">
+      <label style="flex:1 1 180px">
+        Commission
+        <input type="number" name="referral_rate_pct" min="0" max="50" step="0.5"
+               value="{{ ((values.referral_rate_bps|default('1000'))|number_format(0,'.','')) / 100 }}">
+        <small style="color:var(--ad-text-mute,#5a6d6f)">
+          Percent of what a referred buyer pays. Applies to <strong>future</strong> referrals —
+          every credit already earned keeps the rate it was earned at, so this cannot restate
+          what somebody was told they had.
+        </small>
+      </label>
+
+      <label style="flex:1 1 180px">
+        Referrals before earning unlocks
+        <input type="number" name="referral_threshold" min="1" max="1000" step="1"
+               value="{{ values.referral_threshold|default('10') }}">
+        <small style="color:var(--ad-text-mute,#5a6d6f)">
+          <strong>This one moves money that is already owed.</strong> It is checked live against
+          everybody's count, so lowering it makes locked balances payable and raising it locks
+          balances that were payable. Crossing it is retroactive — the whole balance unlocks,
+          including the referrals before it.
+        </small>
+      </label>
+    </div>
+  </div></div>
+
   <div class="ad-card" data-sec="ops" data-keys="automation cron webcron maintenance run now schedule token reconcile credit paid votes pending payments queue cpi snapshots reminders" x-show="show($el)"><div class="ad-card__head"><div class="ad-card__title">Automation &amp; cron<small>Keep the platform self-running — no SSH or server cron needed.</small></div></div><div class="ad-card__body">
     <input type="hidden" name="automation_settings" value="1">
     <p style="margin:0 0 10px;font-size:13px;color:var(--ad-text-mute,#5a6d6f)">

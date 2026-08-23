@@ -29,11 +29,116 @@ use Illuminate\Support\Carbon;
  */
 final class ReferralService
 {
-    /** Paid referrals required before anything is payable. */
+    /**
+     * The shipped defaults, and the fallback when the settings table cannot be read.
+     *
+     * Kept as constants deliberately: a rate read from a database needs an answer when the
+     * database is the thing that is broken, and paying 0% because a query failed is worse
+     * than paying the default.
+     */
     public const THRESHOLD = 10;
 
     /** Commission in basis points. 1000 = 10%. */
     public const RATE_BPS = 1000;
+
+    // ── The terms, as an administrator set them ──────────────────────────────
+
+    /**
+     * Commission in basis points, from `gates_settings`.
+     *
+     * ── CHANGING THIS DOES NOT REWRITE HISTORY ───────────────────────────────
+     *
+     * Every credit row stamps the `rate_bps` that applied when it was earned, so a change
+     * here governs FUTURE referrals and leaves settled balances exactly as they were. That
+     * is the only version of an editable rate that is safe: silently restating what people
+     * were told they had earned is not a settings change, it is a repudiation.
+     *
+     * Clamped to 0–50%. Zero is legitimate — it turns earning off while leaving the links
+     * working and the history readable — and the upper bound is there because a typo in a
+     * basis-point field is easy and expensive: "10000" meant to be "1000" gives away every
+     * naira of the gate.
+     */
+    public static function rateBps(): int
+    {
+        $v = self::setting('referral_rate_bps');
+        if ($v === '' || !ctype_digit($v)) return self::RATE_BPS;
+
+        return max(0, min(5000, (int) $v));
+    }
+
+    /** Commission as a percentage, for screens and prose. */
+    public static function ratePct(): float
+    {
+        return self::rateBps() / 100;
+    }
+
+    /**
+     * Paid referrals required before anything is payable.
+     *
+     * ── AND CHANGING THIS *DOES* MOVE MONEY ──────────────────────────────────
+     *
+     * Unlike the rate, the threshold is evaluated live against everybody's current count.
+     * Lowering it makes balances payable that were locked yesterday; raising it locks
+     * balances that were payable. Those are real amounts owed to real people, and the
+     * admin screen says so where somebody is about to change the number.
+     *
+     * Floored at 1: zero would mean "unlocked before the first referral", which is not a
+     * threshold, and the retroactive rule below already gives the first referral its
+     * commission the moment the gate opens.
+     */
+    public static function threshold(): int
+    {
+        $v = self::setting('referral_threshold');
+        if ($v === '' || !ctype_digit($v)) return self::THRESHOLD;
+
+        return max(1, min(1000, (int) $v));
+    }
+
+    /**
+     * The platform-wide switch.
+     *
+     * Off means no NEW commission accrues and no new code is minted. It does not delete
+     * anything: existing balances stay owed and stay visible, because switching a feature
+     * off is not a reason to stop owing somebody money.
+     */
+    public static function enabled(): bool
+    {
+        $v = self::setting('referrals_enabled');
+        return $v === '' ? true : ($v === '1' || strtolower($v) === 'true');
+    }
+
+    /**
+     * Whether one event shares its gate.
+     *
+     * Not every event can afford to give away a tenth of the takings — a free community
+     * night, a partner-funded evening, or one whose margin is already committed. Defaults
+     * to ON for an event predating the column, since that was the behaviour then and a
+     * missing column must not silently stop paying people.
+     */
+    public static function enabledForEvent(?int $eventId): bool
+    {
+        if (!self::enabled()) return false;
+        if ($eventId === null || $eventId < 1) return true;
+
+        try {
+            if (!DB::schema()->hasColumn('gates_site_events', 'referrals_enabled')) return true;
+            $v = DB::table('gates_site_events')->where('id', $eventId)->value('referrals_enabled');
+            return $v === null || (int) $v === 1;
+        } catch (\Throwable) {
+            return true;
+        }
+    }
+
+    /** One setting, read the way every other service here reads one. */
+    private static function setting(string $key): string
+    {
+        try {
+            $v = DB::table('gates_settings')->where('key_name', $key)->value('value');
+            return is_string($v) ? trim($v) : '';
+        } catch (\Throwable) {
+            return '';
+        }
+    }
 
     // ── The member's own code ────────────────────────────────────────────────
 
@@ -46,6 +151,15 @@ final class ReferralService
     public static function codeFor(int $userId): ?string
     {
         if ($userId < 1) return null;
+
+        // Switched off: mint nothing new. An existing code is still returned below —
+        // somebody who already shared their link keeps a working one, and their balance
+        // stays owed. Turning a feature off is not a reason to break links already in
+        // other people's hands.
+        if (!self::enabled()) {
+            $have = DB::table('gates_referral_codes')->where('user_id', $userId)->value('code');
+            return is_string($have) && $have !== '' ? $have : null;
+        }
 
         $existing = DB::table('gates_referral_codes')->where('user_id', $userId)->value('code');
         if (is_string($existing) && $existing !== '') return $existing;
@@ -117,8 +231,16 @@ final class ReferralService
      *
      * @return array{ok:bool, message:string, row?:object}
      */
-    public static function usable(string $raw, ?int $buyerUserId, string $buyerEmail = ''): array
+    public static function usable(string $raw, ?int $buyerUserId, string $buyerEmail = '', ?int $eventId = null): array
     {
+        // Asked BEFORE the code is looked up, so a buyer on an event that does not share
+        // its gate is told plainly instead of being thanked for a referral that will never
+        // pay. credit() refuses the same case again at the moment money is earned; this is
+        // the half that keeps the screen honest.
+        if (!self::enabledForEvent($eventId)) {
+            return ['ok' => false, 'message' => 'Referral links are not being used for this event.'];
+        }
+
         $row = self::find($raw);
         if (!$row) return ['ok' => false, 'message' => 'That code is not recognised.'];
 
@@ -161,17 +283,25 @@ final class ReferralService
             $paid = max(0, (int) ($reg->amount_naira ?? 0));
             if ($paid < 1) return;   // a free ticket earns nothing to take a share of
 
-            // intdiv, so commission can never round up beyond the rate.
-            $commission = intdiv($paid * self::RATE_BPS, 10000);
+            // The switches, checked at the moment money is earned rather than at the
+            // moment the link was shared: an event whose referrals were turned off after
+            // somebody clicked must not still pay out on it.
+            $eventId = (int) ($reg->event_id ?? 0) ?: null;
+            if (!self::enabledForEvent($eventId)) return;
+
+            // The rate as it is TODAY, stamped onto the row so this credit keeps it
+            // forever. intdiv, so commission can never round up beyond the rate.
+            $rate       = self::rateBps();
+            $commission = intdiv($paid * $rate, 10000);
 
             DB::table('gates_referral_credits')->insert([
                 'code_id'          => (int) $row->id,
                 'user_id'          => (int) $row->user_id,
                 'registration_id'  => (int) $reg->id,
-                'event_id'         => (int) ($reg->event_id ?? 0) ?: null,
+                'event_id'         => $eventId,
                 'paid_naira'       => $paid,
                 'commission_naira' => $commission,
-                'rate_bps'         => self::RATE_BPS,
+                'rate_bps'         => $rate,
                 'created_at'       => Carbon::now()->toDateTimeString(),
             ]);
         } catch (\Throwable) {
@@ -199,13 +329,14 @@ final class ReferralService
         $n        = (int) ($rows->n ?? 0);
         $accrued  = (int) ($rows->accrued ?? 0);
         $paidOut  = (int) ($rows->paid_out ?? 0);
-        $unlocked = $n >= self::THRESHOLD;
+        $threshold = self::threshold();
+        $unlocked  = $n >= $threshold;
 
         return [
             'code'      => is_string($code) && $code !== '' ? $code : null,
             'referrals' => $n,
-            'threshold' => self::THRESHOLD,
-            'remaining' => max(0, self::THRESHOLD - $n),
+            'threshold' => $threshold,
+            'remaining' => max(0, $threshold - $n),
             'unlocked'  => $unlocked,
             'gross_naira'   => (int) ($rows->gross ?? 0),
             // Accrued from the first referral so the number is never a surprise, but not
@@ -217,7 +348,7 @@ final class ReferralService
             // Cast: 1000/100 is int 10 in PHP, and the declared shape here promises a
             // float. A template formatting "10.0%" versus "10%" is cosmetic; a caller
             // type-hinting float and getting int is not.
-            'rate_pct'      => (float) (self::RATE_BPS / 100),
+            'rate_pct'      => self::ratePct(),
         ];
     }
 
@@ -262,7 +393,7 @@ final class ReferralService
         $empty = ['payable_naira' => 0, 'accrued_naira' => 0, 'locked_naira' => 0,
                   'paid_out_naira' => 0, 'gross_naira' => 0, 'referrals' => 0,
                   'earners' => 0, 'owed_members' => 0, 'rows' => [],
-                  'threshold' => self::THRESHOLD, 'rate_pct' => (float) (self::RATE_BPS / 100)];
+                  'threshold' => self::threshold(), 'rate_pct' => self::ratePct()];
 
         try {
             if (!DB::schema()->hasTable('gates_referral_credits')) return $empty;
@@ -286,15 +417,18 @@ final class ReferralService
             return $empty;
         }
 
-        $out = $empty;
+        $out  = $empty;
         $rows = [];
+        // Read once for the whole page, not once per member: a threshold that changed
+        // mid-loop would produce a table whose totals do not add up.
+        $threshold = self::threshold();
 
         foreach ($per as $r) {
             $n       = (int) ($r->n ?? 0);
             $accrued = (int) ($r->accrued ?? 0);
             $paidOut = (int) ($r->paid_out ?? 0);
             $owed    = max(0, $accrued - $paidOut);
-            $open    = $n >= self::THRESHOLD;
+            $open    = $n >= $threshold;
 
             $out['referrals']      += $n;
             $out['gross_naira']    += (int) ($r->gross ?? 0);
@@ -317,7 +451,7 @@ final class ReferralService
                 'accrued'   => $accrued,
                 'paid_out'  => $paidOut,
                 'unlocked'  => $open,
-                'remaining' => max(0, self::THRESHOLD - $n),
+                'remaining' => max(0, $threshold - $n),
             ];
         }
 

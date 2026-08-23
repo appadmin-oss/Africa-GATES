@@ -117,6 +117,9 @@ class EventsController
             'admin_page' => 'events',
             'row'        => $row,
             'is_new'     => !$id,
+            // The live rate, so the checkbox beside it states the real number rather than
+            // a hardcoded "10%" that would start lying the day an admin changes it.
+            'referral_rate_pct' => \AfricaGates\Services\ReferralService::ratePct(),
             'sched_seed' => $schedSeed,
             'tier_seed'  => $tierSeed,
             'session_seed' => $sessionSeed,
@@ -216,6 +219,11 @@ class EventsController
         if (array_key_exists('event_extras_posted', $b)) {
             $data += [
                 'waitlist_open'   => !empty($b['waitlist_open']) ? 1 : 0,
+                // Per-event referral sharing. Inside the marker block for the same reason
+                // as the rest: an unticked checkbox posts nothing, so writing it from a
+                // form that does not carry it would switch off every event's referrals on
+                // the next unrelated save.
+                'referrals_enabled' => !empty($b['referrals_enabled']) ? 1 : 0,
                 // A cutoff independent of the event date — catering, badges, a venue list.
                 'sales_close_at'  => self::fromInput($b['sales_close_at'] ?? ''),
                 'attendee_note'   => trim((string) ($b['attendee_note'] ?? '')) ?: null,

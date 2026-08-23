@@ -307,6 +307,18 @@
       </div>
       <label>Note to attendees <span class="af-opt">joining links, parking, dress code</span>
         <textarea name="attendee_note" rows="3">{{ row.attendee_note|default('') }}</textarea></label>
+
+      {# Referral sharing, per event. Not every event can afford to give away a share of
+         the gate — a free community night, a partner-funded evening, or one whose margin
+         is already committed. Ticked by default, because that is what every event did
+         before this box existed. Unticking it stops NEW commission on this event only;
+         balances already earned stay owed. #}
+      <label class="af-check">
+        <input type="checkbox" name="referrals_enabled" value="1"
+               {% if row.referrals_enabled|default(1) %}checked{% endif %}>
+        Pay referral commission on tickets for this event
+        <span class="af-opt">members who share their link earn {{ referral_rate_pct|default(10) }}% of what a referred buyer pays</span>
+      </label>
     {% endif %}
 
     {# ── TICKET TIERS ─────────────────────────────────────────────────────────
