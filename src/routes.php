@@ -3016,6 +3016,18 @@ return function(App $app) {
         // returns to continues itself while work remains. See MediaController::migrate().
         $a->post('/media/cloudinary',         AdminMediaController::class.':migrate');
         // Legal & policy documents (editable — no longer hardcoded)
+        // ── THE PRICED STAND CATALOGUE ──────────────────────────────────────
+        //
+        // Its own screen and not part of an event's stands page, because it answers a
+        // different question: "what do we sell" rather than "what does this hall have".
+        // Editing it from inside one event would read as a change local to that event,
+        // which is exactly what it is not — and the one thing that IS local, the quota,
+        // stays on the event.
+        $a->get('/stand-presets',                    \AfricaGates\Admin\Controllers\StandPresetsController::class.':index');
+        $a->post('/stand-presets',                   \AfricaGates\Admin\Controllers\StandPresetsController::class.':save');
+        $a->post('/stand-presets/{id:[0-9]+}',       \AfricaGates\Admin\Controllers\StandPresetsController::class.':save');
+        $a->post('/stand-presets/{id:[0-9]+}/retire', \AfricaGates\Admin\Controllers\StandPresetsController::class.':archive');
+        $a->post('/stand-presets/{id:[0-9]+}/restore', \AfricaGates\Admin\Controllers\StandPresetsController::class.':restore');
         $a->get('/legal',                          \AfricaGates\Admin\Controllers\LegalController::class.':index');
         $a->get('/legal/{slug:[a-z0-9-]+}',        \AfricaGates\Admin\Controllers\LegalController::class.':edit');
         $a->post('/legal/{slug:[a-z0-9-]+}',       \AfricaGates\Admin\Controllers\LegalController::class.':save');
@@ -3111,6 +3123,7 @@ return function(App $app) {
         // and refusing a better measurement only guarantees the floor plan stays wrong.
         $a->post('/events/{id:[0-9]+}/stands/venue',                   $ST.':savePlan');
         $a->post('/events/{id:[0-9]+}/stands/type',                    $ST.':saveType');
+        $a->post('/events/{id:[0-9]+}/stands/preset',                  $ST.':applyPreset');
         $a->post('/events/{id:[0-9]+}/stands/type/{type:[0-9]+}/delete', $ST.':deleteType');
         $a->post('/events/{id:[0-9]+}/stands/check',                   $ST.':checkAll');
         $a->post('/events/{id:[0-9]+}/stands/{app:[0-9]+}/decide',     $ST.':decide');

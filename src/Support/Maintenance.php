@@ -847,6 +847,20 @@ final class Maintenance
             $q->on(NominationTriageService::JOB_TRIAGE, function (array $p) {
                 NominationTriageService::generate((int)($p['nomination_id'] ?? 0));
             });
+            // ── QUESTIONNAIRE INVITATIONS ──────────────────────────────────────
+            //
+            // Queued rather than sent in the request that asked for them. There is no
+            // worker process on this host, so the tick IS the worker — and a cycle with
+            // four hundred nominees was otherwise seven presses of a button, the last of
+            // which happens twenty minutes later when somebody remembers.
+            //
+            // The mailer comes from the container so a deployment with no SMTP fails the
+            // job honestly rather than looking delivered. deliver() re-checks that the
+            // nominee has not submitted or been disqualified since it was queued.
+            $mailer = $this->container?->get(\AfricaGates\Services\OtpService::class);
+            $q->on(\AfricaGates\Services\QuestionnaireInvites::JOB_INVITE, function (array $p) use ($mailer) {
+                \AfricaGates\Services\QuestionnaireInvites::deliver($p, $mailer);
+            });
             // ── the register, asked away from the form ─────────────────────────
             //
             // A vendor's submit creates an account AND an application in one request, on a

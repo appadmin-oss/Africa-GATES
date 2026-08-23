@@ -110,6 +110,7 @@ final class AdminNav
                 'tip' => 'Everything the public sees — pages, events, shop and legal.',
                 'items' => [
                     ['page' => 'events',        'label' => 'Events',            'href' => '/admin/events'],
+                    ['page' => 'stand_presets', 'label' => 'Stand presets',   'href' => '/admin/stand-presets'],
                     ['page' => 'posts',         'label' => 'Blog Posts',        'href' => '/admin/posts'],
                     ['page' => 'legacy',        'label' => 'Legacy Events',     'href' => '/admin/legacy'],
                     ['page' => 'opportunities', 'label' => 'Opportunities',     'href' => '/admin/opportunities'],

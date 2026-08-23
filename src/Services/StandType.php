@@ -146,6 +146,18 @@ final class StandType
             return [self::SIZES[$preset]['w'], self::SIZES[$preset]['d']];
         }
 
+        // ── EXACT CENTIMETRES, WHEN THE CALLER ALREADY HAS THEM ─────────────
+        //
+        // {@see StandPreset::applyTo()} copies a stored pitch, and a foot-based one is 183cm
+        // — in no SIZES entry, and a value that would otherwise have to be sent through a
+        // metres float and back. Without this branch it fell past both cases to the
+        // `$existing` default and every 6ft stand was silently created as 3 × 3 m.
+        $wCm = (int) ($in['width_cm'] ?? 0);
+        $dCm = (int) ($in['depth_cm'] ?? 0);
+        if ($wCm > 0 && $dCm > 0) {
+            return [min($wCm, 5000), min($dCm, 5000)];
+        }
+
         // Metres in, centimetres stored. Rounded rather than truncated: 2.999 typed into a
         // browser's number field is somebody who meant 3.
         $w = (int) round(((float) ($in['width_m']  ?? 0)) * 100);

@@ -79,6 +79,11 @@ final class Permissions
         // below. Nothing here moves money — a refund is still the Finance section's.
         'shop' => 'content',
         'legal' => 'content', 'ai' => 'content',
+        // The priced stand catalogue sits with `events`, which is where stands are run
+        // from. Mapped rather than left to fail closed: an unmapped path is superadmin
+        // only while the sidebar still offers it to an editor — the sidebar-versus-guard
+        // disagreement documented on the finance paths below.
+        'stand-presets' => 'content',
         // data / reports (operational + financial datasets — surfaced in the admin overhaul)
         'data' => 'data', 'votes' => 'data', 'donations' => 'data', 'orders' => 'data', 'users' => 'data',
         'registrations' => 'data', 'points' => 'data', 'comments' => 'data', 'activity' => 'data', 'reports' => 'data',

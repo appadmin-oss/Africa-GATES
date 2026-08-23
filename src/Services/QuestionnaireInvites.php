@@ -65,6 +65,14 @@ final class QuestionnaireInvites
      */
     public const BATCH = 60;
 
+    /**
+     * The queue job one invitation becomes.
+     *
+     * Handled in {@see \AfricaGates\Support\Maintenance::drainJobs()}, which the cron tick
+     * already runs — so this needs no worker process, which the host does not have.
+     */
+    public const JOB_INVITE = 'questionnaire.invite';
+
     /** Audience filters, most useful first. The labels are the radio group on the screen. */
     public const AUDIENCES = [
         'not_submitted' => 'Everyone who has not submitted yet',
@@ -242,6 +250,136 @@ final class QuestionnaireInvites
         self::log($cycleId, $email, (int) $r['nominee_id'], $ok, $error);
 
         return ['ok' => $ok, 'error' => $error];
+    }
+
+    /**
+     * Queue the whole audience, rather than sending it inside this request.
+     *
+     * ── WHY THIS IS THE DEFAULT AND sendBatch() IS THE FALLBACK ──────────────
+     *
+     * Sending in-request works and is what shipped first: 60 SMTP round trips inside one
+     * page load, with the operator pressing again for the next 60. On a cycle with four
+     * hundred nominees that is seven presses, and the seventh happens twenty minutes later
+     * when somebody remembers.
+     *
+     * `gates_jobs` already exists, and the maintenance tick already drains it, so there is
+     * no worker to add — the queue is the mechanism this platform already has for "do this
+     * soon, not now, and survive the request ending". Pressing send once now queues
+     * everybody and the tick delivers them.
+     *
+     * ── THE DEDUPE KEY IS THE WHOLE SAFETY PROPERTY ─────────────────────────
+     *
+     * `questionnaire.invite:c{cycle}:{email_hash}` is UNIQUE in `gates_jobs`, so a
+     * double-clicked button, a browser retry, or an operator who queues twice while the
+     * tick is mid-flight adds nothing the second time. That matters more here than in most
+     * queues: the failure mode is a nominee receiving the same request four times, which
+     * reads as a broken system asking them to do the work again.
+     *
+     * The hash rather than the address, because a job payload is not a place to accumulate
+     * a mailing list in plaintext, and because it is the same key the send log uses.
+     *
+     * @param list<int> $programmeIds
+     * @return array{queued:int, skipped:int, counts:array<string,int>, message:string}
+     */
+    public static function queue(int $cycleId, array $programmeIds, string $audience,
+                                 bool $includeInvited): array
+    {
+        $plan   = self::plan($cycleId, $programmeIds, $audience, $includeInvited);
+        $q      = new QueueService();
+        $queued = 0;
+        $dupes  = 0;
+
+        foreach ($plan['rows'] as $r) {
+            $id = $q->push(self::JOB_INVITE, [
+                'cycle_id'      => $cycleId,
+                'submission_id' => (int) $r['submission_id'],
+                'nominee_id'    => (int) $r['nominee_id'],
+                'email'         => (string) $r['email'],
+                'name'          => (string) $r['name'],
+                'programme'     => (string) ($r['programme'] ?? ''),
+            ], 0, self::JOB_INVITE . ':c' . $cycleId . ':' . EmailOptOut::hash((string) $r['email']));
+
+            // push() returns 0 when the dedupe key already existed. Not an error — it is
+            // the second press doing nothing, which is the point.
+            $id > 0 ? $queued++ : $dupes++;
+        }
+
+        $msg = $queued . ' invitation' . ($queued === 1 ? '' : 's') . ' queued. '
+             . 'They go out on the next maintenance run — usually within a few minutes.';
+        if ($dupes > 0) {
+            $msg .= ' ' . $dupes . ' were already queued and were not added again.';
+        }
+        if ($plan['counts']['no_email'] > 0) {
+            $msg .= ' ' . $plan['counts']['no_email'] . ' have no email on their nomination; '
+                  . 'open those and send the link yourself.';
+        }
+
+        return ['queued' => $queued, 'skipped' => $dupes,
+                'counts' => $plan['counts'], 'message' => $msg];
+    }
+
+    /**
+     * Deliver one queued invitation. The job handler.
+     *
+     * Re-checks the two things that can have changed between queueing and delivery: the
+     * nominee may have submitted in the meantime, and they may have unsubscribed. Neither is
+     * a failure — the job is simply no longer worth doing, and throwing would retry it five
+     * times before giving up.
+     *
+     * @param array<string,mixed> $p the job payload
+     */
+    public static function deliver(array $p, ?OtpService $mailer = null): bool
+    {
+        // ── NO MAILER IS A THROW, NOT A FALSE ───────────────────────────────
+        //
+        // OtpService is container-built (it needs the SMTP config), so there is no sane
+        // local default to fall back to. And returning false here would mark the job DONE:
+        // a deployment whose SMTP was briefly misconfigured would have four hundred
+        // invitations silently consumed and never sent, with the log saying they were
+        // handled. Throwing puts the job back for retry with backoff and, if it never
+        // recovers, records a real failure somebody can see.
+        if ($mailer === null) {
+            throw new \RuntimeException('questionnaire invite: no mailer available');
+        }
+
+        $cycleId = (int) ($p['cycle_id'] ?? 0);
+        $id      = (int) ($p['submission_id'] ?? 0);
+        $email   = trim((string) ($p['email'] ?? ''));
+
+        if ($id < 1 || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
+        if (EmailOptOut::suppressed($email)) return false;
+
+        $status = (string) (DB::table('gates_nominee_submissions')->where('id', $id)->value('status') ?? '');
+        // Submitted in the meantime, or disqualified since. Writing to either would be a
+        // request for work that is already in, or already ruled out.
+        if ($status === 'submitted' || $status === 'disqualified') return false;
+
+        return (bool) self::sendOne([
+            'submission_id' => $id,
+            'nominee_id'    => (int) ($p['nominee_id'] ?? 0),
+            'email'         => $email,
+            'name'          => (string) ($p['name'] ?? ''),
+            'programme'     => (string) ($p['programme'] ?? ''),
+        ], $cycleId, $mailer)['ok'];
+    }
+
+    /**
+     * How many invitations are still waiting in the queue for this cycle.
+     *
+     * On the screen beside the delivered count, because "queued" and "sent" are different
+     * facts and an operator watching nothing happen needs to know which one they are in.
+     */
+    public static function pending(int $cycleId): int
+    {
+        try {
+            return (int) DB::table('gates_jobs')
+                ->where('type', self::JOB_INVITE)
+                ->whereIn('status', ['pending', 'running'])
+                ->where('dedupe_key', 'like', self::JOB_INVITE . ':c' . $cycleId . ':%')
+                ->count();
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     /**

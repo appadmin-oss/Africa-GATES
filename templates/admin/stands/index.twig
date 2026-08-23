@@ -282,6 +282,37 @@
         applied, and that is the whole of what makes the allocation defensible.
       </div>
     {% else %}
+      {# ── FROM THE CATALOGUE, WHICH IS THE COMMON CASE ───────────────────────
+         The size, price and terms are already decided and priced once, in
+         /admin/stand-presets. The only thing this event has to say is how many of them
+         this hall holds — which is the one number a catalogue cannot know. Retyping a
+         size and a price per event is how the ₦10,000 pitch quietly becomes ₦12,000. #}
+      {% if presets|default([])|length > 0 %}
+      <div class="ad-card__body" style="border-top:1px solid var(--ad-line)">
+        <form method="post" action="/admin/events/{{ event.id }}/stands/preset"
+              style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div style="flex:1 1 260px">
+            <label for="stPreset">Add from the catalogue</label>
+            <select id="stPreset" name="preset_id">
+              {% for pr in presets %}
+              <option value="{{ pr.id }}">{{ pr.name }}{% if pr.price_naira %} — ₦{{ pr.price_naira|number_format }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="flex:0 0 150px">
+            <label for="stPresetQty">How many?</label>
+            <input id="stPresetQty" name="quota" type="number" min="1" max="10000" required placeholder="20">
+          </div>
+          <button class="ad-btn ad-btn--primary" type="submit">Add</button>
+          <p class="hint" style="flex:1 1 100%;margin:0">
+            Terms are copied, not linked — repricing a preset later never rewrites what a
+            vendor applied for. Manage the catalogue in
+            <a href="/admin/stand-presets" style="color:var(--ad-accent,#237b22);font-weight:600">Stand presets</a>.
+          </p>
+        </form>
+      </div>
+      {% endif %}
       <div class="ad-card__body" style="border-top:1px solid var(--ad-line)">
         <form method="post" action="/admin/events/{{ event.id }}/stands/type">
           <input type="hidden" name="_token" value="{{ csrf_token }}">

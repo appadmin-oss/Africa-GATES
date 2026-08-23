@@ -206,17 +206,24 @@
 {# ── 3. SEND ──────────────────────────────────────────────────────────────── #}
 <div class="ad-card">
   <div class="ad-card__head"><div class="ad-card__title">Send
-    <small>{% if history and history.last_at %}Last sent {{ history.last_at|date('j M Y, H:i') }} — {{ history.count }} delivered{% if history.failed %}, {{ history.failed }} failed{% endif %}.{% else %}Nothing has been sent for this cycle yet.{% endif %}</small>
+    <small>{% if history and history.last_at %}Last delivered {{ history.last_at|date('j M Y, H:i') }} — {{ history.count }} sent{% if history.failed %}, {{ history.failed }} failed{% endif %}.{% else %}Nothing has been sent for this cycle yet.{% endif %}{% if pending %} <strong>{{ pending }} still in the queue.</strong>{% endif %}</small>
   </div>
   {% if may_write and plan.counts.sendable|default(0) > 0 %}
-  <form method="post" action="/admin/questionnaires/invitations/send">
+  <form method="post" action="/admin/questionnaires/invitations/send" style="display:flex;gap:8px;align-items:center">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
     <input type="hidden" name="cycle_id" value="{{ cycle_id }}">
     <input type="hidden" name="audience" value="{{ audience }}">
     {% if again %}<input type="hidden" name="again" value="1">{% endif %}
     {% for id in picked %}<input type="hidden" name="p[]" value="{{ id }}">{% endfor %}
+    {# One press queues the WHOLE audience. `send_now` is the escape hatch for a handful of
+       chased stragglers, where waiting for a tick is the wrong trade — same batch path,
+       still capped by what a request can do. #}
     <button class="ad-btn ad-btn--primary" type="submit"
-      data-confirm="Send {{ min(plan.counts.sendable, plan.batch) }} invitation(s) now{% if again %}, including people already written to{% endif %}?">
+      data-confirm="Queue {{ plan.counts.sendable }} invitation(s){% if again %}, including people already written to{% endif %}? They go out on the next maintenance run.">
+      Queue all {{ plan.counts.sendable }}
+    </button>
+    <button class="ad-btn ad-btn--sm" type="submit" name="send_now" value="1"
+      data-confirm="Send {{ min(plan.counts.sendable, plan.batch) }} right now, in this request?">
       Send {{ min(plan.counts.sendable, plan.batch) }} now
     </button>
   </form>
@@ -228,8 +235,11 @@
         {% if plan.counts.already|default(0) > 0 %}Everyone eligible has already been written to — tick “resend” above to write again.{% endif %}</p>
     {% else %}
       <p style="margin:0 0 10px;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
-        Sending happens in this request — there is no background worker on this host — so it
-        goes out {{ plan.batch }} at a time and tells you what is left. Press again to continue.</p>
+        <strong>Queue all</strong> hands the whole list to the maintenance run, which delivers
+        it in the background — one press, however many nominees. Queueing twice adds nothing
+        the second time, so a double-click cannot double-send.
+        <strong>Send now</strong> pushes {{ plan.batch }} inside this request instead, for when
+        you are chasing a handful and do not want to wait for a tick.</p>
       <div class="ad-table-wrap">
         <table class="ad-table">
           <thead><tr><th scope="col">Nominee</th><th scope="col">Programme</th><th scope="col">Email</th><th scope="col">State</th></tr></thead>

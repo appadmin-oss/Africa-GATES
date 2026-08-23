@@ -107,6 +107,9 @@ final class StandsController
             'may_decide'  => $this->mayDecide(),
             // ── SIZES AND THE FLOOR PLAN ─────────────────────────────────
             'sizes'       => StandType::SIZES,
+            // The priced catalogue, so an organiser adds "6 × 6 ft — ₦10,000, how many?"
+            // rather than retyping a size, a price and a category for every event.
+            'presets'     => \AfricaGates\Services\StandPreset::all(),
             'plan'        => $plan = StandFloorPlan::forEvent($eventId),
             // The drawing scales are computed here rather than in the template, because
             // getting them wrong renders a picture the size of a wall and Twig is a poor
@@ -334,6 +337,33 @@ final class StandsController
         $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
         if ($r['ok']) $this->audit->record($this->adminId(), 'stand_type.save', 'event', $eventId);
         return $this->back($res, $eventId, '#types');
+    }
+
+    /**
+     * Add a stand type to this event from the priced catalogue.
+     *
+     * The quota is the only thing asked for, because it is the only thing a catalogue cannot
+     * know: how many pitches fit is a fact about a room. Everything else — size, price,
+     * deposit, category, power, step-free — is copied from the preset.
+     */
+    public function applyPreset(Request $req, Response $res, array $args = []): Response
+    {
+        $eventId = (int) ($args['id'] ?? 0);
+        $b       = (array) $req->getParsedBody();
+
+        $r = \AfricaGates\Services\StandPreset::applyTo(
+            $eventId,
+            (int) ($b['preset_id'] ?? 0),
+            (int) preg_replace('/[^0-9]/', '', (string) ($b['quota'] ?? '0')),
+            $this->adminId()
+        );
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        if ($r['ok']) {
+            $this->audit->record($this->adminId(), 'stand.preset.apply', 'event', $eventId);
+        }
+
+        return $res->withHeader('Location', '/admin/events/' . $eventId . '/stands')->withStatus(302);
     }
 
     public function deleteType(Request $req, Response $res, array $args = []): Response

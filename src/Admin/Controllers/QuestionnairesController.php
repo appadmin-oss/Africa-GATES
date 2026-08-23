@@ -285,6 +285,9 @@ final class QuestionnairesController
             'again'       => $again,
             'plan'        => $plan,
             'history'     => $cycleId > 0 ? QuestionnaireInvites::history($cycleId) : null,
+            // Queued and delivered are different facts. An operator watching nothing
+            // happen needs to know which of the two they are looking at.
+            'pending'     => $cycleId > 0 ? QuestionnaireInvites::pending($cycleId) : 0,
             'policy'      => QuestionnairePolicy::forCycle($cycleId),
             'policy_text' => QuestionnairePolicy::describe(QuestionnairePolicy::forCycle($cycleId)),
             'enforce'     => $cycleId > 0 ? QuestionnairePolicy::enforce($cycleId, true) : null,
@@ -330,21 +333,41 @@ final class QuestionnairesController
             . '&audience=' . urlencode($audience) . ($again ? '&again=1' : '')
             . implode('', array_map(fn ($i) => '&p[]=' . $i, $picked));
 
-        if ($this->mailer === null) {
-            $_SESSION['flash_error'] = 'Email is not configured on this deployment, so nothing was sent.';
-            return $this->back($res, $qs);
-        }
         if ($cycleId <= 0) {
             $_SESSION['flash_error'] = 'Pick a cycle first.';
             return $this->back($res, $qs);
         }
 
-        $r = QuestionnaireInvites::sendBatch($cycleId, $picked, $audience, $again, $this->mailer);
+        // ── QUEUED, NOT SENT HERE ───────────────────────────────────────────
+        //
+        // One press queues the whole audience and the maintenance tick delivers it. Sending
+        // inline capped the act at what PHP's time limit allowed — 60 per press, so four
+        // hundred nominees was seven presses — and the last press is the one nobody makes.
+        //
+        // `send_now` is kept as the escape hatch for a handful of chased stragglers, where
+        // waiting for a tick is the wrong trade. It still goes through the same batch path.
+        if (!empty($body['send_now'])) {
+            if ($this->mailer === null) {
+                $_SESSION['flash_error'] = 'Email is not configured on this deployment, so nothing was sent.';
+                return $this->back($res, $qs);
+            }
+            $r = QuestionnaireInvites::sendBatch($cycleId, $picked, $audience, $again, $this->mailer);
+            $_SESSION[$r['sent'] > 0 ? 'flash' : 'flash_error'] = $r['message'];
+            $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.invite_batch',
+                'cycle', $cycleId, ['sent' => $r['sent'], 'failed' => $r['failed'],
+                                    'remaining' => $r['remaining'], 'programmes' => $picked]);
 
-        $_SESSION[$r['sent'] > 0 ? 'flash' : 'flash_error'] = $r['message'];
-        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.invite_batch',
-            'cycle', $cycleId, ['sent' => $r['sent'], 'failed' => $r['failed'],
-                                'remaining' => $r['remaining'], 'programmes' => $picked]);
+            return $this->back($res, $qs);
+        }
+
+        $r = QuestionnaireInvites::queue($cycleId, $picked, $audience, $again);
+
+        $_SESSION[$r['queued'] > 0 ? 'flash' : 'flash_error'] = $r['queued'] > 0
+            ? $r['message']
+            : 'Nothing was queued — ' . lcfirst($r['message']);
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'questionnaire.invite_queue',
+            'cycle', $cycleId, ['queued' => $r['queued'], 'already_queued' => $r['skipped'],
+                                'programmes' => $picked]);
 
         return $this->back($res, $qs);
     }

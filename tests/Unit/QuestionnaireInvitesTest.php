@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use AfricaGates\Services\EmailOptOut;
+use AfricaGates\Services\OtpService;
 use AfricaGates\Services\QuestionnaireInvites;
 use AfricaGates\Services\QuestionnairePolicy;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -384,6 +385,172 @@ final class QuestionnaireInvitesTest extends TestCase
         $this->assertSame(1, $h['count']);
         $this->assertSame(1, $h['failed']);
         $this->assertSame('2026-02-01 09:01:00', $h['last_at']);
+    }
+
+    /**
+     * A mailer with no SMTP credentials: sendRawHtml writes to the dev log and reports
+     * success, which is what makes a delivery path testable without a mail server.
+     */
+    private function mailer(): OtpService
+    {
+        return new OtpService(['host' => '', 'username' => '', 'password' => '', 'from' => 'x@example.com']);
+    }
+
+    // ══ the queue ════════════════════════════════════════════════════════════
+
+    /**
+     * One press queues the whole audience, however large.
+     *
+     * Sending inline capped the act at what a request could do — 60 per press, so four
+     * hundred nominees was seven presses, and the last press is the one nobody makes.
+     */
+    public function test_queueing_takes_the_whole_audience_in_one_press(): void
+    {
+        for ($i = 1; $i <= QuestionnaireInvites::BATCH + 20; $i++) {
+            $this->nominee($i, "n{$i}@example.com", 1);
+        }
+
+        $r = QuestionnaireInvites::queue(self::CYCLE, [], 'not_submitted', false);
+
+        $this->assertSame(QuestionnaireInvites::BATCH + 20, $r['queued'],
+            'the queue is not bounded by what one request can send');
+        $this->assertSame(QuestionnaireInvites::BATCH + 20, QuestionnaireInvites::pending(self::CYCLE));
+    }
+
+    /** THE SAFETY PROPERTY. A double-click must not become two emails. */
+    public function test_queueing_twice_adds_nothing_the_second_time(): void
+    {
+        $this->nominee(1, 'one@example.com', 1);
+        $this->nominee(2, 'two@example.com', 1);
+
+        $first  = QuestionnaireInvites::queue(self::CYCLE, [], 'not_submitted', false);
+        $second = QuestionnaireInvites::queue(self::CYCLE, [], 'not_submitted', false);
+
+        $this->assertSame(2, $first['queued']);
+        $this->assertSame(0, $second['queued'], 'the dedupe key is the whole safety property here');
+        $this->assertSame(2, $second['skipped']);
+        $this->assertSame(2, QuestionnaireInvites::pending(self::CYCLE));
+        $this->assertStringContainsString('already queued', $second['message']);
+    }
+
+    /** The dedupe key carries the cycle, so next year's invitation is not suppressed. */
+    public function test_a_job_queued_for_another_cycle_does_not_block_this_one(): void
+    {
+        DB::table('gates_award_cycles')->insert([
+            'id' => 2, 'programme_id' => 1, 'year' => 2027, 'status' => 'nominations',
+            'results_date' => '2027-07-15 12:00:00',
+        ]);
+        $this->nominee(1, 'one@example.com', 1);
+        DB::table('gates_nominee_submissions')->insert([
+            'id' => 50, 'nominee_id' => 1, 'programme_id' => 1, 'cycle_id' => 2,
+            'status' => 'draft', 'invite_token' => str_repeat('z', 32),
+        ]);
+
+        $this->assertSame(1, QuestionnaireInvites::queue(self::CYCLE, [], 'not_submitted', false)['queued']);
+        $this->assertSame(1, QuestionnaireInvites::queue(2, [], 'not_submitted', false)['queued']);
+
+        $this->assertSame(1, QuestionnaireInvites::pending(self::CYCLE), 'pending is counted per cycle');
+        $this->assertSame(1, QuestionnaireInvites::pending(2));
+    }
+
+    public function test_only_sendable_rows_are_queued(): void
+    {
+        $this->nominee(1, 'ok@example.com', 1);
+        $this->nominee(2, '', 1);
+        $this->nominee(3, 'out@example.com', 1, 'disqualified');
+
+        $r = QuestionnaireInvites::queue(self::CYCLE, [], 'all', false);
+
+        $this->assertSame(1, $r['queued']);
+        $this->assertStringContainsString('no email on their nomination', $r['message'],
+            'a nominee with no address must be surfaced, not silently absent');
+    }
+
+    /**
+     * The gap between queueing and delivery is real — a tick can be minutes later — so the
+     * two things that can change in it are re-checked at delivery.
+     */
+    public function test_delivery_is_abandoned_if_the_nominee_submitted_in_the_meantime(): void
+    {
+        $this->nominee(1, 'one@example.com', 1);
+        QuestionnaireInvites::queue(self::CYCLE, [], 'not_submitted', false);
+
+        DB::table('gates_nominee_submissions')->where('id', 1)->update(['status' => 'submitted']);
+
+        $this->assertFalse(QuestionnaireInvites::deliver([
+            'cycle_id' => self::CYCLE, 'submission_id' => 1, 'nominee_id' => 1,
+            'email' => 'one@example.com', 'name' => 'Nominee 1',
+        ], $this->mailer()), 'asking for work that is already in reads as a broken system');
+    }
+
+    public function test_delivery_is_abandoned_if_they_were_disqualified_in_the_meantime(): void
+    {
+        $this->nominee(1, 'one@example.com', 1);
+        DB::table('gates_nominee_submissions')->where('id', 1)->update(['status' => 'disqualified']);
+
+        $this->assertFalse(QuestionnaireInvites::deliver([
+            'cycle_id' => self::CYCLE, 'submission_id' => 1, 'nominee_id' => 1,
+            'email' => 'one@example.com', 'name' => 'Nominee 1',
+        ], $this->mailer()));
+    }
+
+    public function test_delivery_is_abandoned_if_they_unsubscribed_in_the_meantime(): void
+    {
+        $this->nominee(1, 'one@example.com', 1);
+        EmailOptOut::record('one@example.com', 'test');
+
+        $this->assertFalse(QuestionnaireInvites::deliver([
+            'cycle_id' => self::CYCLE, 'submission_id' => 1, 'nominee_id' => 1,
+            'email' => 'one@example.com', 'name' => 'Nominee 1',
+        ], $this->mailer()));
+    }
+
+    public function test_a_malformed_job_payload_is_refused_rather_than_throwing(): void
+    {
+        foreach ([[], ['submission_id' => 0], ['submission_id' => 1, 'email' => 'not-an-address']] as $p) {
+            $this->assertFalse(QuestionnaireInvites::deliver($p + ['cycle_id' => self::CYCLE], $this->mailer()));
+        }
+    }
+
+    /**
+     * A missing mailer must NOT mark the job done.
+     *
+     * Returning false there would have a briefly-misconfigured deployment silently consume
+     * four hundred invitations and log them as handled. The throw puts the job back.
+     */
+    public function test_a_missing_mailer_throws_so_the_job_retries_rather_than_vanishing(): void
+    {
+        $this->nominee(1, 'one@example.com', 1);
+
+        $this->expectException(\RuntimeException::class);
+        QuestionnaireInvites::deliver([
+            'cycle_id' => self::CYCLE, 'submission_id' => 1, 'nominee_id' => 1,
+            'email' => 'one@example.com', 'name' => 'Nominee 1',
+        ], null);
+    }
+
+    /** And the happy path actually writes to the log and stamps invited_at. */
+    public function test_delivery_stamps_invited_at_and_records_the_send(): void
+    {
+        $this->nominee(1, 'one@example.com', 1);
+
+        $this->assertTrue(QuestionnaireInvites::deliver([
+            'cycle_id' => self::CYCLE, 'submission_id' => 1, 'nominee_id' => 1,
+            'email' => 'one@example.com', 'name' => 'Nominee 1',
+        ], $this->mailer()));
+
+        $this->assertNotEmpty(DB::table('gates_nominee_submissions')->where('id', 1)->value('invited_at'));
+        $this->assertSame(1, QuestionnaireInvites::history(self::CYCLE)['count']);
+    }
+
+    /** The handler has to be registered, or every job sits pending forever. */
+    public function test_the_job_type_is_handled_by_the_maintenance_drain(): void
+    {
+        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Support/Maintenance.php');
+
+        $this->assertStringContainsString('QuestionnaireInvites::JOB_INVITE', $src,
+            'a queued job with no registered handler is an invitation that never arrives');
+        $this->assertStringContainsString('QuestionnaireInvites::deliver', $src);
     }
 
     public function test_a_cycle_never_sent_to_reports_nothing_rather_than_erroring(): void
