@@ -92,7 +92,10 @@ final class StandFloorPlan
                 'each_sqm' => $each,
                 'quota'    => $quota,
                 'total_sqm'=> $total,
-                'size'     => StandType::sizeLabel($t),
+                // The label follows the unit the pitch was created in; the ARITHMETIC above
+                // is always centimetres. A plan captioned in metres beside a call advertised
+                // in feet is two documents about the same hall that disagree.
+                'size'     => StandPreset::labelForType($t),
             ];
 
             $cat = (string) $t->category;

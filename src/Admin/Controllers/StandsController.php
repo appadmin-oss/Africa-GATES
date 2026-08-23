@@ -109,7 +109,17 @@ final class StandsController
             'sizes'       => StandType::SIZES,
             // The priced catalogue, so an organiser adds "6 × 6 ft — ₦10,000, how many?"
             // rather than retyping a size, a price and a category for every event.
-            'presets'     => \AfricaGates\Services\StandPreset::all(),
+            'presets'     => $presets = \AfricaGates\Services\StandPreset::all(),
+            // The preset's size in the unit it was entered in, keyed by id, so the
+            // dropdown reads "6 × 6 ft stand · 6 × 6 ft — ₦10,000" and an organiser is
+            // not choosing between two names that differ only in a price.
+            'preset_size'  => $this->presetSizes($presets),
+            'preset_quota' => $this->presetQuota($presets),
+            // Which stock size each EXISTING type matches, for its edit form's select.
+            // Computed from the stored centimetres rather than remembered, so a row edited
+            // by hand into 3 × 3 still opens showing the standard gazebo — and one at 183cm
+            // opens on Custom, which is what it is.
+            'size_of'      => $this->sizeKeys($capacity),
             'plan'        => $plan = StandFloorPlan::forEvent($eventId),
             // The drawing scales are computed here rather than in the template, because
             // getting them wrong renders a picture the size of a wall and Twig is a poor
@@ -154,6 +164,53 @@ final class StandsController
                 ]
             ),
         ]);
+    }
+
+    /**
+     * Each preset's size label, keyed by id.
+     *
+     * @param list<object> $presets
+     * @return array<int,string>
+     */
+    private function presetSizes(array $presets): array
+    {
+        $out = [];
+        foreach ($presets as $p) {
+            $out[(int) $p->id] = \AfricaGates\Services\StandPreset::label($p);
+        }
+        return $out;
+    }
+
+    /**
+     * A sensible starting quota for the catalogue form.
+     *
+     * The box is `required`, so an empty one is a form that refuses itself on the first
+     * press — and the catalogue already records a default per preset. The FIRST preset's
+     * is used because that is the one the select opens on; a person choosing another
+     * changes the number they were going to change anyway.
+     *
+     * @param list<object> $presets
+     */
+    private function presetQuota(array $presets): int
+    {
+        $first = $presets[0] ?? null;
+
+        return max(1, (int) ($first->default_quota ?? 0) ?: 10);
+    }
+
+    /**
+     * Existing type id → the stock size key it matches, or 'custom'.
+     *
+     * @param list<array<string,mixed>> $capacity
+     * @return array<int,string>
+     */
+    private function sizeKeys(array $capacity): array
+    {
+        $out = [];
+        foreach ($capacity as $c) {
+            $out[(int) $c['type']->id] = StandType::presetFor($c['type']);
+        }
+        return $out;
     }
 
     /**
@@ -349,7 +406,18 @@ final class StandsController
     public function applyPreset(Request $req, Response $res, array $args = []): Response
     {
         $eventId = (int) ($args['id'] ?? 0);
-        $b       = (array) $req->getParsedBody();
+
+        // Guarded like every other write on this page. It was NOT: this was the one action
+        // that skipped mayDecide(), so any role that could load the screen could add a
+        // priced stand type to a call. The lock on an open call was enforced (StandType::save
+        // refuses one), but who may set the terms was not.
+        if (!$this->mayDecide()) {
+            $_SESSION['flash_error'] = 'Only an admin can change what is on offer.';
+            return $this->back($res, $eventId, '#types');
+        }
+        if (!$this->event($eventId)) return $res->withHeader('Location', '/admin/events')->withStatus(302);
+
+        $b = (array) $req->getParsedBody();
 
         $r = \AfricaGates\Services\StandPreset::applyTo(
             $eventId,
@@ -358,12 +426,15 @@ final class StandsController
             $this->adminId()
         );
 
-        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        $_SESSION[($r['ok'] ?? false) ? 'flash_ok' : 'flash_error'] = (string) $r['message'];
         if ($r['ok']) {
             $this->audit->record($this->adminId(), 'stand.preset.apply', 'event', $eventId);
         }
 
-        return $res->withHeader('Location', '/admin/events/' . $eventId . '/stands')->withStatus(302);
+        // Back to #types, like the form beside it. Redirecting to the top of a screen this
+        // long meant the confirmation — when it was rendered at all — was several scrolls
+        // above the table it was about, and the page looked as though nothing had happened.
+        return $this->back($res, $eventId, '#types');
     }
 
     public function deleteType(Request $req, Response $res, array $args = []): Response

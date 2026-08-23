@@ -155,6 +155,31 @@
     if (el && el.form) el.form.submit();
   });
 
+  // ── THE CUSTOM SIZE BOXES FOLLOW THE SIZE SELECT ──────────────────────────
+  //
+  // On the vendor-stands screen a stand type's size comes from a select of stock sizes
+  // OR from a pair of metre boxes, and the server honours the select whenever it names a
+  // stock size. The boxes used to sit live and pre-filled beside a select reading
+  // "Standard gazebo", with small print saying they were ignored — so somebody typing
+  // 6 × 6 into them got a 3 × 3 pitch, silently, and a stand's size is a published term.
+  //
+  // Disabling them makes the form behave the way it reads: a disabled input is not
+  // submitted, which is precisely "ignored". With this file absent the boxes stay live
+  // and the server still prefers the select, so the outcome is unchanged — only the
+  // screen is less honest, which is the right way round for a progressive enhancement.
+  const agSizeSync = function (sel) {
+    if (!sel || !sel.form) return;
+    const custom = sel.value === 'custom';
+    sel.form.querySelectorAll('[data-ag-size-custom]').forEach(function (box) {
+      box.disabled = !custom;
+    });
+  };
+  document.addEventListener('change', function (e) {
+    const sel = e.target.closest('[data-ag-do="stand-size"]');
+    if (sel) agSizeSync(sel);
+  });
+  document.querySelectorAll('[data-ag-do="stand-size"]').forEach(agSizeSync);
+
   // Tippy.js tooltips
   if (window.tippy) {
     window.tippy('[data-tip]', {

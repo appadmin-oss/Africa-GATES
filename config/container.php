@@ -190,7 +190,26 @@ return [
             'canonical_path'    => \AfricaGates\Support\Canonical::path($_SERVER['REQUEST_URI'] ?? '/'),
             'robots_auto'       => \AfricaGates\Support\Canonical::robots($_SERVER['REQUEST_URI'] ?? '/'),
             'site_url'          => rtrim(Env::get('APP_URL', ''), '/') ?: 'https://afg.afrovanguard.org.ng',
-            'flash_ok'          => $_SESSION['flash_ok']    ?? null,
+            // ── `flash` IS AN ALIAS OF `flash_ok`, AND THAT IS A BUG FIX ─────
+            //
+            // Sixty-odd admin and account actions write their success message to
+            // $_SESSION['flash'] — `$_SESSION[$r['ok'] ? 'flash' : 'flash_error']` is the
+            // shape almost every controller on this platform uses. NOTHING read it. No
+            // template renders `flash`, and the unset() below never cleared it, so every
+            // one of those confirmations was invisible AND accumulated in the session for
+            // the rest of the login.
+            //
+            // The symptom is not subtle and it is what got reported: you add a stand from
+            // the catalogue, the page reloads, and there is no sign anything happened —
+            // identical to a silent failure. Same for building the sandbox, sending
+            // questionnaire invitations, saving a payout account.
+            //
+            // Aliased here rather than by editing sixty call sites, because the intent at
+            // every one of them is unambiguous (it is the success branch of a
+            // success/error ternary) and a rename touching sixty files is sixty chances to
+            // miss one. `flash_ok` wins if both are somehow set. FlashKeyTest asserts no
+            // controller writes a flash key this list does not read.
+            'flash_ok'          => $_SESSION['flash_ok'] ?? $_SESSION['flash'] ?? null,
             // The per-request CSP nonce. Every inline <script> must carry it or the
             // browser refuses to run it — see AfricaGates\Support\Csp.
             'csp_nonce'         => \AfricaGates\Support\Csp::nonce(),
@@ -268,8 +287,9 @@ return [
             'cron_health',
             [\AfricaGates\Support\CronHealth::class, 'status']
         ));
-        // Consume one-shot flash
-        unset($_SESSION['flash_ok'], $_SESSION['flash_error'], $_SESSION['flash_notice']);
+        // Consume one-shot flash. `flash` included — it was leaking for the whole session.
+        unset($_SESSION['flash_ok'], $_SESSION['flash'],
+              $_SESSION['flash_error'], $_SESSION['flash_notice']);
         return $twig;
     },
 

@@ -449,4 +449,199 @@ class StandSurfacesTest extends TestCase
             'Applying while signed in must not mint a second organisation.');
         $this->assertCount(1, StandApplication::forOrg($orgId));
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // CREATING AND CORRECTING WHAT IS ON OFFER
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // Reported as "the vendor stand creation is completely bugged". It was, in five
+    // separate ways, and every one of them is asserted below. The common thread is that
+    // each failure was SILENT: the action appeared to work, or appeared to do nothing,
+    // and nothing on the screen said which.
+
+    public function test_a_stand_type_can_be_corrected_after_it_is_created(): void
+    {
+        // THE headline defect. save() has taken a type_id since it was written and no form
+        // ever sent one, so a typo in a name or a price entered in kobo could only be fixed
+        // by Remove-and-add — and Remove is refused, correctly, once anybody has applied.
+        // A priced, published row that could neither be changed nor deleted.
+        $event = $this->makeEvent();
+        $this->asAdmin();
+
+        StandType::save((int) $event->id, ['name' => 'Food pich', 'category' => 'food',
+                                           'price_naira' => '5000000', 'quota' => '10']);
+        $type = StandType::forEvent((int) $event->id)[0];
+
+        $res = $this->admin()->saveType($this->post('/x', [
+            'type_id' => (string) $type->id, 'name' => 'Food pitch', 'category' => 'food',
+            'price_naira' => '50000', 'quota' => '10', 'size_preset' => '3x3', 'sort_order' => '0',
+        ]), new Response(), ['id' => (int) $event->id]);
+
+        $this->assertSame(302, $res->getStatusCode());
+        $after = StandType::find((int) $type->id);
+        $this->assertSame('Food pitch', $after->name);
+        $this->assertSame(50000, (int) $after->price_naira);
+        // Edited, not duplicated.
+        $this->assertCount(1, StandType::forEvent((int) $event->id));
+    }
+
+    public function test_the_edit_form_exists_on_the_screen_and_posts_the_row_it_edits(): void
+    {
+        $event = $this->makeEvent();
+        $this->asAdmin();
+        StandType::save((int) $event->id, ['name' => 'Food pitch', 'category' => 'food',
+                                           'price_naira' => '50000', 'quota' => '10']);
+        $type = StandType::forEvent((int) $event->id)[0];
+
+        $res  = $this->admin()->index($this->get('/x'), new Response(), ['id' => (int) $event->id]);
+        $html = (string) $res->getBody();
+
+        $this->assertStringContainsString('name="type_id" value="' . $type->id . '"', $html,
+            'without a posted type_id the edit is an insert');
+        // sort_order carried through: save() reads it from the form and defaults it to 0,
+        // so omitting it would reorder the whole table every time somebody fixed a price.
+        $this->assertStringContainsString('name="sort_order" value="' . $type->sort_order . '"', $html);
+    }
+
+    public function test_the_quota_cannot_be_cut_below_the_places_already_promised(): void
+    {
+        // Dropping "how many exist" does not un-offer anybody. Without this guard the
+        // capacity view reads 2/1 and a vendor holds a place the published quota says does
+        // not exist.
+        $event = $this->makeEvent();
+        $this->openCall($event, 2);
+        $type  = StandType::forEvent((int) $event->id)[0];
+
+        // TWO offers against a quota of two, so the guard is tested at quota 1 — quota 0 is
+        // refused by an earlier and separate rule and would never reach it.
+        foreach (['Jollof.', 'Suya.'] as $sells) {
+            $app = StandApplication::submit($this->makeVendor(), (int) $type->id,
+                                            ['what_they_sell' => $sells]);
+            $this->assertTrue($app['ok'], $app['message'] ?? '');
+            StandApplication::checkEligibility((int) $app['id']);
+            $off = StandApplication::offer((int) $app['id'], 1);
+            $this->assertTrue($off['ok'], $off['message'] ?? '');
+        }
+        $this->assertSame(2, StandType::allocated((int) $type->id));
+
+        // The call has to be closed before terms can change at all — that lock already
+        // worked and is asserted elsewhere. This is the guard UNDER it.
+        StandCall::close((int) StandCall::forEvent((int) $event->id)->id);
+
+        $r = StandType::save((int) $event->id, [
+            'type_id' => (string) $type->id, 'name' => 'Food pitch', 'category' => 'food',
+            // 1, not 0: a quota of zero is refused by an earlier and separate rule, so
+            // testing with it would never reach the guard under test.
+            'price_naira' => '50000', 'quota' => '1', 'size_preset' => '3x3',
+        ], (int) $type->id);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('already hold', $r['message']);
+        $this->assertSame(2, (int) StandType::find((int) $type->id)->quota, 'nothing was written');
+    }
+
+    public function test_adding_from_the_catalogue_needs_the_role_that_sets_terms(): void
+    {
+        // This was the one write on the page that skipped mayDecide(), so any role that
+        // could open the screen could add a priced stand type to a call.
+        $event = $this->makeEvent();
+        $preset = DB::table('gates_stand_presets')->where('is_active', 1)->first();
+        $this->assertNotNull($preset, 'the migration seeds the catalogue');
+
+        $this->asAdmin('moderator');
+        $res = $this->admin()->applyPreset($this->post('/x', [
+            'preset_id' => (string) $preset->id, 'quota' => '20',
+        ]), new Response(), ['id' => (int) $event->id]);
+
+        $this->assertSame(302, $res->getStatusCode());
+        $this->assertSame([], StandType::forEvent((int) $event->id));
+        $this->assertNotEmpty($_SESSION['flash_error'] ?? '');
+    }
+
+    public function test_adding_from_the_catalogue_confirms_itself_and_lands_on_the_table(): void
+    {
+        // The reported symptom exactly: press Add, the page reloads at the top, and there is
+        // no sign anything happened — indistinguishable from a silent failure. Two causes,
+        // both here: the success message went to a session key nothing rendered, and the
+        // redirect dropped the anchor.
+        $event  = $this->makeEvent();
+        $preset = DB::table('gates_stand_presets')->where('is_active', 1)
+            ->orderBy('sort_order')->first();
+        $this->asAdmin();
+
+        $res = $this->admin()->applyPreset($this->post('/x', [
+            'preset_id' => (string) $preset->id, 'quota' => '20',
+        ]), new Response(), ['id' => (int) $event->id]);
+
+        $this->assertStringEndsWith('/stands#types', $res->getHeaderLine('Location'));
+        $this->assertNotEmpty($_SESSION['flash_ok'] ?? '', 'the confirmation must be renderable');
+
+        $types = StandType::forEvent((int) $event->id);
+        $this->assertCount(1, $types);
+        $this->assertSame(20, (int) $types[0]->quota);
+    }
+
+    public function test_a_preset_in_feet_keeps_its_feet_all_the_way_to_the_table(): void
+    {
+        // The whole point of the catalogue. A pitch added from "6 × 6 ft stand" appeared in
+        // the capacity table as "1.83 × 1.83 m" — a number no vendor would recognise as the
+        // thing they applied for, on a screen whose job is to publish the terms.
+        $event  = $this->makeEvent();
+        $preset = DB::table('gates_stand_presets')->where('slug', 'six-by-six-ft')->first();
+        $this->assertNotNull($preset);
+        $this->asAdmin();
+
+        $this->admin()->applyPreset($this->post('/x', [
+            'preset_id' => (string) $preset->id, 'quota' => '12',
+        ]), new Response(), ['id' => (int) $event->id]);
+
+        $type = StandType::forEvent((int) $event->id)[0];
+        $this->assertSame(183, (int) $type->width_cm, 'not the 3x3 default');
+        $this->assertSame(183, (int) $type->depth_cm);
+
+        // And the name is not the size said twice.
+        $this->assertSame('6 × 6 ft stand', $type->name);
+
+        $row = StandCall::capacity((int) $event->id)[0];
+        $this->assertSame('6 × 6 ft', $row['size']);
+
+        $html = (string) $this->admin()->index($this->get('/x'), new Response(),
+                                               ['id' => (int) $event->id])->getBody();
+        $this->assertStringContainsString('6 × 6 ft', $html);
+        $this->assertStringNotContainsString('1.83 × 1.83 m', $html);
+    }
+
+    public function test_the_custom_size_boxes_cannot_silently_lose_what_was_typed_in_them(): void
+    {
+        // They sat live and pre-filled with 3 beside a select reading "Standard gazebo",
+        // under small print saying they were ignored. Typing 6 × 6 into them gave a 3 × 3
+        // pitch and no warning — and a stand's size is a published term.
+        $event = $this->makeEvent();
+        $this->asAdmin();
+        $html = (string) $this->admin()->index($this->get('/x'), new Response(),
+                                               ['id' => (int) $event->id])->getBody();
+
+        $this->assertStringContainsString('data-ag-do="stand-size"', $html);
+        $this->assertStringContainsString('data-ag-size-custom', $html);
+
+        // Delegated, never inline: the admin CSP has no 'unsafe-inline' in script-src, so an
+        // inline onchange here would not be merely discouraged — it would never run.
+        $js = file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/admin.js');
+        $this->assertStringContainsString('stand-size', $js);
+        $this->assertStringNotContainsString('onchange=', $html);
+    }
+
+    public function test_the_catalogue_quota_box_does_not_start_empty_while_being_required(): void
+    {
+        // A `required` box with only a placeholder is a form that refuses itself on the
+        // first press, and the catalogue already records a default per preset.
+        $event = $this->makeEvent();
+        $this->asAdmin();
+        $html = (string) $this->admin()->index($this->get('/x'), new Response(),
+                                               ['id' => (int) $event->id])->getBody();
+
+        $this->assertMatchesRegularExpression(
+            '~id="stPresetQty"[^>]*\brequired\b[^>]*value="[1-9][0-9]*"~', $html
+        );
+    }
 }

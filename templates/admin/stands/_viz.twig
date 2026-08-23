@@ -32,16 +32,22 @@
    a rectangle with a person in it is a size they can judge against the gazebo they hired. All
    the swatches on the page share one scale, so a 6 × 3 is visibly twice a 3 × 3 — which is
    the comparison that stops a plan going wrong. #}
-{% macro swatch(type, px_per_m, label) %}
+{% macro swatch(type, px_per_m, label, size) %}
   {% import _self as viz %}
   {% set w = (type.width_cm / 100) * px_per_m %}
   {% set d = (type.depth_cm / 100) * px_per_m %}
   {% set wm = (type.width_cm / 100) %}
   {% set dm = (type.depth_cm / 100) %}
+  {# The DIMENSION is passed in, because it belongs to the unit the pitch was sold in — a
+     6ft stand is not "1.83 × 1.83 m" to the vendor who applied for it, and this string is
+     the swatch's only text for a screen reader. The AREA stays m² whatever the unit: it is
+     the number the hall is measured against, and nobody hires a hall in square feet here.
+     Falls back to metres so a caller with no size string still renders correctly. #}
+  {% set size = size|default(wm ~ ' × ' ~ dm ~ ' m') %}
   <svg class="viz-sw" width="{{ (w + 2)|round }}" height="{{ (d + 2)|round }}"
        viewBox="0 0 {{ (w + 2)|round }} {{ (d + 2)|round }}" role="img"
-       aria-label="{{ label }}: {{ wm }} by {{ dm }} metres, {{ (wm * dm)|round(1) }} square metres">
-    <title>{{ label }} — {{ wm }} × {{ dm }} m ({{ (wm * dm)|round(1) }} m²)</title>
+       aria-label="{{ label }}: {{ size }}, {{ (wm * dm)|round(1) }} square metres">
+    <title>{{ label }} — {{ size }} ({{ (wm * dm)|round(1) }} m²)</title>
     {# 4px corner radius on the data mark, 2px inset so neighbouring swatches keep a surface gap #}
     <rect x="1" y="1" width="{{ w|round }}" height="{{ d|round }}" rx="4"
           fill="#eef4fc" stroke="#2a78d6" stroke-width="2"></rect>

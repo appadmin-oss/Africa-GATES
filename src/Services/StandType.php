@@ -257,6 +257,22 @@ final class StandType
             if (!$existing || (int) $existing->event_id !== $eventId) {
                 return $fail + ['message' => 'That stand type does not belong to this event.'];
             }
+
+            // ── A QUOTA CANNOT BE CUT BELOW WHAT IS ALREADY ALLOCATED ───────
+            //
+            // Editing a type became possible at the same time as this guard, and it needs
+            // one: dropping "how many exist" from 10 to 4 when six vendors already hold
+            // offers does not un-offer anybody. It leaves the capacity view reading 6/4,
+            // the floor plan short by two pitches, and six businesses holding a place the
+            // published quota says does not exist. Refused with the number, because the
+            // organiser's real intent is either to withdraw offers first or to leave it.
+            $held = self::allocated($typeId);
+            if ($held > $quota) {
+                return $fail + ['message' => $held . ' vendor(s) already hold a place in this '
+                                           . 'type, so the quota cannot go below ' . $held . '. '
+                                           . 'Withdraw an offer first if that is what you mean.'];
+            }
+
             DB::table('gates_stand_types')->where('id', $typeId)->update($row);
             return ['ok' => true, 'id' => $typeId, 'message' => 'Saved.'];
         }
@@ -264,6 +280,26 @@ final class StandType
         $row['created_at'] = date('Y-m-d H:i:s');
         return ['ok' => true, 'id' => (int) DB::table('gates_stand_types')->insertGetId($row),
                 'message' => 'Stand type added.'];
+    }
+
+    /**
+     * How many places in this type are spoken for.
+     *
+     * Offered counts as well as accepted: an offer is a promise with a clock on it, and a
+     * quota that ignores outstanding offers is a quota that oversells while somebody is
+     * still deciding. Same pair {@see StandCall::capacity()} counts.
+     */
+    public static function allocated(int $typeId): int
+    {
+        try {
+            return (int) DB::table('gates_stand_applications')
+                ->where('stand_type_id', $typeId)
+                ->whereIn('decision', [StandApplication::DECISION_OFFERED,
+                                       StandApplication::DECISION_ACCEPTED])
+                ->count();
+        } catch (\Throwable) {
+            return 0;
+        }
     }
 
     /**

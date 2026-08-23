@@ -234,7 +234,10 @@ final class StandCall
                 // settles that argument is what the call said on the day they applied.
                 'width_cm' => (int) $t->width_cm,
                 'depth_cm' => (int) $t->depth_cm,
-                'size'     => StandType::sizeLabel($t),
+                // In the unit it was SOLD in. The centimetres above settle the argument
+                // about area; this string is what the vendor read and agreed to, and
+                // "1.83 × 1.83 m" is not what a 6ft pitch was advertised as.
+                'size'     => StandPreset::labelForType($t),
             ], $types),
         ];
 
@@ -293,7 +296,12 @@ final class StandCall
                 // A fixed slot per type, so the colour of a stand type in the floor plan and
                 // in the legend never moves when another type is added beside it.
                 'index'     => $i++,
-                'size'      => StandType::sizeLabel($t),
+                // labelForType and NOT sizeLabel. sizeLabel always renders metres, so a
+                // pitch added from the "6 × 6 ft stand" preset appeared in this table as
+                // "1.83 × 1.83 m" — losing the unit the whole preset feature exists to
+                // keep, and showing an organiser a number no vendor would recognise as
+                // the thing they applied for.
+                'size'      => StandPreset::labelForType($t),
                 'each_sqm'  => $each,
                 'total_sqm' => round($each * $quota, 2),
             ];

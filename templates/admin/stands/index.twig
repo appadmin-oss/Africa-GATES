@@ -34,6 +34,23 @@
   .st-cap__fill.is-full{ background:#b91c1c; }
   .st-cap__n{ font-family:'Space Mono',monospace; font-size:12.5px; white-space:nowrap; }
 
+  /* The eight fields, shared by the add form and every row's edit form so the two
+     cannot drift into different layouts of the same thing. */
+  .st-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+
+  /* Editing a row in place. Quiet until opened — a table with an expanded form under
+     every row is unreadable, and the reason to open one is a correction, not a habit. */
+  .st-editrow > td{ border-top:none; }
+  .st-edit__sum{ cursor:pointer; padding:8px 0 12px; font-size:12.5px; font-weight:600;
+    color:var(--ad-text-soft); list-style:none; }
+  .st-edit__sum::-webkit-details-marker{ display:none; }
+  .st-edit__sum::before{ content:'✎ '; }
+  .st-edit__sum:hover{ color:var(--ad-primary); text-decoration:underline; }
+  .st-edit__body{ padding:4px 0 18px; }
+  /* A disabled custom box is greyed rather than hidden: hiding it would leave somebody
+     hunting for where the size went when they pick Custom. */
+  [data-ag-size-wrap]:has(input:disabled){ opacity:.45; }
+
   .st-locked{ border-left:4px solid var(--ad-gold); }
   .st-app__meta{ font-size:12px; color:var(--ad-text-soft); line-height:1.55; }
   .st-miss{ color:#b91c1c; font-size:12px; }
@@ -234,7 +251,7 @@
             {# The swatch is drawn at the SAME scale as every other on the page, so a 6×3
                looks like twice a 3×3. That comparison is the thing a number cannot do. #}
             <div style="display:flex;align-items:center;gap:10px">
-              {{ viz.swatch(c.type, 9, c.type.name) }}
+              {{ viz.swatch(c.type, 9, c.type.name, c.size) }}
               <span>
                 <span class="st-cap__n">{{ c.size }}</span>
                 <div class="st-app__meta">{{ c.each_sqm }} m² each · {{ c.total_sqm }} m² total</div>
@@ -267,6 +284,107 @@
             {% endif %}
           </td>
         </tr>
+
+        {# ── EDITING ONE, WHICH WAS NOT POSSIBLE AT ALL ─────────────────────────
+           StandType::save() has taken a type_id since it was written and no form ever
+           sent one. So the only correction available for a typo in a name, a price
+           entered in kobo, or a quota of 1 where 10 was meant was Remove and add
+           again — and Remove is REFUSED once anybody has applied, by design, because
+           deleting a type erases what those vendors applied for. The result was a
+           priced, published row that could not be changed and could not be deleted.
+
+           A <details> rather than a modal or a separate screen: it is the same eight
+           fields, it belongs beside the row it edits, and it needs no JavaScript. #}
+        {% if may_decide and not (call and call.status == 'open') %}
+        <tr class="st-editrow">
+          <td colspan="8" style="padding:0">
+            <details class="st-edit">
+              <summary class="st-edit__sum">Edit “{{ c.type.name }}”</summary>
+              <form method="post" action="/admin/events/{{ event.id }}/stands/type"
+                    class="st-edit__body">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <input type="hidden" name="type_id" value="{{ c.type.id }}">
+                {# Carried through explicitly. save() reads sort_order from the form and
+                   defaults it to 0, so omitting it here would silently reorder the whole
+                   table every time somebody fixed a price. #}
+                <input type="hidden" name="sort_order" value="{{ c.type.sort_order }}">
+
+                <div class="st-grid">
+                  <div>
+                    <label for="eN{{ c.type.id }}">Name</label>
+                    <input id="eN{{ c.type.id }}" name="name" type="text" maxlength="160"
+                           required value="{{ c.type.name }}">
+                  </div>
+                  <div>
+                    <label for="eS{{ c.type.id }}">Size</label>
+                    <select id="eS{{ c.type.id }}" name="size_preset" data-ag-do="stand-size">
+                      {% set current = size_of[c.type.id]|default('custom') %}
+                      {% for key, sz in sizes %}
+                        <option value="{{ key }}"{% if key == current %} selected{% endif %}>{{ sz.label }}</option>
+                      {% endfor %}
+                      <option value="custom"{% if current == 'custom' %} selected{% endif %}>
+                        Custom — {{ c.size }}</option>
+                    </select>
+                  </div>
+                  <div data-ag-size-wrap>
+                    <label for="eW{{ c.type.id }}">Custom width (m)</label>
+                    <input id="eW{{ c.type.id }}" name="width_m" type="number" min="0.5" max="50"
+                           step="0.01" data-ag-size-custom
+                           value="{{ (c.type.width_cm / 100)|number_format(2, '.', '') }}">
+                  </div>
+                  <div data-ag-size-wrap>
+                    <label for="eD{{ c.type.id }}">Custom depth (m)</label>
+                    <input id="eD{{ c.type.id }}" name="depth_m" type="number" min="0.5" max="50"
+                           step="0.01" data-ag-size-custom
+                           value="{{ (c.type.depth_cm / 100)|number_format(2, '.', '') }}">
+                  </div>
+                  <div>
+                    <label for="eC{{ c.type.id }}">Category</label>
+                    <select id="eC{{ c.type.id }}" name="category">
+                      {% for slug, label in categories %}
+                        <option value="{{ slug }}"{% if slug == c.type.category %} selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div>
+                    <label for="eP{{ c.type.id }}">Price (₦)</label>
+                    <input id="eP{{ c.type.id }}" name="price_naira" type="number" min="0" step="500"
+                           value="{{ c.type.price_naira }}">
+                  </div>
+                  <div>
+                    <label for="eDep{{ c.type.id }}">Deposit (₦)</label>
+                    <input id="eDep{{ c.type.id }}" name="deposit_naira" type="number" min="0" step="500"
+                           value="{{ c.type.deposit_naira }}">
+                  </div>
+                  <div>
+                    <label for="eQ{{ c.type.id }}">How many exist</label>
+                    <input id="eQ{{ c.type.id }}" name="quota" type="number" min="1" required
+                           value="{{ c.type.quota }}">
+                    {% if c.taken > 0 %}
+                      <small style="color:var(--ad-text-mute)">{{ c.taken }} already allocated —
+                        a quota below that leaves them over the cap.</small>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <div style="margin-top:12px">
+                  <label for="eDesc{{ c.type.id }}">Description</label>
+                  <textarea id="eDesc{{ c.type.id }}" name="description" rows="2">{{ c.type.description }}</textarea>
+                </div>
+                <div style="margin-top:12px;display:flex;gap:18px;flex-wrap:wrap;align-items:center">
+                  <label style="display:flex;gap:8px;align-items:center;font-weight:500">
+                    <input type="checkbox" name="includes_power" value="1"
+                           {% if c.type.includes_power %}checked{% endif %}> Power included</label>
+                  <label style="display:flex;gap:8px;align-items:center;font-weight:500">
+                    <input type="checkbox" name="step_free" value="1"
+                           {% if c.type.step_free %}checked{% endif %}> Step-free pitch</label>
+                  <button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Save changes</button>
+                </div>
+              </form>
+            </details>
+          </td>
+        </tr>
+        {% endif %}
       {% else %}
         <tr><td colspan="8" style="color:var(--ad-text-soft)">
           Nothing on offer yet. A call with no stand types is a form with no options.</td></tr>
@@ -296,13 +414,17 @@
             <label for="stPreset">Add from the catalogue</label>
             <select id="stPreset" name="preset_id">
               {% for pr in presets %}
-              <option value="{{ pr.id }}">{{ pr.name }}{% if pr.price_naira %} — ₦{{ pr.price_naira|number_format }}{% endif %}</option>
+              <option value="{{ pr.id }}">{{ pr.name }} · {{ preset_size[pr.id]|default('') }}{% if pr.price_naira %} — ₦{{ pr.price_naira|number_format }}{% endif %}</option>
               {% endfor %}
             </select>
           </div>
           <div style="flex:0 0 150px">
             <label for="stPresetQty">How many?</label>
-            <input id="stPresetQty" name="quota" type="number" min="1" max="10000" required placeholder="20">
+            {# A real default rather than a placeholder. A required empty box on the one
+               control that decides whether the action succeeds is a form that refuses
+               itself, and the catalogue already carries a sensible number per preset. #}
+            <input id="stPresetQty" name="quota" type="number" min="1" max="10000" required
+                   value="{{ preset_quota|default(10) }}">
           </div>
           <button class="ad-btn ad-btn--primary" type="submit">Add</button>
           <p class="hint" style="flex:1 1 100%;margin:0">
@@ -316,30 +438,39 @@
       <div class="ad-card__body" style="border-top:1px solid var(--ad-line)">
         <form method="post" action="/admin/events/{{ event.id }}/stands/type">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px">
+          <div class="st-grid">
             <div>
               <label for="stName">Name</label>
               <input id="stName" name="name" type="text" maxlength="160" required placeholder="Food pitch, 3m">
             </div>
             <div>
               <label for="stSize">Size</label>
-              <select id="stSize" name="size_preset">
+              <select id="stSize" name="size_preset" data-ag-do="stand-size">
                 {% for key, sz in sizes %}
                   <option value="{{ key }}" {% if key == '3x3' %}selected{% endif %}>{{ sz.label }}</option>
                 {% endfor %}
-                <option value="custom">Custom — use the boxes below</option>
+                <option value="custom">Custom — use the boxes beside this</option>
               </select>
               <small style="color:var(--ad-text-mute)">A market is built from stock parts: hired
                 gazebos and multiples of them. 2.8m fits nothing and orders nothing.</small>
             </div>
-            <div>
+            {# ── THE BOXES ARE DISABLED UNTIL “CUSTOM” IS CHOSEN ──────────────
+               They used to sit live and pre-filled with 3 beside a select showing
+               "Standard gazebo", with a line of small print saying they were ignored.
+               Somebody typing 6 × 6 into them and pressing Add got a 3 × 3 and no
+               warning — the size is a published term, so that is a stand sold to a
+               vendor at a size nobody chose. Disabled inputs are not submitted, which
+               is exactly the behaviour the small print was describing. #}
+            <div data-ag-size-wrap>
               <label for="stW">Custom width (m)</label>
-              <input id="stW" name="width_m" type="number" min="0.5" max="50" step="0.1" value="3">
+              <input id="stW" name="width_m" type="number" min="0.5" max="50" step="0.01"
+                     data-ag-size-custom value="3">
             </div>
-            <div>
+            <div data-ag-size-wrap>
               <label for="stD">Custom depth (m)</label>
-              <input id="stD" name="depth_m" type="number" min="0.5" max="50" step="0.1" value="3">
-              <small style="color:var(--ad-text-mute)">Only read when the size above is “Custom”</small>
+              <input id="stD" name="depth_m" type="number" min="0.5" max="50" step="0.01"
+                     data-ag-size-custom value="3">
+              <small style="color:var(--ad-text-mute)">Live only when the size is “Custom”</small>
             </div>
             <div>
               <label for="stCat">Category</label>
@@ -399,7 +530,7 @@
     <div class="viz-swatches" role="group" aria-label="Stand sizes drawn to a shared scale">
       {% for r in plan.types %}
         <figure class="viz-swatch" style="margin:0">
-          {{ viz.swatch(r.type, swatch_scale, r.type.name) }}
+          {{ viz.swatch(r.type, swatch_scale, r.type.name, r.size) }}
           <figcaption>
             <div class="viz-swatch__l">{{ r.type.name }}</div>
             <div class="viz-swatch__d">{{ r.size }} · {{ r.each_sqm }} m² × {{ r.quota }}</div>

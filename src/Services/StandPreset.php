@@ -340,8 +340,16 @@ final class StandPreset
             $slug = $p->slug . '-' . (++$n);
         }
 
+        // The preset's name AS IT IS. It used to append the size, which produced
+        // "6 × 6 ft stand · 6 × 6 ft" for the one preset an organiser is most likely to
+        // apply — the dimension is already a column in the table beside it, and a name that
+        // repeats it reads like a bug because it is one. The suffix only appears from the
+        // second application onward, matching the slug, so two rows of the same preset are
+        // distinguishable.
+        $name = (string) $p->name . ($n > 1 ? ' (' . $n . ')' : '');
+
         return StandType::save($eventId, [
-            'name'           => (string) $p->name . ' · ' . self::label($p),
+            'name'           => $name,
             'slug'           => $slug,
             'category'       => (string) $p->category,
             'description'    => (string) ($p->note ?? ''),
