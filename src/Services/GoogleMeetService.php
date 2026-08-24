@@ -214,6 +214,80 @@ final class GoogleMeetService
      * @return array{ok:bool, created:bool, meet_url:string, meet_code:string, event_id:string,
      *               html_link:string, message:string}
      */
+    /**
+     * READ an event back out of the calendar — the missing direction.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS MATTERS MORE THAN IT LOOKS
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Everything here pushed. The calendar is where the appointment actually LIVES, and
+     * our `gates_interviews` row is a copy of it — so an organiser who drags the meeting to
+     * Thursday, which is the entire reason for putting it in a calendar, changed the truth
+     * and told us nothing.
+     *
+     * The recording bot is dispatched off OUR row. So the bot turned up on Tuesday to an
+     * empty room, and the interview happened on Thursday with nobody recording it — and
+     * the only symptom was a missing transcript afterwards, at the point where nobody can
+     * do anything about it.
+     *
+     * The Meet link has the same shape of problem: a conference re-created, or an event
+     * rebuilt by hand after a mistake, gives a new URL the platform never learns, and the
+     * bot is sent to a room that no longer opens.
+     *
+     * @param array{event_id?:string, key?:string, calendar_id?:string} $opts
+     * @return array{ok:bool, found:bool, start:string, meet_url:string, event_id:string,
+     *               html_link:string, message:string}
+     */
+    public function readEvent(array $opts): array
+    {
+        $no = fn (string $m, bool $found = false): array => ['ok' => false, 'found' => $found,
+            'start' => '', 'meet_url' => '', 'event_id' => '', 'html_link' => '', 'message' => $m];
+
+        if (!$this->canSchedule()) return $no($this->why());
+
+        $eventId = trim((string) ($opts['event_id'] ?? ''));
+        $key     = trim((string) ($opts['key'] ?? ''));
+        if ($eventId === '' && $key === '') return $no('A read needs an event id or a key.');
+
+        $res = $this->call('calendar.read', array_filter([
+            'eventId'    => $eventId !== '' ? $eventId : null,
+            'key'        => $key !== '' ? mb_substr($key, 0, 120) : null,
+            'calendarId' => trim((string) ($opts['calendar_id'] ?? '')) ?: null,
+        ], static fn ($v): bool => $v !== null));
+
+        if (!($res['ok'] ?? false)) {
+            return $no((string) ($res['message'] ?? 'The Apps Script did not answer.'));
+        }
+
+        // Gone is an ANSWER, not a failure: the caller's correct response is to stop
+        // expecting a meeting, and reporting it as an error would read as a broken
+        // integration and have somebody go looking for one.
+        if (empty($res['found'])) {
+            return ['ok' => true, 'found' => false, 'start' => '', 'meet_url' => '',
+                    'event_id' => '', 'html_link' => '',
+                    'message' => 'That event is no longer on the calendar.'];
+        }
+
+        // Normalised to the platform's storage shape — UTC 'Y-m-d H:i:s'. Google returns
+        // ISO-8601 WITH an offset, and storing that verbatim is the T-separated-datetime
+        // trap this codebase has already been bitten by: MySQL normalises it into a
+        // TIMESTAMP column and SQLite keeps the string, so the two databases then disagree
+        // about when the interview is.
+        $startRaw = trim((string) ($res['startIso'] ?? ''));
+        $ts       = $startRaw !== '' ? strtotime($startRaw) : false;
+
+        return [
+            'ok'        => true,
+            'found'     => true,
+            'start'     => $ts ? gmdate('Y-m-d H:i:s', $ts) : '',
+            'meet_url'  => trim((string) ($res['meetUrl'] ?? '')),
+            'event_id'  => trim((string) ($res['eventId'] ?? '')),
+            'html_link' => trim((string) ($res['htmlLink'] ?? '')),
+            'message'   => 'Read from the calendar.',
+        ];
+    }
+
     public function syncEvent(array $opts): array
     {
         $no = fn (string $m): array => ['ok' => false, 'created' => false, 'meet_url' => '',

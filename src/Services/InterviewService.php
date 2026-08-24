@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace AfricaGates\Services;
 
+use AfricaGates\Services\GoogleMeetService;
 use AfricaGates\Support\Env;
 use AfricaGates\Support\SiteUrl;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -1207,5 +1208,121 @@ final class InterviewService
 
         return ['ok' => true, 'saved' => count($good), 'guests' => $good,
                 'rejected' => $bad, 'message' => $msg];
+    }
+    // ═══════════════════════════════════════════════════════════════════════
+    // THE CALENDAR IS THE TRUTH
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Pull this sitting's appointment back out of Google, and correct our copy of it.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE BOT NEEDED THIS BEFORE IT COULD BE TRUSTED
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The recording bot is dispatched off `scheduled_at` and `meet_url` in OUR table. Both
+     * are copies of something that lives in a calendar, and an organiser who moves the
+     * meeting does it there — that is the whole point of putting it in a calendar.
+     *
+     * Nothing told us. So the bot turned up at the old time to an empty room, the interview
+     * happened an hour later with nobody recording it, and the only symptom was a missing
+     * transcript afterwards, at exactly the moment nobody can do anything about it.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * AND WHY IT ONLY EVER MOVES ONE WAY
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * This never writes to Google. It reads, and it corrects us. A reconciler that also
+     * pushed would fight with the operator: they drag the meeting, we push it back, and
+     * neither side can tell which of them last won.
+     *
+     * Rescheduling from here is deliberately NOT routed through {@see reschedule()}, which
+     * clears the nominee's confirmation and re-queues the reminders. Those are the right
+     * consequences of US moving an appointment and the wrong ones for noticing that it has
+     * already moved: the organiser dragging it in Google Calendar has already sent everyone
+     * the update, and clearing the confirmation would make a nominee who said yes read as
+     * though they had not.
+     *
+     * @return array{ok:bool, changed:bool, gone:bool, message:string}
+     */
+    public static function reconcileFromCalendar(int $id): array
+    {
+        $iv = self::byId($id);
+        if (!$iv) return ['ok' => false, 'changed' => false, 'gone' => false,
+                          'message' => 'That interview could not be found.'];
+
+        $eventId = trim((string) ($iv->calendar_event_id ?? ''));
+        if ($eventId === '') {
+            // Nothing was ever booked through us, so there is nothing to reconcile
+            // against. Not an error — most sittings in a fresh installation are here.
+            return ['ok' => true, 'changed' => false, 'gone' => false,
+                    'message' => 'This sitting has no calendar event.'];
+        }
+
+        $svc = GoogleMeetService::boot();
+        if (!$svc->canSchedule()) {
+            return ['ok' => false, 'changed' => false, 'gone' => false, 'message' => $svc->why()];
+        }
+
+        $r = $svc->readEvent(['event_id' => $eventId]);
+        if (!($r['ok'] ?? false)) {
+            return ['ok' => false, 'changed' => false, 'gone' => false,
+                    'message' => (string) $r['message']];
+        }
+
+        // ── THE EVENT IS GONE ───────────────────────────────────────────────
+        //
+        // Deleted or cancelled in Google. Recorded, and the sitting is NOT auto-cancelled:
+        // an operator who deleted the wrong row, or a calendar that briefly lied, must not
+        // be able to cancel an interview a nominee has already confirmed. Clearing the
+        // link is enough — the bot will not be sent to a room that no longer exists, and
+        // the screen says why.
+        if (empty($r['found'])) {
+            try {
+                DB::table('gates_interviews')->where('id', $id)->update([
+                    'meet_url'   => null,
+                    'meet_code'  => null,
+                    'updated_at' => Carbon::now()->toDateTimeString(),
+                ]);
+            } catch (\Throwable) {
+            }
+            return ['ok' => true, 'changed' => true, 'gone' => true,
+                    'message' => 'The calendar event for this sitting has been deleted, so the '
+                               . 'meeting link has been cleared. Create the meeting again, or '
+                               . 'cancel the interview if it is not happening.'];
+        }
+
+        $patch = [];
+        $said  = [];
+
+        $start = trim((string) ($r['start'] ?? ''));
+        if ($start !== '' && $start !== trim((string) ($iv->scheduled_at ?? ''))) {
+            $patch['scheduled_at'] = $start;
+            $said[] = 'moved to ' . $start . ' UTC';
+        }
+
+        $url = trim((string) ($r['meet_url'] ?? ''));
+        if ($url !== '' && $url !== trim((string) ($iv->meet_url ?? ''))) {
+            $patch['meet_url']  = mb_substr($url, 0, 400);
+            $patch['meet_code'] = self::meetCode($url);
+            $said[] = 'a new meeting link';
+        }
+
+        if ($patch === []) {
+            return ['ok' => true, 'changed' => false, 'gone' => false,
+                    'message' => 'The calendar agrees with this sitting.'];
+        }
+
+        try {
+            $patch['updated_at'] = Carbon::now()->toDateTimeString();
+            DB::table('gates_interviews')->where('id', $id)->update($patch);
+        } catch (\Throwable $e) {
+            error_log('[interview] reconcile ' . $id . ': ' . $e->getMessage());
+            return ['ok' => false, 'changed' => false, 'gone' => false,
+                    'message' => 'The calendar could not be read into this sitting just now.'];
+        }
+
+        return ['ok' => true, 'changed' => true, 'gone' => false,
+                'message' => 'Updated from the calendar: ' . implode(' and ', $said) . '.'];
     }
 }

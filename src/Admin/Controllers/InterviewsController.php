@@ -323,6 +323,53 @@ final class InterviewsController
         return ['ok' => true, 'message' => $r['message']];
     }
 
+    /**
+     * Save the addresses of people who are in the meeting but not on the panel.
+     *
+     * Its own action rather than a field on the schedule form: the guest list changes for
+     * reasons that have nothing to do with the appointment (an interpreter confirmed three
+     * days later), and folding it into "reschedule" would clear the nominee's confirmation
+     * and re-queue both reminders every time somebody added a note-taker.
+     */
+    public function guests(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id   = (int) ($args['id'] ?? 0);
+        $body = (array) $req->getParsedBody();
+
+        $r = InterviewService::setGuests($id, (string) ($body['guests'] ?? ''),
+                                         !empty($body['guests_can_edit']));
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'interview.guests', 'interview',
+                              $id, ['count' => (int) $r['saved']]);
+
+        return $this->back($res, '/admin/interviews/' . $id);
+    }
+
+    /**
+     * Re-read this sitting's appointment out of Google and correct our copy.
+     *
+     * Also runs on its own during the maintenance sweep for anything due within two hours
+     * ({@see \AfricaGates\Services\InterviewBot::sweep()}). Offered as a button as well
+     * because an operator who has just dragged the meeting wants the console to agree with
+     * the calendar NOW rather than on the next tick — and because "why does this page say
+     * Tuesday" deserves an answer they can press.
+     */
+    public function refresh(Request $req, Response $res, array $args): Response
+    {
+        if ($b = $this->blocked($res)) return $b;
+        $id = (int) ($args['id'] ?? 0);
+
+        $r = InterviewService::reconcileFromCalendar($id);
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'interview.calendar_refresh',
+                              'interview', $id, ['changed' => (bool) $r['changed']]);
+
+        return $this->back($res, '/admin/interviews/' . $id);
+    }
+
     public function invite(Request $req, Response $res, array $args): Response
     {
         if ($b = $this->blocked($res)) return $b;

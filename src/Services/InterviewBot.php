@@ -260,6 +260,26 @@ final class InterviewBot
 
         $touched = 0;
 
+        // ── 0. THE CALENDAR IS THE TRUTH; OUR ROW IS A COPY ──────────────────
+        //
+        // Everything below dispatches off `scheduled_at` and `meet_url` in OUR table, and
+        // an organiser who moves a meeting does it in Google Calendar — which is the whole
+        // reason for putting it there. Nothing told us. So the bot turned up at the old
+        // time to an empty room, the interview happened later with nobody recording it, and
+        // the only symptom was a missing transcript afterwards, at exactly the point where
+        // nobody can do anything about it.
+        //
+        // Reconciled BEFORE the dispatch window is evaluated, not after, because a sitting
+        // moved INTO the next twelve minutes has to be picked up on this tick and not the
+        // one after it.
+        //
+        // Scoped to sittings with a calendar event that are near enough to matter: one call
+        // per sitting is a network round trip through Apps Script, and the whole table
+        // every five minutes would be a quota problem rather than a feature. A window from
+        // an hour behind to two hours ahead covers both a meeting moved earlier and one
+        // pushed back.
+        self::reconcileDue($limit);
+
         // 1. Due, consented, and no bot yet.
         $due = DB::table('gates_interviews')
             ->whereIn('status', ['confirmed', 'live'])
@@ -300,6 +320,55 @@ final class InterviewBot
         }
 
         return $touched;
+    }
+
+    /**
+     * Re-read the calendar for the sittings about to happen.
+     *
+     * Best-effort and individually guarded: a calendar that is unreachable must not stop
+     * the bot being sent to the sittings whose details have not changed. The stale row is a
+     * worse outcome than no reconcile, but a dead sweep is worse than both.
+     *
+     * @return int how many sittings were actually corrected
+     */
+    private static function reconcileDue(int $limit): int
+    {
+        try {
+            if (!\AfricaGates\Services\GoogleMeetService::boot()->canSchedule()) return 0;
+        } catch (\Throwable) {
+            return 0;
+        }
+
+        try {
+            $rows = DB::table('gates_interviews')
+                ->whereIn('status', ['draft', 'invited', 'confirmed', 'live'])
+                ->whereNotNull('calendar_event_id')
+                ->where('calendar_event_id', '!=', '')
+                ->whereNotNull('scheduled_at')
+                ->where('scheduled_at', '<=', Carbon::now()->addHours(2)->toDateTimeString())
+                ->where('scheduled_at', '>=', Carbon::now()->subHour()->toDateTimeString())
+                ->orderBy('scheduled_at')
+                ->limit($limit)
+                ->get(['id']);
+        } catch (\Throwable $e) {
+            error_log('[interview-bot] reconcile query: ' . $e->getMessage());
+            return 0;
+        }
+
+        $changed = 0;
+        foreach ($rows as $r) {
+            try {
+                $res = InterviewService::reconcileFromCalendar((int) $r->id);
+                if (!empty($res['changed'])) {
+                    $changed++;
+                    error_log('[interview-bot] sitting ' . $r->id . ' ' . (string) $res['message']);
+                }
+            } catch (\Throwable $e) {
+                error_log('[interview-bot] reconcile ' . $r->id . ': ' . $e->getMessage());
+            }
+        }
+
+        return $changed;
     }
 
     /**

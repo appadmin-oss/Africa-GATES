@@ -176,6 +176,24 @@
   </form>
 </div>
 
+{# The row on this page is a COPY of an appointment that lives in Google Calendar. An
+   organiser who drags the meeting there has changed the truth and told us nothing — and
+   the recording bot is dispatched off this copy, so a stale row means a bot arriving at an
+   empty room while the interview happens somewhere else, unrecorded. #}
+{% if row.calendar_event_id %}
+<div class="is-sec">
+  <h2>The calendar</h2>
+  <p>This appointment lives in Google Calendar; what you see here is our copy of it. If you
+     moved the meeting there, or replaced its link, read it back in.</p>
+  <form method="post" action="/admin/interviews/{{ row.id }}/refresh" class="is-row">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <button class="is-btn is-btn--ghost" type="submit">Re-read from the calendar</button>
+    <span style="font-size:12px;color:#67797b">Happens on its own too, for any sitting due
+      within two hours — so the bot is sent to the right room at the right time.</span>
+  </form>
+</div>
+{% endif %}
+
 {# ── PEOPLE IN THE MEETING WHO ARE NOT ON THE PANEL ─────────────────────────
    The Google event's attendee list was built from ONE source: the judges assigned to this
    sitting. So the only way to get somebody into the call was to appoint them to the judging

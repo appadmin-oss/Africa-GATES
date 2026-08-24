@@ -53,6 +53,8 @@ function doPost(e) {
       if(action === 'calendar.cancel')  return calendarCancel(body.data||{});
       if(action === 'calendar.freebusy')return calendarFreeBusy(body.data||{});
       if(action === 'calendar.slots')   return calendarSlots(body.data||{});
+      // READ an event back. See the block comment above calendarRead().
+      if(action === 'calendar.read')    return calendarRead(body.data||{});
       return respond(false,'Unknown action: '+action);
     } catch(err) { return respond(false,err.message); }
   }
@@ -387,6 +389,72 @@ function calendarSync(d) {
   return respond(true, (withMeet && !url) ? 'Created without a Meet link' : 'Created', {
     ok:true, created:true, eventId: created.id||'', meetUrl: url,
     htmlLink: created.htmlLink || ''
+  });
+}
+
+/**
+ * READ one event back out of the calendar.
+ *
+ * ── WHY A READ, WHEN calendar.sync ALREADY WRITES ────────────────────────────
+ *
+ * Because the calendar is where the appointment actually LIVES, and the platform's copy of
+ * it is a copy. An organiser who drags the meeting to Thursday does it in Google Calendar —
+ * that is the whole point of putting it there — and nothing told us. Our row kept the old
+ * time, and the recording bot, which is dispatched off our row, turned up on Tuesday to an
+ * empty room while the interview happened on Thursday with nobody recording it.
+ *
+ * The same is true of the Meet link: a link created or replaced in the calendar (a
+ * conference re-created, an event rebuilt by hand after a mistake) never reached us, and
+ * the bot was sent to a URL that no longer opened a room.
+ *
+ * So this is the missing direction. `calendar.sync` pushes what we intend; this reads back
+ * what is true.
+ *
+ * Addressed by `eventId` when we have one, and by `key` otherwise — the same
+ * `agatesKey` extended property `findByKey` uses, so a sitting whose event id was never
+ * stored is still findable.
+ *
+ * A DELETED or cancelled event is reported as `found:false` rather than as an error: the
+ * caller's correct response is to stop expecting a meeting, and an exception would look
+ * like a broken integration instead.
+ */
+function calendarRead(d) {
+  const notReady = calendarReady(); if(notReady) return notReady;
+
+  const calendarId = d.calendarId || 'primary';
+  let ev = null;
+
+  try {
+    if(d.eventId) {
+      ev = Calendar.Events.get(calendarId, String(d.eventId));
+    } else if(d.key) {
+      ev = findByKey(calendarId, String(d.key));
+    } else {
+      return respond(false,'A read needs an eventId or a key.');
+    }
+  } catch(err) {
+    // 404/410 mean the event is gone, which is an ANSWER. Anything else is a fault.
+    const m = String(err.message||'');
+    if(/not found|deleted|404|410/i.test(m)) return respond(true,'Gone',{ok:true, found:false});
+    return respond(false, m);
+  }
+
+  if(!ev || ev.status === 'cancelled') return respond(true,'Gone',{ok:true, found:false});
+
+  return respond(true,'Found',{
+    ok: true,
+    found: true,
+    eventId:  ev.id || '',
+    // Google returns dateTime for a timed event and date for an all-day one. An
+    // all-day interview is not a thing, but returning both rather than assuming keeps a
+    // hand-made event from arriving here as an empty string.
+    startIso: (ev.start && (ev.start.dateTime || ev.start.date)) || '',
+    endIso:   (ev.end   && (ev.end.dateTime   || ev.end.date))   || '',
+    timezone: (ev.start && ev.start.timeZone) || '',
+    meetUrl:  meetUrlOf(ev),
+    htmlLink: ev.htmlLink || '',
+    summary:  ev.summary || '',
+    status:   ev.status || ''
   });
 }
 

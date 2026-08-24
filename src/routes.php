@@ -3397,6 +3397,10 @@ return function(App $app) {
             // list changes for reasons unrelated to the appointment, and folding it into
             // reschedule would re-queue the reminders every time somebody adds one.
             $s->post('/{id:[0-9]+}/guests',      \AfricaGates\Admin\Controllers\InterviewsController::class.':guests');
+            // Re-read the appointment out of Google. The calendar is where the meeting
+            // actually lives; the row here is a copy, and an organiser who drags it there
+            // changes the truth without telling us.
+            $s->post('/{id:[0-9]+}/refresh',     \AfricaGates\Admin\Controllers\InterviewsController::class.':refresh');
             $s->post('/{id:[0-9]+}/invite',      \AfricaGates\Admin\Controllers\InterviewsController::class.':invite');
             $s->post('/{id:[0-9]+}/rebuild',     \AfricaGates\Admin\Controllers\InterviewsController::class.':rebuild');
             // The console's save button. Answers JSON, because it fires while a person is
