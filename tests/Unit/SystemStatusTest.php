@@ -399,6 +399,170 @@ final class SystemStatusTest extends TestCase
         $this->assertStringNotContainsString('Everything we can check is <em>working</em>', $html);
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    // "WAS IT BROKEN EARLIER?"
+    // ════════════════════════════════════════════════════════════════════════
+    //
+    // Measuring at request time is what makes the live check honest, and it is also what
+    // makes it blind: it says what is true this second and nothing about the two hours
+    // somebody could not check out. Without a history, a supporter whose payment failed at
+    // nine and who loads a green page at noon concludes the fault was theirs.
+
+    private function snapshot(string $day, string $overall, int $hour = 3): void
+    {
+        DB::table('gates_status_log')->insert([
+            'taken_at'        => $day . sprintf(' %02d:00:00', $hour),
+            'overall'         => $overall,
+            'components_json' => '[]',
+            'created_at'      => $day . sprintf(' %02d:00:00', $hour),
+        ]);
+    }
+
+    public function test_the_history_covers_the_whole_window_ending_today(): void
+    {
+        DB::table('gates_status_log')->truncate();
+        $h = SystemStatus::history();
+
+        $this->assertCount(SystemStatus::HISTORY_DAYS, $h);
+        $this->assertSame(date('Y-m-d'), $h[count($h) - 1]['date'], 'the strip must end today');
+    }
+
+    /**
+     * A day with nothing recorded is UNKNOWN, never OK.
+     *
+     * And on this deployment a gap usually IS the outage: the thing that writes these rows
+     * is the scheduled task, so a missing day is evidence the task was not running — the
+     * one failure no self-report can cover, because the reporter is what stopped.
+     */
+    public function test_a_day_with_no_snapshot_reports_unknown_and_never_working(): void
+    {
+        DB::table('gates_status_log')->truncate();
+        $this->snapshot(date('Y-m-d'), SystemStatus::OK);
+
+        foreach (SystemStatus::history() as $day) {
+            if ($day['date'] === date('Y-m-d')) continue;
+            $this->assertSame(SystemStatus::UNKNOWN, $day['status'],
+                $day['date'] . ' had no snapshot and did not report as unchecked');
+            $this->assertSame(0, $day['samples']);
+        }
+    }
+
+    /**
+     * Worst state wins within a day.
+     *
+     * A day with one broken hour is not a good day, and an average would turn a real outage
+     * into a pale shade of green — which is the same rounding-up the whole page exists to
+     * refuse.
+     */
+    public function test_one_bad_hour_makes_the_whole_day_bad(): void
+    {
+        DB::table('gates_status_log')->truncate();
+        $today = date('Y-m-d');
+
+        $this->snapshot($today, SystemStatus::OK, 1);
+        $this->snapshot($today, SystemStatus::OK, 2);
+        $this->snapshot($today, SystemStatus::DOWN, 3);
+        $this->snapshot($today, SystemStatus::OK, 4);
+
+        $last = SystemStatus::history()[SystemStatus::HISTORY_DAYS - 1];
+        $this->assertSame(SystemStatus::DOWN, $last['status']);
+        $this->assertSame(4, $last['samples']);
+    }
+
+    /** DEGRADED does not get promoted to DOWN, or demoted to fine. */
+    public function test_a_degraded_day_reports_as_degraded(): void
+    {
+        DB::table('gates_status_log')->truncate();
+        $today = date('Y-m-d');
+        $this->snapshot($today, SystemStatus::OK, 1);
+        $this->snapshot($today, SystemStatus::DEGRADED, 2);
+
+        $this->assertSame(SystemStatus::DEGRADED,
+            SystemStatus::history()[SystemStatus::HISTORY_DAYS - 1]['status']);
+    }
+
+    /** An empty history says so rather than reporting a fortnight of outage. */
+    public function test_an_installation_with_no_record_says_so(): void
+    {
+        DB::table('gates_status_log')->truncate();
+        $note = SystemStatus::historyNote(SystemStatus::history());
+
+        $this->assertStringContainsString('Nothing has been recorded yet', $note);
+        $this->assertStringNotContainsString('had a problem', $note,
+            'a fresh installation must not be reported as a fortnight of outage');
+    }
+
+    /** The note counts against the days it actually has, not against the window. */
+    public function test_the_note_counts_recorded_days_not_calendar_days(): void
+    {
+        DB::table('gates_status_log')->truncate();
+        $this->snapshot(date('Y-m-d'), SystemStatus::DOWN);
+        $this->snapshot(date('Y-m-d', strtotime('-1 day')), SystemStatus::OK);
+
+        $note = SystemStatus::historyNote(SystemStatus::history());
+        $this->assertStringContainsString('1 of the last 2 recorded days', $note);
+        $this->assertStringContainsString('dashed square', $note,
+            'a strip with gaps must explain what a gap means');
+    }
+
+    /** And it does not explain a dashed square on a strip that has none. */
+    public function test_a_complete_strip_does_not_explain_a_square_it_does_not_show(): void
+    {
+        DB::table('gates_status_log')->truncate();
+        for ($i = 0; $i < SystemStatus::HISTORY_DAYS; $i++) {
+            $this->snapshot(date('Y-m-d', strtotime('-' . $i . ' days')), SystemStatus::OK);
+        }
+
+        $note = SystemStatus::historyNote(SystemStatus::history());
+        $this->assertStringNotContainsString('dashed square', $note);
+    }
+
+    /** record() writes one row and never throws — it runs inside the maintenance tick. */
+    public function test_recording_a_snapshot_writes_one_row_and_keeps_only_the_shape(): void
+    {
+        DB::table('gates_status_log')->truncate();
+
+        $this->assertSame(1, SystemStatus::record());
+        $row = DB::table('gates_status_log')->first();
+        $this->assertNotNull($row);
+
+        $parts = json_decode((string) $row->components_json, true);
+        $this->assertIsArray($parts);
+        $this->assertNotSame([], $parts);
+        foreach ($parts as $p) {
+            $this->assertSame(['name', 'status'], array_keys($p),
+                'the prose is written for a reader NOW and would be quietly wrong in a week');
+        }
+    }
+
+    public function test_snapshots_past_the_retention_window_are_dropped(): void
+    {
+        DB::table('gates_status_log')->truncate();
+        $this->snapshot(date('Y-m-d', strtotime('-' . (SystemStatus::KEEP_DAYS + 5) . ' days')),
+                        SystemStatus::OK);
+        $this->snapshot(date('Y-m-d'), SystemStatus::OK);
+
+        $this->assertSame(1, SystemStatus::prune());
+        $this->assertSame(1, (int) DB::table('gates_status_log')->count());
+    }
+
+    /**
+     * The recorder must be wired into the tick, and pruned beside the mail log.
+     *
+     * A recorder nobody calls is an empty table, and the page would show a fortnight of
+     * "not recorded" forever. A recorder with no pruner is a table that grows for the life
+     * of the deployment.
+     */
+    public function test_the_maintenance_run_records_and_prunes(): void
+    {
+        $src = (string) file_get_contents($this->root() . '/src/Support/Maintenance.php');
+
+        $this->assertStringContainsString('SystemStatus::record()', $src,
+            'nothing writes the history, so the strip stays empty forever');
+        $this->assertStringContainsString('SystemStatus::prune()', $src,
+            'nothing trims the history, so the table grows without bound');
+    }
+
     /** The note names the worst thing, because that is what a reader has ten seconds for. */
     public function test_the_note_names_a_real_problem_when_there_is_one(): void
     {

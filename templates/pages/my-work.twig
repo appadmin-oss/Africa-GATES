@@ -1,20 +1,24 @@
 {% extends "layout/gates.twig" %}
 
-{# ── THE NOMINEE'S QUESTIONNAIRE, TWO WAYS ────────────────────────────────────
+{# ── THE NOMINEE'S QUESTIONNAIRE ──────────────────────────────────────────────
 
    The first version of this page was a form nearly five thousand pixels tall: eleven
    questions, each with help text, then a works list, then a submit panel. A reasonable form
    and an intimidating one. The person reading it is a teacher with an hour after school, on a
    phone, who has never used this site.
 
-   So there are two modes over ONE saved draft:
+   It is now one question at a time, ASKED rather than listed: a mark, a bubble, the help and
+   what a judge is looking for underneath, and a composer below with a microphone beside it.
+   The shape of the interview, over the fields of the form — so the page that works with no
+   AI key and no JavaScript still feels like the version people finish.
 
-     • A CONVERSATION, which is the default. One question at a time, with a follow-up when an
-       answer has no number or no place in it. Whatever is said is stored verbatim — the model
-       chooses what to ask, never what the answer says.
+   There used to be a third way to answer, between this and the live interview: a guided chat
+   over the same draft. It is gone. Three doors onto one submission is not three times the
+   help, it is a choice nobody has the information to make, and the flag that showed the door
+   to some nominees and not others made the page mean different things to different people.
 
-     • THE FORM, for somebody who would rather see everything at once, or come back and edit
-       one line. Switching does not lose anything: both write the same answers.
+   THE FIELDS ALL STAY IN THE DOM. Only their visibility changes, so the form still submits
+   every answer in one go and still works with JavaScript switched off.
 
    Everything else follows from who is reading:
 
@@ -29,8 +33,8 @@
        awards scheme is impersonated and this email lands with exactly the people that is
        aimed at.
 
-   The form works with JavaScript off. The conversation cannot — so the form is always
-   reachable, never hidden behind a toggle that needs script to un-toggle. #}
+   The form works with JavaScript off: without it the stepper does not step, every question
+   is simply visible at once, and the submission is identical. #}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
@@ -62,36 +66,49 @@
   .mw__sumt{ margin:8px 0 0; font-size:15.5px; line-height:1.65; color:#10292C; max-width:64ch }
   .mw__suml{ margin:12px 0 0; padding-left:19px; font-size:14px; line-height:1.7; color:#3a4448 }
   .mw__suml li{ margin:3px 0 0 }
-  .mw__mode--back{ width:100%; text-align:left }
 
-  /* The one remaining alternative to the form — back to the live interview. */
-  .mw__mode{ cursor:pointer; font:650 13.5px/1.3 inherit; padding:12px 14px;
-    border-radius:12px; border:1px solid rgba(16,41,44,.16); background:#fff; color:#3d5254 }
-  .mw__mode small{ display:block; font-weight:400; font-size:11.5px; margin-top:3px; opacity:.72 }
+  /* The one remaining alternative to the form — back to the live interview. Quiet, and at
+     the bottom: the loudest control on a page whose job is "answer this question" must not
+     be the one that leaves it. */
+  .mw__back{ margin-top:18px }
+  .mw__back__go{ cursor:pointer; width:100%; text-align:left; font:600 13.5px/1.4 inherit;
+    padding:14px 16px; border-radius:12px; border:1px dashed rgba(16,41,44,.22);
+    background:transparent; color:#3d5254 }
+  .mw__back__go:hover{ border-color:rgba(35,123,34,.45); color:#1a6118 }
+  .mw__back__go small{ display:block; font-weight:400; font-size:11.5px; margin-top:3px;
+    opacity:.75 }
 
   .mw__hint{ margin-top:8px; font-size:12px; color:var(--ag-ink-soft,#626a6e) }
 
-  /* ── A QUESTION, ASKED ────────────────────────────────────────────────────
-     Shaped like the interview rather than like a form row. The mark, the bubble and the
-     composer beneath it are the interview screen; underneath, the fields are the same named
-     inputs they have always been, so nothing about the submission changed. */
-  .mw__asked{ display:flex; align-items:flex-start; gap:10px }
-  .mw__mark{ flex:0 0 auto; width:28px; height:28px; margin-top:2px; border-radius:50%;
-    background:#10292c; position:relative }
-  .mw__mark::after{ content:""; position:absolute; inset:9px; border-radius:50%;
-    background:#8fd48c }
-  .mw__bubble{ flex:1 1 auto; min-width:0; background:#f1f6f1; border:1px solid rgba(16,41,44,.08);
-    border-radius:4px 16px 16px 16px; padding:14px 16px }
-  .mw__bubble .mw__lab{ margin:0 }
+  /* ── ONE STEP OF A WIZARD ─────────────────────────────────────────────────
+     A FORM, and it says so: a label, help under it, one field, one thing under the field.
+
+     An earlier version put the question in a speech bubble with an avatar beside it. That
+     made a form pretend to be a conversation, which costs trust twice — the mark implies
+     somebody is listening when nothing is, and the answer box stops looking like the place
+     the words are actually kept. The wizard belongs in the CHROME (the step counter, the
+     map, Back and Next), not in a costume worn by the field. */
+  .mw__fs{ border-left:3px solid rgba(35,123,34,.28); padding-left:16px; margin-top:4px }
+  .mw__qhead{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px }
+  .mw__qhead .mw__lab{ margin:0; flex:1 1 auto; min-width:0 }
   .mw__spk{ cursor:pointer; flex:0 0 auto; background:#fff; border:1px solid rgba(16,41,44,.15);
     border-radius:999px; width:30px; height:30px; padding:0; font-size:13px; line-height:1;
-    color:#237b22; margin-top:2px }
+    color:#237b22 }
   .mw__spk[aria-pressed="true"]{ background:#237b22; color:#fff; border-color:#237b22 }
 
-  /* The composer. The microphone sits beside the box, exactly where it was in the
-     conversation, because dictating a long answer is the reason voice is here at all. */
-  .mw__answer{ display:flex; align-items:flex-start; gap:9px; margin-top:12px; padding-left:38px }
-  .mw__answer .mw__in{ margin-top:0 }
+  /* Under the field: what it is judged against, and the way to fill it by speaking. A
+     labelled control rather than a bare round button — beside the box that read as the send
+     key on a chat composer, which is the thing this page is deliberately not. */
+  .mw__under{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; margin-top:9px }
+  .mw__dictate{ cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+    background:#fff; border:1px solid rgba(16,41,44,.18); border-radius:999px;
+    padding:7px 14px 7px 11px; font:650 12.5px/1 inherit; color:#3d5254 }
+  .mw__dictate:hover{ border-color:rgba(35,123,34,.45); color:#1a6118 }
+  .mw__dictate--on{ background:#b3261e; border-color:#b3261e; color:#fff;
+    animation:mwPulse 1.3s infinite }
+  .mw__dictate:disabled{ opacity:.5; cursor:default }
+  @media (prefers-reduced-motion: reduce){ .mw__dictate--on{ animation:none } }
   .mw__mic{ cursor:pointer; flex:0 0 auto; width:52px; height:52px; border-radius:14px;
     background:#fff; border:1px solid rgba(16,41,44,.2); font-size:19px; line-height:1; color:#10292C }
   .mw__mic--on{ background:#b3261e; border-color:#b3261e; color:#fff; animation:mwPulse 1.3s infinite }
@@ -146,8 +163,18 @@
   .mw__dot i{ position:absolute; top:4px; right:4px; width:4px; height:4px; border-radius:50%;
     background:#c9a24b }
   .mw__dot--here i{ background:#e8c98a }
-  .mw__steps{ display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-top:16px;
+  .mw__stepline{ display:flex; align-items:baseline; justify-content:space-between; gap:12px }
+  .mw__slab--soft{ color:var(--ag-ink-soft,#626a6e); font-weight:400 }
+  .mw__steps{ display:flex; gap:9px; align-items:center; flex-wrap:wrap; margin-top:18px;
     padding-top:14px; border-top:1px solid rgba(16,41,44,.08) }
+  /* Next is the primary and Back is not. They used to be identical dark pills, so the one
+     somebody wanted nine times out of ten was the one they had to stop and read for. */
+  .mw__nav{ cursor:pointer; border-radius:999px; font:700 13.5px/1 inherit; padding:12px 18px;
+    min-height:44px; border:1px solid transparent }
+  .mw__nav--next{ background:#10292C; color:#fff; order:2 }
+  .mw__nav--next:hover{ background:#1a3f43 }
+  .mw__nav--back{ background:#fff; color:#3d5254; border-color:rgba(16,41,44,.18); order:1 }
+  .mw__nav--back:hover{ border-color:rgba(16,41,44,.4); color:#10292C }
   .mw__seek{ margin:7px 0 0; font-size:12.5px; line-height:1.6; color:#1c5f1b;
     background:#f2f9f2; border-radius:9px; padding:8px 11px }
   /* Help, never a mark. No number, no percentage, no traffic light with a score behind it. */
@@ -209,9 +236,10 @@
   .mw__free b{ color:#10292c }
   .mw__sent{ background:#f0fdf4; border:1px solid #b6e3b6; border-radius:16px; padding:22px }
   @media (max-width:520px){
-    /* The composer loses its indent on a narrow screen: 38px of alignment is worth less
-       than 38px of room to type in. */
-    .mw__answer{ padding-left:0 }
+    /* The rule loses its indent on a narrow screen: 16px of alignment is worth less than
+       16px of room to read in. */
+    .mw__fs{ padding-left:12px }
+    .mw__under{ align-items:flex-start; flex-direction:column }
   }
 </style>
 {% endblock %}
@@ -308,6 +336,32 @@
       /* Rendered once, from the server. It used to be re-bound on every chat turn; with the
          chat gone the only thing that moves an answer is a save, and a save reloads. */
       ready: {{ (readiness ?? {})|json_encode }},
+
+      /* ── PROGRESS, COUNTED LIVE FROM THE FIELDS ───────────────────────────
+         The bar used to be fed by the chat endpoint, which returned a progress object with
+         every turn. With the chat gone there is nothing pushing that object, so the count is
+         taken from the inputs themselves — which is more truthful anyway: it moves as
+         somebody types rather than only after a save.
+
+         It lives in the OUTER scope, not in the stepper, because the sticky bar is rendered
+         above the form and a value defined inside the stepper is invisible to it. That was
+         the bug: the bar referenced progress and pct(), both of which had gone with the
+         chat, and every Alpine expression on the page after it stopped evaluating.
+
+         `typed` is only ever a reactive dependency — answered() reads the DOM, and Alpine
+         cannot know a plain textarea changed. The stepper writes through to this one. */
+      typed: 0,
+      qs: {{ form.questions|map(q => {"slug": q.slug, "req": q.is_required ? true : false,
+                                      "label": q.label})|json_encode }},
+      answered(slug){
+        this.typed;
+        const el = document.getElementById("q-" + slug);
+        return !!(el && el.value && el.value.trim() !== "");
+      },
+      qDone(){ return this.qs.filter(q => this.answered(q.slug)).length },
+      qMissing(){ return this.qs.filter(q => q.req && !this.answered(q.slug)) },
+      qLeft(){ return this.qMissing().length },
+      qPct(){ return this.qs.length ? Math.round(this.qDone() / this.qs.length * 100) : 0 },
 
       /* ── voice ────────────────────────────────────────────────────────────
          `voice` is the CAPABILITY (an ElevenLabs key exists); `voiceOn` is what the nominee
@@ -539,13 +593,19 @@
     }'>
 
       {# ── progress ─────────────────────────────────────────────────────── #}
-      <div class="mw__prog">
-        <b x-text="(progress.answered || 0) + ' of ' + (progress.total || 0) + ' answered'">
-          {{ chat.progress.answered|default(0) }} of {{ chat.progress.total|default(0) }} answered</b>
-        <div class="mw__bar"><i :style="'width:' + pct() + '%'"></i></div>
-        <span x-text="(progress.required_answered || 0) >= (progress.required || 0)
+      <div class="mw__prog" role="status" aria-live="polite">
+        {# The server-rendered figures are the no-script answer AND the first paint, so the
+           bar never flashes empty before Alpine attaches. #}
+        <b x-text="qDone() + ' of ' + qs.length + ' answered'">
+          {{ form.questions|filter(q => form.answers[q.slug]|default('') is not empty)|length }}
+          of {{ form.questions|length }} answered</b>
+        <div class="mw__bar"><i :style="'width:' + qPct() + '%'"></i></div>
+        <span x-text="qLeft() === 0
                         ? 'You can send it whenever you like'
-                        : ((progress.required || 0) - (progress.required_answered || 0)) + ' still needed before you can send'"></span>
+                        : qLeft() + ' still needed before you can send'"
+          >{{ readiness.missing|default([])|length == 0
+               ? 'You can send it whenever you like'
+               : readiness.missing|length ~ ' still needed before you can send' }}</span>
       </div>
 
       {# ══ A MINUTE IN THEIR OWN VOICE ═════════════════════════════════════
@@ -693,28 +753,6 @@
       </div>
       {% endif %}
 
-      {# ── THE WAY BACK TO THE CONVERSATION ─────────────────────────────────
-         "Fill in the form instead" used to be a one-way door: pressing it once, on purpose
-         or by accident on a phone, meant the form for the rest of the cycle with no control
-         anywhere on the page that would undo it. Nothing is lost in either direction — the
-         ledger keeps every turn and the form keeps its answers — which is what makes the
-         return safe to offer.
-
-         This is the ONLY remaining alternative to the form, and that is the point. There
-         used to be a third: "answer by chatting", a guided question-by-question chat that
-         was neither the live interview nor the form. Three doors onto the same draft is not
-         three times the help — it is a choice nobody has the information to make, on the
-         screen where somebody is trying to describe their life's work. The form is now that
-         conversation, one question at a time, and the interview is the interview. #}
-      {% if can_resume_interview %}
-        <form method="post" action="/my-work/{{ token }}/interview/resume" class="mw__back">
-          <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <button type="submit" class="mw__mode mw__mode--back">
-            Go back to the conversation
-            <small>Everything you have typed here stays saved, and you can come back again.</small>
-          </button>
-        </form>
-      {% endif %}
 
       {# ══ THE FORM ══════════════════════════════════════════════════════ #}
       <form method="post" action="/my-work/{{ token }}" id="mwForm" data-mw-answers>
@@ -730,25 +768,17 @@
              submits every answer in one go and still works with JavaScript switched off — a
              stepper that only rendered the current step would have made the no-script path
              submit one answer and silently drop ten. #}
-        <div class="mw__card" x-show="mode === 'form'" x-cloak
+        <div class="mw__card"
              x-data='{ step: 0, total: {{ form.questions|length }},
                coach: {}, busy: {},
                go(n){ this.step = Math.max(0, Math.min(this.total - 1, n));
                       this.$nextTick(() => { const el = this.$refs.stepTop;
                                              if(el) el.scrollIntoView({ block: "start" }) }) },
-               /* Read from the LIVE field rather than from what the page was rendered with, so
-                  the map fills in as somebody types instead of only after a save. */
-               /* `typed` exists ONLY to be a reactive dependency. answered() reads the DOM,
-                  and Alpine cannot know a plain <textarea> changed — so without touching a
-                  reactive value here the map would render once at load and then never move,
-                  which is worse than no map: it would say "unanswered" beside a question
-                  somebody had just finished. */
-               typed: 0,
-               answered(slug){
-                 this.typed;
-                 const el = document.getElementById("q-" + slug);
-                 return !!(el && el.value && el.value.trim() !== "");
-               },
+               /* `typed` and answered() are NOT redeclared here. They live in the outer
+                  scope so the sticky progress bar above the form can read them too, and
+                  Alpine writes `typed++` through to the outer property. Redeclaring them
+                  would shadow it, and the bar would freeze at whatever the page loaded
+                  with — saying "unanswered" beside a question somebody had just finished. */
                /* One request per pause in typing, not per keystroke: this reads an answer, and
                   reading it four times a second would be noise for the nominee and a bill for
                   the operator. */
@@ -779,11 +809,14 @@
              Every question is a target, and each one says whether it has an answer yet, so the
              map doubles as the answer to "how much is left" that a bar cannot give. #}
           <div class="mw__steptop" x-ref="stepTop">
-            <span class="mw__slab" x-text="'Question ' + (step + 1) + ' of ' + total"></span>
+            <div class="mw__stepline">
+              <span class="mw__slab" x-text="'Step ' + (step + 1) + ' of ' + total">Step 1 of {{ form.questions|length }}</span>
+              <span class="mw__slab mw__slab--soft" x-text="qDone() + ' answered'"></span>
+            </div>
             <div class="mw__bar" style="margin-top:8px">
               <i :style="'width:' + Math.round((step + 1) / total * 100) + '%'"></i></div>
 
-            <div class="mw__map" role="group" aria-label="Jump to a question">
+            <div class="mw__map" role="group" aria-label="Jump to a step">
               {% for q in form.questions %}
                 <button type="button" class="mw__dot"
                         :class="[step === {{ loop.index0 }} ? 'mw__dot--here' : '',
@@ -794,7 +827,7 @@
                         >{{ loop.index }}{% if q.is_required %}<i aria-hidden="true"></i>{% endif %}</button>
               {% endfor %}
             </div>
-            <p class="mw__hint" style="margin-top:7px">Every question is here — go straight to any
+            <p class="mw__hint" style="margin-top:7px">Every step is here — go straight to any
               of them. Green means you have written something; a gold dot means that answer is
               needed before you can send.</p>
           </div>
@@ -815,42 +848,40 @@
             {% set val = form.answers[q.slug]|default('') %}
             <div class="mw__q" x-show="step === {{ loop.index0 }}" x-cloak>
 
-              <div class="mw__asked">
-                <span class="mw__mark" aria-hidden="true"></span>
-                <div class="mw__bubble">
-                  <label class="mw__lab" for="q-{{ q.slug }}">
-                    {{ q.label }}{% if q.is_required %} <span class="mw__req">*</span>{% endif %}
-                  </label>
-                  {% if q.help %}<p class="mw__help">{{ q.help }}</p>{% endif %}
-                  {# What a judge is actually looking for, said under the question rather than
-                     discovered afterwards. Static text: it is the same for everybody and must
-                     be there with no AI key and no network. #}
-                  <p class="mw__seek">{{ looking_for[q.slug]|default('') }}</p>
-                  {% if q.criterion %}<span class="mw__crit">Judged under: {{ q.criterion }}</span>{% endif %}
-                </div>
-                {% if voice %}
-                  {# Rendered server-side rather than disabled: a nominee should never be
-                     shown the shape of a feature the operator has not bought. #}
-                  <button type="button" class="mw__spk"
-                          :aria-pressed="playing === {{ q.slug|json_encode }}"
-                          @click="play({{ q.slug|json_encode }})"
-                          :aria-label="playing === {{ q.slug|json_encode }}
-                                       ? 'Stop reading this question out' : 'Read this question out'"
-                          x-text="playing === {{ q.slug|json_encode }} ? '■' : '▶'"></button>
-                {% endif %}
-              </div>
+              {# ── THE QUESTION, AS A FIELDSET ──────────────────────────────
+                   A wizard step, not a chat turn. The first version of this put the question
+                   in a speech bubble with an avatar beside it, which made a form pretend to
+                   be a conversation — and a form that pretends is a form people distrust
+                   twice: once because the mark implies somebody is listening when nothing
+                   is, and again because the answer box stops looking like the place their
+                   words are actually stored.
 
-              <div class="mw__answer">
-                {% if voice and q.kind == 'textarea' %}
-                  <button type="button" class="mw__mic" :class="recording && dictating === {{ q.slug|json_encode }} ? 'mw__mic--on' : ''"
-                          :disabled="hearing" @click="mic({{ q.slug|json_encode }})"
-                          :aria-pressed="recording && dictating === {{ q.slug|json_encode }}"
-                          :aria-label="recording && dictating === {{ q.slug|json_encode }}
-                                       ? 'Stop recording' : 'Answer this out loud'"
-                    ><span class="mw__micglyph"
-                           :class="recording && dictating === {{ q.slug|json_encode }} && 'mw__micglyph--stop'"
-                           aria-hidden="true"></span></button>
-                {% endif %}
+                   It is a form. It says so: a legend, a label, help under it, one field. The
+                   wizard is in the CHROME — the step counter, the map, Back and Next — which
+                   is what actually makes eleven questions feel like eleven steps instead of
+                   one wall. #}
+              <div class="mw__fs">
+                <div class="mw__qhead">
+                  <label class="mw__lab" for="q-{{ q.slug }}">
+                    {{ q.label }}{% if q.is_required %} <span class="mw__req" title="Needed before you can send">*</span>{% endif %}
+                  </label>
+                  {% if voice %}
+                    {# Rendered server-side rather than disabled: a nominee should never be
+                       shown the shape of a feature the operator has not bought. #}
+                    <button type="button" class="mw__spk"
+                            :aria-pressed="playing === {{ q.slug|json_encode }}"
+                            @click="play({{ q.slug|json_encode }})"
+                            :aria-label="playing === {{ q.slug|json_encode }}
+                                         ? 'Stop reading this question out' : 'Read this question out'"
+                            x-text="playing === {{ q.slug|json_encode }} ? '■' : '▶'"></button>
+                  {% endif %}
+                </div>
+
+                {% if q.help %}<p class="mw__help">{{ q.help }}</p>{% endif %}
+                {# What a judge is actually looking for, said under the question rather than
+                   discovered afterwards. Static text: it is the same for everybody and must
+                   be there with no AI key and no network. #}
+                <p class="mw__seek">{{ looking_for[q.slug]|default('') }}</p>
 
                 {% if q.kind == 'textarea' %}
                   <textarea class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
@@ -871,6 +902,27 @@
                          maxlength="{{ q.max_len }}" value="{{ val }}" @input="typed++"
                          placeholder="{{ q.placeholder ?: (q.kind == 'url' ? 'https://…' : '') }}">
                 {% endif %}
+
+                <div class="mw__under">
+                  {% if q.criterion %}<span class="mw__crit">Judged under: {{ q.criterion }}</span>{% endif %}
+                  {% if voice and q.kind == 'textarea' %}
+                    {# Dictation is a way of FILLING THIS FIELD, so it sits under the field
+                       and says what it does. As a bare round button beside the box it read
+                       as a send control on a chat composer, which is the thing this page is
+                       deliberately not. #}
+                    <button type="button" class="mw__dictate"
+                            :class="recording && dictating === {{ q.slug|json_encode }} ? 'mw__dictate--on' : ''"
+                            :disabled="hearing" @click="mic({{ q.slug|json_encode }})"
+                            :aria-pressed="recording && dictating === {{ q.slug|json_encode }}">
+                      <span class="mw__micglyph"
+                            :class="recording && dictating === {{ q.slug|json_encode }} && 'mw__micglyph--stop'"
+                            aria-hidden="true"></span>
+                      <span x-text="recording && dictating === {{ q.slug|json_encode }}
+                                    ? 'Stop and write it down' : 'Say it instead of typing'"
+                        >Say it instead of typing</span>
+                    </button>
+                  {% endif %}
+                </div>
               </div>
 
               {% if voice %}
@@ -898,12 +950,21 @@
                 </div>
               </template>
 
+              {# ── THE WIZARD'S OWN CONTROLS ─────────────────────────────
+                   Next is the primary and Back is secondary, because 9 times out of 10 the
+                   next press is forward — and the two used to be identical dark pills, so
+                   the one people wanted was the one they had to read for.
+
+                   Next says "or skip" only on an optional question. Saying it on a required
+                   one would be an offer we then refuse at the bottom of the page. #}
               <div class="mw__steps">
-                <button type="button" class="mw__mini" x-show="step > 0" @click="go(step - 1)">← Back</button>
-                <button type="button" class="mw__mini" x-show="step < total - 1"
-                        @click="go(step + 1)">{{ q.is_required ? 'Next' : 'Next — or skip' }} →</button>
-                <span class="mw__hint" x-show="step === total - 1" x-cloak
-                      style="margin:0">That is the last question.</span>
+                <button type="button" class="mw__nav mw__nav--back" x-show="step > 0"
+                        @click="go(step - 1)">← Back</button>
+                <button type="button" class="mw__nav mw__nav--next" x-show="step < total - 1"
+                        @click="go(step + 1)"
+                  >{{ q.is_required ? 'Next question' : 'Next — or skip this one' }} →</button>
+                <span class="mw__hint" x-show="step === total - 1" x-cloak style="margin:0">
+                  That is the last question — the rest of the page is below.</span>
               </div>
             </div>
           {% endfor %}
@@ -1004,10 +1065,29 @@
         <div class="mw__card">
           <h2>Send it to the judges</h2>
 
-          <div class="mw__tip" x-show="(ready.missing || []).length" x-cloak>
+          {# ── COUNTED FROM THE FIELDS, NOT FROM THE PAGE LOAD ───────────────
+               `ready.missing` is a server snapshot taken when the page was rendered. Bound
+               directly it produced a page arguing with itself: the bar at the top said
+               "2 still needed" while this list, three inches below, still named the question
+               that had just been answered. Somebody looking at both has no way to know which
+               one to believe, and the safe reading — "it did not save" — is the wrong one.
+
+               Same source as the bar now. The server list is the no-script fallback and the
+               first paint. #}
+          <div class="mw__tip" x-show="qLeft() > 0" x-cloak>
             <strong>Still needed before you can send:</strong>
-            <ul><template x-for="m in (ready.missing || [])" :key="m"><li x-text="m"></li></template></ul>
+            <ul><template x-for="q in qMissing()" :key="q.slug"><li x-text="q.label"></li></template></ul>
           </div>
+          <noscript>
+            {% set still = form.questions|filter(q => q.is_required
+                             and form.answers[q.slug]|default('') is empty) %}
+            {% if still|length %}
+              <div class="mw__tip">
+                <strong>Still needed before you can send:</strong>
+                <ul>{% for q in still %}<li>{{ q.label }}</li>{% endfor %}</ul>
+              </div>
+            {% endif %}
+          </noscript>
 
           {# Help, not a score. Naming what a judge will find thin BEFORE they send is the
              difference between a fixable gap and a wasted claim. #}
@@ -1079,10 +1159,44 @@
         </div>
       </form>
 
-      {# ── uploads: their own form, so a rejected file never costs a page of typing ── #}
+
+      {# ── THE WAY BACK TO THE CONVERSATION ─────────────────────────────────
+         "Fill in the form instead" used to be a one-way door: pressing it once, on purpose
+         or by accident on a phone, meant the form for the rest of the cycle with no control
+         anywhere on the page that would undo it. Nothing is lost in either direction — the
+         ledger keeps every turn and the form keeps its answers — which is what makes the
+         return safe to offer.
+
+         DOWN HERE, and quiet. It used to be the second thing on the page, in a full-width
+         card directly under the progress bar — so the loudest control on a screen whose one
+         job is "answer this question" was a control for LEAVING it. Somebody who chose the
+         form is not looking for the exit; somebody who wants it will look at the bottom,
+         which is where the other way out already lives.
+
+         This is the ONLY remaining alternative to the form. There used to be a third —
+         "answer by chatting", a guided chat that was neither the interview nor the form.
+         Three doors onto one draft is not three times the help. #}
+      {% if can_resume_interview %}
+        <form method="post" action="/my-work/{{ token }}/interview/resume" class="mw__back">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button type="submit" class="mw__back__go">
+            Would you rather answer these out loud, in a conversation?
+            <small>Everything you have typed here stays saved, and you can come back again.</small>
+          </button>
+        </form>
+      {% endif %}
+
+      {# ── uploads WITHOUT JAVASCRIPT ──────────────────────────────────────
+           Wrapped in <noscript> because with script the works list above has its own
+           per-item "Attach a file" that creates the row first and needs no save. Showing
+           both put two upload controls on one page, and the one down here still carried
+           the instruction the other one exists to make unnecessary — "save the page first
+           so your items exist" — which reads as the platform contradicting itself about
+           its own storage. #}
+      <noscript>
       <div class="mw__card">
         <h2>Attach a file</h2>
-        <p>Save the page first so your items exist, then attach a file to one of them.
+        <p>Add an item above and save the page, then come back here and attach a file to it.
           Documents, PDFs and photographs, up to {{ form.max_file_mb }}MB each.</p>
         <form method="post" action="/my-work/{{ token }}/upload" enctype="multipart/form-data">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -1106,6 +1220,7 @@
           <button class="mw__mini" style="margin-top:12px" type="submit">Upload</button>
         </form>
       </div>
+      </noscript>
     </div>
   {% endif %}
 {% endif %}

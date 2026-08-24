@@ -153,6 +153,17 @@ final class Maintenance
             // so polling is the primary path and the callback is the optimisation.
             $ran[] = ['interviewbot',  $this->task('interviewbot',
                 fn() => \AfricaGates\Services\InterviewBot::sweep())];
+            // What the platform looked like on this tick, for /status to show a history
+            // with. LAST in the every-tick block on purpose: it records the state AFTER the
+            // queue has drained and payments have reconciled, which is the state a visitor
+            // would have found. Recording first would report a backlog this very run was
+            // about to clear.
+            //
+            // A GAP in that table is itself the evidence that scheduled work stopped — the
+            // one outage no self-report can cover, because the thing that would report it is
+            // the thing that stopped.
+            $ran[] = ['status', $this->task('status',
+                fn() => \AfricaGates\Services\SystemStatus::record())];
             // Every hour
             if ((int)$now->minute < 15) {
                 $ran[] = ['otp',        $this->task('otp',        fn() => $this->purgeExpiredOtp())];
@@ -182,6 +193,11 @@ final class Maintenance
                 $ran[] = ['guardlog', $this->task('guardlog',
                     fn() => \AfricaGates\Services\InterviewGuard::prune())];
                 $ran[] = ['maillog', $this->task('maillog', fn() => (int) DB::table('gates_mail_log')->where('created_at', '<', Carbon::now()->subDays(30))->delete())];
+                // Status snapshots, on the same 30-day retention and beside the log they
+                // are kept alongside. A recorder with no pruner is a table that grows for
+                // the life of the deployment.
+                $ran[] = ['statuslog', $this->task('statuslog',
+                    fn() => \AfricaGates\Services\SystemStatus::prune())];
                 // Expired Gemini file-upload handles. The provider deletes the file itself
                 // after 48 hours; this drops OUR record of it, which is the half that
                 // matters — a stale row would be handed to generateContent as a live

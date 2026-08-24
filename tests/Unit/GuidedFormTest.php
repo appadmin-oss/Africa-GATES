@@ -48,7 +48,7 @@ final class GuidedFormTest extends TestCase
         // they do not, and the detail is lost.
         $b = $this->body();
         $this->assertStringContainsString('mw__map', $b);
-        $this->assertStringContainsString('Jump to a question', $b);
+        $this->assertStringContainsString('Jump to a step', $b);
         $this->assertStringContainsString('answered(', $b);
     }
 
@@ -126,21 +126,54 @@ final class GuidedFormTest extends TestCase
     {
         $b = $this->body();
         $this->assertStringContainsString('/interview/resume', $b);
-        $this->assertStringContainsString('Go back to the conversation', $b);
+        $this->assertStringContainsString('answer these out loud', $b);
+
+        // And it is BELOW the form, not above it. It used to be the second thing on the
+        // page: the loudest control on a screen whose job is "answer this question" was the
+        // one for leaving it.
+        $this->assertGreaterThan(strpos($b, 'mw__fs'), strpos($b, '/interview/resume'),
+            'the way out is rendered before the question it is a way out of');
     }
 
     // ════════════════════════════════════════════════════════════════════════
     // AND THE FORM IS SHAPED LIKE THE THING PEOPLE FINISH
     // ════════════════════════════════════════════════════════════════════════
 
-    public function test_a_question_is_asked_rather_than_listed(): void
+    /**
+     * A WIZARD, not a chat.
+     *
+     * An earlier version put the question in a speech bubble with an avatar beside it and the
+     * field in a composer with a round send-shaped microphone. That made a form pretend to be
+     * a conversation, and a form that pretends costs trust twice: the mark implies somebody is
+     * listening when nothing is, and the answer box stops looking like the place the words are
+     * actually kept.
+     *
+     * The wizard belongs in the CHROME — step counter, map, Back and Next — not in a costume
+     * worn by the field.
+     */
+    public function test_a_question_is_a_wizard_step_and_not_a_chat_turn(): void
     {
         $b = $this->body();
 
-        // The mark, the bubble and the composer: the interview screen, over the form fields.
-        foreach (['mw__asked', 'mw__mark', 'mw__bubble', 'mw__answer'] as $part) {
-            $this->assertStringContainsString($part, $b, 'missing ' . $part);
+        foreach (['mw__fs', 'mw__qhead', 'mw__under', 'mw__nav--next', 'mw__nav--back'] as $part) {
+            $this->assertStringContainsString($part, $b, 'missing wizard part ' . $part);
         }
+
+        foreach (['mw__bubble', 'mw__mark', 'mw__asked'] as $chatty) {
+            $this->assertStringNotContainsString($chatty, $b,
+                'the form is dressed as a conversation again: ' . $chatty);
+        }
+
+        // It is a form field with a label, not a message with a sender.
+        $this->assertStringContainsString('<label class="mw__lab" for="q-', $b);
+    }
+
+    /** Next is the primary control and Back is not, because forward is the common press. */
+    public function test_forward_is_the_primary_control(): void
+    {
+        $t = $this->tpl();
+        $this->assertMatchesRegularExpression('~\.mw__nav--next\{[^}]*background:#10292C~', $t);
+        $this->assertMatchesRegularExpression('~\.mw__nav--back\{[^}]*background:#fff~', $t);
     }
 
     /**
@@ -202,6 +235,60 @@ final class GuidedFormTest extends TestCase
             'two .mw__spk rules again — the later one decides the size of every speaker button');
     }
 
+    /**
+     * No Alpine binding may reference state that left with the chat.
+     *
+     * ── THE BUG THIS EXISTS BECAUSE OF ──────────────────────────────────────
+     *
+     * Removing the chat pane took `progress`, `pct()`, `turns` and `done` out of the shared
+     * Alpine scope. The sticky progress bar — rendered ABOVE the form, in the outer scope —
+     * still read `progress.answered` and `pct()`. Alpine threw ReferenceError on the first
+     * evaluation, and once one expression throws the rest of the page stops binding: the
+     * stepper does not step, the map does not fill, the works list does not add a row.
+     *
+     * Nothing on the server side is wrong. The page renders 200, the HTML is complete, and
+     * PHPUnit is perfectly happy. It was caught by loading the page in a real browser, which
+     * is a thing worth doing and not a thing that happens on every commit — so this is the
+     * cheap standing guard.
+     */
+    public function test_no_binding_references_state_that_left_with_the_chat(): void
+    {
+        $b = $this->body();
+
+        // Only the chat ever defined these. `answered(` and `typed` survive on purpose —
+        // they moved to the outer scope so the progress bar can read them.
+        foreach (['progress.', 'pct()', 'turns.', 'lastAi(', 'this.scroll(', 'begin()',
+                  'mode ===', 'mode =', 'offer_chat'] as $gone) {
+            $this->assertStringNotContainsString($gone, $b,
+                'a binding still reads chat state, which throws and kills every other '
+                . 'binding on the page: ' . $gone);
+        }
+    }
+
+    /**
+     * The progress bar counts from the fields, and it counts in the OUTER scope.
+     *
+     * Declared inside the stepper it would be invisible to the sticky bar rendered above the
+     * form — and redeclaring `typed` there would shadow the outer one, freezing the bar at
+     * whatever the page loaded with.
+     */
+    public function test_the_progress_bar_reads_the_live_answer_count(): void
+    {
+        $t = $this->tpl();
+
+        $at    = strpos($t, "x-data='{");
+        $inner = strpos($t, 'x-data=', $at + 9);
+        $outer = substr($t, $at, $inner - $at);
+
+        $this->assertStringContainsString('qDone()', $outer,
+            'the live count is not in the scope the progress bar can see');
+        $this->assertStringContainsString('typed: 0', $outer);
+
+        // And exactly once in the whole file, so nothing shadows it.
+        $this->assertSame(1, substr_count($t, 'typed: 0'),
+            'typed is declared twice — the inner one shadows the outer and the bar freezes');
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // AND IT ACTUALLY RENDERS
     // ════════════════════════════════════════════════════════════════════════
@@ -252,8 +339,8 @@ final class GuidedFormTest extends TestCase
         $this->assertSame(200, $res->getStatusCode());
         $html = (string) $res->getBody();
 
-        $this->assertStringContainsString('mw__asked', $html, 'the question is not being asked');
-        $this->assertStringContainsString('mw__bubble', $html);
+        $this->assertStringContainsString('mw__fs', $html, 'the wizard step did not render');
+        $this->assertStringContainsString('mw__nav--next', $html);
         $this->assertStringNotContainsString('Answer by chatting', $html);
         $this->assertStringNotContainsString('/chat"', $html);
     }

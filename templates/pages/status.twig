@@ -66,6 +66,23 @@
   .stx-state--unknown{ color:#5f676a; }
   .stx-metric{ margin-top:4px; font-family:var(--ag-font-mono); font-size:11.5px; color:var(--ag-ink-soft); }
 
+  /* ── THE HISTORY STRIP ────────────────────────────────────────────────────
+     One square per day, worst-state-wins. Worst wins because a day with one broken hour is
+     not a good day, and an average would turn a real outage into a pale shade of green.
+
+     A day with no recorded snapshot is DASHED, not blank and not green: on this deployment
+     that usually means the scheduled task was not running, which is itself the outage. */
+  .stx-days{ display:flex; gap:5px; margin:16px 0 0; flex-wrap:wrap }
+  .stx-day{ flex:1 1 14px; min-width:14px; height:34px; border-radius:3px;
+    border:1.5px solid var(--ag-ink-soft,#8a9294); background:transparent }
+  .stx-day--operational{ background:#237b22; border-color:#237b22 }
+  .stx-day--degraded{ border-color:#a4761a; background:linear-gradient(180deg,#f3b416 0 50%,transparent 50% 100%) }
+  .stx-day--down{ border-color:#a32b1c; background:repeating-linear-gradient(45deg,#a32b1c 0 2px,transparent 2px 4px) }
+  .stx-day--unknown{ border-style:dashed; border-color:#b3b9ba }
+  .stx-daysfoot{ display:flex; justify-content:space-between; gap:12px; margin-top:8px;
+    font-family:var(--ag-font-mono); font-size:11px; color:var(--ag-ink-soft) }
+  .stx-daysnote{ margin:12px 0 0; font-size:.9125rem; line-height:1.6; color:#3c4649; max-width:58ch }
+
   .stx-scope{ margin:34px 0 0; padding:20px 22px; background:#fff;
     border:1px solid rgba(16,41,44,.1); border-radius:var(--ag-r-sm,10px); }
   .stx-scope p{ margin:0; font-size:.9125rem; line-height:1.65; color:#3c4649; }
@@ -129,6 +146,30 @@
       {% endfor %}
     </ul>
 
+  {% endif %}
+
+  {# ── WAS IT BROKEN EARLIER? ────────────────────────────────────────────────
+     The live check is honest and blind: it says what is true this second and nothing about
+     the two hours somebody could not check out. Without this, a supporter whose payment
+     failed at nine and who loads a green page at noon concludes the fault was theirs.
+
+     Only rendered when there is a record. An empty strip of fourteen grey squares on a fresh
+     installation says "we have been broken for a fortnight", which is the opposite of true. #}
+  {% if history is defined and history is not empty %}
+    <h2 class="stx-h2">The last {{ history_days|default(14) }} days</h2>
+
+    <div class="stx-days" role="img"
+         aria-label="{{ history_note }}">
+      {% for d in history %}
+        <span class="stx-day stx-day--{{ d.status }}"
+              title="{{ d.label }} — {{ d.state_label }}"></span>
+      {% endfor %}
+    </div>
+    <div class="stx-daysfoot">
+      <span>{{ history|first.label }}</span>
+      <span>Today</span>
+    </div>
+    {% if history_note %}<p class="stx-daysnote">{{ history_note }}</p>{% endif %}
   {% endif %}
 
   <h2 class="stx-h2">What this page can and cannot tell you</h2>

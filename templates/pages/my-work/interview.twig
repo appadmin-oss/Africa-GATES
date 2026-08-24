@@ -131,8 +131,17 @@
   .iv__seg--met{ background:#237b22 }
   .iv__seg--part{ background:linear-gradient(90deg,#c9a24b 50%,rgba(16,41,44,.1) 50%) }
 
+  /* ── THE LOG STARTS AT THE TOP, NOT AT THE BOTTOM ─────────────────────────
+     `justify-content:flex-end` pins the messages to the bottom of a flex:1 column, which is
+     right for a full conversation and wrong for the first one: the greeting appeared alone,
+     a full screen below the header, under an expanse of nothing. The interview opened
+     looking broken.
+
+     `margin-top:auto` on the LAST turn does the same job only when there is room to spare —
+     a short conversation sits under the header where it belongs, a long one still keeps its
+     newest message at the bottom of the view. */
   .iv__log{ flex:1; padding:22px 20px; display:flex; flex-direction:column;
-    justify-content:flex-end; gap:16px }
+    justify-content:flex-start; gap:16px }
   .iv__turn{ display:flex; flex-direction:column }
   .iv__bub{ padding:14px 17px; font-size:15px; line-height:1.6; max-width:86%;
     white-space:pre-wrap; overflow-wrap:anywhere; border:none; text-align:left;

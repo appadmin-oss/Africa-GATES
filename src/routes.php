@@ -2539,7 +2539,14 @@ return function(App $app) {
         // records, and has an honest fourth state for the things it could not check.
         $g->get('/status', function($req,$res) use ($tv) {
             $st = SystemStatus::report();
+            // The history answers the question the live check cannot: "was it broken
+            // earlier?" A supporter whose payment failed at nine and who loads a green page
+            // at noon otherwise concludes the fault was theirs.
+            $history = SystemStatus::history();
             return $tv($req)->render($res,'pages/status.twig', $st + [
+                'history'          => $history,
+                'history_note'     => SystemStatus::historyNote($history),
+                'history_days'     => SystemStatus::HISTORY_DAYS,
                 'page_title'       => 'Is it working? — Africa GATES',
                 'meta_description' => 'A live check of Africa GATES: voting and profiles, scheduled work, messages going out, payments, email and the AI helpers.',
                 'gates_page'       => 'status',

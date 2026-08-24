@@ -80,6 +80,12 @@ final class SystemStatus
     /** Share of recent mail that may fail before it is worth saying so. */
     private const MAIL_FAIL_PCT = 20;
 
+    /** How far back the history strip reaches. */
+    public const HISTORY_DAYS = 14;
+
+    /** How long a recorded snapshot is kept. Same as the mail log, for the same reason. */
+    public const KEEP_DAYS = 30;
+
     // ═══════════════════════════════════════════════════════════════════════
     // THE REPORT
     // ═══════════════════════════════════════════════════════════════════════
@@ -108,6 +114,166 @@ final class SystemStatus
             'components'    => $components,
             'note'          => self::note($components),
         ];
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // THE HISTORY
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Record what the platform looked like on this tick.
+     *
+     * ── WHY A LIVE PAGE STILL NEEDS THIS ────────────────────────────────────
+     *
+     * Measuring at request time is what makes {@see report()} honest, and it is also what
+     * makes it blind. It can say what is true this second and nothing at all about the two
+     * hours somebody could not check out — so a supporter whose payment failed at nine in
+     * the morning loads a green page at noon and concludes the fault was theirs.
+     *
+     * "Was it broken earlier?" is the question a status page exists to answer. "It is fine
+     * now" is the less useful half of it.
+     *
+     * ── AND WHY THE CRON WRITES IT, NOT THE REQUEST ─────────────────────────
+     *
+     * A row per visitor would make this a traffic log, and would let anybody grow the table
+     * by holding down refresh. The tick runs on a schedule nobody outside can influence —
+     * and the schedule is itself one of the things being recorded, so a GAP in this table is
+     * the evidence that scheduled work stopped. That is the one outage no self-report can
+     * ever cover, because the thing that would report it is the thing that stopped.
+     *
+     * @return int 1 when a row was written, 0 otherwise. Never throws: a status recorder
+     *             that can break the maintenance run is worse than no recorder.
+     */
+    public static function record(): int
+    {
+        try {
+            $r = self::report();
+
+            // Only the shape, not the prose. The detail sentences are written for somebody
+            // reading them NOW ("we are already looking at it") and would be quietly wrong
+            // a week later; the state and the name are what a history is for.
+            $slim = [];
+            foreach ($r['components'] as $c) {
+                $slim[] = ['name' => (string) $c['name'], 'status' => (string) $c['status']];
+            }
+
+            DB::table('gates_status_log')->insert([
+                'taken_at'        => (string) $r['checked_at'],
+                'overall'         => (string) $r['overall'],
+                'components_json' => (string) json_encode($slim, JSON_UNESCAPED_UNICODE),
+                'created_at'      => Carbon::now()->toDateTimeString(),
+            ]);
+            return 1;
+        } catch (\Throwable $e) {
+            error_log('[status] could not record: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /** Drop snapshots past {@see KEEP_DAYS}. */
+    public static function prune(): int
+    {
+        try {
+            return (int) DB::table('gates_status_log')
+                ->where('taken_at', '<', Carbon::now()->subDays(self::KEEP_DAYS)->toDateTimeString())
+                ->delete();
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /**
+     * The last {@see HISTORY_DAYS} days, one entry per day, worst-state-wins.
+     *
+     * Worst wins because a day with one broken hour is not a good day, and averaging would
+     * turn a real outage into a pale shade of green. A day with NO snapshots reports
+     * UNKNOWN — which is the truthful reading and, on a cPanel deployment, usually means the
+     * scheduled task was not running that day either.
+     *
+     * @return list<array{date:string, label:string, status:string, state_label:string, samples:int}>
+     */
+    public static function history(): array
+    {
+        $from = Carbon::now()->startOfDay()->subDays(self::HISTORY_DAYS - 1);
+
+        $rows = [];
+        try {
+            $rows = DB::table('gates_status_log')
+                ->where('taken_at', '>=', $from->toDateTimeString())
+                ->orderBy('taken_at')
+                ->get()->all();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $rank  = [self::OK => 0, self::UNKNOWN => 1, self::DEGRADED => 2, self::DOWN => 3];
+        $byDay = [];
+        foreach ($rows as $row) {
+            $day = substr((string) $row->taken_at, 0, 10);
+            $st  = (string) $row->overall;
+            if (!isset($rank[$st])) continue;
+
+            if (!isset($byDay[$day])) $byDay[$day] = ['status' => self::OK, 'n' => 0];
+            $byDay[$day]['n']++;
+            if ($rank[$st] > $rank[$byDay[$day]['status']]) $byDay[$day]['status'] = $st;
+        }
+
+        $out = [];
+        for ($i = 0; $i < self::HISTORY_DAYS; $i++) {
+            $d   = $from->copy()->addDays($i);
+            $key = $d->toDateString();
+            $hit = $byDay[$key] ?? null;
+            $st  = $hit === null ? self::UNKNOWN : (string) $hit['status'];
+
+            $out[] = [
+                'date'        => $key,
+                'label'       => $d->format('j M'),
+                'status'      => $st,
+                'state_label' => $hit === null ? 'Not recorded' : self::LABELS[$st],
+                'samples'     => (int) ($hit['n'] ?? 0),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * One line summarising the strip, so the page is not asking anybody to read squares.
+     */
+    public static function historyNote(array $history): string
+    {
+        if ($history === []) return '';
+
+        $bad     = 0;
+        $unknown = 0;
+        foreach ($history as $d) {
+            if ($d['status'] === self::DOWN || $d['status'] === self::DEGRADED) $bad++;
+            if ($d['status'] === self::UNKNOWN) $unknown++;
+        }
+
+        if ($unknown === count($history)) {
+            return 'Nothing has been recorded yet. This fills in as the scheduled task runs.';
+        }
+
+        $days = count($history) - $unknown;
+
+        if ($bad === 0) {
+            $note = 'No problems recorded on any of the last ' . $days
+                  . ' day' . ($days === 1 ? '' : 's') . ' we have a record for.';
+            return $unknown > 0
+                ? $note . ' A dashed square is a day we have no record for.'
+                : $note;
+        }
+
+        $note = $bad . ' of the last ' . $days . ' recorded day' . ($days === 1 ? '' : 's')
+              . ' had a problem.';
+
+        // Only explained when there IS one. Describing a grey square on a strip that has
+        // none is an instruction about something the reader cannot see.
+        return $unknown > 0
+            ? $note . ' A dashed square is a day we have no record for, which usually means '
+                    . 'the scheduled task was not running.'
+            : $note;
     }
 
     /**
@@ -176,6 +342,9 @@ final class SystemStatus
             // state somebody needs to hear about rather than a green tick.
             DB::table('gates_settings')->count();
             $ms = (int) round((microtime(true) - $t0) * 1000);
+            // "0ms" reads as "not measured" rather than as "fast", which is the opposite of
+            // what it means and the one number on this page somebody might disbelieve.
+            $shown = $ms < 1 ? 'under 1ms' : $ms . 'ms';
         } catch (\Throwable $e) {
             return self::component(
                 'Voting, profiles and the leaderboard',
@@ -191,9 +360,9 @@ final class SystemStatus
                 'Everything that reads or writes a record', self::DEGRADED,
                 'Pages are loading more slowly than usual. Nothing is lost — a vote or a '
                 . 'form that takes a moment longer still counts.',
-                $ms . 'ms')
+                $shown)
             : self::component('Voting, profiles and the leaderboard',
-                'Everything that reads or writes a record', self::OK, '', $ms . 'ms');
+                'Everything that reads or writes a record', self::OK, '', $shown);
     }
 
     /**
