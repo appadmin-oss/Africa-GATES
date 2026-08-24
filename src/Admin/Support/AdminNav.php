@@ -158,6 +158,11 @@ final class AdminNav
                     ['page' => 'attendee',    'label' => 'Interview bot',   'href' => '/admin/attendee'],
                     ['page' => 'sandbox',     'label' => 'Test data',       'href' => '/admin/sandbox'],
                     ['page' => 'judges',   'label' => 'Judges Panel', 'href' => '/admin/judges'],
+                    // Directly under the panel, because the two are one job: who judges,
+                    // and what they are asked. The rubric had no entry anywhere — no
+                    // screen, no route, no link — so the table the entire scoring system
+                    // runs on was editable only by hand in the database.
+                    ['page' => 'rubric',   'label' => 'Judging rubric', 'href' => '/admin/rubric'],
                 ],
             ],
         ];

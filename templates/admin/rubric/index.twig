@@ -1,0 +1,254 @@
+{% extends "admin/layout.twig" %}
+{% block topbar_eyebrow %}<small>Judging</small>{% endblock %}
+{% block topbar_title %}Judging rubric{% endblock %}
+
+{#
+  ── WHAT THIS SCREEN IS FOR ──────────────────────────────────────────────────
+
+  `gates_judge_criteria` is the table the whole scoring system runs on — every
+  ballot, every weighted average, every bias check, every published result — and
+  until this screen existed there was NO WAY TO EDIT IT from anywhere. It was
+  written by the installer and by the sandbox seeder and read everywhere else.
+
+  On a platform whose integrity argument is "the criteria are fixed and published
+  before judging starts", that is not a missing convenience.
+#}
+
+{% set scope_label = scope ? (programmes|filter(p => p.id == scope)|first).title|default('this programme') : 'Every programme' %}
+
+{% block content %}
+
+<p style="margin:0 0 14px;font-size:13.5px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
+  What a judge is asked about each nominee, and what each answer is worth. This is the rubric
+  the panel scores against and the one the published result is computed from.
+</p>
+
+{# ── SCOPE ─────────────────────────────────────────────────────────────────
+     Global rows apply to every programme; a programme's own row with the same
+     reference REPLACES the global one. That is what the scorer already does — this
+     screen shows the resolution rather than the raw rows, because an invisible
+     override is how a programme ends up judged on criteria nobody meant to give it. #}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Which rubric</div></div>
+  <div class="ad-card__body">
+    <form method="get" action="/admin/rubric" class="ad-form">
+      <div class="row">
+        <div>
+          <label for="rbScope">Rubric for</label>
+          <select id="rbScope" name="programme" data-ag-do="submit-form">
+            <option value="global" {{ scope is null ? 'selected' : '' }}>Every programme (the default rubric)</option>
+            {% for p in programmes %}
+              <option value="{{ p.id }}" {{ scope == p.id ? 'selected' : '' }}>{{ p.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div style="align-self:end">
+          <noscript><button class="ad-btn ad-btn--sm" type="submit">Show</button></noscript>
+        </div>
+      </div>
+    </form>
+    {% if scope %}
+      <p style="margin:10px 0 0;font-size:12.5px;line-height:1.7;color:var(--ad-text-soft)">
+        A criterion here <strong>replaces</strong> the default one with the same reference for
+        {{ scope_label }}. Anything the default has and this does not is still asked.</p>
+    {% endif %}
+  </div>
+</div>
+
+{# ── WHAT CHANGING IT COSTS ────────────────────────────────────────────────
+     Not a lock. An operator may have a real reason to change a rubric mid-cycle, and a
+     platform that refuses is one they work around in the database. But scores already
+     recorded were given against the OLD weights, and the published result moves under
+     them — so they are told, with the number. #}
+{% if exposure.scored %}
+<div class="ad-card" style="border-color:#ecd9a0;background:#fffdf5">
+  <div class="ad-card__body" style="font-size:13.5px;line-height:1.7;color:#6b5312">
+    {{ exposure.note }}
+  </div>
+</div>
+{% endif %}
+
+{# ══ WHAT A PANEL IS ACTUALLY ASKED ═══════════════════════════════════════ #}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">
+    What a judge sees<small>After the default and this programme are resolved against each other</small>
+  </div></div>
+
+  {% if effective %}
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <caption class="sr-only">The rubric a panel is scored against</caption>
+      <thead><tr>
+        <th scope="col">Criterion</th><th scope="col">Reference</th>
+        <th scope="col">Weight</th><th scope="col">Share of the score</th><th scope="col">From</th>
+      </tr></thead>
+      <tbody>
+        {% for c in effective %}
+        <tr>
+          <td><strong>{{ c.label }}</strong>
+            {% if c.description %}<div style="font-size:12.5px;color:var(--ad-text-soft);margin-top:3px">{{ c.description }}</div>{% endif %}</td>
+          <td><code>{{ c.slug }}</code></td>
+          <td>{{ c.weight }}</td>
+          {# The number an operator actually wants, and the one they would otherwise work
+             out wrongly in their head. The stored weight is RELATIVE. #}
+          <td><strong>{{ shares[c.id]|default(0) }}%</strong></td>
+          <td>{% if c.programme_id %}<span class="ad-chip ad-chip--green">This programme</span>
+              {% else %}<span class="ad-chip ad-chip--grey">Default</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="ad-card__body" style="border-top:1px solid var(--ad-line);font-size:13px;line-height:1.7;color:var(--ad-text-soft)">
+    <strong>Weights are relative, not percentages.</strong> The score is divided by the total
+    of whatever is active, so four criteria at 25 and four at 1 give exactly the same result.
+    They do not need to add up to anything — the share column above is what each one is
+    actually worth.
+  </div>
+  {% else %}
+  <div class="ad-card__body" style="font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+    <strong>There is no rubric yet, so scoring is locked.</strong> A judge cannot open a
+    ballot with nothing to score against. Add at least one criterion below.
+  </div>
+  {% endif %}
+</div>
+
+{# ══ THE ROWS IN THIS SCOPE ═══════════════════════════════════════════════ #}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">
+    {{ scope ? scope_label ~ ' — its own criteria' : 'The default criteria' }}
+    <small>{{ rows|length }} of {{ max_per_scope }}</small>
+  </div></div>
+
+  {% if rows %}
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <caption class="sr-only">Criteria in this rubric</caption>
+      <thead><tr>
+        <th scope="col">Criterion</th><th scope="col">Weight</th>
+        <th scope="col">Order</th><th scope="col">Scored</th><th scope="col">Change it</th>
+      </tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>
+            <strong>{{ r.row.label }}</strong>
+            {% if not r.row.is_active %}<span class="ad-chip ad-chip--grey">Retired</span>{% endif %}
+            <div style="font-size:12.5px;color:var(--ad-text-soft);margin-top:3px">
+              <code>{{ r.row.slug }}</code>{% if r.row.description %} · {{ r.row.description }}{% endif %}</div>
+          </td>
+          <td>{{ r.row.weight }}</td>
+          <td>{{ r.row.sort_order }}</td>
+          {# Shown BEFORE anything is pressed. It is what decides whether this can be
+             deleted or only retired, and the operator cannot run that query themselves. #}
+          <td>{{ r.scores > 0 ? r.scores|number_format : '—' }}</td>
+          <td>
+            {% if may_edit %}
+            <details>
+              <summary class="ad-btn ad-btn--sm" style="cursor:pointer">Edit</summary>
+              <form class="ad-form" method="post"
+                    action="/admin/rubric/{{ r.row.id }}{{ scope ? '?programme=' ~ scope : '' }}"
+                    style="margin-top:10px">
+                <input type="hidden" name="_token" value="{{ csrf_token }}">
+                <div class="row">
+                  <div><label for="l{{ r.row.id }}">Name</label>
+                    <input id="l{{ r.row.id }}" name="label" type="text" required maxlength="160"
+                           value="{{ r.row.label }}"></div>
+                  <div><label for="w{{ r.row.id }}">Weight</label>
+                    <input id="w{{ r.row.id }}" name="weight" type="number" min="1"
+                           max="{{ max_weight }}" required value="{{ r.row.weight }}"></div>
+                </div>
+                <div class="row">
+                  <div><label for="s{{ r.row.id }}">Order</label>
+                    <input id="s{{ r.row.id }}" name="sort_order" type="number" min="0" max="999"
+                           value="{{ r.row.sort_order }}"></div>
+                  <div><label for="g{{ r.row.id }}">Reference</label>
+                    {# Locked once scored: the scorer resolves the per-programme override BY
+                       SLUG, so a rename silently re-points it at nothing. #}
+                    <input id="g{{ r.row.id }}" name="slug" type="text" maxlength="40"
+                           value="{{ r.row.slug }}" {{ r.scores > 0 ? 'readonly' : '' }}>
+                    {% if r.scores > 0 %}<small style="color:var(--ad-text-soft)">Locked — ballots point at it.</small>{% endif %}
+                  </div>
+                </div>
+                <div>
+                  <label for="d{{ r.row.id }}">What a judge should look for</label>
+                  <textarea id="d{{ r.row.id }}" name="description" rows="2"
+                            maxlength="600">{{ r.row.description }}</textarea>
+                </div>
+                <div style="margin-top:10px;display:flex;gap:9px;flex-wrap:wrap">
+                  <button class="ad-btn ad-btn--sm ad-btn--primary" type="submit">Save</button>
+                </div>
+              </form>
+
+              <div style="margin-top:10px;display:flex;gap:9px;flex-wrap:wrap">
+                {% if r.row.is_active %}
+                  <form method="post"
+                        action="/admin/rubric/{{ r.row.id }}/retire{{ scope ? '?programme=' ~ scope : '' }}"
+                        data-confirm="{% if r.scores > 0 %}Retire “{{ r.row.label }}”? It stops being asked. The {{ r.scores|number_format }} score{{ r.scores == 1 ? '' : 's' }} already recorded against it are kept — deleting them would change results that have already been published.{% else %}Remove “{{ r.row.label }}”? Nothing has been scored against it, so it will be deleted.{% endif %}">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <button class="ad-btn ad-btn--sm" type="submit">
+                      {{ r.scores > 0 ? 'Retire it' : 'Remove it' }}</button>
+                  </form>
+                {% else %}
+                  <form method="post"
+                        action="/admin/rubric/{{ r.row.id }}/restore{{ scope ? '?programme=' ~ scope : '' }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token }}">
+                    <button class="ad-btn ad-btn--sm" type="submit">Put it back</button>
+                  </form>
+                {% endif %}
+              </div>
+            </details>
+            {% else %}
+              <span style="color:var(--ad-text-soft)">Read only</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="ad-card__body" style="font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
+    {% if scope %}
+      Nothing specific to {{ scope_label }}. Its panel is asked the default criteria above,
+      which is usually right — add one here only when this programme needs to be judged
+      differently.
+    {% else %}
+      No criteria yet. Scoring is locked until there is at least one.
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{# ══ ADD ══════════════════════════════════════════════════════════════════ #}
+{% if may_edit and rows|length < max_per_scope %}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Add a criterion
+    <small>{{ scope ? 'For ' ~ scope_label ~ ' only' : 'For every programme' }}</small>
+  </div></div>
+  <div class="ad-card__body">
+    <form class="ad-form" method="post" action="/admin/rubric{{ scope ? '?programme=' ~ scope : '' }}">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <div class="row">
+        <div><label for="nLabel">Name <span aria-hidden="true">*</span></label>
+          <input id="nLabel" name="label" type="text" required maxlength="160"
+                 placeholder="Documented impact"></div>
+        <div><label for="nWeight">Weight <span aria-hidden="true">*</span></label>
+          <input id="nWeight" name="weight" type="number" min="1" max="{{ max_weight }}"
+                 required value="25">
+          <small style="color:var(--ad-text-soft)">Relative to the others, not a percentage.</small></div>
+      </div>
+      <div>
+        <label for="nDesc">What a judge should look for</label>
+        <textarea id="nDesc" name="description" rows="2" maxlength="600"
+                  placeholder="Numbers and names. What changed, over what period, and who else can confirm it."></textarea>
+      </div>
+      <div style="margin-top:10px">
+        <button class="ad-btn ad-btn--primary" type="submit">Add it to the rubric</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

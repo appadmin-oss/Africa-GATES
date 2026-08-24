@@ -30,7 +30,7 @@ class JudgeService
      */
     public function publicRoster(): array
     {
-        $judges = DB::table('gates_judges')
+        $judges = self::realJudges()
             ->where('is_active', 1)
             ->orderByRaw("CASE WHEN avatar_path IS NULL OR avatar_path = '' THEN 1 ELSE 0 END")
             ->orderBy('name')
@@ -42,10 +42,52 @@ class JudgeService
     /** One judge's public profile (for /judges/{slug}); null if missing or inactive. */
     public function publicJudge(int $id): ?array
     {
-        $r = DB::table('gates_judges')->where('id', $id)->where('is_active', 1)->first();
+        $r = self::realJudges()->where('id', $id)->where('is_active', 1)->first();
         if (!$r) return null;
         $progs = DB::table('gates_award_programmes')->get()->keyBy('id');
         return $this->shapePublic($r, $progs, true);
+    }
+
+    /**
+     * Judges the PUBLIC may be shown — which excludes the sandbox's rehearsal panellist.
+     *
+     * ── THE BUG THIS EXISTS BECAUSE OF ──────────────────────────────────────
+     *
+     * {@see \AfricaGates\Services\DemoSeeder} creates "DEMO — Test Judge" with
+     * `is_active = 1`, and it has to: the sandbox exists so an operator can walk the judge
+     * portal without appointing a real person, and the portal reads that flag. But
+     * `is_active` was also the ONLY thing the public "Meet the Judges" page filtered on, so
+     * building a sandbox published a fictional judge onto the page whose entire purpose is
+     * to say who is really deciding these awards.
+     *
+     * On a platform that argues its integrity from the panel being real and named, a made-up
+     * panellist on that page is not a cosmetic bug.
+     *
+     * ── WHY THE EMAIL DOMAIN, AND NOT A FLAG ────────────────────────────────
+     *
+     * `demo.invalid` — `.invalid` is reserved by RFC 2606 precisely so it can never be a
+     * real address, so no genuine judge can ever be excluded by this. DemoSeeder already
+     * uses that domain as the sandbox's identity and already deletes by it, so this reads
+     * the discriminator that exists rather than adding a second one that could disagree
+     * with it.
+     *
+     * A nullable `is_demo` column would have to be set by the seeder and honoured by every
+     * reader — one more thing to forget, on the same page, in the same way.
+     */
+    public static function realJudges(): \Illuminate\Database\Query\Builder
+    {
+        // Matched on the DOMAIN, not on the word "demo" anywhere in the address: a real
+        // panellist called Demola, or one at a university running a `demo.` subdomain, is a
+        // person who agreed to sit on this panel, and dropping them would be silent — nobody
+        // checks a page for a name that isn't there.
+        //
+        // COALESCE, not a whereNull branch beside it: in SQL, NULL NOT LIKE '…' is NULL, not
+        // true, so a judge with no address on file would be filtered out by the comparison
+        // rather than kept by it. `email` is NOT NULL in both schemas today; that is a schema
+        // fact, not something this query should depend on.
+        return DB::table('gates_judges')
+            ->whereRaw("LOWER(COALESCE(email, '')) NOT LIKE ?",
+                       ['%@' . \AfricaGates\Services\DemoSeeder::MAIL_DOMAIN]);
     }
 
     /** Public, non-sensitive shape of a judge row (never email or assignments JSON). */

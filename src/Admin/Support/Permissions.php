@@ -108,6 +108,14 @@ final class Permissions
         'payments' => 'finance',
         // configuration (superadmin)
         'admins' => 'configuration', 'settings' => 'configuration', 'webhooks' => 'configuration', 'judges' => 'configuration',
+        // The judging rubric sits with `judges`, in configuration: authoring the criteria a
+        // panel scores against is a governance act, not programme work. Mapped rather than
+        // left to fail closed — an unmapped path is superadmin-only while the sidebar still
+        // offers the link to an admin, which is the sidebar-versus-guard disagreement
+        // documented on the finance paths below. RubricController separately requires
+        // canManageIntegrity() for every write, so a viewer holding `configuration` can read
+        // the rubric and change nothing.
+        'rubric' => 'configuration',
         // The interview bot's setup screen holds a third-party API key, so it sits with
         // the other credential screens rather than with the interviews a moderator runs.
         'attendee' => 'configuration',

@@ -53,7 +53,18 @@ final class DemoSeeder
     public const PREFIX         = 'DEMO — ';
 
     /** RFC 6761 reserves .invalid, so nothing here can ever be delivered to a person. */
-    private const MAIL_DOMAIN = 'demo.invalid';
+    /**
+     * The sandbox's identity, and the thing public readers exclude on.
+     *
+     * PUBLIC rather than private because it is now a contract with the rest of the codebase:
+     * {@see \AfricaGates\Judge\Services\JudgeService::realJudges()} keeps the sandbox's
+     * rehearsal panellist off the public "Meet the Judges" page by reading it.
+     *
+     * `.invalid` is reserved by RFC 2606 precisely so it can never resolve to a real
+     * address, which is what makes it safe to filter on: no genuine judge, nominee or
+     * nominator can ever be excluded by mistake.
+     */
+    public const MAIL_DOMAIN = 'demo.invalid';
 
     /**
      * Build (or rebuild) the sandbox and return where to click.

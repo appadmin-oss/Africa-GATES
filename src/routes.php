@@ -3125,6 +3125,17 @@ return function(App $app) {
         $a->post('/stand-presets/{id:[0-9]+}',       \AfricaGates\Admin\Controllers\StandPresetsController::class.':save');
         $a->post('/stand-presets/{id:[0-9]+}/retire', \AfricaGates\Admin\Controllers\StandPresetsController::class.':archive');
         $a->post('/stand-presets/{id:[0-9]+}/restore', \AfricaGates\Admin\Controllers\StandPresetsController::class.':restore');
+        // ── THE JUDGING RUBRIC ───────────────────────────────────────────────
+        //
+        // gates_judge_criteria is what the whole scoring system runs on and had no editor
+        // anywhere: written by the installer and the sandbox seeder, read everywhere else.
+        // You cannot publish criteria you have no way to author.
+        $RB = \AfricaGates\Admin\Controllers\RubricController::class;
+        $a->get ('/rubric',                        $RB.':index');
+        $a->post('/rubric',                        $RB.':save');
+        $a->post('/rubric/{id:[0-9]+}',            $RB.':save');
+        $a->post('/rubric/{id:[0-9]+}/retire',     $RB.':retire');
+        $a->post('/rubric/{id:[0-9]+}/restore',    $RB.':restore');
         $a->get('/legal',                          \AfricaGates\Admin\Controllers\LegalController::class.':index');
         $a->get('/legal/{slug:[a-z0-9-]+}',        \AfricaGates\Admin\Controllers\LegalController::class.':edit');
         $a->post('/legal/{slug:[a-z0-9-]+}',       \AfricaGates\Admin\Controllers\LegalController::class.':save');
