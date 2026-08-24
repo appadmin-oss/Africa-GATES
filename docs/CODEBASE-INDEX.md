@@ -95,6 +95,7 @@ africa-gates/
 ├─ templates/              Twig: layout/, pages/, admin/, judge/, partials/
 ├─ database/              *.sql schema (MySQL + sqlite-*), migrations/*.php, setup/seed scripts
 ├─ config/                container.php, database.php, AfricaGATES_AppScript.gs
+├─ deploy/cloudflare/    the Cron Trigger Worker that drives /__cron/run (see §16)
 ├─ tests/Unit/            PHPUnit (in-memory SQLite harness)
 ├─ docs/                  this file, redesign spec, redesign-ref/
 └─ bin/console            Symfony Console entry
@@ -628,3 +629,69 @@ alternative would keep sending the old copy after an edit.
 → read the plan → send, and `send` refuses unless the campaign is `approved`. Any edit
 clears the approval, because an approval is of specific words. Sends in batches of 25 with
 the same auto-continue the setup endpoint uses.
+
+## 16. Scheduled work has no shell — how it is actually driven (2026-08-24)
+
+**Read this before touching `Maintenance`, `CronHealth`, `/__cron/run`, or anything on
+`/status`.** The constraint below is not incidental to this platform; several of its
+oddest-looking decisions are downstream of it.
+
+### The constraint
+
+Production is **cPanel with no SSH**, and cPanel's own cron has not been dependable on this
+account. So there are two front doors into the same orchestrator
+(`src/Support/Maintenance.php`) and neither one can be assumed present:
+
+| Door | Driven by | Notes |
+|---|---|---|
+| `cron/maintenance.php` | system cron | needs a shell the operator may not have |
+| `GET/POST /__cron/run` | any HTTP scheduler | token-gated, `X-Cron-Token` or `?token=` |
+
+`Support\CronGuard::acquire('maintenance', …)` is an flock single-instance lock, so both
+may be scheduled at once — whichever arrives second exits cleanly with
+`{"ok":true,"skipped":"another run in progress"}`. Two schedulers is the recommended
+configuration, not a misconfiguration.
+
+### The trap: 200 does not mean success
+
+`/__cron/run` answers **`200` with `ok:false`** when the orchestrator finished but
+individual tasks threw. This is deliberate and was a bug fix, not an oversight:
+
+> An earlier version answered `500` on a partial failure. Webcron services responded the
+> way they are built to — they backed off and disabled the job — so one broken task
+> stopped every task that was still working. Tasks are isolated in `Maintenance::task()`
+> now, the run always completes, and the status describes *what happened* rather than
+> *whether anything went wrong*.
+
+The cost of that choice: **any monitor that only reads status codes reports green through
+exactly the failure it was hired to catch.** Anything you write against this endpoint must
+parse the body. Likewise `Maintenance::TASK_FAILED` is `-1`, not `0` — `0` means "ran, no
+work", which is the overwhelmingly common case and must not be able to hide a crash.
+
+### The shipped driver
+
+`deploy/cloudflare/status-worker.js` + `wrangler.toml`, documented click-by-click in
+`docs/CLOUDFLARE-CRON-WORKER.md`. A Cloudflare Worker on a Cron Trigger, every 15 minutes.
+It is preferred over a webcron service for three reasons, in ascending order of importance:
+the token rides in a header instead of a URL that lands in access logs; it emails on a run
+of consecutive failures; and **it parses the body**, per the trap above.
+
+It does not require the domain to be proxied through Cloudflare — a Worker can fetch any
+public URL.
+
+### Why the cadence is 15 minutes
+
+`CronHealth::STALE_HOURS` is `6`, and the refund retry ladder is 1h → 6h → 24h against a
+two-hour payment in-flight window. The tick has to land well inside an hour for the ladder
+to keep its shape; 15 minutes leaves room for several missed runs before `/status` calls
+scheduled work stale. Changing one of those numbers without the other is how the ladder
+silently stops being a ladder.
+
+### And why `/status` history has holes rather than green
+
+`SystemStatus::record()` is called from the maintenance tick, never from a request —
+a row per visitor would make the table a traffic log and let anyone grow it by holding
+down refresh. The consequence worth knowing: **a gap in `gates_status_log` is the evidence
+that scheduled work stopped**, which is the one outage no self-report can cover, because
+the thing that would report it is the thing that stopped. `templates/pages/status.twig`
+therefore renders a missing day as a DASHED square, not a blank one and not a green one.

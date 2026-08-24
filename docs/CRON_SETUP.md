@@ -19,6 +19,27 @@ in cPanel, Linux crontab, and as systemd timers, and how to verify they're runni
 
 ---
 
+## No shell? Drive it from Cloudflare instead
+
+Everything below assumes a shell. On this deployment there is not one, and cPanel's own
+cron has not been dependable on the account — so the supported alternative is a Cloudflare
+Worker on a Cron Trigger hitting the token-gated `/__cron/run`, which runs the **same**
+orchestrator as `cron/maintenance.php`.
+
+See **[CLOUDFLARE-CRON-WORKER.md](CLOUDFLARE-CRON-WORKER.md)**; the Worker itself is in
+`deploy/cloudflare/`.
+
+The two can be scheduled together — `CronGuard` is an flock single-instance lock, so
+whichever arrives second exits cleanly rather than double-running, and neither scheduler
+going quiet takes maintenance down with it.
+
+One thing to know before you point *any* monitor at that endpoint: it returns **200 with
+`ok:false`** on a partial run, deliberately (a 500 made webcron services disable the job,
+which stopped the tasks that were still working). A check that reads only the status code
+will report green through a broken task.
+
+---
+
 ## 1 — Find your PHP binary path
 
 Before adding any cron, get the exact path to your PHP 8.1+ binary:

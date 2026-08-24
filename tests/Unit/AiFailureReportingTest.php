@@ -279,4 +279,79 @@ final class AiFailureReportingTest extends TestCase
         $this->assertStringContainsString('groq/llama → HTTP 0', $line);
         $this->assertStringContainsString('gemini/flash → HTTP 401', $line);
     }
+    // ══ and the same test, one provider at a time ════════════════════════════
+
+    /**
+     * THE SECOND BUG, and the reason `probeAll()` exists.
+     *
+     * `selfTest()` walks the ladder and stops at the first provider that answers — which is
+     * what the platform genuinely does, and exactly the wrong instrument for "is Gemini
+     * working?". With a healthy Groq at the top, Gemini is NEVER CALLED and the console
+     * reports a green tick over a fallback that has been dead for months.
+     *
+     * Reported as "Gemini is not operational" with nothing in the admin console able to
+     * confirm or deny it. That is the shape of the fault: it has no symptom until the day
+     * the primary goes down, which is the day the fallback was the whole point.
+     */
+    public function test_the_ladder_test_cannot_see_a_broken_fallback(): void
+    {
+        $ai = $this->failing(['gemini' => 'HTTP 404 {"error":{"message":"model not found"}}']);
+
+        $ladder = $ai->selfTest();
+        $this->assertTrue($ladder['ok'], 'groq answered, so the ladder is satisfied');
+        $this->assertSame([], $ladder['hops'], 'gemini was never even tried');
+
+        // The per-provider probe stands on every rung.
+        $probe = array_column($ai->probeAll(), null, 'provider');
+
+        $this->assertTrue($probe['groq']['ok']);
+        $this->assertFalse($probe['gemini']['ok'], 'the broken fallback is still invisible');
+        $this->assertStringContainsString('model not found', (string) $probe['gemini']['error'],
+            "the provider's own words are the only evidence an operator has");
+        $this->assertStringContainsString('decommissioned', (string) $probe['gemini']['cause']);
+    }
+
+    /**
+     * Each row is that provider's OWN verdict, not the ladder's winner wearing its name.
+     *
+     * `resolveRoute()` appends every other configured provider after the declared hop and
+     * then reorders to drop open-circuit ones. Without `maxAttempts = 1` and a breaker reset
+     * per iteration, probing a failing Gemini would fall through to Groq and report Groq's
+     * success in the Gemini row — a green tick on the exact thing being investigated.
+     */
+    public function test_a_probe_row_never_reports_another_providers_answer(): void
+    {
+        $ai = $this->failing([
+            // HTTP 0 is the one that trips the breaker, which is what makes this the
+            // ordering trap rather than a hypothetical one.
+            'gemini' => 'HTTP 0 (Could not resolve host: generativelanguage.googleapis.com)',
+        ]);
+
+        $probe = array_column($ai->probeAll(), null, 'provider');
+
+        $this->assertFalse($probe['gemini']['ok']);
+        $this->assertStringContainsString('Could not resolve host', (string) $probe['gemini']['error']);
+        $this->assertStringContainsString('egress firewall', (string) $probe['gemini']['cause'],
+            'rotating the key will not fix a request that never left the host');
+
+        // And the breaker gemini just tripped must not steal groq's row either.
+        $this->assertTrue($probe['groq']['ok']);
+    }
+
+    /**
+     * A provider with no key is reported as such, not omitted.
+     *
+     * "Not configured" and "configured and broken" are different problems with different
+     * fixes, and an operator cannot tell them apart from an absence.
+     */
+    public function test_a_provider_with_no_key_is_reported_rather_than_left_out(): void
+    {
+        $probe = array_column($this->failing([])->probeAll(), null, 'provider');
+
+        $this->assertCount(4, $probe, 'every provider is accounted for');
+        $this->assertFalse($probe['anthropic']['configured']);
+        $this->assertFalse($probe['anthropic']['ok']);
+        $this->assertNull($probe['anthropic']['error'], 'there is no failure to quote');
+        $this->assertStringContainsString('No key', (string) $probe['anthropic']['cause']);
+    }
 }

@@ -88,6 +88,14 @@ class SettingsController
             // default an operator is shown is the default the request will use —
             // they were four literals in the template, and the Gemini one was stale.
             'ai_default_models' => \AfricaGates\Services\AiService::DEFAULT_MODELS,
+            // The last per-provider probe, consumed once. Not persisted: a verdict from a
+            // week ago rendered as if it were current is worse than no verdict, because it
+            // is the one an operator would act on.
+            'ai_probe' => (static function (): array {
+                $r = $_SESSION['ai_probe'] ?? [];
+                unset($_SESSION['ai_probe']);
+                return is_array($r) ? $r : [];
+            })(),
             // ElevenLabs — the voice on the nominee's questionnaire. Booleans and defaults
             // only; the key itself is write-only like every other provider key on this page.
             'voice_status'    => (static function (): array {
@@ -668,5 +676,43 @@ class SettingsController
             ]);
         } catch (\Throwable) {}
         return $res->withHeader('Location', '/admin/settings')->withStatus(302);
+    }
+
+    /**
+     * Test EACH provider on its own, and show the four verdicts side by side.
+     *
+     * ── WHY THIS IS A SECOND BUTTON AND NOT A BETTER FIRST ONE ──────────────
+     *
+     * "Test AI now" walks the ladder and stops at the first provider that answers, which is
+     * exactly how the platform behaves and exactly the wrong instrument for "Gemini is not
+     * operational": a healthy Groq at the top means Gemini is never called and the console
+     * reports a green tick. A provider can be unfunded, blocked by the host's egress firewall
+     * or pinned to a decommissioned model for months, and the only symptom is that failover
+     * quietly does nothing on the day the primary goes down.
+     *
+     * The result goes into the session rather than a flash string because four verdicts, four
+     * models, four latencies and four causes are a table, and a table flattened into one
+     * sentence is the thing nobody reads.
+     */
+    public function probeAi(Request $req, Response $res): Response
+    {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $rows    = \AfricaGates\Services\AiService::boot()->probeAll();
+
+        $_SESSION['ai_probe'] = $rows;
+
+        $live = array_values(array_filter($rows, static fn (array $r): bool => (bool) $r['ok']));
+        $set  = array_values(array_filter($rows, static fn (array $r): bool => (bool) $r['configured']));
+
+        $_SESSION[$live === [] ? 'flash_error' : 'flash_ok'] = $set === []
+            ? 'No provider key is configured, so there was nothing to test.'
+            : sprintf('%d of %d configured provider%s answered. Each verdict is below.',
+                      count($live), count($set), count($set) === 1 ? '' : 's');
+
+        try {
+            $this->audit->record($adminId, 'settings.ai_probe', null, null, ['rows' => $rows]);
+        } catch (\Throwable) {}
+
+        return $res->withHeader('Location', '/admin/settings#ai-probe')->withStatus(302);
     }
 }

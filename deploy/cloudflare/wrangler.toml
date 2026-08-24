@@ -1,0 +1,39 @@
+name = "africa-gates-cron"
+main = "status-worker.js"
+compatibility_date = "2026-08-01"
+
+# ── THE SCHEDULE ──────────────────────────────────────────────────────────────
+#
+# Every 15 minutes. Not arbitrary: CronHealth::STALE_HOURS is 6, and the refund retry
+# ladder is 1h → 6h → 24h with a two-hour payment in-flight window — so the tick has to
+# be well inside an hour for the ladder to keep its shape, and 15 minutes leaves room for
+# several missed runs before /status calls scheduled work stale.
+#
+# Cron Triggers are UTC. The platform's own daily work picks its hour from the clock
+# inside Maintenance::run('auto'), so there is nothing timezone-sensitive here.
+#
+# The free plan allows 5 Cron Triggers per Worker; this uses 1.
+[triggers]
+crons = ["*/15 * * * *"]
+
+[vars]
+# Public. The token is a SECRET and must never be added here — anything in [vars] is
+# readable from the Cloudflare dashboard by anyone with access to the account.
+SITE = "https://afg.afrovanguard.org.ng"
+
+# ── OPTIONAL: KV, for the consecutive-failure count ───────────────────────────
+#
+# Without it the Worker still runs and still alerts — it just alerts on every failed run
+# instead of waiting for two in a row, because it has nowhere to remember the first one.
+# Create with:  wrangler kv namespace create STATE
+# then paste the id it prints below and uncomment both lines.
+#
+# [[kv_namespaces]]
+# binding = "STATE"
+# id = "paste-the-id-wrangler-printed"
+
+# ── SECRETS (never in this file) ──────────────────────────────────────────────
+#
+#   wrangler secret put CRON_TOKEN    same value as admin Settings → cron token
+#   wrangler secret put ALERT_TO      optional — where failures are emailed
+#   wrangler secret put ALERT_FROM    optional — a sender on a domain in this account

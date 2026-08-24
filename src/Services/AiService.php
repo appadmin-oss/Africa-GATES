@@ -887,6 +887,90 @@ class AiService
         ];
     }
 
+    /** The four providers this class can call, in the order `activeProvider()` prefers them. */
+    public const PROVIDERS = ['groq', 'gemini', 'anthropic', 'openai'];
+
+    /**
+     * Probe EVERY provider on its own, and report each one's verdict separately.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS EXISTS ALONGSIDE selfTest()
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `selfTest()` answers "can the platform think", and it answers it the way the platform
+     * actually works: walk the ladder, stop at the first provider that answers. That is the
+     * right question for "AI doesn't work" — and it is precisely the wrong instrument for
+     * "Gemini doesn't work", because a healthy Groq at the top of the ladder means Gemini is
+     * NEVER TRIED and the console reports a green tick.
+     *
+     * So a provider can be misconfigured, unfunded, blocked by the host's egress firewall or
+     * pinned to a decommissioned model for months, and the only symptom is that fallback
+     * quietly does nothing on the day the primary goes down — which is the day you needed it.
+     * A ladder whose lower rungs have never been stood on is not a ladder.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE BREAKER IS CLEARED ON EVERY ITERATION, NOT ONCE AT THE TOP
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * {@see resolveRoute()} appends every other configured provider after the declared hop,
+     * and then REORDERS to drop open-circuit providers. So if this loop probes Gemini,
+     * Gemini fails as unreachable and trips its breaker, then probes Anthropic — the Gemini
+     * row would be fine, but a LATER probe of a provider whose breaker had opened would find
+     * its own hop filtered out and `array_slice(…, 0, 1)` would hand back a DIFFERENT
+     * provider's result under its name. Clearing per iteration makes each row mean what its
+     * label says.
+     *
+     * Every provider is reported, including ones with no key, because "not configured" and
+     * "configured and broken" are different problems with different fixes and an operator
+     * cannot tell them apart from an absence.
+     *
+     * @return list<array{provider:string, configured:bool, model:?string, ok:bool,
+     *                    ms:int, error:?string, cause:?string}>
+     */
+    public function probeAll(): array
+    {
+        $out = [];
+
+        foreach (self::PROVIDERS as $provider) {
+            if (!$this->hasProvider($provider)) {
+                $out[] = ['provider' => $provider, 'configured' => false, 'model' => null,
+                          'ok' => false, 'ms' => 0, 'error' => null,
+                          'cause' => 'No key for ' . $provider . '. A key that is present but blank '
+                                   . 'counts as unset.'];
+                continue;
+            }
+
+            ProviderBreaker::clearAll();   // see the note above — per iteration, deliberately
+
+            $model = $this->modelFor($provider);
+            $t0    = microtime(true);
+            // One hop, this provider, nothing else: maxAttempts = 1 truncates the ladder
+            // resolveRoute() would otherwise append.
+            $reply = $this->complete('You are a health check. Reply with the single word OK.',
+                                     'ping', 8, false, 0.0, [$provider . ':'], 1);
+            $ms    = (int) round((microtime(true) - $t0) * 1000);
+            $hops  = $this->hopErrors();
+            $ok    = is_string($reply) && $reply !== '';
+
+            $out[] = [
+                'provider'   => $provider,
+                'configured' => true,
+                'model'      => $model,
+                'ok'         => $ok,
+                'ms'         => $ms,
+                'error'      => $ok ? null : ($hops[0]['error'] ?? 'empty/failed response'),
+                'cause'      => $ok ? null : self::likelyCause($hops),
+            ];
+        }
+
+        // Left cleared rather than restored. The breaker exists to stop the hot path paying a
+        // full timeout for a provider that is down; a probe that has just measured the truth
+        // is better evidence than a cache row written before it, in either direction.
+        ProviderBreaker::clearAll();
+
+        return $out;
+    }
+
     /**
      * Turn the providers' HTTP codes into the thing an operator has to go and change.
      *
