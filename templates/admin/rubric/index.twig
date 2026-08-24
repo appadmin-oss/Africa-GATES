@@ -111,7 +111,35 @@
 {% if exposure.scored %}
 <div class="ad-card" style="border-color:#ecd9a0;background:#fffdf5">
   <div class="ad-card__body" style="font-size:13.5px;line-height:1.7;color:#6b5312">
-    {{ exposure.note }}
+    <p style="margin:0">{{ exposure.note }}</p>
+
+    {# ── AND ADDING ONE IS THE DANGEROUS EDIT ────────────────────────────────
+       A scorecard counts toward quorum only when it covers every ACTIVE criterion, which
+       is the right rule and has a sharp edge: completeness is measured against the rubric
+       as it stands NOW. Adding a fifth criterion to a rubric of four instantly makes every
+       existing scorecard incomplete — every judge is missing the new one — so they stop
+       counting toward quorum, nominees drop below it, and the judge component leaves the
+       CPI entirely.
+
+       Measured: two complete scorecards, quorum met, nominee eligible. Add one criterion
+       and it is judges 0, eligible NO, CPI back to the community-only figure. Nothing
+       errors and nothing is logged; the operator's next sight of it is a category that
+       suddenly cannot crown anybody.
+
+       Retiring is the safe direction — the required set shrinks, and a scorecard that
+       covered five still covers the remaining four. #}
+    {% if exposure.scorecards|default(0) > 0 %}
+      <p style="margin:12px 0 0;padding-top:12px;border-top:1px solid #ecd9a0">
+        <strong>Adding a criterion would void
+        {{ exposure.scorecards }} completed scorecard{{ exposure.scorecards == 1 ? '' : 's' }}.</strong>
+        A scorecard counts only when it covers every criterion, so a new one leaves every
+        judge one short — they stop counting toward quorum, and any nominee who falls
+        below it loses the judge half of their score until the panel scores the new
+        criterion for everybody.
+        <span style="display:block;margin-top:6px">Retiring a criterion is safe: the
+          remaining marks still cover what is left.</span>
+      </p>
+    {% endif %}
   </div>
 </div>
 {% endif %}

@@ -135,9 +135,24 @@ class NomineeScoringService
             $programmeOf[(int) $r->id] = (int) ($r->programme_id ?? 0);
         }
 
+        // ── WHOSE MARKS ARE ALLOWED TO COUNT ─────────────────────────────────
+        //
+        // Resolved before the tree is built, because the answer is not a property of a
+        // score row: it is a property of the JUDGE, and of the programme the nominee
+        // sits in. See {@see disqualifiedJudges()}.
+        $barred = $this->disqualifiedJudges(array_values(array_unique($programmeOf)));
+
         $tree = [];
         foreach (DB::table('gates_judge_criteria_scores')->whereIn('nominee_id', $nomineeIds)->get() as $s) {
-            $tree[(int) $s->nominee_id][(int) $s->judge_id][(int) $s->criterion_id] = (int) $s->score;
+            $judgeId = (int) $s->judge_id;
+            $prog    = $programmeOf[(int) $s->nominee_id] ?? 0;
+
+            // A recused or removed judge's marks are dropped ENTIRELY — not merely
+            // stopped from growing. Leaving them in is the failure this guard exists for.
+            if (isset($barred['inactive'][$judgeId]))    continue;
+            if (isset($barred['coi'][$prog][$judgeId]))  continue;
+
+            $tree[(int) $s->nominee_id][$judgeId][(int) $s->criterion_id] = (int) $s->score;
         }
         $out = [];
         foreach ($tree as $nomId => $byJudge) {
@@ -163,6 +178,78 @@ class NomineeScoringService
             }
             if ($perJudge) $out[(int) $nomId] = $perJudge;
         }
+        return $out;
+    }
+
+    /**
+     * Judges whose marks must not count, and why.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * THE TWO FAILURES THIS EXISTS BECAUSE OF
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * 1 · A RECUSED JUDGE WAS STILL DECIDING THE AWARD.
+     *
+     *     {@see \AfricaGates\Judge\Services\JudgeService::declareConflict()} writes a row
+     *     to `gates_judge_coi` and does nothing else. `saveScore()` reads it and refuses
+     *     FURTHER marks — but every mark already given stayed in the average and kept
+     *     counting toward quorum.
+     *
+     *     So a judge who realised mid-cycle that they knew a nominee, and did exactly the
+     *     right thing by recusing, left their assessment inside the result. Measured: two
+     *     judges on 10 and 2, average 6.00; the 10 recuses; average still 6.00, still two
+     *     judges. Recusal is a promise about the RESULT, not about a form being disabled.
+     *
+     * 2 · A JUDGE TAKEN OFF THE PANEL WAS STILL DECIDING IT TOO.
+     *
+     *     `is_active = 0` is how a judge is removed — resignation, misconduct, an
+     *     appointment that should never have been made. It stops them signing in. It did
+     *     not stop their marks counting.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * AND WHY THIS IS DELIBERATELY RETROACTIVE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Dropping the marks can push a nominee back under quorum, which makes them
+     * winner-INELIGIBLE, which can leave a category with no promotable nominee at all.
+     * {@see \AfricaGates\Services\CycleMaterialiser::promoteWinners()} already handles
+     * that case by skipping the category and logging it for manual review, which is the
+     * correct conservative outcome: a category decided by a panel that has since been
+     * disqualified needs a person, not a cron job.
+     *
+     * The alternative — honouring a recusal only from the moment it is declared — means the
+     * platform publishes a result partly decided by somebody who told us they should not be
+     * deciding it. That is not a defensible award.
+     *
+     * @param  list<int> $programmeIds programmes in play, so the COI lookup is scoped
+     * @return array{inactive: array<int,true>, coi: array<int, array<int,true>>}
+     */
+    private function disqualifiedJudges(array $programmeIds): array
+    {
+        $out = ['inactive' => [], 'coi' => []];
+
+        try {
+            foreach (DB::table('gates_judges')->where('is_active', 0)->pluck('id') as $id) {
+                $out['inactive'][(int) $id] = true;
+            }
+        } catch (\Throwable $e) {
+            // A failure here must not silently ADMIT everybody — but it must also not stop
+            // scoring entirely. Logged, and the COI pass below still runs.
+            error_log('[scoring] could not read inactive judges: ' . $e->getMessage());
+        }
+
+        $programmeIds = array_values(array_filter(array_map('intval', $programmeIds)));
+        if ($programmeIds !== []) {
+            try {
+                foreach (DB::table('gates_judge_coi')->whereIn('programme_id', $programmeIds)
+                            ->get(['judge_id', 'programme_id']) as $r) {
+                    $out['coi'][(int) $r->programme_id][(int) $r->judge_id] = true;
+                }
+            } catch (\Throwable $e) {
+                error_log('[scoring] could not read judge conflicts: ' . $e->getMessage());
+            }
+        }
+
         return $out;
     }
 

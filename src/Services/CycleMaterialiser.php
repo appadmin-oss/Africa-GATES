@@ -280,6 +280,36 @@ final class CycleMaterialiser
      *
      * $announce=false promotes silently (stale backlog — see ANNOUNCE_GRACE_DAYS).
      */
+    /**
+     * Nominee ids on this category's published shortlist, or NULL when it has none.
+     *
+     * The null is load-bearing and is not the same as an empty list: "this category does
+     * not shortlist" and "this category shortlisted nobody" are different states, and
+     * collapsing them would stop a non-shortlisting programme from ever crowning anybody.
+     *
+     * @return list<int>|null
+     */
+    private function shortlistedIn(int $categoryId): ?array
+    {
+        try {
+            $shortlistId = (int) (DB::table('gates_shortlists')
+                ->where('category_id', $categoryId)->where('status', 'published')
+                ->orderByDesc('id')->value('id') ?? 0);
+
+            if ($shortlistId < 1) return null;
+
+            return array_map('intval', DB::table('gates_shortlist_entries')
+                ->where('shortlist_id', $shortlistId)->pluck('nominee_id')->all());
+        } catch (\Throwable $e) {
+            // The shortlist tables arrive in a migration. On a deployment that has not run
+            // it, NULL is the honest answer — there is no shortlist to respect — and the
+            // promotion behaves exactly as it did before shortlisting existed.
+            $this->log('    ! could not read the shortlist for category ' . $categoryId
+                       . ': ' . $e->getMessage());
+            return null;
+        }
+    }
+
     private function promoteWinners(int $cycleId, bool $announce = true): int
     {
         $scoring  = new NomineeScoringService();
@@ -297,6 +327,35 @@ final class CycleMaterialiser
             if (!$scores) continue;
 
             $eligibleIds = array_keys(array_filter($scores, static fn ($s) => !empty($s['eligible'])));
+
+            // ── AND THE AWARD COMES FROM THE SHORTLIST ───────────────────────
+            //
+            // The panel judges the shortlist, so under normal operation only shortlisted
+            // nominees ever accumulate marks and this filter changes nothing. It is here
+            // for the case where they DID: a nominee scored before the shortlist was
+            // published, or one dropped from it afterwards, keeps their marks — and
+            // without this, an entry the shortlist deliberately excluded could out-rank
+            // the field and take the award.
+            //
+            // Measured, on exactly that setup: an unshortlisted nominee scored 10 by both
+            // judges reached CPI 1000 and would have won a category whose published
+            // shortlist did not contain them.
+            //
+            // Applied ONLY when a published shortlist exists. A programme that does not
+            // shortlist at all is a legitimate configuration, and an empty filter there
+            // would crown nobody, ever.
+            $shortlisted = $this->shortlistedIn((int) $catId);
+            if ($shortlisted !== null) {
+                $dropped = array_values(array_diff($eligibleIds, $shortlisted));
+                if ($dropped !== []) {
+                    $this->log(sprintf(
+                        '    ! category %d: %d scored nominee(s) are NOT on the published '
+                        . 'shortlist and are excluded from the award — ids %s',
+                        (int) $catId, count($dropped), implode(', ', $dropped)));
+                }
+                $eligibleIds = array_values(array_intersect($eligibleIds, $shortlisted));
+            }
+
             if (!$eligibleIds) {
                 $this->log(sprintf('    ! category %d: no nominee meets the judge quorum — skipping promotion (manual review)', (int) $catId));
                 continue;

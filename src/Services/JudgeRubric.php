@@ -371,10 +371,65 @@ final class JudgeRubric
         }
 
         return ['scored' => true, 'ballots' => $n,
+                'scorecards' => self::completeScorecards($programmeId),
                 'note' => number_format($n) . ' score' . ($n === 1 ? ' has' : 's have')
                         . ' already been recorded against this rubric. You can still change '
                         . 'it — but those scores were given against the weights as they '
                         . 'stood, so changing a weight moves a result that has already been '
                         . 'reached.'];
+    }
+
+    /**
+     * How many COMPLETE scorecards adding a criterion would void.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY ADDING IS THE DANGEROUS EDIT, NOT REMOVING
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * {@see \AfricaGates\Services\NomineeScoringService::judgePanelsFor()} counts only a
+     * COMPLETE scorecard — a judge who has scored every ACTIVE criterion. That definition
+     * is what stops one criterion scored in isolation counting toward quorum, and it is
+     * right.
+     *
+     * It also means the completeness of every scorecard already given is measured against
+     * the rubric as it stands NOW. So adding a fifth criterion to a rubric of four
+     * instantly makes every existing scorecard incomplete: each judge is missing the new
+     * one. They stop counting toward quorum, nominees fall below it, and the judge
+     * component drops out of the CPI entirely.
+     *
+     * Measured: two complete scorecards, quorum met, nominee eligible. Add one criterion —
+     * judges 0, eligible NO, CPI back to the community-only figure. Nothing errors, nothing
+     * is logged, and the operator's next sight of it is a category that suddenly cannot
+     * crown anybody.
+     *
+     * Retiring a criterion is the safe direction: the required set SHRINKS, and a scorecard
+     * that covered five criteria still covers the remaining four.
+     *
+     * This does not prevent the edit — an operator may have a real reason, and a rubric
+     * that cannot gain a criterion is its own problem. It puts the NUMBER in front of them
+     * beforehand, because "this will void 47 scorecards" and "you can still change it" are
+     * very different sentences.
+     */
+    public static function completeScorecards(?int $programmeId): int
+    {
+        $ids = array_map(static fn (object $r): int => (int) $r->id,
+                         array_filter(self::effective($programmeId),
+                                      static fn (object $r): bool => (int) $r->is_active === 1));
+        $required = count($ids);
+        if ($required < 1) return 0;
+
+        try {
+            // A (judge, nominee) pair covering every active criterion. Counted in SQL
+            // rather than walked in PHP: on a full panel this is tens of thousands of rows.
+            return (int) DB::table('gates_judge_criteria_scores')
+                ->whereIn('criterion_id', $ids)
+                ->selectRaw('judge_id, nominee_id')
+                ->groupBy('judge_id', 'nominee_id')
+                ->havingRaw('COUNT(DISTINCT criterion_id) = ?', [$required])
+                ->get()->count();
+        } catch (\Throwable $e) {
+            error_log('[rubric] scorecard count: ' . $e->getMessage());
+            return 0;
+        }
     }
 }
