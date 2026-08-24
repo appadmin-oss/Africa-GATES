@@ -57,7 +57,19 @@
         <div>
           <label for="q-deadline">Send it by</label>
           <input type="datetime-local" name="deadline_at" id="q-deadline"
-                 value="{{ policy.deadline_at ? policy.deadline_at|date('Y-m-d\\TH:i') : '' }}">
+                 {# ── RAW, NOT |date — THIS FIELD ROUND-TRIPS ─────────────────────────
+                    Every other datetime-local field in the admin uses this same string
+                    transform, and the reason is that the SAVE side parses what comes back
+                    with `Carbon::parse()` — no zone attached, so it lands in the stored
+                    zone. Display and parse therefore have to agree, and they agree on the
+                    stored value.
+
+                    This one field used `|date`, which was identical while Twig had no
+                    timezone configured and stopped being identical the moment one was set
+                    for the public pages: the field would show an hour later than it stored,
+                    and saving without touching it would push the deadline forward an hour
+                    every single time. #}
+                 value="{{ policy.deadline_at ? policy.deadline_at|replace({' ':'T'})|slice(0,16) : '' }}">
           {% if policy.source == 'derived' %}
             <p class="hint">Currently taken from this cycle's results date. Set one here and it stops moving when you reschedule the results.</p>
           {% elseif policy.source == 'none' %}

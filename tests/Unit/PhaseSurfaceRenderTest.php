@@ -49,6 +49,32 @@ class PhaseSurfaceRenderTest extends TestCase
         return [$out->getStatusCode(), (string) $out->getBody()];
     }
 
+    /**
+     * A fixture date as the PAGE will print it — in the display zone, not the server's.
+     *
+     * ── THE ONE-HOUR-A-DAY FAILURE THIS ENDS ────────────────────────────────
+     *
+     * These assertions used `date('j M Y', strtotime('+10 days'))`, which is the SERVER's
+     * day. The fixtures store their windows in UTC and every template renders them through
+     * `when_zoned` into Africa/Lagos — so between 23:00 and midnight UTC the two are
+     * different dates and three tests in this file failed, for one hour in twenty-four,
+     * for a reason that had nothing to do with what they were testing.
+     *
+     * Caught at 23:12 UTC: stored `2026-09-03 23:12`, page printed "4 Sep 2026, 00:12",
+     * assertion wanted "3 Sep 2026". The page was right.
+     *
+     * Reading the zone from {@see \AfricaGates\Support\DisplayTime} rather than naming
+     * Africa/Lagos here, because that is where the templates read it from: an operator who
+     * changes the display zone must not have to fix this file too.
+     */
+    private function asRendered(string $relative, string $format): string
+    {
+        return (new \DateTimeImmutable(date('Y-m-d H:i:s', strtotime($relative)),
+                                       new \DateTimeZone('UTC')))
+            ->setTimezone(new \DateTimeZone(\AfricaGates\Support\DisplayTime::zone()))
+            ->format($format);
+    }
+
     private function openVoting(): array
     {
         return [
@@ -235,7 +261,7 @@ class PhaseSurfaceRenderTest extends TestCase
         );
 
         $this->assertStringContainsString('Nominations are closed right now', $body);
-        $this->assertStringContainsString(date('j F Y', strtotime('+30 days')), $body,
+        $this->assertStringContainsString($this->asRendered('+30 days', 'j F Y'), $body,
             'a visitor should not have to guess when to come back');
     }
 
@@ -301,7 +327,7 @@ class PhaseSurfaceRenderTest extends TestCase
 
         $this->assertStringContainsString('Voting open', $body);
         $this->assertStringContainsString('Closes first', $body);
-        $this->assertStringContainsString(date('j M Y', strtotime('+10 days')), $body,
+        $this->assertStringContainsString($this->asRendered('+10 days', 'j M Y'), $body,
             'the rail must name the real close date');
     }
 
@@ -372,7 +398,18 @@ class PhaseSurfaceRenderTest extends TestCase
 
         $this->assertStringContainsString('Voting open', $body);
         $this->assertStringContainsString('Closes <time', $body, 'machine-readable, absolute date');
-        $this->assertStringContainsString(date('j M Y', strtotime('+10 days')), $body);
+
+        // ── THE DATE IS EXPECTED IN THE DISPLAY ZONE, NOT THE SERVER'S ───────
+        //
+        // This asserted `date('j M Y', strtotime('+10 days'))` — the SERVER's day. The
+        // fixture stores `voting_close` in UTC and the template renders it through
+        // `when_zoned` into Africa/Lagos, so between 23:00 and midnight UTC the two are
+        // different dates and this test failed for one hour in every twenty-four.
+        //
+        // Caught at 23:12 UTC: stored 2026-09-03 23:12, rendered "4 Sep 2026, 00:12",
+        // asserted "3 Sep 2026". The page was right and the assertion was wrong — so the
+        // expectation is computed the way the page computes it.
+        $this->assertStringContainsString($this->asRendered('+10 days', 'j M Y'), $body);
     }
 
     public function test_the_ballot_records_the_vote_for_the_hub_tracker(): void

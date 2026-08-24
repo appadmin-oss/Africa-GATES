@@ -322,4 +322,66 @@ final class JudgingIntegrityAuditTest extends TestCase
 
         $this->assertSame(0, JudgeRubric::completeScorecards(null));
     }
+    // ════════════════════════════════════════════════════════════════════════
+    // 5 · A BELOW-QUORUM FIGURE IS LABELLED, NOT SILENTLY COMPARABLE
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * The judge half is not counted below quorum, so the number is a COMMUNITY score.
+     *
+     * It sat in the same column as a full CPI with nothing to say the two were not
+     * comparable — and the comment above it claimed the judge component was "withheld
+     * (community-only)", which is what RENORMALISING would mean and is not what happens.
+     */
+    public function test_a_below_quorum_score_is_marked_provisional(): void
+    {
+        $a = $this->judge('a@x.io');
+        $this->scorecard($a, $this->nominee, 7);   // one judge; quorum is two
+
+        $row = (new NomineeScoringService())->scoreCategory($this->cat)[$this->nominee];
+
+        $this->assertFalse($row['eligible']);
+        $this->assertTrue($row['provisional'],
+            'a community-only figure was presented as a Cultural Power Index');
+    }
+
+    /** And a scored nominee's figure is not marked provisional. */
+    public function test_a_full_scorecard_is_not_provisional(): void
+    {
+        $this->scorecard($this->judge('a@x.io'), $this->nominee, 7);
+        $this->scorecard($this->judge('b@x.io'), $this->nominee, 7);
+
+        $row = (new NomineeScoringService())->scoreCategory($this->cat)[$this->nominee];
+
+        $this->assertTrue($row['eligible']);
+        $this->assertFalse($row['provisional']);
+    }
+
+    /**
+     * THE REASON THE WEIGHTING IS NOT "FIXED": renormalising is worse.
+     *
+     * Giving community the full weight when there is no judge average would put an
+     * UNJUDGED nominee at the top of the board on popularity alone — the single thing
+     * this platform exists to prevent. Scoring the absent half as zero understates rather
+     * than overstates, which is the conservative direction.
+     *
+     * Pinned with the measured numbers so a future "obvious simplification" has to argue
+     * with them rather than with a comment.
+     */
+    public function test_an_unjudged_nominee_cannot_outrank_a_judged_one(): void
+    {
+        $cpi = new \AfricaGates\Services\CpiService();
+
+        $judged     = $cpi->nomineeScore(100, 100, 6.0);   // cohort max, middling marks
+        $unjudged   = $cpi->nomineeScore(100, 100, null);  // cohort max, nobody has judged
+        $renormed   = 1000;                                // what community-only would give
+
+        $this->assertSame(780, $judged);
+        $this->assertSame(450, $unjudged);
+
+        $this->assertLessThan($judged, $unjudged,
+            'an unjudged nominee outranked a judged one — popularity decided the board');
+        $this->assertLessThan($renormed, $unjudged,
+            'renormalising would hand the top of the board to whoever has the most votes');
+    }
 }

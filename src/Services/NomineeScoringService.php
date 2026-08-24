@@ -59,10 +59,32 @@ class NomineeScoringService
                 'judge_score' => $ja,
                 'judges'      => $judges,                          // COMPLETE scorecards only
                 'eligible'    => $eligible,
-                // Judges only move the CPI once the per-cycle quorum of COMPLETE
-                // scorecards is met (README methodology). Below quorum the judge
-                // component is withheld (community-only) so one early scorecard
-                // can't swing a nominee's displayed rank.
+                // ── A BELOW-QUORUM FIGURE IS NOT A CPI ───────────────────────
+                //
+                // True whenever the judge half has not been counted, which is the only
+                // honest label for the number beside it. Without this flag a
+                // community-only score sits in the same column as a full CPI and reads
+                // as one — the figures are not comparable and nothing said so.
+                'provisional' => !$eligible,
+                // ── AND WHY THE JUDGE HALF IS NOT RENORMALISED AWAY ──────────
+                //
+                // The obvious "fix" for a below-quorum nominee is to give community the
+                // full weight instead of scoring judges zero — the comment here used to
+                // say the component was "withheld (community-only)", which is what
+                // renormalising would mean and is NOT what this does.
+                //
+                // Measured, with a cohort max of 100 organic votes:
+                //
+                //     100 votes, judged 6.0/10 .................  780
+                //     100 votes, not yet judged (as built) .....  450
+                //     100 votes, not yet judged (renormalised) . 1000
+                //      50 votes, judged 6.0/10 .................  555
+                //
+                // Renormalising puts an UNJUDGED nominee at the top of the board on
+                // popularity alone, which is the single thing this platform exists to
+                // prevent. Scoring the absent half as zero is the conservative direction
+                // — it understates rather than overstates — and `provisional` above is
+                // what stops the understatement being mistaken for a verdict.
                 'cpi_score'   => $this->cpi->nomineeScore((int) $n->organic_vote_count, $cohortMax, $eligible ? $ja : null, $w['community'], $w['judge']),
             ];
         }

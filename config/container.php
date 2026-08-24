@@ -282,6 +282,29 @@ return [
             'asset',
             [\AfricaGates\Support\Assets::class, 'url']
         ));
+
+        // ── EVERY DATE TWIG PRINTS IS IN THE DISPLAY ZONE ────────────────────
+        //
+        // Twig's `|date` filter falls back to PHP's default timezone, which is UTC here
+        // because APP_TIMEZONE is unset. `when_zoned` converts to DisplayTime::zone(),
+        // which is Africa/Lagos. So the platform printed the SAME stored timestamp as two
+        // different dates depending on which filter a template happened to use:
+        //
+        //     /vote      closes  ...|when_zoned  →  "4 Sep 2026, 00:12"   (Lagos)
+        //     /nominate  opens   ...|date        →  "3 Sep 2026"          (UTC)
+        //
+        // One hour a day, every day, on pages a visitor moves between. On a stand call it
+        // is worse than confusing: a vendor reads "applications close 3 September" from
+        // one page while the deadline the system enforces is the 4th in their own
+        // timezone — or believes they have a day they do not.
+        //
+        // Fixed HERE rather than by converting seventy-eight `|date` call sites: this is
+        // one decision about how the platform displays time, and spreading it across every
+        // template guarantees the next one added forgets. `|date('c')` still emits a valid
+        // ISO-8601 string — now with a +01:00 offset instead of Z, which is if anything
+        // more useful to a machine — and `|date('U')` is a Unix timestamp and unaffected.
+        $twig->getEnvironment()->getExtension(\Twig\Extension\CoreExtension::class)
+             ->setTimezone(\AfricaGates\Support\DisplayTime::zone());
         // `{{ cron_health() }}` → is the schedule still running?
         //
         // A function rather than something each controller passes, because a stalled

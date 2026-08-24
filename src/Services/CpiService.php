@@ -27,7 +27,12 @@ class CpiService
      * @param int        $cohortMaxVotes the max votes in this nominee's COHORT
      *                                   (per-category) used to normalise the
      *                                   community component to 0..1
-     * @param float|null $judgeAvg0to10  weighted judge average (0..10) or null
+     * @param float|null $judgeAvg0to10  weighted judge average (0..10), or NULL when the
+     *                                   panel has not reached quorum. Null contributes
+     *                                   ZERO, not a renormalised community-only score:
+     *                                   see NomineeScoringService::scoreCategory() for the
+     *                                   measured reason, and read the result as provisional
+     *                                   rather than as a rank.
      */
     public function nomineeScore(int $voteCount, int $cohortMaxVotes, ?float $judgeAvg0to10, float $communityWeight = 0.45, float $judgeWeight = 0.55): int
     {
