@@ -825,6 +825,31 @@ final class AiCapability
                     . 'what timeframe — so the search can filter as well as match text. Your words '
                     . 'are also searched literally either way.',
             ]),
+            // Orients a judge in ONE nominee's dossier before they read it. Never sees the
+            // rest of the field, so it cannot rank — see JudgeAssist for why that is a
+            // property of the call and not a rule in the prompt.
+            'judge.orientation' => $c('judge.orientation', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_REASON,
+                'model'           => self::PRIMARY[self::TIER_REASON],
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 700,
+                // A panel of ten judges opening forty ballots each is 400 in a sitting, and
+                // the result is cached per nominee — so this is generous rather than tight,
+                // and the cache is what keeps it affordable.
+                'calls_per_day'   => 1500,
+                'tokens_per_day'  => 3_000_000,
+                'timeout'         => 30,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'What you and the person who nominated you wrote about your '
+                    . 'work, plus the titles and descriptions of anything you attached, with '
+                    . 'contact details replaced by placeholders. Never your email or phone number.',
+                'data_purpose'    => 'To give a judge a map of your entry before they read it — '
+                    . 'what your case rests on, what is evidenced, and what to look at. It '
+                    . 'produces notes, never a score, and it never sees another nominee.',
+            ]),
             // Reads the documents a nominee attached as evidence and describes them for a
             // reviewer. Pinned to Gemini by NECESSITY rather than preference: it is the
             // only configured provider that can see a file at all. The default ladder

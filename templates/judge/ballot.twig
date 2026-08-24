@@ -136,6 +136,99 @@
                 dossier reflects our reach and the nominee's access to a camera, not the
                 quality of their work.
           #}
+          {# ── A MAP OF THE DOSSIER, BEFORE THE DOSSIER ─────────────────────
+             Above the evidence because it is a map OF it, and a map read afterwards is
+             a summary — which is the version that replaces reading rather than
+             directing it.
+
+             It is generated on request and never on render: a ballot of forty must not
+             start forty model calls by scrolling, and a page that spends money when you
+             look at it spends it again on every refresh.
+
+             It states no score, makes no comparison, and has not been shown any other
+             nominee — that last one is a property of the request, not a promise in a
+             prompt. See JudgeAssist. #}
+          <div class="jc-map" x-show="cur">
+            <div class="jc-map__top">
+              <p class="jc-klabel">Before you read this</p>
+              <template x-if="!cur?.map && !mapBusy">
+                <button class="jc-map__go" type="button" @click="orient()">
+                  Map this dossier</button>
+              </template>
+              <span class="jc-map__wait" x-show="mapBusy">Reading the dossier…</span>
+            </div>
+
+            <template x-if="!cur?.map && !mapBusy && !mapErr">
+              <p class="jc-map__hint">
+                A short map of what is in this entry — what the case rests on, which claims
+                have something behind them, and what is worth checking. It never gives a
+                score and it has not seen any other nominee. Read the dossier itself either
+                way; this only tells you where to start.
+              </p>
+            </template>
+
+            <p class="jc-cover" x-show="mapErr" x-text="mapErr"></p>
+
+            <template x-if="cur?.map">
+              <div>
+                <p class="jc-map__rests" x-text="cur.map.rests_on"></p>
+
+                <div class="jc-map__cols">
+                  <template x-if="(cur.map.evidenced||[]).length">
+                    <div>
+                      <p class="jc-klabel">Has something behind it</p>
+                      <ul class="jc-map__l">
+                        <template x-for="(t,i) in cur.map.evidenced" :key="'e'+i">
+                          <li x-text="t"></li></template>
+                      </ul>
+                    </div>
+                  </template>
+                  <template x-if="(cur.map.asserted||[]).length">
+                    <div>
+                      {# Neutral wording, chosen over the obvious alternative that frames
+                         an assertion as a deficiency. An assertion is not a fault: most
+                         good work is described before it is documented, and a nominee
+                         without a filing cabinet is not a weaker nominee. A judge needs
+                         the distinction without the insinuation. #}
+                      <p class="jc-klabel">Stated, with nothing attached</p>
+                      <ul class="jc-map__l">
+                        <template x-for="(t,i) in cur.map.asserted" :key="'a'+i">
+                          <li x-text="t"></li></template>
+                      </ul>
+                    </div>
+                  </template>
+                </div>
+
+                <template x-if="(cur.map.gaps||[]).length">
+                  <div class="jc-map__grp">
+                    <p class="jc-klabel">Not in the paperwork</p>
+                    <ul class="jc-map__l">
+                      <template x-for="(t,i) in cur.map.gaps" :key="'g'+i">
+                        <li x-text="t"></li></template>
+                    </ul>
+                  </div>
+                </template>
+
+                <template x-if="(cur.map.check||[]).length">
+                  <div class="jc-map__grp">
+                    <p class="jc-klabel">Worth looking at yourself</p>
+                    <ul class="jc-map__l">
+                      <template x-for="(t,i) in cur.map.check" :key="'c'+i">
+                        <li x-text="t"></li></template>
+                    </ul>
+                  </div>
+                </template>
+
+                <p class="jc-map__foot">
+                  Written by a model from this entry alone. It has seen no scores, no vote
+                  counts, no scoring criteria and no other nominee.
+                  <strong>It is not a judgement, and nobody has checked it</strong> —
+                  the dossier below is the record.
+                </p>
+              </div>
+            </template>
+          </div>
+
           <div class="jc-dossier" x-show="cur?.tagline || cur?.evidence">
             <p class="jc-klabel">Evidence dossier</p>
             <p class="jc-dossier__txt" x-show="cur?.tagline" x-text="cur?.tagline"></p>
@@ -363,6 +456,27 @@
   .jc-ev__src{ display:inline-block; margin:9px 0 0; font-size:12px; color:#5a6d6f; }
   a.jc-ev__src{ color:#237b22; text-decoration:underline; }
 
+  /* The dossier map. Set apart from the evidence rather than styled like it: a judge
+     must be able to tell at a glance which part of this screen is the record and which
+     part is a machine's reading of it. Cool grey against the dossier's paper. */
+  .jc-map{ padding:18px 28px; border-bottom:1px solid rgba(16,41,44,.07); background:#f7f8fa; }
+  .jc-map__top{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; }
+  .jc-map__go{ cursor:pointer; font:650 12px/1 inherit; border:1px solid rgba(16,41,44,.2);
+    background:#fff; color:#10292C; border-radius:999px; padding:9px 15px; min-height:34px; }
+  .jc-map__go:hover{ border-color:#237b22; color:#237b22; }
+  .jc-map__go:focus-visible{ outline:3px solid #237b22; outline-offset:2px; }
+  .jc-map__wait{ font-size:12.5px; color:#5a6d6f; }
+  .jc-map__hint{ margin:10px 0 0; max-width:66ch; font-size:13px; line-height:1.65; color:#5a6d6f; }
+  .jc-map__rests{ margin:12px 0 0; font-size:15px; line-height:1.6; font-weight:600; color:#10292C; }
+  .jc-map__cols{ display:grid; gap:18px; margin-top:14px;
+    grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); }
+  .jc-map__grp{ margin-top:14px; }
+  .jc-map__l{ margin:6px 0 0; padding-left:19px; font-size:13.5px; line-height:1.65; color:#3a4448; }
+  .jc-map__l li{ margin:3px 0 0; }
+  .jc-map__foot{ margin:16px 0 0; padding-top:12px; border-top:1px dashed rgba(16,41,44,.14);
+    max-width:70ch; font-size:12px; line-height:1.6; color:#5a6d6f; }
+
   /* Machine reading. Deliberately the quietest thing on the card and deliberately
      collapsed: it sits below the document it describes so the judge meets the
      evidence first, and it is styled as an aside rather than as a finding because
@@ -473,8 +587,55 @@ function ballotApp(initial){
     get curScore(){ var n=this.cur; if(!n) return 0; return this.criteria.reduce(function(s,c){ return s + (n.scores[c.id]||0); },0); },
     get saveLabel(){ var n=this.cur; if(!n) return ''; return n._state==='saving'?'Saving…':(n._state==='ok'?'✓ Saved':(n._state==='err'?('✗ '+(n._err||'Could not save')):(n.complete?'Fully scored':'Not yet scored'))); },
 
+    mapBusy: false,
+    mapErr: '',
+
     flag(cc){ cc=(cc||'').toUpperCase(); if(cc.length!==2) return '🌍'; return String.fromCodePoint.apply(null,[].map.call(cc,function(c){return 127397+c.charCodeAt(0);})); },
-    pick(i){ this.active = i; },
+    // Clearing the map error on every move, not just on a new request: the message is
+    // about the nominee that failed, and carrying it to the next one makes a working
+    // dossier look broken.
+    pick(i){ this.active = i; this.mapErr = ''; this.mapBusy = false; },
+
+    // ── ONE REQUEST AT A TIME, AND ONLY WHEN ASKED ────────────────────────
+    //
+    // POST rather than GET: this may spend money, and a GET is prefetched by browsers
+    // and link scanners — a summary generated by somebody hovering is a bill with no
+    // reader. The result is cached per nominee server-side, so a second judge on the
+    // same panel gets it free and, more importantly, gets the SAME map.
+    orient(){
+      var n = this.cur;
+      if(!n || this.mapBusy) return;
+      this.mapBusy = true; this.mapErr = '';
+      var self = this, id = n.id;
+      // The same CSRF mechanism saveScore() uses — the meta tag — rather than a second
+      // one. Two ways of proving the same thing is how one of them quietly stops working.
+      fetch('/judge/orient/' + id, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-CSRF-Token': (document.querySelector('meta[name=csrf-token]')||{}).content || ''
+        },
+        body: ''
+      }).then(function(r){
+        if(r.status === 401){
+          window.location = '/judge/login?next=' + encodeURIComponent(location.pathname);
+          return {};
+        }
+        return r.json().catch(function(){ return {}; });
+      }).then(function(d){
+        self.mapBusy = false;
+        if(d && d.ok && d.map){
+          // Written onto the queue entry, so switching away and back does not ask again.
+          var q = self.queue.filter(function(x){ return x.id === id; })[0];
+          if(q) q.map = d.map;
+        } else {
+          self.mapErr = (d && d.message) || 'That could not be done just now.';
+        }
+      }).catch(function(){
+        self.mapBusy = false;
+        self.mapErr = 'That could not be done just now. The dossier below is unaffected.';
+      });
+    },
 
     setScore(critId, val){
       var n=this.cur; if(!n || this.locked) return;

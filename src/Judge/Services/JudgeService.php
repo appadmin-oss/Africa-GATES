@@ -130,6 +130,40 @@ class JudgeService
         }
     }
 
+    /**
+     * May this judge see this nominee at all?
+     *
+     * The same resolution {@see evidenceFor()} does, asked about the nominee directly:
+     * nominee → category → cycle → programme, checked against this judge's own assignments.
+     * Nothing in the request contributes to the answer except the id, so a judge on one
+     * panel cannot reach another panel's entry by incrementing it.
+     *
+     * Extracted rather than inlined at the caller because it is now asked in two places,
+     * and an access check that exists twice is an access check that will eventually differ.
+     */
+    public function mayJudgeNominee(int $judgeId, int $nomineeId): bool
+    {
+        if ($judgeId < 1 || $nomineeId < 1) return false;
+
+        $mine = array_map(static fn (array $p): int => (int) $p['id'], $this->programmes($judgeId));
+        if ($mine === []) return false;
+
+        try {
+            return DB::table('gates_nominees as n')
+                ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                ->where('n.id', $nomineeId)
+                ->whereIn('cy.programme_id', $mine)
+                // A tombstone left the ballot; everything about it goes with it.
+                ->whereNull('n.merged_into')
+                ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
+                ->exists();
+        } catch (\Throwable $ex) {
+            error_log('[judge] nominee access ' . $nomineeId . ': ' . $ex->getMessage());
+            return false;
+        }
+    }
+
     /** All criteria (currently global; programme-specific override supported). */
     public function criteria(int $programmeId): array
     {
@@ -205,6 +239,12 @@ class JudgeService
         $dossiers = (new \AfricaGates\Services\EvidenceService())
             ->forBallot(array_column($nominees, 'id'));
 
+        // The dossier maps that ALREADY exist. Read-only on render, deliberately: a judge
+        // opening a ballot of forty must not start forty model calls by scrolling, and a
+        // page that spends money on render spends it again on every refresh and every back
+        // button. The ballot shows what is there and offers a button for the rest.
+        $maps = \AfricaGates\Services\JudgeAssist::forBallot(array_column($nominees, 'id'));
+
         foreach ($nominees as $n) {
             // Popularity is stripped at the boundary, not merely left unrendered. The row
             // arrives from `select *` carrying vote_count and organic_vote_count, and the
@@ -224,6 +264,10 @@ class JudgeService
             // where nothing had been or could be scored. The guard is the whole fix.
             $n['complete'] = $criteria !== [] && count($n['scores']) === count($criteria);
             $n['evidence'] = $dossiers[(int) $n['id']] ?? ['items' => [], 'interviews' => [], 'coverage' => null];
+            // Null when nobody has asked for one. The ballot renders a button in that case
+            // rather than an empty panel, because an empty "what this rests on" reads as a
+            // statement that the entry rests on nothing.
+            $n['map'] = $maps[(int) $n['id']] ?? null;
             $byCategory[$n['category_id']]['nominees'][] = $n;
         }
 

@@ -55,6 +55,46 @@ class BallotController
         ]);
     }
 
+    /**
+     * Produce (or return) the dossier map for one nominee.
+     *
+     * ── THE AUTHORISATION IS THE INTERESTING PART ───────────────────────────
+     *
+     * A judge may only ask about a nominee on a panel they sit on. Not because the map is
+     * secret — the dossier behind it is already visible to them — but because without the
+     * check this endpoint would summarise ANY nominee by id, including entries in a
+     * programme this judge was deliberately not assigned to, and including ones withheld
+     * for a conflict of interest. That is Broken Access Control wearing a helpful hat.
+     *
+     * `evidenceFor()` already resolves evidence → nominee → category → cycle → programme
+     * against this judge's assignments, so the same question is asked here directly.
+     */
+    public function orient(Request $req, Response $res, array $args): Response
+    {
+        $judgeId   = (int) ($_SESSION['judge_id'] ?? 0);
+        $nomineeId = (int) ($args['nomineeId'] ?? 0);
+
+        $json = static function (Response $res, array $body, int $code = 200): Response {
+            $res->getBody()->write((string) json_encode($body));
+            return $res->withHeader('Content-Type', 'application/json')->withStatus($code);
+        };
+
+        if (!$this->judges->mayJudgeNominee($judgeId, $nomineeId)) {
+            // Deliberately the same answer as "no such nominee". Distinguishing them would
+            // let somebody enumerate which entries exist in a programme they cannot see.
+            return $json($res, ['ok' => false,
+                'message' => 'That nominee is not on your ballot.'], 404);
+        }
+
+        $r = \AfricaGates\Services\JudgeAssist::forNominee($nomineeId);
+
+        return $json($res, [
+            'ok'      => (bool) $r['ok'],
+            'map'     => $r['map'],
+            'message' => (string) $r['message'],
+        ]);
+    }
+
     public function saveScore(Request $req, Response $res, array $args): Response
     {
         $judgeId = (int)$_SESSION['judge_id'];
