@@ -140,6 +140,7 @@ final class AdminNav
                 'key' => 'data', 'label' => 'Data', 'gate' => 'data',
                 'tip' => 'Every dataset collected — browse, view details and export.',
                 'items' => [
+                    ['page' => 'integrity',     'label' => 'Integrity',           'href' => '/admin/integrity'],
                     ['page' => 'data',          'label' => 'All data',            'href' => '/admin/data'],
                     ['page' => 'analytics',     'label' => 'Analytics',           'href' => '/admin/analytics'],
                     ['page' => 'registrations', 'label' => 'Event Registrations', 'href' => '/admin/registrations'],

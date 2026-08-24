@@ -2930,6 +2930,16 @@ return function(App $app) {
         $a->get('/dashboard',       AdminDashboardController::class.':index');
         $a->get('/integrity-brief', AdminDashboardController::class.':integrityBrief');
 
+        // ── EVERY INTEGRITY SIGNAL, ON ONE PAGE ─────────────────────────────
+        //
+        // The signals already existed and were on four screens: vote fraud under vote
+        // delivery, collusion behind the dashboard, judge anomalies inside the judges list,
+        // and a brief on the dashboard summarising things a reader could not then go and
+        // look at. The question they answer is asked at one moment — a result has been
+        // challenged, or is about to be published — and at that moment four screens is the
+        // same as none.
+        $a->get('/integrity', \AfricaGates\Admin\Controllers\IntegrityController::class.':index');
+
         $a->get('/profiles',        AdminProfilesController::class.':index');
         $a->post('/profiles/merge',   AdminProfilesController::class.':merge');
         $a->post('/profiles/unmerge', AdminProfilesController::class.':unmerge');
