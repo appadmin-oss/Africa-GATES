@@ -33,6 +33,27 @@ final class StandType
      * "Food" and "food and drink" land in the same bucket, and a mistyped category is a stand
      * that silently escapes its own cap.
      */
+    /**
+     * The trades on offer.
+     *
+     * A method now, not the constant beside it. The list is POLICY — it differs by event
+     * and by year — and as a constant it could only be changed by editing PHP, on a host
+     * with no SSH. A book fair could not add "publishing"; a food festival could not remove
+     * "beauty". Since the quota is set against these, that meant the fairness mechanism
+     * only ever worked on categories somebody else had chosen.
+     *
+     * {@see VendorPolicy::categories()} returns the organiser's list, or this one when they
+     * have not set one. The constant stays as that default and as the value every existing
+     * test and caller already agrees with.
+     *
+     * @return array<string,string>
+     */
+    public static function categories(): array
+    {
+        return VendorPolicy::categories();
+    }
+
+    /** The shipped default. {@see categories()} is what a screen should read. */
     public const CATEGORIES = [
         'food'     => 'Food and drink',
         'craft'    => 'Craft and handmade',
@@ -210,7 +231,10 @@ final class StandType
         if ($slug === '') return $fail + ['message' => 'That name does not make a usable web address.'];
 
         $category = (string) ($in['category'] ?? 'general');
-        if (!isset(self::CATEGORIES[$category])) $category = 'general';
+        // The live list, not the constant: a category an organiser added would otherwise be
+        // silently rewritten to 'general' the moment somebody used it.
+        $live = self::categories();
+        if (!isset($live[$category])) $category = (string) (array_key_first($live) ?? 'general');
 
         $price   = (int) preg_replace('/[^0-9]/', '', (string) ($in['price_naira'] ?? '0'));
         $deposit = (int) preg_replace('/[^0-9]/', '', (string) ($in['deposit_naira'] ?? '0'));

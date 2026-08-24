@@ -191,6 +191,14 @@ class EventsController
 
         return $this->view->render($res, 'pages/events/detail.twig', [
             'referral'         => $referral,
+            // ── WHAT THIS EVENT IS RAISING FOR ───────────────────────────────
+            //
+            // Live appeals only, and empty for most events. An organiser running a
+            // fundraising dinner used to have a ticket page and an appeal page that did not
+            // know about each other; this is the join. The target and the running total
+            // come from OrgCampaign, so there is one progress calculation on the platform
+            // rather than a second one here that would drift from it.
+            'appeals'          => \AfricaGates\Services\OrgCampaign::forEvent((int) $event['id']),
             'page_title'       => $event['title'] . ' — Africa GATES',
             'meta_description' => ($event['tagline'] ?? null)
                 ?: mb_substr(strip_tags((string)($event['description'] ?? '')), 0, 150),

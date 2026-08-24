@@ -2959,6 +2959,20 @@ return function(App $app) {
         // same as none.
         $a->get('/integrity', \AfricaGates\Admin\Controllers\IntegrityController::class.':index');
 
+        // ── WHAT VENDORS MUST SUPPLY, AND MAY SELL ──────────────────────────
+        //
+        // Both were constants in PHP, on a deployment with no SSH — so a craft market of
+        // twenty traders could not stop demanding company registration certificates, and a
+        // book fair could not add "publishing" to the trades it sells stands for.
+        //
+        // Admin rather than superadmin, deliberately: this is the job of the person running
+        // the market, and putting it behind the same gate as the API keys would mean it is
+        // never used by the person it is for.
+        $vp = \AfricaGates\Admin\Controllers\VendorPolicyController::class;
+        $a->get ('/vendor-policy',              $vp.':index');
+        $a->post('/vendor-policy/requirements', $vp.':saveRequirements');
+        $a->post('/vendor-policy/categories',   $vp.':saveCategories');
+
         $a->get('/profiles',        AdminProfilesController::class.':index');
         $a->post('/profiles/merge',   AdminProfilesController::class.':merge');
         $a->post('/profiles/unmerge', AdminProfilesController::class.':unmerge');

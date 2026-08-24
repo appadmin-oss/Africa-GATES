@@ -879,6 +879,23 @@
             <label for="caClose"><span>Closing date (optional)</span>
               <input id="caClose" name="closes_on" type="date"></label>
           </div>
+          {# ── AN EVENT TO RAISE FOR ─────────────────────────────────────────
+             Optional, and blank for most appeals. Naming one puts this appeal on that
+             event's page with its target and running total — which is how a fundraising
+             dinner stops being a ticket page and an appeal page that do not know about
+             each other.
+
+             Only events that have not happened yet: an appeal on last year's page is
+             asking an empty room. #}
+          {% if fund_events|default([])|length %}
+          <label for="caEvent"><span>Raising for an event? (optional)</span>
+            <select id="caEvent" name="event_id">
+              <option value="">Not tied to an event</option>
+              {% for e in fund_events %}
+                <option value="{{ e.id }}">{{ e.title }}{% if e.event_date %} — {{ e.event_date|slice(0,10) }}{% endif %}</option>
+              {% endfor %}
+            </select></label>
+          {% endif %}
           <label for="caShort"><span>If you do not reach the target</span>
             <select id="caShort" name="shortfall_policy">
               {% for k, label in shortfall %}<option value="{{ k }}">{{ label }}</option>{% endfor %}

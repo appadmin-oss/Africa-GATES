@@ -85,7 +85,7 @@ final class StandApplyController
             'call'       => $call,
             'accepting'  => StandCall::isAccepting($call),
             'capacity'   => StandCall::capacity((int) $event->id),
-            'categories' => StandType::CATEGORIES,
+            'categories' => StandType::categories(),
             'signed_in'  => OrgAuth::user() !== null,
             'offer_hours'=> StandApplication::OFFER_HOURS,
         ]);
@@ -131,7 +131,7 @@ final class StandApplyController
             'event'      => $event,
             'call'       => $call,
             'capacity'   => StandCall::capacity((int) $event->id),
-            'categories' => StandType::CATEGORIES,
+            'categories' => StandType::categories(),
             'org'        => $org,
             'entities'   => PartnerOrg::ENTITIES,
             // What each route will be asked to upload, resolved from the same list the

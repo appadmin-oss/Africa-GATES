@@ -129,6 +129,7 @@ final class AdminNav
                     ['page' => 'finance',           'label' => 'Revenue',           'href' => '/admin/finance'],
                     ['page' => 'payouts',           'label' => 'Referral payouts',  'href' => '/admin/payouts'],
                     ['page' => 'partner-orgs',      'label' => 'Partner Orgs',      'href' => '/admin/partner-orgs'],
+                    ['page' => 'vendor-policy',     'label' => 'Vendor rules',      'href' => '/admin/vendor-policy'],
                     ['page' => 'payments',          'label' => 'Payment Triage',    'href' => '/admin/payments'],
                     ['page' => 'payments-ledger',   'label' => 'Gateway Ledger',    'href' => '/admin/payments/ledger'],
                     ['page' => 'payments-disputes', 'label' => 'Disputes',          'href' => '/admin/payments/disputes'],

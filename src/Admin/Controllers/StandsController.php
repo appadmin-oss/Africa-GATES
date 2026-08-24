@@ -96,7 +96,7 @@ final class StandsController
             'criteria'    => StandCall::criteria($call),
             'types'       => StandType::forEvent($eventId),
             'capacity'    => $capacity,
-            'categories'  => StandType::CATEGORIES,
+            'categories'  => StandType::categories(),
             'applications'=> $rows,
             'summary'     => $this->summary($call),
             'decisions'   => StandApplication::DECISIONS,
@@ -592,7 +592,7 @@ final class StandsController
             $type = $r['type'];
             fputcsv($out, [
                 (string) ($type->name ?? ''),
-                (string) (StandType::CATEGORIES[(string) ($type->category ?? '')] ?? ''),
+                (string) (StandType::categories()[(string) ($type->category ?? '')] ?? ''),
                 PartnerOrg::legalNameOf($org),
                 (string) ($org->name ?? ''),
                 $r['individual'] ? 'Individual' : 'Registered business',

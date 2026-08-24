@@ -110,7 +110,7 @@ final class StandFloorPlan
         // a colour that moves when a stand type is added is a colour that means nothing.
         $cats = [];
         $ci   = 0;
-        foreach (StandType::CATEGORIES as $slug => $label) {
+        foreach (StandType::categories() as $slug => $label) {
             if (!isset($byCategory[$slug])) continue;
             $c = $byCategory[$slug];
             $cats[] = [

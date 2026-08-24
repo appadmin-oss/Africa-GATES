@@ -211,7 +211,7 @@ final class StandPreset
         }
 
         $category = (string) ($in['category'] ?? 'general');
-        if (!isset(StandType::CATEGORIES[$category])) $category = 'general';
+        if (!isset(StandType::categories()[$category])) $category = 'general';
 
         $clash = DB::table('gates_stand_presets')->where('slug', $slug);
         if ($id > 0) $clash->where('id', '!=', $id);

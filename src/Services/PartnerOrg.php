@@ -428,15 +428,12 @@ final class PartnerOrg
      */
     public static function vendorDocuments(string $entity): array
     {
-        return $entity === self::ENTITY_INDIVIDUAL
-            ? [
-                'id'        => 'Government photo ID',
-                'insurance' => 'Public liability insurance',
-              ]
-            : [
-                'cac'       => 'CAC registration',
-                'insurance' => 'Public liability insurance',
-              ];
+        // Delegated since the list stopped being fixed. It was hard-coded here, so an
+        // organiser running a craft market of twenty market traders had no way to stop
+        // demanding company registration certificates — on a host with no SSH, which meant
+        // no way at all. {@see VendorPolicy} carries the toggles and the reasoning,
+        // including the one requirement it will not let anybody switch off.
+        return VendorPolicy::documentsFor($entity);
     }
 
     public static function bySlug(string $slug): ?object

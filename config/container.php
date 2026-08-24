@@ -562,6 +562,7 @@ return [
     \AfricaGates\Admin\Controllers\AiPromptsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AiPromptsController($c->get(Twig::class), $c->get(AuditService::class)),
     \AfricaGates\Admin\Controllers\IntegrityController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\IntegrityController($c->get(Twig::class)),
     \AfricaGates\Admin\Controllers\DocumentsController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\DocumentsController($c->get(AuditService::class)),
+    \AfricaGates\Admin\Controllers\VendorPolicyController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\VendorPolicyController($c->get(Twig::class), $c->get(AuditService::class)),
     \AfricaGates\Admin\Controllers\SandboxController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\SandboxController($c->get(Twig::class), $c->get(AuditService::class)),
     \AfricaGates\Admin\Controllers\AiAssistController::class => fn(ContainerInterface $c)=>new \AfricaGates\Admin\Controllers\AiAssistController($c->get(RateLimitService::class)),
     // The mailer is the fourth argument: without it, restocking a sold-out size changes a

@@ -175,6 +175,21 @@
      supporter who came to buy a ticket and left having read about commission instead
      is a worse outcome than one who never saw this. Hence a bordered card in the
      sidebar rather than a coloured banner in the flow. */
+  /* The appeal. Warmer than the referral card beside it and above it, because giving is
+     the ask and earning is the aside. */
+  .ed-fund{ margin-top:14px; padding:16px; border:1px solid rgba(35,123,34,.22); border-radius:14px;
+    background:#f6faf6 }
+  .ed-fund__t{ margin:6px 0 0; font-size:16px; font-weight:700; line-height:1.35; color:#10292C }
+  .ed-fund__s{ margin:6px 0 0; font-size:13.5px; line-height:1.6; color:#3a4448 }
+  .ed-fund__bar{ display:block; margin-top:12px; height:9px; border-radius:99px;
+    background:rgba(16,41,44,.1); overflow:hidden }
+  .ed-fund__bar span{ display:block; height:100%; background:#237b22; border-radius:99px }
+  .ed-fund__n{ margin:8px 0 0; font-size:13px; color:#3a4448 }
+  .ed-fund__go{ display:inline-block; margin-top:12px; padding:11px 20px; border-radius:999px;
+    background:#237b22; color:#fff; font-weight:650; font-size:14px; text-decoration:none }
+  .ed-fund__go:hover{ background:#1a6118 }
+  .ed-fund__by{ margin:10px 0 0; font-size:11.5px; line-height:1.55; color:#5a6d6f }
+
   .ed-earn{ margin-top:14px; padding:16px; border:1px solid rgba(16,41,44,.1); border-radius:14px;
     background:var(--ag-surface,#fff); }
   .ed-earn__k{ margin:0 0 8px; font-size:11px; font-weight:600; letter-spacing:.08em;
@@ -605,6 +620,44 @@
          The rate and the threshold are printed from live values rather than written into
          the copy. An admin can change both, and a page promising 10% after a change to 8%
          is a promise the ledger will not honour. #}
+      {# ── WHAT THIS EVENT IS RAISING FOR ──────────────────────────────────
+         Above the referral card, because giving is the ask and earning is the aside.
+
+         The total is summed from confirmed gifts every time it is shown rather than
+         cached, so it cannot drift from the rows behind it — a fundraising bar that is
+         wrong is worse than no bar, and it is the number people screenshot.
+
+         Nothing here is a payment form: it links to the appeal, which is where the money
+         actually moves and where the refund terms live. #}
+      {% for a in appeals|default([]) %}
+      <div class="ed-fund">
+        <p class="ed-earn__k">Raising for</p>
+        <p class="ed-fund__t">{{ a.campaign.title }}</p>
+        {% if a.campaign.summary %}<p class="ed-fund__s">{{ a.campaign.summary }}</p>{% endif %}
+
+        {% if a.progress.target > 0 %}
+          <div class="ed-fund__bar" role="img"
+               aria-label="₦{{ a.progress.raised|number_format }} raised of a ₦{{ a.progress.target|number_format }} target">
+            <span style="width:{{ a.progress.pct }}%"></span>
+          </div>
+          <p class="ed-fund__n">
+            <strong>₦{{ a.progress.raised|number_format }}</strong> of
+            ₦{{ a.progress.target|number_format }}
+            {%- if a.progress.count %} · {{ a.progress.count }} gift{{ a.progress.count == 1 ? '' : 's' }}{% endif %}
+            {%- if a.days_left is not null %} · {{ a.days_left }} day{{ a.days_left == 1 ? '' : 's' }} left{% endif %}
+          </p>
+        {% elseif a.progress.count %}
+          {# No target set. The total still means something; a bar without one does not. #}
+          <p class="ed-fund__n"><strong>₦{{ a.progress.raised|number_format }}</strong> raised so far
+            · {{ a.progress.count }} gift{{ a.progress.count == 1 ? '' : 's' }}</p>
+        {% endif %}
+
+        <a class="ed-fund__go" href="{{ a.url }}">Give to this appeal</a>
+        <p class="ed-fund__by">Raised by {{ a.org }}. A ticket is not a donation — this is
+          separate, and either is welcome on its own.</p>
+      </div>
+      {% endfor %}
+
       {% if referral %}
       <div class="ed-earn">
         <p class="ed-earn__k">Earn from sharing</p>

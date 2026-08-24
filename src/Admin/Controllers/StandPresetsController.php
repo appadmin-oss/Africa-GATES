@@ -60,7 +60,7 @@ final class StandPresetsController
             'rows'       => $rows,
             'live'       => count(array_filter($rows, fn ($r) => (int) $r['row']->is_active === 1)),
             'retired'    => count(array_filter($rows, fn ($r) => (int) $r['row']->is_active !== 1)),
-            'categories' => StandType::CATEGORIES,
+            'categories' => StandType::categories(),
             'units'      => StandPreset::UNITS,
         ]);
     }

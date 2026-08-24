@@ -158,6 +158,65 @@ final class OrgCampaign
         ];
     }
 
+    /**
+     * The event this appeal names, or null.
+     *
+     * @param array<string,mixed> $in
+     */
+    private static function eventIdFrom(array $in): ?int
+    {
+        $id = (int) ($in['event_id'] ?? 0);
+        if ($id < 1) return null;
+
+        try {
+            return DB::table('gates_site_events')->where('id', $id)->exists() ? $id : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
+     * The live appeals for an event, with their progress.
+     *
+     * Open ones only: a draft is somebody's unfinished writing and a closed one asking for
+     * money is worse than nothing. Ordered by target so the main appeal leads when an event
+     * carries more than one.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public static function forEvent(int $eventId): array
+    {
+        if ($eventId < 1) return [];
+
+        try {
+            $rows = DB::table('gates_org_campaigns as c')
+                ->join('gates_partner_orgs as o', 'o.id', '=', 'c.org_id')
+                ->where('c.event_id', $eventId)
+                ->where('c.status', self::STATUS_LIVE)
+                ->orderByDesc('c.target_naira')->orderBy('c.id')
+                ->get(['c.*', 'o.slug as org_slug', 'o.name as org_name']);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $r) {
+            // isOpen() reads the dates as well as the status, so an appeal whose closing
+            // date has passed drops off the event page without anybody having to close it.
+            if (!self::isOpen($r)) continue;
+
+            $out[] = [
+                'campaign' => $r,
+                'progress' => self::progress((int) $r->id),
+                'days_left'=> self::daysLeft($r),
+                'url'      => '/donate/' . (string) $r->org_slug . '/' . (string) $r->slug,
+                'org'      => (string) $r->org_name,
+            ];
+        }
+
+        return $out;
+    }
+
     /** How many days are left, or null when the appeal has no closing date. */
     public static function daysLeft(?object $c): ?int
     {
@@ -219,6 +278,17 @@ final class OrgCampaign
             'title'            => mb_substr($title, 0, 200),
             'summary'          => mb_substr(trim((string) ($in['summary'] ?? '')), 0, 400) ?: null,
             'story'            => trim((string) ($in['story'] ?? '')) ?: null,
+            // ── THE EVENT THIS IS RAISING FOR, IF ANY ────────────────────────
+            //
+            // Optional, and null is the normal case. An appeal that names an event appears
+            // on that event's page with its target and running total, which is how a
+            // fundraising dinner stops being a ticket page and an appeal page that do not
+            // know about each other.
+            //
+            // Validated as a real event rather than trusted: this arrives from a form, and
+            // an id pointing at nothing would render an appeal on no page at all while
+            // looking correctly configured on the organisation's own screen.
+            'event_id'         => self::eventIdFrom($in),
             'target_naira'     => $target > 0 ? $target : null,
             'shortfall_policy' => $policy,
             'opens_on'         => $opens !== '' ? $opens : null,

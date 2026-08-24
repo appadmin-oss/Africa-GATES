@@ -38,6 +38,29 @@ final class OrgDashboardController
         private readonly ?UploadService     $uploads   = null,
     ) {}
 
+    /**
+     * Events an appeal may be attached to.
+     *
+     * Published and not yet past. A closed or cancelled event still has a page, and an
+     * appeal sitting on it would keep asking after everybody has gone home.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function fundableEvents(): array
+    {
+        try {
+            return \Illuminate\Database\Capsule\Manager::table('gates_site_events')
+                ->where('status', 'published')
+                ->where('event_date', '>=', date('Y-m-d H:i:s'))
+                ->orderBy('event_date')
+                ->limit(60)
+                ->get(['id', 'title', 'event_date'])
+                ->map(fn ($r) => (array) $r)->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
     private function redirect(Response $res, string $to): Response
     {
         return $res->withHeader('Location', $to)->withStatus(302);
@@ -126,6 +149,10 @@ final class OrgDashboardController
             'min_payout'  => OrgPayout::MIN_NAIRA,
             'campaigns'   => $campaigns,
             'shortfall'   => OrgCampaign::SHORTFALL,
+            // Events an appeal could be raising for. Upcoming only — an appeal attached to
+            // last year's event is asking an empty room, and offering it invites the
+            // mistake rather than preventing it.
+            'fund_events' => $this->fundableEvents(),
             // ── THE VENDOR HALF ──────────────────────────────────────────
             //
             // Shown to everybody rather than gated on `kind`, because the arrays are empty
