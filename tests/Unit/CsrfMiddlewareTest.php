@@ -107,9 +107,13 @@ class CsrfMiddlewareTest extends TestCase
         // No $_SESSION['csrf_token'] at all — the session PHP collected.
         unset($_SESSION['csrf_token']);
 
-        foreach (['', '/upload', '/chat', '/speak', '/listen', '/ready', '/coach', '/intro',
-                  '/interview', '/interview/switch', '/interview/phase', '/interview/amend',
-                  '/interview/outcome'] as $verb) {
+        // `/chat` is absent: the guided-chat endpoint was retired with the feature.
+        // `/summary` and `/interview/resume` are present and were missing — both are posted
+        // from the same page by the same tokenless nominee, so both were being refused
+        // after the same idle pause this exemption exists for.
+        foreach (['', '/upload', '/speak', '/listen', '/ready', '/coach', '/intro', '/summary',
+                  '/interview', '/interview/switch', '/interview/resume', '/interview/phase',
+                  '/interview/amend', '/interview/outcome'] as $verb) {
             $res = (new CsrfMiddleware())($this->req('POST', '/my-work/' . $t . $verb), $this->handler());
             $this->assertSame(200, $res->getStatusCode(),
                 "/my-work/{token}{$verb} was refused — a nominee cannot save their work");

@@ -122,65 +122,12 @@ final class MyWorkController
     }
 
     /**
-     * Did this nominee leave the live interview for the form?
-     *
-     * Read from the ledger rather than a flag, because the ledger is the thing that only
-     * exists if a conversation actually happened — a flag would have to be set by the
-     * switch, and would then be wrong for anybody whose interview degraded to the form on
-     * its own.
-     */
-    private function cameFromInterview(string $token): bool
-    {
-        $s = QuestionnaireService::byToken($token);
-        if (!$s) return false;
-
-        try {
-            return \AfricaGates\Services\QuestionnaireLedger::forSubmission($s) !== []
-                && \AfricaGates\Services\QuestionnaireInterview::styleOf($s)
-                   === \AfricaGates\Services\QuestionnaireStyle::FORM;
-        } catch (\Throwable) {
-            return false;
-        }
-    }
-
-    /**
-     * The conversation: one turn in, the next question out.
-     *
-     * JSON, because a page reload between "I typed my answer" and "here is the next question"
-     * loses the thread — and because the answer is already stored server-side by the time this
-     * responds, so a dropped connection costs the reply and not the answer.
-     */
-    public function chat(Request $req, Response $res, array $args = []): Response
-    {
-        $token = (string) ($args['token'] ?? '');
-        $body  = (array) $req->getParsedBody();
-        $said  = trim((string) ($body['say'] ?? ''));
-
-        $r = $said === ''
-            ? \AfricaGates\Services\QuestionnaireChat::start($token)
-            : \AfricaGates\Services\QuestionnaireChat::say($token, $said);
-
-        // Told once per conversation, so the operator screen can say which engine built the
-        // record — the same disclosure the interview pack and the transcript reading carry.
-        if (($r['ok'] ?? false) && $said !== '') {
-            \AfricaGates\Services\QuestionnaireChat::noteSource(
-                $token, \AfricaGates\Services\AiGateway::available('questionnaire.chat') ? 'ai' : 'rules');
-        }
-
-        $r['readiness'] = \AfricaGates\Services\QuestionnaireChat::readiness($token);
-
-        $res->getBody()->write((string) json_encode($r));
-        return $res->withHeader('Content-Type', 'application/json')
-                   ->withStatus(($r['ok'] ?? false) ? 200 : 422);
-    }
-
-    /**
      * The live interview: one turn in, the next question out.
      *
-     * Separate from {@see chat()} rather than a mode inside it, because the two are different
-     * features that happen to look alike. `chat()` walks a question list and stores an answer
-     * against a slug; this holds a conversation and moves an outcome ledger. Folding them
-     * together would mean one method with two of everything and a branch at the top of each.
+     * Holds a conversation and moves an outcome ledger. There used to be a second endpoint
+     * beside this one — the guided chat, which walked a question list and stored an answer
+     * against a slug. It is gone: it was a third way of answering, and the form now asks one
+     * question at a time in the same shape.
      */
     public function interview(Request $req, Response $res, array $args = []): Response
     {
@@ -305,9 +252,16 @@ final class MyWorkController
     {
         $token = (string) ($args['token'] ?? '');
         $body  = (array) $req->getParsedBody();
-        $index = (int) ($body['turn'] ?? -1);
 
-        $r = \AfricaGates\Services\QuestionnaireVoice::say($token, $index);
+        // Two ways to address a clip, both resolved server-side against this submission's
+        // own material: a QUESTION by its slug (the form), or a TURN by its index (the
+        // guided chat, retired — kept because a page left open across the deploy would
+        // otherwise start erroring at the speaker button).
+        $slug = trim((string) ($body['slug'] ?? ''));
+
+        $r = $slug !== ''
+            ? \AfricaGates\Services\QuestionnaireVoice::sayQuestion($token, $slug)
+            : \AfricaGates\Services\QuestionnaireVoice::say($token, (int) ($body['turn'] ?? -1));
 
         if (!($r['ok'] ?? false)) {
             // JSON on failure, audio on success. The page needs to be able to tell the
@@ -557,14 +511,6 @@ final class MyWorkController
             return $this->renderInterview($res, $form, $token, $notice, $error);
         }
 
-        // The conversation's state is rendered WITH the page rather than fetched after it. A
-        // nominee returning to a half-finished chat should see it already there — a panel that
-        // arrives a second later, after a spinner, reads as a different feature that has lost
-        // their place.
-        $chat = $form !== null
-            ? \AfricaGates\Services\QuestionnaireChat::state($token)
-            : ['turns' => [], 'question' => null, 'progress' => [], 'done' => false];
-
         return $this->view->render($res, 'pages/my-work.twig', [
             'page_title'    => $form !== null ? 'Tell the judges about your work' : 'Your work',
             // The same minimal chrome the interview gets, for the same reason: this page is
@@ -576,7 +522,6 @@ final class MyWorkController
             'notice'        => $notice,
             'error'         => $error,
             'missing'       => $missing,
-            'chat'          => $chat,
             'readiness'     => $form !== null
                 ? \AfricaGates\Services\QuestionnaireChat::readiness($token)
                 : ['ready' => false, 'missing' => [], 'thin' => [], 'works' => 0, 'files' => 0],
@@ -593,14 +538,17 @@ final class MyWorkController
             'can_resume_interview' => $form !== null
                 && \AfricaGates\Services\QuestionnaireStyle::interviewPossible(
                     (int) ($form['programme_id'] ?? 0) ?: null),
-            // ── AND WHETHER TO OFFER THE GUIDED CHAT AT ALL ──────────────────
+            // ── THE GUIDED CHAT IS GONE, AND `offer_chat` WITH IT ────────────
             //
-            // Hidden from anybody who reached this page by pressing "fill in the form
-            // instead". Offering "answer by chatting" to somebody who has just declined a
-            // conversation reads as the platform not listening — and it is a THIRD thing,
-            // neither the form they asked for nor the interview they left, which is the
-            // confusion worth removing rather than explaining.
-            'offer_chat'    => $form !== null && !$this->cameFromInterview($token),
+            // "Answer by chatting" was a third way of answering, neither the live interview
+            // nor the form: a question-by-question chat over the same draft. Three doors
+            // onto one submission is not three times the help — it is a choice nobody has
+            // the information to make, on the screen where somebody is describing their
+            // life's work, and the flag that hid the door from some people and not others
+            // made the page mean different things to different nominees.
+            //
+            // The form is that conversation now: one question at a time, asked rather than
+            // listed, with the same microphone. The interview is still the interview.
             // ── THE BRIEF AND THE SPOKEN INTRODUCTION ────────────────────────
             //
             // `intro_ready` gates the questions. Somebody who has not been told how long this

@@ -398,50 +398,36 @@ final class QuestionnaireChatTest extends TestCase
     // ══ 7. the endpoint ══════════════════════════════════════════════════════
 
     /**
-     * ── THIS TEST ONCE ASSERTED THE OPPOSITE, AND THE PREMISE WAS WRONG ─────
+     * ── THE GUIDED-CHAT ENDPOINT IS RETIRED, AND MUST STAY RETIRED ──────────
      *
-     * It used to require the synchronizer token here and called a bare POST proof that
-     * "the chat endpoint is open to cross-site posts". It is not, and the token was never
-     * what stopped one.
+     * `/my-work/<token>/chat` was a third way to answer the questionnaire, beside the live
+     * interview and the form. It has been removed: three doors onto one draft is not three
+     * times the help, and the form now asks one question at a time in the interview's own
+     * shape, with the same microphone.
      *
-     * The authority on this route is the 32-hex invite token IN THE PATH, not a cookie.
-     * A cross-site attacker cannot post to `/my-work/<victim token>/chat` without knowing
-     * that token, and if they know it they can post from their own machine with no
-     * victim's browser involved. CSRF defends a cookie-authenticated session; there is no
-     * session here to defend. It is the same reasoning `/door/<64 hex>/check` was exempted
-     * under.
-     *
-     * Meanwhile the requirement had a real cost. The session cookie lasts seven days but
-     * PHP's server-side `session.gc_maxlifetime` defaults to 1440 seconds, so after about
-     * twenty-four idle minutes `$_SESSION` is collected, a fresh `csrf_token` is minted,
-     * and the token already rendered into the nominee's page stops matching — every save
-     * refused with "CSRF validation failed", to a population `saveDraft()` describes as
-     * "filling this in on a phone, between other work, over several days."
-     *
-     * So the property held here now is the one that actually protects the route: an
-     * unknown token is refused, and a real one works with or without a session.
+     * The SERVICE is still here and still tested above — {@see QuestionnaireChat::readiness()}
+     * is what tells a nominee which answers a judge will find thin, and it is used by the
+     * form. What must not come back is a live HTTP route that writes answers from a UI
+     * nobody renders any more.
      */
-    public function test_the_endpoint_works_without_a_session_and_still_checks_the_invite_token(): void
+    public function test_the_retired_chat_endpoint_is_not_routed(): void
     {
         [, $token] = $this->open();
 
-        // No CSRF header — the state a nominee returns to after a pause.
-        $bare = $this->post('/my-work/' . $token . '/chat', ['say' => ''], false);
-        $this->assertSame(200, $bare[0], 'a nominee cannot answer after their session expired');
-        $this->assertTrue($bare[1]['ok']);
-
-        $ok = $this->post('/my-work/' . $token . '/chat', ['say' => ''], true);
-        $this->assertSame(200, $ok[0], (string) json_encode($ok[1]));
-        $this->assertTrue($ok[1]['ok']);
-        $this->assertNotEmpty($ok[1]['turns']);
-        $this->assertArrayHasKey('readiness', $ok[1], 'the page cannot keep its readiness live');
+        $r = $this->post('/my-work/' . $token . '/chat', ['say' => 'hello'], true);
+        $this->assertNotSame(200, $r[0], 'the retired guided-chat endpoint is answering again');
     }
 
-    public function test_a_bad_token_on_the_endpoint_is_refused(): void
+    /** And the CSRF exemption for it went with it. */
+    public function test_the_csrf_exemption_no_longer_names_the_chat_endpoint(): void
     {
-        $r = $this->post('/my-work/' . str_repeat('c', 32) . '/chat', ['say' => 'hi'], true);
-        $this->assertSame(422, $r[0]);
-        $this->assertFalse($r[1]['ok']);
+        $src = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Middleware/CsrfMiddleware.php');
+
+        $this->assertMatchesRegularExpression('~/my-work/\[a-f0-9\]\{32\}~', $src,
+            'the nominee token paths are gone entirely, which is not the change that was made');
+        $this->assertStringNotContainsString('upload|chat|speak', $src,
+            'an exemption for a path that routes nowhere reads as policy about a live feature');
     }
 
     // ══ helpers ══════════════════════════════════════════════════════════════

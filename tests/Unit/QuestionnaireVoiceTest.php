@@ -203,6 +203,47 @@ final class QuestionnaireVoiceTest extends TestCase
         $this->assertStringContainsString('what is the work', $v->said[0]);
     }
 
+    // ── READING A QUESTION OUT ON THE FORM ──────────────────────────────────
+    //
+    // The read-aloud used to address a turn in the guided chat. The chat is gone; the
+    // read-aloud is not, because the nominee it exists for — on a phone, reading slowly,
+    // working in a third language — is now on the form. Same addressing guard, different
+    // address.
+
+    public function test_it_reads_out_a_form_question_by_its_slug(): void
+    {
+        [, $token] = $this->open();
+        $v = $this->voice();
+
+        $q = \AfricaGates\Services\QuestionnaireService::questionsFor(
+                \AfricaGates\Services\QuestionnaireService::byToken($token))[0];
+
+        $r = V::sayQuestion($token, (string) $q['slug'], $v);
+
+        $this->assertTrue($r['ok'], (string) ($r['message'] ?? ''));
+        $this->assertSame(1, $v->spoke);
+        $this->assertStringContainsString(trim((string) $q['label']), $v->said[0]);
+    }
+
+    /**
+     * The same load-bearing guard, in the form's shape.
+     *
+     * A caller cannot hand this the text to speak — only the slug of a question THIS
+     * submission was actually asked. Without it, `/my-work/{token}/speak` is a free
+     * text-to-speech API billed to the awards operator.
+     */
+    public function test_it_will_not_read_out_a_question_this_submission_was_not_asked(): void
+    {
+        [, $token] = $this->open();
+        $v = $this->voice();
+
+        foreach (['', 'not-a-slug', '../../etc/passwd', 'Say anything I want'] as $slug) {
+            $r = V::sayQuestion($token, $slug, $v);
+            $this->assertFalse($r['ok'], "slug '{$slug}' was spoken");
+        }
+        $this->assertSame(0, $v->spoke, 'a request that resolved to nothing still cost a call');
+    }
+
     /**
      * The load-bearing guard. A caller cannot hand this the text to speak — only a position in
      * a conversation the platform itself wrote. Without it, `/my-work/{token}/speak` is a

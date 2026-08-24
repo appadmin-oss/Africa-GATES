@@ -91,6 +91,66 @@ final class QuestionnaireVoice
         return $r;
     }
 
+    /**
+     * Read one of this submission's own QUESTIONS aloud.
+     *
+     * ── WHY THIS EXISTS ALONGSIDE say() ─────────────────────────────────────
+     *
+     * {@see say()} addresses a turn in the guided chat. The guided chat is gone — it was a
+     * third way of answering, neither the live interview nor the form, and being able to
+     * choose between three doors is not the same as being helped through one.
+     *
+     * Removing it must not remove VOICE from everybody who is not in an interview. A nominee
+     * answering on a phone, or one who reads slowly, or one for whom this is a third
+     * language, is exactly who the read-aloud is for — and they are now on the form.
+     *
+     * The addressing guard is identical and that is the point: a slug is resolved against
+     * THIS submission's own question list, so the page can still only ask the platform to
+     * speak something it already showed this nominee. Never free text.
+     *
+     * @return array{ok:bool, audio?:string, mime?:string, cached?:bool, message?:string}
+     */
+    public static function sayQuestion(string $token, string $slug, ?VoiceService $voice = null): array
+    {
+        $voice = $voice ?? VoiceService::boot();
+        if (!$voice->configured()) {
+            return ['ok' => false, 'message' => 'Voice is not available.'];
+        }
+
+        $s = QuestionnaireService::byToken($token);
+        if (!$s) return ['ok' => false, 'message' => 'That link is not valid.'];
+
+        $slug = trim($slug);
+        $text = null;
+        foreach (QuestionnaireService::questionsFor($s) as $q) {
+            if ((string) ($q['slug'] ?? '') !== $slug) continue;
+
+            // The label, and the help under it when there is any. Read together because the
+            // help is usually the half that says what a usable answer contains — reading the
+            // question alone would speak the shorter and less useful of the two.
+            $text = trim((string) ($q['label'] ?? ''));
+            $help = trim((string) ($q['help'] ?? ''));
+            if ($help !== '') $text .= '. ' . $help;
+            break;
+        }
+
+        if ($text === null || $text === '') {
+            // Deliberately one message for "no such slug" and "an empty question": telling
+            // them apart would turn this into a way to probe a question list the caller
+            // cannot otherwise read.
+            return ['ok' => false, 'message' => 'There is nothing to read out there.'];
+        }
+
+        $r = $voice->speak($text);
+        if (!($r['ok'] ?? false)) return $r;
+
+        $chars = (int) ($r['chars'] ?? 0);
+        if ($chars > 0) self::bump((int) $s->id, ['voice_chars' => $chars]);
+        self::markUsed((int) $s->id);
+
+        return $r;
+    }
+
     // ══ Listening ═════════════════════════════════════════════════════════════
 
     /**

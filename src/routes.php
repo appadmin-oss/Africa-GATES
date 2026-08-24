@@ -2617,10 +2617,6 @@ return function(App $app) {
         $g->get('/my-work/{token:[a-f0-9]{32}}',         \AfricaGates\Controllers\MyWorkController::class.':page');
         $g->post('/my-work/{token:[a-f0-9]{32}}',        \AfricaGates\Controllers\MyWorkController::class.':save');
         $g->post('/my-work/{token:[a-f0-9]{32}}/upload', \AfricaGates\Controllers\MyWorkController::class.':upload');
-        // The conversational route. JSON, because a page reload between typing an answer and
-        // being asked the next question loses the thread — and the answer is already stored
-        // by the time this responds, so a dropped connection costs the reply, not the work.
-        $g->post('/my-work/{token:[a-f0-9]{32}}/chat',   \AfricaGates\Controllers\MyWorkController::class.':chat');
         // ── the live interview ───────────────────────────────────────────────
         //
         // Reachable with the invite token alone, no account, which is existing doctrine for

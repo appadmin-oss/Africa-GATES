@@ -64,59 +64,34 @@
   .mw__suml li{ margin:3px 0 0 }
   .mw__mode--back{ width:100%; text-align:left }
 
-  /* mode switch */
-  .mw__modes{ display:flex; gap:8px; margin-top:14px }
-  .mw__mode{ cursor:pointer; flex:1 1 0; font:650 13.5px/1.3 inherit; padding:12px 10px;
+  /* The one remaining alternative to the form — back to the live interview. */
+  .mw__mode{ cursor:pointer; font:650 13.5px/1.3 inherit; padding:12px 14px;
     border-radius:12px; border:1px solid rgba(16,41,44,.16); background:#fff; color:#3d5254 }
-  .mw__mode[aria-pressed="true"]{ background:#10292c; color:#fff; border-color:#10292c }
   .mw__mode small{ display:block; font-weight:400; font-size:11.5px; margin-top:3px; opacity:.72 }
-  /* On the selected (dark) button the subtitle was washed out to near-invisible. Raised
-     rather than removed: it is the line that explains the choice somebody has just made. */
-  .mw__mode[aria-pressed="true"] small{ opacity:.92; color:#cfe6d3 }
 
-  /* the conversation */
-  /* No fixed height. It was 58vh, which on a phone is about four exchanges — so a nominee
-     ten answers in was reading their own conversation through a letterbox while the page
-     around it stayed still. The log grows and the page scrolls, which is what every
-     conversation anybody has used does. */
-  .mw__chat{ margin-top:6px; display:flex; flex-direction:column; gap:10px;
-    padding:4px 2px 2px }
-  .mw__msg{ max-width:88%; font-size:14.5px; line-height:1.65; border-radius:14px; padding:12px 14px;
-    white-space:pre-wrap; word-break:break-word }
-  .mw__msg--ai{ align-self:flex-start; background:#f1f6f1; color:#22332c; border:1px solid rgba(16,41,44,.08) }
-  .mw__msg--you{ align-self:flex-end; background:#237b22; color:#fff }
-  .mw__typing{ align-self:flex-start; font-size:12.5px; color:#67797b; padding:4px 6px }
-  .mw__ask{ display:flex; gap:9px; align-items:flex-end; margin-top:12px }
-  .mw__say{ flex:1 1 auto; box-sizing:border-box; font:inherit; font-size:15.5px; line-height:1.55;
-    color:#10292C; border:1px solid rgba(16,41,44,.2); border-radius:14px; padding:12px 13px;
-    min-height:52px; max-height:180px; resize:none }
-  .mw__say:focus{ outline:none; border-color:#237b22; box-shadow:0 0 0 3px rgba(35,123,34,.12) }
-  .mw__send{ cursor:pointer; flex:0 0 auto; background:#237b22; color:#fff; border:none;
-    border-radius:14px; padding:0 18px; height:52px; font:700 14.5px/1 inherit }
-  .mw__send:disabled{ opacity:.5; cursor:default }
   .mw__hint{ margin-top:8px; font-size:12px; color:var(--ag-ink-soft,#626a6e) }
-  .mw__skip{ cursor:pointer; background:none; border:none; padding:0; font:600 12px/1 inherit;
-    color:#237b22; text-decoration:underline }
 
-  /* voice — only rendered when an ElevenLabs key is configured */
-  .mw__vbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 12px;
-    padding:10px 12px; background:#f6faf6; border:1px solid rgba(16,41,44,.09); border-radius:12px }
-  .mw__vsw{ cursor:pointer; display:inline-flex; align-items:center; gap:8px; background:none;
-    border:1px solid rgba(16,41,44,.2); border-radius:999px; padding:7px 13px;
-    font:650 12.5px/1 inherit; color:#10292C }
-  .mw__vsw[aria-pressed="true"]{ background:#10292c; color:#fff; border-color:#10292c }
-  .mw__vnote{ font-size:12px; color:#67797b; flex:1 1 160px; min-width:0 }
-  /* The speaker sits BESIDE the bubble rather than under it, so a column of ten questions
-     does not become a column of ten buttons competing with the words. The row carries the
-     alignment now that a message is no longer the flex child of the log. */
-  .mw__row{ display:flex; align-items:flex-end; gap:6px; max-width:90% }
-  .mw__row--ai{ align-self:flex-start }
-  .mw__row--you{ align-self:flex-end }
-  .mw__row .mw__msg{ max-width:100% }
+  /* ── A QUESTION, ASKED ────────────────────────────────────────────────────
+     Shaped like the interview rather than like a form row. The mark, the bubble and the
+     composer beneath it are the interview screen; underneath, the fields are the same named
+     inputs they have always been, so nothing about the submission changed. */
+  .mw__asked{ display:flex; align-items:flex-start; gap:10px }
+  .mw__mark{ flex:0 0 auto; width:28px; height:28px; margin-top:2px; border-radius:50%;
+    background:#10292c; position:relative }
+  .mw__mark::after{ content:""; position:absolute; inset:9px; border-radius:50%;
+    background:#8fd48c }
+  .mw__bubble{ flex:1 1 auto; min-width:0; background:#f1f6f1; border:1px solid rgba(16,41,44,.08);
+    border-radius:4px 16px 16px 16px; padding:14px 16px }
+  .mw__bubble .mw__lab{ margin:0 }
   .mw__spk{ cursor:pointer; flex:0 0 auto; background:#fff; border:1px solid rgba(16,41,44,.15);
     border-radius:999px; width:30px; height:30px; padding:0; font-size:13px; line-height:1;
-    color:#237b22 }
+    color:#237b22; margin-top:2px }
   .mw__spk[aria-pressed="true"]{ background:#237b22; color:#fff; border-color:#237b22 }
+
+  /* The composer. The microphone sits beside the box, exactly where it was in the
+     conversation, because dictating a long answer is the reason voice is here at all. */
+  .mw__answer{ display:flex; align-items:flex-start; gap:9px; margin-top:12px; padding-left:38px }
+  .mw__answer .mw__in{ margin-top:0 }
   .mw__mic{ cursor:pointer; flex:0 0 auto; width:52px; height:52px; border-radius:14px;
     background:#fff; border:1px solid rgba(16,41,44,.2); font-size:19px; line-height:1; color:#10292C }
   .mw__mic--on{ background:#b3261e; border-color:#b3261e; color:#fff; animation:mwPulse 1.3s infinite }
@@ -147,9 +122,10 @@
      text or an aria-label beside it. */
   .mw__clip{ display:inline-block; width:11px; height:14px; border:1.5px solid currentColor;
     border-radius:6px 6px 3px 3px; border-bottom-color:transparent; flex:none }
-  .mw__spk{ display:inline-block; width:0; height:0; flex:none;
-    border-top:5px solid transparent; border-bottom:5px solid transparent;
-    border-right:8px solid currentColor }
+  /* NOTE: there is no decorative .mw__spk glyph rule here any more. There used to be one —
+     a CSS triangle with width:0;height:0 — declared AFTER the button rule above, so it won
+     the cascade and collapsed every speaker BUTTON to nothing. The button carries its own
+     text glyph and its own aria-label. */
   .mw__micglyph{ display:block; width:10px; height:16px; border-radius:5px; background:currentColor }
   .mw__micglyph--stop{ width:12px; height:12px; border-radius:2px }
   /* U+2713 is not in the default font on several Android builds and renders as a box. Drawn,
@@ -233,8 +209,9 @@
   .mw__free b{ color:#10292c }
   .mw__sent{ background:#f0fdf4; border:1px solid #b6e3b6; border-radius:16px; padding:22px }
   @media (max-width:520px){
-    .mw__modes{ flex-direction:column }
-    .mw__msg{ max-width:96% }
+    /* The composer loses its indent on a narrow screen: 38px of alignment is worth less
+       than 38px of room to type in. */
+    .mw__answer{ padding-left:0 }
   }
 </style>
 {% endblock %}
@@ -321,29 +298,15 @@
     </div>
 
   {% else %}
-    {# ══ everything below shares ONE Alpine scope: the two modes, the chat, and the works
-         list. The form fields themselves are plain inputs with names, so the form still
-         submits with JavaScript switched off. ══ #}
+    {# ══ everything below shares ONE Alpine scope: the stepped form, the read-back and the
+         works list. The form fields themselves are plain inputs with names, so the form
+         still submits with JavaScript switched off. ══ #}
     <div x-data='{
-      {# Forced to the form when the chat is not on offer. Without this, somebody who left
-         the live interview lands on a chat pane with no toggle to leave it — the toggle is
-         the only control that sets `mode`, and hiding it would have stranded them worse
-         than the one-way door did. #}
       sum: null, sumBusy: false, sumErr: "",
-      mode: {{ (not offer_chat ? "form" : (chat.turns|length > 0 ? "chat" : (readiness.missing|length == 0 and chat.progress.answered|default(0) > 0 ? "form" : "chat")))|json_encode }},
-      turns: {{ (chat.turns ?? [])|json_encode }},
-      progress: {{ (chat.progress ?? {})|json_encode }},
-      done: {{ (chat.done ?? false) ? "true" : "false" }},
-      say: "", busy: false, err: "",
-      started: {{ (chat.turns|length > 0) ? "true" : "false" }},
       works: {{ (form.works ?: [])|json_encode }},
       maxWorks: {{ form.max_works }},
-      /* Readiness is LIVE, not rendered once. The first version printed it server-side at
-         page load, so after three answers in the chat the progress bar said "you can send it
-         whenever you like" while the panel below still listed those same three as "still
-         needed" — the page contradicting itself in two places at once. The chat endpoint
-         returns readiness with every turn, so it is bound here and the server-rendered value
-         is only the starting point. */
+      /* Rendered once, from the server. It used to be re-bound on every chat turn; with the
+         chat gone the only thing that moves an answer is a save, and a save reloads. */
       ready: {{ (readiness ?? {})|json_encode }},
 
       /* ── voice ────────────────────────────────────────────────────────────
@@ -351,13 +314,11 @@
          choice. Both false means this whole block is dead weight the browser skips, which
          is the state most deployments will run in. */
       voice: {{ voice ? "true" : "false" }},
-      voiceOn: false, canAuto: false, playing: -1, audio: null,
+      voiceOn: false, playing: "", audio: null,
       recording: false, hearing: false, secs: 0, rec: null, chunks: [], tick: null,
-      voiceErr: "",
+      voiceErr: "", dictating: "",
 
       init(){
-        this.$watch("mode", v => { if(v === "chat" && !this.started) this.begin() });
-
         // Cleared whenever an answer changes, so a summary can never describe text the
         // nominee has since edited — reading back something they have already corrected is
         // worse than not offering the check at all.
@@ -371,57 +332,9 @@
             this.sum = null; this.sumErr = "";
           }
         });
-        if(this.mode === "chat" && !this.started) this.begin();
-        this.scroll();
       },
-      pct(){ const t = this.progress.total || 1; return Math.round((this.progress.answered || 0) / t * 100) },
-      async begin(){ this.started = true; await this.post("") },
-      async send(){
-        const t = this.say.trim(); if(!t || this.busy) return;
-        this.turns.push({who:"you", text:t}); this.say = ""; this.scroll();
-        await this.post(t);
-      },
-      async post(text){
-        this.busy = true; this.err = "";
-        try {
-          /* The CSRF token, because this is a same-origin POST from our own page with a
-             session behind it — which is precisely the case a synchronizer token protects.
-             It is not under /api/, so CsrfMiddleware requires it rather than accepting
-             X-Requested-With, and the first version of this got a 403 on every turn. */
-          const r = await fetch("/my-work/{{ token }}/chat", {
-            method:"POST",
-            headers:{"Content-Type":"application/json",
-                     "X-CSRF-Token": {{ csrf_token|json_encode }},
-                     "X-Requested-With":"XMLHttpRequest"},
-            body: JSON.stringify({ say: text })
-          });
-          const d = await r.json();
-          if(!d.ok){ this.err = d.message || "That did not go through."; }
-          else {
-            if(Array.isArray(d.turns)) this.turns = d.turns.filter(x => x.who !== "meta");
-            else (d.reply || []).forEach(x => this.turns.push({who:"ai", text:x}));
-            if(d.progress) this.progress = d.progress;
-            if(d.readiness) this.ready = d.readiness;
-            this.done = !!d.done;
-            /* Read the new question out, but only if a play has already succeeded once on
-               this page — see toggleVoice(). */
-            if(this.voiceOn && this.canAuto){ const i = this.lastAi(); if(i >= 0) this.play(i) }
-          }
-        } catch(e){ this.err = "No connection. What you have already answered is saved."; }
-        this.busy = false; this.scroll();
-      },
-      scroll(){ this.$nextTick(() => { const b = this.$refs.log; if(b) b.scrollTop = b.scrollHeight }) },
-
-      /* ── reading the questions out ───────────────────────────────────────
-         Autoplay is EARNED rather than assumed. Every current browser refuses to play audio
-         a person did not ask for, and a page that quietly fails that check would leave a
-         nominee waiting in silence for a question they had been promised aloud. So turning
-         the switch on plays the question on the spot — that press IS the gesture — and only
-         a play that actually succeeded sets `canAuto` for the questions after it. */
-      lastAi(){ for(let i = this.turns.length - 1; i >= 0; i--) if(this.turns[i].who === "ai") return i;
-                return -1 },
       stopAudio(){ if(this.audio){ try { this.audio.pause() } catch(e){} this.audio = null }
-                   this.playing = -1 },
+                   this.playing = "" },
       /* ── READ IT BACK ──────────────────────────────────────────────────────
          The equivalent of the conversation read-back screen, for the form. On request
          only: this page is left open for an evening, and a summary regenerated on every
@@ -459,40 +372,39 @@
         this.sumBusy = false;
       },
 
-      async toggleVoice(){
-        this.voiceOn = !this.voiceOn; this.voiceErr = "";
-        if(!this.voiceOn){ this.stopAudio(); return }
-        const i = this.lastAi(); if(i >= 0) await this.play(i);
-      },
-      async play(i){
-        if(!this.voice) return;
-        if(this.playing === i){ this.stopAudio(); return }   /* pressing it again stops it */
+      /* ── reading a QUESTION out ──────────────────────────────────────────
+         Addressed by SLUG, never by text. The endpoint resolves it against this
+         submission own question list, so the page can only ask the platform to speak
+         something it already showed this nominee.
+
+         This used to address a turn in the guided chat. The chat is gone; the read-aloud
+         is not, because the person it exists for — answering on a phone, reading slowly,
+         working in a third language — is now on the form. */
+      async play(slug){
+        if(!this.voice || !slug) return;
+        if(this.playing === slug){ this.stopAudio(); return }   /* pressing it again stops it */
         this.stopAudio(); this.voiceErr = "";
         try {
-          /* The turn INDEX, never the text. The endpoint resolves it against this
-             own conversation for this submission, so the page cannot ask the platform to speak
-             anything a nominee was not already shown. */
           const r = await fetch("/my-work/{{ token }}/speak", {
             method:"POST",
             headers:{"Content-Type":"application/json",
                      "X-CSRF-Token": {{ csrf_token|json_encode }},
                      "X-Requested-With":"XMLHttpRequest"},
-            body: JSON.stringify({ turn: i })
+            body: JSON.stringify({ slug: slug })
           });
           if(!r.ok){
             const d = await r.json().catch(() => ({}));
             this.voiceErr = d.message || "The question could not be read out — but it is written above.";
-            this.voiceOn = false; return;
+            return;
           }
           const url = URL.createObjectURL(await r.blob());
           const a = new Audio(url);
           a.addEventListener("ended", () => { URL.revokeObjectURL(url);
-                                              if(this.playing === i) this.playing = -1 });
-          this.audio = a; this.playing = i;
+                                              if(this.playing === slug) this.playing = "" });
+          this.audio = a; this.playing = slug;
           await a.play();
-          this.canAuto = true;
         } catch(e){
-          this.stopAudio(); this.canAuto = false;
+          this.stopAudio();
           this.voiceErr = "The question could not be read out — but it is written above.";
         }
       },
@@ -501,9 +413,9 @@
          Tap to start, tap to stop — not hold-to-talk. Somebody describing fifteen years of
          work needs both hands and no deadline, and a button that has to stay pressed turns a
          long answer into a physical endurance test. */
-      async mic(){
+      async mic(slug){
         if(this.recording){ this.stopRec(); return }
-        this.voiceErr = "";
+        this.voiceErr = ""; this.dictating = slug || "";
         if(!navigator.mediaDevices || !window.MediaRecorder){
           this.voiceErr = "This browser cannot record sound. Type your answer instead."; return;
         }
@@ -549,13 +461,23 @@
           const d = await r.json();
           if(!d.ok){ this.voiceErr = d.message || "We could not turn that into words."; }
           else {
-            /* Into the BOX, never straight into the record. The nominee reads it back, fixes
-               whatever was misheard, and presses Send themselves — so the sentence a judge
-               eventually quotes is one they approved. Speech recognition on the Englishes
-               spoken across this continent is exactly where that matters. */
-            this.say = (this.say ? this.say.trim() + " " : "") + d.text;
-            this.$nextTick(() => { const el = this.$refs.say;
-              if(el){ el.focus(); el.selectionStart = el.selectionEnd = el.value.length } });
+            /* Into the FIELD, never straight into the record. The nominee reads it back,
+               fixes whatever was misheard, and presses Send themselves — so the sentence a
+               judge eventually quotes is one they approved. Speech recognition on the
+               Englishes spoken across this continent is exactly where that matters.
+
+               Appended to whatever is already typed rather than replacing it: somebody who
+               wrote two lines and then dictated a third has not asked us to delete the two. */
+            const el = document.getElementById("q-" + this.dictating);
+            if(el){
+              el.value = (el.value ? el.value.trim() + " " : "") + d.text;
+              el.dispatchEvent(new Event("input", { bubbles: true }));
+              this.$nextTick(() => { el.focus();
+                try { el.selectionStart = el.selectionEnd = el.value.length } catch(e){} });
+            } else {
+              this.voiceErr = "We heard you, but could not find the box to put it in. "
+                            + "Please type it instead.";
+            }
           }
         } catch(e){ this.voiceErr = "No connection, so that recording could not be read."; }
         this.hearing = false;
@@ -771,32 +693,20 @@
       </div>
       {% endif %}
 
-      {# ── mode ─────────────────────────────────────────────────────────────
-         The chat toggle is HIDDEN from anybody who reached this page by pressing "fill in
-         the form instead" on the live interview. Offering "answer by chatting" to somebody
-         who has just declined a conversation reads as the platform not listening — and it
-         is a third thing, neither the form they asked for nor the interview they left. #}
-      {% if offer_chat %}
-      <div class="mw__modes">
-        <button type="button" class="mw__mode" :aria-pressed="mode === 'chat'" @click="mode = 'chat'">
-          Answer by chatting
-          <small>One question at a time. Easiest on a phone.</small>
-        </button>
-        <button type="button" class="mw__mode" :aria-pressed="mode === 'form'" @click="mode = 'form'">
-          Fill in the whole form
-          <small>See everything at once, and edit anything.</small>
-        </button>
-      </div>
-      <p class="mw__hint">Both save to the same place — switch whenever you like, nothing is lost.</p>
-      {% endif %}
-
-      {# ── AND THE WAY BACK ─────────────────────────────────────────────────
+      {# ── THE WAY BACK TO THE CONVERSATION ─────────────────────────────────
          "Fill in the form instead" used to be a one-way door: pressing it once, on purpose
          or by accident on a phone, meant the form for the rest of the cycle with no control
          anywhere on the page that would undo it. Nothing is lost in either direction — the
          ledger keeps every turn and the form keeps its answers — which is what makes the
-         return safe to offer. #}
-      {% if can_resume_interview and not offer_chat %}
+         return safe to offer.
+
+         This is the ONLY remaining alternative to the form, and that is the point. There
+         used to be a third: "answer by chatting", a guided question-by-question chat that
+         was neither the live interview nor the form. Three doors onto the same draft is not
+         three times the help — it is a choice nobody has the information to make, on the
+         screen where somebody is trying to describe their life's work. The form is now that
+         conversation, one question at a time, and the interview is the interview. #}
+      {% if can_resume_interview %}
         <form method="post" action="/my-work/{{ token }}/interview/resume" class="mw__back">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <button type="submit" class="mw__mode mw__mode--back">
@@ -805,73 +715,6 @@
           </button>
         </form>
       {% endif %}
-
-      {# ══ THE CONVERSATION ═══════════════════════════════════════════════ #}
-      <div class="mw__card" x-show="mode === 'chat'" x-cloak>
-        {# ── voice, only when a key is configured ──────────────────────────
-           Rendered server-side rather than hidden with a disabled attribute: a nominee should
-           never be shown the shape of a feature the operator has not bought. #}
-        {% if voice %}
-        <div class="mw__vbar">
-          <button type="button" class="mw__vsw" :aria-pressed="voiceOn" @click="toggleVoice()">
-            <span class="mw__spk" aria-hidden="true"></span>
-            <span x-text="voiceOn ? 'Reading aloud' : 'Read the questions to me'"></span>
-          </button>
-          <span class="mw__vnote">You can also answer by talking — press the microphone, say it in
-            your own words, and check what we heard before you send it.</span>
-        </div>
-        {% endif %}
-
-        <div class="mw__chat" x-ref="log">
-          <template x-for="(t, i) in turns" :key="i">
-            <div class="mw__row" :class="t.who === 'you' ? 'mw__row--you' : 'mw__row--ai'">
-              <div class="mw__msg" :class="t.who === 'you' ? 'mw__msg--you' : 'mw__msg--ai'"
-                   x-text="t.text"></div>
-              {% if voice %}
-                <button type="button" class="mw__spk" x-show="t.who !== 'you'"
-                        :aria-pressed="playing === i" @click="play(i)"
-                        :aria-label="playing === i ? 'Stop reading this out' : 'Read this out'"
-                        x-text="playing === i ? '■' : '▶'"></button>
-              {% endif %}
-            </div>
-          </template>
-          <div class="mw__typing" x-show="busy">…</div>
-        </div>
-
-        <div class="mw__bad" x-show="err" x-text="err" x-cloak></div>
-        {% if voice %}<div class="mw__bad" x-show="voiceErr" x-text="voiceErr" x-cloak></div>{% endif %}
-
-        <div class="mw__ask" x-show="!done">
-          {% if voice %}
-            <button type="button" class="mw__mic" :class="recording ? 'mw__mic--on' : ''"
-                    :disabled="hearing || busy" @click="mic()"
-                    :aria-label="recording ? 'Stop recording' : 'Answer by talking'"
-                    :aria-pressed="recording"
-                    ><span class="mw__micglyph" :class="recording && 'mw__micglyph--stop'"
-                            aria-hidden="true"></span></button>
-          {% endif %}
-          <label class="sr-only" for="mwSay">Type your answer</label>
-          <textarea class="mw__say" id="mwSay" x-model="say" x-ref="say" rows="1"
-                    placeholder="Type your answer…"
-                    @keydown.enter.exact.prevent="send()"></textarea>
-          <button type="button" class="mw__send" @click="send()" :disabled="busy || !say.trim()">Send</button>
-        </div>
-
-        {% if voice %}
-          <p class="mw__rec" x-show="recording" x-cloak
-             x-text="'Listening… ' + secs + 's. Press the red square when you have finished.'"></p>
-          <p class="mw__rec" x-show="hearing" x-cloak>Writing down what you said…</p>
-        {% endif %}
-
-        <p class="mw__hint" x-show="!done">
-          Enter sends. Not sure about a question?
-          <button type="button" class="mw__skip" @click="say = 'skip'; send()">say skip</button>
-          — the ones we truly need will be asked again.
-        </p>
-        <p class="mw__hint" x-show="done" x-cloak>
-          All the questions are answered. Add anything you can show the judges below, then send it.
-        </p>
-      </div>
 
       {# ══ THE FORM ══════════════════════════════════════════════════════ #}
       <form method="post" action="/my-work/{{ token }}" id="mwForm" data-mw-answers>
@@ -959,38 +802,86 @@
             can send. The rest are optional and all of them are read. Nothing is submitted until
             you press the button at the bottom.</p>
 
+          {# ── ONE QUESTION, ASKED ────────────────────────────────────────────
+               Shaped like the interview rather than like a form row, because the interview
+               is the version people finish. The question arrives as something SAID — a mark,
+               a bubble, the help underneath it — and the box below is a composer with the
+               same microphone the conversation had, not a field in a stack of fields.
+
+               Nothing about the submission changed: same names, same POST, same fields in
+               the DOM at all times so the no-script path still sends every answer. What
+               changed is what it feels like to be asked. #}
           {% for q in form.questions %}
             {% set val = form.answers[q.slug]|default('') %}
             <div class="mw__q" x-show="step === {{ loop.index0 }}" x-cloak>
-              <label class="mw__lab" for="q-{{ q.slug }}">
-                {{ q.label }}{% if q.is_required %} <span class="mw__req">*</span>{% endif %}
-              </label>
-              {% if q.help %}<p class="mw__help">{{ q.help }}</p>{% endif %}
-              {# What a judge is actually looking for, said under the question rather than
-                 discovered afterwards. Static text: it is the same for everybody and must be
-                 there with no AI key and no network. #}
-              <p class="mw__seek">{{ looking_for[q.slug]|default('') }}</p>
-              {% if q.criterion %}<span class="mw__crit">Judged under: {{ q.criterion }}</span>{% endif %}
 
-              {% if q.kind == 'textarea' %}
-                <textarea class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
-                          maxlength="{{ q.max_len }}"
-                          @input="typed++; watch({{ q.slug|json_encode }}, $el)"
-                          placeholder="{{ q.placeholder }}">{{ val }}</textarea>
-              {% elseif q.kind == 'select' %}
-                <select class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
-                        @change="typed++">
-                  <option value="">Choose…</option>
-                  {% for o in q.options %}
-                    <option value="{{ o }}" {{ val == o ? 'selected' : '' }}>{{ o }}</option>
-                  {% endfor %}
-                </select>
-              {% else %}
-                <input class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
-                       type="{{ q.kind == 'url' ? 'url' : (q.kind == 'number' ? 'number' : (q.kind == 'date' ? 'date' : 'text')) }}"
-                       maxlength="{{ q.max_len }}" value="{{ val }}" @input="typed++"
-                       placeholder="{{ q.placeholder ?: (q.kind == 'url' ? 'https://…' : '') }}">
+              <div class="mw__asked">
+                <span class="mw__mark" aria-hidden="true"></span>
+                <div class="mw__bubble">
+                  <label class="mw__lab" for="q-{{ q.slug }}">
+                    {{ q.label }}{% if q.is_required %} <span class="mw__req">*</span>{% endif %}
+                  </label>
+                  {% if q.help %}<p class="mw__help">{{ q.help }}</p>{% endif %}
+                  {# What a judge is actually looking for, said under the question rather than
+                     discovered afterwards. Static text: it is the same for everybody and must
+                     be there with no AI key and no network. #}
+                  <p class="mw__seek">{{ looking_for[q.slug]|default('') }}</p>
+                  {% if q.criterion %}<span class="mw__crit">Judged under: {{ q.criterion }}</span>{% endif %}
+                </div>
+                {% if voice %}
+                  {# Rendered server-side rather than disabled: a nominee should never be
+                     shown the shape of a feature the operator has not bought. #}
+                  <button type="button" class="mw__spk"
+                          :aria-pressed="playing === {{ q.slug|json_encode }}"
+                          @click="play({{ q.slug|json_encode }})"
+                          :aria-label="playing === {{ q.slug|json_encode }}
+                                       ? 'Stop reading this question out' : 'Read this question out'"
+                          x-text="playing === {{ q.slug|json_encode }} ? '■' : '▶'"></button>
+                {% endif %}
+              </div>
+
+              <div class="mw__answer">
+                {% if voice and q.kind == 'textarea' %}
+                  <button type="button" class="mw__mic" :class="recording && dictating === {{ q.slug|json_encode }} ? 'mw__mic--on' : ''"
+                          :disabled="hearing" @click="mic({{ q.slug|json_encode }})"
+                          :aria-pressed="recording && dictating === {{ q.slug|json_encode }}"
+                          :aria-label="recording && dictating === {{ q.slug|json_encode }}
+                                       ? 'Stop recording' : 'Answer this out loud'"
+                    ><span class="mw__micglyph"
+                           :class="recording && dictating === {{ q.slug|json_encode }} && 'mw__micglyph--stop'"
+                           aria-hidden="true"></span></button>
+                {% endif %}
+
+                {% if q.kind == 'textarea' %}
+                  <textarea class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
+                            maxlength="{{ q.max_len }}"
+                            @input="typed++; watch({{ q.slug|json_encode }}, $el)"
+                            placeholder="{{ q.placeholder }}">{{ val }}</textarea>
+                {% elseif q.kind == 'select' %}
+                  <select class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
+                          @change="typed++">
+                    <option value="">Choose…</option>
+                    {% for o in q.options %}
+                      <option value="{{ o }}" {{ val == o ? 'selected' : '' }}>{{ o }}</option>
+                    {% endfor %}
+                  </select>
+                {% else %}
+                  <input class="mw__in" id="q-{{ q.slug }}" name="a[{{ q.slug }}]"
+                         type="{{ q.kind == 'url' ? 'url' : (q.kind == 'number' ? 'number' : (q.kind == 'date' ? 'date' : 'text')) }}"
+                         maxlength="{{ q.max_len }}" value="{{ val }}" @input="typed++"
+                         placeholder="{{ q.placeholder ?: (q.kind == 'url' ? 'https://…' : '') }}">
+                {% endif %}
+              </div>
+
+              {% if voice %}
+                <p class="mw__rec" x-show="recording && dictating === {{ q.slug|json_encode }}" x-cloak
+                   x-text="'Listening… ' + secs + 's. Press the red square when you have finished.'"></p>
+                <p class="mw__rec" x-show="hearing && dictating === {{ q.slug|json_encode }}" x-cloak
+                   >Writing down what you said…</p>
+                <div class="mw__bad" x-show="voiceErr && dictating === {{ q.slug|json_encode }}"
+                     x-text="voiceErr" x-cloak></div>
               {% endif %}
+
               {% if val %}<div class="mw__done"><span class="mw__tick" aria-hidden="true"></span>
                 answered</div>{% endif %}
 

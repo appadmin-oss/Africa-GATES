@@ -52,8 +52,11 @@ class CsrfMiddleware {
      * nominee's own interview page. Anchored end to end; every action named explicitly.
      */
     private const NOMINEE_TOKEN_PATHS =
-        '~^(/my-work/[a-f0-9]{32}(/(upload|chat|speak|listen|ready|coach|intro'
-        . '|interview(/(switch|phase|amend|outcome))?))?'
+        // `chat` is deliberately absent: the guided chat endpoint was retired with the
+        // feature. Exempting a path that no longer routes anywhere is a comment that
+        // reads as policy about a thing that does not exist.
+        '~^(/my-work/[a-f0-9]{32}(/(upload|speak|listen|ready|coach|intro|summary'
+        . '|interview(/(switch|resume|phase|amend|outcome))?))?'
         . '|/interview/[a-f0-9]{32})$~';
 
     private const OTP_EXEMPT = ['/api/vote', '/api/otp/request', '/api/v1/vote', '/api/v1/otp/request', '/api/agent/gee', '/api/v1/agent/gee', '/pay/webhook', '/__setup/admin',
