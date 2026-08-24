@@ -100,7 +100,7 @@
   <div class="tl-card tl-gone">
     <h1>This link is no longer active</h1>
     <p>Support links stop working after a while, for your safety. Nothing has gone
-       wrong with your ticket and nothing has been lost.</p>
+       wrong with your support ticket and nothing has been lost.</p>
     <p><strong>Just reply to the last email we sent you</strong> — it reaches the same
        people and lands on the same conversation.</p>
     <p><a href="/support">Or start a new conversation</a></p>
@@ -111,7 +111,7 @@
   {% set settled = t.status in ['resolved','closed'] %}
 
   <div class="tl-head">
-    <p class="tl-ref">Ticket {{ t.reference }}</p>
+    <p class="tl-ref">Support ticket {{ t.reference }}</p>
     <h1 class="tl-h1">{{ t.subject }}</h1>
     <p class="tl-sub">
       <span class="tl-state {{ settled ? 'tl-state--closed' : 'tl-state--open' }}">{{ settled ? 'Settled' : 'Open' }}</span>

@@ -265,7 +265,7 @@
           {% if ai_on %}Online — reading live records{% else %}Answering from the written help — a person still gets your message{% endif %}
         </div>
       </div>
-      <a class="sa-head__t" href="/support/tickets">Your tickets →</a>
+      <a class="sa-head__t" href="/support/tickets">Your support tickets →</a>
     </div>
 
     {# The transcript is a log, announced politely. aria-live sits on a container
@@ -308,7 +308,7 @@
             <a class="sa-ticket" x-show="!!m.ticket" x-cloak
                :href="'/support/tickets?ref=' + encodeURIComponent(m.ticket || '')">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span x-text="'Ticket ' + m.ticket + ' — follow it here'"></span>
+              <span x-text="'Support ticket ' + m.ticket + ' — follow it here'"></span>
             </a>
 
             <div class="sa-acts" x-show="m.role === 'assistant' && i > 0" x-cloak>
@@ -368,7 +368,7 @@
 
   <div class="sa-more">
     <a href="/support/tickets">
-      <strong>Your tickets</strong>
+      <strong>Your support tickets</strong>
       <span>Anything already with the team, and every reply — by email and here.</span>
     </a>
     <a href="/help">
@@ -391,7 +391,7 @@ function supportDesk(){
     // Shown once the conversation is under way. Different from the openers on
     // purpose: by then the reader has stated their problem, and what they need
     // next is the things they did not know to ask for.
-    more: [{% if can_see_payments %}'What is happening with my ticket?', 'Is my nomination approved?',
+    more: [{% if can_see_payments %}'What is happening with my support ticket?', 'Is my nomination approved?',
             'Show my recent payments', {% endif %}'When does voting close?', 'Is anything broken right now?'],
 
     /** Where the transcript is kept across an accidental reload. */
@@ -410,7 +410,7 @@ function supportDesk(){
       if (!this.restore()) {
         this.push('assistant',
           {% if can_see_payments %}
-          'Ask away. I can see your own payments, votes, nominations and tickets, re-check a payment with the gateway, and tell you what the platform is actually doing right now.'
+          'Ask away. I can see your own payments, votes, nominations and support tickets, re-check a payment with the gateway, and tell you what the platform is actually doing right now.'
           {% else %}
           'Ask away. If a payment has not come through, paste its reference and I will re-check it with the gateway — you do not need an account for that.'
           {% endif %});
@@ -523,7 +523,7 @@ function supportDesk(){
         refund_status:    'checked the refund',
         my_transactions:  'checked your payments',
         my_votes:         'checked your votes',
-        my_tickets:       'checked your tickets',
+        my_tickets:       'checked your support tickets',
         my_nominations:   'checked your nominations',
         lookup_reference: 'looked up that reference',
         site_state:       'checked the cycle',
@@ -585,7 +585,7 @@ function supportDesk(){
     workingOn(text){
       var t = String(text || '').toLowerCase();
       if (/afg-|reference|receipt|refund|paid|payment|charged/.test(t)) return 'Checking that with the payment gateway…';
-      if (/ticket|replied|nobody|escalat/.test(t))                     return 'Looking up your tickets…';
+      if (/ticket|replied|nobody|escalat/.test(t))                     return 'Looking up your support tickets…';
       if (/nominat/.test(t))                                           return 'Checking your nominations…';
       if (/broken|down|slow|error/.test(t))                            return 'Checking the platform…';
       if (/close|deadline|when/.test(t))                               return 'Checking the cycle…';

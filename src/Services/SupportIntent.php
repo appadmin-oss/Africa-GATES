@@ -86,6 +86,10 @@ final class SupportIntent
         'error', 'failed', 'wrong', 'complaint', 'complain', 'appeal', 'dispute',
         'speak to someone', 'talk to someone', 'talk to a human', 'speak to a human',
         'real person', 'customer care', 'customer service', 'raise a ticket', 'open a ticket',
+        // The desk calls these SUPPORT tickets everywhere a person can read it, so the
+        // phrase people type back at us is the one on the page — and a substring match on
+        // 'a ticket' does not see 'a support ticket'.
+        'support ticket',
         'my ticket', 'no one has replied', 'nobody replied', 'still waiting',
     ];
 

@@ -121,7 +121,7 @@ final class SupportController
         }
 
         return $this->view->render($res, 'admin/support/index.twig', [
-            'page_title' => 'Support queue',
+            'page_title' => 'Support tickets',
             'admin_page' => 'support',
             'tickets'    => $rows,
             'replies'    => $replies,
@@ -196,7 +196,7 @@ final class SupportController
         $q = $req->getQueryParams();
 
         return $this->view->render($res, 'admin/support/show.twig', [
-            'page_title' => 'Ticket ' . $t->reference,
+            'page_title' => 'Support ticket ' . $t->reference,
             'admin_page' => 'support',
             't'          => $t,
             'messages'   => $messages,

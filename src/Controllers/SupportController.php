@@ -167,7 +167,7 @@ final class SupportController
             return $this->json($res, ['ok' => false, 'message' => 'Describe the problem first.'], 422);
         }
         if ($this->tickets === null) {
-            return $this->json($res, ['ok' => false, 'message' => 'Ticketing is unavailable right now.'], 503);
+            return $this->json($res, ['ok' => false, 'message' => 'The support desk is unavailable right now.'], 503);
         }
 
         $history = [];
@@ -230,7 +230,7 @@ final class SupportController
                 'ok' => true, 'ticket' => $existing['reference'], 'appended' => true,
                 'message' => "You already have this with the team as {$existing['reference']} — I have added what "
                            . 'you just said to it and pushed it back up their queue, rather than starting a second '
-                           . 'ticket about the same thing.',
+                           . 'support ticket about the same thing.',
             ]);
         }
 
@@ -246,7 +246,7 @@ final class SupportController
         if ($ref === null) {
             return $this->json($res, [
                 'ok' => false,
-                'message' => 'I could not open a ticket. Please email the team directly and mention what happened.',
+                'message' => 'I could not open a support ticket. Please email the team directly and mention what happened.',
             ], 500);
         }
 
@@ -299,14 +299,14 @@ final class SupportController
         $m = UserAccountService::memberForForms();
         if (!$m) {
             return $this->json($res, ['ok' => false, 'code' => 'SIGN_IN',
-                'message' => 'Sign in to raise a ticket — that is how we can reply to you and how you can follow it.',
+                'message' => 'Sign in to raise a support ticket — that is how we can reply to you and how you can follow it.',
                 'login_url' => '/account/login?next=' . rawurlencode('/support/tickets')], 401);
         }
 
         $ip = (string) ($req->getServerParams()['REMOTE_ADDR'] ?? '');
         if ($this->rateLimit !== null && $ip !== ''
             && !$this->rateLimit->check(hash('sha256', (string) $m['id']), 'support_ticket', 6, 3600)) {
-            return $this->json($res, ['ok' => false, 'message' => 'You have opened several tickets already. '
+            return $this->json($res, ['ok' => false, 'message' => 'You have opened several support tickets already. '
                 . 'Reply on an existing one instead, and the team will see it.'], 429);
         }
 
@@ -317,7 +317,7 @@ final class SupportController
             return $this->json($res, ['ok' => false, 'message' => 'Describe the problem.'], 422);
         }
         if ($this->tickets === null) {
-            return $this->json($res, ['ok' => false, 'message' => 'Ticketing is unavailable right now.'], 503);
+            return $this->json($res, ['ok' => false, 'message' => 'The support desk is unavailable right now.'], 503);
         }
 
         $ref = $this->tickets->openForMember((int) $m['id'], (string) $m['email'], (string) $m['name'],
@@ -329,7 +329,7 @@ final class SupportController
 
         if ($ref === null) {
             return $this->json($res, ['ok' => false,
-                'message' => 'I could not open the ticket. Please email the team directly.'], 500);
+                'message' => 'I could not open the support ticket. Please email the team directly.'], 500);
         }
         // Evidence, once the ticket is safely open. Best-effort and never fatal: a
         // rejected screenshot must not lose the description somebody just wrote.
@@ -489,7 +489,7 @@ final class SupportController
                 'message' => 'Sign in to reply.'], 401);
         }
         if ($this->tickets === null) {
-            return $this->json($res, ['ok' => false, 'message' => 'Ticketing is unavailable right now.'], 503);
+            return $this->json($res, ['ok' => false, 'message' => 'The support desk is unavailable right now.'], 503);
         }
 
         $b = (array) $req->getParsedBody();

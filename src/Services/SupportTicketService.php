@@ -340,7 +340,7 @@ final class SupportTicketService
         if (mb_strlen($body) > 5000)     $body = mb_substr($body, 0, 5000);
 
         $thread = $this->threadFor($reference, $userId, $email);
-        if ($thread === null)            return ['ok' => false, 'message' => 'That ticket is not on this account.'];
+        if ($thread === null)            return ['ok' => false, 'message' => 'That support ticket is not on this account.'];
 
         try {
             $t = DB::table('gates_support_tickets')->where('reference', trim($reference))->first(['id', 'subject', 'status']);
@@ -369,7 +369,7 @@ final class SupportTicketService
         // already safe, so a mail or webhook failure loses a notification, not
         // the reply itself.
         try {
-            $note = "A member replied on ticket {$reference}.\n\n" . $body;
+            $note = "A member replied on support ticket {$reference}.\n\n" . $body;
             $this->mailer?->sendBranded(Notifier::supportEmail(),
                 "[Africa GATES] Support reply on {$reference}: " . ($t->subject ?? ''),
                 nl2br(htmlspecialchars($note, ENT_QUOTES, 'UTF-8')), $note, 'Support');
@@ -476,7 +476,7 @@ final class SupportTicketService
         }
 
         try {
-            $note = "A member chased ticket {$ticket['reference']}.\n\n" . $body;
+            $note = "A member chased support ticket {$ticket['reference']}.\n\n" . $body;
             $this->mailer?->sendBranded(Notifier::supportEmail(),
                 "[Africa GATES] Chased: Support {$ticket['reference']}",
                 nl2br(htmlspecialchars($note, ENT_QUOTES, 'UTF-8')), $note, 'Support');
@@ -523,7 +523,7 @@ final class SupportTicketService
             'name'    => 'Support assistant',
             'id'      => null,
             'signoff' => 'This reply was written by the Africa GATES support assistant. If it did not '
-                       . 'solve it, reply on the ticket and a person will pick it up.',
+                       . 'solve it, reply on the support ticket and a person will pick it up.',
         ])['ok'];
     }
 
@@ -562,7 +562,7 @@ final class SupportTicketService
             'type'    => 'staff',
             'name'    => mb_substr(trim($actorName) !== '' ? trim($actorName) : 'Support team', 0, 120),
             'id'      => $actorId,
-            'signoff' => 'Reply on this ticket and it comes straight back to the team.',
+            'signoff' => 'Reply on this support ticket and it comes straight back to the team.',
         ]);
     }
 
@@ -668,8 +668,8 @@ final class SupportTicketService
         }
 
         $text = "Hi " . (trim((string) ($t->name ?? '')) ?: 'there') . ",\n\n" . $body
-              . "\n\n— — —\nTicket {$t->reference}: {$t->subject}\n"
-              . "Reply to this ticket at " . $link . "\n"
+              . "\n\n— — —\nSupport ticket {$t->reference}: {$t->subject}\n"
+              . "Reply to this support ticket at " . $link . "\n"
               . "No account needed — the link opens your conversation.\n"
               . $signoff;
 

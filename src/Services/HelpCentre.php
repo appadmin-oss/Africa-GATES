@@ -192,7 +192,7 @@ final class HelpCentre
                 ]],
                 ['note' => 'The receipt always goes to the address on the payment, and that cannot be '
                          . 'changed from the assistant. If you typed the address wrongly at checkout, a '
-                         . 'person has to correct it — raise a ticket and we will.'],
+                         . 'person has to correct it — raise a support ticket and we will.'],
             ],
             'related' => ['paid-but-no-votes'],
         ],
@@ -255,7 +255,7 @@ final class HelpCentre
                       . 'on its way. Banks usually take 5–10 working days to show it.'],
                 ['p' => 'Everything else — a duplicate charge, a change of mind, the wrong nominee, the '
                       . 'wrong quantity — needs a person to look at it, because those are judgements '
-                      . 'rather than arithmetic. Raise a ticket and we will.'],
+                      . 'rather than arithmetic. Raise a support ticket and we will.'],
                 ['note' => 'Before asking for a refund, check whether one is already on its way: give your '
                          . 'reference to the <a href="/support/assistant">assistant</a> and it will tell '
                          . 'you. It cannot start one — only a person can — but it can save you the wait.'],

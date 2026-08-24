@@ -1,5 +1,5 @@
 {% extends "admin/layout.twig" %}
-{% block topbar_title %}Support queue{% endblock %}
+{% block topbar_title %}Support tickets{% endblock %}
 
 {#
   THE QUEUE.
@@ -93,7 +93,7 @@
 
 <form class="sq-search" method="get" action="/admin/support">
   <input type="hidden" name="status" value="{{ status }}">
-  <input type="search" name="q" value="{{ q }}" placeholder="Reference, subject, name or email…" aria-label="Search tickets">
+  <input type="search" name="q" value="{{ q }}" placeholder="Reference, subject, name or email…" aria-label="Search support tickets">
   <button type="submit">Search</button>
   {% if q %}<a class="sq-tab" href="/admin/support?status={{ status }}">Clear</a>{% endif %}
 </form>
@@ -104,13 +104,13 @@
       <table class="sq">
         <thead>
           <tr>
-            <th>Ticket</th>
+            <th>Support ticket</th>
             <th>Subject</th>
             <th>Status</th>
             <th>Replies</th>
             <th>Last activity</th>
             <th>Opened</th>
-            <th><span class="sr-only">Open ticket</span></th>
+            <th><span class="sr-only">Open support ticket</span></th>
           </tr>
         </thead>
         <tbody>
@@ -151,14 +151,14 @@
     </div>
   {% else %}
     <div class="sq-empty">
-      {% if q %}Nothing matches “{{ q }}”.{% else %}No {{ status == 'all' ? '' : status }} tickets.{% endif %}
+      {% if q %}Nothing matches “{{ q }}”.{% else %}No {{ status == 'all' ? '' : status }} support tickets.{% endif %}
     </div>
   {% endif %}
 </div>
 
 {% if pages > 1 %}
   <div class="sq-page">
-    <span>Page {{ page }} of {{ pages }} · {{ total }} ticket{{ total == 1 ? '' : 's' }}</span>
+    <span>Page {{ page }} of {{ pages }} · {{ total }} support ticket{{ total == 1 ? '' : 's' }}</span>
     <span>
       {% if page > 1 %}<a href="/admin/support?status={{ status }}&q={{ q|url_encode }}&page={{ page - 1 }}">← Previous</a>{% endif %}
       {% if page < pages %}&nbsp;&nbsp;<a href="/admin/support?status={{ status }}&q={{ q|url_encode }}&page={{ page + 1 }}">Next →</a>{% endif %}

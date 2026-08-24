@@ -182,7 +182,7 @@
     <div class="st-head">
       <a class="st-back" href="/support/tickets">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18 9 12l6-6"/></svg>
-        All tickets
+        All support tickets
       </a>
       <p class="st-eyebrow">{{ t.reference }}</p>
       <h1 class="st-h1 st-h1--subject">{{ t.subject }}</h1>
@@ -272,7 +272,7 @@
         </div>
       </div>
 
-      <aside class="st-rail" aria-label="Ticket status">
+      <aside class="st-rail" aria-label="Support ticket status">
         <div class="st-state {{ settled ? 'st-state--closed' : 'st-state--open' }}">
           <p class="st-state__k">Status</p>
           <p class="st-state__v">{{ settled ? 'Settled' : 'Open' }}</p>
@@ -322,14 +322,14 @@
   {% else %}
     <div class="st-head">
       <p class="st-eyebrow">Support</p>
-      <h1 class="st-h1">Your tickets</h1>
+      <h1 class="st-h1">Your support tickets</h1>
       <p class="st-sub">Everything you have raised, and every reply — from the team or from the assistant.
         Each one reaches you by email as well as appearing here.</p>
     </div>
 
     {% if not_found %}
     <div class="st-panel" style="margin-bottom:14px">
-      <div class="st-panel__b"><p class="st-note st-note--err" style="margin:0">No ticket <strong>{{ not_found }}</strong> on this account.</p></div>
+      <div class="st-panel__b"><p class="st-note st-note--err" style="margin:0">No support ticket <strong>{{ not_found }}</strong> on this account.</p></div>
     </div>
     {% endif %}
 
@@ -337,9 +337,9 @@
       <div>
         <div class="st-panel">
           <div class="st-panel__h">
-            <h2>{{ tickets|default([])|length }} ticket{{ (tickets|default([])|length) == 1 ? '' : 's' }}</h2>
+            <h2>{{ tickets|default([])|length }} support ticket{{ (tickets|default([])|length) == 1 ? '' : 's' }}</h2>
             {% if tickets %}
-            <div class="st-filters" role="group" aria-label="Filter tickets by status">
+            <div class="st-filters" role="group" aria-label="Filter support tickets by status">
               <button type="button" @click="filter = 'all'"    :aria-pressed="filter === 'all'">All</button>
               <button type="button" @click="filter = 'open'"   :aria-pressed="filter === 'open'">Open</button>
               <button type="button" @click="filter = 'closed'" :aria-pressed="filter === 'closed'">Settled</button>
@@ -377,16 +377,16 @@
           </div>
           {% else %}
           <div class="st-empty">
-            <p>No tickets yet — which is the good outcome.<br>
+            <p>No support tickets yet — which is the good outcome.<br>
               If something is wrong, the <a href="/support/assistant">assistant</a> can often fix it on the spot.</p>
           </div>
           {% endif %}
         </div>
       </div>
 
-      <aside class="st-rail" aria-label="Raise a ticket">
+      <aside class="st-rail" aria-label="Raise a support ticket">
         <div class="st-panel">
-          <div class="st-panel__h"><h2>Raise a ticket</h2></div>
+          <div class="st-panel__h"><h2>Raise a support ticket</h2></div>
           <div class="st-panel__b">
             <form class="st-form" @submit.prevent="create()">
               <label class="sr-only" for="stSubject">Subject</label>
@@ -395,7 +395,7 @@
               <textarea class="st-ta" id="stBody" x-model="body" maxlength="5000" style="margin-top:9px"
                         placeholder="What has gone wrong? Include a payment reference if you have one."></textarea>
               <div class="st-bar">
-                <button class="st-go" type="submit" :disabled="busy || !body.trim()">Open ticket</button>
+                <button class="st-go" type="submit" :disabled="busy || !body.trim()">Open support ticket</button>
                 <label class="st-file">
                   <input type="file" x-ref="newFiles" multiple accept="{{ attach_accept }}">
                   <span>Attach evidence</span>
