@@ -38,6 +38,11 @@ class CycleAdvanceWinnersTest extends TestCase
             ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1],
             ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'is_active' => 1],
         ]);
+        // The shipped rubric is installed by a migration, so it is present in the
+        // harness exactly as it is in a migrated production database. Cleared here
+        // because this test DECLARES the rubric under test — and because these
+        // fixtures pin criterion ids, which would collide with the seeded rows.
+        DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert(['id' => 1, 'slug' => 'impact', 'label' => 'Impact', 'weight' => 25, 'is_active' => 1]);
         // Two COMPLETE scorecards per nominee (single active criterion) → quorum met.
         DB::table('gates_judge_criteria_scores')->insert([
@@ -73,6 +78,11 @@ class CycleAdvanceWinnersTest extends TestCase
             ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1],
             ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'is_active' => 1],
         ]);
+        // The shipped rubric is installed by a migration, so it is present in the
+        // harness exactly as it is in a migrated production database. Cleared here
+        // because this test DECLARES the rubric under test — and because these
+        // fixtures pin criterion ids, which would collide with the seeded rows.
+        DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert(['id' => 1, 'slug' => 'impact', 'label' => 'Impact', 'weight' => 25, 'is_active' => 1]);
         // Three identical nominees: 10 organic votes + two complete scorecards of
         // 10 → CPI 1000 each (a quorum-meeting 3-way tie).
@@ -131,6 +141,11 @@ class CycleAdvanceWinnersTest extends TestCase
             ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1],
             ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'is_active' => 1],
         ]);
+        // The shipped rubric is installed by a migration, so it is present in the
+        // harness exactly as it is in a migrated production database. Cleared here
+        // because this test DECLARES the rubric under test — and because these
+        // fixtures pin criterion ids, which would collide with the seeded rows.
+        DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert(['id' => 1, 'slug' => 'impact', 'label' => 'Impact', 'weight' => 25, 'is_active' => 1]);
 
         DB::table('gates_nominees')->insert([
@@ -184,6 +199,11 @@ class CycleAdvanceWinnersTest extends TestCase
             ['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1],
             ['id' => 2, 'name' => 'J2', 'email' => 'j2@x.io', 'is_active' => 1],
         ]);
+        // The shipped rubric is installed by a migration, so it is present in the
+        // harness exactly as it is in a migrated production database. Cleared here
+        // because this test DECLARES the rubric under test — and because these
+        // fixtures pin criterion ids, which would collide with the seeded rows.
+        DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert(['id' => 1, 'slug' => 'impact', 'label' => 'Impact', 'weight' => 25, 'is_active' => 1]);
         DB::table('gates_nominees')->insert([
             ['id' => 1, 'category_id' => 1, 'name' => 'BoughtOnly', 'status' => 'approved', 'vote_count' => 900, 'organic_vote_count' => 0],

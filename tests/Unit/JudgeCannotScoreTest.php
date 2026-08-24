@@ -59,6 +59,13 @@ final class JudgeCannotScoreTest extends TestCase
             'id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'is_active' => 1,
             'programme_ids' => json_encode([1]),
         ]);
+
+        // NO RUBRIC is the starting state here, and it has to be asserted rather than
+        // assumed: the shipped four are installed by a migration, so the harness carries
+        // them exactly as a migrated production database does. Without this the
+        // empty-rubric tests below would silently be testing a POPULATED rubric — which is
+        // the one condition this whole file exists to cover.
+        DB::table('gates_judge_criteria')->delete();
     }
 
     private function addRubric(): void

@@ -5,7 +5,7 @@ namespace AfricaGates\Admin\Controllers;
 
 use AfricaGates\Admin\Services\AuditService;
 use AfricaGates\Admin\Support\Permissions;
-use AfricaGates\Services\JudgeRubric;
+use AfricaGates\Services\{JudgeRubric, JudgeRubricSeeder};
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -107,7 +107,40 @@ final class RubricController
             'may_edit'    => $this->mayEdit(),
             'max_weight'  => JudgeRubric::MAX_WEIGHT,
             'max_per_scope' => JudgeRubric::MAX_PER_SCOPE,
+            // The published doctrine, shown beside the criteria rather than in a document
+            // somewhere else. Four criteria listed without the question they answer read as
+            // a scoring form; with it they read as a standard, which is what they are.
+            'purpose'     => JudgeRubricSeeder::PURPOSE,
+            'standard'    => JudgeRubricSeeder::STANDARD,
+            'doctrine'    => JudgeRubricSeeder::doctrine(),
+            // Offered only when the GLOBAL rubric is empty — an installation that predates
+            // the migration, or one where somebody removed every criterion. Never offered
+            // over an existing rubric: those rows may already have ballots pointing at them.
+            'can_install' => $scope === null && !JudgeRubricSeeder::installed(),
         ]);
+    }
+
+    /**
+     * Install the four shipped criteria, for a deployment that has none.
+     *
+     * Refuses over an existing rubric — the check lives in the seeder, not only in the
+     * template that decides whether to draw the button. A hidden button is a UI decision;
+     * a POST is a request, and this one can create the criteria every future ballot is
+     * scored against.
+     */
+    public function install(Request $req, Response $res): Response
+    {
+        if (!$this->mayEdit()) {
+            $_SESSION['flash_error'] = 'You do not have permission to change the judging rubric.';
+            return $this->back($res, null);
+        }
+
+        $r = JudgeRubricSeeder::install();
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = (string) $r['message'];
+        $this->audit->record($this->adminId(), 'rubric.install', 'rubric', 0,
+                             ['installed' => (int) $r['installed']]);
+
+        return $this->back($res, null);
     }
 
     public function save(Request $req, Response $res, array $args = []): Response

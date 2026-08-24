@@ -55,6 +55,11 @@ class JudgeAnomalyServiceTest extends TestCase
         DB::table('gates_award_cycles')->insert(['id' => 1, 'programme_id' => 1, 'year' => 2026, 'status' => 'judging']);
         DB::table('gates_award_categories')->insert(['id' => 10, 'cycle_id' => 1, 'slug' => 'a', 'title' => 'Alpha', 'sort_order' => 1]);
         DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 10, 'name' => 'Ada Obi', 'status' => 'approved', 'vote_count' => 0, 'organic_vote_count' => 0]);
+        // The shipped rubric is installed by a migration, so it is present in the
+        // harness exactly as it is in a migrated production database. Cleared here
+        // because this test DECLARES the rubric under test — and because these
+        // fixtures pin criterion ids, which would collide with the seeded rows.
+        DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert([['id' => 1, 'slug' => 'a', 'label' => 'A', 'weight' => 100, 'is_active' => 1]]);
         DB::table('gates_judges')->insert([
             ['id' => 1, 'name' => 'Fair One', 'email' => 'j1@e.com'],
@@ -83,6 +88,11 @@ class JudgeAnomalyServiceTest extends TestCase
         DB::table('gates_award_cycles')->insert(['id' => 1, 'programme_id' => 1, 'year' => 2026, 'status' => 'judging']);
         DB::table('gates_award_categories')->insert(['id' => 10, 'cycle_id' => 1, 'slug' => 'a', 'title' => 'Alpha', 'sort_order' => 1]);
         DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 10, 'name' => 'Ada Obi', 'status' => 'approved', 'vote_count' => 0, 'organic_vote_count' => 0]);
+        // The shipped rubric is installed by a migration, so it is present in the
+        // harness exactly as it is in a migrated production database. Cleared here
+        // because this test DECLARES the rubric under test — and because these
+        // fixtures pin criterion ids, which would collide with the seeded rows.
+        DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert([['id' => 1, 'slug' => 'a', 'label' => 'A', 'weight' => 100, 'is_active' => 1]]);
         DB::table('gates_judges')->insert([
             ['id' => 1, 'name' => 'A', 'email' => 'a@e.com'],

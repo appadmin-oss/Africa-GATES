@@ -23,6 +23,54 @@
   the panel scores against and the one the published result is computed from.
 </p>
 
+{# ── THE QUESTION THE FOUR CRITERIA ANSWER ────────────────────────────────────
+   Four criteria listed on their own read as a scoring form. With the question above them
+   they read as a standard, which is what they are — and an operator about to reweight one
+   should have the reason for the weights in front of them while they do it. #}
+<div class="ad-card">
+  <div class="ad-card__body" style="padding-top:18px;padding-bottom:18px">
+    <p style="margin:0;font-family:var(--ag-font-display,Georgia,serif);font-size:16.5px;line-height:1.6;color:var(--ad-text,#10292c)">
+      &ldquo;{{ purpose }}&rdquo;
+    </p>
+    <p style="margin:12px 0 0;font-size:12.5px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
+      Four criteria, <strong>equally weighted</strong> — so no single dimension can carry a
+      result on its own: not wealth, not a following, not the public tally, not a reputation
+      that arrived before the evidence did. A rubric weighted 40/25/20/15 lets its heaviest
+      criterion decide, and the heaviest criterion is always the one easiest to perform.
+    </p>
+    <p style="margin:10px 0 0;font-size:12.5px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
+      Weights here are <strong>relative</strong>, so four 25s and four 1s score identically.
+      25 is used because the rubric is published as percentages and the number on this screen
+      should be the number that was published.
+    </p>
+  </div>
+</div>
+
+{# ── NO RUBRIC AT ALL ───────────────────────────────────────────────────────
+   JudgeService LOCKS scoring for a programme with no criteria, so an empty global rubric is
+   not a blank slate — it is a panel that cannot score anybody. Offered only when the global
+   rubric is genuinely empty; the seeder refuses over existing rows regardless, because those
+   rows may already have ballots pointing at them. #}
+{% if can_install|default(false) and may_edit %}
+<div class="ad-card" style="border-color:rgba(163,43,28,.3)">
+  <div class="ad-card__head"><div class="ad-card__title" style="color:#a32b1c">There is no rubric
+    <small>Judges cannot score anybody until there is one — the panel screen locks without criteria.</small>
+  </div></div>
+  <div class="ad-card__body">
+    <p style="margin:0 0 12px;font-size:13px;line-height:1.7">
+      Install the four published criteria — <strong>Impact</strong>, <strong>Originality</strong>,
+      <strong>Reach</strong> and <strong>Integrity</strong>, 25 each. You can edit or reweight
+      any of them afterwards; nothing here is final until judging starts.
+    </p>
+    <form method="post" action="/admin/rubric/install">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="ad-btn ad-btn--primary" type="submit"
+        data-confirm="Install the four published criteria at 25 each? They become the default rubric for every programme, and you can edit, reweight or retire any of them afterwards.">Install the published rubric</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
 {# ── SCOPE ─────────────────────────────────────────────────────────────────
      Global rows apply to every programme; a programme's own row with the same
      reference REPLACES the global one. That is what the scorer already does — this
@@ -250,5 +298,35 @@
   </div>
 </div>
 {% endif %}
+
+{# ── THE INDEPENDENCE PRINCIPLE ───────────────────────────────────────────────
+   Printed here because it is a description of the CODE, not an aspiration — every clause
+   below is enforced at a named place, and a principle that is only printed is one that
+   quietly stops being true. See JudgeRubricSeeder::doctrine() for where each is enforced.
+
+   It belongs beside the criteria rather than in a document elsewhere: an operator
+   reweighting a criterion is deciding what the panel is asked, and the safeguards on HOW
+   they are asked it are part of the same decision. #}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">The independence principle
+    <small>Not policy — this is what the judging screen actually does.</small>
+  </div></div>
+  <div class="ad-card__body">
+    {% for d in doctrine %}
+      <div style="padding:12px 0{{ loop.first ? ';padding-top:0' : '' }}{{ loop.last ? '' : ';border-bottom:1px solid var(--ad-line)' }}">
+        <p style="margin:0 0 4px;font-weight:600;font-size:13.5px;color:var(--ad-text,#10292c)">{{ d.title }}</p>
+        <p style="margin:0;font-size:12.5px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">{{ d.body }}</p>
+      </div>
+    {% endfor %}
+    <p style="margin:16px 0 0;padding-top:14px;border-top:1px solid var(--ad-line);
+              font-family:var(--ag-font-display,Georgia,serif);font-size:15px;line-height:1.6;color:var(--ad-text,#10292c)">
+      &ldquo;{{ standard }}&rdquo;
+    </p>
+    <p style="margin:8px 0 0;font-size:12.5px;line-height:1.7;color:var(--ad-text-mute,#5a6d6f)">
+      A nominee does not win because they are the most popular. They win because, across all
+      four, their contribution withstands scrutiny.
+    </p>
+  </div>
+</div>
 
 {% endblock %}

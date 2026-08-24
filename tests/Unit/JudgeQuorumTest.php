@@ -38,6 +38,11 @@ class JudgeQuorumTest extends TestCase
 
     private function activeCriteria(array $ids): void
     {
+        // Once, BEFORE the loop. The shipped rubric is installed by a migration, so the
+        // harness carries it exactly as a migrated production database does, and this test
+        // declares the rubric under test — with pinned ids that would otherwise collide.
+        DB::table('gates_judge_criteria')->delete();
+
         foreach ($ids as $cid) {
             DB::table('gates_judge_criteria')->insert(['id' => $cid, 'slug' => 'c' . $cid, 'label' => 'C' . $cid, 'weight' => 25, 'is_active' => 1]);
         }

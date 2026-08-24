@@ -3133,6 +3133,7 @@ return function(App $app) {
         $RB = \AfricaGates\Admin\Controllers\RubricController::class;
         $a->get ('/rubric',                        $RB.':index');
         $a->post('/rubric',                        $RB.':save');
+        $a->post('/rubric/install',                $RB.':install');
         $a->post('/rubric/{id:[0-9]+}',            $RB.':save');
         $a->post('/rubric/{id:[0-9]+}/retire',     $RB.':retire');
         $a->post('/rubric/{id:[0-9]+}/restore',    $RB.':restore');

@@ -21,6 +21,11 @@ class JudgeScoringTest extends TestCase
         DB::table('gates_award_categories')->insert(['id' => 1, 'cycle_id' => 1, 'slug' => 'c1', 'title' => 'C1']);
         DB::table('gates_nominees')->insert(['id' => 1, 'category_id' => 1, 'name' => 'N1', 'status' => $nomineeStatus, 'vote_count' => 0]);
         DB::table('gates_judges')->insert(['id' => 1, 'name' => 'J1', 'email' => 'j1@x.io', 'programme_ids' => '[1]', 'is_active' => 1]);
+        // The shipped rubric is installed by a migration, so it is present in the
+        // harness exactly as it is in a migrated production database. Cleared here
+        // because this test DECLARES the rubric under test — and because these
+        // fixtures pin criterion ids, which would collide with the seeded rows.
+        DB::table('gates_judge_criteria')->delete();
         DB::table('gates_judge_criteria')->insert(['id' => 1, 'slug' => 'impact', 'label' => 'Impact', 'weight' => 25, 'is_active' => 1]);
     }
 
