@@ -825,6 +825,30 @@ final class AiCapability
                     . 'what timeframe — so the search can filter as well as match text. Your words '
                     . 'are also searched literally either way.',
             ]),
+            // A plain summary of what a nominee has said, for them to confirm before sending
+            // and for the panel to read after. Both styles, one summary — see
+            // QuestionnaireSummary for why it is not two.
+            'questionnaire.summary' => $c('questionnaire.summary', [
+                'purpose'         => 'assist',
+                'tier'            => self::TIER_WRITE,
+                'model'           => self::PRIMARY[self::TIER_WRITE],
+                'on_failure'      => self::FAIL_ANNOUNCE,
+                'advisory'        => true,
+                'max_tokens'      => 600,
+                // One per submission, cached on the answers' hash — so this is roughly one
+                // call per nominee per edit, not per page view.
+                'calls_per_day'   => 2000,
+                'tokens_per_day'  => 2_000_000,
+                'timeout'         => 25,
+                'untrusted_input' => true,
+                'public_content'  => true,
+                'data_sent'       => 'The answers you wrote in your questionnaire, with contact '
+                    . 'details replaced by placeholders. Never your email or phone number.',
+                'data_purpose'    => 'To show you a short summary of what you have said before you '
+                    . 'send it, so you can check we have understood you — and to give the panel '
+                    . 'the same summary at the top of your entry. It is a summary, never a score, '
+                    . 'and your own words are what the judges read.',
+            ]),
             // Orients a judge in ONE nominee's dossier before they read it. Never sees the
             // rest of the field, so it cannot rank — see JudgeAssist for why that is a
             // property of the call and not a rule in the prompt.

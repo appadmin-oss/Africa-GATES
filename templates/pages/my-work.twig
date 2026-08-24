@@ -54,6 +54,16 @@
   .mw__prog b{ font-size:13px; font-weight:700 }
   .mw__prog span{ font-size:12px; color:#a8c4b3 }
 
+  /* Read-it-back. Quiet until asked for, and visually a note rather than a verdict —
+     nothing in it is a judgement and it must not look like one. */
+  .mw__sum{ margin-top:22px; padding-top:18px; border-top:1px dashed rgba(16,41,44,.16) }
+  .mw__sumbox{ margin-top:12px; padding:15px 17px; border-radius:12px; background:#f6f9f6;
+    border:1px solid rgba(35,123,34,.18) }
+  .mw__sumt{ margin:8px 0 0; font-size:15.5px; line-height:1.65; color:#10292C; max-width:64ch }
+  .mw__suml{ margin:12px 0 0; padding-left:19px; font-size:14px; line-height:1.7; color:#3a4448 }
+  .mw__suml li{ margin:3px 0 0 }
+  .mw__mode--back{ width:100%; text-align:left }
+
   /* mode switch */
   .mw__modes{ display:flex; gap:8px; margin-top:14px }
   .mw__mode{ cursor:pointer; flex:1 1 0; font:650 13.5px/1.3 inherit; padding:12px 10px;
@@ -315,7 +325,12 @@
          list. The form fields themselves are plain inputs with names, so the form still
          submits with JavaScript switched off. ══ #}
     <div x-data='{
-      mode: {{ (chat.turns|length > 0 ? "chat" : (readiness.missing|length == 0 and chat.progress.answered|default(0) > 0 ? "form" : "chat"))|json_encode }},
+      {# Forced to the form when the chat is not on offer. Without this, somebody who left
+         the live interview lands on a chat pane with no toggle to leave it — the toggle is
+         the only control that sets `mode`, and hiding it would have stranded them worse
+         than the one-way door did. #}
+      sum: null, sumBusy: false, sumErr: "",
+      mode: {{ (not offer_chat ? "form" : (chat.turns|length > 0 ? "chat" : (readiness.missing|length == 0 and chat.progress.answered|default(0) > 0 ? "form" : "chat")))|json_encode }},
       turns: {{ (chat.turns ?? [])|json_encode }},
       progress: {{ (chat.progress ?? {})|json_encode }},
       done: {{ (chat.done ?? false) ? "true" : "false" }},
@@ -342,6 +357,20 @@
 
       init(){
         this.$watch("mode", v => { if(v === "chat" && !this.started) this.begin() });
+
+        // Cleared whenever an answer changes, so a summary can never describe text the
+        // nominee has since edited — reading back something they have already corrected is
+        // worse than not offering the check at all.
+        //
+        // A delegated listener rather than an Alpine $watch: the answers are plain form
+        // inputs bound to nothing, so there is no reactive property to watch. The server
+        // agrees independently — the summary is keyed on a hash of the answers — so a
+        // missed event costs a stale panel and never a stale record.
+        this.$el.addEventListener("input", (e) => {
+          if (e.target && e.target.name && /^(a|w)\[/.test(e.target.name)) {
+            this.sum = null; this.sumErr = "";
+          }
+        });
         if(this.mode === "chat" && !this.started) this.begin();
         this.scroll();
       },
@@ -393,6 +422,43 @@
                 return -1 },
       stopAudio(){ if(this.audio){ try { this.audio.pause() } catch(e){} this.audio = null }
                    this.playing = -1 },
+      /* ── READ IT BACK ──────────────────────────────────────────────────────
+         The equivalent of the conversation read-back screen, for the form. On request
+         only: this page is left open for an evening, and a summary regenerated on every
+         refresh is a bill with no reader.
+
+         The draft is SAVED first. The summary is written from what the server holds, so
+         summarising before saving would read back the previous version of an answer the
+         nominee has just rewritten — the exact failure the panel exists to catch.
+
+         NOTE: no apostrophes anywhere in this attribute. It is one single-quoted HTML
+         attribute and a single one truncates it, at which point every binding on the page
+         silently stops existing. GuidedFormTest asserts the length for that reason. */
+      async summarise(){
+        if(this.sumBusy) return;
+        this.sumBusy = true; this.sumErr = ""; this.sum = null;
+        const tok = (document.querySelector("meta[name=csrf-token]")||{}).content || "";
+        try{
+          const form = this.$el.querySelector("form[data-mw-answers]");
+          if(form){
+            const fd = new FormData(form);
+            fd.set("action", "draft");
+            await fetch("/my-work/{{ token }}", { method:"POST", body: fd, headers:{ "X-CSRF-Token": tok } });
+          }
+          const r = await fetch("/my-work/{{ token }}/summary", {
+            method:"POST",
+            headers:{ "Content-Type":"application/x-www-form-urlencoded", "X-CSRF-Token": tok },
+            body: ""
+          });
+          const d = await r.json().catch(function(){ return {}; });
+          if(d && d.ok && d.summary){ this.sum = d.summary; }
+          else { this.sumErr = (d && d.message) || "That could not be done just now."; }
+        }catch(e){
+          this.sumErr = "That could not be done just now. Your answers are saved and you can still send them.";
+        }
+        this.sumBusy = false;
+      },
+
       async toggleVoice(){
         this.voiceOn = !this.voiceOn; this.voiceErr = "";
         if(!this.voiceOn){ this.stopAudio(); return }
@@ -705,7 +771,12 @@
       </div>
       {% endif %}
 
-      {# ── mode ─────────────────────────────────────────────────────────── #}
+      {# ── mode ─────────────────────────────────────────────────────────────
+         The chat toggle is HIDDEN from anybody who reached this page by pressing "fill in
+         the form instead" on the live interview. Offering "answer by chatting" to somebody
+         who has just declined a conversation reads as the platform not listening — and it
+         is a third thing, neither the form they asked for nor the interview they left. #}
+      {% if offer_chat %}
       <div class="mw__modes">
         <button type="button" class="mw__mode" :aria-pressed="mode === 'chat'" @click="mode = 'chat'">
           Answer by chatting
@@ -717,6 +788,23 @@
         </button>
       </div>
       <p class="mw__hint">Both save to the same place — switch whenever you like, nothing is lost.</p>
+      {% endif %}
+
+      {# ── AND THE WAY BACK ─────────────────────────────────────────────────
+         "Fill in the form instead" used to be a one-way door: pressing it once, on purpose
+         or by accident on a phone, meant the form for the rest of the cycle with no control
+         anywhere on the page that would undo it. Nothing is lost in either direction — the
+         ledger keeps every turn and the form keeps its answers — which is what makes the
+         return safe to offer. #}
+      {% if can_resume_interview and not offer_chat %}
+        <form method="post" action="/my-work/{{ token }}/interview/resume" class="mw__back">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <button type="submit" class="mw__mode mw__mode--back">
+            Go back to the conversation
+            <small>Everything you have typed here stays saved, and you can come back again.</small>
+          </button>
+        </form>
+      {% endif %}
 
       {# ══ THE CONVERSATION ═══════════════════════════════════════════════ #}
       <div class="mw__card" x-show="mode === 'chat'" x-cloak>
@@ -786,7 +874,7 @@
       </div>
 
       {# ══ THE FORM ══════════════════════════════════════════════════════ #}
-      <form method="post" action="/my-work/{{ token }}" id="mwForm">
+      <form method="post" action="/my-work/{{ token }}" id="mwForm" data-mw-answers>
         <input type="hidden" name="_token" value="{{ csrf_token }}">
 
         {# ── THE FORM, AS A SEQUENCE RATHER THAN A WALL ─────────────────────────
@@ -1041,6 +1129,42 @@
           <div class="mw__tip" x-show="!(ready.works > 0)" x-cloak>You have not added anything the
             judges can look at yet. One document, photograph or link is worth more to a panel than
             another paragraph.</div>
+
+          {# ── CHECK WE UNDERSTOOD YOU ───────────────────────────────────────
+             The conversation had a read-back screen and the form had nothing: you typed
+             eleven answers over an evening, pressed send, and the next thing you heard was
+             the result. This is the same check, for whichever way you answered.
+
+             On request and never on render — this page is left open for hours, and a
+             summary regenerated on every refresh is a bill with no reader. #}
+          <div class="mw__sum">
+            <button type="button" class="mw__ghost" style="margin-top:0"
+                    :disabled="sumBusy" @click="summarise()"
+                    x-text="sumBusy ? 'Reading it back…' : (sum ? 'Read it back again' : 'Check we have understood you')"></button>
+
+            <p class="mw__hint" x-show="!sum && !sumBusy && !sumErr" x-cloak>
+              A short summary of what you have said, so you can see it the way a judge will.
+              It never gives a score, and your own words are what the panel reads.</p>
+
+            <p class="mw__bad" x-show="sumErr" x-text="sumErr" x-cloak></p>
+
+            <template x-if="sum">
+              <div class="mw__sumbox">
+                <span class="mw__slab">In short</span>
+                <p class="mw__sumt" x-text="sum.summary"></p>
+                <template x-if="(sum.points || []).length">
+                  <ul class="mw__suml">
+                    <template x-for="(p, i) in sum.points" :key="'p'+i">
+                      <li x-text="p"></li></template>
+                  </ul>
+                </template>
+                <p class="mw__hint" style="margin-top:12px">
+                  <strong>Does this sound like your work?</strong> If something is missing or
+                  wrong, go back and change your answer — this is written from what you typed,
+                  so changing the answer changes this. The judges see your own words either way.</p>
+              </div>
+            </template>
+          </div>
 
           <p>Type your name to confirm these are your own words and that what you have attached is
             yours to share.</p>

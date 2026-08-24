@@ -943,6 +943,59 @@ final class QuestionnaireInterview
     }
 
     /**
+     * Back to the conversation.
+     *
+     * ── THE DOOR ONLY OPENED ONE WAY, AND THAT WAS THE BUG ──────────────────
+     *
+     * {@see switchToForm()} existed and nothing reversed it. So a nominee who tried the
+     * conversation, found it slow on a bad connection, pressed "fill in the form instead"
+     * and then wanted to go back — or who pressed it by accident on a phone — was stuck in
+     * the form for the rest of the cycle, with no control anywhere on the page.
+     *
+     * Nothing is lost either way, which is what makes both directions safe: the ledger
+     * keeps every turn, the form keeps `answers_json`, and the two are merged rather than
+     * swapped. Coming back to the conversation does NOT delete what was typed in the form —
+     * it is still there if they switch again, and it is still what the panel reads if they
+     * send from the form.
+     */
+    public static function switchToInterview(string $token): array
+    {
+        $s = QuestionnaireService::byToken($token);
+        if (!$s) return ['ok' => false, 'message' => 'That link is not valid.'];
+
+        // Same guard as the other direction and for the same reason: flipping style on a
+        // submitted row would make every reader describe a filed record as though it had
+        // always been the other kind.
+        if ((string) ($s->status ?? 'draft') !== 'draft') {
+            return ['ok' => false, 'message' => 'This has already gone to the judges.'];
+        }
+
+        // ── AND IT HAS TO BE ABLE TO RUN ────────────────────────────────────
+        //
+        // Offering a route back to something the operator has switched off, or that has no
+        // key configured, would put somebody in a conversation that cannot answer. The
+        // form's mode toggle stays available regardless; this is the LIVE interview.
+        if (!QuestionnaireStyle::interviewPossible((int) ($s->programme_id ?? 0) ?: null)) {
+            return ['ok' => false,
+                    'message' => 'The conversation is not available at the moment. Your answers '
+                               . 'are safe in the form and you can send from there.'];
+        }
+
+        try {
+            DB::table('gates_nominee_submissions')->where('id', (int) $s->id)->update([
+                'style'      => QuestionnaireStyle::INTERVIEW,
+                'updated_at' => Carbon::now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable) {
+            return ['ok' => false, 'message' => 'Could not switch right now. Try again.'];
+        }
+
+        return ['ok' => true,
+                'message' => 'Back to the conversation. Everything you typed in the form is '
+                           . 'still saved, and you can switch again whenever you like.'];
+    }
+
+    /**
      * The nominee taking one of their own turns back.
      *
      * ── WHY A VERBATIM DOCTRINE NEEDS AN UNDO ────────────────────────────────

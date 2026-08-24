@@ -348,7 +348,14 @@
         {% set expired = d.expires_on and d.expires_on < "now"|date('Y-m-d') %}
         <tr>
           <td>{{ doc_kinds[d.kind]|default(d.kind) }}</td>
-          <td><a href="/{{ d.stored_path }}" target="_blank" rel="noopener">{{ d.original_name|default('document') }}</a></td>
+          {# Through the viewer, not at the file. A direct /uploads/ hit is served under the
+             directory's sandbox CSP, which blocks the PDF viewer — so a certificate opened
+             to a blank tab and looked like a failed upload. #}
+          <td>
+            <a href="/admin/documents/org-doc/{{ d.id }}" target="_blank" rel="noopener">{{ d.original_name|default('document') }}</a>
+            <a href="/admin/documents/org-doc/{{ d.id }}?download=1"
+               style="margin-left:8px;font-size:11.5px;color:var(--ad-text-soft)">download</a>
+          </td>
           <td>
             {% if d.expires_on %}
               <span class="ad-chip ad-chip--{{ expired ? 'red' : 'green' }}">

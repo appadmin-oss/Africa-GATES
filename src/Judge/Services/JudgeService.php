@@ -245,6 +245,14 @@ class JudgeService
         // button. The ballot shows what is there and offers a button for the rest.
         $maps = \AfricaGates\Services\JudgeAssist::forBallot(array_column($nominees, 'id'));
 
+        // The summary the nominee themselves confirmed, in their own submission. Distinct
+        // from the dossier map above and shown separately: the map is ours, written for a
+        // judge; this is a description of the entry that the nominee read and agreed
+        // represents them before pressing send. Confirmed-only — a draft summary nobody
+        // approved must never sit at the top of somebody's entry.
+        $summaries = \AfricaGates\Services\QuestionnaireSummary::forNominees(
+            array_column($nominees, 'id'));
+
         foreach ($nominees as $n) {
             // Popularity is stripped at the boundary, not merely left unrendered. The row
             // arrives from `select *` carrying vote_count and organic_vote_count, and the
@@ -268,6 +276,7 @@ class JudgeService
             // rather than an empty panel, because an empty "what this rests on" reads as a
             // statement that the entry rests on nothing.
             $n['map'] = $maps[(int) $n['id']] ?? null;
+            $n['summary'] = $summaries[(int) $n['id']] ?? null;
             $byCategory[$n['category_id']]['nominees'][] = $n;
         }
 

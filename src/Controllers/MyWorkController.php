@@ -102,6 +102,48 @@ final class MyWorkController
     }
 
     /**
+     * The summary, for the nominee to check before they send.
+     *
+     * POST, because it may spend money and a GET is prefetched by browsers and link
+     * scanners. Its own endpoint rather than part of the page render for the same reason
+     * the judge's map is: a summary generated on every page view is generated again on
+     * every refresh, and this page is one people leave open for an evening.
+     */
+    public function summary(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $r = \AfricaGates\Services\QuestionnaireSummary::build($token);
+
+        return $this->json($res, [
+            'ok'      => (bool) $r['ok'],
+            'summary' => $r['summary'],
+            'message' => (string) $r['message'],
+        ]);
+    }
+
+    /**
+     * Did this nominee leave the live interview for the form?
+     *
+     * Read from the ledger rather than a flag, because the ledger is the thing that only
+     * exists if a conversation actually happened — a flag would have to be set by the
+     * switch, and would then be wrong for anybody whose interview degraded to the form on
+     * its own.
+     */
+    private function cameFromInterview(string $token): bool
+    {
+        $s = QuestionnaireService::byToken($token);
+        if (!$s) return false;
+
+        try {
+            return \AfricaGates\Services\QuestionnaireLedger::forSubmission($s) !== []
+                && \AfricaGates\Services\QuestionnaireInterview::styleOf($s)
+                   === \AfricaGates\Services\QuestionnaireStyle::FORM;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
      * The conversation: one turn in, the next question out.
      *
      * JSON, because a page reload between "I typed my answer" and "here is the next question"
@@ -165,6 +207,21 @@ final class MyWorkController
     {
         $token = (string) ($args['token'] ?? '');
         $r = \AfricaGates\Services\QuestionnaireInterview::switchToForm($token);
+        $_SESSION[($r['ok'] ?? false) ? 'mywork_notice' : 'mywork_error'] = (string) $r['message'];
+        return $res->withHeader('Location', '/my-work/' . $token)->withStatus(302);
+    }
+
+    /**
+     * Back to the conversation.
+     *
+     * The reverse of interviewSwitch(), which had none. A nominee who pressed "fill in the
+     * form instead" — deliberately, or by accident on a phone — was in the form for the rest
+     * of the cycle with no control anywhere on the page that would take them back.
+     */
+    public function interviewResume(Request $req, Response $res, array $args = []): Response
+    {
+        $token = (string) ($args['token'] ?? '');
+        $r = \AfricaGates\Services\QuestionnaireInterview::switchToInterview($token);
         $_SESSION[($r['ok'] ?? false) ? 'mywork_notice' : 'mywork_error'] = (string) $r['message'];
         return $res->withHeader('Location', '/my-work/' . $token)->withStatus(302);
     }
@@ -528,6 +585,22 @@ final class MyWorkController
             // it was before voice existed — no disabled buttons, no "unavailable" notices. A
             // nominee should never be shown the shape of a feature the operator has not bought.
             'voice'         => $form !== null && \AfricaGates\Services\QuestionnaireVoice::enabled(),
+            // ── THE WAY BACK TO THE CONVERSATION ─────────────────────────────
+            //
+            // True only for somebody who WAS in the live interview and left it, and only
+            // while it could actually run again. Offering it to a nominee whose programme
+            // never had an interview would advertise a feature that is not theirs.
+            'can_resume_interview' => $form !== null
+                && \AfricaGates\Services\QuestionnaireStyle::interviewPossible(
+                    (int) ($form['programme_id'] ?? 0) ?: null),
+            // ── AND WHETHER TO OFFER THE GUIDED CHAT AT ALL ──────────────────
+            //
+            // Hidden from anybody who reached this page by pressing "fill in the form
+            // instead". Offering "answer by chatting" to somebody who has just declined a
+            // conversation reads as the platform not listening — and it is a THIRD thing,
+            // neither the form they asked for nor the interview they left, which is the
+            // confusion worth removing rather than explaining.
+            'offer_chat'    => $form !== null && !$this->cameFromInterview($token),
             // ── THE BRIEF AND THE SPOKEN INTRODUCTION ────────────────────────
             //
             // `intro_ready` gates the questions. Somebody who has not been told how long this

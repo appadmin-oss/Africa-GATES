@@ -216,7 +216,8 @@ final class QuestionnaireChat
         if ($probes < self::MAX_PROBES) {
             $probe = self::probeFor($current, $text);
             if ($probe === null) {
-                $probe = self::modelProbe($gateway ?? new AiGateway(), $current, $text, (int) $s->nominee_id);
+                $probe = self::modelProbe($gateway ?? new AiGateway(), $current, $text,
+                                          (int) $s->nominee_id, self::alreadySaid($s, $current));
             }
         }
 
@@ -305,7 +306,8 @@ final class QuestionnaireChat
      * nominee being told "excellent work!" by a machine while describing a feeding programme is
      * being patronised by the platform.
      */
-    private static function modelProbe(AiGateway $gw, array $question, string $answer, int $nomineeId): ?string
+    private static function modelProbe(AiGateway $gw, array $question, string $answer,
+                                       int $nomineeId, string $context = ''): ?string
     {
         if (mb_strlen($answer) < 40) return null;      // nothing there to probe usefully
 
@@ -322,9 +324,25 @@ final class QuestionnaireChat
                 . "'that is impressive'. You are asking a question, not reacting.\n"
                 . "- Never suggest what their answer should have said.\n"
                 . "- Never ask about money, bank details, politics, religion, health or family.\n"
-                . "- If their answer says they do not know, reply NONE. Do not press.",
+                . "- If their answer says they do not know, reply NONE. Do not press.\n"
+                // ── THE REST OF THE FORM, SO IT STOPS ASKING TWICE ──────────
+                //
+                // This used to see one question and one answer and nothing else, so it
+                // asked for a date the nominee had already given three fields earlier, or
+                // for a referee they had named in the box above. To somebody filling in
+                // their own form that reads as the platform not paying attention — and it
+                // is the specific complaint that the assistant "does not carry the context
+                // of what has been filled in".
+                . "- You have been shown their OTHER answers. Never ask for something they "
+                . "have already given anywhere. If the specific you would ask for is "
+                . "already somewhere in their answers, reply NONE.",
             'trusted' => 'The question they were asked: ' . (string) ($question['label'] ?? ''),
-            'user'    => "Their answer:\n" . mb_substr($answer, 0, 1500),
+            // Their other answers travel as UNTRUSTED alongside this one — it is all text
+            // the same person typed, and fencing one while trusting the other would be a
+            // distinction without a difference.
+            'user'    => "Their answer:\n" . mb_substr($answer, 0, 1500)
+                       . ($context !== '' ? "\n\nWhat they have already said elsewhere in this "
+                                          . "form:\n" . $context : ''),
             'subject_type' => 'nominee',
             'subject_id'   => $nomineeId,
             'schema'  => static function (string $raw): ?string {
@@ -396,6 +414,41 @@ final class QuestionnaireChat
     }
 
     // ══ 5. state on the row ══════════════════════════════════════════════════
+
+    /**
+     * What this nominee has already answered elsewhere, as prose for the model.
+     *
+     * ── WHY THIS EXISTS ─────────────────────────────────────────────────────
+     *
+     * {@see modelProbe()} was given one question and one answer. So it asked for a date
+     * already given three fields earlier, or a referee named in the box above — which to
+     * somebody filling in their own form reads as the platform not listening.
+     *
+     * Capped hard, and the current question is excluded because it is already in the
+     * payload. Truncated per answer rather than overall so a single long answer cannot
+     * crowd out every other one — losing the short answers is exactly what would reintroduce
+     * the duplicate questions this fixes.
+     */
+    private static function alreadySaid(object $s, array $current): string
+    {
+        $skip  = (string) ($current['slug'] ?? '');
+        $byId  = [];
+        foreach (QuestionnaireService::questionsFor($s) as $q) {
+            $byId[(string) $q['slug']] = (string) ($q['label'] ?? $q['slug']);
+        }
+
+        $lines = [];
+        foreach (self::answers($s) as $slug => $value) {
+            if ($slug === $skip) continue;
+            $v = trim($value);
+            if ($v === '') continue;
+
+            $lines[] = '- ' . ($byId[$slug] ?? $slug) . ': ' . mb_substr($v, 0, 300);
+            if (count($lines) >= 14) break;
+        }
+
+        return implode("\n", $lines);
+    }
 
     /** @return array<string,string> */
     private static function answers(object $s): array

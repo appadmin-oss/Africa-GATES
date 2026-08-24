@@ -2629,6 +2629,10 @@ return function(App $app) {
         // JavaScript is not one.
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview',         \AfricaGates\Controllers\MyWorkController::class.':interview');
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/switch',  \AfricaGates\Controllers\MyWorkController::class.':interviewSwitch');
+        // The way back. `switch` sent a nominee to the form and nothing reversed it, so
+        // pressing it once — deliberately or by accident on a phone — meant the form for the
+        // rest of the cycle.
+        $g->post('/my-work/{token:[a-f0-9]{32}}/interview/resume',  \AfricaGates\Controllers\MyWorkController::class.':interviewResume');
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/phase',   \AfricaGates\Controllers\MyWorkController::class.':interviewPhase');
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/amend',   \AfricaGates\Controllers\MyWorkController::class.':interviewAmend');
         $g->post('/my-work/{token:[a-f0-9]{32}}/interview/outcome', \AfricaGates\Controllers\MyWorkController::class.':interviewOutcome');
@@ -2654,6 +2658,9 @@ return function(App $app) {
         // Writes nothing, and resolves the question from the submission's own applicable set
         // rather than from anything the caller sends — otherwise it is a free language-model
         // endpoint on the operator's key.
+        // The summary a nominee checks before sending — and the same one the panel then
+        // reads. POST because it may spend money, and a GET is prefetched by link scanners.
+        $g->post('/my-work/{token:[a-f0-9]{32}}/summary', \AfricaGates\Controllers\MyWorkController::class.':summary');
         $g->post('/my-work/{token:[a-f0-9]{32}}/coach',  \AfricaGates\Controllers\MyWorkController::class.':coach');
         $g->post('/my-work/{token:[a-f0-9]{32}}/intro',  \AfricaGates\Controllers\MyWorkController::class.':intro');
         $g->get('/my-work/{token:[a-f0-9]{32}}/intro.audio', \AfricaGates\Controllers\MyWorkController::class.':introAudio');
@@ -3033,6 +3040,20 @@ return function(App $app) {
         // Media library — review & remove uploaded images/documents.
         $a->get('/media',                     AdminMediaController::class.':index');
         $a->get('/media/{id:[0-9]+}/view',    AdminMediaController::class.':view');
+        // ── DOCUMENTS SOMEBODY UPLOADED ─────────────────────────────────────
+        //
+        // The vendor screen linked straight at /uploads/org-docs/…, and a CAC or SCUML
+        // certificate is a PDF. public/uploads/.htaccess serves that tree under
+        // `default-src 'none'; sandbox` — correctly, since those bytes are untrusted — and
+        // that blocks the browser's PDF viewer. An image survived it; a document opened to
+        // a blank tab, which is the reported "non-image files are not viewable" and looked
+        // like a broken upload when the bytes were fine.
+        //
+        // Weakening the directory policy would be the wrong fix. This reads the file with
+        // PHP and sends its own headers instead, so the sandbox still protects a direct hit
+        // while a deliberate, authenticated, audited open works.
+        $a->get('/documents/{scope:[a-z-]+}/{id:[0-9]+}',
+            \AfricaGates\Admin\Controllers\DocumentsController::class.':view');
         $a->post('/media/{id:[0-9]+}/delete', AdminMediaController::class.':delete');
         // One batch of the local → Cloudinary sweep. POST because it writes; the page it
         // returns to continues itself while work remains. See MediaController::migrate().

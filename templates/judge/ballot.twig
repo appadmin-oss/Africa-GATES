@@ -136,6 +136,28 @@
                 dossier reflects our reach and the nominee's access to a camera, not the
                 quality of their work.
           #}
+          {# ── IN THE NOMINEE'S OWN SUBMISSION, AND CONFIRMED BY THEM ───────
+             First, above our own map, because it is the only thing on this screen the
+             nominee themselves read and agreed to before sending. Shown whichever way
+             they answered — the conversation had a read-back and the form had nothing,
+             so half the entries arrived with nobody having checked they were understood.
+
+             Confirmed-only. A draft summary nobody approved must never sit at the top of
+             somebody's entry. #}
+          <div class="jc-sum" x-show="cur?.summary" x-cloak>
+            <p class="jc-klabel">The entry in short &mdash; checked by the nominee</p>
+            <p class="jc-sum__t" x-text="cur?.summary?.summary"></p>
+            <template x-if="(cur?.summary?.points || []).length">
+              <ul class="jc-sum__l">
+                <template x-for="(p, i) in cur.summary.points" :key="'sp'+i">
+                  <li x-text="p"></li></template>
+              </ul>
+            </template>
+            <p class="jc-sum__f">Written from their answers and shown to them before they
+              sent it. <strong>Their own words below are the record</strong> &mdash; this is
+              where to start, not what to judge.</p>
+          </div>
+
           {# ── A MAP OF THE DOSSIER, BEFORE THE DOSSIER ─────────────────────
              Above the evidence because it is a map OF it, and a map read afterwards is
              a summary — which is the version that replaces reading rather than
@@ -455,6 +477,15 @@
   .jc-ev__tx{ max-height:340px; overflow:auto; padding-right:6px; }
   .jc-ev__src{ display:inline-block; margin:9px 0 0; font-size:12px; color:#5a6d6f; }
   a.jc-ev__src{ color:#237b22; text-decoration:underline; }
+
+  /* The nominee's own confirmed summary. Warmer than the machine-reading panels and
+     above them, because it is the one thing here a person signed off. */
+  .jc-sum{ padding:18px 28px; border-bottom:1px solid rgba(16,41,44,.07); background:#f8faf6; }
+  .jc-sum__t{ margin:10px 0 0; font-size:15.5px; line-height:1.65; color:#10292C; max-width:70ch; }
+  .jc-sum__l{ margin:12px 0 0; padding-left:19px; font-size:13.5px; line-height:1.7; color:#3a4448; }
+  .jc-sum__l li{ margin:3px 0 0; }
+  .jc-sum__f{ margin:14px 0 0; padding-top:11px; border-top:1px dashed rgba(35,123,34,.25);
+    max-width:70ch; font-size:12px; line-height:1.6; color:#5a6d6f; }
 
   /* The dossier map. Set apart from the evidence rather than styled like it: a judge
      must be able to tell at a glance which part of this screen is the record and which

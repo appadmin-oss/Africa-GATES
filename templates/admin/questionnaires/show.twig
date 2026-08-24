@@ -258,7 +258,20 @@
   {% for e in evidence %}
     <div class="qs-a">
       <div class="qs-q">{{ e.title }} <span class="qs-tag">{{ e.kind }}</span></div>
-      {% if e.source_url %}<div class="qs-v" style="font-size:12px">{{ e.source_url }}</div>{% endif %}
+      {# A path printed as text is not a document anybody can look at. Absolute URLs are
+         somebody else's link and open directly; anything stored here goes through the
+         viewer, because a direct /uploads/ hit is sandboxed and a PDF opens blank. #}
+      {% if e.source_url %}
+        {% if e.source_url starts with 'http' %}
+          <div class="qs-v" style="font-size:12px">
+            <a href="{{ e.source_url }}" target="_blank" rel="noopener noreferrer nofollow">{{ e.source_url }}</a></div>
+        {% else %}
+          <div class="qs-v" style="font-size:12px">
+            <a href="/admin/documents/evidence/{{ e.id }}" target="_blank" rel="noopener">Open</a>
+            <a href="/admin/documents/evidence/{{ e.id }}?download=1" style="margin-left:8px">download</a>
+          </div>
+        {% endif %}
+      {% endif %}
     </div>
   {% else %}
     <p>Nothing yet. Rows appear here when the nominee sends the questionnaire.</p>

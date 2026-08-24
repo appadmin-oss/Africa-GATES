@@ -638,6 +638,75 @@ final class QuestionnaireService
      *
      * @return array{ok:bool, message:string, missing?:list<string>, evidence?:int}
      */
+    /**
+     * Required interview OUTCOMES the nominee has not reached.
+     *
+     * An interview's contract is its outcomes, not the question list: a programme that
+     * authored its own outcome slugs has no question with those slugs at all, so checking
+     * the questions would refuse every interview submission with a list of things the
+     * nominee was never asked.
+     *
+     * PARTIAL counts as enough, the same rule `propose_complete` uses. Refusing to send
+     * until every outcome is fully met would punish the nominee whose work genuinely has no
+     * funder, no referee or no figure — which is most of the people these awards exist to
+     * find.
+     *
+     * @return list<string>
+     */
+    private static function missingOutcomes(object $s): array
+    {
+        $out = [];
+        foreach (QuestionnaireLedger::forSubmission($s) as $o) {
+            if ($o['required'] && $o['status'] === QuestionnaireLedger::UNMET) {
+                $out[] = (string) $o['label'];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Required questions with no answer.
+     *
+     * ── TWO EXCLUSIONS, BOTH OF THEM DEAD ENDS OTHERWISE ────────────────────
+     *
+     * The FILTERED set, so a required question that branching never showed them cannot
+     * block sending with an instruction to answer something no screen displays.
+     *
+     * And nothing ADDED AFTER this submission was opened. An organiser who adds a required
+     * question mid-cycle would otherwise retroactively block every nominee who had already
+     * answered — their form is complete, the page shows nothing outstanding, and pressing
+     * send does nothing. The nominee cannot even see the question that is stopping them
+     * unless they reload, and by then they have usually given up.
+     *
+     * The rule that makes this safe is the same one the interview stamps its style under:
+     * changing the terms mid-cycle may affect people who have not started, and must not
+     * affect people who have finished.
+     *
+     * @param array<string,mixed> $answers
+     * @return list<string>
+     */
+    private static function missingAnswers(object $s, array $answers): array
+    {
+        $openedAt = trim((string) ($s->created_at ?? ''));
+
+        $out = [];
+        foreach (self::questionsFor($s) as $q) {
+            if ((int) ($q['is_required'] ?? 0) !== 1) continue;
+
+            $added = trim((string) ($q['created_at'] ?? ''));
+            if ($openedAt !== '' && $added !== '' && $added > $openedAt) {
+                // Newer than this submission. It may still be answered — the page shows it —
+                // but it cannot be the reason somebody who finished last week cannot send.
+                continue;
+            }
+
+            if (trim((string) ($answers[(string) $q['slug']] ?? '')) === '') {
+                $out[] = (string) $q['label'];
+            }
+        }
+        return $out;
+    }
+
     public static function submit(string $token, string $declaredName, string $ip = ''): array
     {
         $s = self::byToken($token);
@@ -667,32 +736,40 @@ final class QuestionnaireService
         $answers = json_decode((string) ($s->answers_json ?? '{}'), true);
         $answers = is_array($answers) ? $answers : [];
 
-        $missing = [];
-        if (QuestionnaireInterview::styleOf($s) === QuestionnaireStyle::INTERVIEW) {
-            // An interview's contract is its OUTCOMES, not the question list. A programme that
-            // authored its own outcome slugs has no question with those slugs at all, so
-            // checking the questions would refuse every interview submission on the platform
-            // with a list of things the nominee was never asked.
-            //
-            // PARTIAL counts as enough, the same rule propose_complete uses. Refusing to send
-            // until every outcome is fully met would punish the nominee whose work genuinely
-            // has no funder, no referee or no figure — which is most of the people these
-            // awards exist to find.
-            foreach (QuestionnaireLedger::forSubmission($s) as $o) {
-                if ($o['required'] && $o['status'] === QuestionnaireLedger::UNMET) {
-                    $missing[] = $o['label'];
-                }
-            }
+        // ══════════════════════════════════════════════════════════════════
+        // EITHER ROUTE MAY SATISFY THIS, AND THAT IS THE WHOLE FIX
+        // ══════════════════════════════════════════════════════════════════
+        //
+        // This checked the ledger OR the questions depending on `style`, and never both.
+        // The result was a dead end nobody could get out of:
+        //
+        // A submission is stamped `interview` the first time the conversation page is
+        // opened. If the nominee then answered in the FORM instead — which is most of them,
+        // because the form is what the invitation email links to and what works on a bad
+        // connection — submission was checked against conversation OUTCOMES they had never
+        // reached. It refused with a list of things the form does not contain and cannot be
+        // made to contain, so pressing send did nothing, for ever, with no way to fix it.
+        //
+        // That is the reported "forms already sent are not submitting", and it is worse
+        // than a refusal: the nominee has done the work and the platform will not take it.
+        //
+        // Both are routes to the same substance. So both are computed and the submission
+        // goes through if EITHER is satisfied. Blocking somebody who completed the form
+        // because they did not also complete the conversation is punishing them for the
+        // route rather than for the content.
+        $missingLedger    = self::missingOutcomes($s);
+        $missingQuestions = self::missingAnswers($s, $answers);
+
+        $isInterview = QuestionnaireInterview::styleOf($s) === QuestionnaireStyle::INTERVIEW;
+
+        if ($missingLedger === [] || $missingQuestions === []) {
+            $missing = [];
         } else {
-            // The FILTERED set. A required question that branching never showed them would
-            // otherwise block sending with an instruction to answer something no screen
-            // displays — a dead end whose only exit is support.
-            foreach (self::questionsFor($s) as $q) {
-                if ((int) ($q['is_required'] ?? 0) !== 1) continue;
-                $v = trim((string) ($answers[(string) $q['slug']] ?? ''));
-                if ($v === '') $missing[] = (string) $q['label'];
-            }
+            // Neither is complete. Report the one belonging to the route they actually used,
+            // because a form-filler handed a list of interview outcomes cannot act on it.
+            $missing = $isInterview && $answers === [] ? $missingLedger : $missingQuestions;
         }
+
         if ($missing !== []) {
             return ['ok' => false, 'missing' => $missing,
                     'message' => 'A few answers are still needed before this can be sent.'];
@@ -702,6 +779,12 @@ final class QuestionnaireService
         if ($name === '') {
             return ['ok' => false, 'message' => 'Please type your name to confirm these are your own words.'];
         }
+
+        // The summary they read becomes the one the panel reads. Before the status flips, so
+        // a confirm() that throws cannot leave a submitted row with nothing stamped — and
+        // never a blocker: a missing summary just means the panel reads the answers, which
+        // are the record anyway.
+        QuestionnaireSummary::confirm($token);
 
         $now = Carbon::now()->toDateTimeString();
         DB::table('gates_nominee_submissions')->where('id', (int) $s->id)->update([
