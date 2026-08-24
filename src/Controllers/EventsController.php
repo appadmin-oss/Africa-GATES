@@ -348,20 +348,18 @@ class EventsController
      */
     private static function captureRef(Request $req): void
     {
-        $raw = (string) ($req->getQueryParams()['ref'] ?? '');
-        $code = \AfricaGates\Services\ReferralService::normalise($raw);
-        if ($code === '') return;
-        if (!isset($_SESSION) || !is_array($_SESSION)) return;
-        // Length-capped before it is stored: this string arrived from a URL.
-        $_SESSION['event_ref'] = mb_substr($code, 0, 32);
+        // Delegated since the capture stopped being events-only. It used to live here and
+        // write a key only this file read, which is why a link shared to the shop or the
+        // home page earned its referrer nothing. See ReferralService::capture().
+        \AfricaGates\Services\ReferralService::capture(
+            (string) ($req->getQueryParams()['ref'] ?? '')
+        );
     }
 
     /** The referral code captured from a link earlier in this session, or ''. */
     private static function linkedRef(): string
     {
-        if (!isset($_SESSION) || !is_array($_SESSION)) return '';
-
-        return \AfricaGates\Services\ReferralService::normalise((string) ($_SESSION['event_ref'] ?? ''));
+        return \AfricaGates\Services\ReferralService::fromSession();
     }
 
     /**

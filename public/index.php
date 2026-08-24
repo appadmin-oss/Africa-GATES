@@ -203,6 +203,13 @@ $app->add(TwigMiddleware::createFromContainer($app, \Slim\Views\Twig::class));
 // matches paths exactly: without it every route answered 404 for a trailing slash,
 // so `/awards/` was a dead end and any hand-shared link that picked one up broke.
 $app->add(new \AfricaGates\Middleware\TrailingSlashMiddleware());
+// A referral link works on any page, not only /events. The capture used to live inside
+// EventsController, so a member who shared their link to the shop or the home page earned
+// nothing — the code was dropped on the first navigation. Middleware because the failure
+// mode is FORGETTING: a call at the top of each controller is a rule somebody has to
+// remember on the next page they add, and the next page they add is where a link gets
+// shared. GET only — a `?ref=` on a POST is a form action, not somebody following a link.
+$app->add(new \AfricaGates\Middleware\ReferralCaptureMiddleware());
 $app->add(new CsrfMiddleware());
 $app->addBodyParsingMiddleware();
 

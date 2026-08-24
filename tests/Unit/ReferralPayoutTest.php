@@ -34,8 +34,12 @@ final class ReferralPayoutTest extends TestCase
             'user_id' => $userId, 'code' => 'AGU' . $userId, 'created_at' => '2026-08-01 10:00:00',
         ]);
         for ($i = 0; $i < $count; $i++) {
+            // The unique index is on (source_type, source_id) since credits stopped being
+            // event-only; a fixture that omits them collides on the default 0.
+            $reg = random_int(1, 1_000_000);
             DB::table('gates_referral_credits')->insert([
-                'code_id' => 1, 'user_id' => $userId, 'registration_id' => random_int(1, 1_000_000),
+                'code_id' => 1, 'user_id' => $userId, 'registration_id' => $reg,
+                'source_type' => 'registration', 'source_id' => $reg,
                 'event_id' => 1, 'paid_naira' => $paid,
                 'commission_naira' => intdiv($paid * ReferralService::RATE_BPS, 10000),
                 'rate_bps' => ReferralService::RATE_BPS, 'created_at' => '2026-08-01 10:00:00',

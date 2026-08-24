@@ -159,6 +159,26 @@ final class ShopOrderService
 
             if ($changed > 0) {
                 self::fulfil((int) $order->id, $log);
+
+                // ── AND THE REFERRER GETS PAID ───────────────────────────────
+                //
+                // Inside the `$changed` branch, so the single writer that flipped
+                // pending→paid is the only one that credits. A concurrent callback and
+                // webhook would otherwise both reach it — and while the unique index on
+                // (source_type, source_id) would refuse the second, relying on a
+                // constraint to catch what the control flow should is how the ONE case it
+                // does not cover eventually pays twice.
+                //
+                // `subtotal_naira` and not the gateway's amount: commission is a share of
+                // what we charged, not of an overpayment we are about to have a
+                // conversation about.
+                ReferralService::creditSale(
+                    'shop_order',
+                    (int) $order->id,
+                    (string) ($order->referral_code ?? ''),
+                    (int) $order->subtotal_naira,
+                );
+
                 return ['ok' => true, 'state' => 'confirmed', 'message' => 'Payment received.'];
             }
             return ['ok' => true, 'state' => 'already', 'message' => 'This order was confirmed a moment ago.'];

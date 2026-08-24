@@ -129,6 +129,63 @@ final class ReferralService
         }
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // THE LINK, ANYWHERE ON THE SITE
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Where a followed referral link is remembered.
+     *
+     * Was `event_ref`, private to EventsController, and captured only on /events pages. So
+     * a member who shared their link to the shop, or to the home page, or to anything a
+     * reader would plausibly click, earned nothing — the code was stripped by the redirect
+     * and never seen again. The referrer had done everything right.
+     *
+     * Renamed as it moved, and {@see fromSession()} still reads the old key, because a
+     * session created minutes before a deploy is a real person mid-purchase.
+     */
+    public const SESSION_KEY = 'ag_ref';
+
+    /** The key this used to be stored under. Read, never written. */
+    private const LEGACY_SESSION_KEY = 'event_ref';
+
+    /**
+     * Lift a referral code off a URL and hold it for the rest of the session.
+     *
+     * THE LINK IS THE PRIMARY PATH. A referrer shares a URL and the buyer does nothing at
+     * all — there is no code to carry from the post they saw to the checkout they reach ten
+     * minutes later.
+     *
+     * Overwritten by a later `?ref=`, deliberately: the most recent link somebody followed
+     * is the one that brought them to this purchase.
+     */
+    public static function capture(string $raw): void
+    {
+        $code = self::normalise($raw);
+        if ($code === '') return;
+        if (!isset($_SESSION) || !is_array($_SESSION)) return;
+
+        // Length-capped before it is stored: this string arrived from a URL.
+        $_SESSION[self::SESSION_KEY] = mb_substr($code, 0, 32);
+    }
+
+    /** The code captured from a link earlier in this session, or ''. */
+    public static function fromSession(): string
+    {
+        if (!isset($_SESSION) || !is_array($_SESSION)) return '';
+
+        $v = (string) ($_SESSION[self::SESSION_KEY] ?? $_SESSION[self::LEGACY_SESSION_KEY] ?? '');
+
+        return self::normalise($v);
+    }
+
+    /** Forget it — after it has been credited, so one link cannot earn on two purchases. */
+    public static function clearSession(): void
+    {
+        if (!isset($_SESSION) || !is_array($_SESSION)) return;
+        unset($_SESSION[self::SESSION_KEY], $_SESSION[self::LEGACY_SESSION_KEY]);
+    }
+
     /** One setting, read the way every other service here reads one. */
     private static function setting(string $key): string
     {
@@ -271,23 +328,90 @@ final class ReferralService
      * Silent on every failure by design. A referral is a bonus on top of a sale; nothing
      * here may turn a paid ticket into an error the buyer sees.
      */
-    public static function credit(object $reg): void
+    /**
+     * What a referral link can earn a member a share of.
+     *
+     * ── AND, MORE IMPORTANTLY, WHAT IT CANNOT ───────────────────────────────
+     *
+     * This is a whitelist and it is in code rather than in settings, because the two
+     * omissions are not preferences an operator should be able to change from a form:
+     *
+     *  · PAID VOTES ARE ABSENT, PERMANENTLY. Paying a member a percentage of vote
+     *    purchases is a standing offer to be paid for bringing in money that moves an award
+     *    result. Every other integrity control here — the fraud scoring, the collusion
+     *    scan, the separate organic_vote_count, the shortlist's organic-only switch —
+     *    exists to keep bought support distinguishable from real support. Commission on it
+     *    would put the platform on the other side of its own defences.
+     *
+     *  · DONATIONS ARE ABSENT. A cut taken out of a charitable gift and paid to whoever
+     *    forwarded the link is not what the donor believed they were funding, and in
+     *    several jurisdictions soliciting donations for a commission is regulated activity
+     *    this organisation is not registered for.
+     *
+     * Tickets and merchandise are ordinary retail: somebody bought a thing at a stated
+     * price, and a share of that is an arrangement no buyer would be surprised by.
+     *
+     * ── AND WHY VENDOR STANDS ARE NOT LISTED EITHER ─────────────────────────
+     *
+     * Not on principle — a vendor referring another vendor is perfectly reasonable — but
+     * because there is no payment event to hang it on. {@see StandApplication::accept()}
+     * says "you will be invoiced for the stand fee", and that invoice is settled off the
+     * platform. Crediting on acceptance would pay commission on money that has not moved
+     * and may never move.
+     *
+     * Declaring a source nothing can write is the kind of half-built promise that gets
+     * found later as a bug report about missing payouts, so it is left out until stand fees
+     * are actually collected here. Adding it then is one line and a call site.
+     *
+     * @var array<string,string>
+     */
+    public const SOURCES = [
+        'registration' => 'Event ticket',
+        'shop_order'   => 'Shop order',
+    ];
+
+    /**
+     * Credit a referral against any earning source.
+     *
+     * The generic path. {@see credit()} is the registration-shaped wrapper around it, kept
+     * because the checkout calls it with a row object rather than fields.
+     *
+     * Idempotent on `(source_type, source_id)`, which is a UNIQUE index — a gateway that
+     * confirms the same payment twice cannot pay commission twice, and the duplicate-key
+     * exception that results is the EXPECTED path rather than an error.
+     *
+     * @param string $sourceType one of {@see SOURCES}
+     * @param int    $sourceId   the id of the order/registration/application
+     * @param string $rawCode    the referral code the buyer arrived with
+     * @param int    $paidNaira  what was actually paid, after any discount
+     * @param int    $eventId    the event, where there is one — for the per-event switch
+     */
+    public static function creditSale(string $sourceType, int $sourceId, string $rawCode,
+                                      int $paidNaira, ?int $eventId = null): bool
     {
+        // An unlisted source is a programming error and must fail LOUDLY in the log rather
+        // than quietly not paying somebody. The two absences above are the whole reason
+        // this check is not a permissive default.
+        if (!isset(self::SOURCES[$sourceType])) {
+            error_log('[referral] refusing to credit an undeclared source: ' . $sourceType);
+            return false;
+        }
+        if ($sourceId < 1) return false;
+
         try {
-            $raw = (string) ($reg->referral_code ?? '');
-            if (self::normalise($raw) === '') return;
+            if (self::normalise($rawCode) === '') return false;
 
-            $row = self::find($raw);
-            if (!$row) return;
+            $row = self::find($rawCode);
+            if (!$row) return false;
 
-            $paid = max(0, (int) ($reg->amount_naira ?? 0));
-            if ($paid < 1) return;   // a free ticket earns nothing to take a share of
+            $paid = max(0, $paidNaira);
+            if ($paid < 1) return false;   // a free ticket earns nothing to take a share of
 
             // The switches, checked at the moment money is earned rather than at the
             // moment the link was shared: an event whose referrals were turned off after
-            // somebody clicked must not still pay out on it.
-            $eventId = (int) ($reg->event_id ?? 0) ?: null;
-            if (!self::enabledForEvent($eventId)) return;
+            // somebody clicked must not still pay out on it. A source with no event —
+            // a shop order — is governed by the global switch alone.
+            if (!self::enabledForEvent($eventId)) return false;
 
             // The rate as it is TODAY, stamped onto the row so this credit keeps it
             // forever. intdiv, so commission can never round up beyond the rate.
@@ -297,17 +421,37 @@ final class ReferralService
             DB::table('gates_referral_credits')->insert([
                 'code_id'          => (int) $row->id,
                 'user_id'          => (int) $row->user_id,
-                'registration_id'  => (int) $reg->id,
+                'source_type'      => $sourceType,
+                'source_id'        => $sourceId,
+                // 0 rather than NULL: the column is NOT NULL on SQLite, and its own unique
+                // index was dropped by the 2026_10_09 migration precisely so several
+                // non-registration credits can share this value.
+                'registration_id'  => $sourceType === 'registration' ? $sourceId : 0,
                 'event_id'         => $eventId,
                 'paid_naira'       => $paid,
                 'commission_naira' => $commission,
                 'rate_bps'         => $rate,
                 'created_at'       => Carbon::now()->toDateTimeString(),
             ]);
+
+            return true;
         } catch (\Throwable) {
             // Duplicate key on a raced confirmation is the expected path here, not an
             // exception worth surfacing.
+            return false;
         }
+    }
+
+    /** The event-ticket path, unchanged for its callers. */
+    public static function credit(object $reg): void
+    {
+        self::creditSale(
+            'registration',
+            (int) ($reg->id ?? 0),
+            (string) ($reg->referral_code ?? ''),
+            (int) ($reg->amount_naira ?? 0),
+            (int) ($reg->event_id ?? 0) ?: null,
+        );
     }
 
     // ── What a member has earned ─────────────────────────────────────────────

@@ -303,9 +303,15 @@ final class ShopCheckoutController
                 'status'         => 'pending',
                 'fulfilment'     => 'unfulfilled',
                 'provider'       => $provider,
+                // Stamped on the ORDER rather than read from the session at fulfilment. A
+                // webhook confirming a payment made on a phone that has since been closed
+                // has no session to read — so a referral held only in one would fail on
+                // exactly the slow payments where the referrer waited longest.
+                'referral_code'  => \AfricaGates\Services\ReferralService::fromSession() ?: null,
                 'ip_hash'        => $ip ? hash('sha256', $ip) : null,
                 'created_at'     => Carbon::now()->toDateTimeString(),
-            ], ['goods_naira', 'shipping_naira', 'discount_naira', 'discount_code', 'fulfilment']));
+            ], ['goods_naira', 'shipping_naira', 'discount_naira', 'discount_code', 'fulfilment',
+                'referral_code']));
         } catch (\Throwable $e) {
             $this->log?->error('[shop] could not persist order', ['err' => $e->getMessage()]);
             return $bail('error');

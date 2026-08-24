@@ -24,8 +24,13 @@ final class ReferralLiabilityTest extends TestCase
 {
     private function credit(int $userId, int $paid, int $commission, ?string $paidOut = null): void
     {
+        // `source_type`/`source_id` carry the idempotency guarantee since credits stopped
+        // being event-only — the unique index moved onto the pair. Set to match what
+        // ReferralService actually writes, so the fixture is the shape production is.
+        $reg = random_int(1, 1_000_000);
         DB::table('gates_referral_credits')->insert([
-            'code_id' => 1, 'user_id' => $userId, 'registration_id' => random_int(1, 1_000_000),
+            'code_id' => 1, 'user_id' => $userId, 'registration_id' => $reg,
+            'source_type' => 'registration', 'source_id' => $reg,
             'event_id' => 1, 'paid_naira' => $paid, 'commission_naira' => $commission,
             'rate_bps' => ReferralService::RATE_BPS, 'paid_out_at' => $paidOut,
             'created_at' => '2026-08-01 10:00:00',
