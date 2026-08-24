@@ -281,7 +281,14 @@ final class InterviewsController
             return ['ok' => false, 'message' => 'Set a date and time before creating the meeting.'];
         }
 
-        $guests = array_values(array_filter(array_column($d['panel'], 'email')));
+        // The panel, PLUS anybody the operator added by hand. Merged here rather than
+        // stored merged: the panel is an integrity record that changes when judges are
+        // assigned, and the guest list is a note about one meeting. Keeping them apart is
+        // what stops "let the interpreter join" from becoming "appoint the interpreter".
+        $guests = array_values(array_unique(array_merge(
+            array_values(array_filter(array_column($d['panel'], 'email'))),
+            $d['guests'] ?? []
+        )));
         $r = GoogleMeetService::boot()->createSpace([
             'title'       => GoogleMeetService::eventTitle((string) $d['nominee']),
             'description' => 'Judging interview for ' . $d['nominee']
@@ -295,6 +302,11 @@ final class InterviewsController
             'minutes'     => (int) ($row['duration_mins'] ?? 30),
             'timezone'    => (string) ($row['timezone'] ?? 'Africa/Lagos'),
             'guests'      => $guests,
+            // Calendar has no co-host field — co-host is a Meet concept the host grants
+            // inside the call. `guestsCanModify` is the nearest thing an EVENT can carry,
+            // and being invited at all is what makes Meet admit somebody rather than make
+            // them knock. See the migration note.
+            'guests_can_edit' => (bool) ($d['guests_can_edit'] ?? false),
         ]);
 
         if (!$r['ok']) return ['ok' => false, 'message' => $r['message']];

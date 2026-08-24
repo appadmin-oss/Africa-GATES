@@ -793,6 +793,10 @@ final class InterviewService
             'when_text'  => self::whenText($iv),
             'link'       => self::url($id),
             'panel'      => self::panel($id),
+            // Everybody in the meeting who is NOT on the judging panel — an interpreter, a
+            // note-taker, a programme officer, the nominee's support person.
+            'guests'     => self::guests($iv),
+            'guests_can_edit' => (int) ($iv->guests_can_edit ?? 0) === 1,
             'brief'      => InterviewBrief::forInterview($id),
             'answers'    => is_array($answers) ? $answers : [],
             'review'     => InterviewReview::forInterview($id),
@@ -1103,5 +1107,105 @@ final class InterviewService
              . "The questions are built from this nominee's own dossier and are mapped to the "
              . "scoring criteria, so you can see which part of the rubric each one is for. Nothing "
              . "you capture there writes a score: scoring stays on your ballot, where it belongs.\n";
+    }
+    // ═══════════════════════════════════════════════════════════════════════
+    // GUESTS WHO ARE NOT ON THE PANEL
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /** No more than this many, because an attendee list is not a mailing list. */
+    public const MAX_GUESTS = 12;
+
+    /**
+     * The extra addresses invited to a sitting.
+     *
+     * ── WHY THIS EXISTS SEPARATELY FROM THE PANEL ───────────────────────────
+     *
+     * The Google event's attendee list was built from one source — the judges assigned to
+     * the sitting — so the ONLY way to get somebody into the meeting was to appoint them to
+     * the judging panel. That is an integrity decision with a published consequence (they
+     * appear on "Meet the Judges", and their scores count toward a result), and a wildly
+     * disproportionate thing to do so that an interpreter can join a call.
+     *
+     * @return list<string>
+     */
+    public static function guests(object|int|null $iv): array
+    {
+        if (is_int($iv)) $iv = self::byId($iv);
+        if (!$iv) return [];
+
+        $raw = json_decode((string) ($iv->guests_json ?? '[]'), true);
+
+        return is_array($raw)
+            ? array_values(array_filter(array_map(
+                static fn ($e): string => strtolower(trim((string) $e)),
+                $raw
+              ), static fn (string $e): bool => $e !== ''))
+            : [];
+    }
+
+    /**
+     * Replace the guest list from whatever the operator typed.
+     *
+     * Accepts commas, semicolons, newlines and spaces, because a list of addresses arrives
+     * pasted out of an email far more often than it is typed one at a time — and a field
+     * that only accepts one separator silently keeps the first address and drops the rest.
+     *
+     * Every REJECTED address is named in the result rather than quietly dropped. Somebody
+     * who mistypes one and is told "saved" will discover it when a person does not turn up
+     * to the interview, which is the one moment nobody can fix it.
+     *
+     * @return array{ok:bool, saved:int, guests:list<string>, rejected:list<string>, message:string}
+     */
+    public static function setGuests(int $id, string $raw, bool $canEdit = false): array
+    {
+        $iv = self::byId($id);
+        if (!$iv) {
+            return ['ok' => false, 'saved' => 0, 'guests' => [], 'rejected' => [],
+                    'message' => 'That interview could not be found.'];
+        }
+
+        $parts = preg_split('~[\s,;]+~', trim($raw)) ?: [];
+
+        $good = $bad = [];
+        foreach ($parts as $p) {
+            $e = strtolower(trim((string) $p, " \t\n\r\0\x0B<>\"'"));
+            if ($e === '') continue;
+            if (filter_var($e, FILTER_VALIDATE_EMAIL) === false) { $bad[] = $e; continue; }
+            if (!in_array($e, $good, true)) $good[] = $e;
+        }
+
+        if (count($good) > self::MAX_GUESTS) {
+            return ['ok' => false, 'saved' => 0, 'guests' => self::guests($iv), 'rejected' => [],
+                    'message' => 'That is more than ' . self::MAX_GUESTS . ' guests. An interview '
+                               . 'with a room that size is a webinar — invite the people who need '
+                               . 'to speak, and send everybody else the transcript.'];
+        }
+
+        try {
+            DB::table('gates_interviews')->where('id', $id)->update([
+                'guests_json'     => $good === [] ? null : json_encode($good),
+                'guests_can_edit' => $canEdit ? 1 : 0,
+                'updated_at'      => Carbon::now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[interview] guests for ' . $id . ': ' . $e->getMessage());
+            return ['ok' => false, 'saved' => 0, 'guests' => self::guests($iv), 'rejected' => [],
+                    'message' => 'The guest list could not be saved just now.'];
+        }
+
+        // Saved is not invited. The calendar event is only touched when somebody presses
+        // the button that touches it, and saying otherwise here is how a guest ends up
+        // recorded on our side and absent from the meeting.
+        $msg = $good === []
+            ? 'Guest list cleared.'
+            : count($good) . ' guest' . (count($good) === 1 ? '' : 's') . ' saved. '
+              . 'Create or update the meeting to send the invitation.';
+
+        if ($bad !== []) {
+            $msg .= ' NOT saved, because they are not valid addresses: ' . implode(', ', $bad) . '.';
+        }
+
+        return ['ok' => true, 'saved' => count($good), 'guests' => $good,
+                'rejected' => $bad, 'message' => $msg];
     }
 }

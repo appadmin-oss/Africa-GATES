@@ -126,8 +126,22 @@ final class GoogleMeetService
     /**
      * Create a calendar event with a Meet link, and invite whoever is given.
      *
+     * ── ON "CO-HOST", BECAUSE IT IS THE WORD THE REQUEST ARRIVES IN ─────────
+     *
+     * Google Calendar's Events resource has NO co-host field. Co-host is a Meet concept,
+     * granted through the Meet REST API's `spaces.members` (role COHOST) — which needs
+     * Google Workspace and a scope this integration does not hold — or by the host with one
+     * click inside the call.
+     *
+     * What an EVENT can express, and what people usually mean when they ask, is two things:
+     * the guest is INVITED, so Meet admits them straight in instead of making them knock and
+     * they get the invitation and the reminders; and `guestsCanModify` lets them change the
+     * event. Both are set here. Promotion to a true Meet co-host stays a click for the host,
+     * and the admin screen says so rather than implying otherwise.
+     *
      * @param array{title:string, description?:string, start:string, minutes?:int,
-     *              timezone?:string, guests?:list<string>} $opts  start is UTC 'Y-m-d H:i:s'
+     *              timezone?:string, guests?:list<string>, guests_can_edit?:bool} $opts
+     *              start is UTC 'Y-m-d H:i:s'
      * @return array{ok:bool, meet_url:string, meet_code:string, event_id:string, message:string}
      */
     public function createSpace(array $opts): array
@@ -151,6 +165,9 @@ final class GoogleMeetService
                 static fn ($e): string => trim((string) $e),
                 (array) ($opts['guests'] ?? [])
             ), static fn (string $e): bool => filter_var($e, FILTER_VALIDATE_EMAIL) !== false)),
+            // Whether those guests may edit the event itself. Not "co-host" — see
+            // createSpace()'s note — but the only elevation a calendar event can express.
+            'guestsCanModify' => !empty($opts['guests_can_edit']),
         ], self::TIMEOUT_CREATE);
 
         if (!($res['ok'] ?? false)) {

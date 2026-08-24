@@ -72,6 +72,25 @@ function doPost(e) {
  * conferenceDataVersion:1 — and why the failure is reported as "enable the service"
  * rather than as a mystery.
  */
+/**
+ * ── ON "CO-HOST", BECAUSE IT IS THE WORD THE REQUEST ARRIVES IN ──────────────
+ *
+ * Calendar's Events resource has NO co-host field, and no amount of Apps Script will add
+ * one: co-host is a MEET concept, granted through the Meet REST API's spaces.members (role
+ * COHOST — Workspace only, and a scope this project does not hold) or by the host with one
+ * click inside the call.
+ *
+ * Two things an EVENT can express, and they are what people usually mean:
+ *
+ *   · INVITED. An attendee is admitted to the Meet straight away instead of knocking, and
+ *     gets the invitation and the reminders. External addresses are attendees like any
+ *     other — the limitation was never Google's, it was that this platform had no field to
+ *     type one into.
+ *   · guestsCanModify. They can change the event itself: move it, edit it, add people.
+ *
+ * Both are set below. Promotion to a true Meet co-host stays one click for the host, and
+ * the admin screen says so rather than implying otherwise.
+ */
 function meetCreate(d) {
   if(!d.startIso || !d.endIso) return respond(false,'Missing start or end time');
   if(typeof Calendar === 'undefined' || !Calendar.Events) {
@@ -80,6 +99,8 @@ function meetCreate(d) {
 
   const guests = (d.guests||[]).filter(function(x){ return /\S+@\S+\.\S+/.test(x); });
   const event = {
+    // See the note above: the nearest thing an event has to a co-host.
+    guestsCanModify: d.guestsCanModify === true,
     summary:     (d.title||'Africa GATES interview').substring(0,200),
     description: (d.description||'').substring(0,2000),
     start: { dateTime: d.startIso, timeZone: d.timezone||'Africa/Lagos' },
@@ -313,6 +334,9 @@ function calendarSync(d) {
   const withMeet   = d.withMeet !== false;
 
   const base = {
+    // See meetCreate()'s note on co-hosts: an event cannot grant one, and this is the
+    // nearest elevation it can carry.
+    guestsCanModify: d.guestsCanModify === true,
     summary:     (d.title||'Africa GATES interview').substring(0,200),
     description: (d.description||'').substring(0,2000),
     start: { dateTime: d.startIso, timeZone: tz },

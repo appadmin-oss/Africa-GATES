@@ -176,6 +176,54 @@
   </form>
 </div>
 
+{# ── PEOPLE IN THE MEETING WHO ARE NOT ON THE PANEL ─────────────────────────
+   The Google event's attendee list was built from ONE source: the judges assigned to this
+   sitting. So the only way to get somebody into the call was to appoint them to the judging
+   panel — an integrity decision with a published consequence (they appear on "Meet the
+   Judges", their scores count) and a wildly disproportionate thing to do so that an
+   interpreter can join.
+
+   There was no field anywhere to type an address into. This is that field. #}
+<div class="is-sec">
+  <h2>Others in the meeting</h2>
+  <p>An interpreter, a note-taker, a programme officer, the nominee's own support person —
+     anybody who should be in the call without being on the judging panel. External
+     addresses are fine; they are ordinary guests as far as Google is concerned.</p>
+
+  <form method="post" action="/admin/interviews/{{ row.id }}/guests">
+    <input type="hidden" name="_token" value="{{ csrf_token }}">
+    <label for="ivGuests" style="display:block;font-size:12px;color:#67797b;margin-bottom:5px">
+      Email addresses — commas, spaces or one per line</label>
+    <textarea id="ivGuests" name="guests" rows="3" style="width:100%"
+      placeholder="interpreter@example.org, notes@partner.org">{{ (iv.guests ?? [])|join("\n") }}</textarea>
+
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;font-size:13px">
+      <input type="checkbox" name="guests_can_edit" value="1" style="margin-top:3px"
+             {{ iv.guests_can_edit ? 'checked' : '' }}>
+      <span>Let them change the appointment — move it, edit it, add people.
+        <span style="display:block;color:#67797b;font-size:12px;margin-top:2px">
+          Off by default. An invitation is what everybody needs; editing the booking is not.</span>
+      </span>
+    </label>
+
+    <div class="is-row" style="margin-top:12px">
+      <button class="is-btn" type="submit">Save the guest list</button>
+      <span style="font-size:12px;color:#67797b">Saved is not invited &mdash; create or update
+        the meeting below to actually send it.</span>
+    </div>
+  </form>
+
+  {# Said plainly rather than implied, because "co-host" is the word people ask in and
+     Calendar genuinely cannot grant one. Overpromising here would have somebody discover
+     it at the start of a real interview. #}
+  <p style="margin-top:14px;font-size:12.5px;color:#67797b;line-height:1.7">
+    <strong>On co-hosts.</strong> Google Calendar has no co-host setting — co-host is a Meet
+    thing, and the host grants it inside the call (the people panel, next to a name). What
+    being invited here does get somebody: Meet lets them straight in instead of making them
+    knock, and they receive the invitation and the reminders. That is what usually matters.
+  </p>
+</div>
+
 {# ── the question pack ──────────────────────────────────────────────────── #}
 <div class="is-sec">
   <h2>The questions</h2>

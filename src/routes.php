@@ -3392,6 +3392,11 @@ return function(App $app) {
             $s->get('/{id:[0-9]+}',              \AfricaGates\Admin\Controllers\InterviewsController::class.':show');
             $s->post('/{id:[0-9]+}/schedule',    \AfricaGates\Admin\Controllers\InterviewsController::class.':reschedule');
             $s->post('/{id:[0-9]+}/meet',        \AfricaGates\Admin\Controllers\InterviewsController::class.':meet');
+            // People in the meeting who are not on the judging panel — an interpreter, a
+            // note-taker, the nominee's support person. Its own action because the guest
+            // list changes for reasons unrelated to the appointment, and folding it into
+            // reschedule would re-queue the reminders every time somebody adds one.
+            $s->post('/{id:[0-9]+}/guests',      \AfricaGates\Admin\Controllers\InterviewsController::class.':guests');
             $s->post('/{id:[0-9]+}/invite',      \AfricaGates\Admin\Controllers\InterviewsController::class.':invite');
             $s->post('/{id:[0-9]+}/rebuild',     \AfricaGates\Admin\Controllers\InterviewsController::class.':rebuild');
             // The console's save button. Answers JSON, because it fires while a person is
