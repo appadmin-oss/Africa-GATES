@@ -172,6 +172,35 @@
       {% endif %}
     </div>
 
+    {# ── REOPENING ──────────────────────────────────────────────────────────
+         Closing used to be a one-way door. A call shut a week early by accident, or one that
+         closed on schedule with four pitches unfilled, had no route back except a SECOND
+         call for the same event — competing with the first on the same page, with its own
+         quotas that the capacity check would then double-count.
+
+         Reopening unlocks NOTHING. The criteria, the quotas and the prices stay exactly as
+         published; only the closing date moves, because a call cannot take an application on
+         Monday while still saying it closed on Friday. Different terms mean a new call,
+         which is visible in a way that quietly editing a locked one would not be. #}
+    {% if may_decide and call.status == 'closed' %}
+      <details style="margin-top:14px">
+        <summary class="ad-btn ad-btn--sm" style="cursor:pointer">Reopen this call</summary>
+        <form method="post" action="/admin/events/{{ event.id }}/stands/call/reopen"
+              style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <input type="hidden" name="_token" value="{{ csrf_token }}">
+          <div>
+            <label for="stReopen">New closing date</label>
+            <input id="stReopen" name="closes_at" type="datetime-local" required
+                   value="{{ call.closes_at ? call.closes_at|slice(0,16)|replace({' ':'T'}) : '' }}">
+          </div>
+          <button class="ad-btn ad-btn--sm" type="submit">Reopen</button>
+        </form>
+        <p style="margin:10px 0 0;font-size:12.5px;line-height:1.7;color:var(--ad-text-soft)">
+          The published terms do not change. Only the closing date moves — everything a
+          vendor was shown when they applied stays exactly as it was.</p>
+      </details>
+    {% endif %}
+
   {% elseif may_decide %}
     <p style="margin:0 0 14px;font-size:13.5px;line-height:1.7;color:var(--ad-text-soft)">
       A draft. Nothing here is public and everything is editable. Publishing locks the closing
@@ -810,6 +839,27 @@
                        style="margin-top:6px" value="{{ kept_reason[r.app.id]|default('') }}"
                        placeholder="Reason — required to reject, and they read it">
               </form>
+
+              {# ── PUTTING A SETTLED APPLICATION BACK ──────────────────────────
+                   Every decision on this table used to be one-way. An offer that ran out
+                   while the trader was at a funeral, a rejection recorded against the wrong
+                   row, a waitlisted applicant there is now room for — the only workaround
+                   was asking the vendor to apply again, which loses their place in the
+                   completeness tiebreak and rewrites their record as though the first
+                   application never happened.
+
+                   NOT shown on an accepted pitch. That one may have been paid for, and
+                   reopening it would leave money against a place nobody holds. Withdrawing
+                   an accepted stand is a different act with a refund attached; the service
+                   refuses it here so this is not the only thing standing in the way. #}
+              {% if r.app.decision in ['rejected', 'waitlisted', 'declined', 'expired'] %}
+                <form method="post" action="/admin/events/{{ event.id }}/stands/{{ r.app.id }}/reopen"
+                      style="margin-top:8px"
+                      data-confirm="Put this application back in the undecided pile? Nothing is sent to the vendor.">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <button class="ad-btn ad-btn--sm" type="submit">Reopen</button>
+                </form>
+              {% endif %}
             {% else %}
               <span style="color:var(--ad-text-soft)">Read only</span>
             {% endif %}
@@ -832,5 +882,72 @@
     disappointment and a story about favouritism.
   </div>
 </div>
+
+{# ══ WHO HAS PAID ══════════════════════════════════════════════════════════
+     The question on the morning of the market, and until now it had no answer anywhere in
+     the product: accepting a stand said "you will be invoiced" and nothing invoiced anybody
+     — no amount on the row, nothing the vendor could see, no way to pay.
+
+     ACCEPTED pitches only in the totals. An open offer is a place being HELD, not money
+     anybody is owed, and counting it as expected income would let this card report a figure
+     that evaporates when the clock runs out. #}
+{% if fees.rows %}
+<div class="ad-card" id="fees">
+  <div class="ad-card__head">
+    <div class="ad-card__title">Stand fees</div>
+  </div>
+
+  <div class="ad-card__body" style="display:flex;gap:26px;flex-wrap:wrap">
+    <div>
+      <div class="st-app__meta">Expected, from accepted pitches</div>
+      <div style="font-size:1.35rem;font-weight:700">₦{{ fees.expected|number_format }}</div>
+    </div>
+    <div>
+      <div class="st-app__meta">Collected</div>
+      <div style="font-size:1.35rem;font-weight:700;color:#1a6118">₦{{ fees.collected|number_format }}</div>
+    </div>
+    <div>
+      <div class="st-app__meta">Still owed</div>
+      <div style="font-size:1.35rem;font-weight:700;{% if fees.owed > 0 %}color:#a32b1c{% endif %}">
+        ₦{{ fees.owed|number_format }}</div>
+    </div>
+  </div>
+
+  <div class="ad-card__body" style="padding-top:0;overflow-x:auto">
+    <table class="ad-table">
+      <caption class="sr-only">Stand fees by vendor</caption>
+      <thead><tr><th scope="col">Vendor</th><th scope="col">Stand</th>
+                 <th scope="col">Fee</th><th scope="col">Paid</th><th scope="col">Where it stands</th></tr></thead>
+      <tbody>
+        {% for f in fees.rows %}
+        <tr>
+          <td>{{ f.org_name }}{% if not f.accepted %}
+            <div class="st-app__meta">Offer open — not counted above</div>{% endif %}</td>
+          <td>{{ f.type_name }}</td>
+          <td>{% if f.owing.fee > 0 %}₦{{ f.owing.fee|number_format }}{% else %}No fee{% endif %}</td>
+          <td>{% if f.owing.paid > 0 %}₦{{ f.owing.paid|number_format }}{% else %}—{% endif %}</td>
+          <td>
+            {% if f.owing.settled %}
+              <span class="ad-chip ad-chip--green">{{ f.owing.stage == 'free' ? 'Nothing to pay' : 'Paid' }}</span>
+            {% elseif f.owing.stage == 'balance' %}
+              <span class="ad-chip ad-chip--gold">Deposit paid</span>
+            {% else %}
+              <span class="ad-chip ad-chip--grey">Not paid</span>
+            {% endif %}
+            <div class="st-app__meta" style="margin-top:5px">{{ f.owing.label }}</div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="ad-card__body" style="border-top:1px solid var(--ad-line);font-size:13px;line-height:1.7;color:var(--ad-text-soft)">
+    A vendor pays from their own offer link, which is in the email that told them they had
+    been offered a pitch. Nothing here is marked paid by hand — the amount comes from the
+    gateway's own verification, so a row saying Paid is a row the gateway confirmed.
+  </div>
+</div>
+{% endif %}
 {{ vz.assets(csp_nonce) }}
 {% endblock %}

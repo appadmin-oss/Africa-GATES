@@ -484,6 +484,21 @@ class AccountController
             // Event referrals. Read here rather than minted here: a code appears when the
             // member asks for one, so a dashboard visit does not create a row for every
             // account that ever loads this page.
+            // ── THE VENDOR, WHERE A TRADER ACTUALLY LOOKS ────────────────────
+            //
+            // /org was built for a DONATION PARTNER — confirmed-gift totals, appeals,
+            // payout schedules, settlement accounts — and a stand vendor has none of that
+            // and never will: they PAY for a pitch rather than receiving anything through
+            // it. What is left over there is a console a market trader has to remember a
+            // second password for, while THIS is the page they already open.
+            //
+            // Null when this member is not linked to a vendor account, and the section is
+            // not rendered at all. Linked by VERIFIED email — see VendorAccount, where the
+            // verification is load-bearing rather than decorative.
+            'vendor'         => \AfricaGates\Services\VendorAccount::panel($user),
+            'vendor_cats'    => \AfricaGates\Services\VendorPolicy::categories(),
+            'vendor_max'     => \AfricaGates\Services\VendorCatalogue::MAX_ITEMS,
+            'brand_sections' => \AfricaGates\Services\OrgBrand::SECTIONS,
             'referral'       => \AfricaGates\Services\ReferralService::stats((int) $user->id),
             'referral_site'  => \AfricaGates\Support\SiteUrl::base($req),
             // Withdrawing. `available()` answers both "can they" and "why not", so the

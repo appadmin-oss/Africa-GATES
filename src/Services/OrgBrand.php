@@ -411,6 +411,34 @@ final class OrgBrand
         return (bool) preg_match('~^uploads/[A-Za-z0-9._/-]+\.(jpe?g|png|webp|gif)$~i', $p);
     }
 
+    /**
+     * Turn an UploadService result into a path this class is willing to keep.
+     *
+     * ── THE CLOUDINARY TRAP ──────────────────────────────────────────────────
+     *
+     * `uploadImage()` returns `path` AND `local`. With remote media configured, `path` is an
+     * `https://res.cloudinary.com/...` URL — and {@see safePath()} refuses anything with a
+     * scheme in it, on purpose, because a stored value that can address an off-site host is
+     * a logo slot that can hold somebody else's tracker.
+     *
+     * Reading `path` first would therefore mean that on every deployment with Cloudinary
+     * turned on, uploading a logo would appear to succeed and attach nothing — a failure
+     * that shows up on no configuration this repository's tests run under.
+     *
+     * `local` is written unconditionally, before any remote copy, and is always the relative
+     * `uploads/...` path. It is the right answer here whatever the media configuration is.
+     *
+     * @param array<string,mixed> $upload
+     */
+    public static function pathFromUpload(array $upload): string
+    {
+        foreach (['local', 'path', 'url'] as $key) {
+            $candidate = ltrim(trim((string) ($upload[$key] ?? '')), '/');
+            if ($candidate !== '' && self::safePath($candidate)) return $candidate;
+        }
+        return '';
+    }
+
     /** https only, and a real host. An http:// logo link on a payment page is a warning. */
     private static function url(string $raw): string
     {

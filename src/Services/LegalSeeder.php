@@ -114,7 +114,111 @@ final class LegalSeeder
             // getting it back. There is a whole RefundService with specific, defensible
             // rules; none of them were written down anywhere a payer could read.
             'refunds' => ['title' => 'Refunds and Cancellations', 'sort' => 4, 'body' => self::refunds()],
+            // ── WHAT A TRADER IS ACTUALLY AGREEING TO ────────────────────────
+            //
+            // A vendor accepted a pitch and paid a fee against nothing written down. The
+            // Terms of Participation cover a NOMINEE and a voter; a market trader is
+            // neither, and the questions that actually come up at a market — who insures
+            // the stall, what happens if the event is cancelled, what the pitch may and may
+            // not be used for, when the fee is refundable — were answered nowhere.
+            //
+            // This is shown ON the acceptance screen and agreed to there, not linked from a
+            // footer. An organiser enforcing a rule the trader was never shown is the same
+            // failure as a rejection with no reason.
+            'vendor-terms' => ['title' => 'Vendor Trading Terms', 'sort' => 5,
+                               'body' => self::vendorTerms()],
         ];
+    }
+
+    /**
+     * The terms a stand vendor agrees to when they accept a pitch.
+     *
+     * ── WRITTEN FOR THE PERSON WHO WILL BE STANDING BEHIND THE TABLE ─────────
+     *
+     * Short sentences and no defined-term apparatus, because the reader is a trader with a
+     * phone and a two-day clock, not a general counsel. Every clause answers a question
+     * somebody actually asks at a market, and where the answer is unfavourable it says so
+     * plainly rather than burying it — a term discovered on the day is a term that will be
+     * argued about on the day.
+     */
+    private static function vendorTerms(): string
+    {
+        return <<<'HTML'
+<p>These terms apply when you accept a stand at an Africa GATES event. They are in addition
+to the specific terms published with the call you applied to — the prices, the quotas, the
+closing date and the criteria — which were fixed before anybody applied and cannot be
+changed afterwards.</p>
+
+<h2>Your place</h2>
+<p>Accepting an offer holds a specific pitch of a specific size for you at a specific event.
+It is not transferable: you may not sell, sublet or hand it to another trader. If somebody
+else will be running the stall on the day, tell the organiser who they are beforehand.</p>
+<p>An offer that is not accepted before the deadline in your email is released to the
+waiting list. That is not a penalty and it is not personal — a place held indefinitely is a
+place taken from a list that was told it would move.</p>
+
+<h2>The fee</h2>
+<p>The fee is the one shown on your offer, stamped when the offer was made. It does not
+change afterwards, even if the price of that stand type changes later.</p>
+<p>Where a deposit is set, the deposit is due on acceptance and the balance before the
+event. Where no deposit is set, the whole fee is due on acceptance.</p>
+<p>A stand is confirmed when the fee due has been paid. An organiser may release an unpaid
+pitch, and will tell you before doing so.</p>
+
+<h2>Getting your money back</h2>
+<p>If <strong>the event is cancelled</strong> by us or by the organiser, every fee paid is
+refunded in full. You do not have to ask.</p>
+<p>If <strong>you cancel</strong>, what you get back depends on when: in full up to 14 days
+before the event, half between 14 and 7 days, and nothing inside 7 days — by which point the
+floor plan is printed, the place cannot realistically be resold, and the cost has already
+been incurred. Write to us; we do not need a reason.</p>
+<p>If <strong>the event is postponed</strong>, your place moves to the new date. If the new
+date does not work for you, say so and the fee is refunded in full.</p>
+<p>Everything here sits alongside the general <a href="/refunds">Refunds and
+Cancellations</a> policy, which covers how and when money is actually returned.</p>
+
+<h2>What you may sell</h2>
+<p>What you told us you sell, in the category you were allocated under. Stands are allocated
+against published category quotas, so trading substantially outside your category takes a
+place from somebody who applied for it — an organiser may ask you to stop.</p>
+<p>Not permitted at any Africa GATES event: anything you are not legally allowed to sell,
+counterfeit goods, alcohol without the venue's own licence, live animals, weapons, and
+anything requiring a licence you do not hold. Food traders must hold whatever registration
+their state requires and must be able to show it.</p>
+
+<h2>On the day</h2>
+<p>Arrive within the set-up window and stay open for the advertised hours. A stall packed
+away at two o'clock is a hole in a hall that visitors paid to walk around.</p>
+<p>Bring your own tables, coverings, lighting and extension leads unless the offer says
+otherwise. Power is only provided where your stand type includes it.</p>
+<p>Leave the pitch as you found it. Take your own waste; the venue's bins are for visitors.</p>
+
+<h2>Insurance and liability</h2>
+<p><strong>Your stock, equipment and cash are your own responsibility.</strong> Neither
+Africa GATES nor the venue insures them, and neither is liable for theft, loss or damage.
+If you would be unable to absorb the loss of what you bring, insure it.</p>
+<p>You are responsible for the safety of your own stall and for anyone working on it.
+Public liability cover is strongly recommended and some venues require it — the offer says
+when it does.</p>
+<p>Nothing here limits liability for death or personal injury caused by negligence, or for
+anything else that cannot lawfully be limited.</p>
+
+<h2>Ending it early</h2>
+<p>An organiser may close a stall on the day for a serious safety problem, for selling
+something on the not-permitted list, or for behaviour towards visitors or other traders that
+would be unacceptable anywhere. Where that happens the fee is not refunded, and you will be
+told the reason in writing.</p>
+
+<h2>Your details</h2>
+<p>Your business name, your category and what you sell appear on the public event page. Your
+contact details do not. Registration numbers and certificates you upload are used to check
+eligibility and are not published — see the <a href="/privacy">Privacy Policy</a>.</p>
+
+<h2>If something goes wrong</h2>
+<p>Talk to the organiser on the day; almost everything is solved there. If it is not, write
+to us and it goes through the same independent review as any other decision on this
+platform — see <a href="/support">Support and Appeals</a>.</p>
+HTML;
     }
 
     /**

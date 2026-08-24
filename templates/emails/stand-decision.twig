@@ -330,6 +330,18 @@
           <strong style="color:#14171a;">{{ deposit }}</strong> is due on acceptance{% endif %}. This is
           the price published with the call and it has not changed.
         </p>
+        {# ── AND THE TERMS, BEFORE THE BUTTON RATHER THAN AFTER IT ──────────
+             A trader is about to accept a pitch and be charged for it. The questions that
+             come up at a market — who insures the stall, what happens if the event is
+             cancelled, when the fee is refundable — were answered nowhere. Linked here so
+             they can be read before deciding, and agreed to with a real checkbox on the
+             page the button opens. #}
+        <p class="agw-body-t" style="margin:12px 0 0 0; font-family:Helvetica, Arial, sans-serif; font-size:14px; line-height:22px; color:#43473f;">
+          Accepting means agreeing to the
+          <a href="{{ terms_url }}" target="_blank" style="color:#1f9d55;">trading terms</a> —
+          insurance, cancellation, what you may sell, and when the fee can be refunded. Worth
+          two minutes before you press the button.
+        </p>
       </td>
     </tr>
     {% endif %}

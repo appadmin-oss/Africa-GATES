@@ -112,6 +112,14 @@ final class StandsController
             // they are in.
             'notices_pending' => \AfricaGates\Services\StandNotice::pending(),
             'may_decide'  => $this->mayDecide(),
+            // ── WHO HAS PAID ─────────────────────────────────────────────
+            //
+            // The question on the morning of the market, and it had no answer anywhere in
+            // the product: accept() said "you will be invoiced" and nothing invoiced
+            // anybody. The ledger counts ACCEPTED pitches only — an open offer is a place
+            // being held, and counting it as expected income lets this screen report a
+            // figure that evaporates when the clock runs out.
+            'fees'        => \AfricaGates\Services\StandFee::ledger($eventId),
             // ── SIZES AND THE FLOOR PLAN ─────────────────────────────────
             'sizes'       => StandType::SIZES,
             // The priced catalogue, so an organiser adds "6 × 6 ft — ₦10,000, how many?"
@@ -358,6 +366,65 @@ final class StandsController
         $r = StandCall::open((int) $call->id, $this->adminId());
         $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
         if ($r['ok']) $this->audit->record($this->adminId(), 'stand_call.open', 'event', $eventId);
+        return $this->back($res, $eventId);
+    }
+
+    /**
+     * Reopen a closed call, on the terms it was published with.
+     *
+     * Closing used to be a one-way door: a call shut a week early by accident, or one that
+     * closed on schedule with four pitches unfilled, had no route back except a SECOND call
+     * for the same event — competing with the first on the same page, with its own quotas
+     * that the capacity check would then double-count.
+     *
+     * Reopening does not unlock anything. The criteria snapshot, the quotas and the prices
+     * stay exactly as published; the only thing that moves is the closing date, because a
+     * call cannot accept an application on Monday while still saying it closed on Friday.
+     */
+    public function reopenCall(Request $req, Response $res, array $args = []): Response
+    {
+        $eventId = (int) ($args['id'] ?? 0);
+        if (!$this->mayDecide()) {
+            $_SESSION['flash_error'] = 'Only an admin can reopen a call.';
+            return $this->back($res, $eventId);
+        }
+
+        $call = StandCall::forEvent($eventId);
+        if (!$call) return $this->back($res, $eventId);
+
+        $b = (array) $req->getParsedBody();
+        $r = StandCall::reopen((int) $call->id, (string) ($b['closes_at'] ?? ''));
+
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
+        if ($r['ok']) $this->audit->record($this->adminId(), 'stand_call.reopen', 'event', $eventId);
+        return $this->back($res, $eventId);
+    }
+
+    /**
+     * Put one settled application back in front of the panel.
+     *
+     * Every decision on that table was one-way. An offer that ran out while the trader was
+     * at a funeral, a rejection recorded against the wrong row, a waitlisted applicant there
+     * is now room for — the only workaround was asking the vendor to apply again, which
+     * loses their place in the completeness tiebreak and rewrites their record as though the
+     * first application never happened.
+     */
+    public function reopenApplication(Request $req, Response $res, array $args = []): Response
+    {
+        $eventId = (int) ($args['id'] ?? 0);
+        if (!$this->mayDecide()) {
+            $_SESSION['flash_error'] = 'Only an admin can reopen an application.';
+            return $this->back($res, $eventId);
+        }
+
+        $b = (array) $req->getParsedBody();
+        $r = StandApplication::reopen((int) ($args['app'] ?? 0), $this->adminId(),
+                                      (string) ($b['note'] ?? ''));
+
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = $r['message'];
+        if ($r['ok']) {
+            $this->audit->record($this->adminId(), 'stand_application.reopen', 'event', $eventId);
+        }
         return $this->back($res, $eventId);
     }
 

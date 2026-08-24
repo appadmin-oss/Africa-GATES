@@ -57,7 +57,16 @@ class CsrfMiddleware {
         // reads as policy about a thing that does not exist.
         '~^(/my-work/[a-f0-9]{32}(/(upload|speak|listen|ready|coach|intro|summary'
         . '|interview(/(switch|resume|phase|amend|outcome))?))?'
-        . '|/interview/[a-f0-9]{32})$~';
+        . '|/interview/[a-f0-9]{32}'
+        // ── AND THE VENDOR'S OFFER PAGE ──────────────────────────────────────
+        //
+        // Same doctrine and the same shape: 48 hex characters in the path are the whole
+        // credential, the trader has no account and no session for an attack to ride, and
+        // anybody holding the token can already POST here directly. The cost of NOT
+        // exempting it is specific — a trader reads the trading terms for twenty-five
+        // minutes, PHP collects the session at gc_maxlifetime and mints a new token, and
+        // pressing Accept is refused with "CSRF validation failed" inside a two-day clock.
+        . '|/stand/[a-f0-9]{48}(/(accept|pay))?)$~';
 
     private const OTP_EXEMPT = ['/api/vote', '/api/otp/request', '/api/v1/vote', '/api/v1/otp/request', '/api/agent/gee', '/api/v1/agent/gee', '/pay/webhook', '/__setup/admin',
         '/api/interview/live/hello', '/api/interview/live/say', '/api/interview/live/finish',

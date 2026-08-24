@@ -334,6 +334,15 @@ final class StandApplication
             'offer_expires_at' => date('Y-m-d H:i:s', time() + self::OFFER_HOURS * 3600),
         ]);
 
+        // ── WHAT ACCEPTING COSTS, AND THE LINK THAT REACHES IT ──────────────
+        //
+        // Stamped HERE and not on acceptance, because the offer email needs both: somebody
+        // deciding inside a two-day clock needs to know the price before they decide, and
+        // needs a way in that does not require remembering a password set six weeks ago on
+        // a phone. {@see StandFee::stamp()} copies the price off the stand type so a later
+        // change to it cannot alter what this vendor agreed to.
+        StandFee::stamp($appId);
+
         // ── AND TELL THEM, WHICH NOTHING DID ────────────────────────────────
         //
         // The clock above starts now. Before this line existed, the only way a vendor could
@@ -417,7 +426,91 @@ final class StandApplication
             'decision'   => self::DECISION_ACCEPTED,
             'decided_at' => date('Y-m-d H:i:s'),
         ]);
-        return ['ok' => true, 'message' => 'Accepted. You will be invoiced for the stand fee.'];
+
+        // ── AND WHAT HAPPENS TO THE MONEY ───────────────────────────────────
+        //
+        // This used to say "You will be invoiced for the stand fee." Nothing invoiced
+        // anybody: there was no amount on the row, nothing the vendor could see, no way to
+        // pay, and no way for an organiser to tell a paid pitch from an unpaid one on the
+        // morning of the market. A published price beside a published quota is only
+        // defensible if the transaction happens where both parties can see it.
+        $owing = StandFee::owing(self::find($appId));
+
+        return ['ok' => true, 'message' => $owing['settled']
+            ? 'Accepted. ' . $owing['label']
+            : 'Accepted. ' . $owing['label'] . ' You can pay it now from this page.'];
+    }
+
+    /**
+     * Put a settled application back in front of the panel.
+     *
+     * ── WHY THIS IS NEEDED ──────────────────────────────────────────────────
+     *
+     * Every decision on this table was one-way. An offer that ran out while the trader was
+     * at a funeral, a rejection recorded against the wrong row, a waitlisted applicant an
+     * organiser now has room for — none of them had a route back. The only workaround was
+     * to ask the vendor to apply again, which loses their place in the completeness
+     * tiebreak (§5.4 ranks by when an application became COMPLETE) and rewrites their own
+     * record as though the first application never happened.
+     *
+     * ── AND WHY AN ACCEPTED PITCH CANNOT BE REOPENED ────────────────────────
+     *
+     * Because it may have been paid for. Flipping an accepted row back to pending would
+     * leave money credited against an application nobody holds, and would take a place off
+     * somebody who was told it was theirs. Withdrawing an accepted stand is a different act
+     * with a refund attached; it is not this button, and pretending otherwise here would
+     * hide the refund.
+     *
+     * An OFFERED application is refused for a smaller reason: it is already live. Its clock
+     * is running and reopening it would silently cancel an offer the vendor may be reading
+     * right now.
+     *
+     * @return array{ok:bool,message:string}
+     */
+    public static function reopen(int $appId, int $adminId, string $note = ''): array
+    {
+        $app = self::find($appId);
+        if (!$app) return ['ok' => false, 'message' => 'Unknown application.'];
+
+        $decision = (string) $app->decision;
+
+        if ($decision === self::DECISION_PENDING) {
+            return ['ok' => false, 'message' => 'This application has not been decided, so there '
+                                              . 'is nothing to reopen.'];
+        }
+        if ($decision === self::DECISION_OFFERED) {
+            return ['ok' => false, 'message' => 'This application holds a live offer. Let it run, '
+                                              . 'or close it out first — reopening now would '
+                                              . 'cancel an offer the vendor may be reading.'];
+        }
+        if ($decision === self::DECISION_ACCEPTED) {
+            return ['ok' => false, 'message' => 'This stand has been accepted and may have been '
+                                              . 'paid for. Reopening it would leave money against '
+                                              . 'a pitch nobody holds and take a place off '
+                                              . 'somebody who was told it was theirs. Withdraw it '
+                                              . 'instead, which handles the refund.'];
+        }
+
+        // The capacity check is NOT run here on purpose. Reopening returns an application to
+        // the pool; it does not hand out a place. {@see offer()} is the gate that counts the
+        // published quota, and it will refuse if the type is now full — which is the right
+        // moment to find that out, and the right person to tell.
+        DB::table('gates_stand_applications')->where('id', $appId)->update([
+            'decision'         => self::DECISION_PENDING,
+            // The old reason goes. Leaving "Two other food vendors scored higher" attached to
+            // an application that is once again undecided would put a verdict on a row that
+            // has not been judged, and it is the text a rejection notice quotes.
+            'decision_reason'  => trim($note) !== '' ? mb_substr(trim($note), 0, 400) : null,
+            'decided_by'       => $adminId,
+            'decided_at'       => date('Y-m-d H:i:s'),
+            // The clock and the token belong to the offer that is being undone.
+            'offer_expires_at' => null,
+        ]);
+
+        return ['ok' => true, 'message' => 'Reopened. It is back in the undecided pile and can '
+                                         . 'be offered, waitlisted or rejected again — the '
+                                         . 'quota is checked when you offer it, not now. '
+                                         . 'Nothing has been sent to the vendor.'];
     }
 
     /**

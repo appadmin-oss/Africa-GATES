@@ -344,7 +344,73 @@ final class StandCall
         DB::table('gates_stand_calls')->where('id', $callId)->update([
             'status' => self::STATUS_CLOSED, 'updated_at' => date('Y-m-d H:i:s'),
         ]);
-        return ['ok' => true, 'message' => 'Closed to new applications. Scoring can continue.'];
+        return ['ok' => true, 'message' => 'Closed to new applications. Scoring can continue, '
+                                         . 'and you can reopen it if you need more applicants.'];
+    }
+
+    /**
+     * Reopen a closed call, on the terms it was published with.
+     *
+     * ── WHY THIS IS NOT THE SAME AS "EDIT THE CALL" ─────────────────────────
+     *
+     * The governing rule here is that the criteria, the quotas and the prices are fixed and
+     * published BEFORE anybody knows who applied. {@see open()} locks them for that reason,
+     * and {@see save()} refuses once the call is open.
+     *
+     * Reopening must not become a way around that. So this puts the SAME call back on the
+     * same published terms and changes exactly one thing — the closing date — because a call
+     * that closed on Friday cannot accept an application on Monday while still saying it
+     * closed on Friday. The criteria snapshot is not touched, `locked_at` is not touched,
+     * and no quota moves.
+     *
+     * An organiser who wants DIFFERENT terms closes this call and opens a new one, which is
+     * visible in a way that quietly editing a locked call would not be.
+     *
+     * ── AND WHY THIS EXISTS AT ALL ──────────────────────────────────────────
+     *
+     * Because closing was a one-way door. A call closed a week early by accident, or one
+     * that closed on schedule with four pitches unfilled, had no route back: the only option
+     * was a second call for the same event, competing with the first on the same page, with
+     * its own quotas that the capacity check would then double-count.
+     *
+     * @return array{ok:bool,message:string}
+     */
+    public static function reopen(int $callId, string $closesAt = ''): array
+    {
+        $call = self::find($callId);
+        if (!$call) return ['ok' => false, 'message' => 'That call does not exist.'];
+
+        $status = (string) $call->status;
+        if ($status === self::STATUS_OPEN) {
+            return ['ok' => false, 'message' => 'This call is already open.'];
+        }
+        if ($status === self::STATUS_DRAFT) {
+            return ['ok' => false, 'message' => 'This call has never been opened. Publish it '
+                                              . 'instead — that is what locks its terms.'];
+        }
+
+        $closes = self::stamp($closesAt);
+        if ($closes === '') $closes = self::stamp((string) ($call->closes_at ?? ''));
+
+        // A closing date in the past reopens a call that is instantly shut again, which
+        // reads to the organiser as the button not working. Refused with the reason rather
+        // than silently corrected: only they know what the new date should be.
+        if ($closes === '' || $closes < date('Y-m-d H:i:s')) {
+            return ['ok' => false, 'message' => 'Set a new closing date first — the old one has '
+                                              . 'passed, so reopening on it would close the call '
+                                              . 'again immediately.'];
+        }
+
+        DB::table('gates_stand_calls')->where('id', $callId)->update([
+            'status'     => self::STATUS_OPEN,
+            'closes_at'  => $closes,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return ['ok' => true, 'message' => 'Reopened until ' . substr($closes, 0, 16)
+                                         . '. The published terms are unchanged — reopening '
+                                         . 'does not unlock the criteria, the quotas or the '
+                                         . 'prices.'];
     }
 
     /**

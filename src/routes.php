@@ -2188,6 +2188,19 @@ return function(App $app) {
         // administrator — makes the eligibility check dishonest, because an application
         // marked incomplete may just be one whose insurance is sitting unread in an inbox.
         $g->post('/org/document', \AfricaGates\Controllers\OrgDashboardController::class.':uploadDocument');
+        // ── THE CATALOGUE ────────────────────────────────────────────────────
+        //
+        // What this vendor sells, as rows. The stand application's one free-text paragraph
+        // is still there and is still the right record of what they said when they applied;
+        // this is what they sell NOW, and it is what makes "this is a food trader" a fact
+        // the category quota can count rather than a reading somebody has to make.
+        $g->post('/org/item',                    \AfricaGates\Controllers\OrgDashboardController::class.':saveItem');
+        $g->post('/org/item/{id:[0-9]+}',        \AfricaGates\Controllers\OrgDashboardController::class.':saveItem');
+        $g->post('/org/item/{id:[0-9]+}/delete', \AfricaGates\Controllers\OrgDashboardController::class.':deleteItem');
+        $g->post('/org/item/{id:[0-9]+}/show',   \AfricaGates\Controllers\OrgDashboardController::class.':toggleItem');
+        // How their own donation page looks. We provide the donation service; the look
+        // belongs to whoever is doing the asking.
+        $g->post('/org/brand',                   \AfricaGates\Controllers\OrgDashboardController::class.':saveBrand');
 
         // A partner organisation's own appeal. Registered LAST so the three fixed paths
         // above always win — and the pattern additionally excludes them by name, because
@@ -2310,6 +2323,11 @@ return function(App $app) {
         // times by guessing the URL or following a footer link, neither of which finds a
         // document buried a level down.
         $g->get('/refunds', fn($req,$res)=>$legalRender($req,$res,'refunds'));
+        // The trading terms a stand vendor agrees to when they accept a pitch. Its own path
+        // because it is LINKED FROM the acceptance screen and from the offer email, and a
+        // trader who wants to read it before pressing the button should not have to find it
+        // under a footer heading called Legal.
+        $g->get('/vendor-terms', fn($req,$res)=>$legalRender($req,$res,'vendor-terms'));
         // ── THE PAGE HAS TO READ THE ENGINE, NOT REMEMBER IT ─────────────────
         //
         // These numbers were prose. The route passed no data at all, so
@@ -2558,6 +2576,22 @@ return function(App $app) {
         // hub above and stays exactly as it is — registering a second '/support'
         // would have been dead code, because Slim matches the first route and the
         // assistant would never have been reachable at all.
+        // ── THE VENDOR'S OWN OFFER PAGE ──────────────────────────────────────
+        //
+        // Fourth surface on this platform behind a token alone, after the questionnaire,
+        // the interview and the claim link, and for the same reason each time: the person
+        // it serves has no account, and an offer with a two-day clock cannot afford a
+        // password-reset round trip for a password set six weeks ago on a phone.
+        //
+        // The GET shows the offer. Accepting and paying are POSTs from that page —
+        // a one-click accept URL would be a state change from a GET, and a corporate mail
+        // filter prefetching links would accept a pitch on somebody's behalf.
+        $g->get ('/stand/{token:[a-f0-9]{48}}',          \AfricaGates\Controllers\StandOfferController::class.':page');
+        $g->post('/stand/{token:[a-f0-9]{48}}/accept',   \AfricaGates\Controllers\StandOfferController::class.':accept');
+        $g->post('/stand/{token:[a-f0-9]{48}}/pay',      \AfricaGates\Controllers\StandOfferController::class.':pay');
+        $g->get ('/stand/{token:[a-f0-9]{48}}/redirect', \AfricaGates\Controllers\StandOfferController::class.':handoff');
+        $g->get ('/stand/{token:[a-f0-9]{48}}/callback', \AfricaGates\Controllers\StandOfferController::class.':callback');
+
         $g->get('/support/assistant', SupportController::class.':page');
         // Ticket threads. The page redirects a guest to sign-in; the write
         // endpoints refuse one, because a ticket is a promise to reply and a
@@ -3181,6 +3215,12 @@ return function(App $app) {
         $a->post('/events/{id:[0-9]+}/stands/call',                    $ST.':saveCall');
         $a->post('/events/{id:[0-9]+}/stands/call/open',               $ST.':openCall');
         $a->post('/events/{id:[0-9]+}/stands/call/close',              $ST.':closeCall');
+        // Closing was a one-way door, and so was every decision on an application. Reopening
+        // a CALL does not unlock its published terms — only the closing date moves; and
+        // reopening an APPLICATION returns it to the undecided pile without handing out a
+        // place, because the quota is counted when it is offered.
+        $a->post('/events/{id:[0-9]+}/stands/call/reopen',             $ST.':reopenCall');
+        $a->post('/events/{id:[0-9]+}/stands/{app:[0-9]+}/reopen',     $ST.':reopenApplication');
         // The venue, and NOT under the lock. The lock stops the rules changing once you know
         // who applied; how wide the hall is, is a fact somebody may measure better next week,
         // and refusing a better measurement only guarantees the floor plan stays wrong.

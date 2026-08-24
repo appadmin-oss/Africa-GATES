@@ -36,6 +36,11 @@ final class OrgDashboardController
         private readonly PaymentService     $payments,
         private readonly ?RateLimitService  $rateLimit = null,
         private readonly ?UploadService     $uploads   = null,
+        // The MEMBER session, so a vendor who signed in at /account can reach the same
+        // controls as one who signed in at /org. See vendorScope(): they are the same
+        // person, and a page that renders a catalogue it cannot edit is the most
+        // frustrating shape a screen can take.
+        private readonly ?\AfricaGates\Services\UserAccountService $accounts = null,
     ) {}
 
     /**
@@ -166,6 +171,18 @@ final class OrgDashboardController
             'required'    => $required,
             'missing'     => $missing,
             'doc_kinds'   => PartnerOrg::DOCUMENT_KINDS,
+            // ── THE CATALOGUE AND THE BRAND ──────────────────────────────────
+            //
+            // Both are per-organisation and both are cheap: one indexed read each. Passed
+            // unconditionally so the template decides what to SHOW rather than the
+            // controller deciding what exists — the rail already gates sections on whether
+            // they are relevant to a vendor or to a donation partner.
+            'items'       => \AfricaGates\Services\VendorCatalogue::forOrg($orgId),
+            'item_cats'   => \AfricaGates\Services\VendorPolicy::categories(),
+            'max_items'   => \AfricaGates\Services\VendorCatalogue::MAX_ITEMS,
+            'lead_cat'    => \AfricaGates\Services\VendorCatalogue::leadingCategory($orgId),
+            'brand'       => \AfricaGates\Services\OrgBrand::of($org),
+            'brand_sections' => \AfricaGates\Services\OrgBrand::SECTIONS,
             'uploads_on'  => $this->uploads !== null,
             'decisions'   => StandApplication::DECISIONS,
             // `flash_ok`/`flash_error` are NOT passed here any more, and removing them
@@ -294,6 +311,157 @@ final class OrgDashboardController
      * may be the last one — and the tiebreak in §5.4 is the moment an application became
      * complete, so a delay here costs the vendor queue position they earned.
      */
+    // ═══════════════════════════════════════════════════════════════════════
+    // THE CATALOGUE
+    // ═══════════════════════════════════════════════════════════════════════
+    //
+    // What this vendor sells, as rows rather than as the one free-text paragraph on a frozen
+    // application form. See {@see VendorCatalogue} for why that paragraph was not enough:
+    // an organiser allocating against published CATEGORY QUOTAS had to read forty of them
+    // and decide by eye which was "food", a visitor could not see what would be on sale at
+    // all, and the vendor could not correct a price without reopening an application that is
+    // deliberately locked.
+
+    /**
+     * Which organisation this request may change, and where to send it back to.
+     *
+     * ── ONE TRADER, TWO SESSIONS ────────────────────────────────────────────
+     *
+     * A vendor may arrive with an ORG session (they signed in at /org/login) or with a
+     * MEMBER session (they signed in at /account/login and their VERIFIED address matches
+     * an org user). Both are the same person, and both have to reach the same controls —
+     * otherwise the account page would render a catalogue it could not edit, which is the
+     * most frustrating shape a screen can take.
+     *
+     * @return array{0:int, 1:string} org id (0 = refused) and the page to return to
+     */
+    private function vendorScope(): array
+    {
+        $orgUser = OrgAuth::user();
+        $member  = $this->accounts?->current();
+
+        $orgId = \AfricaGates\Services\VendorAccount::writableOrgId($orgUser, $member);
+        // Back where they came from. Sending an account-page vendor to /org would land them
+        // on a sign-in form for a second password they may not have.
+        $back  = $orgUser !== null ? '/org' : '/account';
+
+        return [$orgId, $back];
+    }
+
+    public function saveItem(Request $req, Response $res, array $args = []): Response
+    {
+        [$orgId, $back] = $this->vendorScope();
+        if ($orgId < 1) {
+            $_SESSION['flash_error'] = 'Only an account owner can change the catalogue.';
+            return $this->redirect($res, $back . '#catalogue');
+        }
+        $user = OrgAuth::user() ?? $this->accounts?->current();
+
+        $r = \AfricaGates\Services\VendorCatalogue::save(
+            $orgId, (int) ($args['id'] ?? 0), (array) $req->getParsedBody());
+
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = (string) $r['message'];
+
+        // A photograph is optional and arrives in the same submission, so a failed upload
+        // must not lose the line that saved perfectly well.
+        if ($r['ok'] && $this->uploads) {
+            $photo = $req->getUploadedFiles()['photo'] ?? null;
+            if ($photo && $photo->getError() !== UPLOAD_ERR_NO_FILE) {
+                try {
+                    $up = $this->uploads->uploadImage($photo, 'vendor-items', 1200, 80,
+                                                      (int) ($user->id ?? 0), 'vendor_item',
+                                                      (int) ($r['id'] ?? 0));
+                    // `local` and not `path`: with remote media configured `path` is a
+                    // Cloudinary URL, which OrgBrand::safePath() refuses on purpose — so
+                    // reading it first would make every logo upload silently attach nothing
+                    // on exactly the deployments that have media turned on.
+                    $path = \AfricaGates\Services\OrgBrand::pathFromUpload($up);
+                    if ($path !== '') {
+                        \AfricaGates\Services\VendorCatalogue::attachPhoto(
+                            $orgId, (int) ($r['id'] ?? 0), $path);
+                    }
+                } catch (\Throwable $e) {
+                    $_SESSION['flash_error'] = 'The item was saved, but the photograph '
+                        . 'did not upload — ' . $e->getMessage();
+                }
+            }
+        }
+
+        return $this->redirect($res, $back . '#catalogue');
+    }
+
+    public function deleteItem(Request $req, Response $res, array $args = []): Response
+    {
+        [$orgId, $back] = $this->vendorScope();
+        if ($orgId < 1) {
+            $_SESSION['flash_error'] = 'Only an account owner can change the catalogue.';
+            return $this->redirect($res, $back . '#catalogue');
+        }
+
+        $r = \AfricaGates\Services\VendorCatalogue::delete($orgId, (int) ($args['id'] ?? 0));
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = (string) $r['message'];
+        return $this->redirect($res, $back . '#catalogue');
+    }
+
+    /** In or out of the public list, without deleting the line. */
+    public function toggleItem(Request $req, Response $res, array $args = []): Response
+    {
+        [$orgId, $back] = $this->vendorScope();
+        if ($orgId < 1) {
+            $_SESSION['flash_error'] = 'Only an account owner can change the catalogue.';
+            return $this->redirect($res, $back . '#catalogue');
+        }
+
+        $b = (array) $req->getParsedBody();
+        $r = \AfricaGates\Services\VendorCatalogue::setAvailable(
+            $orgId, (int) ($args['id'] ?? 0), !empty($b['available']));
+
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = (string) $r['message'];
+        return $this->redirect($res, $back . '#catalogue');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // BRANDING
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * How this organisation's own donation page looks.
+     *
+     * We provide the donation service — the checkout, the settlement into their own account,
+     * the receipt, the refund path. What the page LOOKS like belongs to whoever is doing the
+     * asking, because giving is an act of trust in a specific organisation and not in
+     * whoever is processing the card.
+     */
+    public function saveBrand(Request $req, Response $res): Response
+    {
+        [$orgId, $back] = $this->vendorScope();
+        if ($orgId < 1) {
+            $_SESSION['flash_error'] = 'Only an account owner can change your page.';
+            return $this->redirect($res, $back . '#brand');
+        }
+        $user = OrgAuth::user() ?? $this->accounts?->current();
+
+        $r = \AfricaGates\Services\OrgBrand::save($orgId, (array) $req->getParsedBody());
+        $_SESSION[$r['ok'] ? 'flash_ok' : 'flash_error'] = (string) $r['message'];
+
+        if ($r['ok'] && $this->uploads) {
+            $logo = $req->getUploadedFiles()['logo'] ?? null;
+            if ($logo && $logo->getError() !== UPLOAD_ERR_NO_FILE) {
+                try {
+                    $up = $this->uploads->uploadImage($logo, 'org-brand', 600, 88,
+                                                      (int) ($user->id ?? 0), 'partner_org', $orgId);
+                    $path = \AfricaGates\Services\OrgBrand::pathFromUpload($up);
+                    if ($path !== '') \AfricaGates\Services\OrgBrand::attach($orgId, $path);
+                } catch (\Throwable $e) {
+                    $_SESSION['flash_error'] = 'Your page was saved, but the logo did not '
+                        . 'upload — ' . $e->getMessage();
+                }
+            }
+        }
+
+        return $this->redirect($res, $back . '#brand');
+    }
+
     public function uploadDocument(Request $req, Response $res): Response
     {
         $user = $this->requireUser();

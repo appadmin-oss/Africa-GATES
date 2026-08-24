@@ -244,10 +244,25 @@ final class StandNotice
             'offer_hours' => StandApplication::OFFER_HOURS,
             'expires_at'  => !empty($app->offer_expires_at)
                 ? date('j F Y, g:ia', strtotime((string) $app->offer_expires_at)) : '',
-            // The dashboard, in both cases. The accept button lives there — a one-click
-            // accept link in an email would be a state change from a GET, and a mail scanner
-            // prefetching it would accept a pitch on somebody's behalf.
-            'link'            => $site . '/org',
+            // ── THE OFFER'S OWN LINK, AND WHY IT IS NOT THE DASHBOARD ───────
+            //
+            // This used to be `/org` for every outcome, which is right for a rejection and
+            // wrong for an offer: it sends a market trader who applied six weeks ago from a
+            // phone to a sign-in form for a password they do not remember, inside a two-day
+            // clock. The most likely outcome of a successful application was losing the
+            // place while trying to get in and read about it.
+            //
+            // The token link opens the offer itself, with the fee, the deadline, the trading
+            // terms and the accept button on one page. It is still not a one-click accept:
+            // accepting is a POST from that page, because a GET that changes state is a
+            // pitch accepted by whichever corporate mail filter prefetched the link.
+            //
+            // Falls back to the dashboard when there is no token — a decision recorded
+            // before this shipped, or a stamp that failed.
+            'link'            => $kind === 'offered' && StandFee::url($site, $app) !== ''
+                                    ? StandFee::url($site, $app)
+                                    : $site . '/org',
+            'terms_url'       => $site . '/' . StandFee::TERMS_SLUG,
             'price'           => $price > 0 ? $naira($price) : '',
             'deposit'         => $deposit > 0 ? $naira($deposit) : '',
             'site_url'        => $site,
@@ -312,12 +327,16 @@ final class StandNotice
                 . "was made, which was one of the published terms of the call. It is not yours "
                 . "until you accept it. If the time runs out the place goes to the next "
                 . "applicant on the waiting list.\n\n"
-                . "Accept it on your dashboard: " . $vars['link'] . "\n"
+                . "Accept it here: " . $vars['link'] . "\n"
                 . ($vars['price'] !== ''
                     ? "\nThe pitch fee is " . $vars['price']
                       . ($vars['deposit'] !== '' ? ', of which ' . $vars['deposit'] . ' is due on acceptance' : '')
-                      . ". This is the price published with the call.\n"
-                    : ''),
+                      . ". This is the price published with the call, and you can pay it on "
+                      . "that same page once you have accepted.\n"
+                    : '')
+                . "\nAccepting means agreeing to the trading terms — insurance, cancellation, "
+                . "what you may sell, and when the fee can be refunded:\n  "
+                . ($vars['terms_url'] ?? '') . "\n",
             'rejected' => "We are not able to offer you a pitch at {$where} this time.\n\n"
                 . "You applied for {$what}. You are owed the actual reason rather than a form "
                 . "of words, so here it is as the panel wrote it:\n\n"

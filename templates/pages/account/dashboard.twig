@@ -351,6 +351,10 @@
   .me-field{ display:block; margin-top:14px; }
   .me-field > span{ display:block; font-size:12.5px; font-weight:600; color:var(--me-mute);
     margin-bottom:5px; }
+  /* The same label, for a <label> that is not inside a .me-field wrapper. Identical rule
+     rather than a second style: two label treatments on one page is one too many. */
+  .me-lab{ display:block; font-size:12.5px; font-weight:600; color:var(--me-mute);
+    margin-bottom:5px; }
   .me-in{ width:100%; box-sizing:border-box; min-height:44px; padding:11px 13px;
     font:400 15px/1.3 inherit; color:var(--me-ink); background:var(--me-panel);
     border:1px solid var(--me-line-2); border-radius:var(--me-r-sm); }
@@ -436,17 +440,24 @@
        script only stops the jump and swaps the attribute. `aria-selected` is
        written server-side for the default so a reader is never told nothing. #}
     <nav class="me-rail" id="meRail" aria-label="Your account">
+    {# `on` gates a row. "Your stall" appears only for a member linked to a vendor account:
+       a rail entry for a section that is not rendered is a door onto nothing. Its count is
+       the number with a deadline attached — an unaccepted offer is released. A Twig comment
+       cannot sit INSIDE the array literal below; it closes the brace. #}
       {% set rail = [
         {'id':'overview',  'label':'Overview',  'ico':'overview', 'n':null},
         {'id':'points',    'label':'Points',    'ico':'points',   'n':counts.points|default(0)},
         {'id':'referral',  'label':'Referrals', 'ico':'refer',    'n':referral.referrals|default(0)},
         {'id':'purchases', 'label':'Purchases', 'ico':'bag',      'n':counts.purchases|default(0)},
+        {'id':'vendor',    'label':'Your stall', 'ico':'stand',
+         'n':(vendor ? (vendor.live_offers|length ?: (vendor.applications|length ?: null)) : null),
+         'on':(vendor is not null)},
         {'id':'activity',  'label':'Activity',  'ico':'activity', 'n':counts.activity|default(0)},
         {'id':'saved',     'label':'Saved',     'ico':'saved',    'n':counts.saved|default(0)},
         {'id':'settings',  'label':'Settings',  'ico':'settings', 'n':null}
       ] %}
       {% for r in rail %}
-        {% if r.id != 'saved' or r.n > 0 %}
+        {% if (r.on is not defined or r.on) and (r.id != 'saved' or r.n > 0) %}
         <a class="me-rail__i" href="#me-{{ r.id }}" data-me-go="{{ r.id }}"
            {# Not hardcoded to overview: the hash decides, and the server cannot see it.
               paint() sets this on load; the CSS above carries the visual meanwhile. #}
@@ -809,6 +820,239 @@
       </section>
 
       {# ══ PURCHASES ═════════════════════════════════════════════════════ #}
+      {# ══ YOUR STALL ══════════════════════════════════════════════════════
+           A registered vendor, managed from the page a trader actually opens.
+
+           /org was built for a DONATION PARTNER — confirmed-gift totals, appeals, payout
+           schedules, settlement accounts — and a stand vendor has none of it and never will:
+           they PAY for a pitch rather than receiving anything through it. What is left over
+           there is a console a market trader has to remember a second password for.
+
+           Rendered only when this member's VERIFIED address matches an active org user. See
+           VendorAccount, where that verification is load-bearing and not decorative: a
+           vendor account holds a settlement account, registration certificates and the power
+           to accept a charge. #}
+      {% if vendor %}
+      <section class="me-sec" id="me-vendor" aria-labelledby="me-vendor-h">
+        <div class="me-sec__h"><h2 id="me-vendor-h">Your stall</h2></div>
+        <p class="me-sec__lead">{{ vendor.org.name }} — your applications, what you owe, and
+          what you sell. Everything here is the same account as the partner console; you do
+          not need a second sign-in.</p>
+
+        {% if not vendor.is_owner %}
+          <div class="me-panel"><p class="me-panel__s" style="margin:0">You have view-only
+            access to this account, so you can read everything here and change nothing. The
+            account owner can change the catalogue and accept offers.</p></div>
+        {% endif %}
+
+        {# ── THE ONE THING WITH A DEADLINE ───────────────────────────────
+             An unaccepted offer is released to the waiting list. Before the offer email
+             carried its own link, the only way to find that out was to notice the pitch had
+             gone — so this sits at the top of the section, above everything that can wait. #}
+        {% if vendor.live_offers %}
+        <div class="me-panel" style="border-color:#ecd9a0;background:#fffdf5">
+          <p class="me-panel__h">{{ vendor.live_offers|length == 1 ? 'You have been offered a stand'
+                                                                   : 'You have ' ~ vendor.live_offers|length ~ ' stand offers' }}</p>
+          <p class="me-panel__s">Accept before the deadline or the place goes to the next
+            applicant on the list.</p>
+          <ul class="me-list">
+            {% for a in vendor.live_offers %}
+            <li class="me-row">
+              <div class="me-row__b">
+                <div class="me-row__t">{{ a.event ? a.event.title : 'An event' }}</div>
+                <div class="me-row__m">{{ a.type ? a.type.name : 'A stand' }}{% if a.owing.fee > 0 %}
+                  · ₦{{ a.owing.fee|number_format }}{% endif %}{% if a.expires_at %}
+                  · accept by {{ a.expires_at|date('j M, g:ia') }}{% endif %}</div>
+              </div>
+              <div class="me-row__r">
+                {% if a.token %}
+                  <a class="me-btn me-btn--go" href="/stand/{{ a.token }}">Open the offer</a>
+                {% else %}
+                  {# No token: a decision recorded before the link existed. The partner
+                     console still has the accept button, so say where it is rather than
+                     rendering a control that goes nowhere. #}
+                  <a class="me-btn" href="/org">Accept in the partner console</a>
+                {% endif %}
+              </div>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+
+        {# ── WHAT IS OWED ────────────────────────────────────────────────── #}
+        {% if vendor.owed > 0 %}
+        <div class="me-panel">
+          <p class="me-panel__h">₦{{ vendor.owed|number_format }} to pay</p>
+          <p class="me-panel__s">A stand is confirmed once the amount due has been paid. An
+            organiser may release an unpaid pitch, and will tell you before doing so.</p>
+        </div>
+        {% endif %}
+
+        {# ── WHAT IS MISSING ─────────────────────────────────────────────
+             The reason an application sits unread, said in the vendor's own words. It was
+             only ever visible on the other dashboard. #}
+        {% if vendor.missing_docs %}
+        <div class="me-panel" style="border-color:#f0c9c9;background:#fdf3f3">
+          <p class="me-panel__h">Your account is not complete yet</p>
+          <p class="me-panel__s">Applications are ranked by when they became complete, so
+            this is worth doing today. Still needed:</p>
+          <ul style="margin:9px 0 0;padding-left:20px;font-size:13.5px;line-height:1.8;color:#8a2020">
+            {% for m in vendor.missing_docs %}<li>{{ m }}</li>{% endfor %}
+          </ul>
+          <p style="margin:12px 0 0"><a class="me-btn" href="/org#documents">Upload them</a></p>
+        </div>
+        {% endif %}
+
+        {# ── EVERY APPLICATION ───────────────────────────────────────────── #}
+        {% if vendor.applications %}
+        <div class="me-panel">
+          <p class="me-panel__h">Your applications</p>
+          <ul class="me-list">
+            {% for a in vendor.applications %}
+            {% set badge = {
+              'pending':    ['wait', 'Being read'],
+              'offered':    ['wait', 'Offered'],
+              'accepted':   ['ok',   'Yours'],
+              'rejected':   ['',     'Not this time'],
+              'waitlisted': ['wait', 'On the waiting list'],
+              'expired':    ['',     'Offer ran out']
+            }[a.app.decision]|default(['', a.app.decision|capitalize]) %}
+            <li class="me-row" data-find="{{ a.event ? a.event.title : '' }} stand">
+              <div class="me-row__b">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span class="me-row__t">{{ a.event ? a.event.title : 'An event' }}</span>
+                  <span class="me-tag {{ badge[0] ? 'me-tag--' ~ badge[0] : '' }}">{{ badge[1] }}</span>
+                </div>
+                <div class="me-row__m">
+                  {{ a.type ? a.type.name : 'A stand' }}{% if a.owing.fee > 0 %} · {{ a.owing.label }}{% endif %}
+                </div>
+                {# The reason, quoted rather than paraphrased. An applicant told
+                   "unsuccessful" cannot tell whether they failed a rule or a taste. #}
+                {% if a.app.decision == 'rejected' and a.app.decision_reason %}
+                  <div class="me-row__m" style="margin-top:5px;font-style:italic">“{{ a.app.decision_reason }}”</div>
+                {% endif %}
+              </div>
+              {% if a.token %}
+                <div class="me-row__r"><a class="me-btn" href="/stand/{{ a.token }}">Open</a></div>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% else %}
+        <div class="me-panel"><div class="me-empty">
+          <span class="me-empty__i">{{ gi.sec('stand', 24) }}</span>
+          <h3>No stand applications yet</h3>
+          <p>When an event opens its call for stands, the terms go up first — the prices, the
+            quotas and the closing date — and anybody can apply.</p>
+          <a class="me-btn" href="/events">See what is coming up {{ gi.ui('go', 15) }}</a>
+        </div></div>
+        {% endif %}
+
+        {# ══ THE CATALOGUE ═══════════════════════════════════════════════
+             What this vendor sells, as rows rather than as the one free-text paragraph on a
+             frozen application form. That paragraph is still the record of what they said
+             when they applied; this is what they sell NOW — and it is what makes "this is a
+             food trader" a fact the category quota can count rather than a reading somebody
+             has to make by eye across forty applications. #}
+        <div class="me-panel" id="catalogue">
+          <p class="me-panel__h">What you sell</p>
+          <p class="me-panel__s">Visitors see this on the event page, and an organiser
+            allocating against category quotas can count it. Up to {{ vendor_max }} items.
+            {% if vendor.lead_cat %}Mostly
+              <strong>{{ vendor_cats[vendor.lead_cat]|default(vendor.lead_cat) }}</strong>
+              at the moment — that is a count of what you have listed, not a decision anybody
+              has made.{% endif %}</p>
+
+          {% if vendor.items %}
+          <ul class="me-list">
+            {% for i in vendor.items %}
+            <li class="me-row" data-find="{{ i.name }} {{ i.category|default('') }}">
+              <div class="me-row__b">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span class="me-row__t">{{ i.name }}</span>
+                  {% if not i.is_available %}<span class="me-tag">Not on the list</span>{% endif %}
+                </div>
+                <div class="me-row__m">
+                  {% if i.category %}{{ vendor_cats[i.category]|default(i.category) }} · {% endif %}
+                  {% if i.price_naira %}₦{{ i.price_naira|number_format }}{% elseif i.price_note %}{{ i.price_note }}{% else %}Ask at the stand{% endif %}
+                </div>
+                {% if i.description %}<div class="me-row__m" style="margin-top:4px">{{ i.description }}</div>{% endif %}
+              </div>
+              {% if vendor.is_owner %}
+              <div class="me-row__r" style="display:flex;gap:6px;flex-wrap:wrap">
+                <form method="post" action="/org/item/{{ i.id }}/show">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  {% if i.is_available %}
+                    <button class="me-btn me-btn--quiet" type="submit">Mark unavailable</button>
+                  {% else %}
+                    <input type="hidden" name="available" value="1">
+                    <button class="me-btn" type="submit">Put it back</button>
+                  {% endif %}
+                </form>
+                <form method="post" action="/org/item/{{ i.id }}/delete">
+                  <input type="hidden" name="_token" value="{{ csrf_token }}">
+                  <button class="me-btn me-btn--quiet" type="submit">Remove</button>
+                </form>
+              </div>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+            <p class="me-panel__s" style="margin-top:10px">Nothing listed yet. One line per
+              thing you sell is enough — a name and a price.</p>
+          {% endif %}
+
+          {% if vendor.is_owner %}
+          <details style="margin-top:14px">
+            <summary class="me-btn" style="cursor:pointer">Add an item</summary>
+            <form method="post" action="/org/item" enctype="multipart/form-data"
+                  style="margin-top:12px;display:grid;gap:10px">
+              <input type="hidden" name="_token" value="{{ csrf_token }}">
+              <div>
+                <label class="me-lab" for="viName">What is it</label>
+                <input class="me-in" id="viName" name="name" type="text" required
+                       maxlength="160" placeholder="Jollof rice, one plate">
+              </div>
+              <div>
+                <label class="me-lab" for="viCat">Category</label>
+                <select class="me-in" id="viCat" name="category">
+                  <option value="">Not saying</option>
+                  {% for k, label in vendor_cats %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+                </select>
+              </div>
+              <div>
+                <label class="me-lab" for="viPrice">Price in naira</label>
+                {# Optional, and it says so. A column that defaulted to zero would print
+                   "Free" beside a bag of rice for everybody who had not decided yet. #}
+                <input class="me-in" id="viPrice" name="price_naira" type="text"
+                       inputmode="numeric" placeholder="Leave empty if you would rather not say">
+              </div>
+              <div>
+                <label class="me-lab" for="viNote">A note beside the price</label>
+                <input class="me-in" id="viNote" name="price_note" type="text" maxlength="80"
+                       placeholder="per plate, from, negotiable…">
+              </div>
+              <div>
+                <label class="me-lab" for="viDesc">Anything else worth saying</label>
+                <textarea class="me-in" id="viDesc" name="description" rows="2"
+                          maxlength="600"></textarea>
+              </div>
+              <div>
+                <label class="me-lab" for="viPhoto">A photograph</label>
+                <input class="me-in" id="viPhoto" name="photo" type="file"
+                       accept=".jpg,.jpeg,.png,.webp">
+              </div>
+              <div><button class="me-btn me-btn--go" type="submit">Add it</button></div>
+            </form>
+          </details>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
       <section class="me-sec" id="me-purchases" aria-labelledby="me-purchases-h">
         <div class="me-sec__h"><h2 id="me-purchases-h">Purchases</h2></div>
         <p class="me-sec__lead">What you have bought and where each one has got to — so

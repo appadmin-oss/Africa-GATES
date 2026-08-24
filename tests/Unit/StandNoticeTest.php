@@ -227,9 +227,52 @@ final class StandNoticeTest extends TestCase
 
         $text = StandNotice::plain($v);
         $this->assertStringContainsString($v['expires_at'], $text);
-        // The link as text too. A client that mangles the button must not be the thing that
-        // costs somebody a pitch.
-        $this->assertStringContainsString('https://example.test/org', $text);
+
+        // ── THE LINK IS THE OFFER, NOT THE DASHBOARD ────────────────────────
+        //
+        // It used to be `/org` for every outcome. Right for a rejection, wrong for an offer:
+        // it sends a market trader who applied six weeks ago from a phone to a sign-in form
+        // for a password they do not remember, inside a two-day clock — so the most likely
+        // outcome of a successful application was losing the place while trying to get in
+        // and read about it.
+        $this->assertMatchesRegularExpression('~https://example\.test/stand/[a-f0-9]{48}~',
+            (string) $v['link'], 'the offer email still points at the sign-in form');
+
+        // As text as well. A client that mangles the button must not be the thing that costs
+        // somebody a pitch.
+        $this->assertStringContainsString((string) $v['link'], $text);
+
+        // And the terms, before the button rather than after it.
+        $this->assertStringContainsString('https://example.test/vendor-terms', $text);
+        $this->assertStringContainsString('trading terms', $text);
+    }
+
+    /**
+     * The link is NOT a one-click accept, and the accept route is not a GET.
+     *
+     * A GET that changes state is a pitch accepted by whichever corporate mail filter
+     * prefetched the link — which is not hypothetical, it is what they do all day.
+     */
+    public function test_the_offer_link_cannot_accept_anything_by_being_fetched(): void
+    {
+        $routes = (string) file_get_contents(dirname(__DIR__, 2) . '/src/routes.php');
+
+        $this->assertMatchesRegularExpression(
+            "~\\\$g->post\('/stand/\{token:\[a-f0-9\]\{48\}\}/accept'~", $routes,
+            'accepting a stand must be a POST');
+        $this->assertDoesNotMatchRegularExpression(
+            "~\\\$g->get\s*\('/stand/\{token:\[a-f0-9\]\{48\}\}/accept'~", $routes,
+            'a GET accept URL is a pitch accepted by a mail scanner');
+    }
+
+    /** A rejection still goes to the dashboard — there is no offer for it to open. */
+    public function test_a_rejection_still_links_to_the_dashboard(): void
+    {
+        $f = $this->applied();
+        StandApplication::decide($f['app_id'], 'rejected', 1, 'Two others scored higher.');
+
+        $this->assertSame('https://example.test/org',
+                          (string) $this->vars($f['app_id'], 'rejected')['link']);
     }
 
     public function test_the_rejection_quotes_the_panel_rather_than_paraphrasing_it(): void
