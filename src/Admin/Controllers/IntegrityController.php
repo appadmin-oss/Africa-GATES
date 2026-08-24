@@ -92,8 +92,16 @@ final class IntegrityController
     private function cycles(): array
     {
         try {
-            $rows = DB::table('gates_award_cycles as c')
-                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'c.programme_id')
+            $q = DB::table('gates_award_cycles as c')
+                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'c.programme_id');
+
+            // The sandbox is not one of the cycles this page is about — and it would be
+            // the DEFAULT one. The picker sorts `judging` first and newest id first, and
+            // the practice cycle is both, so on a fresh install the integrity page opened
+            // on the rehearsal and reported it as the platform's panel.
+            \AfricaGates\Services\DemoSeeder::notSandbox($q, 'c.programme_id');
+
+            $rows = $q
                 ->orderByRaw("CASE c.status WHEN 'judging' THEN 0 WHEN 'results' THEN 1 "
                            . "WHEN 'shortlisting' THEN 2 ELSE 3 END")
                 ->orderByDesc('c.id')

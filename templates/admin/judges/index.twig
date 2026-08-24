@@ -25,14 +25,14 @@
   {% endif %}
   <div class="ad-table-wrap">
     <table class="ad-table">
-      <thead><tr><th scope="col">Judge</th><th scope="col">Nominee</th><th scope="col">Score</th><th scope="col">Panel mean</th><th scope="col">Gap</th><th scope="col">σ (z)</th><th scope="col">Panel</th></tr></thead>
+      <thead><tr><th scope="col">Judge</th><th scope="col">Nominee</th><th scope="col">Score</th><th scope="col">Panel median</th><th scope="col">Gap</th><th scope="col">σ (z)</th><th scope="col">Panel</th></tr></thead>
       <tbody>
         {% for f in anomalies.flags %}
         <tr>
           <td>{{ f.judge }}</td>
           <td>{{ f.nominee }}</td>
           <td style="font-family:'Space Mono',monospace">{{ f.score }}</td>
-          <td style="font-family:'Space Mono',monospace">{{ f.panel_mean }}</td>
+          <td style="font-family:'Space Mono',monospace">{{ f.panel_centre }}</td>
           <td><span class="ad-chip ad-chip--{{ f.direction == 'harsh' ? 'red' : 'gold' }}">{{ f.deviation > 0 ? '+' : '' }}{{ f.deviation }} {{ f.direction }}</span></td>
           <td style="font-family:'Space Mono',monospace">{{ f.z }}</td>
           <td>{{ f.panel }} judges</td>

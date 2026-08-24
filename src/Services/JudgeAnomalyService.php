@@ -26,12 +26,24 @@ final class JudgeAnomalyService
 {
     /** A panel needs at least this many complete scorecards before an outlier is meaningful. */
     public const MIN_PANEL = 3;
-    /** Flag at/above this many standard deviations from the panel mean… */
+    /** Flag at/above this many standard deviations from the REST of the panel… */
     public const Z_THRESHOLD = 2.0;
     /** …but only if the gap is also at least this many points (0–10), so a tight panel isn't over-flagged… */
     public const MIN_DEVIATION = 1.5;
     /** …or flag regardless of spread when the raw gap is this large. */
     public const ABS_DEVIATION = 3.0;
+
+    /**
+     * The smallest spread a panel is credited with.
+     *
+     * Three judges whose weighted averages land on exactly the same quarter-point —
+     * ordinary with four criteria and integer marks — have a spread of zero, and every
+     * gap from them would then be infinitely many sigmas. The floor is DERIVED, not
+     * picked: at MIN_DEVIATION / Z_THRESHOLD, a panel in perfect agreement flags at
+     * exactly MIN_DEVIATION and never below it, so the sigma test can never be more
+     * eager than the points test it exists to qualify.
+     */
+    public const MIN_PANEL_SPREAD = self::MIN_DEVIATION / self::Z_THRESHOLD;
 
     public function __construct(private readonly NomineeScoringService $scoring = new NomineeScoringService()) {}
 
@@ -47,9 +59,16 @@ final class JudgeAnomalyService
         try {
             $q = DB::table('gates_nominees as n')
                 ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
                 ->where('c.cycle_id', $cycleId)
                 ->whereIn('n.status', ['approved', 'winner', 'runner_up']);
             MergeService::notMerged($q, 'n.merged_into');
+            // A rehearsal is not evidence about anybody. The practice cycle carries
+            // `status = 'judging'` so a real judge can sit a practice ballot, and the marks
+            // they leave there are real rows against demo nominees — which would otherwise
+            // name a real person as an outlier on a panel that was explicitly told nothing
+            // it did would count.
+            DemoSeeder::notSandbox($q, 'cy.programme_id');
             $ids = $q->pluck('n.id')->map(fn($i) => (int) $i)->all();
         } catch (\Throwable) {}
         if (!$ids) return ['flags' => [], 'judges' => [], 'nominees_scanned' => 0];
@@ -91,7 +110,9 @@ final class JudgeAnomalyService
     {
         $flags = []; $scanned = 0;
         try {
-            $cycleIds = DB::table('gates_award_cycles')->whereIn('status', ['judging', 'results'])->pluck('id');
+            $q = DB::table('gates_award_cycles')->whereIn('status', ['judging', 'results']);
+            DemoSeeder::notSandbox($q, 'programme_id');
+            $cycleIds = $q->pluck('id');
             foreach ($cycleIds as $cid) {
                 $r = $this->forCycle((int) $cid);
                 $flags = array_merge($flags, $r['flags']);
@@ -113,14 +134,39 @@ final class JudgeAnomalyService
 
     /**
      * Pure statistics: given each nominee's panel of complete-scorecard averages
-     * (judgeId => 0–10), return the outlier flags. A judge is flagged for a
-     * nominee when the panel has ≥ MIN_PANEL judges and the judge's score is
-     * either ≥ ABS_DEVIATION points from the panel mean, or ≥ Z_THRESHOLD
-     * standard deviations away AND at least MIN_DEVIATION points away (so a very
-     * tight panel doesn't flag trivial gaps).
+     * (judgeId => 0–10), return the outlier flags. A judge is flagged for a nominee
+     * when the panel has ≥ MIN_PANEL judges and the judge's score is either
+     * ≥ ABS_DEVIATION points from the panel's centre, or ≥ Z_THRESHOLD spreads away
+     * AND at least MIN_DEVIATION points away (so a very tight panel doesn't flag
+     * trivial gaps).
+     *
+     * ── WHY MEDIAN AND MAD AND NOT MEAN AND STANDARD DEVIATION ───────────────
+     *
+     * This measured each judge against the mean and population standard deviation of a
+     * panel that INCLUDED them, and the sigma test was mathematically dead as a result.
+     * The largest z any one of n values can reach that way is √(n−1): 1.41 on a panel of
+     * three, 1.73 on four, and exactly 2.0 on five only in the degenerate case where the
+     * other four agree to the decimal. Z_THRESHOLD is 2.0 and `min_judges_per_nominee`
+     * defaults to 2, so on every panel this platform actually convenes the branch could
+     * not fire. Only the blunt ABS_DEVIATION ≥ 3.0 points test was ever running, and a
+     * judge 2.5 points out of step with a panel otherwise agreeing to a tenth went unseen.
+     *
+     * The cause is that a lone dissenter drags the mean toward themselves — by a third on
+     * a panel of three — while simultaneously inflating the spread they are measured
+     * against. Both effects shrink z. Comparing against the OTHER judges fixes that and
+     * breaks something worse: on [9, 9, 3], each 9 is measured against a mean of 6 and
+     * gets flagged too, so one dissenting judge makes the whole panel look anomalous.
+     *
+     * The median and the median absolute deviation have neither problem, which is what
+     * robust statistics are for: a single extreme value cannot move the centre a panel is
+     * judged against, and it cannot inflate the scale either. On [9, 9, 3] the centre is
+     * 9, the two agreeing judges sit exactly on it, and only the 3 is flagged.
+     *
+     * `panel_centre` and `deviation` are the median and the gap from it. `panel` is the
+     * full count, which is what a reader needs to know how much weight the flag deserves.
      *
      * @param array<int, array<int,float>> $panelsByNominee nomineeId => [judgeId => avg]
-     * @return list<array{judge_id:int,nominee_id:int,score:float,panel_mean:float,deviation:float,z:float,direction:string,panel:int}>
+     * @return list<array{judge_id:int,nominee_id:int,score:float,panel_centre:float,deviation:float,z:float,direction:string,panel:int}>
      */
     public static function detect(array $panelsByNominee, ?float $z = null, ?float $absFloor = null): array
     {
@@ -132,28 +178,44 @@ final class JudgeAnomalyService
             $n = count($panel);
             if ($n < self::MIN_PANEL) continue;
 
-            $mean = array_sum($panel) / $n;
-            $var  = 0.0;
-            foreach ($panel as $v) { $var += ($v - $mean) ** 2; }
-            $sd = sqrt($var / $n);   // population stddev
+            $centre = self::median(array_values($panel));
+
+            // Median absolute deviation — the robust counterpart of the standard
+            // deviation, and floored for the same reason a spread of zero cannot be
+            // divided by.
+            $spread = max(
+                self::median(array_map(static fn(float $v): float => abs($v - $centre), array_values($panel))),
+                self::MIN_PANEL_SPREAD
+            );
 
             foreach ($panel as $judgeId => $score) {
-                $dev = abs($score - $mean);
-                $zs  = $sd > 0 ? $dev / $sd : 0.0;
+                $dev = abs($score - $centre);
+                $zs  = $dev / $spread;
+
                 $isOutlier = ($dev >= $abs) || ($zs >= $zt && $dev >= self::MIN_DEVIATION);
                 if (!$isOutlier) continue;
                 $flags[] = [
-                    'judge_id'   => (int) $judgeId,
-                    'nominee_id' => (int) $nomineeId,
-                    'score'      => round((float) $score, 2),
-                    'panel_mean' => round($mean, 2),
-                    'deviation'  => round($score - $mean, 2),
-                    'z'          => round($zs, 2),
-                    'direction'  => $score < $mean ? 'harsh' : 'generous',
-                    'panel'      => $n,
+                    'judge_id'     => (int) $judgeId,
+                    'nominee_id'   => (int) $nomineeId,
+                    'score'        => round((float) $score, 2),
+                    'panel_centre' => round($centre, 2),
+                    'deviation'    => round($score - $centre, 2),
+                    'z'            => round($zs, 2),
+                    'direction'    => $score < $centre ? 'harsh' : 'generous',
+                    'panel'        => $n,
                 ];
             }
         }
         return $flags;
+    }
+
+    /** @param list<float> $v */
+    private static function median(array $v): float
+    {
+        sort($v);
+        $n = count($v);
+        if ($n === 0) return 0.0;
+        $mid = intdiv($n, 2);
+        return $n % 2 === 1 ? (float) $v[$mid] : ((float) $v[$mid - 1] + (float) $v[$mid]) / 2;
     }
 }

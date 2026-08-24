@@ -380,12 +380,19 @@ final class JudgeBiasService
             $rows = DB::table('gates_judge_criteria_scores as s')
                 ->join('gates_nominees as n', 'n.id', '=', 's.nominee_id')
                 ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
                 ->join('gates_judges as j', 'j.id', '=', 's.judge_id')
                 ->leftJoin('gates_judge_criteria as k', 'k.id', '=', 's.criterion_id')
                 ->where('c.cycle_id', $cycleId)
                 // A merge tombstone still holds its old scores; counting them would
                 // double-weight whoever the nominee was merged into.
                 ->whereNull('n.merged_into')
+                // And the sandbox is not a panel. A real judge's practice ballot writes
+                // real scores against demo nominees; measuring a lean from them would name
+                // somebody on the strength of a rehearsal.
+                ->where(static function ($w): void {
+                    DemoSeeder::notSandbox($w, 'cy.programme_id');
+                })
                 ->get([
                     's.judge_id', 's.nominee_id', 's.criterion_id', 's.score',
                     'j.name as judge_name',

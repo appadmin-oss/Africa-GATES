@@ -38,6 +38,73 @@ class JudgeAnomalyServiceTest extends TestCase
         $this->assertSame(5, $flags[0]['judge_id']);
     }
 
+    /**
+     * The sigma test fires on a panel of three — which it could not do at all until
+     * the centre stopped being a mean that included the judge being tested.
+     *
+     * With the mean and the population standard deviation, the largest z any one of n
+     * values can reach is √(n−1) — 1.41 on a panel of three. The threshold is 2.0, so
+     * for every panel size this platform actually convenes (`min_judges_per_nominee`
+     * defaults to 2) the branch was unreachable and only the blunt 3-points test ran.
+     * A judge 1.8 points out of step with two who agreed exactly was invisible.
+     */
+    public function test_a_moderate_gap_on_a_panel_of_three_is_flagged(): void
+    {
+        $flags = JudgeAnomalyService::detect([1 => [1 => 8.0, 2 => 8.0, 3 => 6.2]]);
+
+        $this->assertCount(1, $flags, 'the sigma test is unreachable on a small panel again');
+        $this->assertSame(3, $flags[0]['judge_id']);
+        $this->assertSame(8.0, $flags[0]['panel_centre']);
+        $this->assertSame(-1.8, $flags[0]['deviation']);
+        $this->assertSame('harsh', $flags[0]['direction']);
+        $this->assertLessThan(JudgeAnomalyService::ABS_DEVIATION, abs($flags[0]['deviation']),
+            'this must be the sigma branch — an absolute gap that large proves nothing');
+    }
+
+    /**
+     * …and the gap has to be a real one. A perfectly agreeing panel has no spread at
+     * all, so without a floor every difference from it is infinitely many sigmas.
+     */
+    public function test_a_small_gap_on_a_perfectly_agreeing_panel_is_not_flagged(): void
+    {
+        $this->assertSame([], JudgeAnomalyService::detect([1 => [1 => 8.0, 2 => 8.0, 3 => 6.8]]),
+            '1.2 points is under MIN_DEVIATION and a zero spread must not manufacture significance');
+    }
+
+    /**
+     * One dissenter does not make the judges who agree look like dissenters.
+     *
+     * This is why the centre is the median and not the mean of the others: measured
+     * against everyone-but-me, each 9 on [9, 9, 3] sits 3 points from a mean of 6 and
+     * trips the absolute test, so a single harsh judge would flag the entire panel and
+     * the rollup — whose whole purpose is to show WHICH judge is out of step — would
+     * name all three equally.
+     */
+    public function test_one_outlier_does_not_flag_the_judges_who_agree(): void
+    {
+        $flags = JudgeAnomalyService::detect([1 => [1 => 9.0, 2 => 9.0, 3 => 3.0]]);
+
+        $this->assertCount(1, $flags);
+        $this->assertSame(3, $flags[0]['judge_id']);
+    }
+
+    /**
+     * A panel split down the middle is a disagreement, not an outlier.
+     *
+     * Two judges at 3 and two at 8 is a category the panel does not agree about, and
+     * flagging all four says nothing a human can act on.
+     */
+    public function test_a_split_panel_is_not_an_outlier(): void
+    {
+        $this->assertSame([], JudgeAnomalyService::detect([1 => [1 => 3.0, 2 => 3.0, 3 => 8.0, 4 => 8.0]]));
+    }
+
+    /** A panel that simply spreads out is not four outliers either. */
+    public function test_an_evenly_spread_panel_is_not_flagged(): void
+    {
+        $this->assertSame([], JudgeAnomalyService::detect([1 => [1 => 6.0, 2 => 7.0, 3 => 8.0, 4 => 9.0]]));
+    }
+
     public function test_tight_panel_is_not_flagged(): void
     {
         // Everyone within a point — no outlier despite tiny spread.

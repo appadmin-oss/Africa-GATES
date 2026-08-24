@@ -793,6 +793,49 @@ final class DemoSeeder
     }
 
     /** Does a sandbox exist right now? */
+    /**
+     * The sandbox programme's id, or 0 when it has never been built.
+     *
+     * ── WHY ANYTHING NEEDS THIS ──────────────────────────────────────────────
+     *
+     * Containment holds for everything computed PER CATEGORY, which is nearly everything.
+     * It does not hold for a query that starts at `gates_award_cycles` and walks down —
+     * and the integrity scans do exactly that, because "which panels are being judged
+     * right now" is a question about cycles, not about one category.
+     *
+     * The practice cycle {@see seedPracticeCycle()} makes that concrete: it carries
+     * `status = 'judging'` deliberately, so a real judge can rehearse, and it is the
+     * NEWEST such cycle on a fresh install. A scan that enumerates judging cycles finds
+     * the rehearsal first.
+     *
+     * @see notSandbox() for the filter itself.
+     */
+    public static function programmeId(): int
+    {
+        try {
+            return (int) (DB::table('gates_award_programmes')
+                ->where('slug', self::PROGRAMME_SLUG)->value('id') ?? 0);
+        } catch (\Throwable) {
+            return 0;
+        }
+    }
+
+    /**
+     * Exclude the sandbox from a query that reaches cycles or programmes directly.
+     *
+     * Shaped like {@see MergeService::notMerged()} so it reads the same at the call site:
+     * one line, next to the other things a query has to be honest about.
+     *
+     * @param \Illuminate\Database\Query\Builder $q
+     * @param string $programmeColumn the qualified column holding a programme id
+     */
+    public static function notSandbox(object $q, string $programmeColumn): object
+    {
+        $pid = self::programmeId();
+        if ($pid > 0) $q->where($programmeColumn, '!=', $pid);
+        return $q;
+    }
+
     public static function exists(): bool
     {
         try {
