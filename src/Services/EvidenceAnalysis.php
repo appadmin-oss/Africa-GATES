@@ -467,8 +467,19 @@ final class EvidenceAnalysis
                 . 'the document actually is.';
 
         $cap = AiCapability::find(self::CAPABILITY);
+
+        // ── THE ADMIN'S WORDING HERE TOO ────────────────────────────────────
+        //
+        // This is the one capability that does NOT go through AiGateway — it talks to the
+        // Files API directly, because no other provider can receive an attachment — so it
+        // would otherwise be the one feature missing from the prompt editor, silently. A
+        // screen listing every AI feature and quietly not controlling one of them is worse
+        // than not listing it: somebody edits it, nothing changes, and they conclude the
+        // whole editor does nothing.
+        $sys = AiPrompt::effective(self::CAPABILITY, self::system());
+
         $out = $gemini->generate(
-            $model, self::system(), $prompt, $parts, self::schema(),
+            $model, $sys['body'], $prompt, $parts, self::schema(),
             $cap?->maxTokens ?? 1600
         );
 
@@ -478,6 +489,9 @@ final class EvidenceAnalysis
         AiGateway::record(self::CAPABILITY, $out['ok'] ? 'OK' : 'FAILED', [
             'tokens_in' => $out['tokens_in'], 'tokens_out' => $out['tokens_out'],
             'model' => $model, 'files' => count($parts),
+            // Which wording produced this reading, so a summary somebody disputes can be
+            // traced to the instruction behind it. 0 is the shipped one.
+            'prompt_version' => $sys['version'],
         ]);
 
         if (!$out['ok']) {

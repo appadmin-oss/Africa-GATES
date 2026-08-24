@@ -95,9 +95,23 @@ final class AiGateway
 
         $user = $this->assembleUser($cap, $input);
 
+        // ── THE ADMIN'S WORDING, IF THERE IS ONE ────────────────────────────
+        //
+        // One seam, here, so every capability inherits the prompt editor without any of
+        // them knowing it exists. `source` is 'code' when nobody has overridden it, which
+        // is the normal state — the shipped wording lives beside the parsing that depends
+        // on it and is never copied into a row.
+        //
+        // What this CANNOT reach is the point: assembleUser() above has already built the
+        // untrusted fence and stated the instruction hierarchy in the USER message, and no
+        // system prompt participates in that. So an edited prompt can make a capability
+        // answer badly — recoverable, visible in the log, and versioned — but it cannot
+        // move the injection boundary or make an advisory capability decide anything.
+        $prompt = AiPrompt::effective($cap->name, (string) $input['system']);
+
         try {
             $raw = $ai->complete(
-                (string) $input['system'],
+                $prompt['body'],
                 $user,
                 $cap->maxTokens,
                 (bool) ($input['json'] ?? false),
@@ -117,12 +131,14 @@ final class AiGateway
                 $cap->maxAttempts,
             );
         } catch (\Throwable $e) {
-            $this->log($capabilityName, $cap, 'PROVIDER_ERROR', $input, null, 0, 0, $t0, $e->getMessage());
+            $this->log($capabilityName, $cap, 'PROVIDER_ERROR', $input, null, 0, 0, $t0,
+                $e->getMessage(), null, null, $prompt['version']);
             return AiResult::failed('PROVIDER_ERROR', 'The AI provider did not answer.', $cap);
         }
 
         if (!is_string($raw) || trim($raw) === '') {
-            $this->log($capabilityName, $cap, 'EMPTY', $input, null, 0, 0, $t0);
+            $this->log($capabilityName, $cap, 'EMPTY', $input, null, 0, 0, $t0,
+                null, null, null, $prompt['version']);
             return AiResult::failed('EMPTY', 'The AI provider returned nothing.', $cap);
         }
 
@@ -135,7 +151,7 @@ final class AiGateway
             $value = ($input['schema'])($raw);
             if ($value === null) {
                 $this->log($capabilityName, $cap, 'SCHEMA_REJECTED', $input, null,
-                    $usage['in'], $usage['out'], $t0);
+                    $usage['in'], $usage['out'], $t0, null, null, null, $prompt['version']);
                 return AiResult::failed('SCHEMA_REJECTED', 'The AI reply did not match the expected shape.', $cap);
             }
         }
@@ -148,7 +164,7 @@ final class AiGateway
         $model    = $ai->lastModel()    ?? $ai->activeModel();
 
         $this->log($capabilityName, $cap, 'OK', $input, $value, $usage['in'], $usage['out'], $t0,
-            null, $provider, $model);
+            null, $provider, $model, $prompt['version']);
 
         return AiResult::ok($value, $cap, $provider, $model,
             $usage['in'], $usage['out'], (int) round((microtime(true) - $t0) * 1000));
@@ -279,6 +295,10 @@ final class AiGateway
                 'tokens_out'     => (int) ($meta['tokens_out'] ?? 0),
                 'latency_ms'     => (int) ($meta['latency_ms'] ?? 0),
                 'outcome'        => mb_substr($outcome, 0, 24),
+                // From the caller's meta here, because record() is the path used by
+                // capabilities that assemble their own request — the conversational ones and
+                // the file reader — and they know their own wording. 0 means the shipped one.
+                'prompt_version' => (int) ($meta['prompt_version'] ?? 0),
                 'error'          => isset($meta['error']) ? mb_substr((string) $meta['error'], 0, 300) : null,
                 'created_at'     => Carbon::now()->toDateTimeString(),
             ]);
@@ -359,6 +379,7 @@ final class AiGateway
         string $name, ?AiCapability $cap, string $outcome, array $input,
         mixed $value, int $tokensIn, int $tokensOut, float $t0,
         ?string $error = null, ?string $provider = null, ?string $model = null,
+        int $promptVersion = 0,
     ): void {
         try {
             DB::table('gates_ai_calls')->insert([
@@ -374,6 +395,10 @@ final class AiGateway
                 'tokens_out'     => $tokensOut,
                 'latency_ms'     => (int) round((microtime(true) - $t0) * 1000),
                 'outcome'        => mb_substr($outcome, 0, 24),
+                // 0 = the wording that ships with the code. Recorded so a call that went
+                // wrong can be traced to the instruction that produced it — a version
+                // history nobody can join to an outcome is a changelog, not a record.
+                'prompt_version' => $promptVersion,
                 'error'          => $error === null ? null : mb_substr($error, 0, 300),
                 'created_at'     => Carbon::now()->toDateTimeString(),
             ]);

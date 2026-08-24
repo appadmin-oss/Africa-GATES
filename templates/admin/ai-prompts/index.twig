@@ -1,0 +1,106 @@
+{% extends 'admin/layout.twig' %}
+
+{#
+  What the platform tells its models to do, and which of those instructions somebody here
+  has changed.
+
+  The list is driven off the capability registry rather than off the rows, deliberately: a
+  screen showing only the prompts somebody already edited is useless for finding the one
+  behaving badly, which is the reason anybody opens this page.
+#}
+
+{% block head_styles %}
+<style nonce="{{ csp_nonce }}">
+  .ap-lede{ background:#fff; border:1px solid rgba(16,41,44,.1); border-radius:14px;
+    padding:18px 20px; margin-bottom:16px }
+  .ap-lede h2{ margin:0 0 8px; font-size:14.5px; color:#10292C }
+  .ap-lede p{ margin:8px 0 0; font-size:12.5px; line-height:1.7; color:#5a6d6f; max-width:76ch }
+  .ap-lede strong{ color:#10292C }
+  .ap-tag{ font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+    padding:3px 8px; border-radius:999px; background:rgba(16,41,44,.07); color:#3d4b4d }
+  .ap-tag--on{ background:#eaf7ea; color:#1c5f1b }
+  .ap-mut{ font-size:12px; color:#5a6d6f; line-height:1.55 }
+</style>
+{% endblock %}
+
+{% block topbar_title %}AI instructions{% endblock %}
+
+{% block content %}
+
+{# ── SAID FIRST, AND PLAINLY ───────────────────────────────────────────────
+   The request behind this screen was "let me train the AI". Somebody who believes
+   they are training a model will make a real decision on that belief and discover
+   it was wrong at the worst moment, so the correction is the first thing here and
+   not a footnote under the table. #}
+<div class="ap-lede">
+  <h2>This changes the instructions, not the model</h2>
+  <p><strong>Nothing here trains anything.</strong> Training — or fine-tuning — means a
+     training run against a hosted model with a prepared dataset and a bill to match. This
+     platform sends requests to other companies' models; there is no way for us to change
+     how any of them were built, and anybody who tells you otherwise is selling something.</p>
+  <p>What you <em>can</em> change is what we ask them to do: the standing instruction each
+     feature sends with every request. That is most of the behaviour you actually notice —
+     what it looks for, what it ignores, how it writes. Changing it here takes effect on the
+     next request, with no deploy.</p>
+  <p><strong>Three things an instruction cannot do</strong>, whatever it says. It cannot let
+     a feature approve, reject or rank anybody — that is enforced outside the wording. It
+     cannot remove the barrier that stops text somebody submitted from being read as an
+     order to the model. And it cannot change the model, the budget or the timeout, which
+     live in the code. So the worst a bad edit can do is produce bad answers, which you can
+     see in the call log and put back in one press.</p>
+</div>
+
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">Every AI feature
+    <small>the ones you have changed are marked; the rest use the wording that ships with
+      the platform</small></div></div>
+
+  <div class="ad-table-wrap">
+    <table class="ad-table">
+      <caption class="sr-only">AI capabilities and their instructions</caption>
+      <thead>
+        <tr>
+          <th scope="col">Feature</th>
+          <th scope="col">What it is for</th>
+          <th scope="col">Model</th>
+          <th scope="col">Instruction</th>
+          <th scope="col" class="col-actions">&nbsp;</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td>
+            <strong style="font-family:var(--ag-font-mono,monospace);font-size:12.5px">{{ r.capability }}</strong>
+            <div class="ap-mut">
+              {% if r.advisory %}Advisory — it can never decide anything.{% endif %}
+              {% if r.public %} Reads text the public submitted.{% endif %}
+            </div>
+          </td>
+          <td class="ap-mut">{{ r.purpose }}</td>
+          <td class="ap-mut" style="font-family:var(--ag-font-mono,monospace);font-size:11.5px">{{ r.model }}</td>
+          <td>
+            {% if r.edited %}
+              <span class="ap-tag ap-tag--on">Yours · v{{ r.version }}</span>
+              {% if r.note %}<div class="ap-mut" style="margin-top:5px">“{{ r.note }}”</div>{% endif %}
+              {% if r.changed_at %}<div class="ap-mut">{{ r.changed_at|slice(0,16) }}</div>{% endif %}
+            {% else %}
+              <span class="ap-tag">As shipped</span>
+              {% if r.versions > 0 %}
+                <div class="ap-mut" style="margin-top:5px">{{ r.versions }} earlier version(s) kept</div>
+              {% endif %}
+            {% endif %}
+          </td>
+          <td class="col-actions">
+            <a class="ad-btn ad-btn--sm" href="/admin/ai-prompts/{{ r.capability|url_encode }}">
+              {{ r.edited ? 'Edit' : 'Change' }}</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5" style="color:var(--ad-text-soft)">No AI features are declared.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

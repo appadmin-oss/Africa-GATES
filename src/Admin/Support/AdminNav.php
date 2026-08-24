@@ -152,6 +152,7 @@ final class AdminNav
                     ['page' => 'admins',   'label' => 'Admins',       'href' => '/admin/admins'],
                     ['page' => 'settings', 'label' => 'Settings',     'href' => '/admin/settings'],
                     ['page' => 'webhooks', 'label' => 'Webhooks',     'href' => '/admin/webhooks'],
+                    ['page' => 'ai',          'label' => 'AI instructions', 'href' => '/admin/ai-prompts'],
                     ['page' => 'attendee',    'label' => 'Interview bot',   'href' => '/admin/attendee'],
                     ['page' => 'sandbox',     'label' => 'Test data',       'href' => '/admin/sandbox'],
                     ['page' => 'judges',   'label' => 'Judges Panel', 'href' => '/admin/judges'],

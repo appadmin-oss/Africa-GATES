@@ -3424,6 +3424,30 @@ return function(App $app) {
         $a->post('/attendee/test', \AfricaGates\Admin\Controllers\AttendeeController::class.':test')
             ->add(new RoleMiddleware('superadmin'));
 
+        // ── WHAT WE TELL THE MODELS TO DO ───────────────────────────────────
+        //
+        // Superadmin only — not because an edit is dangerous the way a payout is (the
+        // injection fence and the advisory rule are both enforced outside anything typed
+        // there), but because the blast radius is every future call to that feature and the
+        // effect is invisible at the point of use. A moderator would not see the wording
+        // that scored the nomination in front of them.
+        //
+        // `{capability}` is a dotted name — `nomination.triage` — so the placeholder has to
+        // accept a dot. Constrained rather than left open: the controller refuses anything
+        // not in the registry anyway, and a pattern that also matched slashes would swallow
+        // the /revert and /activate routes below it.
+        $ap = \AfricaGates\Admin\Controllers\AiPromptsController::class;
+        $a->get ('/ai-prompts',                            $ap.':index')
+            ->add(new RoleMiddleware('superadmin'));
+        $a->get ('/ai-prompts/{capability:[A-Za-z0-9._-]+}', $ap.':edit')
+            ->add(new RoleMiddleware('superadmin'));
+        $a->post('/ai-prompts/{capability:[A-Za-z0-9._-]+}', $ap.':save')
+            ->add(new RoleMiddleware('superadmin'));
+        $a->post('/ai-prompts/{capability:[A-Za-z0-9._-]+}/activate', $ap.':activate')
+            ->add(new RoleMiddleware('superadmin'));
+        $a->post('/ai-prompts/{capability:[A-Za-z0-9._-]+}/revert',   $ap.':revert')
+            ->add(new RoleMiddleware('superadmin'));
+
         // Outbound webhooks — integration endpoints for AI agents & platforms.
         $a->group('/webhooks', function (RouteCollectorProxy $s) {
             $s->get('',                     AdminWebhooksController::class.':index');
