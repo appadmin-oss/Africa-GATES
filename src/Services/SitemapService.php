@@ -63,6 +63,17 @@ final class SitemapService
         'nominees' => ['daily',   '0.8'],
         'registry' => ['weekly',  '0.7'],
         'events'   => ['weekly',  '0.7'],
+        // ── THE FUNDRAISING SURFACE, WHICH WAS ENTIRELY ABSENT ───────────────
+        //
+        // /donate, every organisation's own appeal page and every live campaign were in no
+        // sitemap section at all. Not a ranking nicety: this is the half of the platform
+        // whose whole job is to be FOUND by somebody searching for a cause, and the pages
+        // an organisation is asking their own supporters to share. A charity's appeal page
+        // that no search engine has been told about is a charity's appeal page that only
+        // reaches people who already had the link.
+        //
+        // Daily, because a live appeal's total and its days-remaining both move.
+        'donate'   => ['daily',   '0.8'],
         'blog'     => ['weekly',  '0.6'],
         'help'     => ['monthly', '0.6'],
         'legacy'   => ['monthly', '0.5'],
@@ -191,6 +202,7 @@ final class SitemapService
                 'nominees' => $this->nominees(),
                 'registry' => $this->registry(),
                 'events'   => $this->events(),
+                'donate'   => $this->donate(),
                 'blog'     => $this->blog(),
                 'legacy'   => $this->legacy(),
                 'judges'   => $this->judges(),
@@ -233,8 +245,25 @@ final class SitemapService
             // advertised the redirect for as long as it existed.
             ['/account/register', '0.5', 'monthly'],
             ['/support',       '0.4', 'monthly'],
+            // ── PAGES THAT EXISTED AND WERE NEVER LISTED ─────────────────────
+            //
+            // Each of these returns 200, is indexable, and was in no section. The shop and
+            // the feed are two of the platform's four public surfaces; /status is what
+            // somebody searches when they think the site is down, and finding a real
+            // answer there instead of nothing is the entire point of having built it.
+            ['/shop',          '0.7', 'weekly'],
+            ['/pulse',         '0.7', 'daily'],
+            ['/status',        '0.3', 'daily'],
             ['/privacy',       '0.3', 'yearly'],
             ['/terms',         '0.3', 'yearly'],
+            // Cookies and refunds shipped as documents, got their own routes, and were
+            // left out of here — so the two policies a person most often goes looking for
+            // BEFORE paying were the two a search engine had never been told about.
+            ['/cookies',       '0.3', 'yearly'],
+            ['/refunds',       '0.3', 'yearly'],
+            // What a market trader agrees to when they accept a pitch. Linked from the
+            // offer email and the acceptance screen; worth being findable on its own.
+            ['/vendor-terms',  '0.3', 'yearly'],
         ];
         return array_map(
             static fn(array $p) => ['path' => $p[0], 'priority' => $p[1], 'changefreq' => $p[2]],
@@ -368,7 +397,108 @@ final class SitemapService
                 'image'       => self::media($r->cover_image ?? null),
                 'image_title' => (string) ($r->title ?? ''),
             ], static fn($v) => $v !== null && $v !== '');
+
+            // ── THE CALL FOR STANDS, WHERE THERE IS ONE ─────────────────────
+            //
+            // A published call is a public page with prices, quotas and a closing date on
+            // it — the page a trader searching "market stall Lagos" should reach, and one
+            // that was in no sitemap. Listed once it is out of DRAFT, because the call page
+            // itself serves a CLOSED call deliberately (a vendor who arrives late is owed
+            // "this closed on the 14th" rather than a 404, and next year they know when to
+            // look). A draft is not a public fact and is not listed.
+            try {
+                $call = \AfricaGates\Services\StandCall::forEvent((int) $r->id);
+            } catch (\Throwable) {
+                $call = null;
+            }
+            if ($call && (string) ($call->status ?? '') !== \AfricaGates\Services\StandCall::STATUS_DRAFT) {
+                $out[] = array_filter([
+                    'path'       => '/events/' . rawurlencode($slug) . '/stands',
+                    'lastmod'    => self::day($call->updated_at ?? $call->created_at ?? null),
+                    'priority'   => \AfricaGates\Services\StandCall::isAccepting($call) ? '0.7' : '0.4',
+                    'changefreq' => 'weekly',
+                ], static fn($v) => $v !== null && $v !== '');
+            }
         }
+        return $out;
+    }
+
+    /**
+     * The fundraising pages: the hub, the application, and every live appeal.
+     *
+     * ── WHAT IS AND IS NOT LISTED, AND WHY ──────────────────────────────────
+     *
+     * Only organisations that can ACTUALLY RECEIVE money — the same list the donate page
+     * itself renders, via {@see PartnerOrg::listReceivable()}. A suspended partner's page
+     * 404s on purpose (somebody following a link to a closed appeal must be told it is
+     * closed, not redirected into giving to a different organisation), and advertising a
+     * 404 to a crawler is how a whole section loses its credibility with one.
+     *
+     * Only OPEN campaigns, for the same reason: {@see OrgCampaign::isOpen()} is what the
+     * page checks, and a closed appeal answers 404 there too.
+     *
+     * The checkout return paths — /donate/callback, /donate/redirect, /donate/success — are
+     * deliberately absent. They are steps in a transaction, they carry a payment reference,
+     * and a crawler arriving at one has nothing to see and a receipt page to mangle.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function donate(): array
+    {
+        $out = [
+            ['path' => '/donate',     'priority' => '0.9', 'changefreq' => 'daily'],
+            // Where an organisation applies to raise donations through us. The one page on
+            // this platform aimed at a charity searching "how do we take donations online",
+            // and it was reachable only from a panel at the foot of /donate.
+            ['path' => '/gift/apply', 'priority' => '0.6', 'changefreq' => 'monthly'],
+        ];
+
+        if (!self::has('gates_partner_orgs')) return $out;
+
+        try {
+            $orgs = \AfricaGates\Services\PartnerOrg::listReceivable();
+        } catch (\Throwable) {
+            return $out;
+        }
+
+        foreach ($orgs as $org) {
+            $slug = trim((string) ($org->slug ?? ''));
+            if ($slug === '') continue;
+
+            $out[] = array_filter([
+                'path'        => '/donate/' . rawurlencode($slug),
+                'lastmod'     => self::day($org->updated_at ?? $org->created_at ?? null),
+                'priority'    => '0.7',
+                'changefreq'  => 'weekly',
+                'image_title' => (string) ($org->name ?? ''),
+            ], static fn ($v) => $v !== null && $v !== '');
+
+            if (!self::has('gates_org_campaigns')) continue;
+
+            try {
+                $live = \AfricaGates\Services\OrgCampaign::openFor((int) $org->id);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            foreach ($live as $c) {
+                $cslug = trim((string) ($c->slug ?? ''));
+                if ($cslug === '') continue;
+
+                $out[] = array_filter([
+                    'path'        => '/donate/' . rawurlencode($slug) . '/' . rawurlencode($cslug),
+                    'lastmod'     => self::day($c->updated_at ?? $c->created_at ?? null),
+                    // The highest priority in this section. A specific appeal with a target
+                    // and a deadline is the page somebody actually shares, and the one a
+                    // search for the cause should land on rather than the organisation's
+                    // general page.
+                    'priority'    => '0.8',
+                    'changefreq'  => 'daily',
+                    'image_title' => (string) ($c->title ?? ''),
+                ], static fn ($v) => $v !== null && $v !== '');
+            }
+        }
+
         return $out;
     }
 

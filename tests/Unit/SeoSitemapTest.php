@@ -278,4 +278,181 @@ final class SeoSitemapTest extends TestCase
         $this->assertSame([], $this->svc()->urls('judges'));
         $this->assertStringContainsString('<sitemapindex', $this->svc()->index(self::BASE));
     }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // THE FUNDRAISING SURFACE, WHICH WAS IN NO SECTION AT ALL
+    // ════════════════════════════════════════════════════════════════════════
+    //
+    // /donate, every organisation's own appeal page and every live campaign were listed
+    // nowhere. Not a ranking nicety: this is the half of the platform whose whole job is to
+    // be FOUND by somebody searching for a cause, and the page an organisation asks its own
+    // supporters to share. An appeal no search engine has been told about reaches only the
+    // people who already had the link.
+
+    /** @return array{org:int, camp:int} a partner that can actually receive money */
+    private function receivableOrg(string $slug = 'borehole-trust'): array
+    {
+        $orgId = (int) DB::table('gates_partner_orgs')->insertGetId([
+            'slug' => $slug, 'name' => 'Borehole Trust', 'legal_name' => 'Borehole Trust Ltd',
+            'kind' => \AfricaGates\Services\PartnerOrg::KIND_PARTNER,
+            'entity_type' => \AfricaGates\Services\PartnerOrg::ENTITY_BUSINESS,
+            'cac_number' => 'RC5544',
+            'status' => \AfricaGates\Services\PartnerOrg::STATUS_APPROVED,
+            // The column listReceivable() requires. Without it the org cannot take money and
+            // its page is not advertised — which is the behaviour, not an oversight.
+            'subaccount_code' => 'ACCT_' . $slug,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $campId = (int) DB::table('gates_org_campaigns')->insertGetId([
+            'org_id' => $orgId, 'slug' => 'clean-water', 'title' => 'Clean water for Ikorodu',
+            'target_naira' => 2500000, 'shortfall_policy' => 'same_purpose',
+            'status' => \AfricaGates\Services\OrgCampaign::STATUS_LIVE,
+            'closes_on' => date('Y-m-d', strtotime('+45 days')),
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return ['org' => $orgId, 'camp' => $campId];
+    }
+
+    /** @return list<string> */
+    private function paths(string $section): array
+    {
+        return array_map(
+            static fn (array $u): string => (string) $u['path'],
+            (new SitemapService())->urls($section)
+        );
+    }
+
+    public function test_the_donate_hub_and_the_application_are_listed(): void
+    {
+        $paths = $this->paths('donate');
+
+        $this->assertContains('/donate', $paths);
+        // The one page aimed at a charity searching "how do we take donations online", and
+        // it was reachable only from a panel at the foot of /donate.
+        $this->assertContains('/gift/apply', $paths);
+    }
+
+    public function test_a_receivable_organisation_and_its_live_appeal_are_listed(): void
+    {
+        $this->receivableOrg();
+        $paths = $this->paths('donate');
+
+        $this->assertContains('/donate/borehole-trust', $paths);
+        $this->assertContains('/donate/borehole-trust/clean-water', $paths);
+    }
+
+    /**
+     * An organisation that cannot take money is not advertised.
+     *
+     * Its page 404s on purpose — somebody following a link to a suspended charity must be
+     * told the appeal is closed, not quietly redirected into giving to a different
+     * organisation. Advertising a 404 to a crawler is how a whole section loses credibility.
+     */
+    public function test_an_organisation_that_cannot_receive_money_is_not_advertised(): void
+    {
+        $ids = $this->receivableOrg('suspended-trust');
+        DB::table('gates_partner_orgs')->where('id', $ids['org'])
+          ->update(['subaccount_code' => null]);
+
+        foreach ($this->paths('donate') as $p) {
+            $this->assertStringNotContainsString('suspended-trust', $p,
+                'the sitemap advertises an appeal page that answers 404');
+        }
+    }
+
+    /** A closed appeal 404s too, so it is not listed either. */
+    public function test_a_closed_appeal_is_not_advertised(): void
+    {
+        $ids = $this->receivableOrg('closed-trust');
+        DB::table('gates_org_campaigns')->where('id', $ids['camp'])
+          ->update(['status' => \AfricaGates\Services\OrgCampaign::STATUS_CLOSED]);
+
+        $paths = $this->paths('donate');
+        $this->assertContains('/donate/closed-trust', $paths, 'the organisation itself is still open');
+        $this->assertNotContains('/donate/closed-trust/clean-water', $paths,
+            'a closed appeal answers 404 and must not be advertised');
+    }
+
+    /**
+     * The checkout return paths are never listed.
+     *
+     * They are steps in a transaction, they carry a payment reference, and a crawler
+     * arriving at one has nothing to see and a receipt to mangle.
+     */
+    public function test_no_checkout_step_is_advertised(): void
+    {
+        $this->receivableOrg();
+
+        foreach ($this->paths('donate') as $p) {
+            foreach (['/callback', '/redirect', '/success'] as $step) {
+                $this->assertStringNotContainsString($step, $p,
+                    'a payment step is in the sitemap: ' . $p);
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // AND THE PAGES THAT EXISTED AND WERE NEVER LISTED
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Each of these returns 200, is indexable, and was in no section.
+     *
+     * The shop and the feed are two of the platform's four public surfaces. /status is what
+     * somebody searches when they think the site is down, and finding a real answer there
+     * instead of nothing is the entire point of having built it. Cookies and refunds are the
+     * two policies a person most often looks for BEFORE paying — and were the two a search
+     * engine had never been told about.
+     */
+    public function test_the_public_surfaces_and_policies_are_all_listed(): void
+    {
+        $core = $this->paths('core');
+
+        foreach (['/shop', '/pulse', '/status', '/cookies', '/refunds', '/vendor-terms'] as $p) {
+            $this->assertContains($p, $core, $p . ' returns 200 and is in no sitemap section');
+        }
+    }
+
+    /** An open call for stands is a public page with prices and a deadline on it. */
+    public function test_a_published_call_for_stands_is_listed_with_its_event(): void
+    {
+        $ev = (int) DB::table('gates_site_events')->insertGetId([
+            'title' => 'Lagos Market Day', 'slug' => 'lagos-market-day',
+            'event_date' => date('Y-m-d H:i:s', strtotime('+50 days')), 'status' => 'published',
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        \AfricaGates\Services\StandType::save($ev, ['name' => 'Food pitch', 'category' => 'food',
+            'price_naira' => '35000', 'quota' => '12', 'size_preset' => '3x3']);
+        $c = \AfricaGates\Services\StandCall::save($ev,
+            ['closes_at' => date('Y-m-d H:i:s', strtotime('+20 days'))]);
+        \AfricaGates\Services\StandCall::open((int) $c['id'], 1);
+
+        $paths = $this->paths('events');
+        $this->assertContains('/events/lagos-market-day', $paths);
+        $this->assertContains('/events/lagos-market-day/stands', $paths,
+            'a trader searching for a market stall finds nothing');
+    }
+
+    /**
+     * A DRAFT call is not a public fact and is not advertised.
+     *
+     * Its terms are still being written, and publishing half of them is how a quota gets
+     * quoted before it is decided.
+     */
+    public function test_a_draft_call_for_stands_is_not_listed(): void
+    {
+        $ev = (int) DB::table('gates_site_events')->insertGetId([
+            'title' => 'Draft Fair', 'slug' => 'draft-fair',
+            'event_date' => date('Y-m-d H:i:s', strtotime('+50 days')), 'status' => 'published',
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        \AfricaGates\Services\StandType::save($ev, ['name' => 'Pitch', 'category' => 'food',
+            'price_naira' => '1000', 'quota' => '2']);
+        \AfricaGates\Services\StandCall::save($ev,
+            ['closes_at' => date('Y-m-d H:i:s', strtotime('+20 days'))]);
+
+        $this->assertNotContains('/events/draft-fair/stands', $this->paths('events'));
+    }
 }

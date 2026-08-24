@@ -167,6 +167,32 @@ final class DonationController
             // footnote is not a disclosure; the template shows this in naira beside the
             // amount, because a fee discovered after payment is the fastest way to lose a
             // donor permanently.
+            // ── SO A SEARCH RESULT SHOWS THE CAUSE, NOT "some website" ───────
+            //
+            // NGO + DonateAction on a partner's own appeal page. These are the pages whose
+            // whole job is to be FOUND by somebody searching for a cause — and until the
+            // sitemap work above, they were in no section at all, so nothing had ever been
+            // told they exist.
+            //
+            // Deliberately carries the TARGET and never the amount raised: schema.org has
+            // no honest slot for a running total, and a figure cached in somebody else's
+            // index is a figure we cannot correct. A target is a published commitment and
+            // cannot go stale the same way. See Support\Schema::appeal().
+            'schema'           => $org
+                ? \AfricaGates\Support\Schema::appeal(
+                    $org, $campaign,
+                    \AfricaGates\Support\SiteUrl::base($req),
+                    \AfricaGates\Support\SiteUrl::base($req) . '/donate/' . rawurlencode((string) $org->slug)
+                        . ($campaign ? '/' . rawurlencode((string) $campaign->slug) : ''),
+                    '',
+                    // The ORGANISATION's own description. Passing the campaign summary here
+                    // would make the NGO node describe one appeal — so a charity running a
+                    // borehole fund would be described to a search engine as "two boreholes
+                    // for four schools" and nothing else. The campaign's own words go on the
+                    // DonateAction, which is where Schema::appeal() already puts them.
+                    (string) ($org->description ?? '')
+                  )
+                : null,
             'org_fee_bps'      => $org ? (int) ($org->platform_fee_bps ?? 0) : 0,
             'partners'         => $org ? [] : \AfricaGates\Services\PartnerOrg::listReceivable(),
             // What the platform has done FOR organisations, for the other kind of reader on
