@@ -129,9 +129,60 @@ class JudgeService
         $j = $this->findById($judgeId);
         if (!$j) return [];
         $ids = $j->programme_ids ? (json_decode((string)$j->programme_ids, true) ?: []) : [];
-        if (!$ids) return [];
-        return DB::table('gates_award_programmes')->whereIn('id', $ids)->orderBy('sort_order')
-            ->get()->map(fn($r) => (array)$r)->all();
+
+        $out = $ids
+            ? DB::table('gates_award_programmes')->whereIn('id', $ids)->orderBy('sort_order')
+                ->get()->map(fn($r) => (array)$r)->all()
+            : [];
+
+        // ── AND THE PRACTICE PROGRAMME, WHEN THERE IS ONE ────────────────────
+        //
+        // A judge appointed to a real panel had nowhere to try the portal before the round
+        // they are being trusted with. The sandbox existed, but only for its own rehearsal
+        // account, reachable by a superadmin pressing a button on an admin screen — which is
+        // no use at all to the person who actually needs the practice.
+        //
+        // Appended rather than assigned: nothing is written to `programme_ids`, so a
+        // practice run leaves no trace on the record of who was appointed to what. The
+        // programme is `is_active = 0` and lives in its own category, so a score written
+        // there cannot reach a real result — which is what makes handing it to every judge
+        // safe rather than merely convenient.
+        //
+        // It appears only when an operator has BUILT the sandbox. That build is the opt-in.
+        if ((int) ($j->is_active ?? 0) === 1) {
+            $practice = $this->practiceProgramme();
+            if ($practice !== null && !in_array((int) $practice['id'], array_map('intval', $ids), true)) {
+                $out[] = $practice;
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * The sandbox programme, marked as practice — or null when no sandbox has been built.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function practiceProgramme(): ?array
+    {
+        try {
+            $p = DB::table('gates_award_programmes')
+                ->where('slug', \AfricaGates\Services\DemoSeeder::PROGRAMME_SLUG)
+                ->first();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        if (!$p) return null;
+
+        $row = (array) $p;
+        // Read by the dashboard to keep practice out of the real counts, and by the portal
+        // to label it. A judge who cannot tell a practice ballot from a live one has been
+        // given something worse than no practice at all.
+        $row['is_practice'] = true;
+
+        return $row;
     }
 
     /**
@@ -257,9 +308,57 @@ class JudgeService
     }
 
     /** Nominees in this programme's current cycle, with this judge's existing scores. */
+    /**
+     * The cycle this programme's panel is actually judging.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY NOT SIMPLY THE NEWEST ONE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * This was `orderByDesc('year')->first()`, which is right exactly while a programme has
+     * one cycle. A programme with last year's cycle still being judged while this year's is
+     * open for nominations is not an exotic case — it is what the second year of any awards
+     * programme looks like — and the panel was being handed the NEW cycle, which has no
+     * shortlist, nobody to score, and a lock reason about a phase they are not in.
+     *
+     * ── AND WHY THE PHASE IS COMPUTED RATHER THAN READ ──────────────────────
+     *
+     * The old query never looked at the phase at all; this one asks
+     * {@see CyclePolicy::phaseFor()}, which derives it from the date windows. Everywhere
+     * else on this platform the windows are authoritative and `status` is a materialised
+     * cache that is allowed to lag — the admin state report even flags it as
+     * `cached_status_stale`. A panel locked out of judging by a column the platform itself
+     * describes as possibly-stale is the same bug as a ballot that shows the wrong cycle,
+     * one layer down.
+     *
+     * Falls back to the newest cycle when none is in judging, so a ballot opened early or
+     * late still describes a real cycle and locks with an accurate reason rather than
+     * rendering nothing at all.
+     */
+    private static function cycleToJudge(int $programmeId): ?object
+    {
+        $cycles = DB::table('gates_award_cycles')
+            ->where('programme_id', $programmeId)->orderByDesc('year')->get();
+
+        if ($cycles->isEmpty()) return null;
+
+        foreach ($cycles as $c) {
+            try {
+                if (\AfricaGates\Services\CyclePolicy::phaseFor($c)
+                    === \AfricaGates\Services\CyclePhase::Judging) {
+                    return $c;
+                }
+            } catch (\Throwable) {
+                // A row with unreadable windows is not a reason to show no ballot.
+            }
+        }
+
+        return $cycles->first();
+    }
+
     public function ballot(int $judgeId, int $programmeId): array
     {
-        $cycle = DB::table('gates_award_cycles')->where('programme_id', $programmeId)->orderByDesc('year')->first();
+        $cycle = self::cycleToJudge($programmeId);
         if (!$cycle) return ['cycle' => null, 'categories' => []];
 
         $cats = DB::table('gates_award_categories')->where('cycle_id', $cycle->id)
@@ -443,14 +542,24 @@ class JudgeService
     {
         $j = $this->findById($judgeId);
         if (!$j || !(int)$j->is_active) return false;
-        $ids = $j->programme_ids ? (json_decode((string)$j->programme_ids, true) ?: []) : [];
+
+        // ── READ THROUGH programmes(), NOT THE COLUMN ────────────────────────
+        //
+        // This decoded `programme_ids` itself, which made it a SECOND copy of the
+        // assignment rule — and {@see mayJudgeNominee()} already carries a note saying an
+        // access check that exists twice is one that will eventually differ. It duly did:
+        // the practice programme is appended at read time rather than written to the
+        // column, so a judge could open a practice ballot, move every slider, press save
+        // and be told they were not assigned to the programme they were looking at.
+        $ids = array_map(static fn (array $p): int => (int) $p['id'], $this->programmes($judgeId));
         if (!$ids) return false;
+
         $progId = DB::table('gates_nominees as n')
             ->join('gates_award_categories as c', 'c.id', '=', 'n.category_id')
             ->join('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
             ->where('n.id', $nomineeId)
             ->value('cy.programme_id');
-        return $progId !== null && in_array((int)$progId, array_map('intval', $ids), true);
+        return $progId !== null && in_array((int)$progId, $ids, true);
     }
 
     public function saveScore(int $judgeId, int $nomineeId, array $criteriaScores, ?string $notes = null): array
@@ -622,11 +731,22 @@ class JudgeService
             $deadline = $cycle['results_date'] ?? ($cycle['voting_close'] ?? null);
             $judgingOpen = $status === 'judging' && !$coi;
 
-            $total  += (int) $progress['total'];
-            $scored += (int) $progress['scored'];
-            if ($judgingOpen) $open++;
+            // ── PRACTICE IS EXCLUDED FROM EVERY COUNT ────────────────────────
+            //
+            // "2 of 5 scored" has to be about the round a judge is accountable for. Folding
+            // a practice ballot into it makes the one number on the page a lie in both
+            // directions: it inflates what is outstanding, and a judge who finishes their
+            // real work still reads as unfinished.
+            $isPractice = !empty($p['is_practice']);
+
+            if (!$isPractice) {
+                $total  += (int) $progress['total'];
+                $scored += (int) $progress['scored'];
+                if ($judgingOpen) $open++;
+            }
 
             $programmes[] = [
+                'is_practice'  => $isPractice,
                 'programme'    => $p,
                 'cycle'        => $cycle,
                 'progress'     => $progress,
@@ -639,9 +759,11 @@ class JudgeService
             ];
         }
 
+        $realProgs = array_values(array_filter($progs, static fn (array $p): bool => empty($p['is_practice'])));
+
         return [
             'overview' => [
-                'programmes' => count($progs),
+                'programmes' => count($realProgs),
                 'total'      => $total,
                 'scored'     => $scored,
                 'remaining'  => max(0, $total - $scored),
@@ -652,7 +774,12 @@ class JudgeService
             'activity'   => $this->activity($judgeId, 10),
             'summary'    => $this->scoringSummary($judgeId),
             'conflicts'  => $this->conflicts($judgeId),
-            'criteria'   => $progs ? $this->criteria((int) $progs[0]['id']) : [],
+            // The rubric a judge is shown on their home page is the one for their REAL
+            // panel; showing the practice programme's override to somebody who has a real
+            // assignment would misstate what they are about to be asked.
+            'criteria'   => ($realProgs ?: $progs)
+                ? $this->criteria((int) ($realProgs[0]['id'] ?? $progs[0]['id']))
+                : [],
         ];
     }
 

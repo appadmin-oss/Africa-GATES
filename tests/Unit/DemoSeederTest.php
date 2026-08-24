@@ -296,7 +296,8 @@ final class DemoSeederTest extends TestCase
         $this->assertNotSame($first['programme_id'], $second['programme_id']);
         $this->assertSame(1, DB::table('gates_award_programmes')
             ->where('slug', DemoSeeder::PROGRAMME_SLUG)->count());
-        $this->assertSame(3, DB::table('gates_nominees')
+        // Five: three in the main rehearsal cycle, two on the practice ballot.
+        $this->assertSame(5, DB::table('gates_nominees')
             ->where('name', 'like', DemoSeeder::PREFIX . '%')->count(),
             'a second build left the first build\'s nominees behind');
         $this->assertSame(1, DB::table('gates_judges')->where('email', 'judge@demo.invalid')->count());
@@ -511,7 +512,11 @@ final class DemoSeederTest extends TestCase
             ->where('email', 'judge@' . DemoSeeder::MAIL_DOMAIN)->value('id');
         $this->assertGreaterThan(0, $judge);
 
+        // The ballot resolves to the cycle in the JUDGING phase — the practice one. The
+        // main rehearsal cycle is deliberately in voting, where nobody can score, so that
+        // is the correct answer rather than an accident.
         $ballot = (new JudgeService())->ballot($judge, $seeded['programme_id']);
+        $this->assertSame($seeded['practice_cycle_id'], (int) $ballot['cycle']['id']);
 
         $this->assertFalse($ballot['no_shortlist'] ?? false,
             'the rehearsal judge got a locked ballot: ' . ($ballot['lock_reason'] ?? ''));

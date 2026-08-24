@@ -38,12 +38,18 @@
     {% endif %}
   </div>
 
+  {# The notice and the practice card are not exclusive: somebody with no real panel yet is
+     exactly the person who most wants to try the ballot before they get one. What they must
+     never do is mistake the practice card for the assignment they are waiting for, which is
+     why the notice stays up regardless. #}
   {% if no_assignments %}
     <div class="jd-empty" style="margin-top:24px">
       <strong>You haven't been assigned to any programmes yet.</strong>
-      <p style="margin-top:6px;color:var(--ink-500)">An administrator will email you once you're rostered onto a judging panel.</p>
+      <p style="margin-top:6px;color:var(--ink-500)">An administrator will email you once you're rostered onto a judging panel.{% if has_practice|default(false) %} In the meantime, the practice ballot below is open — nothing scored there counts.{% endif %}</p>
     </div>
-  {% else %}
+  {% endif %}
+
+  {% if not no_assignments or has_practice|default(false) %}
 
   {# ── Overview stat band ────────────────────────────────────────── #}
   <div class="jdh-stats">
@@ -90,7 +96,12 @@
       {% for b in programmes %}
         {% set pct = b.progress.total > 0 ? (b.progress.scored / b.progress.total * 100)|round : 0 %}
         {% set recused = b.coi is not null %}
-        {% set tag = 'jd-card' ~ (recused ? ' jd-card--recused' : (b.judging_open ? ' jd-card--open' : '')) %}
+        {# A practice ballot has to be unmistakable at a glance. A judge who cannot tell it
+           from a live one has been handed something worse than no practice at all — they
+           would either treat a real round as a rehearsal, or spend an afternoon carefully
+           scoring nobody. #}
+        {% set practice = b.is_practice|default(false) %}
+        {% set tag = 'jd-card' ~ (practice ? ' jd-card--practice' : (recused ? ' jd-card--recused' : (b.judging_open ? ' jd-card--open' : ''))) %}
         {# Recused cards still link to their (locked) ballot so the judge can reach
            the "Withdraw recusal" control — otherwise reversing a COI is a dead end. #}
         {% set href = '/judge/ballot/' ~ b.programme.id %}
@@ -98,12 +109,18 @@
           <div class="jd-card__head">
             <span class="jd-card__ico" aria-hidden="true">{{ b.programme.icon_emoji|default('🏆') }}</span>
             <div style="min-width:0;flex:1">
-              <h3 class="jd-card__title">{{ b.programme.title }}</h3>
-              <div class="jd-card__chip">{{ b.cycle.year ? b.cycle.year ~ ' · ' : '' }}{{ (b.status|default('—'))|upper }}</div>
+              <h3 class="jd-card__title">{{ practice ? 'Practice run' : b.programme.title }}</h3>
+              <div class="jd-card__chip">{{ practice ? 'NOTHING HERE COUNTS' : ((b.cycle.year ? b.cycle.year ~ ' · ' : '') ~ (b.status|default('—'))|upper) }}</div>
             </div>
           </div>
 
-          {% if b.programme.subtitle %}<p class="jd-card__sub">{{ b.programme.subtitle }}</p>{% endif %}
+          {% if practice %}
+            <p class="jd-card__sub">Try the ballot before a live round — read a dossier, move
+              the sliders, save, and see what a panel actually does. Your marks here are yours
+              alone and reach no result.</p>
+          {% elseif b.programme.subtitle %}
+            <p class="jd-card__sub">{{ b.programme.subtitle }}</p>
+          {% endif %}
 
           <div class="jd-card__stats">
             <span>{{ b.categories }} categor{{ b.categories == 1 ? 'y' : 'ies' }}</span>

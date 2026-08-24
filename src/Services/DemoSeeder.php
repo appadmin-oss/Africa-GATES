@@ -185,14 +185,30 @@ final class DemoSeeder
             self::seedScores($judgeId, $categoryId, $programmeId, $ids, $now);
             self::seedShortlistRule($cycleId, $categoryId, $ids);
 
+            $practice = self::seedPracticeCycle($programmeId, $now);
+            // ── WHY THE DEMO JUDGE IS GIVEN WORK ON THE PRACTICE CYCLE TOO ───
+            //
+            // Scores are per JUDGE, which is what makes one set of nominees serve both
+            // audiences. The sandbox's own rehearsal account opens a half-finished panel —
+            // one done, one to do, which is the state the judging screens exist to show. A
+            // real judge opening the same practice ballot has scored nothing, so they get a
+            // clean run. Neither sees the other's marks.
+            if ($practice['nominees'] !== []) {
+                self::seedScores($judgeId, $practice['category'], $programmeId,
+                                 ['leader' => $practice['nominees'][0]], $now);
+            }
+
             return [
                 'ok' => true, 'programme_id' => $programmeId, 'cycle_id' => $cycleId,
                 'category_id' => $categoryId, 'nominees' => $ids,
+                'practice_cycle_id' => $practice['cycle'],
+                'practice_nominees' => $practice['nominees'],
                 'links' => self::links($programmeId, $cycleId, $categoryId, $ids),
                 'message' => 'Sandbox built: 3 nominees, a questionnaire in each state, evidence, '
                            . 'a filed interview transcript AND a sitting three days out, a '
-                           . 'published shortlist of two with one scored and one still to do, and '
-                           . 'votes. Nothing is public and nothing counts toward a real award.',
+                           . 'published shortlist of two with one scored and one still to do, '
+                           . 'votes, and a practice ballot every judge can try. Nothing is public '
+                           . 'and nothing counts toward a real award.',
             ];
         });
     }
@@ -520,6 +536,113 @@ final class DemoSeeder
     }
 
     /**
+     * A second cycle, in the JUDGING phase, so a judge has somewhere to practise.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A SECOND CYCLE AND NOT A FLAG ON THE FIRST
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * The sandbox's main cycle is deliberately in VOTING — its windows are placed so an
+     * operator can rehearse the voting screens, which is what most of the console is about.
+     * A judge cannot score in a voting cycle, and no amount of flagging changes that: a
+     * cycle is in one phase at a time, and "voting" and "judging" are the two the sandbox
+     * needs at once.
+     *
+     * So the sandbox gets what a real programme in its second year has — two cycles. This
+     * one's windows are all in the past, which puts {@see CyclePolicy::phaseFor()} in
+     * Judging, and {@see \AfricaGates\Judge\Services\JudgeService::ballot()} now picks the
+     * cycle being judged rather than the newest one.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * AND WHY NOTHING IS SCORED ON IT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * This is the one a real judge opens to try the portal before a live round. Every
+     * nominee is unscored on purpose: a practice ballot where the work is already done
+     * rehearses nothing, and the whole point is to move the sliders, save, and see what
+     * happens.
+     *
+     * @return array{cycle:int, category:int, nominees:list<int>} zeros when the tables
+     *         are not there yet
+     */
+    private static function seedPracticeCycle(int $programmeId, Carbon $now): array
+    {
+        try {
+            // A YEAR EARLIER, and every window behind us. Judging is what phaseFor()
+            // returns once voting_close has passed and results_date has not — so the
+            // results date is the one date left in the future.
+            $cycleId = (int) DB::table('gates_award_cycles')->insertGetId([
+                'programme_id'      => $programmeId,
+                'year'              => (int) $now->format('Y') - 1,
+                'edition_label'     => 'Practice',
+                'status'            => 'judging',
+                'nominations_open'  => $now->copy()->subDays(120)->toDateTimeString(),
+                'nominations_close' => $now->copy()->subDays(90)->toDateTimeString(),
+                'voting_open'       => $now->copy()->subDays(80)->toDateTimeString(),
+                'voting_close'      => $now->copy()->subDays(30)->toDateTimeString(),
+                'results_date'      => $now->copy()->addDays(60)->toDateTimeString(),
+            ]);
+
+            $categoryId = (int) DB::table('gates_award_categories')->insertGetId([
+                'cycle_id'    => $cycleId,
+                'slug'        => 'demo-practice',
+                'title'       => self::PREFIX . 'Practice Category',
+                'description' => 'A practice ballot. Nothing scored here counts toward anything.',
+                'sort_order'  => 1,
+            ]);
+
+            $ids = [];
+            foreach ([
+                ['Thandiwe Moyo',  'Rebuilt a district library from a burnt-out shell.'],
+                ['Yusuf Abubakar', 'Trained 60 midwives across four states in two years.'],
+            ] as $i => [$name, $tagline]) {
+                $ids[] = (int) DB::table('gates_nominees')->insertGetId([
+                    'category_id'        => $categoryId,
+                    'name'               => self::PREFIX . $name,
+                    'tagline'            => $tagline,
+                    'story'              => 'A practice entry. It exists so a judge can open a real '
+                                          . 'ballot, read a real dossier and move real sliders before '
+                                          . 'a live round, without any of it counting.',
+                    'country_code'       => 'NG',
+                    'organisation'       => 'Demo Collective',
+                    // No votes at all. The judging screen strips the tally anyway, and a
+                    // practice entry carrying one invites somebody to check whether it does.
+                    'vote_count'         => 0,
+                    'organic_vote_count' => 0,
+                    'status'             => 'approved',
+                    'nominated_at'       => $now->copy()->subDays(85)->toDateTimeString(),
+                ]);
+            }
+
+            // The panel judges the shortlist, so a practice ballot needs a published one or
+            // it locks with a message about asking the organisers.
+            $shortlistId = (int) DB::table('gates_shortlists')->insertGetId([
+                'cycle_id'     => $cycleId,
+                'category_id'  => $categoryId,
+                'rule_text'    => 'Practice shortlist — both entries, nothing scored.',
+                'entry_count'  => count($ids),
+                'considered'   => count($ids),
+                'status'       => 'published',
+                'published_at' => $now->copy()->subDays(25)->toDateTimeString(),
+            ]);
+            foreach ($ids as $i => $nid) {
+                DB::table('gates_shortlist_entries')->insert([
+                    'shortlist_id' => $shortlistId,
+                    'nominee_id'   => $nid,
+                    'rank_no'      => $i + 1,
+                    'nominee_name' => (string) DB::table('gates_nominees')->where('id', $nid)->value('name'),
+                    'country_code' => 'NG',
+                ]);
+            }
+
+            return ['cycle' => $cycleId, 'category' => $categoryId, 'nominees' => $ids];
+        } catch (\Throwable $e) {
+            error_log('[demo] practice cycle skipped: ' . $e->getMessage());
+            return ['cycle' => 0, 'category' => 0, 'nominees' => []];
+        }
+    }
+
+    /**
      * A rule that puts one nominee above the line and one below, and a PUBLISHED shortlist.
      *
      * ── WHY THE PUBLISH MATTERS AS MUCH AS THE RULE ─────────────────────────
@@ -686,7 +809,12 @@ final class DemoSeeder
         if (!$p) return null;
 
         $pid = (int) $p->id;
-        $cid = (int) (DB::table('gates_award_cycles')->where('programme_id', $pid)->value('id') ?? 0);
+        // The MAIN rehearsal cycle, named explicitly. The sandbox now has two — the
+        // current-year voting one and a prior-year practice one — and `->value('id')` would
+        // return whichever the database felt like, which is how the doors below started
+        // looking for an interview in the wrong cycle.
+        $cid = (int) (DB::table('gates_award_cycles')->where('programme_id', $pid)
+            ->orderByDesc('year')->value('id') ?? 0);
         $cat = (int) ($cid > 0 ? (DB::table('gates_award_categories')->where('cycle_id', $cid)->value('id') ?? 0) : 0);
 
         $ids = [];

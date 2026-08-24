@@ -173,6 +173,18 @@
 .jd-card--open { border-color: rgba(14,132,24,0.28); }
 .jd-card--recused { opacity: 0.72; cursor: default; }
 .jd-card--recused:hover { transform: none; box-shadow: none; }
+
+/* ── THE PRACTICE CARD ───────────────────────────────────────────────────────
+   Marked by BORDER PATTERN as well as colour. A judge who mistakes a rehearsal for
+   a live round either treats real scoring as practice or spends an afternoon
+   carefully scoring nobody, and colour alone does not survive a monochrome screen,
+   colour-blindness, or a phone in daylight. The dashes read as provisional at any
+   size and in any palette. */
+.jd-card--practice {
+  border-style: dashed;
+  border-color: rgba(16, 41, 44, 0.32);
+  background-image: linear-gradient(180deg, rgba(243, 180, 22, 0.07), transparent 60%);
+}
 .jd-card__badge { font-size: 11.5px; font-weight: 700; }
 .jd-card__badge--recused { color: #b91c1c; }
 

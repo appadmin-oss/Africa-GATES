@@ -29,7 +29,16 @@ class BallotController
         return $this->view->render($res, 'judge/dashboard.twig', array_merge($data, [
             'page_title'     => 'Judges — Africa GATES',
             'judge'          => $judge ? (array)$judge : null,
-            'no_assignments' => $forceEmpty || empty($data['programmes']),
+            // Counted from the REAL panels, not from every card on the page. The practice
+            // programme is appended to every active judge, so `empty($data['programmes'])`
+            // stopped ever being true — and a judge who has not been rostered onto anything
+            // would have been shown a practice ballot with no hint that it was the only
+            // thing there.
+            'no_assignments' => $forceEmpty || ($data['overview']['programmes'] ?? 0) < 1,
+            'has_practice'   => !$forceEmpty && array_filter(
+                (array) ($data['programmes'] ?? []),
+                static fn (array $b): bool => !empty($b['is_practice'])
+            ) !== [],
         ]));
     }
 
