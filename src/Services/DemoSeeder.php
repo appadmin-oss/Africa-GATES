@@ -180,6 +180,7 @@ final class DemoSeeder
             self::seedQuestionnaires($programmeId, $cycleId, $ids, $adminId, $now);
             self::seedEvidence($ids, $now);
             self::seedInterview($ids['leader'], $now);
+            self::seedLiveInterview($ids['runner'], $categoryId, $cycleId, $adminId, $now);
             $judgeId = self::seedJudge($programmeId);
             self::seedScores($judgeId, $categoryId, $programmeId, $ids, $now);
             self::seedShortlistRule($cycleId);
@@ -189,8 +190,9 @@ final class DemoSeeder
                 'category_id' => $categoryId, 'nominees' => $ids,
                 'links' => self::links($programmeId, $cycleId, $categoryId, $ids),
                 'message' => 'Sandbox built: 3 nominees, a questionnaire in each state, evidence, '
-                           . 'an interview, a judge with scores, and votes. Nothing is public and '
-                           . 'nothing counts toward a real award.',
+                           . 'a filed interview transcript AND a sitting three days out, a judge '
+                           . 'with one nominee scored and one still to do, and votes. Nothing is '
+                           . 'public and nothing counts toward a real award.',
             ];
         });
     }
@@ -379,6 +381,63 @@ final class DemoSeeder
     }
 
     /**
+     * A sitting that has not happened yet — somebody to actually interview.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS A SECOND, DIFFERENT INTERVIEW
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * {@see seedInterview()} writes `gates_nominee_interviews`, which is a TRANSCRIPT — a
+     * record of an interview that already happened, filed as evidence and read by the
+     * judging screens. It is not an appointment, and nothing about it appears on
+     * `/admin/interviews`.
+     *
+     * `gates_interviews` is the live sitting: the appointment, the meeting link, the
+     * nominee's own consent page, the question pack, the bot. None of it was seeded, so
+     * `/admin/interviews` was EMPTY in the sandbox — the one screen an operator most needs
+     * to rehearse before putting a real nominee in front of a panel had nothing on it, and
+     * the sandbox looked complete because a differently-named table did have a row.
+     *
+     * Given to the RUNNER rather than the leader, so the sandbox shows both states at once:
+     * one nominee interviewed and on file, one with an appointment coming up.
+     *
+     * `confirmed` and three days out: far enough that the reminder ladder (24h and 2h)
+     * still has both rungs ahead of it, and confirmed rather than invited because the
+     * nominee-facing consent page — which is the part worth walking — is what comes next.
+     */
+    private static function seedLiveInterview(int $nomineeId, int $categoryId, int $cycleId,
+                                              int $adminId, Carbon $now): void
+    {
+        try {
+            DB::table('gates_interviews')->insert([
+                'nominee_id'    => $nomineeId,
+                'category_id'   => $categoryId,
+                'cycle_id'      => $cycleId,
+                'status'        => 'confirmed',
+                'scheduled_at'  => $now->copy()->addDays(3)->setTime(14, 0)->toDateTimeString(),
+                'duration_mins' => 30,
+                'timezone'      => 'Africa/Lagos',
+                // No meet_url on purpose. Creating one needs the Apps Script bridge, and a
+                // sandbox that silently books a room in somebody's real calendar is not a
+                // sandbox. The console's "create a meeting" button is itself a thing to
+                // rehearse, and it needs somewhere to be pressed.
+                'invite_token'  => bin2hex(random_bytes(16)),
+                'invited_at'    => $now->copy()->subDays(2)->toDateTimeString(),
+                'confirmed_at'  => $now->copy()->subDay()->toDateTimeString(),
+                'language'      => 'en',
+                'created_by'    => $adminId ?: null,
+                'created_at'    => $now->copy()->subDays(2)->toDateTimeString(),
+                'updated_at'    => $now->copy()->subDay()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {
+            // The interview tables arrive in a migration. A deployment mid-upgrade should
+            // still get a usable sandbox rather than a failed build — same reasoning as
+            // seedShortlistRule().
+            error_log('[demo] live interview skipped: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * A judge who can actually sign in, and criteria for them to score against.
      *
      * The criteria matter more than they look: {@see \AfricaGates\Judge\Services\JudgeService}
@@ -492,6 +551,13 @@ final class DemoSeeder
             DB::table('gates_nominee_submissions')->whereIn('nominee_id', $nomIds)->delete();
             DB::table('gates_judge_criteria_scores')->whereIn('nominee_id', $nomIds)->delete();
             DB::table('gates_votes')->whereIn('nominee_id', $nomIds)->delete();
+            // The live sitting, separately from the transcript above — two different tables
+            // with confusingly similar names. Guarded because the interview tables arrive in
+            // a migration, and a deployment mid-upgrade must still be able to tear down.
+            try {
+                DB::table('gates_interviews')->whereIn('nominee_id', $nomIds)->delete();
+            } catch (\Throwable) {
+            }
         }
         if ($catIds !== []) {
             DB::table('gates_nominations')->whereIn('category_id', $catIds)->delete();
@@ -518,6 +584,17 @@ final class DemoSeeder
         DB::table('gates_programme_questions')->where('programme_id', $pid)->delete();
         DB::table('gates_judge_criteria')->where('programme_id', $pid)->delete();
         DB::table('gates_judges')->where('email', 'judge@' . self::MAIL_DOMAIN)->delete();
+
+        // Any sign-in code minted for the sandbox judge. It would expire on its own in
+        // fifteen minutes, but leaving a live credential behind for an account that no
+        // longer exists is not a state to walk away from — and a rebuild is exactly when
+        // somebody has one open in another tab.
+        try {
+            DB::table('gates_otp_tokens')
+                ->where('email_hash', hash('sha256', 'judge@' . self::MAIL_DOMAIN))
+                ->delete();
+        } catch (\Throwable) {
+        }
 
         // The cascade on gates_award_cycles → categories → nominees does the rest on MySQL,
         // and is declared in the SQLite schema too. Deleted explicitly regardless: relying
@@ -564,6 +641,162 @@ final class DemoSeeder
                 'links' => self::links($pid, $cid, $cat, $ids)];
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // THE DOORS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * The three PORTALS the sandbox exists to let somebody walk, with the keys to open them.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A SANDBOX WITHOUT THESE IS ONLY HALF ONE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Everything {@see links()} returns is an ADMIN screen. That is the half an operator can
+     * already reach, and it is not the half they are nervous about: what a nominee sees when
+     * they open the questionnaire, what the consent page asks before an interview, whether
+     * the judge's ballot makes sense — none of those are visible from the console, and all
+     * three are behind a token or a login the sandbox never handed anybody.
+     *
+     * The judge portal was the worst of it and worth stating plainly, because it reads as a
+     * detail and is not: judges sign in with a six-digit code EMAILED to them, and the
+     * sandbox's judge is at `demo.invalid`, which RFC 2606 reserves precisely so no mail
+     * server will ever accept it. So the demo judge could not sign in AT ALL. Every screen
+     * in the judge portal — the ballot, the dossier map, the recusal flow, the AI assist —
+     * was unreachable in the one environment built for trying them, and the documented
+     * workaround was to go and read a log file on a host with no shell.
+     *
+     * @return array{judge_email:string, judge_login:string,
+     *                interview:?array{label:string,href:string,when:?string},
+     *                questionnaires:list<array{label:string,href:string,state:string}>}
+     */
+    public static function doors(): array
+    {
+        $out = [
+            'judge_email'    => 'judge@' . self::MAIL_DOMAIN,
+            'judge_login'    => '/judge/login',
+            'interview'      => null,
+            'questionnaires' => [],
+        ];
+
+        $cur = self::current();
+        if ($cur === null) return $out;
+
+        try {
+            $iv = DB::table('gates_interviews as i')
+                ->join('gates_nominees as n', 'n.id', '=', 'i.nominee_id')
+                ->where('i.cycle_id', $cur['cycle_id'])
+                ->whereIn('i.status', ['draft', 'invited', 'confirmed', 'live'])
+                ->orderBy('i.id')
+                ->first(['i.invite_token', 'i.scheduled_at', 'n.name']);
+
+            if ($iv && trim((string) $iv->invite_token) !== '') {
+                $out['interview'] = [
+                    'label' => (string) $iv->name,
+                    'href'  => '/interview/' . (string) $iv->invite_token,
+                    'when'  => $iv->scheduled_at ? (string) $iv->scheduled_at : null,
+                ];
+            }
+        } catch (\Throwable) {
+            // Interview tables may predate this deployment's migration state.
+        }
+
+        try {
+            $subs = DB::table('gates_nominee_submissions as s')
+                ->join('gates_nominees as n', 'n.id', '=', 's.nominee_id')
+                ->where('s.programme_id', $cur['programme_id'])
+                ->orderBy('s.id')
+                ->get(['s.invite_token', 's.status', 'n.name']);
+
+            foreach ($subs as $s) {
+                $tok = trim((string) $s->invite_token);
+                if ($tok === '') continue;
+                $out['questionnaires'][] = [
+                    'label' => (string) $s->name,
+                    'href'  => '/my-work/' . $tok,
+                    // The state is the point: a submitted one is read-only, a draft is the
+                    // form mid-flight, and a never-started one is the first-open experience.
+                    // Walking one of the three tells you nothing about the other two.
+                    'state' => (string) $s->status,
+                ];
+            }
+        } catch (\Throwable) {
+        }
+
+        return $out;
+    }
+
+    /**
+     * Mint a real sign-in code for the sandbox judge, and hand it back rather than email it.
+     *
+     * ── WHY THIS IS SAFE, AND WHY THE GUARD IS WHERE IT IS ──────────────────
+     *
+     * This is a function that creates a valid login credential and shows it to the caller,
+     * which is exactly the shape of a privilege-escalation bug — so it is bounded by the one
+     * fact that cannot be argued with: it resolves the judge BY the sandbox address, at a
+     * domain RFC 2606 reserves so that no real person can ever hold it. There is no
+     * parameter to point it at somebody else, because a parameter is the thing that would
+     * eventually be pointed at a real judge.
+     *
+     * The rest of the login is untouched: the same `gates_otp_tokens` row the real flow
+     * writes, the same fifteen-minute expiry, the same form. The operator types the code
+     * into the real screen. Nothing is bypassed — the code simply does not go to a mailbox
+     * that cannot exist.
+     *
+     * @return array{ok:bool, code:?string, email:string, expires_in:int, message:string}
+     */
+    public static function judgeSignInCode(): array
+    {
+        $email = 'judge@' . self::MAIL_DOMAIN;
+
+        try {
+            $judge = DB::table('gates_judges')->where('email', $email)->first(['id', 'is_active']);
+        } catch (\Throwable) {
+            $judge = null;
+        }
+
+        if (!$judge) {
+            return ['ok' => false, 'code' => null, 'email' => $email, 'expires_in' => 0,
+                    'message' => 'There is no sandbox judge — build the sandbox first.'];
+        }
+        if ((int) ($judge->is_active ?? 0) !== 1) {
+            return ['ok' => false, 'code' => null, 'email' => $email, 'expires_in' => 0,
+                    'message' => 'The sandbox judge is not active, so the portal would refuse '
+                               . 'the code. Rebuild the sandbox.'];
+        }
+
+        $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $hash = hash('sha256', $email);
+
+        try {
+            // Retire any outstanding code first, exactly as the real request does — two live
+            // codes for one address is how somebody types the older one and is told it is
+            // wrong.
+            DB::table('gates_otp_tokens')->where('email_hash', $hash)
+                ->where('purpose', 'judge_login')->where('is_used', 0)
+                ->update(['is_used' => 1]);
+
+            DB::table('gates_otp_tokens')->insert([
+                'email_hash' => $hash,
+                'token_hash' => hash('sha256', $code),
+                'purpose'    => 'judge_login',
+                'nominee_id' => (int) $judge->id,
+                'award_id'   => 0,
+                'attempts'   => 0,
+                'is_used'    => 0,
+                'expires_at' => Carbon::now()->addMinutes(15)->toDateTimeString(),
+                'created_at' => Carbon::now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {
+            error_log('[demo] judge sign-in code: ' . $e->getMessage());
+            return ['ok' => false, 'code' => null, 'email' => $email, 'expires_in' => 0,
+                    'message' => 'That code could not be created just now.'];
+        }
+
+        return ['ok' => true, 'code' => $code, 'email' => $email, 'expires_in' => 15,
+                'message' => 'Sign in at /judge/login with ' . $email . ' and this code.'];
+    }
+
     /**
      * Every screen the sandbox makes reachable, in the order somebody would walk them.
      *
@@ -586,6 +819,7 @@ final class DemoSeeder
             ['label' => 'Questionnaire invitations', 'href' => '/admin/questionnaires/invitations?cycle=' . $cycleId],
             ['label' => 'Interviews',            'href' => '/admin/interviews'],
             ['label' => 'The judging panel',     'href' => '/admin/judges'],
+            ['label' => 'The judging rubric',    'href' => '/admin/rubric?programme=' . $programmeId],
             ['label' => 'Shortlist for this category', 'href' => '/admin/shortlists/category/' . $categoryId],
         ];
 

@@ -63,6 +63,39 @@ final class SandboxController
     }
 
     /**
+     * Mint a sign-in code for the sandbox judge and show it on the page.
+     *
+     * ── THE GAP THIS CLOSES ─────────────────────────────────────────────────
+     *
+     * Judges sign in with a six-digit code EMAILED to them, and the sandbox judge is at
+     * `demo.invalid` — a domain RFC 2606 reserves precisely so that no mail server will ever
+     * accept it. So the demo judge could not sign in at all, and every screen in the judge
+     * portal was unreachable in the one environment built for trying them. The documented
+     * workaround was to open a log file on a host with no shell.
+     *
+     * Nothing is bypassed: {@see DemoSeeder::judgeSignInCode()} writes the same OTP row the
+     * real request writes, with the same fifteen-minute expiry, and the operator types it
+     * into the real form. The code simply does not go to a mailbox that cannot exist. The
+     * address is fixed inside the seeder rather than passed in — a parameter here is the
+     * thing that would eventually be pointed at a real judge.
+     */
+    public function judgeCode(Request $req, Response $res): Response
+    {
+        $r = DemoSeeder::judgeSignInCode();
+
+        $_SESSION[($r['ok'] ?? false) ? 'flash' : 'flash_error'] = (string) $r['message'];
+        if ($r['ok'] ?? false) $_SESSION['sandbox_judge_code'] = (string) $r['code'];
+
+        // Audited because it creates a credential. The code itself is NOT recorded — an
+        // audit trail that stores live sign-in codes is a worse artefact than the one it
+        // was written to protect.
+        $this->audit->record($this->adminId(), 'sandbox.judge_code', 'judge', 0,
+                             ['ok' => (bool) ($r['ok'] ?? false)]);
+
+        return $this->render($res);
+    }
+
+    /**
      * Rendered rather than redirected, so the freshly-built links are on the page that
      * reports the build. A redirect would show the same links a second later with no
      * connection to the act, and the links are most of what makes this useful.
@@ -76,6 +109,16 @@ final class SandboxController
             'current'     => DemoSeeder::current(),
             'prefix'      => DemoSeeder::PREFIX,
             'slug'        => DemoSeeder::PROGRAMME_SLUG,
+            // The portals, and the keys to them — see judgeCode() for why the judge one
+            // had to exist at all.
+            'doors'       => DemoSeeder::doors(),
+            // Shown once. A sign-in code that survives a refresh is one still on screen
+            // when somebody else walks past the desk, and it is valid for fifteen minutes.
+            'judge_code'  => (static function (): ?string {
+                $c = $_SESSION['sandbox_judge_code'] ?? null;
+                unset($_SESSION['sandbox_judge_code']);
+                return is_string($c) && $c !== '' ? $c : null;
+            })(),
         ]);
     }
 }

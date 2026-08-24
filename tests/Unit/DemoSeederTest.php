@@ -347,4 +347,147 @@ final class DemoSeederTest extends TestCase
         $this->assertSame($seeded['category_id'], $now['category_id']);
         $this->assertNotSame([], $now['links']);
     }
+    // ══ and the half of the sandbox nobody could reach ═══════════════════════
+
+    /**
+     * A sitting somebody has yet to attend, not only a transcript of one that happened.
+     *
+     * Two tables with confusingly similar names. `gates_nominee_interviews` is a TRANSCRIPT
+     * filed as evidence; `gates_interviews` is the live appointment — the consent page, the
+     * meeting, the question pack, the bot, and everything on `/admin/interviews`.
+     *
+     * Only the first was seeded, so `/admin/interviews` was EMPTY in the sandbox: the screen
+     * an operator most wants to rehearse before putting a real nominee in front of a panel
+     * had nothing on it, and the sandbox looked complete because the other table did have a
+     * row in it.
+     */
+    public function test_there_is_a_sitting_still_to_be_held_not_only_a_filed_transcript(): void
+    {
+        $seeded = DemoSeeder::seed(1);
+        $ids    = array_values($seeded['nominees']);
+
+        $filed = DB::table('gates_nominee_interviews')->whereIn('nominee_id', $ids)->count();
+        $this->assertSame(1, $filed, 'the transcript on file');
+
+        $sitting = DB::table('gates_interviews')->whereIn('nominee_id', $ids)->first();
+        $this->assertNotNull($sitting, '/admin/interviews is empty in the sandbox');
+
+        $this->assertContains((string) $sitting->status, ['draft', 'invited', 'confirmed', 'live'],
+            'a done or cancelled sitting is not something anybody can rehearse');
+        $this->assertNotNull($sitting->scheduled_at, 'a sitting with no appointment is a draft row');
+        $this->assertGreaterThan(date('Y-m-d H:i:s'), (string) $sitting->scheduled_at,
+            'an appointment in the past cannot be walked through');
+
+        // And on a DIFFERENT nominee from the transcript, so both states are visible at once.
+        $filedFor = (int) DB::table('gates_nominee_interviews')->whereIn('nominee_id', $ids)
+            ->value('nominee_id');
+        $this->assertNotSame($filedFor, (int) $sitting->nominee_id);
+    }
+
+    /**
+     * THE ONE THAT MADE THE SANDBOX HALF A SANDBOX.
+     *
+     * Judges sign in with a six-digit code EMAILED to them, and the sandbox judge is at
+     * `demo.invalid` — reserved by RFC 2606 precisely so that no mail server will ever
+     * accept it. So the demo judge could not sign in AT ALL: the ballot, the dossier map,
+     * the recusal flow and the AI assist were unreachable in the one environment built for
+     * trying them, and the documented workaround was to read a log file on a host with no
+     * shell.
+     *
+     * Asserted against the REAL verification query rather than against the return value —
+     * a code this test agrees with and the login screen rejects is the bug intact.
+     */
+    public function test_the_sandbox_judge_can_actually_sign_in(): void
+    {
+        DemoSeeder::seed(1);
+
+        $r = DemoSeeder::judgeSignInCode();
+
+        $this->assertTrue($r['ok'], (string) $r['message']);
+        $this->assertMatchesRegularExpression('~^[0-9]{6}$~', (string) $r['code']);
+
+        $row = DB::table('gates_otp_tokens')
+            ->where('email_hash', hash('sha256', 'judge@' . DemoSeeder::MAIL_DOMAIN))
+            ->where('purpose', 'judge_login')
+            ->where('is_used', 0)
+            ->first();
+
+        $this->assertNotNull($row, 'the login screen looks for exactly this row');
+        $this->assertTrue(hash_equals((string) $row->token_hash, hash('sha256', (string) $r['code'])),
+            'the code shown is not the code the portal will accept');
+        $this->assertGreaterThan(date('Y-m-d H:i:s'), (string) $row->expires_at);
+    }
+
+    /** A second code retires the first, exactly as a second real request would. */
+    public function test_asking_twice_leaves_only_one_live_code(): void
+    {
+        DemoSeeder::seed(1);
+
+        $first = DemoSeeder::judgeSignInCode();
+        DemoSeeder::judgeSignInCode();
+
+        $live = DB::table('gates_otp_tokens')
+            ->where('email_hash', hash('sha256', 'judge@' . DemoSeeder::MAIL_DOMAIN))
+            ->where('is_used', 0)->get();
+
+        $this->assertCount(1, $live, 'two live codes is how somebody types the older one');
+        $this->assertFalse(
+            hash_equals((string) $live[0]->token_hash, hash('sha256', (string) $first['code'])),
+            'the newest code must be the one that works');
+    }
+
+    /** Without a sandbox there is no judge, and no code is minted for a name that is free. */
+    public function test_no_code_is_minted_when_there_is_no_sandbox(): void
+    {
+        $r = DemoSeeder::judgeSignInCode();
+
+        $this->assertFalse($r['ok']);
+        $this->assertNull($r['code']);
+        $this->assertSame(0, DB::table('gates_otp_tokens')
+            ->where('email_hash', hash('sha256', 'judge@' . DemoSeeder::MAIL_DOMAIN))->count());
+    }
+
+    /**
+     * The doors lead to the three portals, and a token that opens nothing is not a door.
+     */
+    public function test_the_doors_open_every_portal_the_console_cannot_reach(): void
+    {
+        DemoSeeder::seed(1);
+        $d = DemoSeeder::doors();
+
+        $this->assertSame('judge@' . DemoSeeder::MAIL_DOMAIN, $d['judge_email']);
+
+        $this->assertNotNull($d['interview']);
+        $this->assertMatchesRegularExpression('~^/interview/[a-f0-9]{32}$~', $d['interview']['href'],
+            'the route only matches a 32-character hex token');
+
+        // One per state, because a submitted questionnaire, a draft and an untouched one are
+        // three different screens and walking one says nothing about the other two.
+        $this->assertCount(3, $d['questionnaires']);
+        $this->assertSame(['draft', 'draft', 'submitted'],
+            (static function (array $q): array {
+                $s = array_column($q, 'state');
+                sort($s);
+                return $s;
+            })($d['questionnaires']));
+
+        foreach ($d['questionnaires'] as $q) {
+            $this->assertMatchesRegularExpression('~^/my-work/[a-f0-9]{32}$~', $q['href']);
+        }
+    }
+
+    /** Teardown takes the sitting and any live sign-in code with it. */
+    public function test_removal_leaves_no_sitting_and_no_live_credential(): void
+    {
+        $seeded = DemoSeeder::seed(1);
+        DemoSeeder::judgeSignInCode();
+
+        DemoSeeder::purge();
+
+        $this->assertSame(0, DB::table('gates_interviews')
+            ->whereIn('nominee_id', array_values($seeded['nominees']))->count());
+        $this->assertSame(0, DB::table('gates_otp_tokens')
+            ->where('email_hash', hash('sha256', 'judge@' . DemoSeeder::MAIL_DOMAIN))->count(),
+            'a live sign-in code for an account that no longer exists');
+    }
 }

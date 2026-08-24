@@ -57,13 +57,85 @@
       </tbody>
     </table>
   </div>
-  <div class="ad-card__body" style="border-top:1px solid var(--ad-line)">
-    <p style="margin:0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
-      To sign into the judge portal as the test judge, use <code>judge@demo.invalid</code> and
-      send yourself a magic link from <a href="/admin/judges" style="color:var(--ad-accent,#237b22)">the panel screen</a>.
-      Nothing will be delivered to that address — copy the link out of the mail log instead
-      (<code>var/logs/outgoing-mail.log</code>), which is where an unroutable send lands.
+</div>
+
+{# ── THE OTHER HALF OF THE SANDBOX ────────────────────────────────────────────
+   Everything above is an ADMIN screen — the half an operator can already reach, and not
+   the half they are nervous about. What a nominee sees when they open the questionnaire,
+   what the consent page asks before an interview, whether the judge's ballot makes sense:
+   none of that is visible from the console, and all three sit behind a token or a login
+   the sandbox never handed anybody.
+
+   The judge portal was the worst of it. Judges sign in with a six-digit code EMAILED to
+   them, and the sandbox judge is at demo.invalid — a domain RFC 2606 reserves precisely so
+   no mail server will ever accept it. So the demo judge could not sign in AT ALL, and the
+   instruction that used to sit here was to go and read var/logs/outgoing-mail.log on a host
+   with no shell. #}
+<div class="ad-card">
+  <div class="ad-card__head"><div class="ad-card__title">The three portals
+    <small>What a nominee, a judge and an interviewee actually see. None of this is reachable from the console.</small>
+  </div></div>
+  <div class="ad-card__body">
+
+    {# ── the judge ─────────────────────────────────────────────────────────── #}
+    <h3 style="margin:0 0 6px;font-size:14px">Sign in as the test judge</h3>
+    <p style="margin:0 0 10px;font-size:12.5px;line-height:1.65;color:var(--ad-text-mute,#5a6d6f)">
+      The real sign-in screen, the real code, the real fifteen-minute expiry — it just is not
+      emailed, because <code>{{ doors.judge_email }}</code> is at a domain no mail server
+      will ever accept.
     </p>
+
+    {% if judge_code %}
+      {# Shown once and not persisted: a code still on screen after a refresh is one still
+         there when somebody walks past the desk, and it is valid for fifteen minutes. #}
+      <div class="ad-callout" style="margin:0 0 12px">
+        <strong>Your code — this is the only time it is shown</strong>
+        <div style="font-family:var(--ag-font-mono,ui-monospace,Consolas,monospace);font-weight:700;font-size:30px;letter-spacing:.3em;padding:10px 0 4px">{{ judge_code }}</div>
+        <p style="margin:0;font-size:12.5px">
+          Go to <a href="{{ doors.judge_login }}" target="_blank" rel="noopener" style="color:var(--ad-accent,#237b22);font-weight:600">{{ doors.judge_login }}</a>,
+          enter <code>{{ doors.judge_email }}</code>, then this code. It expires in 15 minutes.
+        </p>
+      </div>
+    {% endif %}
+
+    <form method="post" action="/admin/sandbox/judge-code" style="margin:0 0 20px">
+      <input type="hidden" name="_token" value="{{ csrf_token }}">
+      <button class="ad-btn ad-btn--sm" type="submit">{{ judge_code ? 'Get another code' : 'Get a sign-in code' }}</button>
+    </form>
+
+    {# ── the interviewee ───────────────────────────────────────────────────── #}
+    <h3 style="margin:0 0 6px;font-size:14px;padding-top:16px;border-top:1px solid var(--ad-line)">The interviewee's own page</h3>
+    {% if doors.interview %}
+      <p style="margin:0 0 6px;font-size:12.5px;line-height:1.65;color:var(--ad-text-mute,#5a6d6f)">
+        Consent, the appointment, and rescheduling — what <strong>{{ doors.interview.label }}</strong>
+        opens{% if doors.interview.when %}, for the sitting on {{ doors.interview.when }}{% endif %}.
+      </p>
+      <a href="{{ doors.interview.href }}" target="_blank" rel="noopener"
+         style="color:var(--ad-accent,#237b22);font-weight:600;font-size:13px">Open it →</a>
+      <div><code style="font-size:11.5px;color:var(--ad-text-mute)">{{ doors.interview.href }}</code></div>
+    {% else %}
+      <p style="margin:0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        No sitting is scheduled. Rebuild the sandbox — it opens one three days out.
+      </p>
+    {% endif %}
+
+    {# ── the nominee ───────────────────────────────────────────────────────── #}
+    <h3 style="margin:22px 0 6px;font-size:14px;padding-top:16px;border-top:1px solid var(--ad-line)">The questionnaire, as the nominee sees it</h3>
+    <p style="margin:0 0 10px;font-size:12.5px;line-height:1.65;color:var(--ad-text-mute,#5a6d6f)">
+      One in each state, because they are three different experiences: a submitted one is
+      read-only, a draft is the form mid-flight, and an untouched one is what a nominee meets
+      on the first open. Walking one tells you nothing about the other two.
+    </p>
+    {% for q in doors.questionnaires %}
+      <div style="padding:7px 0;border-bottom:1px solid var(--ad-line)">
+        <a href="{{ q.href }}" target="_blank" rel="noopener"
+           style="color:var(--ad-accent,#237b22);font-weight:600;font-size:13px">{{ q.label }}</a>
+        <span style="font-size:11.5px;color:var(--ad-text-mute);margin-left:8px">{{ q.state }}</span>
+        <div><code style="font-size:11.5px;color:var(--ad-text-mute)">{{ q.href }}</code></div>
+      </div>
+    {% else %}
+      <p style="margin:0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">None yet — build the sandbox.</p>
+    {% endfor %}
   </div>
 </div>
 

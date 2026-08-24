@@ -3525,6 +3525,12 @@ return function(App $app) {
             ->add(new RoleMiddleware('superadmin'));
         $a->post('/sandbox/remove', \AfricaGates\Admin\Controllers\SandboxController::class.':remove')
             ->add(new RoleMiddleware('superadmin'));
+        // Mints a real sign-in code for the sandbox judge — the demo judge's address is at
+        // demo.invalid, so the emailed code could never arrive and the whole judge portal
+        // was unreachable in the sandbox. Superadmin like the rest of this screen, and the
+        // seeder fixes the address internally so this can never be aimed at a real judge.
+        $a->post('/sandbox/judge-code', \AfricaGates\Admin\Controllers\SandboxController::class.':judgeCode')
+            ->add(new RoleMiddleware('superadmin'));
 
         // ── THE INTERVIEW BOT ───────────────────────────────────────────────
         //
