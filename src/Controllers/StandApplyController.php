@@ -74,6 +74,15 @@ final class StandApplyController
         if (!$call || (string) $call->status === StandCall::STATUS_DRAFT) {
             // A draft call is not a public fact. Its terms are still being written and
             // publishing half of them is how a quota gets quoted before it is decided.
+            //
+            // But bouncing to the event page and saying NOTHING is how this was reported
+            // as "I cannot open the vendor application page": you follow a link, you land
+            // somewhere else, and nothing on the screen acknowledges that you asked for
+            // anything. The terms stay private; the fact that there is nothing to show
+            // yet does not.
+            $_SESSION['flash_notice'] = 'Stand applications for '
+                . (string) $event->title . ' have not been published yet. '
+                . 'The terms go up here before the call opens.';
             return $this->redirect($res, '/events/' . (string) $event->slug);
         }
 
@@ -99,8 +108,32 @@ final class StandApplyController
         if (!$event) return $this->redirect($res, '/events');
 
         $call = StandCall::forEvent((int) $event->id);
+
+        // ── SAY WHICH KIND OF "NO" THIS IS ──────────────────────────────────
+        //
+        // All three of these used to be the same sentence — "applications for this event
+        // are closed" — written to a session key that NO PUBLIC TEMPLATE RENDERED. So the
+        // vendor clicked Apply, landed back on the page they came from, and were told
+        // nothing whatsoever. Three different situations, one blank screen.
+        if (!$call || (string) $call->status === StandCall::STATUS_DRAFT) {
+            $_SESSION['flash_notice'] = 'Stand applications for ' . (string) $event->title
+                . ' have not opened yet. The terms will be published here first.';
+            return $this->redirect($res, '/events/' . (string) $event->slug);
+        }
+
         if (!StandCall::isAccepting($call)) {
-            $_SESSION['org_flash_error'] = 'Applications for this event are closed.';
+            $_SESSION['flash_error'] = StandCall::whyNotAccepting($call);
+            return $this->redirect($res, '/events/' . (string) $event->slug . '/stands');
+        }
+
+        // An open call with no stand types is a form whose only required question has no
+        // answers. Submitting it can only fail, so it is not shown: the organiser has
+        // opened the call before deciding what is on offer, and the vendor needs to come
+        // back rather than fight a select with nothing in it.
+        if (StandType::forEvent((int) $event->id) === []) {
+            $_SESSION['flash_notice'] = 'The stands for ' . (string) $event->title
+                . ' are still being laid out, so there is nothing to apply for yet. '
+                . 'The sizes and prices appear on this page as soon as they are set.';
             return $this->redirect($res, '/events/' . (string) $event->slug . '/stands');
         }
 
@@ -170,7 +203,10 @@ final class StandApplyController
 
         $call = StandCall::forEvent((int) $event->id);
         if (!StandCall::isAccepting($call)) {
-            $_SESSION['org_flash_error'] = 'Applications for this event are closed.';
+            // Reached when a call closes between opening the form and submitting it, which
+            // is exactly when somebody has just typed nine fields. They are owed the reason
+            // and the closing time, not a bare "closed".
+            $_SESSION['flash_error'] = StandCall::whyNotAccepting($call);
             return $this->redirect($res, '/events/' . (string) $event->slug . '/stands');
         }
 

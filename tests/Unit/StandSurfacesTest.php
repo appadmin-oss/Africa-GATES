@@ -420,9 +420,147 @@ class StandSurfacesTest extends TestCase
         ]), new Response(), ['slug' => (string) $event->slug]);
 
         $this->assertSame(302, $res->getStatusCode());
-        $this->assertStringContainsString('closed', (string) $_SESSION['org_flash_error']);
+        // `flash_error`, not `org_flash_error`. The org-scoped key is rendered by the org
+        // dashboard, and this redirect goes to a PUBLIC page — which is why the message
+        // reached nobody and the bounce looked like a broken link.
+        $this->assertStringContainsString('closed', (string) $_SESSION['flash_error']);
         $this->assertSame(0, (int) DB::table('gates_stand_applications')
             ->where('event_id', $event->id)->count());
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // THE SILENT BOUNCE
+    // ════════════════════════════════════════════════════════════════════════
+    //
+    // Reported as "I am unable to open the vendor page for application". The redirect was
+    // working. The explanation was being written. It was written to `org_flash_error`,
+    // which only the org dashboard rendered — and the redirect goes to a PUBLIC page. So
+    // the vendor clicked Apply, landed back where they started, and the screen said
+    // nothing at all. Four different reasons, one blank page.
+
+    /** A call whose terms are still a draft says so, rather than dropping you on the event. */
+    public function test_the_apply_page_explains_a_call_that_has_not_been_published(): void
+    {
+        $event = $this->makeEvent();
+        StandType::save((int) $event->id, [
+            'name' => 'Food pitch', 'category' => 'food', 'price_naira' => '50000', 'quota' => '2',
+        ]);
+        StandCall::save((int) $event->id, [
+            'closes_at' => date('Y-m-d H:i:s', strtotime('+14 days')),
+        ]);
+
+        $res = $this->publicCtrl()->form($this->get('/x'), new Response(),
+                                         ['slug' => (string) $event->slug]);
+
+        $this->assertSame(302, $res->getStatusCode());
+        $this->assertNotEmpty($_SESSION['flash_notice'] ?? '', 'bounced with no reason given');
+        $this->assertStringContainsString('not opened yet', (string) $_SESSION['flash_notice']);
+    }
+
+    /** A call that opens next week names the date instead of saying "closed". */
+    public function test_a_call_that_opens_later_says_when(): void
+    {
+        $event = $this->makeEvent();
+        $this->openCall($event);
+        $callId = (int) StandCall::forEvent((int) $event->id)->id;
+        // Straight to the column: opens_at is one of the locked terms, so save() refuses
+        // it once the call is open — and this is a fixture, not a supported edit.
+        DB::table('gates_stand_calls')->where('id', $callId)
+            ->update(['opens_at' => date('Y-m-d H:i:s', strtotime('+3 days'))]);
+
+        $res = $this->publicCtrl()->form($this->get('/x'), new Response(),
+                                         ['slug' => (string) $event->slug]);
+
+        $this->assertSame(302, $res->getStatusCode());
+        $this->assertStringContainsString('Applications open on',
+                                          (string) ($_SESSION['flash_error'] ?? ''));
+    }
+
+    /**
+     * An open call with nothing on offer is not a form, it is a trap.
+     *
+     * The only required question is which stand you want. With no stand types the select
+     * is empty, so the form can only ever be submitted into "Choose which kind of stand
+     * you want" — a validation error about a choice the page never offered.
+     */
+    public function test_an_open_call_with_no_stand_types_does_not_render_an_unusable_form(): void
+    {
+        $event = $this->makeEvent();
+        $this->openCall($event);
+        foreach (StandType::forEvent((int) $event->id) as $t) {
+            DB::table('gates_stand_types')->where('id', $t->id)->delete();
+        }
+
+        $res = $this->publicCtrl()->form($this->get('/x'), new Response(),
+                                         ['slug' => (string) $event->slug]);
+
+        $this->assertSame(302, $res->getStatusCode());
+        $this->assertStringContainsString('still being laid out',
+                                          (string) ($_SESSION['flash_notice'] ?? ''));
+    }
+
+    /**
+     * `<input type="datetime-local">` sends `2026-09-01T10:00`, and that T was the bug.
+     *
+     * Stored verbatim, it is compared as a string against `date('Y-m-d H:i:s')`. 'T' (0x54)
+     * sorts above ' ' (0x20), so a call that opened at 09:00 this morning read as opening
+     * in the future for the whole of the rest of the day. MySQL normalises the value into a
+     * TIMESTAMP column and SQLite does not, so this was invisible in production and live in
+     * development — this platform's most repeated failure mode.
+     */
+    public function test_a_datetime_local_value_does_not_leave_the_call_permanently_unopened(): void
+    {
+        $event = $this->makeEvent();
+        StandType::save((int) $event->id, [
+            'name' => 'Food pitch', 'category' => 'food', 'price_naira' => '50000', 'quota' => '2',
+        ]);
+
+        // Exactly what the browser posts: a T, no seconds, opening an hour ago.
+        $c = StandCall::save((int) $event->id, [
+            'opens_at'  => date('Y-m-d\TH:i', strtotime('-1 hour')),
+            'closes_at' => date('Y-m-d\TH:i', strtotime('+14 days')),
+        ]);
+        $this->assertTrue($c['ok'], $c['message'] ?? '');
+        StandCall::open($c['id'], 1);
+
+        $call = StandCall::forEvent((int) $event->id);
+        $this->assertStringNotContainsString('T', (string) $call->opens_at,
+            'the T must be normalised on write, not only defended against on read');
+        $this->assertTrue(StandCall::isAccepting($call),
+            'a call that opened an hour ago is open');
+    }
+
+    /** A closing DATE with no time must mean the end of that day, not the start of it. */
+    public function test_a_call_closing_today_is_open_today(): void
+    {
+        $event = $this->makeEvent();
+        StandType::save((int) $event->id, [
+            'name' => 'Food pitch', 'category' => 'food', 'price_naira' => '50000', 'quota' => '2',
+        ]);
+        $c = StandCall::save((int) $event->id, ['closes_at' => date('Y-m-d')]);
+        $this->assertTrue($c['ok'], $c['message'] ?? '');
+        StandCall::open($c['id'], 1);
+
+        $this->assertTrue(StandCall::isAccepting(StandCall::forEvent((int) $event->id)),
+            'a call closing today was closing at midnight AT THE START of today');
+    }
+
+    /** Each refusal is a different sentence, because they need different actions. */
+    public function test_the_four_refusals_do_not_share_one_sentence(): void
+    {
+        $said = [];
+
+        $said[] = StandCall::whyNotAccepting(null);
+        $said[] = StandCall::whyNotAccepting((object) ['status' => StandCall::STATUS_DRAFT]);
+        $said[] = StandCall::whyNotAccepting((object) [
+            'status' => StandCall::STATUS_OPEN, 'opens_at' => date('Y-m-d H:i:s', strtotime('+3 days')),
+        ]);
+        $said[] = StandCall::whyNotAccepting((object) [
+            'status' => StandCall::STATUS_OPEN, 'closes_at' => date('Y-m-d H:i:s', strtotime('-3 days')),
+        ]);
+
+        $this->assertCount(4, array_unique($said), 'four situations, four sentences');
+        foreach ($said as $sentence) $this->assertNotSame('', trim($sentence));
     }
 
     /** A signed-in vendor is not asked to invent a second account. */

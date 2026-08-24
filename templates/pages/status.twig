@@ -1,129 +1,142 @@
 {% extends "layout/gates.twig" %}
 
-{% set overall = overall|default('operational') %}
-{% set components = components|default([
-  {'name':'Voting & ballots',     'desc':'Vote casting, OTP verification', 'status':'Operational'},
-  {'name':'Leaderboard & CPI',    'desc':'Score computation, rankings',    'status':'Operational'},
-  {'name':'Registry & profiles',  'desc':'Profile browse and search',      'status':'Operational'},
-  {'name':'Pulse & media',        'desc':'Feed, reels, stories',           'status':'Operational'},
-  {'name':'Payments & tickets',   'desc':'Checkout, donations, ticketing', 'status':'Operational'},
-  {'name':'Email & notifications','desc':'Transactional delivery',         'status':'Operational'}
-]) %}
-{% set incidents = incidents|default([]) %}
+{#
+  ── THIS PAGE IS A MEASUREMENT, NOT A REASSURANCE ─────────────────────────────
+
+  The version this replaced hard-coded its OWN fallback component list in Twig
+  defaults, so even when the route passed nothing the page still printed six
+  green rows. Two independent places were therefore asserting health that
+  neither of them had checked.
+
+  There are no defaults here on purpose. If the route stops passing a report the
+  page says so instead of inventing one.
+
+  Colour is never the only carrier of state: every row prints the state in
+  words, and the mark beside it differs in FILL as well as hue so it survives
+  monochrome, colour-blindness and a bad phone screen in daylight.
+#}
+
+{% set report_ok = components is defined and components is not empty %}
 
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
-  body[data-page="status"]{ background:#eef0ec; }
-  .st{ max-width:880px; margin:0 auto; padding:clamp(1.8rem,4vw,2.4rem) var(--ag-gutter,32px) clamp(3rem,6vw,3.75rem); }
+  body[data-page="status"]{ background:#f0f2f2; }
 
-  .st-banner{ position:relative; overflow:hidden; border-radius:22px; padding:clamp(1.5rem,3vw,1.9rem); display:flex; align-items:center; gap:18px;
-    background:linear-gradient(135deg,#1a6118,#237b22); color:#fff; }
-  .st-banner--degraded{ background:linear-gradient(135deg,#9a6a06,#c9912b); }
-  .st-banner--down{ background:linear-gradient(135deg,#8c1d12,#c0392b); }
-  .st-banner__orb{ position:absolute; right:-50px; top:-50px; width:200px; height:200px; border-radius:50%; background:radial-gradient(circle,rgba(255,255,255,.12),transparent 68%); }
-  .st-banner__ico{ position:relative; flex:none; width:54px; height:54px; border-radius:50%; background:rgba(255,255,255,.16); display:flex; align-items:center; justify-content:center; }
-  .st-banner__txt{ position:relative; flex:1; min-width:0; }
-  .st-banner__txt h1{ margin:0; font-family:var(--ag-font-display); font-weight:700; font-size:clamp(1.4rem,3vw,1.7rem); letter-spacing:-.01em; }
-  .st-banner__txt p{ margin:6px 0 0; font-size:13.5px; color:rgba(255,255,255,.82); }
-  .st-banner__badge{ position:relative; flex:none; font-size:12px; font-weight:600; background:rgba(255,255,255,.16); padding:8px 14px; border-radius:999px; }
+  .stx{ max-width:820px; margin:0 auto; padding:clamp(2rem,5vw,3.25rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
 
-  .st-h2{ margin:34px 0 14px; font-size:13px; font-weight:700; letter-spacing:.04em; color:var(--ag-ink); }
+  .stx-kick{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-label); letter-spacing:var(--ag-tracking-label);
+    text-transform:uppercase; color:var(--ag-ink-soft); margin:0 0 14px; }
 
-  .st-comps{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:18px; overflow:hidden; }
-  .st-comp{ display:flex; align-items:center; gap:14px; padding:16px 22px; border-bottom:1px solid rgba(16,41,44,.06); }
-  .st-comp:last-child{ border-bottom:0; }
-  .st-comp__main{ flex:1; min-width:0; }
-  .st-comp__name{ font-weight:600; font-size:14.5px; color:var(--ag-ink); }
-  .st-comp__desc{ font-size:12px; color:#5a6d6f; margin-top:2px; }
-  .st-comp__status{ flex:none; display:flex; align-items:center; gap:8px; }
-  .st-dot{ width:9px; height:9px; border-radius:50%; background:#237b22; box-shadow:0 0 0 0 rgba(35,123,34,.45); animation:stPulse 2.4s infinite; }
-  .st-dot--degraded{ background:#e0a52b; animation:none; }
-  .st-dot--down{ background:#c0392b; animation:none; }
-  .st-comp__label{ font-size:13px; font-weight:600; color:#1a6118; }
-  .st-comp__label--degraded{ color:#7a5600; }
-  .st-comp__label--down{ color:#c0392b; }
+  .stx-verdict{ font-family:var(--ag-font-display); font-weight:700; letter-spacing:-.015em;
+    font-size:clamp(1.9rem,4.6vw,2.9rem); line-height:1.1; margin:0; color:var(--ag-ink); }
+  .stx-verdict em{ font-style:normal; box-shadow:inset 0 -.34em 0 rgba(243,180,22,.34); }
 
-  .st-mon{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
-  .st-mon__card{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:20px; }
-  .st-mon__k{ font-size:11.5px; color:#5a6d6f; text-transform:uppercase; letter-spacing:.05em; }
-  .st-mon__v{ font-family:var(--ag-font-display); font-weight:700; font-size:1.15rem; color:var(--ag-ink); margin-top:8px; }
-  .st-mon__d{ font-size:12.5px; line-height:1.5; color:#4a5256; margin-top:6px; }
+  .stx-note{ margin:16px 0 0; font-size:1.0125rem; line-height:1.6; color:#3c4649; max-width:56ch; }
 
-  .st-inc{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:16px; padding:20px 22px; }
-  .st-inc + .st-inc{ margin-top:14px; }
-  .st-inc__top{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .st-inc__tag{ font-size:11px; font-weight:600; padding:4px 10px; border-radius:999px; background:#e7f3e7; color:#1a6118; }
-  .st-inc__title{ font-weight:600; font-size:14.5px; color:var(--ag-ink); }
-  .st-inc__date{ margin-left:auto; font-size:12px; color:#5a6d6f; }
-  .st-inc__body{ margin:11px 0 0; font-size:13.5px; line-height:1.6; color:#4a5256; }
-  .st-empty{ text-align:center; padding:22px; background:var(--ag-surface); border:1px dashed rgba(16,41,44,.14); border-radius:16px; font-size:13.5px; color:#5a6d6f; }
+  .stx-stamp{ margin:22px 0 0; padding-top:16px; border-top:1px solid rgba(16,41,44,.12);
+    font-family:var(--ag-font-mono); font-size:12px; color:var(--ag-ink-soft);
+    display:flex; flex-wrap:wrap; gap:6px 18px; }
 
-  @keyframes stPulse{ 0%{box-shadow:0 0 0 0 rgba(35,123,34,.45)} 70%{box-shadow:0 0 0 6px rgba(35,123,34,0)} 100%{box-shadow:0 0 0 0 rgba(35,123,34,0)} }
+  .stx-h2{ margin:44px 0 0; padding-bottom:12px; border-bottom:1px solid rgba(16,41,44,.16);
+    font-family:var(--ag-font-mono); font-size:var(--ag-fs-label); letter-spacing:var(--ag-tracking-label);
+    text-transform:uppercase; color:var(--ag-ink); }
 
-  @media (max-width:640px){ .st-mon{ grid-template-columns:1fr; } }
+  .stx-rows{ list-style:none; margin:0; padding:0; }
+  .stx-row{ display:flex; align-items:flex-start; gap:16px; padding:18px 2px;
+    border-bottom:1px solid rgba(16,41,44,.09); }
+
+  /* The mark differs in FILL, not only in colour, so the four states stay
+     distinguishable with no colour perception at all. */
+  .stx-mark{ flex:none; width:13px; height:13px; margin-top:4px; border-radius:3px;
+    border:1.5px solid var(--ag-ink-soft); background:transparent; }
+  .stx-mark--operational{ background:#237b22; border-color:#237b22; }
+  .stx-mark--degraded{ border-color:#a4761a; background:linear-gradient(180deg,#f3b416 0 50%,transparent 50% 100%); }
+  .stx-mark--down{ border-color:#a32b1c; background:repeating-linear-gradient(45deg,#a32b1c 0 2px,transparent 2px 4px); }
+  .stx-mark--unknown{ border-style:dashed; border-color:#8a9294; }
+
+  .stx-row__main{ flex:1; min-width:0; }
+  .stx-row__name{ font-weight:600; font-size:1.0125rem; color:var(--ag-ink); }
+  .stx-row__what{ margin-top:3px; font-size:.875rem; color:var(--ag-ink-soft); }
+  .stx-row__detail{ margin:9px 0 0; font-size:.9125rem; line-height:1.55; color:#3c4649; max-width:54ch; }
+
+  .stx-row__state{ flex:none; text-align:right; min-width:8.5rem; }
+  .stx-state{ font-size:.9125rem; font-weight:600; color:#1a6118; }
+  .stx-state--degraded{ color:#7a5600; }
+  .stx-state--down{ color:#a32b1c; }
+  .stx-state--unknown{ color:#5f676a; }
+  .stx-metric{ margin-top:4px; font-family:var(--ag-font-mono); font-size:11.5px; color:var(--ag-ink-soft); }
+
+  .stx-scope{ margin:34px 0 0; padding:20px 22px; background:#fff;
+    border:1px solid rgba(16,41,44,.1); border-radius:var(--ag-r-sm,10px); }
+  .stx-scope p{ margin:0; font-size:.9125rem; line-height:1.65; color:#3c4649; }
+  .stx-scope p + p{ margin-top:11px; }
+  .stx-scope strong{ font-weight:600; color:var(--ag-ink); }
+
+  .stx-broken{ margin:24px 0 0; padding:20px 22px; border:1px solid rgba(163,43,28,.28);
+    border-radius:var(--ag-r-sm,10px); background:#fff; font-size:.9375rem; line-height:1.6; color:#3c4649; }
+
+  @media (max-width:560px){
+    .stx-row{ flex-wrap:wrap; }
+    .stx-row__state{ width:100%; text-align:left; padding-left:29px; min-width:0; }
+    .stx-metric{ display:inline; margin-left:10px; }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="st">
-  {% set bclass = overall == 'down' ? 'st-banner--down' : (overall == 'degraded' ? 'st-banner--degraded' : '') %}
-  {% set btitle = overall == 'down' ? 'Major service outage' : (overall == 'degraded' ? 'Some systems degraded' : 'All systems operational') %}
-  <div class="st-banner {{ bclass }}">
-    <div class="st-banner__orb" aria-hidden="true"></div>
-    <span class="st-banner__ico" aria-hidden="true">
-      {% if overall == 'operational' %}
-        <svg aria-hidden="true" focusable="false" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
-      {% else %}
-        <svg aria-hidden="true" focusable="false" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
-      {% endif %}
-    </span>
-    <div class="st-banner__txt">
-      <h1>{{ btitle }}</h1>
-      <p>Last checked {{ "now"|date("d M Y, H:i") }} WAT · reload to refresh</p>
-    </div>
-    <span class="st-banner__badge">Live status</span>
-  </div>
+<div class="stx">
 
-  <h2 class="st-h2">Components</h2>
-  <div class="st-comps">
-    {% for c in components %}
-      {% set s = c.status|lower %}
-      {% set sv = s == 'down' or s == 'outage' ? 'down' : (s == 'degraded' or s == 'partial' ? 'degraded' : 'op') %}
-      <div class="st-comp">
-        <div class="st-comp__main">
-          <div class="st-comp__name">{{ c.name }}</div>
-          <div class="st-comp__desc">{{ c.desc }}</div>
-        </div>
-        <div class="st-comp__status">
-          <span class="st-dot {{ sv == 'down' ? 'st-dot--down' : (sv == 'degraded' ? 'st-dot--degraded' : '') }}" aria-hidden="true"></span>
-          <span class="st-comp__label {{ sv == 'down' ? 'st-comp__label--down' : (sv == 'degraded' ? 'st-comp__label--degraded' : '') }}">{{ c.status }}</span>
-        </div>
-      </div>
-    {% endfor %}
-  </div>
+  <p class="stx-kick">Live check</p>
 
-  <h2 class="st-h2">What we monitor</h2>
-  <div class="st-mon">
-    <div class="st-mon__card"><div class="st-mon__k">Voting integrity</div><div class="st-mon__v">OTP-verified</div><div class="st-mon__d">Every vote is verified and fraud-scored before it counts.</div></div>
-    <div class="st-mon__card"><div class="st-mon__k">Availability</div><div class="st-mon__v">Core services</div><div class="st-mon__d">Voting, leaderboard and payments are watched continuously.</div></div>
-    <div class="st-mon__card"><div class="st-mon__k">Your data</div><div class="st-mon__v">Backed up</div><div class="st-mon__d">Emails are hashed; votes and profiles are backed up.</div></div>
-  </div>
-
-  <h2 class="st-h2">Recent incidents</h2>
-  {% if incidents is empty %}
-    <div class="st-empty">No incidents reported recently.</div>
+  {% if not report_ok %}
+    {# No report reached the page. Saying nothing is the honest output; the old
+       template printed six green rows in exactly this situation. #}
+    <h1 class="stx-verdict">We could not check just now</h1>
+    <p class="stx-note">This page reads the platform directly every time you load it, and that read did not come back. Reload in a moment. If the rest of the site is working for you, it is working.</p>
   {% else %}
-    {% for i in incidents %}
-      <div class="st-inc">
-        <div class="st-inc__top">
-          <span class="st-inc__tag">{{ i.tag|default('Resolved') }}</span>
-          <span class="st-inc__title">{{ i.title }}</span>
-          <span class="st-inc__date">{{ i.date }}</span>
-        </div>
-        <p class="st-inc__body">{{ i.body }}</p>
-      </div>
-    {% endfor %}
+
+    {% set v = overall|default('unknown') %}
+    {% set headline = v == 'operational' ? 'Everything we can check is <em>working</em>'
+                    : (v == 'degraded'  ? 'Some things are <em>slower than usual</em>'
+                    : (v == 'down'      ? 'Something is <em>not working</em>'
+                    :                     'Some things are <em>not checked</em>')) %}
+
+    <h1 class="stx-verdict">{{ headline|raw }}</h1>
+    {% if note is defined and note %}<p class="stx-note">{{ note }}</p>{% endif %}
+
+    <div class="stx-stamp">
+      <span>Checked {{ checked_at }}</span>
+      <span>Measured on load, not cached</span>
+      <span>Reload to check again</span>
+    </div>
+
+    <h2 class="stx-h2">What we checked</h2>
+    <ul class="stx-rows">
+      {% for c in components %}
+        {% set s = c.status|default('unknown') %}
+        <li class="stx-row">
+          <span class="stx-mark stx-mark--{{ s }}" aria-hidden="true"></span>
+          <div class="stx-row__main">
+            <div class="stx-row__name">{{ c.name }}</div>
+            <div class="stx-row__what">{{ c.what }}</div>
+            {% if c.detail %}<p class="stx-row__detail">{{ c.detail }}</p>{% endif %}
+          </div>
+          <div class="stx-row__state">
+            <div class="stx-state stx-state--{{ s }}">{{ c.label }}</div>
+            {% if c.metric %}<div class="stx-metric">{{ c.metric }}</div>{% endif %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+
   {% endif %}
+
+  <h2 class="stx-h2">What this page can and cannot tell you</h2>
+  <div class="stx-scope">
+    <p>Every line above is measured when you load the page — a real query, a real count, a real recent success rate. Nothing here is a setting somebody typed in, and nothing says <strong>Working</strong> because a key exists somewhere in a configuration file.</p>
+    <p><strong>Not checked</strong> means exactly that. It is not a quiet way of saying fine, and we would rather show it than round it up.</p>
+    <p>This page reports the platform. It cannot see your network, your inbox provider or your bank — so if everything here reads as working and something is still wrong for you, that is worth telling us, not shrugging off.</p>
+  </div>
 
   {# This page answers "is it me or is it them". It does not answer "so where is
      my money", and that is what most people came to ask — a green board and a
@@ -132,8 +145,8 @@
      configuration flag, and can repair the payment while it is there. #}
   {% include 'partials/support-prompt.twig' with {
     sp_kind: 'general',
-    sp_title: 'Everything green but something is still wrong?',
-    sp_body: 'This board reports the services. The assistant can check your specific problem — and re-check a payment against the gateway if that is what is stuck.'
+    sp_title: 'Reads as working but something is still wrong?',
+    sp_body: 'This board reports the platform. The assistant can check your specific problem — and re-check a payment against the gateway if that is what is stuck.'
   } %}
 </div>
 {% endblock %}

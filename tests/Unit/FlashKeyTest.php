@@ -65,19 +65,19 @@ final class FlashKeyTest extends TestCase
         // would otherwise be clearing without anybody rendering them. The declaration is the
         // only place a session key becomes visible to a template.
         preg_match_all(
-            "~'(?:flash[a-z_]*)'\s*=>\s*((?:[^,\n]|\n\s*\?\?)*)~",
+            "~'(?:[a-z_]*flash[a-z_]*)'\s*=>\s*((?:[^,\n]|\n\s*\?\?)*)~",
             $src, $decls
         );
         $read = [];
         foreach ($decls[1] as $expr) {
-            preg_match_all("~\\\$_SESSION\['(flash[a-z_]*)'\]~", $expr, $k);
+            preg_match_all("~\\\$_SESSION\['([a-z_]*flash[a-z_]*)'\]~", $expr, $k);
             foreach ($k[1] as $key) $read[] = $key;
         }
 
         // The unset() line — the consume.
         $cleared = [];
         if (preg_match('~unset\(([^;]*flash[^;]*)\);~s', $src, $m)) {
-            preg_match_all("~'(flash[a-z_]*)'~", $m[1], $c);
+            preg_match_all("~'([a-z_]*flash[a-z_]*)'~", $m[1], $c);
             $cleared = $c[1];
         }
 
@@ -112,7 +112,7 @@ final class FlashKeyTest extends TestCase
                 // assignment so `== ` and `=>` are not mistaken for one.
                 preg_match_all('~\\$_SESSION\[(.*?)\]\s*=[^=>]~', $src, $m);
                 foreach ($m[1] as $subscript) {
-                    preg_match_all("~'(flash[a-z_]*)'~", $subscript, $keys);
+                    preg_match_all("~'([a-z_]*flash[a-z_]*)'~", $subscript, $keys);
                     foreach ($keys[1] as $k) {
                         $out[$k][] = str_replace($this->root() . '/', '', $file);
                     }
@@ -170,6 +170,72 @@ final class FlashKeyTest extends TestCase
         $this->assertMatchesRegularExpression(
             "~'flash_ok'\s*=>\s*\\\$_SESSION\['flash_ok'\]\s*\?\?\s*\\\$_SESSION\['flash'\]~",
             $src
+        );
+    }
+
+    /**
+     * The PUBLIC layout, which rendered none of them at all.
+     *
+     * The admin and judge layouts have shown flash messages since the beginning.
+     * layout/gates.twig — every public page, the account dashboard, the org dashboard,
+     * the whole vendor journey — showed nothing, so a controller that set a message and
+     * redirected sent the visitor somewhere that silently ignored it. Reported as "I am
+     * unable to open the vendor page for application": the redirect was working, the
+     * explanation was written, and no template on that side of the site read it.
+     */
+    public function test_the_public_layout_renders_all_three_kinds(): void
+    {
+        $partial = (string) file_get_contents($this->root() . '/templates/partials/flash.twig');
+
+        foreach (['flash_ok', 'flash_error', 'flash_notice'] as $var) {
+            $this->assertStringContainsString('{% if ' . $var . ' %}', $partial,
+                'a public action reporting ' . $var . ' would report it to nobody');
+        }
+
+        $layout = (string) file_get_contents($this->root() . '/templates/layout/gates.twig');
+        $this->assertStringContainsString("include 'partials/flash.twig'", $layout,
+            'the partial exists but the public layout never includes it');
+    }
+
+    /**
+     * The pages that place their own flash must opt OUT, or every message appears twice.
+     *
+     * Three templates render flash_* inside their own content block, beside the thing the
+     * message is about. They set `own_flash`; the layout skips the rail for them. If one of
+     * them loses the flag the message doubles, which is the kind of thing nobody notices in
+     * review and everybody notices in production.
+     */
+    public function test_pages_that_render_their_own_flash_suppress_the_layout_rail(): void
+    {
+        foreach (['pages/pulse.twig', 'pages/account/dashboard.twig', 'pages/org/dashboard.twig'] as $t) {
+            $src = (string) file_get_contents($this->root() . '/templates/' . $t);
+
+            $rendersOwn = str_contains($src, '{% if flash_ok %}')
+                       || str_contains($src, '{% if flash_error %}')
+                       || str_contains($src, '{% if flash_notice %}');
+
+            if ($rendersOwn) {
+                $this->assertStringContainsString('{% set own_flash = true %}', $src,
+                    $t . ' renders its own flash and would show every message twice');
+            }
+        }
+    }
+
+    /**
+     * The org dashboard must NOT pass flash_ok/flash_error as template variables.
+     *
+     * They are globals now. A local variable overrides a global even when it is null, so
+     * `'flash_ok' => $_SESSION['org_flash_ok'] ?? null` — which is what was there — would
+     * blank the message the alias exists to deliver, because the container consumes the
+     * session key before the controller reads it.
+     */
+    public function test_the_org_dashboard_does_not_shadow_the_flash_globals(): void
+    {
+        $src = (string) file_get_contents($this->root() . '/src/Controllers/OrgDashboardController.php');
+
+        $this->assertDoesNotMatchRegularExpression(
+            "~'flash_(?:ok|error)'\s*=>~", $src,
+            'passing flash_ok/flash_error as a render variable shadows the Twig global with null'
         );
     }
 

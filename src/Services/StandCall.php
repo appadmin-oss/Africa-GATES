@@ -74,12 +74,93 @@ final class StandCall
         if (!$call || (string) ($call->status ?? '') !== self::STATUS_OPEN) return false;
 
         $now   = date('Y-m-d H:i:s');
-        $opens = trim((string) ($call->opens_at  ?? ''));
-        $close = trim((string) ($call->closes_at ?? ''));
+        $opens = self::stamp((string) ($call->opens_at  ?? ''));
+        $close = self::stamp((string) ($call->closes_at ?? ''));
 
         if ($opens !== '' && $opens > $now) return false;
         if ($close !== '' && $close < $now) return false;
         return true;
+    }
+
+    /**
+     * Normalise a stored timestamp before comparing it as a string.
+     *
+     * ── THE BUG THIS EXISTS BECAUSE OF ──────────────────────────────────────
+     *
+     * The organiser's form uses `<input type="datetime-local">`, whose value is
+     * `2026-09-01T10:00` — a **T** where a datetime has a space, and no seconds. That
+     * string was written to the column verbatim and compared, verbatim, against
+     * `date('Y-m-d H:i:s')`.
+     *
+     * MySQL happens to normalise it on the way into a TIMESTAMP column, so it reads back
+     * with a space and the comparison works. SQLite stores TEXT exactly as given, so it
+     * does not — and `'T'` (0x54) sorts ABOVE `' '` (0x20). A call that opened at 09:00
+     * this morning therefore compared as opening in the future for the whole of today, and
+     * `isAccepting()` said no. The vendor clicked Apply and was bounced.
+     *
+     * A comparison that is right on one engine and wrong on the other is the failure mode
+     * this codebase keeps hitting, so the fix is to normalise at both ends — here on read,
+     * and in {@see save()} on write — rather than to trust the column type.
+     */
+    private static function stamp(string $raw): string
+    {
+        $v = trim($raw);
+        if ($v === '') return '';
+
+        $v = str_replace('T', ' ', $v);
+
+        // A bare date means the whole of that day. Without this, a call closing "1 Sept"
+        // compares as closing at 00:00:00 on the 1st — so its final day is not a day.
+        if (preg_match('~^\d{4}-\d{2}-\d{2}$~', $v)) return $v . ' 23:59:59';
+
+        // `2026-09-01 10:00` — the seconds a datetime-local never sends.
+        if (preg_match('~^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$~', $v)) return $v . ':00';
+
+        return $v;
+    }
+
+    /**
+     * Why this call is not taking applications, in a sentence a vendor can act on.
+     *
+     * Every caller used to say "Applications for this event are closed" for all four
+     * reasons — not opened, opens later, closed on a date, never published — and wrote it
+     * to a session key no public template rendered. Both halves of that were the bug.
+     */
+    public static function whyNotAccepting(?object $call): string
+    {
+        if (!$call) {
+            return 'There is no call for stands at this event yet.';
+        }
+
+        $status = (string) ($call->status ?? '');
+        $opens  = self::stamp((string) ($call->opens_at  ?? ''));
+        $close  = self::stamp((string) ($call->closes_at ?? ''));
+        $now    = date('Y-m-d H:i:s');
+
+        if ($status === self::STATUS_DRAFT) {
+            return 'Applications have not opened yet. The terms will be published here first.';
+        }
+
+        // Closed by hand, before the published closing date. That is a real thing an
+        // organiser does — the hall filled — and it needs its own sentence, because
+        // "applications closed on the 14th" would be false and the vendor would go looking
+        // for a date that has not happened.
+        if ($status === self::STATUS_CLOSED) {
+            return 'Applications for this event are closed.';
+        }
+
+        if ($opens !== '' && $opens > $now) {
+            return 'Applications open on ' . date('l j F Y', (int) strtotime($opens))
+                 . ' at ' . date('g:i a', (int) strtotime($opens)) . '.';
+        }
+
+        if ($close !== '' && $close < $now) {
+            return 'Applications closed on ' . date('j F Y', (int) strtotime($close))
+                 . '. Everything that was published is still on this page, so you know what '
+                 . 'to expect next time.';
+        }
+
+        return 'This call is not taking applications at the moment.';
     }
 
     /** The criteria as published, decoded. Empty for a call that was never opened. */
@@ -106,8 +187,12 @@ final class StandCall
                                        . 'Close it and open a new one if the terms must change.'];
         }
 
-        $closes = trim((string) ($in['closes_at'] ?? ''));
-        $opens  = trim((string) ($in['opens_at'] ?? ''));
+        // Normalised HERE and not just on read: `2026-09-01T10:00` from a datetime-local
+        // input is stored verbatim by SQLite, and a column holding two different shapes of
+        // the same instant is a column every future comparison has to remember to defend
+        // against. See {@see stamp()}.
+        $closes = self::stamp((string) ($in['closes_at'] ?? ''));
+        $opens  = self::stamp((string) ($in['opens_at'] ?? ''));
         if ($opens !== '' && $closes !== '' && $closes < $opens) {
             return $fail + ['message' => 'The closing date is before the opening date.'];
         }
@@ -348,7 +433,7 @@ final class StandCall
         if ($isPast) return null;
 
         $now   = date('Y-m-d H:i:s');
-        $opens = trim((string) ($call->opens_at ?? ''));
+        $opens = self::stamp((string) ($call->opens_at ?? ''));
 
         $state = match (true) {
             self::isAccepting($call)          => 'open',
@@ -373,7 +458,7 @@ final class StandCall
         return [
             'state'     => $state,
             'url'       => '/events/' . ltrim($slug, '/') . '/stands',
-            'closes_at' => trim((string) ($call->closes_at ?? '')),
+            'closes_at' => self::stamp((string) ($call->closes_at ?? '')),
             'opens_at'  => $opens,
             'left'      => $left,
             'quota'     => $quota,
@@ -415,7 +500,7 @@ final class StandCall
         $out = [];
         foreach ($rows as $row) {
             if (!self::isAccepting($row)) continue;
-            $out[(int) $row->event_id] = ['closes_at' => trim((string) ($row->closes_at ?? ''))];
+            $out[(int) $row->event_id] = ['closes_at' => self::stamp((string) ($row->closes_at ?? ''))];
         }
         return $out;
     }

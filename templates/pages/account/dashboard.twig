@@ -1,5 +1,9 @@
 {% extends "layout/gates.twig" %}
 
+{# This page renders flash_* itself, beside the thing the message is about, so the
+   layout rail is suppressed — otherwise every message would appear twice. #}
+{% set own_flash = true %}
+
 {#
   ══ THE MEMBER'S OWN PAGE ═══════════════════════════════════════════════════
 

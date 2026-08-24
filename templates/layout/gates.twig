@@ -244,6 +244,7 @@
   <link rel="stylesheet" href="{{ asset('/assets/css/base/tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/base/reset.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/base/typography.css') }}">
+  <link rel="stylesheet" href="{{ asset('/assets/css/components/flash.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/loader.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/nav.css') }}">
   <link rel="stylesheet" href="{{ asset('/assets/css/components/footer.css') }}">
@@ -347,6 +348,12 @@
 {% if not hide_chrome|default(false) %}{% include 'layout/nav.twig' %}{% endif %}
 
 <main id="main" class="main-wrapper" tabindex="-1">
+  {# A handful of pages place their own flash contextually — the Pulse feed is
+     full-bleed and immersive, the two dashboards put the message beside the
+     thing it is about. Those set `own_flash` and are skipped here; every other
+     page on the public layout, which until now showed nothing at all, gets the
+     rail. #}
+  {% if not own_flash|default(false) %}{% include 'partials/flash.twig' %}{% endif %}
   {% block content %}{% endblock %}
 </main>
 

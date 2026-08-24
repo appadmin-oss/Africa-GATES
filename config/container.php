@@ -209,11 +209,18 @@ return [
             // success/error ternary) and a rename touching sixty files is sixty chances to
             // miss one. `flash_ok` wins if both are somehow set. FlashKeyTest asserts no
             // controller writes a flash key this list does not read.
-            'flash_ok'          => $_SESSION['flash_ok'] ?? $_SESSION['flash'] ?? null,
+            // `org_flash_*` is the third alias, and it was silent for the same reason
+            // `flash` was. The vendor-facing controllers write it and ONLY the org
+            // dashboard read it, so a stand controller that set it and redirected to a
+            // public page — "applications for this event are closed" — sent the vendor
+            // somewhere that rendered nothing. Nor was it ever consumed, so the org
+            // dashboard replayed the same message on every reload for the rest of the
+            // session.
+            'flash_ok'          => $_SESSION['flash_ok'] ?? $_SESSION['flash'] ?? $_SESSION['org_flash_ok'] ?? null,
             // The per-request CSP nonce. Every inline <script> must carry it or the
             // browser refuses to run it — see AfricaGates\Support\Csp.
             'csp_nonce'         => \AfricaGates\Support\Csp::nonce(),
-            'flash_error'       => $_SESSION['flash_error'] ?? null,
+            'flash_error'       => $_SESSION['flash_error'] ?? $_SESSION['org_flash_error'] ?? null,
             'flash_notice'      => $_SESSION['flash_notice'] ?? null,
             // The built CSS bundle, or null when the layout must fall back to the
             // fifteen individual stylesheets. Null on ANY doubt — no manifest, missing
@@ -289,7 +296,8 @@ return [
         ));
         // Consume one-shot flash. `flash` included — it was leaking for the whole session.
         unset($_SESSION['flash_ok'], $_SESSION['flash'],
-              $_SESSION['flash_error'], $_SESSION['flash_notice']);
+              $_SESSION['flash_error'], $_SESSION['flash_notice'],
+              $_SESSION['org_flash_ok'], $_SESSION['org_flash_error']);
         return $twig;
     },
 

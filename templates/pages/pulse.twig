@@ -1,5 +1,9 @@
 {% extends "layout/gates.twig" %}
 
+{# This page renders flash_* itself, beside the thing the message is about, so the
+   layout rail is suppressed — otherwise every message would appear twice. #}
+{% set own_flash = true %}
+
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   body[data-page="pulse"]{ background:#fbfbfa; color:var(--ag-ink); }

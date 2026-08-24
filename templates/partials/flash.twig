@@ -1,0 +1,38 @@
+{#
+  ── THE PUBLIC SIDE HAD NO WAY TO SAY ANYTHING WENT WRONG ────────────────────
+
+  The admin and judge layouts have rendered flash messages since the beginning.
+  layout/gates.twig — the layout every public page and every member page uses —
+  rendered none, so a public controller that set a message and redirected sent
+  the visitor to a page that showed them nothing.
+
+  That is not a missing nicety. It is indistinguishable from a broken link: you
+  click "Apply for a stand", you land back on the page you came from, and the
+  one sentence explaining why ("applications for this event are closed") was
+  written to a session key with no reader. That is exactly how it was reported.
+
+  Announced with role="status"/role="alert" rather than colour alone, because a
+  message a screen reader never speaks is the same silent failure again.
+#}
+{% if flash_error or flash_ok or flash_notice %}
+<div class="ag-flash-rail">
+  {% if flash_error %}
+    <div class="ag-flash ag-flash--error" role="alert">
+      <svg aria-hidden="true" focusable="false" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+      <p>{{ flash_error }}</p>
+    </div>
+  {% endif %}
+  {% if flash_ok %}
+    <div class="ag-flash ag-flash--ok" role="status">
+      <svg aria-hidden="true" focusable="false" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+      <p>{{ flash_ok }}</p>
+    </div>
+  {% endif %}
+  {% if flash_notice %}
+    <div class="ag-flash ag-flash--note" role="status">
+      <svg aria-hidden="true" focusable="false" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/></svg>
+      <p>{{ flash_notice }}</p>
+    </div>
+  {% endif %}
+</div>
+{% endif %}

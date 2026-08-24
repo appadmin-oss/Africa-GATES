@@ -72,6 +72,7 @@ final class AssetBundle
         'assets/css/base/tokens.css',
         'assets/css/base/reset.css',
         'assets/css/base/typography.css',
+        'assets/css/components/flash.css',
         'assets/css/components/loader.css',
         'assets/css/components/nav.css',
         'assets/css/components/footer.css',

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 use AfricaGates\Support\Env;
+use AfricaGates\Services\SystemStatus;
 use Slim\App;
 use Slim\Routing\RouteCollectorProxy;
 use AfricaGates\Controllers\{HomeController,ApiController,RegistryController,AwardsController,LeaderboardController,LegacyController,OpportunityController,NominationController,PartnerController,VoteController,CommunityController,EventsController,BlogController,PaymentController,ShopController,ShopCheckoutController,GuideController,DonationController,PaidVoteController,PulseController,JudgesController,AccountController,GatedFormController,FormController,ActivityController,FlierController,SupportController,HelpController,ClaimController,VoteMessageController,CountdownController,EmailPrefsController};
@@ -2526,23 +2527,25 @@ return function(App $app) {
         // /signin was a non-functional mock (fake success, no auth). Retire it —
         // the real, working member sign-in is /account/login.
         $g->get('/signin',  fn($req,$res)=>$res->withHeader('Location','/account/login')->withStatus(301));
-        // Status reflects REAL signals, not a hardcoded "all green": the core
-        // features are operational because this DB-backed page is being served at
-        // all; payments/email report their actual configuration state.
+        // ── /status TELLS THE TRUTH OR SAYS IT DOES NOT KNOW ────────────────
+        //
+        // This route used to build its own answer inline, and the answer was fiction:
+        // four components were the literal string 'Operational' with no way to report
+        // anything else, and the other two checked whether an ENVIRONMENT VARIABLE NAME
+        // EXISTED — which is equally true of a revoked key, a typo'd key and a key
+        // belonging to somebody else's account.
+        //
+        // {@see SystemStatus} measures instead, from evidence the platform already
+        // records, and has an honest fourth state for the things it could not check.
         $g->get('/status', function($req,$res) use ($tv) {
-            $set  = fn(string ...$k) => (bool) array_filter($k, fn($x)=>Env::has($x));
-            $pay  = $set('PAYSTACK_SECRET_KEY','FLUTTERWAVE_SECRET_KEY') ? 'Operational' : 'Degraded';
-            $mail = $set('SMTP_HOST','MAIL_HOST','MAIL_MAILER','SMTP_USER') ? 'Operational' : 'Degraded';
-            $components = [
-                ['name'=>'Voting & ballots',      'desc'=>'Vote casting, OTP verification', 'status'=>'Operational'],
-                ['name'=>'Leaderboard & CPI',     'desc'=>'Score computation, rankings',    'status'=>'Operational'],
-                ['name'=>'Registry & profiles',   'desc'=>'Profile browse and search',      'status'=>'Operational'],
-                ['name'=>'Pulse & media',         'desc'=>'Feed, reels, stories',           'status'=>'Operational'],
-                ['name'=>'Payments & tickets',    'desc'=>'Checkout, donations, ticketing', 'status'=>$pay],
-                ['name'=>'Email & notifications', 'desc'=>'Transactional delivery',         'status'=>$mail],
-            ];
-            $overall = ($pay==='Operational' && $mail==='Operational') ? 'operational' : 'degraded';
-            return $tv($req)->render($res,'pages/status.twig',['page_title'=>'System status — Africa GATES','meta_description'=>'The operational status of Africa GATES — voting, leaderboard, registry, payments and notifications.','gates_page'=>'status','has_hero'=>false,'overall'=>$overall,'components'=>$components]);
+            $st = SystemStatus::report();
+            return $tv($req)->render($res,'pages/status.twig', $st + [
+                'page_title'       => 'Is it working? — Africa GATES',
+                'meta_description' => 'A live check of Africa GATES: voting and profiles, scheduled work, messages going out, payments, email and the AI helpers.',
+                'gates_page'       => 'status',
+                'has_hero'         => false,
+                'status_labels'    => SystemStatus::LABELS,
+            ]);
         });
         // Support assistant. A SEPARATE path from /support, which is the appeals
         // hub above and stays exactly as it is — registering a second '/support'

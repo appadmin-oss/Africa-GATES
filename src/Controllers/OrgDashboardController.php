@@ -168,8 +168,12 @@ final class OrgDashboardController
             'doc_kinds'   => PartnerOrg::DOCUMENT_KINDS,
             'uploads_on'  => $this->uploads !== null,
             'decisions'   => StandApplication::DECISIONS,
-            'flash_ok'    => $_SESSION['org_flash_ok']    ?? null,
-            'flash_error' => $_SESSION['org_flash_error'] ?? null,
+            // `flash_ok`/`flash_error` are NOT passed here any more, and removing them
+            // is the fix rather than an omission. They are Twig globals now (see
+            // config/container.php), aliased from `org_flash_*` and consumed after one
+            // render. A local variable OVERRIDES a global even when it is null, so
+            // leaving these lines in would have blanked the very messages the alias
+            // exists to surface.
 
             // ── WHAT THE SECTIONED LAYOUT NEEDS ──────────────────────────────
             //
