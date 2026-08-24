@@ -29,6 +29,7 @@ final class DataRegistry
         'votes' => ['moderator'], 'comments' => ['moderator'], 'cheers' => ['moderator'],
         'activity' => ['moderator', 'editor'], 'moderation-log' => ['moderator'],
         'vote-milestones' => ['moderator'], 'collusion' => ['moderator'], 'fraud-scores' => ['moderator'],
+        'judge-score-log' => ['moderator'],
         // Analytics / content datasets an editor needs.
         'funnel' => ['editor'], 'cpi-history' => ['editor'], 'nomination-drafts' => ['editor'], 'newsletter' => ['editor'],
     ];
@@ -88,6 +89,17 @@ final class DataRegistry
             'label' => 'Moderation log', 'table' => 'gates_moderation_log', 'group' => 'Integrity',
             'order' => ['created_at', 'desc'], 'search' => ['reason', 'provider'],
             'cols' => [['id', 'ID'], ['target_type', 'On', 'chip'], ['target_id', 'Target #'], ['provider', 'Provider'], ['decision', 'Decision', 'chip'], ['score', 'Score'], ['created_at', 'When', 'datetime']],
+        ],
+        // Append-only: every mark a judge set or changed. `gates_vote_snapshots` makes the
+        // published STANDINGS tamper-evident; this is the matching record for the INPUTS,
+        // which were freely mutable with no trace until it existed. A NULL `old_score`
+        // means a first mark, not a score of zero.
+        'judge-score-log' => [
+            'label' => 'Judge score changes', 'table' => 'gates_judge_score_log', 'group' => 'Integrity',
+            'order' => ['changed_at', 'desc'], 'search' => [],
+            'cols' => [['id', 'ID'], ['judge_id', 'Judge #'], ['nominee_id', 'Nominee #'],
+                       ['criterion_id', 'Criterion #'], ['old_score', 'From'], ['new_score', 'To'],
+                       ['changed_at', 'When', 'datetime']],
         ],
         'audit-log' => [
             'label' => 'Admin audit log', 'table' => 'gates_audit_log', 'group' => 'Integrity',

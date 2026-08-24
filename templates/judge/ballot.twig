@@ -386,11 +386,37 @@
                   <div><div class="jc-crit__label" x-text="c.label"></div><div class="jc-crit__hint" x-text="c.description || ('Weighted ' + (c.weight||25) + '%')"></div></div>
                   <span class="jc-crit__val" x-text="cur.scores[c.id] !== undefined ? cur.scores[c.id] : '–'"></span>
                 </div>
-                <input class="jc-range" type="range" min="0" max="10" step="1"
-                       :value="cur.scores[c.id] !== undefined ? cur.scores[c.id] : 0"
-                       :aria-label="c.label + ' score'"
-                       :disabled="locked"
-                       @input="setScore(c.id, $event.target.value)">
+                {# ── WHY THIS IS ELEVEN BUTTONS AND NOT A SLIDER ──────────────────
+                   The slider had a value it could not express. `type=range` fires no
+                   input event when the value does not change, and an UNSCORED criterion
+                   rendered at 0 — so the natural gesture for "zero", dragging to the far
+                   left, did nothing at all. A judge could only record a 0 by moving to
+                   another number and back, and most would conclude the control was broken
+                   or that they had already scored it.
+
+                   The display made that worse rather than better: unscored and zero looked
+                   identical on the track, separated only by a "–" in the readout beside it.
+                   On the instrument this whole platform's result is computed from, two
+                   distinct states that render the same is not a cosmetic problem.
+
+                   Eleven radios fix all of it at once. Every value is an equal, real target;
+                   "not scored" is simply nothing selected; arrow keys move between values
+                   natively; and a screen reader announces the group, the criterion and the
+                   chosen mark without a single aria attribute of our own. #}
+                <div class="jc-scale" role="radiogroup"
+                     :aria-label="c.label + ' — score out of 10'">
+                  <template x-for="v in [0,1,2,3,4,5,6,7,8,9,10]" :key="v">
+                    <label class="jc-scale__opt"
+                           :class="cur.scores[c.id] === v ? 'is-on' : ''">
+                      <input type="radio" :name="'crit-' + c.id + '-' + cur.id"
+                             :value="v"
+                             :checked="cur.scores[c.id] === v"
+                             :disabled="locked"
+                             @change="setScore(c.id, v)">
+                      <span x-text="v"></span>
+                    </label>
+                  </template>
+                </div>
               </div>
             </template>
 
@@ -549,9 +575,35 @@
   .jc-crit__label{ font-weight:600; font-size:14.5px; color:#10292C; }
   .jc-crit__hint{ font-size:12px; color:#5a6d6f; margin-top:2px; }
   .jc-crit__val{ font-family:var(--font-mono,monospace); font-weight:700; font-size:18px; color:#237b22; min-width:34px; text-align:right; }
-  .jc-range{ -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:5px; background:#dde6df; outline:none; }
-  .jc-range::-webkit-slider-thumb{ -webkit-appearance:none; width:22px; height:22px; border-radius:50%; background:#237b22; cursor:pointer; border:3px solid #fff; box-shadow:0 2px 6px rgba(16,41,44,.3); }
-  .jc-range::-moz-range-thumb{ width:22px; height:22px; border-radius:50%; background:#237b22; cursor:pointer; border:3px solid #fff; }
+  /* ── THE SCORE SCALE ──────────────────────────────────────────────────────
+     Replaces a range input whose thumb was 22px — under the 24×24 WCAG 2.2 AA
+     minimum — and which carried `outline:none` with no replacement. That style
+     block sits in `foot_scripts`, so it renders after every stylesheet including
+     a11y.css and beat the site-wide `:where(…):focus-visible` rule on source
+     order: the one control a judge operates had no focus indicator at all.
+
+     Each option is 40×40 here — comfortably past the 24px floor and past the 44px
+     touch recommendation once the gap is counted — and focus is native. */
+  .jc-scale{ display:flex; flex-wrap:wrap; gap:6px; }
+  .jc-scale__opt{
+    position:relative; flex:1 1 40px; min-width:40px; min-height:40px;
+    display:flex; align-items:center; justify-content:center;
+    border:1px solid rgba(16,41,44,.18); border-radius:9px;
+    font-family:var(--font-mono,monospace); font-weight:600; font-size:14px;
+    color:#3c4649; background:#fff; cursor:pointer;
+  }
+  .jc-scale__opt input{
+    /* Visually hidden, NOT display:none — a removed input is unfocusable, which
+       would trade one keyboard failure for another. */
+    position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer;
+  }
+  .jc-scale__opt.is-on{ background:#237b22; border-color:#237b22; color:#fff; }
+  /* :has() is the modern route; the .is-on class above is the fallback that does
+     the same job everywhere, so neither is load-bearing on its own. */
+  .jc-scale__opt:hover{ border-color:#237b22; }
+  .jc-scale__opt:focus-within{ outline:3px solid #237b22; outline-offset:2px; }
+  .jc-scale__opt input:disabled{ cursor:not-allowed; }
+  .jc-scale__opt:has(input:disabled){ opacity:.55; cursor:not-allowed; }
   .jc-note{ margin-top:24px; }
   .jc-note label{ display:block; font-size:12px; font-weight:600; color:#4a5256; margin-bottom:8px; }
   .jc-note textarea{ width:100%; min-height:84px; resize:vertical; border:1px solid rgba(16,41,44,.16); border-radius:12px; padding:13px 15px; font-family:inherit; font-size:16px; line-height:1.5; color:#10292C; outline:none; }

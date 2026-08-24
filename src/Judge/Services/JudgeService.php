@@ -622,20 +622,68 @@ class JudgeService
                                . 'recorded. Please tell the organisers — this needs fixing on their side.'];
         }
 
+        // ── WHAT THIS JUDGE HAS ALREADY GIVEN THIS NOMINEE ───────────────────
+        //
+        // Read once, before the loop, so the append-only log below can record what a mark
+        // CHANGED FROM. One query rather than one per criterion — the ballot autosaves on
+        // a debounce, so this path runs far more often than a judge presses anything.
+        $before = [];
+        try {
+            foreach (DB::table('gates_judge_criteria_scores')
+                        ->where('judge_id', $judgeId)->where('nominee_id', $nomineeId)
+                        ->get(['criterion_id', 'score']) as $r) {
+                $before[(int) $r->criterion_id] = (int) $r->score;
+            }
+        } catch (\Throwable $e) {
+            error_log('[judge] prior scores for ' . $judgeId . '/' . $nomineeId . ': ' . $e->getMessage());
+        }
+
         $valid = 0;
+        $trail = [];
+        $now   = Carbon::now()->toDateTimeString();
+
         foreach ($criteriaScores as $criterionId => $score) {
             $cid = (int)$criterionId;
             if (!in_array($cid, $allowed, true)) continue;
             $score = max(0, min(10, (int)$score));
+
+            // Logged only when the value actually MOVES. The ballot re-sends every mark it
+            // holds on each autosave, so recording unconditionally would bury the handful
+            // of real revisions under thousands of no-ops — which is the same as not
+            // having a log.
+            $old = $before[$cid] ?? null;
+            if ($old !== $score) {
+                $trail[] = [
+                    'judge_id'     => $judgeId,
+                    'nominee_id'   => $nomineeId,
+                    'criterion_id' => $cid,
+                    // NULL means FIRST MARK, not a score of zero.
+                    'old_score'    => $old,
+                    'new_score'    => $score,
+                    'changed_at'   => $now,
+                ];
+            }
+
             DB::table('gates_judge_criteria_scores')->updateOrInsert(
                 ['judge_id' => $judgeId, 'nominee_id' => $nomineeId, 'criterion_id' => $cid],
                 [
                     'category_id' => $catId,
                     'score' => $score,
-                    'updated_at' => Carbon::now()->toDateTimeString(),
+                    'updated_at' => $now,
                 ]
             );
             $valid++;
+        }
+
+        // After the writes, and never allowed to fail one. A log that can refuse a judge's
+        // score is worse than a gap in the log: the mark is the thing the platform exists
+        // to collect, and the audit trail is what explains it afterwards.
+        if ($trail !== []) {
+            try {
+                DB::table('gates_judge_score_log')->insert($trail);
+            } catch (\Throwable $e) {
+                error_log('[judge] score log ' . $judgeId . '/' . $nomineeId . ': ' . $e->getMessage());
+            }
         }
         if ($notes !== null) {
             DB::table('gates_judge_notes')->updateOrInsert(
