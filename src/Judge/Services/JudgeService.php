@@ -199,10 +199,43 @@ class JudgeService
                 // A tombstone left the ballot; everything about it goes with it.
                 ->whereNull('n.merged_into')
                 ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
+                // ── AND ON THE PUBLISHED SHORTLIST ──────────────────────────
+                //
+                // The panel judges the shortlist, not the whole field. Enforced HERE
+                // rather than only in ballot(), because this method is the shared gate
+                // for the ballot, the evidence reader and the dossier-map endpoint — a
+                // nominee scoped off the ballot but still reachable by id would be the
+                // restriction with one more click in front of it.
+                ->whereExists(static function ($q): void {
+                    $q->selectRaw('1')
+                      ->from('gates_shortlist_entries as e')
+                      ->join('gates_shortlists as sl', 'sl.id', '=', 'e.shortlist_id')
+                      ->where('sl.status', 'published')
+                      ->whereColumn('e.nominee_id', 'n.id');
+                })
                 ->exists();
         } catch (\Throwable $ex) {
             error_log('[judge] nominee access ' . $nomineeId . ': ' . $ex->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Nominee ids on a published shortlist in this cycle.
+     *
+     * Separated from {@see \AfricaGates\Services\ShortlistService::shortlistedIn()} only by
+     * being fault-tolerant: the shortlist tables arrive in a migration, and a judging portal
+     * that 500s on a deployment mid-upgrade is worse than one that locks and says why.
+     *
+     * @return array<int,true>
+     */
+    private function shortlistedIn(int $cycleId): array
+    {
+        try {
+            return \AfricaGates\Services\ShortlistService::shortlistedIn($cycleId);
+        } catch (\Throwable $e) {
+            error_log('[judge] shortlist lookup for cycle ' . $cycleId . ': ' . $e->getMessage());
+            return [];
         }
     }
 
@@ -253,6 +286,25 @@ class JudgeService
         // accumulating. Seeded on judge + cycle, so it is reproducible months later if a
         // result is ever questioned.
         $nominees = $nq->get()->map(fn($r) => (array)$r)->all();
+
+        // ── THE PANEL JUDGES THE SHORTLIST, NOT THE WHOLE FIELD ──────────────
+        //
+        // Every approved nominee used to reach the ballot, so a panel of six opened a
+        // list of two hundred and the cut that the shortlist rules had already computed
+        // and PUBLISHED counted for nothing at the one screen it was for.
+        //
+        // Filtered here, after the query, rather than joined into it: the join would drop
+        // a whole category the moment its shortlist was unpublished, and this needs to
+        // tell the difference between "this category has no shortlist yet" and "this
+        // category has one and you have finished it". An empty ballot with no explanation
+        // is the failure mode this file already exists to prevent once.
+        $shortlisted = $this->shortlistedIn((int) $cycle->id);
+        $beforeCut   = count($nominees);
+        $nominees    = array_values(array_filter(
+            $nominees,
+            static fn (array $n): bool => isset($shortlisted[(int) $n['id']])
+        ));
+
         $seat = static fn(array $n): string =>
             hash('sha256', $judgeId . ':' . $cycle->id . ':' . ($n['id'] ?? 0));
         usort($nominees, static fn(array $a, array $b): int => $seat($a) <=> $seat($b));
@@ -337,16 +389,34 @@ class JudgeService
         $coi = $this->hasConflict($judgeId, $programmeId);
         $noRubric = $criteria === [];
 
-        $judgingOpen = ($cycle->status === 'judging') && !$coi && !$noRubric;
+        // ── AND AN UNPUBLISHED SHORTLIST IS A LOCK FOR THE SAME REASON ───────
+        //
+        // Same failure shape as the missing rubric above: every gate passes, the page
+        // renders, and the panel gets a ballot with nobody on it. A judge cannot tell an
+        // empty ballot from a finished one, and the thing they would report — "there is
+        // nothing to score" — is indistinguishable from "I have scored everything".
+        //
+        // Distinguished from a genuinely empty field: `$beforeCut` counts the approved
+        // nominees that EXIST, so "there are entries but none are shortlisted" is a
+        // different message from "there are no entries", and only the first one is
+        // somebody's outstanding task.
+        $noShortlist = $nominees === [] && $beforeCut > 0;
+
+        $judgingOpen = ($cycle->status === 'judging') && !$coi && !$noRubric && !$noShortlist;
         $lockReason = $coi
             ? 'You have declared a conflict of interest for this programme, so scoring is disabled.'
             : ($noRubric
                 ? 'No scoring rubric has been set up for this programme, so there is nothing to score '
                   . 'yet. This is a setup step for the organisers, not something you can fix — please '
                   . 'tell them the rubric is missing.'
-                : (($cycle->status !== 'judging')
-                    ? 'Scoring is closed — this cycle is not in the judging phase yet.'
-                    : ''));
+                : ($noShortlist
+                    ? 'The shortlist for this programme has not been published yet, so there is nobody '
+                      . 'to judge. The panel scores the shortlist rather than every entry — this is a '
+                      . 'step for the organisers, not something you can fix. Please tell them the '
+                      . 'shortlist is still unpublished.'
+                    : (($cycle->status !== 'judging')
+                        ? 'Scoring is closed — this cycle is not in the judging phase yet.'
+                        : '')));
 
         return [
             'cycle' => (array)$cycle,
@@ -355,6 +425,7 @@ class JudgeService
             'judging_open' => $judgingOpen,
             'coi' => $coi,
             'no_rubric' => $noRubric,
+            'no_shortlist' => $noShortlist,
             'lock_reason' => $lockReason,
             'progress' => [
                 'total' => count($nominees),
@@ -396,6 +467,18 @@ class JudgeService
         // assigned to — prevents cross-panel score tampering via crafted POSTs.
         if (!$this->canScore($judgeId, $nomineeId)) {
             return ['ok' => false, 'message' => 'You are not assigned to this nominee\'s programme.'];
+        }
+        // ── AND ONLY THE SHORTLIST ──────────────────────────────────────────
+        //
+        // Enforced server-side as well as in ballot(), for the same reason the status
+        // check above is: a tab left open before the shortlist was withdrawn, or a
+        // crafted POST, must not be able to write a score for somebody the panel is not
+        // judging. Scoping a screen is presentation; this is the rule.
+        if (!$this->mayJudgeNominee($judgeId, $nomineeId)) {
+            return ['ok' => false, 'saved' => 0,
+                    'message' => 'This nominee is not on the published shortlist, so they are not '
+                               . 'open for scoring. Reload the ballot — it may have changed since '
+                               . 'you opened it.'];
         }
         $catId = (int)$nominee->category_id;
 

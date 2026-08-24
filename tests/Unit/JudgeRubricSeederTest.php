@@ -209,10 +209,13 @@ final class JudgeRubricSeederTest extends TestCase
         $cat = (int) DB::table('gates_award_categories')->insertGetId([
             'cycle_id' => $cycle, 'slug' => 'c1', 'title' => 'Category', 'sort_order' => 1,
         ]);
-        DB::table('gates_nominees')->insert([
+        $nom = (int) DB::table('gates_nominees')->insertGetId([
             'category_id' => $cat, 'name' => 'Somebody Popular', 'status' => 'approved',
             'vote_count' => 9999, 'organic_vote_count' => 9999, 'country_code' => 'NG',
         ]);
+        // The panel judges the shortlist, so nobody reaches the ballot without one — and a
+        // ballot with nobody on it would prove nothing about what is stripped from it.
+        $this->publishShortlist($cycle, $cat, [$nom]);
         $judge = (int) DB::table('gates_judges')->insertGetId([
             'name' => 'Chair', 'email' => 'chair@example.org', 'is_active' => 1,
             'programme_ids' => json_encode([$prog]),

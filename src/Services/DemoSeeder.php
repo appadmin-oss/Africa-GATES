@@ -183,16 +183,16 @@ final class DemoSeeder
             self::seedLiveInterview($ids['runner'], $categoryId, $cycleId, $adminId, $now);
             $judgeId = self::seedJudge($programmeId);
             self::seedScores($judgeId, $categoryId, $programmeId, $ids, $now);
-            self::seedShortlistRule($cycleId);
+            self::seedShortlistRule($cycleId, $categoryId, $ids);
 
             return [
                 'ok' => true, 'programme_id' => $programmeId, 'cycle_id' => $cycleId,
                 'category_id' => $categoryId, 'nominees' => $ids,
                 'links' => self::links($programmeId, $cycleId, $categoryId, $ids),
                 'message' => 'Sandbox built: 3 nominees, a questionnaire in each state, evidence, '
-                           . 'a filed interview transcript AND a sitting three days out, a judge '
-                           . 'with one nominee scored and one still to do, and votes. Nothing is '
-                           . 'public and nothing counts toward a real award.',
+                           . 'a filed interview transcript AND a sitting three days out, a '
+                           . 'published shortlist of two with one scored and one still to do, and '
+                           . 'votes. Nothing is public and nothing counts toward a real award.',
             ];
         });
     }
@@ -446,11 +446,24 @@ final class DemoSeeder
      */
     private static function seedJudge(int $programmeId): int
     {
+        // ── THE SAME FOUR SLUGS AS THE PUBLISHED RUBRIC ──────────────────────
+        //
+        // These used to be impact / originality / EVIDENCE / DURABILITY, chosen before the
+        // platform shipped a rubric of its own. Once it did, the sandbox stopped rehearsing
+        // it: the scorer resolves global + programme BY SLUG, so two of these overrode the
+        // real ones and the other two — reach and integrity — arrived from the global rubric
+        // alongside them. The rehearsal panel was asked SIX criteria that no real panel is
+        // asked, and the demo's own scores covered only four of them, so its nominee could
+        // never read as complete.
+        //
+        // Same four slugs, different weights on purpose: an override that only changes the
+        // weighting is exactly what a programme-specific rubric is for, and rehearsing it is
+        // the point.
         foreach ([
             ['impact',      'Impact',      40, 'What actually changed, and for how many.'],
             ['originality', 'Originality', 25, 'Whether this needed doing this way.'],
-            ['evidence',    'Evidence',    20, 'Whether the claim can be checked.'],
-            ['durability',  'Durability',  15, 'Whether it survives the nominee leaving.'],
+            ['reach',       'Reach',       20, 'How far it travelled, and who it reached.'],
+            ['integrity',   'Integrity',   15, 'Whether the character holds when it costs something.'],
         ] as $i => [$slug, $label, $weight, $desc]) {
             DB::table('gates_judge_criteria')->insert([
                 'programme_id' => $programmeId,
@@ -491,7 +504,7 @@ final class DemoSeeder
         $criteria = DB::table('gates_judge_criteria')
             ->where('programme_id', $programmeId)->orderBy('sort_order')->get(['id', 'slug']);
 
-        $marks = ['impact' => 9, 'originality' => 7, 'evidence' => 8, 'durability' => 6];
+        $marks = ['impact' => 9, 'originality' => 7, 'reach' => 8, 'integrity' => 6];
 
         foreach ($criteria as $c) {
             DB::table('gates_judge_criteria_scores')->insert([
@@ -506,14 +519,61 @@ final class DemoSeeder
         }
     }
 
-    /** A rule that puts one nominee above the line and one below, so the cut is visible. */
-    private static function seedShortlistRule(int $cycleId): void
+    /**
+     * A rule that puts one nominee above the line and one below, and a PUBLISHED shortlist.
+     *
+     * ── WHY THE PUBLISH MATTERS AS MUCH AS THE RULE ─────────────────────────
+     *
+     * The judging panel scores the shortlist rather than the whole field, and a programme
+     * whose shortlist is unpublished gives every judge a LOCKED ballot. So a sandbox that
+     * saved a rule and stopped would hand its rehearsal judge a portal they cannot use —
+     * with an accurate lock reason telling them to go and ask the organisers, who in this
+     * case are the person who just pressed "build the sandbox".
+     *
+     * Published with BOTH nominees, not the one the top_n rule would cut to: the sandbox
+     * exists to show a half-finished panel ({@see seedScores()} deliberately scores only
+     * one), and a shortlist of one has nothing left to do on it. The rule is still saved so
+     * the shortlist screens have something to preview and re-cut.
+     */
+    private static function seedShortlistRule(int $cycleId, int $categoryId, array $ids): void
     {
         try {
             ShortlistService::saveRule($cycleId, null, new ShortlistRule('top_n', 1, 1), 0);
         } catch (\Throwable) {
             // The shortlist tables arrive in a migration. A deployment mid-upgrade should
             // still get a usable sandbox rather than a failed build.
+        }
+
+        try {
+            $shortlistId = (int) DB::table('gates_shortlists')->insertGetId([
+                'cycle_id'     => $cycleId,
+                'category_id'  => $categoryId,
+                'rule_text'    => 'Rehearsal shortlist — everybody approved, so the panel has work to do.',
+                'entry_count'  => 2,
+                'considered'   => 3,
+                'status'       => 'published',
+                'published_at' => Carbon::now()->subDays(4)->toDateTimeString(),
+            ]);
+
+            $rank = 0;
+            foreach (['leader', 'runner'] as $key) {
+                if (empty($ids[$key])) continue;
+                $rank++;
+                $n = DB::table('gates_nominees')->where('id', $ids[$key])->first();
+                DB::table('gates_shortlist_entries')->insert([
+                    'shortlist_id'       => $shortlistId,
+                    'nominee_id'         => (int) $ids[$key],
+                    'rank_no'            => $rank,
+                    // Frozen at publication, as the real publisher does — a nominee renamed
+                    // afterwards must not rewrite a document somebody has been sent.
+                    'nominee_name'       => (string) ($n->name ?? ''),
+                    'country_code'       => (string) ($n->country_code ?? ''),
+                    'vote_count'         => (int) ($n->vote_count ?? 0),
+                    'organic_vote_count' => (int) ($n->organic_vote_count ?? 0),
+                ]);
+            }
+        } catch (\Throwable $e) {
+            error_log('[demo] shortlist publish skipped: ' . $e->getMessage());
         }
     }
 

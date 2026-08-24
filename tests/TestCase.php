@@ -81,6 +81,44 @@ abstract class TestCase extends BaseTestCase
         \AfricaGates\Support\ProviderBreaker::clearAll();
     }
 
+    /**
+     * Publish a shortlist, because the judging panel now scores only shortlisted nominees.
+     *
+     * ── WHY THIS IS A SHARED HELPER AND NOT FIVE COPIES ─────────────────────
+     *
+     * Five test files build a ballot, and every one of them needs this now. The rule the
+     * judging portal enforces — the panel judges the SHORTLIST, not the whole field — is one
+     * fact, and a fixture repeated five times is five chances for one of them to drift into
+     * testing a shape the portal no longer produces.
+     *
+     * Deliberately minimal: `status = 'published'` and a row per nominee, which is exactly
+     * what {@see \AfricaGates\Services\ShortlistService::shortlistedIn()} reads. A test that
+     * needs the frozen tallies or the rule text should use ShortlistService::publish().
+     *
+     * @param list<int> $nomineeIds in the order they were shortlisted
+     */
+    protected function publishShortlist(int $cycleId, int $categoryId, array $nomineeIds): int
+    {
+        $id = (int) Capsule::table('gates_shortlists')->insertGetId([
+            'cycle_id'     => $cycleId,
+            'category_id'  => $categoryId,
+            'status'       => 'published',
+            'entry_count'  => count($nomineeIds),
+            'considered'   => count($nomineeIds),
+            'published_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        foreach (array_values($nomineeIds) as $i => $nid) {
+            Capsule::table('gates_shortlist_entries')->insert([
+                'shortlist_id' => $id,
+                'nominee_id'   => (int) $nid,
+                'rank_no'      => $i + 1,
+            ]);
+        }
+
+        return $id;
+    }
+
     protected function tearDown(): void
     {
         if (self::usingMysql()) {

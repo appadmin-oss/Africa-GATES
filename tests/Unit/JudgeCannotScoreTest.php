@@ -66,6 +66,11 @@ final class JudgeCannotScoreTest extends TestCase
         // empty-rubric tests below would silently be testing a POPULATED rubric — which is
         // the one condition this whole file exists to cover.
         DB::table('gates_judge_criteria')->delete();
+
+        // The panel judges the SHORTLIST. Published in setUp because every test in this
+        // file is about the ballot's OTHER lock conditions — an unpublished shortlist here
+        // would lock them all for the wrong reason and prove nothing.
+        $this->publishShortlist(1, 1, [1]);
     }
 
     private function addRubric(): void

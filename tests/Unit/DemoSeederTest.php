@@ -6,6 +6,7 @@ namespace Tests\Unit;
 use AfricaGates\Services\AwardService;
 use AfricaGates\Services\DemoSeeder;
 use AfricaGates\Services\ShortlistService;
+use AfricaGates\Judge\Services\JudgeService;
 use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
 
@@ -489,5 +490,40 @@ final class DemoSeederTest extends TestCase
         $this->assertSame(0, DB::table('gates_otp_tokens')
             ->where('email_hash', hash('sha256', 'judge@' . DemoSeeder::MAIL_DOMAIN))->count(),
             'a live sign-in code for an account that no longer exists');
+    }
+    /**
+     * THE POINT OF THE SANDBOX JUDGE: a ballot with somebody on it and work left to do.
+     *
+     * The panel judges the SHORTLIST, so a sandbox that saved a shortlist RULE and never
+     * published one would hand its rehearsal judge a locked portal — with an accurate lock
+     * reason telling them to go and ask the organisers, who are the person who just pressed
+     * "build the sandbox".
+     *
+     * Asserted through the real ballot rather than by counting rows, because "is there a
+     * shortlist" and "can this judge actually score somebody" are different questions and
+     * only the second one is what the sandbox is for.
+     */
+    public function test_the_sandbox_judge_opens_a_usable_ballot_with_work_left(): void
+    {
+        $seeded = DemoSeeder::seed(1);
+
+        $judge = (int) DB::table('gates_judges')
+            ->where('email', 'judge@' . DemoSeeder::MAIL_DOMAIN)->value('id');
+        $this->assertGreaterThan(0, $judge);
+
+        $ballot = (new JudgeService())->ballot($judge, $seeded['programme_id']);
+
+        $this->assertFalse($ballot['no_shortlist'] ?? false,
+            'the rehearsal judge got a locked ballot: ' . ($ballot['lock_reason'] ?? ''));
+        $this->assertFalse($ballot['no_rubric'], 'no rubric to score against');
+
+        $nominees = $ballot['categories'][0]['nominees'] ?? [];
+        $this->assertCount(2, $nominees,
+            'a shortlist of one has nothing left to rehearse on');
+
+        // One scored, one not — which is the half-finished panel the judging screens exist
+        // to show, and the thing a sandbox where everything is scored cannot demonstrate.
+        $done = array_filter($nominees, static fn (array $n): bool => (bool) $n['complete']);
+        $this->assertCount(1, $done, 'the rehearsal panel is either empty or already finished');
     }
 }

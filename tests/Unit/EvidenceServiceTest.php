@@ -143,6 +143,11 @@ final class EvidenceServiceTest extends TestCase
                 'category_id' => self::CAT, 'name' => 'Nominee ' . $i, 'status' => 'approved',
                 'vote_count' => 1000 - $i * 10, 'organic_vote_count' => 1000 - $i * 10]);
         }
+        // The panel judges the shortlist, so every one of them has to be on it — published
+        // AFTER the loop, or the eight that make the shuffle measurable are not on the ballot.
+        $this->publishShortlist(9500, self::CAT, DB::table('gates_nominees')
+            ->where('category_id', self::CAT)->pluck('id')->all());
+
         $svc = new JudgeService();
         $a = (int) DB::table('gates_judges')->insertGetId(['name' => 'A', 'email' => 'a@example.test',
             'programme_ids' => json_encode([95]), 'is_active' => 1]);
