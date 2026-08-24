@@ -70,7 +70,7 @@
           <td class="col-actions">
             <a class="ad-btn ad-btn--sm" href="/admin/profiles/{{ r.id }}">Edit</a>
             {% if r.status != 'approved' %}<form method="post" action="/admin/profiles/{{ r.id }}/approve"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--primary" type="submit">Approve</button></form>{% endif %}
-            {% if r.status == 'approved' %}<form method="post" action="/admin/profiles/{{ r.id }}/suspend"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Suspend this profile?">Suspend</button></form>{% endif %}
+            {% if r.status == 'approved' %}<form method="post" action="/admin/profiles/{{ r.id }}/suspend"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Suspend {{ r.display_name }}? Their profile stops being publicly visible and they cannot be voted for while suspended. You can approve them again from this same screen.">Suspend</button></form>{% endif %}
           </td>
         </tr>
         {% else %}

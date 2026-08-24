@@ -113,7 +113,7 @@
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/nominations/{{ r.id }}">Review</a>
           {% if r.status != 'rejected' %}
-          <form method="post" action="/admin/nominations/{{ r.id }}/reject" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Reject this nomination?">Reject</button></form>
+          <form method="post" action="/admin/nominations/{{ r.id }}/reject" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Reject the nomination of {{ r.nominee_name }}? The nominator is EMAILED the decision straight away and a webhook fires — neither can be recalled. Add a reason first if you have not; without one they get the generic wording.">Reject</button></form>
           {% endif %}
         </td>
       </tr>

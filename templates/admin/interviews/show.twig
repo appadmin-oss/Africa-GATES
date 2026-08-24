@@ -344,7 +344,11 @@
       {% else %}
         <form method="post" action="/admin/interviews/{{ row.id }}/bot/remove">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <button class="is-btn is-btn--ghost" type="submit">Take the bot out</button>
+          {# The transcript so far is ingested BEFORE the bot leaves, so nothing already
+             said is lost. What is lost is everything said after — and the bot cannot be
+             sent back into a sitting that has ended. #}
+          <button class="is-btn is-btn--ghost" type="submit"
+            data-confirm="Take the bot out of this meeting? What it has captured so far is saved first, but nothing said after it leaves will be recorded.">Take the bot out</button>
         </form>
       {% endif %}
       {% if B.has_recording %}
@@ -560,7 +564,11 @@
     {% endif %}
     <form method="post" action="/admin/interviews/{{ row.id }}/cancel">
       <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <button class="is-btn is-btn--ghost" type="submit">Cancel the interview</button>
+      {# Terminal. reschedule() refuses a cancelled sitting, so this is not "postpone" —
+         it ends this one and a new appointment means opening a new interview, with a new
+         invite link the nominee has to be sent. #}
+      <button class="is-btn is-btn--ghost" type="submit"
+        data-confirm="Cancel this interview? It cannot be reopened or moved afterwards — you would have to open a new one and send the nominee a new link. To change the time instead, use Reschedule.">Cancel the interview</button>
     </form>
   </div>
 </div>

@@ -226,7 +226,12 @@
         {% if r.is_test|default(false) %}
           <form method="post" action="/admin/questionnaires/{{ r.id }}/delete-test">
             <input type="hidden" name="_token" value="{{ csrf_token }}">
-            <button class="qz-btn qz-btn--ghost" type="submit">Delete</button>
+            {# A hard delete, and the only one on this screen. The service refuses unless
+               is_test = 1, so a real nominee's answers can never be reached by this button
+               — which is exactly why the confirmation names the test rather than warning
+               about something that cannot happen. #}
+            <button class="qz-btn qz-btn--ghost" type="submit"
+              data-confirm="Delete test questionnaire #{{ r.id }}? Its answers and uploads go with it and cannot be recovered. Only tests can be deleted — a real nominee's questionnaire is reopened, never removed.">Delete</button>
           </form>
         {% endif %}
       </div>

@@ -113,7 +113,7 @@
                   {% endif %}
                   <form method="post" action="/admin/nominees/{{ r.id }}/photo/delete" style="margin-top:2px">
                     <input type="hidden" name="_token" value="{{ csrf_token }}"><input type="hidden" name="path" value="{{ ph }}">
-                    <button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" style="font-size:9.5px;padding:1px 5px" data-confirm="Remove this photo?" title="Remove">×</button>
+                    <button class="ad-btn ad-btn--xs ad-btn--danger" type="submit" style="font-size:9.5px;padding:1px 5px" data-confirm="Remove this photo from {{ r.name }}? It comes off their public profile immediately and would have to be uploaded again." title="Remove">×</button>
                   </form>
                 </div>
                 {% endfor %}

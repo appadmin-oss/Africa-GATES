@@ -209,7 +209,13 @@
               <form method="post" action="/admin/events/{{ event.id }}/codes/{{ c.id }}/delete"
                     style="display:inline;margin-left:5px">
                 <input type="hidden" name="_token" value="{{ csrf_token }}">
-                <button class="dc-btn dc-btn--kill" type="submit">Remove</button>
+                {# The outcome DEPENDS on the count in the column beside it, and the operator
+                   cannot be expected to reason about that mid-click. A used code is switched
+                   off and kept, because bookings made with it name it on their receipts; an
+                   unused one is genuinely gone. So the confirmation states which of the two
+                   this press does, using the same number the row already shows. #}
+                <button class="dc-btn dc-btn--kill" type="submit"
+                  data-confirm="{% if c.used_count %}Switch off {{ c.code }}? It stays on record because {{ c.used_count }} booking(s) were made with it and their receipts name it — it just stops working for new ones.{% else %}Delete {{ c.code }} for good? Nothing has been booked with it, so it is removed outright and cannot be brought back.{% endif %}">Remove</button>
               </form>
             {% else %}
               <span style="color:#8a9a9c;font-size:11.5px">edited on whichever event owns it</span>

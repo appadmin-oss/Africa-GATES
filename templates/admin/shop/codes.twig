@@ -230,7 +230,9 @@
                   }|json_encode|e('html_attr') }})">Edit</button>
           <form method="post" action="/admin/shop/codes/{{ c.id }}/delete" style="display:inline;margin-left:5px">
             <input type="hidden" name="_token" value="{{ csrf_token }}">
-            <button class="sc-btn--kill" type="submit">Remove</button>
+            {# Same two outcomes as the event codes, same reason — see that template. #}
+            <button class="sc-btn--kill" type="submit"
+              data-confirm="{% if c.used_count %}Switch off {{ c.code }}? It stays on record because {{ c.used_count }} order(s) were placed with it and their receipts name it — it just stops working for new ones.{% else %}Delete {{ c.code }} for good? Nothing has been ordered with it, so it is removed outright and cannot be brought back.{% endif %}">Remove</button>
           </form>
         </td>
       </tr>

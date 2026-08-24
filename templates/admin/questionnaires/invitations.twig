@@ -223,7 +223,7 @@
       Queue all {{ plan.counts.sendable }}
     </button>
     <button class="ad-btn ad-btn--sm" type="submit" name="send_now" value="1"
-      data-confirm="Send {{ min(plan.counts.sendable, plan.batch) }} right now, in this request?">
+      data-confirm="Send {{ min(plan.counts.sendable, plan.batch) }} invitation(s) now, in this request? They go straight out and cannot be recalled — and the page will sit here until every one has been handed to the mail server. Queue them instead unless you need them gone this minute.">
       Send {{ min(plan.counts.sendable, plan.batch) }} now
     </button>
   </form>

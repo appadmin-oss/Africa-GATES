@@ -1,5 +1,14 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}Moderation Queue{% endblock %}
+{# ── WHY EVERY "REMOVE" HERE ASKS FIRST ───────────────────────────────────────
+   The removes are SOFT — status becomes `rejected`, the row survives, and the
+   controller says so. That is not the same as reversible: this queue lists
+   `pending` and `quarantined` only, so a rejected item drops out of it and there
+   is no screen with a button to bring it back.
+
+   "It is only a soft delete" is therefore true and misleading at the same time,
+   and the confirmation says the useful half — it leaves the queue and you cannot
+   put it back from here. #}
 {% block content %}
 
 <p style="margin:0 0 16px;font-size:13px;color:var(--ad-text-mute,#5a6d6f);max-width:60ch">
@@ -44,7 +53,7 @@
       {% if m.mod_score is not null %} · {{ ui.verdict(m.mod_score, m.mod_reason) }}{% elseif m.mod_reason %} · <span style="font-size:11px">{{ m.mod_reason }}</span>{% endif %}
     </div>
     <form method="post" action="/admin/moderation/vote_message/{{ m.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve &amp; publish</button></form>
-    <form method="post" action="/admin/moderation/vote_message/{{ m.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit">Remove</button></form>
+    <form method="post" action="/admin/moderation/vote_message/{{ m.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Remove this message? The author is not told, and it leaves this queue — so there is no button here to put it back. It is marked rejected rather than deleted, but recovering it means going into the database.">Remove</button></form>
     <form method="post" action="/admin/moderation/vote_message/{{ m.id }}/recheck" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" title="Run the current AI moderation pipeline again and apply its verdict">✦ AI re-check</button></form>
   </div>
   {% endfor %}
@@ -59,7 +68,7 @@
     <div style="font-size:13px;color:var(--ad-text-mute,#5a6d6f);margin:4px 0">{{ t.body|slice(0,280) }}{% if t.body|length > 280 %}…{% endif %}</div>
     <div style="font-size:11px;color:var(--ad-text-mute,#61728e);margin-bottom:8px">by {{ t.author_name }} · {{ t.created_at }} · {{ ui.verdict(t.ai_score, '') }}</div>
     <form method="post" action="/admin/moderation/thread/{{ t.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve &amp; publish</button></form>
-    <form method="post" action="/admin/moderation/thread/{{ t.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit">Remove</button></form>
+    <form method="post" action="/admin/moderation/thread/{{ t.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Remove this thread? The author is not told, and it leaves this queue — so there is no button here to put it back. It is marked rejected rather than deleted, but recovering it means going into the database.">Remove</button></form>
     <form method="post" action="/admin/moderation/thread/{{ t.id }}/recheck" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" title="Run the current AI moderation pipeline again and apply its verdict">✦ AI re-check</button></form>
   </div>
   {% endfor %}
@@ -73,7 +82,7 @@
     <div style="font-size:14px;color:var(--ad-text,#10292c)">{{ c.body }}</div>
     <div style="font-size:11px;color:var(--ad-text-mute,#61728e);margin:6px 0 8px">by {{ c.author_name }} · on {{ c.target_type }} #{{ c.target_id }} · {{ c.created_at }} · {{ ui.verdict(c.ai_score, c.ai_reason) }}</div>
     <form method="post" action="/admin/moderation/comment/{{ c.id }}/approve" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--primary" type="submit">Approve</button></form>
-    <form method="post" action="/admin/moderation/comment/{{ c.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit">Remove</button></form>
+    <form method="post" action="/admin/moderation/comment/{{ c.id }}/remove" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" data-confirm="Remove this comment? The author is not told, and it leaves this queue — so there is no button here to put it back. It is marked rejected rather than deleted, but recovering it means going into the database.">Remove</button></form>
     <form method="post" action="/admin/moderation/comment/{{ c.id }}/recheck" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn" type="submit" title="Run the current AI moderation pipeline again and apply its verdict">✦ AI re-check</button></form>
   </div>
   {% endfor %}

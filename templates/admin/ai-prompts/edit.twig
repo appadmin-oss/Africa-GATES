@@ -173,7 +173,7 @@
       {% if not v.is_active %}
         <form method="post" action="/admin/ai-prompts/{{ cap.name|url_encode }}/activate"
               style="margin-top:9px"
-              data-confirm="Put version {{ v.version }} back into use?">
+              data-confirm="Put version {{ v.version }} back into use? Every AI feature on this prompt starts using it on the next call. The version you are replacing is kept, so you can put that one back the same way.">
           <input type="hidden" name="_token" value="{{ csrf_token }}">
           <input type="hidden" name="version_id" value="{{ v.id }}">
           <button class="ad-btn ad-btn--sm" type="submit">Use this one again</button>

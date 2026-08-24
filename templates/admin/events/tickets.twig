@@ -207,8 +207,13 @@
               <form method="post" action="/admin/events/{{ event.id }}/door/revoke" style="display:inline">
                 <input type="hidden" name="_token" value="{{ csrf_token }}">
                 <input type="hidden" name="pass_id" value="{{ p.id }}">
+                {# Immediate and one-way: revoke() stamps revoked_at and there is no
+                   un-revoke. Whoever is holding this link is very likely standing at the
+                   door with a queue in front of them, which is exactly when a mis-click
+                   costs the most. Issuing a fresh pass is the way back. #}
                 <button class="tx-btn tx-btn--ghost tx-btn--tiny" type="submit"
-                        style="min-height:32px">Turn off</button>
+                        style="min-height:32px"
+                        data-confirm="Turn off this scanning link? It stops working immediately and cannot be turned back on — whoever is using it to scan at the door will be locked out until you issue a new one.">Turn off</button>
               </form>
               {% endif %}
             </td>

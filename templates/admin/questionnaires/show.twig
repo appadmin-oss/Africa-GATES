@@ -99,7 +99,9 @@
       <a class="qs-btn" href="{{ link }}" target="_blank" rel="noopener noreferrer">Open the nominee's page</a>
       <form method="post" action="/admin/questionnaires/{{ row.id }}/delete-test">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <button class="qs-btn qs-btn--ghost" type="submit">Delete this test</button>
+        {# See the queue screen for why this cannot reach a real nominee. #}
+        <button class="qs-btn qs-btn--ghost" type="submit"
+          data-confirm="Delete this test questionnaire? Its answers and uploads go with it and cannot be recovered.">Delete this test</button>
       </form>
     </div>
   {% else %}

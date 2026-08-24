@@ -18,7 +18,7 @@
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/legal/{{ d.slug }}">Edit</a>
           {% if not core %}
-          <form method="post" action="/admin/legal/{{ d.slug }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete “{{ d.title }}” permanently?">Delete</button></form>
+          <form method="post" action="/admin/legal/{{ d.slug }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" data-confirm="Delete “{{ d.title }}” for good? Its public page stops existing, and any link to it from a checkout, an email or another policy will 404. There is no undo.">Delete</button></form>
           {% endif %}
         </td>
       </tr>

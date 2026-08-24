@@ -19,7 +19,7 @@
         <td><span class="ad-chip ad-chip--{{ r.is_active ? 'green' : 'grey' }}">{{ r.is_active ? 'Active' : 'Hidden' }}</span></td>
         <td class="col-actions">
           <a class="ad-btn ad-btn--sm" href="/admin/products/{{ r.id }}">Edit</a>
-          <form method="post" action="/admin/products/{{ r.id }}/delete" style="display:inline" data-confirm="Delete this product permanently?">
+          <form method="post" action="/admin/products/{{ r.id }}/delete" style="display:inline" data-confirm="Delete “{{ r.name }}” for good? It disappears from the shop at once. Orders already placed keep their own record of what was bought, but the product page and any link to it stop working.">
             <input type="hidden" name="_token" value="{{ csrf_token }}">
             <button class="ad-btn ad-btn--sm ad-btn--danger" type="submit" aria-label="Delete product">×</button>
           </form>
