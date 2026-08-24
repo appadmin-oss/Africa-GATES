@@ -2304,6 +2304,11 @@ return function(App $app) {
             ]);
         });
         $g->get('/cookies', fn($req,$res)=>$legalRender($req,$res,'cookies'));
+        // Its own path as well as /legal/refunds. This is the page somebody looks for while
+        // deciding whether to pay, and while holding a receipt they want reversed — both
+        // times by guessing the URL or following a footer link, neither of which finds a
+        // document buried a level down.
+        $g->get('/refunds', fn($req,$res)=>$legalRender($req,$res,'refunds'));
         // ── THE PAGE HAS TO READ THE ENGINE, NOT REMEMBER IT ─────────────────
         //
         // These numbers were prose. The route passed no data at all, so

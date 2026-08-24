@@ -106,7 +106,175 @@ final class LegalSeeder
         return [
             'terms'   => ['title' => 'Terms of Participation', 'sort' => 1, 'body' => self::terms()],
             'privacy' => ['title' => 'Privacy Policy',         'sort' => 2, 'body' => self::privacy()],
+            // `/cookies` has been a route since the legal pages shipped and there was no
+            // document behind it, so it answered 404 — a published link to a policy that
+            // does not exist reads worse than having no link.
+            'cookies' => ['title' => 'Cookies',                'sort' => 3, 'body' => self::cookies()],
+            // The platform takes money in four places and had no published position on
+            // getting it back. There is a whole RefundService with specific, defensible
+            // rules; none of them were written down anywhere a payer could read.
+            'refunds' => ['title' => 'Refunds and Cancellations', 'sort' => 4, 'body' => self::refunds()],
         ];
+    }
+
+    /**
+     * ── WHY THIS DOCUMENT IS SHORT ───────────────────────────────────────────
+     *
+     * Because the true answer is short. This platform sets ONE cookie — the PHP session —
+     * and runs no analytics, no advertising and no third-party trackers of any kind.
+     *
+     * The temptation with a cookie policy is to paste in the standard four categories and a
+     * consent banner. Doing that here would describe a site we are not running, and the
+     * banner would be asking permission for something we do not do. A strictly necessary
+     * session cookie needs no consent under the ePrivacy rules and the NDPA, which is
+     * exactly why there is no banner — stated, because its absence otherwise looks like an
+     * oversight rather than a consequence.
+     *
+     * Everything in here is checkable against the code: see `session_set_cookie_params()`
+     * in public/index.php for the cookie, and the `afg_*` keys in the templates for the
+     * browser storage.
+     */
+    private static function cookies(): string
+    {
+        return <<<'HTML'
+<h2>The short version</h2>
+<p>We set <strong>one cookie</strong>. It keeps you signed in and keeps your place while you
+   move around the site. We run <strong>no analytics, no advertising and no third-party
+   trackers</strong> — nothing on this site reports your visit to another company.</p>
+<p>That is why you have not been shown a consent banner. A banner would be asking your
+   permission for something we are not doing.</p>
+
+<h2>The cookie we set</h2>
+<table>
+  <thead><tr><th>Name</th><th>What it does</th><th>How long it lasts</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>PHPSESSID</code></td>
+      <td>Identifies your session so you stay signed in, so a form you are halfway through
+          is not lost, and so we can tell a real submission from a forged one. It holds a
+          reference to data kept on our own server; it does not contain your details.</td>
+      <td>Seven days, or until you sign out</td>
+    </tr>
+  </tbody>
+</table>
+<p>It is marked <code>HttpOnly</code> (scripts on the page cannot read it),
+   <code>SameSite=Lax</code> (it is not sent when another site links to us in a way that
+   could act on your behalf) and <code>Secure</code> in production (it travels only over
+   an encrypted connection).</p>
+
+<h2>Things kept in your browser, which are not cookies</h2>
+<p>Some pages remember small things using your browser's own storage.
+   It never leaves your device, and it is never sent to us:</p>
+<ul>
+  <li>Your shopping basket, so it survives a reload.</li>
+  <li>Which programmes you have already voted in, so the page can stop offering.</li>
+  <li>A message you started writing for a nominee, so a mistaken tap does not lose it.</li>
+  <li>Whether you have seen the introduction, so it is not shown twice.</li>
+</ul>
+<p>Clearing your browser's site data removes all of it. Nothing important depends on it.</p>
+
+<h2>Turning it off</h2>
+<p>Every browser lets you block or delete cookies. If you block ours you can still read the
+   site, but you will not be able to sign in, vote, or complete a payment — the cookie is
+   what tells us one page of your visit is connected to the next.</p>
+
+<h2>Payments</h2>
+<p>When you pay, you are handed to a payment provider on their own page. What they set while
+   you are there is governed by their policy, not ours. We never see or store your card
+   details.</p>
+
+<h2>Changes</h2>
+<p>If we ever add anything that tracks you, this page changes first and you will be asked
+   before it runs. We would rather tell you than be found out.</p>
+HTML;
+    }
+
+    /**
+     * ── WRITTEN FROM WHAT THE CODE ACTUALLY DOES ─────────────────────────────
+     *
+     * {@see \AfricaGates\Services\RefundService} refunds exactly one situation
+     * automatically — a paid vote that could not be minted — and refuses every other case
+     * to a human on purpose, with guards (a grace window, per-order and per-day ceilings, a
+     * claim stamped before the gateway is called) that are structural rather than a promise
+     * to be careful.
+     *
+     * That is an unusually defensible policy and it was written down nowhere a payer could
+     * read it. Publishing the vague version — "refunds at our discretion" — would have been
+     * both less true and less reassuring than the real one.
+     */
+    private static function refunds(): string
+    {
+        return <<<'HTML'
+<h2>What you can pay for here</h2>
+<ul>
+  <li><strong>Votes</strong> beyond your free one, in programmes where extra votes are sold.</li>
+  <li><strong>Event tickets.</strong></li>
+  <li><strong>Merchandise</strong> from the shop.</li>
+  <li><strong>Contributions</strong> to the programme, which are gifts rather than purchases.</li>
+</ul>
+
+<h2>Votes that could not be counted are refunded automatically</h2>
+<p>If you pay for votes and they cannot be applied — the round closed, the nominee was
+   withdrawn, something failed at our end — <strong>you do not have to ask</strong>. Our
+   system finds those payments on its own and returns them to the card or account you paid
+   from.</p>
+<p>This is the only refund that happens without a person, and it is deliberate: it is the
+   one case where there is nothing to weigh. You paid for something specific, it did not
+   happen, the money is not ours.</p>
+<p>It waits about two hours after your payment before acting, because a vote that is merely
+   slow to be counted is not a vote that failed. After that it usually reaches you within a
+   few hours. Your bank may take a few days longer to show it.</p>
+
+<h2>Everything else is decided by a person</h2>
+<p>Ask us, and a person will read it. We are not going to pretend an automatic rule can
+   handle a duplicate charge, a mistaken amount or a change of circumstances fairly.</p>
+<table>
+  <thead><tr><th>What happened</th><th>Where we stand</th></tr></thead>
+  <tbody>
+    <tr><td>You were charged twice for the same thing</td>
+        <td>Refunded in full. Tell us the reference and we will find it.</td></tr>
+    <tr><td>You paid and got nothing</td>
+        <td>Refunded in full.</td></tr>
+    <tr><td><strong>An event is cancelled or moved</strong> by us</td>
+        <td>Refunded in full, without being asked. If it is moved, you may keep the ticket
+            for the new date instead.</td></tr>
+    <tr><td>You cannot attend an event</td>
+        <td>Refunded if you tell us <strong>more than seven days</strong> before it.
+            Inside seven days we have already paid for your place, so we will try to
+            transfer the ticket to somebody else instead.</td></tr>
+    <tr><td>Merchandise arrived damaged or wrong</td>
+        <td>Replaced or refunded, including what you paid for delivery. Tell us within
+            fourteen days of it arriving.</td></tr>
+    <tr><td>You changed your mind about merchandise</td>
+        <td>Refunded if it is unused and comes back to us within fourteen days. Return
+            postage is yours unless the item was wrong.</td></tr>
+    <tr><td>Votes you chose to buy and that were counted</td>
+        <td><strong>Not refundable.</strong> They were applied and they affected a result
+            other people can see. Taking them back afterwards would change a public tally
+            that has already been read.</td></tr>
+    <tr><td>Contributions to the programme</td>
+        <td>Gifts, so not refundable as a rule — but tell us if you contributed by mistake
+            or for more than you meant, and we will put it right. We would rather return
+            money than keep money somebody did not intend to give.</td></tr>
+  </tbody>
+</table>
+
+<h2>How to ask</h2>
+<p>Email <a href="mailto:support@afrovanguard.org.ng">support@afrovanguard.org.ng</a> with the
+   payment reference from your receipt. We reply within <strong>three working days</strong>
+   and tell you either way, with a reason.</p>
+<p>Please come to us before asking your bank to reverse a charge. A chargeback costs us a
+   fee and closes the account it was made from, so if you are owed money we would rather
+   simply send it back.</p>
+
+<h2>What we never do</h2>
+<ul>
+  <li>We never keep money for something that did not happen.</li>
+  <li>We never charge a fee for issuing a refund.</li>
+  <li>We never refund to a different account from the one that paid, because that is how
+      stolen cards are laundered.</li>
+</ul>
+HTML;
     }
 
     private static function terms(): string
