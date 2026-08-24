@@ -45,6 +45,23 @@
   value some people cannot reach at all.
 #}
 
+{# ── THE TAB LIST LIVES AT TEMPLATE SCOPE, AND THAT IS THE FIX ────────────────
+
+   It used to sit INSIDE `{% block head_styles %}`. A Twig `set` inside a block is scoped to
+   that block, so the head script and the CSS (same block) saw the array and the foot script
+   (a different block) rendered `var IDS = null`.
+
+   `paint()` then threw `Cannot read properties of null` on its very first call — at module
+   level, before a single listener was registered — which aborted the whole IIFE. So EVERY
+   rail tab was dead, the search box did nothing, and the rail highlight never moved: the
+   page looked like tabs that do nothing, on every account, for everybody.
+
+   The comment below claimed the list was "defined here and rendered into both". It was
+   defined once and rendered into one. AccountDashboardTest now asserts the foot script gets
+   a real array, because "this is defined in one place" is a claim a test can check and a
+   comment cannot. #}
+{% set me_tabs = ['overview','points','referral','purchases','vendor','activity','saved','settings'] %}
+
 {% block head_styles %}
 {# Synchronous and FIRST — it decides what is painted, so it cannot be deferred. #}
 {# ── THE TAB LIST, ONCE ──────────────────────────────────────────────────────
@@ -56,8 +73,19 @@
    anybody with JavaScript.
 
    So the list is defined here and rendered into both. Adding a section now means
-   adding it in one place, and the rail loop below reads the same array. #}
-{% set me_tabs = ['overview','points','referral','purchases','activity','saved','settings'] %}
+   adding it in one place, and the rail loop below reads the same array.
+
+   AND THAT IS EXACTLY WHAT WENT WRONG AGAIN. "Your stall" was added as a `<section
+   id="me-vendor">` with a rail link, and NOT to this list — so `vendor` was not in the
+   accepted set, the head script fell back to `overview`, the CSS rule that reveals
+   `#me-vendor` was never generated, and clicking the tab bounced a vendor to Overview with
+   their whole stall invisible. Same failure as the referral panel, one section later.
+
+   The list carries EVERY section id. The rail decides separately whether to render a row
+   for one — the vendor row appears only for a linked vendor — but a section that exists in
+   the document must be reachable, or it is dead markup with a door onto it. AccountNavTest
+   now asserts the two cannot drift again. #}
+
 <script nonce="{{ csp_nonce }}">
   (function () {
     var ok = {{ me_tabs|json_encode|raw }};
@@ -251,13 +279,15 @@
      this has to beat it whatever `data-me` currently says. */
   .me-sec:target{ display:block !important; }
   [data-me] .me-sec + .me-sec{ margin-top:0; }
-  [data-me="overview"]  #me-overview,
-  [data-me="points"]    #me-points,
-  [data-me="purchases"] #me-purchases,
-  [data-me="activity"]  #me-activity,
-  [data-me="saved"]     #me-saved,
-  [data-me="referral"]  #me-referral,
-  [data-me="settings"]  #me-settings{ display:block; }
+  /* GENERATED from `me_tabs`, and it has to be. This block was hand-written — seven rules
+     typed out beside a comment claiming the list fed "both" places — so it was a THIRD list
+     that could drift, and it did: "Your stall" was added to the markup, to the rail and to
+     `me_tabs`, and stayed invisible on every tab because nothing here revealed it. Adding a
+     section must not require remembering four files. */
+  {% for t in me_tabs %}
+  [data-me="{{ t }}"] #me-{{ t }}{{ loop.last ? '' : ',' }}
+  {% endfor %}
+  { display:block; }
   /* While a search is running the rail is irrelevant: results come from every
      section, so every section is on and the empty ones are hidden by the filter. */
   [data-me].me-searching .me-sec{ display:block; }

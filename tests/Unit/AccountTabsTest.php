@@ -70,16 +70,39 @@ final class AccountTabsTest extends TestCase
         }
     }
 
-    /** Every tab needs the CSS rule that un-hides its section. */
-    public function test_every_tab_has_a_rule_that_shows_its_section(): void
+    /**
+     * The reveal rules are GENERATED from the one list.
+     *
+     * ── WHY THIS ASSERTION CHANGED SHAPE ────────────────────────────────────
+     *
+     * It used to look for a literal `[data-me="points"] #me-points` per tab, because the
+     * block was seven rules typed out by hand. That made this a FOURTH copy of the list —
+     * beside the two scripts and the rail — and it drifted exactly as the others had: "Your
+     * stall" was added to `me_tabs`, to the markup and to the rail, and stayed invisible on
+     * every tab because nothing here revealed it.
+     *
+     * The block is now a `{% for t in me_tabs %}` loop, so there is nothing per-tab left in
+     * the template to grep for and nothing left to forget. What is checked here is that the
+     * loop exists and reads the one list; that a rule actually comes out for every tab is
+     * checked against the RENDERED page in AccountDashboardTest, which is the only place it
+     * can honestly be checked.
+     */
+    public function test_the_reveal_rules_are_generated_from_the_one_list(): void
     {
         $tpl = self::tpl();
 
+        $this->assertMatchesRegularExpression(
+            '~\{%\s*for t in me_tabs\s*%\}\s*\[data-me="\{\{ t \}\}"\]\s*#me-\{\{ t \}\}~',
+            $tpl,
+            'the reveal rules are no longer generated from me_tabs, so they are a fourth '
+            . 'hand-maintained copy of the tab list'
+        );
+
+        // And no per-tab literal has crept back in beside the loop.
         foreach (self::tabs() as $tab) {
-            $this->assertStringContainsString(
-                '[data-me="' . $tab . '"]  #me-' . $tab,
-                (string) preg_replace('/ +/', '  ', $tpl),
-                "no CSS un-hides the '{$tab}' section, so [data-me] .me-sec keeps it display:none"
+            $this->assertStringNotContainsString(
+                '[data-me="' . $tab . '"] #me-' . $tab, $tpl,
+                "a hand-written rule for '{$tab}' is back — that is the drift the loop removed"
             );
         }
     }

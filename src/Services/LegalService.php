@@ -34,7 +34,65 @@ class LegalService
         } catch (\Throwable) {
             return null;
         }
-        return $r ? (array) $r : null;
+
+        if ($r) return (array) $r;
+
+        // ── A SHIPPED POLICY THAT IS MISSING INSTALLS ITSELF ─────────────────
+        //
+        // THE BUG THIS EXISTS BECAUSE OF: `/refunds` answered 404 in production. The route
+        // was registered, the document was written, reviewed and tested — and
+        // {@see LegalSeeder::install()} deliberately never overwrites an existing document,
+        // so a policy ADDED to the seeder after the last install simply never appeared. The
+        // only way to get it live was for somebody to remember to open /__setup/legal, and
+        // nobody did.
+        //
+        // The visible result was the worst available one: the site footer linked "Refunds"
+        // and "Cookies" straight at a 404. A published link to a policy that does not exist
+        // reads worse than having no link, which is the exact sentence the seeder's own
+        // comment uses about the previous instance of this.
+        //
+        // ── AND WHY THIS IS NOT A WAY TO RESURRECT A WITHDRAWN DOCUMENT ──────
+        //
+        // Seeded ONLY when the row is entirely absent. `find()` ignores `is_published`, so a
+        // document an operator has deliberately unpublished still returns null here and the
+        // page still 404s — their decision stands. This heals "never installed", not
+        // "switched off on purpose".
+        return self::seedShipped($slug);
+    }
+
+    /**
+     * Install one document the codebase ships with, if it has never been installed.
+     *
+     * Returns the freshly-installed row, or null when the slug is not one we ship, when the
+     * row already exists in any state, or when the write fails.
+     */
+    private static function seedShipped(string $slug): ?array
+    {
+        // Already there in some form — unpublished, or a draft an operator is working on.
+        // Not ours to touch.
+        if (self::find($slug) !== null) return null;
+
+        if (!array_key_exists($slug, LegalSeeder::documents())) return null;
+
+        try {
+            $r = LegalSeeder::install(false, $slug);
+            if (($r['written'] ?? []) === []) return null;
+
+            error_log('[legal] installed the shipped "' . $slug . '" document on first request '
+                    . '— it had never been seeded on this deployment.');
+        } catch (\Throwable $e) {
+            error_log('[legal] could not install "' . $slug . '": ' . $e->getMessage());
+            return null;
+        }
+
+        try {
+            $row = DB::table('gates_legal_docs')->where('slug', $slug)
+                ->where('is_published', 1)->first();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $row ? (array) $row : null;
     }
 
     /** All docs (incl. unpublished) for the admin list. */

@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use AfricaGates\Services\LegalSeeder;
+use AfricaGates\Services\LegalService;
+use Illuminate\Database\Capsule\Manager as DB;
 use Tests\TestCase;
 
 /**
@@ -229,5 +231,83 @@ final class LegalCoverageTest extends TestCase
                 $this->assertStringNotContainsString($bad, $doc['body'], $slug);
             }
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // A FOOTER LINK MUST NOT REACH A 404
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * `/refunds` answered 404 in production.
+     *
+     * The route was registered, the document was written, reviewed and tested — and
+     * LegalSeeder::install() deliberately never overwrites an existing document, so a policy
+     * ADDED to the seeder after the last install never appeared. The only way to get it live
+     * was for somebody to remember to open /__setup/legal.
+     *
+     * The visible result was the worst available: the site footer linked "Refunds" and
+     * "Cookies" straight at a 404.
+     */
+    public function test_a_shipped_policy_that_was_never_installed_installs_itself(): void
+    {
+        DB::table('gates_legal_docs')->truncate();
+
+        foreach (array_keys(LegalSeeder::documents()) as $slug) {
+            $doc = LegalService::get($slug);
+            $this->assertIsArray($doc, "/{$slug} answers 404 on a deployment that never ran the seeder");
+            $this->assertNotSame('', trim((string) ($doc['body_html'] ?? '')));
+        }
+    }
+
+    /** And every path the footer links is one of them. */
+    public function test_every_policy_the_footer_links_is_a_document_we_ship(): void
+    {
+        $footer = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/layout/footer.twig');
+        $shipped = array_keys(LegalSeeder::documents());
+
+        preg_match_all('~href="/([a-z-]+)"~', $footer, $m);
+        $legalish = array_intersect(array_unique($m[1]),
+            ['terms', 'privacy', 'cookies', 'refunds', 'vendor-terms']);
+
+        $this->assertNotSame([], $legalish, 'the footer links no policy at all');
+        foreach ($legalish as $slug) {
+            $this->assertContains($slug, $shipped,
+                "the footer links /{$slug} and nothing ships a document for it");
+        }
+    }
+
+    /**
+     * A document an operator UNPUBLISHED stays unpublished.
+     *
+     * The self-heal above must not become a way to resurrect a withdrawn policy — that
+     * would override a deliberate decision with a cache miss.
+     */
+    public function test_a_withdrawn_policy_is_not_resurrected(): void
+    {
+        LegalSeeder::install();
+        DB::table('gates_legal_docs')->where('slug', 'refunds')->update(['is_published' => 0]);
+
+        $this->assertNull(LegalService::get('refunds'),
+            'unpublishing a policy was undone by the self-heal');
+        $this->assertSame(0, (int) DB::table('gates_legal_docs')
+            ->where('slug', 'refunds')->value('is_published'));
+    }
+
+    /** An edited policy is not overwritten by the shipped wording. */
+    public function test_an_edited_policy_is_left_alone(): void
+    {
+        LegalSeeder::install();
+        DB::table('gates_legal_docs')->where('slug', 'terms')
+          ->update(['body_html' => '<p>Our own wording.</p>']);
+
+        $this->assertSame('<p>Our own wording.</p>', (string) LegalService::get('terms')['body_html']);
+    }
+
+    /** And an unknown slug is still a 404 rather than an invented page. */
+    public function test_an_unknown_slug_installs_nothing(): void
+    {
+        $this->assertNull(LegalService::get('not-a-policy-we-ship'));
+        $this->assertSame(0, (int) DB::table('gates_legal_docs')
+            ->where('slug', 'not-a-policy-we-ship')->count());
     }
 }

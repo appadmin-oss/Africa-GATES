@@ -107,6 +107,114 @@ class AccountDashboardTest extends TestCase
         );
     }
 
+    /**
+     * Every section in the document is reachable, and every rail link goes somewhere.
+     *
+     * ── THE BUG THIS EXISTS BECAUSE OF, TWICE ───────────────────────────────
+     *
+     * `me_tabs` is the single list that the head script, the reveal rules and the rail all
+     * read. A section added to the markup WITHOUT being added to that list is invisible on
+     * every tab — `[data-me] .me-sec{display:none}` hides it and the rule that would reveal
+     * it is never generated — and its rail link silently falls back to Overview.
+     *
+     * That happened to the referral panel, which is why the list was consolidated. Then it
+     * happened again to "Your stall": added as a section with a rail link and not to the
+     * list, so a vendor clicking the tab bounced to Overview with their whole stall
+     * unreachable.
+     *
+     * A comment saying "add it in one place" did not prevent the second one. This does.
+     */
+    public function test_no_section_can_exist_without_being_reachable(): void
+    {
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/account/dashboard.twig');
+
+        preg_match('~\{%\s*set me_tabs = \[(.*?)\]\s*%\}~s', $tpl, $m);
+        $this->assertNotEmpty($m, 'the me_tabs list has moved or gone');
+        preg_match_all("~'([a-z-]+)'~", $m[1], $t);
+        $tabs = $t[1];
+        $this->assertNotSame([], $tabs);
+
+        // Every `<section id="me-X">` in the template must be in the list.
+        preg_match_all('~<section class="me-sec" id="me-([a-z-]+)"~', $tpl, $s);
+        foreach (array_unique($s[1]) as $id) {
+            $this->assertContains($id, $tabs,
+                "the '{$id}' section is in the document and not in me_tabs, so it is hidden "
+                . 'on every tab and its rail link falls back to Overview');
+        }
+
+        // And every rail link must point at a section that exists.
+        preg_match_all("~'id'\s*:\s*'([a-z-]+)'~", $tpl, $r);
+        foreach (array_unique($r[1]) as $id) {
+            $this->assertStringContainsString('id="me-' . $id . '"', $tpl,
+                "the rail links to '{$id}' and no such section is rendered");
+        }
+    }
+
+    /**
+     * The foot script must receive a REAL array, not `null`.
+     *
+     * ── THE BUG THIS EXISTS BECAUSE OF ──────────────────────────────────────
+     *
+     * `{% set me_tabs %}` sat inside `{% block head_styles %}`. A Twig `set` inside a block
+     * is scoped to that block, so the head script and the CSS — same block — saw the array,
+     * and the foot script, in a different block, rendered `var IDS = null`.
+     *
+     * `paint()` then threw `Cannot read properties of null (reading 'indexOf')` on its very
+     * first call, at module level, before a single listener was registered. That aborted the
+     * whole IIFE: every rail tab dead, the search box inert, the highlight frozen. On every
+     * account, for everybody, and reported as "the me page navigation is broken".
+     *
+     * Nothing server-side was wrong. The page rendered 200 with complete HTML, and the
+     * template even carried a comment claiming the list was "defined here and rendered into
+     * both". It was defined once and rendered into one. A comment cannot check that; this
+     * can.
+     */
+    public function test_both_scripts_receive_the_tab_list(): void
+    {
+        $uid = $this->member();
+        $this->signIn($uid);
+        $html = $this->page();
+
+        // Anchored on the two declarations that carry the LIST. A bare `var ok = false`
+        // elsewhere on the page is a different variable in a different closure and is
+        // none of this test's business.
+        preg_match_all('~var (ok|IDS)\s*=\s*(\[[^;]*\]|null)\s*;~', $html, $m, PREG_SET_ORDER);
+        $this->assertCount(2, $m, 'the head and foot tab lists are no longer both present');
+
+        foreach ($m as [$_, $name, $value]) {
+            $decoded = json_decode(trim($value), true);
+            $this->assertIsArray($decoded,
+                "`var {$name}` rendered as " . trim($value) . ' — a Twig set inside a block is '
+                . 'invisible to other blocks, and the script throws before it binds anything');
+            $this->assertContains('overview', $decoded);
+        }
+
+        // Both lists are the same list. Two arrays that merely both parse is the drift this
+        // consolidation existed to end.
+        $this->assertSame(json_decode(trim($m[0][2]), true), json_decode(trim($m[1][2]), true),
+            'the head and foot scripts disagree about which tabs exist');
+    }
+
+    /** And the reveal rule is generated for every one of them. */
+    public function test_every_tab_gets_its_reveal_rule(): void
+    {
+        $uid = $this->member();
+        $this->signIn($uid);
+        $html = $this->page();
+
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/account/dashboard.twig');
+        preg_match('~\{%\s*set me_tabs = \[(.*?)\]\s*%\}~s', $tpl, $m);
+        preg_match_all("~'([a-z-]+)'~", $m[1], $t);
+
+        foreach ($t[1] as $tab) {
+            $this->assertMatchesRegularExpression(
+                '~\[data-me="' . preg_quote($tab, '~') . '"\]\s*#me-' . preg_quote($tab, '~') . '~',
+                $html, "no CSS reveals the '{$tab}' section, so it cannot be opened");
+        }
+    }
+
     public function test_a_brand_new_account_gets_a_welcome_and_not_six_empty_panels(): void
     {
         $uid = $this->member();

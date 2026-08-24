@@ -1,5 +1,18 @@
 {% extends "layout/gates.twig" %}
 
+{# ── `slug` IS AT TEMPLATE SCOPE, AND IT HAS TO BE ────────────────────────────
+
+   It was `{% set %}` inside `{% block content %}` and read inside `{% block foot_scripts %}`.
+   A Twig set inside a block is scoped to that block, so the share URL in autoShare()
+   rendered as `/vote/principals/` — the programme list, with the nominee silently missing.
+
+   Which means every person who voted, hit the native share sheet, and sent the link on was
+   sending their friends to a list of forty nominees instead of the one they had just voted
+   for. Nothing threw, the page was perfect, and the only symptom was votes that did not
+   arrive from shares that did. #}
+{% set n = nominee %}
+{% set slug = n.id ~ '-' ~ (n.name|lower|replace({' ':'-'})) %}
+
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   body[data-page="awards"]{ background:#eef0ec; color:var(--ag-ink); }
@@ -268,14 +281,12 @@
 {% set FLAGS = {'NG':'🇳🇬','GH':'🇬🇭','ZA':'🇿🇦','KE':'🇰🇪','ET':'🇪🇹','EG':'🇪🇬','MA':'🇲🇦','TZ':'🇹🇿','UG':'🇺🇬','CI':'🇨🇮','CM':'🇨🇲','SN':'🇸🇳','ML':'🇲🇱','RW':'🇷🇼','ZM':'🇿🇲','ZW':'🇿🇼','BF':'🇧🇫','NE':'🇳🇪','BW':'🇧🇼','AO':'🇦🇴','CD':'🇨🇩'} %}
 {% set CCN = {'NG':'Nigeria','GH':'Ghana','ZA':'South Africa','KE':'Kenya','ET':'Ethiopia','EG':'Egypt','MA':'Morocco','TZ':'Tanzania','UG':'Uganda','CI':"Côte d'Ivoire",'CM':'Cameroon','SN':'Senegal','ML':'Mali','RW':'Rwanda','ZM':'Zambia','ZW':'Zimbabwe','BF':'Burkina Faso','NE':'Niger','BW':'Botswana','AO':'Angola','CD':'DR Congo'} %}
 {% set AV = [['#e3f1e3','#155a13'],['#fff8df','#8a6005'],['#e2e8e9','#243034'],['#f3eef7','#5b3a8a'],['#fdeaf0','#b03a5b']] %}
-{% set n = nominee %}
 {# media_url: Cloudinary-hosted portraits come back face-cropped at the size this
    element actually renders. A local path passes through untouched. #}
 {% set portrait = ((profile and profile.avatar_path) ? profile.avatar_path : n.photo_path)|media_url('portrait') %}
 {% set flag = FLAGS[n.country_code]|default('🌍') %}
 {% set ctry = CCN[n.country_code]|default(n.country_code) %}
 {% set firstName = n.name|split(' ')|first %}
-{% set slug = n.id ~ '-' ~ (n.name|lower|replace({' ':'-'})) %}
 
 <div class="vn" x-data="voteNominee()">
 
