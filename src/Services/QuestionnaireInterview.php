@@ -300,7 +300,7 @@ final class QuestionnaireInterview
             ]);
 
             if ($reply === null) {
-                AiGateway::record(QuestionnaireStyle::CAPABILITY, 'error', [
+                AiGateway::record(QuestionnaireStyle::CAPABILITY, 'PROVIDER_ERROR', [
                     'subject_type' => 'submission', 'subject_id' => (int) $s->id,
                     'latency_ms' => (int) round((microtime(true) - $t0) * 1000),
                     'error' => AiService::describeHops($ai->hopErrors()),
@@ -310,7 +310,7 @@ final class QuestionnaireInterview
 
             $spentIn  += (int) ($reply->usage['in'] ?? 0);
             $spentOut += (int) ($reply->usage['out'] ?? 0);
-            AiGateway::record(QuestionnaireStyle::CAPABILITY, 'ok', [
+            AiGateway::record(QuestionnaireStyle::CAPABILITY, 'OK', [
                 'subject_type' => 'submission', 'subject_id' => (int) $s->id,
                 'provider' => $reply->provider, 'model' => $reply->model,
                 'tokens_in' => (int) ($reply->usage['in'] ?? 0),

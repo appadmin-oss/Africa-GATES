@@ -351,50 +351,60 @@ class AiService
         $this->lastModel    = null;
         $this->hopErrors    = [];
 
-        foreach ($this->resolveRoute($route, $maxAttempts) as [$provider, $model]) {
-            // Cleared per hop so `httpPost()`'s HTTP code and the provider's own
-            // body — the only text that says WHY — is attributed to this hop and
-            // cannot be inherited from the previous one.
-            $this->lastError = null;
-            try {
-                $out = match ($provider) {
-                    'groq'      => $this->groqChat($system, $user, $maxTokens, $json, $temperature, $model),
-                    'gemini'    => $this->geminiChat($system, $user, $maxTokens, $json, $temperature, $model),
-                    'anthropic' => $this->anthropicChat($system, $user, $maxTokens, $json, $temperature, $model),
-                    'openai'    => $this->openaiChat($system, $user, $maxTokens, $json, $temperature, $model),
-                    default     => null,
-                };
-                if (is_string($out) && $out !== '') {
-                    // Recorded on SUCCESS only, so the audit log names what answered
-                    // rather than what was tried first.
-                    $this->lastProvider = $provider;
-                    $this->lastModel    = $model;
-                    return $json ? self::stripJsonFence($out) : $out;
+        // Consumed here and cleared in the `finally` below, so a caller that sets a timeout
+        // for a long job cannot leave it set for the next, unrelated call on the same
+        // instance — `AiService::boot()` results are reused within a request.
+        $budget = $this->timeoutOverride;
+        try {
+            foreach ($this->resolveRoute($route, $maxAttempts) as [$provider, $model]) {
+                // Cleared per hop so `httpPost()`'s HTTP code and the provider's own
+                // body — the only text that says WHY — is attributed to this hop and
+                // cannot be inherited from the previous one.
+                $this->lastError = null;
+                try {
+                    $out = match ($provider) {
+                        'groq'      => $this->groqChat($system, $user, $maxTokens, $json, $temperature, $model),
+                        'gemini'    => $this->geminiChat($system, $user, $maxTokens, $json, $temperature, $model),
+                        'anthropic' => $this->anthropicChat($system, $user, $maxTokens, $json, $temperature, $model),
+                        'openai'    => $this->openaiChat($system, $user, $maxTokens, $json, $temperature, $model),
+                        default     => null,
+                    };
+                    if (is_string($out) && $out !== '') {
+                        // Recorded on SUCCESS only, so the audit log names what answered
+                        // rather than what was tried first.
+                        $this->lastProvider = $provider;
+                        $this->lastModel    = $model;
+                        return $json ? self::stripJsonFence($out) : $out;
+                    }
+                    // `lastError` already holds the HTTP code and the provider's own
+                    // words when the failure was an HTTP one; the generic phrase is
+                    // only for a 200 that carried nothing usable.
+                    $why = $this->lastError ?? 'empty/failed response';
+                } catch (\Throwable $e) {
+                    $why = $e->getMessage();
                 }
-                // `lastError` already holds the HTTP code and the provider's own
-                // words when the failure was an HTTP one; the generic phrase is
-                // only for a 200 that carried nothing usable.
-                $why = $this->lastError ?? 'empty/failed response';
-            } catch (\Throwable $e) {
-                $why = $e->getMessage();
-            }
-            $this->hopErrors[] = ['provider' => $provider, 'model' => $model, 'error' => $why];
-            $this->lastError   = $provider . '/' . $model . ': ' . $why;
+                $this->hopErrors[] = ['provider' => $provider, 'model' => $model, 'error' => $why];
+                $this->lastError   = $provider . '/' . $model . ': ' . $why;
 
-            // The request never reached this provider — DNS, or an egress firewall.
-            // That stays true for minutes, so learn it once instead of paying a full
-            // timeout for it on every subsequent call. Deliberately NOT tripped by
-            // 401/429/5xx: those are the provider answering, which proves the network
-            // path works and each has its own correct handling.
-            if (ProviderBreaker::isUnreachable($why)) {
-                ProviderBreaker::open($provider);
+                // The request never reached this provider — DNS, or an egress firewall.
+                // That stays true for minutes, so learn it once instead of paying a full
+                // timeout for it on every subsequent call. Deliberately NOT tripped by
+                // 401/429/5xx: those are the provider answering, which proves the network
+                // path works and each has its own correct handling. Nor by a read timeout,
+                // which also proves it — `httpPost()` tells the two apart.
+                if (ProviderBreaker::isUnreachable($why)) {
+                    ProviderBreaker::open($provider);
+                }
+                // fall through to the next hop
             }
-            // fall through to the next hop
+        } finally {
+            $this->timeoutOverride = null;
         }
         if ($this->hopErrors !== []) {
             // Every hop, on one line. A log that named only the last one is why
             // "AI doesn't work" stayed unexplained through several attempts to fix it.
-            error_log('[AiService] all providers failed — ' . self::describeHops($this->hopErrors));
+            error_log('[AiService] all providers failed after ' . ($budget ?? $this->timeout)
+                . 's per attempt — ' . self::describeHops($this->hopErrors));
         }
         return null;
     }
@@ -410,21 +420,65 @@ class AiService
     public const TOOL_PROVIDERS = ['openai', 'groq', 'anthropic'];
 
     /**
-     * A conversational turn is not a 6-second job.
+     * A conversational turn is not a 6-second job. Nor is a summary.
      *
-     * `$timeout` is right for the calls this class was built for — classify a comment, draft a
-     * line of copy — and wrong by a factor of five for a turn that reads a brief, a knowledge
-     * base and twenty messages before it writes anything. Rather than raise the constructor
-     * default and slow every failure path across the platform, {@see chat()} lifts it for its
-     * own call and puts it back.
+     * `$timeout` — 6s — is right for the calls this class was built for: classify a comment,
+     * draft a line of copy. It is wrong by a factor of five for a turn that reads a brief, a
+     * knowledge base and twenty messages before it writes anything, and wrong by a factor of
+     * twenty for a document reader that uploads files first. Rather than raise the constructor
+     * default and slow every failure path across the platform, the callers that need longer
+     * lift it for their own call and put it back.
      *
-     * Not a parameter on {@see httpPost()}: four test doubles override that method by signature,
-     * and widening it would break them all to express something only one caller needs.
+     * Not a parameter on {@see httpPost()}: four test doubles override that method by
+     * signature, and widening it would break them all to express something only some callers
+     * need. Not a parameter on {@see complete()} either, for the same reason one rung up — the
+     * gateway's own test double overrides `complete()` by signature, and a subclass with fewer
+     * parameters than its parent is a fatal error rather than a failing test.
+     *
+     * Protected for the same reason {@see httpPost()} is: the thing worth asserting is that
+     * a capability's declared budget reaches the wire, and a test double intercepting the one
+     * network call is the only place that can be seen. A private field would leave the fix
+     * for the six-second ceiling provable only by timing a real request.
      */
-    private ?int $timeoutOverride = null;
+    protected ?int $timeoutOverride = null;
 
-    /** Seconds allowed for one conversational turn, tools and all. */
+    /**
+     * Seconds allowed for the NEXT call, overriding the constructor's 6.
+     *
+     * ── WHY THIS EXISTS AT ALL ───────────────────────────────────────────────
+     *
+     * {@see AiCapability} declares a timeout per capability — 4s for the classifier on the
+     * nomination submit, 30s for a judge's dossier map, 120s for the document reader — and
+     * for months NOTHING READ IT. Every call ran on the 6s default, so the summary and
+     * drafting capabilities (12s to 120s declared) were cut off mid-generation on every
+     * request: cURL reported no response, the chain walked all three hops paying six seconds
+     * each, and the status page showed "0% answering" for features that were working and
+     * simply not being given time to finish. It was the same class of fault the model pin had
+     * — declared as data, read into the audit log, never put on the wire.
+     *
+     * Returns $this so a call site reads as one statement. The value is consumed and RESTORED
+     * by {@see complete()}, so a stale override cannot leak from one call into the next on an
+     * instance that gets reused — which `AiService::boot()` results are, inside one request.
+     */
+    public function withTimeout(?int $seconds): static
+    {
+        $this->timeoutOverride = ($seconds !== null && $seconds > 0) ? $seconds : null;
+        return $this;
+    }
+
+    /** Seconds allowed for one conversational turn, tools and all, when nobody says otherwise. */
     public const CHAT_TIMEOUT = 45;
+
+    /**
+     * Seconds allowed to get CONNECTED, separate from the time allowed to answer.
+     *
+     * Bounded tightly and independently because reaching a provider and being answered by
+     * one fail for unrelated reasons: the first is DNS or an egress firewall — the fault this
+     * deployment actually has — and the second is a long generation. Without this split, a
+     * capability that legitimately needs 120s to answer would also wait 120s to discover a
+     * blocked outbound port, on every call.
+     */
+    public const CONNECT_TIMEOUT = 5;
 
     /**
      * A multi-turn exchange, with tools, returning the reply as a structure.
@@ -491,7 +545,9 @@ class AiService
             return null;
         }
 
-        $this->timeoutOverride = self::CHAT_TIMEOUT;
+        // A capability that declared its own budget keeps it; 45s is the default for a
+        // conversational turn, not a ceiling imposed on one that asked for more.
+        $this->timeoutOverride = max(self::CHAT_TIMEOUT, (int) $this->timeoutOverride);
         try {
             foreach ($hops as [$provider, $model]) {
                 $this->lastError = null;
@@ -1000,6 +1056,15 @@ class AiService
                 $causes[] = "{$at}: the request never reached the provider — DNS, egress firewall or a "
                           . "blocked outbound port on this host. Rotating the key will not help. Ask the "
                           . "host whether outbound HTTPS to the provider's API domain is permitted.";
+            } elseif (str_starts_with($e, 'TIMEOUT')) {
+                // A DIFFERENT fault from the one above, and it took months to see because
+                // both reported HTTP 0. This provider is reachable and was answering — it
+                // simply had less time than the answer needed. The fix is the capability's
+                // own budget, not the key, the model or the host.
+                $causes[] = "{$at}: connected, but did not finish answering inside the time this feature "
+                          . "allows. Nothing is wrong with the key or the network — the job needs longer "
+                          . "than its declared timeout, or a shorter output. Raise the capability's "
+                          . "`timeout` in AiCapability.";
             } elseif (preg_match('~\bHTTP 40[13]\b~', $e)) {
                 $causes[] = "{$at}: the key was rejected — expired, revoked, or from a different project. "
                           . "Issue a new one and put it in admin Settings.";
@@ -1128,21 +1193,41 @@ class AiService
      */
     protected function httpPost(string $url, array $headers, array $payload): ?array
     {
-        $body = json_encode($payload);
-        // Up to 2 attempts: retry once on a TRANSIENT failure (network/timeout,
-        // 429 rate-limit, or 5xx), which are exactly the errors that made AI
-        // "randomly not work". Permanent errors (4xx auth/bad-request) don't retry.
+        $body  = json_encode($payload);
+        $limit = max(1, (int) ($this->timeoutOverride ?? $this->timeout));
+
+        // Up to 2 attempts: retry once on a TRANSIENT failure (429 rate-limit or 5xx),
+        // which are exactly the errors that made AI "randomly not work". Permanent errors
+        // (4xx auth/bad-request) don't retry, and nor does anything that consumed the whole
+        // time budget — see below.
         for ($attempt = 1; $attempt <= 2; $attempt++) {
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_POST           => true,
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => $this->timeoutOverride ?? $this->timeout,
+                CURLOPT_TIMEOUT        => $limit,
+                // ── A SEPARATE, SHORT CEILING ON GETTING CONNECTED AT ALL ─────────
+                //
+                // Now that a capability's own budget reaches this method, the total
+                // timeout runs from 4s to 120s — and without this, a host that cannot
+                // reach the provider at all would spend the WHOLE of that budget
+                // discovering it. The document reader would sit for two minutes on a
+                // blocked outbound port before trying anything else.
+                //
+                // Connecting is not the slow part of a model call: TCP and TLS to a
+                // provider's edge is well under a second from anywhere that can reach it
+                // at all, so a few seconds is generous while still failing fast. Never
+                // longer than the total, or a small budget would be spent entirely on
+                // the handshake.
+                CURLOPT_CONNECTTIMEOUT => min($limit, self::CONNECT_TIMEOUT),
                 CURLOPT_HTTPHEADER     => array_merge(['Content-Type: application/json'], $headers),
                 CURLOPT_POSTFIELDS     => $body,
             ]);
             $resp = curl_exec($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            // Non-zero the moment the TCP+TLS handshake completes, and it is the whole
+            // discriminator below.
+            $connected = (float) curl_getinfo($ch, CURLINFO_CONNECT_TIME) > 0.0;
             $cerr = curl_error($ch);
             curl_close($ch);
 
@@ -1151,18 +1236,34 @@ class AiService
                 return is_array($j) ? $j : null;
             }
 
-            // `HTTP 0` is EXCLUDED from the retry, and that is the point.
+            // ── "NEVER ARRIVED" AND "RAN OUT OF TIME" ARE DIFFERENT FAULTS ───────
             //
-            // Code 0 means cURL got no response at all — the connection was refused,
-            // the name did not resolve, or the timeout expired. None of those clear in
-            // 300 milliseconds, so the retry only ever bought a second full timeout on
-            // a certainty. With a 6s timeout that is 12.3s per call spent on a
-            // provider that cannot answer, which on this deployment is what stopped
-            // Gee responding: the request ran out of patience before the chain reached
-            // a provider that could. The cross-request half is in ProviderBreaker.
-            $transient = ($code === 429 || $code >= 500);
-            $this->lastError = 'HTTP ' . $code . ($cerr !== '' ? ' (' . $cerr . ')' : '')
+            // Both give an HTTP code of 0, and treating them as one thing was wrong in
+            // both directions. `ProviderBreaker` skips a provider for five minutes on the
+            // strength of this text, and its whole justification is that unreachability is
+            // a FACT THAT STAYS TRUE — DNS, or the account's outbound firewall. A provider
+            // that connected fine and then took longer than its budget is not that: it is
+            // reachable, working, and possibly just slow, and sidelining it for five
+            // minutes takes a working feature down to save a few hundred milliseconds.
+            //
+            // `CONNECT_TIME` settles it without guessing at cURL's wording: it is only
+            // non-zero once the handshake completed, which proves the network path.
+            //
+            // So `HTTP 0` now means exactly what ProviderBreaker's docblock has always
+            // claimed it means, and a read timeout says so in its own words instead.
+            $timedOut = ($code === 0 && $connected);
+            $this->lastError = ($timedOut
+                    ? 'TIMEOUT after ' . $limit . 's (connected, but no reply in time)'
+                    : 'HTTP ' . $code)
+                . ($cerr !== '' ? ' (' . $cerr . ')' : '')
                 . ($resp ? ' ' . substr((string) $resp, 0, 160) : '');
+
+            // A retry is only ever worth 0.3s of backoff plus one more attempt, and both
+            // `HTTP 0` and a timeout have already spent the budget: the first is a
+            // certainty that will not clear in 300ms, and the second would DOUBLE the
+            // wait a capability declared as its limit. Retrying a 120s document read into
+            // a 240s one is how a request outlives the front end waiting on it.
+            $transient = ($code === 429 || $code >= 500);
             if (!$transient || $attempt === 2) return null;
             usleep(300000); // 0.3s backoff before the single retry
         }

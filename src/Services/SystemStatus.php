@@ -546,18 +546,56 @@ final class SystemStatus
     }
 
     /**
+     * Outcome words {@see AiGateway} writes when it never asked a provider anything.
+     *
+     * The distinction this list draws is the whole point of the check below. A refusal is a
+     * DECISION the platform made — the switch is off, the day's budget is spent, no key is
+     * configured — and it is not evidence about whether the providers are answering. Counting
+     * refusals as failed answers is what produced "0% answering" on a deployment where the
+     * providers were fine and one setting was not.
+     */
+    private const AI_REFUSALS = [
+        'UNDECLARED', 'DISABLED_GLOBAL', 'DISABLED_CAPABILITY',
+        'BUDGET_CALLS', 'BUDGET_TOKENS', 'NO_PROVIDER',
+    ];
+
+    /** Share of ATTEMPTED calls that may fail before it is worth saying so. */
+    private const AI_FAIL_PCT = 40;
+
+    /**
      * The AI features.
      *
      * Listed because they are visible to nominees and judges, and DEGRADED rather than DOWN
      * when they fail: every one of them is declared advisory, so the platform works without
      * them. A status page that shows an outage in red for a feature nobody needs to complete
      * a task teaches people to distrust the red.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS COUNTS TWO THINGS AND NOT ONE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * It used to be one number: OK rows over all rows, under 60% reads "the writing and
+     * summary helpers are not answering reliably". That sentence was shown for weeks on a
+     * deployment reading 0%, and it was wrong in the way that costs the most — it described a
+     * flaky provider, so that is what was investigated, twice.
+     *
+     * `gates_ai_calls` holds a row for every REFUSAL too, by design: a call the gateway
+     * stopped is exactly as auditable as one it made. But a refusal never asked a provider
+     * anything, so it cannot be evidence that providers are unreliable. Three of the six
+     * refusal words are ordinary configuration — no key, a capability switched off, the day's
+     * budget spent — and each of them, alone, drove the single ratio to zero.
+     *
+     * So: refusals are separated from ATTEMPTS, the percentage is over attempts, and where a
+     * refusal is the dominant story the row says which one and what clears it. An operator
+     * reading "today's budget is spent, it resets at midnight" needs no investigation at all.
      */
     private static function ai(): array
     {
+        $name = 'AI assistance';
+        $what = 'Summaries and drafting help';
+
         if (!AiGateway::globallyEnabled()) {
-            return self::component('AI assistance', 'Summaries and drafting help',
-                self::UNKNOWN, '', 'switched off');
+            return self::component($name, $what, self::UNKNOWN, '', 'switched off');
         }
 
         $since = Carbon::now()->subHours(6)->toDateTimeString();
@@ -565,27 +603,110 @@ final class SystemStatus
         try {
             $rows = DB::table('gates_ai_calls')
                 ->where('created_at', '>=', $since)
-                ->selectRaw("COUNT(*) n, SUM(CASE WHEN outcome = 'OK' THEN 1 ELSE 0 END) ok")
-                ->first();
+                ->groupBy('outcome')
+                // Latency alongside the count because "slower than usual" is the label this
+                // row wears when it degrades, and the page had no measurement behind it.
+                ->selectRaw('outcome, COUNT(*) n, COALESCE(AVG(latency_ms), 0) ms')
+                ->get();
         } catch (\Throwable) {
-            return self::component('AI assistance', 'Summaries and drafting help',
-                self::UNKNOWN, 'We could not check.');
+            return self::component($name, $what, self::UNKNOWN, 'We could not check.');
         }
 
-        $n = (int) ($rows->n ?? 0);
-        if ($n === 0) {
-            return self::component('AI assistance', 'Summaries and drafting help',
-                self::OK, '', 'not used in the last six hours');
+        $ok = $failed = 0;
+        $okMs = 0.0;
+        /** @var array<string,int> $refused */
+        $refused = [];
+
+        foreach ($rows as $r) {
+            $outcome = strtoupper(trim((string) $r->outcome));
+            $n       = (int) $r->n;
+
+            if ($outcome === 'OK') {
+                $ok  += $n;
+                $okMs = (float) $r->ms;
+            } elseif (in_array($outcome, self::AI_REFUSALS, true)) {
+                $refused[$outcome] = ($refused[$outcome] ?? 0) + $n;
+            } else {
+                // PROVIDER_ERROR, EMPTY, SCHEMA_REJECTED, FAILED, and anything a future
+                // capability invents. All of them mean a provider WAS asked.
+                $failed += $n;
+            }
         }
 
-        $pct = (int) round(((int) ($rows->ok ?? 0)) * 100 / max(1, $n));
+        $attempts = $ok + $failed;
 
-        return $pct < 60
-            ? self::component('AI assistance', 'Summaries and drafting help', self::DEGRADED,
+        // ── NOTHING TRIED: SAY SO, AND DO NOT CALL IT HEALTHY BY ACCIDENT ────
+        if ($attempts === 0) {
+            // A refusal is still the reason nobody got an answer, so it is reported even
+            // though no provider was involved.
+            if ($refused !== []) {
+                [$status, $detail, $metric] = self::aiRefusal($refused);
+                return self::component($name, $what, $status, $detail, $metric);
+            }
+            return self::component($name, $what, self::OK, '', 'not used in the last six hours');
+        }
+
+        $pct    = (int) round($ok * 100 / max(1, $attempts));
+        $metric = $pct . '% answering';
+        // Only worth printing once there is enough of it to be a fact rather than a sample.
+        if ($ok > 0 && $okMs >= 1000) {
+            $metric .= ', ' . number_format($okMs / 1000, 1) . 's typical';
+        }
+
+        if ($pct < (100 - self::AI_FAIL_PCT)) {
+            return self::component($name, $what, self::DEGRADED,
                 'The writing and summary helpers are not answering reliably. Everything they '
                 . 'help with can still be done without them.',
-                $pct . '% answering')
-            : self::component('AI assistance', 'Summaries and drafting help', self::OK,
-                '', $pct . '% answering');
+                $metric);
+        }
+
+        // Working, but something is being refused alongside it — most often one capability's
+        // budget while the rest of the platform is fine. Said in the metric, not as a fault:
+        // the features people are using are answering.
+        if ($refused !== []) {
+            return self::component($name, $what, self::OK, '',
+                $metric . ', ' . array_sum($refused) . ' held back');
+        }
+
+        return self::component($name, $what, self::OK, '', $metric);
+    }
+
+    /**
+     * The dominant refusal, in words that name what clears it.
+     *
+     * Ordered by what an operator can do about it rather than by count: a missing key is a
+     * five-minute fix and a spent budget fixes itself at midnight, so saying which one it is
+     * matters more than saying which is commoner. `UNKNOWN` rather than `DEGRADED` for the
+     * two that are configuration: nothing is malfunctioning, and a red-adjacent row for a
+     * feature deliberately left unconfigured is noise on a page whose whole value is that its
+     * colours mean something.
+     *
+     * @param  array<string,int> $refused
+     * @return array{0:string, 1:string, 2:string}
+     */
+    private static function aiRefusal(array $refused): array
+    {
+        if (isset($refused['NO_PROVIDER'])) {
+            return [self::UNKNOWN,
+                'The writing and summary helpers are not set up on this site, so they are not '
+                . 'available. Nothing else is affected.',
+                'no provider configured'];
+        }
+        if (isset($refused['BUDGET_CALLS']) || isset($refused['BUDGET_TOKENS'])) {
+            return [self::DEGRADED,
+                "Today's allowance for the writing and summary helpers is used up. It resets at "
+                . 'midnight, and everything they help with can be done without them.',
+                'daily allowance spent'];
+        }
+        if (isset($refused['DISABLED_CAPABILITY'])) {
+            return [self::UNKNOWN, '', 'some helpers switched off'];
+        }
+
+        // UNDECLARED is a programming error rather than an operational state, and the one
+        // refusal a visitor can do nothing with. Named plainly so it reaches somebody.
+        return [self::DEGRADED,
+            'Some of the writing and summary helpers are misconfigured. Everything they help '
+            . 'with can still be done without them.',
+            'misconfigured'];
     }
 }

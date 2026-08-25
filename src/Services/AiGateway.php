@@ -109,6 +109,21 @@ final class AiGateway
         // move the injection boundary or make an advisory capability decide anything.
         $prompt = AiPrompt::effective($cap->name, (string) $input['system']);
 
+        // ── THE CAPABILITY'S OWN TIME BUDGET ────────────────────────────────
+        //
+        // For months this was not passed and `AiCapability::$timeout` was read by nothing:
+        // every call ran on `AiService`'s 6s constructor default. The four capabilities that
+        // declare LESS than that were merely slower to give up than intended — but the
+        // fourteen that declare MORE (12s to 120s: every summary, every piece of drafting
+        // help, the document reader, the dossier map) were cut off mid-generation on every
+        // single request. cURL reported no response, the chain then paid six seconds a hop for
+        // three hops, and the status panel read "0% answering" for features that worked and
+        // were never given time to finish.
+        //
+        // Exactly the fault the model pin had before `route()` was passed: declared as data,
+        // recorded in the audit log, absent from the wire.
+        $ai->withTimeout($cap->timeout);
+
         try {
             $raw = $ai->complete(
                 $prompt['body'],
@@ -269,12 +284,22 @@ final class AiGateway
      * did this cost". Best-effort, like {@see log()}: a logging failure must never break a
      * feature.
      *
+     * ── THE OUTCOME WORD IS UPPERCASED HERE, DELIBERATELY ────────────────────
+     *
+     * `run()` writes a fixed vocabulary — OK, EMPTY, PROVIDER_ERROR, BUDGET_CALLS — and both
+     * readers of this table ({@see spendReport()} and `SystemStatus::ai()`) ask
+     * `outcome = 'OK'`. A caller here wrote `'ok'`, which MySQL's case-insensitive collation
+     * matched and SQLite's `=` did not: the same successful interview counted as a success on
+     * production and a failure in every test and every dev database. Normalising at the door
+     * is cheaper than a collation every reader has to remember.
+     *
      * @param array{provider?:?string, model?:?string, tokens_in?:int, tokens_out?:int,
      *              latency_ms?:int, subject_type?:string, subject_id?:int,
      *              output_summary?:?string, error?:?string} $meta
      */
     public static function record(string $capability, string $outcome, array $meta = []): void
     {
+        $outcome = strtoupper(trim($outcome));
         try {
             $cap = AiCapability::find($capability);
             DB::table('gates_ai_calls')->insert([

@@ -150,6 +150,14 @@ final class ProviderBreaker
         // The exact string httpPost() writes on a connection-level failure. Matched
         // narrowly on purpose: "HTTP 0" is cURL reporting no response at all, and it
         // must not be confused with a 0 appearing inside a provider's own message.
+        //
+        // This USED TO OVER-MATCH, and the docblock above was wrong for as long as it did.
+        // cURL reports code 0 for a read timeout as well as for a failed connection, so a
+        // provider that connected fine and merely took longer than its budget was filed as
+        // unreachable and skipped for five minutes — sidelining a working provider to save a
+        // few hundred milliseconds, which is precisely what the note above says must never
+        // happen. `httpPost()` now separates them on CURLINFO_CONNECT_TIME and writes
+        // "TIMEOUT after Ns" for the second case, so this pattern finally means what it says.
         return (bool) preg_match('~\bHTTP 0\b~', $error);
     }
 }

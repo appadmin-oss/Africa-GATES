@@ -41,6 +41,21 @@ final class SystemStatusTest extends TestCase
         return $out;
     }
 
+    /**
+     * The AI row, by its exact name.
+     *
+     * NOT via {@see componentSaying()}, which matches a substring of the name: 'AI' is inside
+     * 'Messages waiting', so every assertion here that used it was silently testing the queue
+     * row instead — including the one that checks the AI row never reports a full outage,
+     * which passed for as long as the queue was empty.
+     */
+    private function aiRow(): array
+    {
+        $c = $this->byName(SystemStatus::report())['AI assistance'] ?? null;
+        $this->assertNotNull($c, 'the AI row is missing from the board');
+        return $c;
+    }
+
     private function componentSaying(array $report, string $needle): ?array
     {
         foreach ($report['components'] as $c) {
@@ -314,10 +329,137 @@ final class SystemStatusTest extends TestCase
             ]);
         }
 
-        $c = $this->componentSaying(SystemStatus::report(), 'AI');
+        $c = $this->aiRow();
         $this->assertNotNull($c);
         $this->assertNotSame(SystemStatus::DOWN, $c['status'],
             'an advisory feature failing is not an outage of the platform');
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // "0% ANSWERING" HAD TO STOP MEANING SIX DIFFERENT THINGS
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * The row that was read wrong for weeks.
+     *
+     * `gates_ai_calls` holds a row for every REFUSAL as well as every call — by design; a
+     * call the gateway stopped is exactly as auditable as one it made. The check counted OK
+     * over ALL rows, so a deployment with no provider key logged nothing but `NO_PROVIDER` and
+     * the page said "The writing and summary helpers are not answering reliably", at 0%.
+     *
+     * That sentence describes a flaky provider, so a flaky provider is what was investigated.
+     * Twice. The state was one unset setting.
+     */
+    public function test_no_provider_configured_is_not_reported_as_unreliable_answering(): void
+    {
+        $this->aiCalls(['NO_PROVIDER' => 12]);
+
+        $c = $this->aiRow();
+        $this->assertStringNotContainsString('not answering reliably', (string) $c['detail'],
+            'nothing was asked of any provider, so nothing can be said about their reliability');
+        $this->assertStringNotContainsString('0%', (string) $c['metric'],
+            'a percentage of nothing is not a measurement');
+        $this->assertStringContainsString('provider', strtolower((string) $c['metric']));
+    }
+
+    /**
+     * A spent allowance says so, and says when it comes back.
+     *
+     * This is the refusal an operator most needs distinguished: it is not a fault, it fixes
+     * itself at midnight, and the previous wording sent somebody looking for a broken key.
+     */
+    public function test_a_spent_daily_budget_says_so_rather_than_blaming_the_provider(): void
+    {
+        $this->aiCalls(['BUDGET_CALLS' => 9]);
+
+        $c = $this->aiRow();
+        $this->assertSame(SystemStatus::DEGRADED, $c['status']);
+        $this->assertStringContainsString('midnight', (string) $c['detail']);
+        $this->assertStringNotContainsString('not answering reliably', (string) $c['detail']);
+    }
+
+    /**
+     * A real provider fault still reads as one.
+     *
+     * The fix must not have made the row incapable of reporting the thing it was wrongly
+     * reporting before — that would be the old page's failure with the polarity flipped.
+     */
+    public function test_providers_that_actually_fail_are_still_called_unreliable(): void
+    {
+        $this->aiCalls(['PROVIDER_ERROR' => 8, 'OK' => 2]);
+
+        $c = $this->aiRow();
+        $this->assertSame(SystemStatus::DEGRADED, $c['status']);
+        $this->assertStringContainsString('not answering reliably', (string) $c['detail']);
+        $this->assertStringContainsString('20%', (string) $c['metric']);
+    }
+
+    /**
+     * Refusals must not drag down the percentage of what was answered.
+     *
+     * Nine successful calls and ninety-one refusals of a capability somebody switched off is
+     * a platform whose AI works. Reported as 9% it is a platform in trouble, and the row
+     * would sit amber indefinitely for a setting that was chosen deliberately.
+     */
+    public function test_the_percentage_is_over_calls_that_reached_a_provider(): void
+    {
+        $this->aiCalls(['OK' => 9, 'DISABLED_CAPABILITY' => 91]);
+
+        $c = $this->aiRow();
+        $this->assertSame(SystemStatus::OK, $c['status']);
+        $this->assertStringContainsString('100% answering', (string) $c['metric']);
+        $this->assertStringContainsString('91 held back', (string) $c['metric'],
+            'the refusals are still visible — they are just not failures');
+    }
+
+    /**
+     * The label on a degraded row is "Slower than usual", and it had no measurement behind it.
+     *
+     * Latency was recorded per call from the day the audit log existed and never read. Saying
+     * how slow is the difference between a status page and a mood.
+     */
+    public function test_a_slow_but_working_ai_reports_how_slow(): void
+    {
+        $this->aiCalls(['OK' => 4], 18500);
+
+        $c = $this->aiRow();
+        $this->assertSame(SystemStatus::OK, $c['status']);
+        $this->assertStringContainsString('18.5s typical', (string) $c['metric']);
+    }
+
+    /**
+     * Rows written by the direct-`chat()` path are counted as successes.
+     *
+     * That caller records its own accounting and wrote `'ok'`; every reader asks for `'OK'`.
+     * SQLite's `=` is case-sensitive, so the same successful interview turn was a success on
+     * MySQL production and a failure in dev — the divergence CLAUDE.md warns about, arriving
+     * as a status page that is honest in one environment only.
+     */
+    public function test_a_lower_cased_success_is_read_as_a_success(): void
+    {
+        $this->aiCalls(['ok' => 5]);
+
+        $c = $this->aiRow();
+        $this->assertSame(SystemStatus::OK, $c['status']);
+        $this->assertStringContainsString('100% answering', (string) $c['metric']);
+    }
+
+    /**
+     * @param array<string,int> $byOutcome
+     */
+    private function aiCalls(array $byOutcome, int $latencyMs = 300): void
+    {
+        DB::table('gates_ai_calls')->delete();
+        foreach ($byOutcome as $outcome => $n) {
+            for ($i = 0; $i < $n; $i++) {
+                DB::table('gates_ai_calls')->insert([
+                    'capability' => 'community.thread_summary',
+                    'outcome'    => $outcome,
+                    'latency_ms' => $latencyMs,
+                    'created_at' => date('Y-m-d H:i:s', strtotime('-20 minutes')),
+                ]);
+            }
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════════
