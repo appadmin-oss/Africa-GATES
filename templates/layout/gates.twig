@@ -315,7 +315,11 @@
   }catch(e){}})();
   </script>
 </head>
-<body data-page="{{ gates_page|default('') }}">
+{# `data-task-page` marks a screen somebody arrived at with a job to finish rather
+   than to browse. It is a MARKER, not a switch: the layout renders exactly the same,
+   and what reads it is page CSS that needs to suppress floating furniture over a
+   docked action. Kept distinct from `hide_chrome`, which removes the header too. #}
+<body data-page="{{ gates_page|default('') }}"{% if task_page|default(false) %} data-task-page{% endif %}>
 
 {# ── Mobile entrance loader (visible only when html.ag-loading) ── #}
 <div class="ag-loader" id="agLoader" role="status" aria-label="Loading Africa GATES">

@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 namespace AfricaGates\Controllers;
 
-use AfricaGates\Services\{OrgAuth, PartnerOrg, RateLimitService, StandApplication, StandCall, StandType};
+use AfricaGates\Admin\Services\UploadService;
+use AfricaGates\Services\{OrgAuth, PartnerOrg, RateLimitService, StandApplication, StandCall, StandPhotos, StandType};
 use Illuminate\Database\Capsule\Manager as DB;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -232,6 +233,18 @@ final class StandApplyController
             'gates_page' => 'stands',
             'has_hero'   => false,
             'lite_page'  => true,
+            // ── NO BOTTOM BAR ON THE FORM ───────────────────────────────────
+            //
+            // Signed off with the design. Under 900px the site has no top nav — it has the
+            // bottom bar, which on this page would sit directly under the submit button and
+            // offer four ways to leave a part-filled form. A four-step task with a docked
+            // primary action gets the screen to itself.
+            //
+            // A MARKER and not `hide_chrome`, deliberately: hide_chrome removes the header
+            // as well, and the desktop frame of this design has the header on it. What has
+            // to go is the mobile bar, and only under 900px, which is a page CSS rule keyed
+            // on this attribute.
+            'task_page'  => true,
             'event'      => $event,
             'call'       => $call,
             'capacity'   => StandCall::capacity((int) $event->id),
@@ -256,6 +269,13 @@ final class StandApplyController
             // literals is how a browser lets 3,000 characters through into a column that
             // keeps 2,000.
             'sells_max'  => StandApplication::SELLS_MAX,
+            // The photograph rules, from the constants the server enforces rather than
+            // typed a second time into the template. The counter on the form is a
+            // convenience; StandPhotos is the rule.
+            'photo_min'       => StandPhotos::MIN,
+            'photo_max'       => StandPhotos::MAX,
+            'photo_max_bytes' => 10 * 1024 * 1024,
+            'photo_accept'    => 'image/jpeg,image/png,image/webp,image/gif',
             'error'      => $error,
         ])->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
@@ -326,10 +346,21 @@ final class StandApplyController
                                  (string) ($r['field'] ?? ''));
         }
 
+        // ── THE PHOTOGRAPHS THAT RODE ALONG ─────────────────────────────────
+        //
+        // Staged in the browser and posted with everything else, because the application
+        // did not exist until the line above and there was nothing to attach them to.
+        //
+        // Best-effort, and that is the whole design: the application is already recorded.
+        // A rejected photograph must never cost somebody the form they just filled in — it
+        // costs them completeness, which they can fix from the dashboard while the call is
+        // still open. What they are told is which ones did not make it and why.
+        $rejected = $this->storePhotos($req, (int) $r['id'], (int) $user->org_id);
+
         // Straight to the dashboard, because what happens next is uploading documents — and
         // an application without them is not complete, which is what the tiebreak in §5.4
         // measures. Saying so here beats discovering it after the closing date.
-        $missing = StandApplication::missingDocuments((int) $user->org_id);
+        $missing = StandApplication::missingForCompleteness((int) $r['id']);
         $_SESSION['org_flash_ok'] = $missing === []
             ? 'Application received for ' . (string) $event->title . '. You will hear from us '
               . 'either way, with a reason.'
@@ -337,6 +368,41 @@ final class StandApplyController
               . implode(', ', $missing) . '. Applications are ranked by when they became '
               . 'complete, so this is worth doing today.';
 
+        if ($rejected !== []) {
+            // A separate line, and an error rather than a note. Somebody who watched three
+            // thumbnails appear on the form and then reads a cheerful success page would
+            // otherwise believe the photographs are on file.
+            $_SESSION['org_flash_error'] = count($rejected) === 1
+                ? 'One photograph did not save: ' . $rejected[0] . ' Add it again below.'
+                : count($rejected) . ' photographs did not save: ' . implode(' ', $rejected)
+                  . ' Add them again below.';
+        }
+
         return $this->redirect($res, '/org');
+    }
+
+    /**
+     * File the photographs that came with the form.
+     *
+     * @return list<string> what was refused, in words, one sentence each
+     */
+    private function storePhotos(Request $req, int $applicationId, int $orgId): array
+    {
+        $files = $req->getUploadedFiles()['photos'] ?? [];
+        if (!is_array($files) || $files === [] || $applicationId < 1) return [];
+
+        $uploads  = new UploadService();
+        $rejected = [];
+
+        foreach ($files as $f) {
+            if (!$f instanceof \Psr\Http\Message\UploadedFileInterface) continue;
+            if ($f->getError() === UPLOAD_ERR_NO_FILE) continue;
+
+            $name = trim((string) $f->getClientFilename()) ?: 'a photograph';
+            $r    = StandPhotos::add($applicationId, $orgId, $f, $uploads);
+            if (!$r['ok']) $rejected[] = $name . ' — ' . rtrim((string) $r['message'], '.') . '.';
+        }
+
+        return $rejected;
     }
 }

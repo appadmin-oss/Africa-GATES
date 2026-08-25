@@ -73,13 +73,79 @@
 
     background:var(--ap-paper); color:var(--ap-ink);
   }
-  .ap{ max-width:760px; margin:0 auto;
-    padding:clamp(20px,4vw,36px) var(--ag-gutter,32px) clamp(56px,7vw,88px); }
+  /* ── THE SHELL: A RAIL AND A FORM ──────────────────────────────────────────
+     248 + 48 + 760 inside 1080. The form column is unchanged at 760, because the
+     measure of a form is the width of its longest field and that did not move; the
+     rail is new space beside it rather than space taken from it. */
+  /* 1080 including its padding, and the padding is the frame's 32 rather than the
+     site gutter's 40 — which is what makes the form column land on the 720 the
+     reference actually renders. The handoff's prose says 760; the frame is the
+     tiebreaker, and 248 + 48 + 760 does not add up to 1080 in any case. */
+  .ap{ max-width:1080px; margin:0 auto;
+    padding-block:clamp(20px,4vw,32px) clamp(56px,7vw,88px);
+    padding-inline:clamp(16px,4vw,32px);
+    display:grid; grid-template-columns:248px minmax(0,1fr); gap:48px; align-items:start; }
+
+  /* ── THE MOBILE BAR DOES NOT BELONG ON A FORM ─────────────────────────────
+     Under 900px the site has no top nav — it has the bottom bar, which on this page
+     would sit directly under the submit button and offer four ways to leave a
+     part-filled form. So it goes, and the clearance `nav.css` adds to make room for
+     it goes with it, or the page ends in 84px of nothing.
+
+     Under 900px ONLY. The desktop header stays, because it is on the design and
+     because a desktop form is not a screen somebody is trapped on. */
+  @media (max-width:899px){
+    body[data-task-page] .ag-mobnav{ display:none; }
+    body[data-task-page] .main-wrapper{ padding-bottom:0; }
+  }
+
+  /* ── THE RAIL ──────────────────────────────────────────────────────────────
+     Three things, and each is something people lose halfway down a four-part form:
+     where they are, what they picked, and that this costs nothing.
+
+     `top: 96px` clears the site header. Sticky rather than fixed so it scrolls away
+     with the page on a short viewport instead of covering the form. */
+  .ap-rail{ position:sticky; top:96px; display:flex; flex-direction:column; gap:16px; }
+  .ap-rail__card{ border:1px solid var(--ap-line); border-radius:var(--ap-r);
+    background:var(--ap-card); padding:16px 18px; }
+  .ap-rail__k{ margin:0 0 12px; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; line-height:1; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--ap-mute); }
+  .ap-steps{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px; }
+  .ap-steps li{ display:grid; grid-template-columns:26px minmax(0,1fr); gap:10px;
+    align-items:baseline; min-height:40px; padding:9px 0 9px 14px; }
+  .ap-steps__n{ font-family:var(--ag-font-mono,monospace); font-size:10.5px; font-weight:700;
+    line-height:1; letter-spacing:.14em; color:var(--ap-mute); }
+  .ap-steps li span + span{ font-size:14px; color:var(--ap-ink-2); }
+  /* WHERE YOU ARE — an edge and a ground, never colour alone. */
+  .ap-steps li.is-on{ border-left:2px solid var(--ap-green-dark); padding-left:12px;
+    background:var(--ap-cream); }
+  .ap-steps li.is-on .ap-steps__n{ color:var(--ap-gold-ink); }
+  .ap-steps li.is-on span + span{ font-weight:700; color:var(--ap-ink); }
+
+  /* WHAT YOU PICKED. It stays visible through sections 03 and 04, which is where
+     people forget which row they chose and scroll back to check. */
+  .ap-chosen__n{ margin:10px 0 0; font-family:var(--ag-font-display,Georgia,serif);
+    font-weight:700; font-size:1.05rem; line-height:1.25; color:var(--ap-ink); }
+  .ap-chosen__m{ margin:6px 0 0; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
+    font-weight:700; line-height:1.5; letter-spacing:.1em; color:var(--ap-mute); }
+  .ap-chosen__p{ margin:10px 0 0; font-family:var(--ag-font-mono,monospace); font-weight:700;
+    font-size:1.05rem; line-height:1; font-variant-numeric:tabular-nums; color:var(--ap-ink); }
+  .ap-chosen__d{ margin:5px 0 0; font-size:11.5px; line-height:1.45; color:var(--ap-mute); }
+  .ap-chosen__none{ margin:10px 0 0; font-size:13px; line-height:1.6; color:var(--ap-mute); }
+
+  .ap-shield{ display:flex; align-items:flex-start; gap:10px; margin:0; padding:14px 16px;
+    border-radius:var(--ap-r-sm); background:var(--ap-cream); font-size:13px; line-height:1.6;
+    color:var(--ap-ink-2); }
+  .ap-shield svg{ flex:none; margin-top:2px; color:var(--ap-gold-ink); }
+  .ap-shield b{ color:var(--ap-ink); font-weight:700; }
 
   .ap-kick{ display:block; font-family:var(--ag-font-mono,monospace); font-size:10.5px;
     font-weight:700; letter-spacing:.24em; text-transform:uppercase; color:var(--ap-gold-ink); }
 
-  .ap-back{ display:inline-flex; align-items:center; gap:7px; min-height:32px;
+  /* 44px of hit area, not 44px of ink. The text and its position are the design's;
+     what changes is that a thumb can land on it. */
+  .ap-back{ display:inline-flex; align-items:center; gap:7px; min-height:44px;
     font-family:var(--ag-font-mono,monospace); font-size:10.5px; font-weight:700;
     letter-spacing:.18em; text-transform:uppercase; color:var(--ap-mute);
     text-decoration:none; }
@@ -253,6 +319,79 @@
 
   .ap-empty{ padding:22px 0; font-size:14.5px; line-height:1.65; color:var(--ap-ink-2); }
 
+  /* ── PHOTOGRAPHS OF WHAT YOU SELL ─────────────────────────────────────────
+     Below the description and separated by a rule, because it is the same question
+     asked twice: what is it, and what does it look like. */
+  .ap-photos{ margin-top:28px; padding-top:22px; border-top:1px solid var(--ap-line-2); }
+  .ap-photos__h{ display:flex; align-items:baseline; justify-content:space-between;
+    gap:16px; flex-wrap:wrap; }
+  .ap-photos__k{ margin:0; font-family:var(--ag-font-mono,monospace); font-size:11px;
+    font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:var(--ap-ink-2); }
+  /* The count is a fact, not a warning: it goes green once the minimum is met and
+     stays neutral before that. A red counter on a form somebody is still filling in
+     tells them off for not having finished. */
+  .ap-photos__n{ font-family:var(--ag-font-mono,monospace); font-size:11px; font-weight:700;
+    line-height:1; letter-spacing:.1em; color:var(--ap-mute); }
+  .ap-photos__n.is-met{ color:var(--ap-green-dark); }
+  .ap-photos__why{ margin:10px 0 0; max-width:62ch; font-size:14px; line-height:1.65;
+    color:var(--ap-ink-2); }
+
+  .ap-tiles{ display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr));
+    gap:10px; margin-top:16px; }
+  .ap-tile{ position:relative; width:100%; aspect-ratio:4/3; border-radius:6px;
+    border:1px solid var(--ap-line); overflow:hidden; background:var(--ap-paper); }
+  .ap-tile img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .ap-tile__cover{ position:absolute; left:8px; top:8px; display:inline-flex;
+    align-items:center; height:20px; padding:0 8px; border-radius:var(--ap-r-sm);
+    background:var(--ap-ink); color:#fff; font-family:var(--ag-font-mono,monospace);
+    font-size:10.5px; font-weight:700; letter-spacing:.12em; }
+  /* 28px, which is under the 44px floor — and deliberately so. It sits ON the
+     photograph it removes, and a 44px circle over a 120px tile covers the thing the
+     reader is deciding about. The 44px path to the same action is the tile's own
+     context: every tile is also reachable from the dashboard, where the control is
+     a full-width row. */
+  .ap-tile__x{ position:absolute; right:6px; top:6px; width:28px; height:28px;
+    border-radius:50%; border:0; background:rgba(16,41,44,.72); color:#fff;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .ap-tile__x:hover{ background:var(--ap-ink); }
+  .ap-tile__x:focus-visible{ outline:3px solid var(--ap-green); outline-offset:2px; }
+
+  .ap-add{ display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:8px; width:100%; aspect-ratio:4/3; border:2px dashed var(--ap-line-2);
+    border-radius:6px; background:var(--ap-paper); color:var(--ap-ink-2); cursor:pointer;
+    font-family:inherit; font-size:12.5px; font-weight:700; }
+  .ap-add:hover{ border-color:var(--ap-green); background:var(--ap-card); }
+  .ap-add:focus-visible{ outline:3px solid var(--ap-green); outline-offset:2px; }
+
+  .ap-drop{ display:flex; flex-direction:column; align-items:center; gap:6px; margin-top:12px;
+    padding:22px; border:2px dashed var(--ap-line-2); border-radius:var(--ap-r-sm);
+    background:var(--ap-paper); text-align:center; cursor:pointer; }
+  .ap-drop:hover, .ap-drop.is-over{ border-color:var(--ap-green); background:var(--ap-card); }
+  .ap-drop:focus-within{ outline:3px solid var(--ap-green); outline-offset:2px; }
+  .ap-drop__t{ font-size:13.5px; color:var(--ap-ink-2); }
+  .ap-drop__t strong{ color:var(--ap-ink); }
+  .ap-drop__f{ font-family:var(--ag-font-mono,monospace); font-size:10.5px; font-weight:700;
+    line-height:1.5; letter-spacing:.1em; color:var(--ap-mute); }
+
+  .ap-rules{ list-style:none; margin:14px 0 0; padding:0; display:flex;
+    flex-direction:column; gap:7px; }
+  .ap-rules li{ position:relative; padding-left:22px; max-width:62ch; font-size:13px;
+    line-height:1.6; color:var(--ap-ink-2); }
+  .ap-rules li::before{ content:""; position:absolute; left:2px; top:.58em; width:8px;
+    height:8px; border-radius:50%; border:1.5px solid var(--ap-gold-ink); }
+  .ap-rules b{ color:var(--ap-ink); font-weight:700; }
+  /* A rejected file keeps its name and says why, so the reader knows WHICH one to
+     replace rather than which one is missing. */
+  .ap-photos__err{ margin:10px 0 0; padding:10px 12px; border-radius:var(--ap-r-sm);
+    background:#fdecea; border:1px solid #f3c4bd; color:#8a2b18; font-size:13px;
+    line-height:1.55; }
+
+  @media (max-width:980px){
+    /* The rail stops being a rail. It keeps its content and its order — the chosen
+       stand above the form is still the thing people scroll back for. */
+    .ap{ grid-template-columns:minmax(0,1fr); gap:24px; }
+    .ap-rail{ position:static; }
+  }
   @media (max-width:640px){
     .ap-grid, .ap-pick{ grid-template-columns:1fr; }
     /* The price moves under the name rather than off the right edge of a 320px
@@ -269,6 +408,43 @@
 {% block content %}
 <div class="ap">
 
+  {# ── THE RAIL ───────────────────────────────────────────────────────────────
+     Where you are, what you picked, and that this costs nothing. All three are
+     things people lose halfway down a four-part form, and all three used to be
+     available only by scrolling back up.
+
+     The current step is tracked in JavaScript against the section headings, and the
+     FIRST is marked server-side — so with no script the rail is still a correct
+     table of contents rather than four unmarked rows. #}
+  <aside class="ap-rail" aria-label="Your application">
+    <div class="ap-rail__card">
+      <p class="ap-rail__k">Your application</p>
+      <ol class="ap-steps" id="apSteps">
+        <li class="is-on" data-ap-step="1"><span class="ap-steps__n" aria-hidden="true">01</span><span>Which stand</span></li>
+        <li data-ap-step="2"><span class="ap-steps__n" aria-hidden="true">02</span><span>Who is applying</span></li>
+        <li data-ap-step="3"><span class="ap-steps__n" aria-hidden="true">03</span><span>What you will sell</span></li>
+        <li data-ap-step="4"><span class="ap-steps__n" aria-hidden="true">04</span><span>What happens next</span></li>
+      </ol>
+    </div>
+
+    <div class="ap-rail__card" id="apChosen">
+      <p class="ap-rail__k">Chosen</p>
+      <p class="ap-chosen__none" data-ap-chosen-none>Nothing picked yet — the rows in
+        section 01 are the whole offer.</p>
+      <p class="ap-chosen__n" data-ap-chosen-name hidden></p>
+      <p class="ap-chosen__m" data-ap-chosen-meta hidden></p>
+      <p class="ap-chosen__p" data-ap-chosen-price hidden></p>
+      <p class="ap-chosen__d" data-ap-chosen-dep hidden></p>
+    </div>
+
+    <p class="ap-shield">
+      <svg aria-hidden="true" focusable="false" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+      <span><b>Applying costs nothing.</b> No card details are asked for anywhere on this
+        form.</span>
+    </p>
+  </aside>
+
+  <div>
   <div class="ap-head">
     <a class="ap-back" href="/events/{{ event.slug }}/stands">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
@@ -309,7 +485,11 @@
     </div>
   {% endif %}
 
-  <form method="post" action="/events/{{ event.slug }}/stands/apply" class="ap-f">
+  {# `enctype`, because section 03 now carries files. Without it the browser posts the
+     filenames as text and the photographs never leave the machine — silently, with a
+     200 and a cheerful success page. #}
+  <form method="post" action="/events/{{ event.slug }}/stands/apply" class="ap-f"
+        enctype="multipart/form-data">
     <input type="hidden" name="_token" value="{{ csrf_token }}">
 
     {# ── 01 · WHICH STAND ─────────────────────────────────────────────────── #}
@@ -516,6 +696,60 @@
             and how many of you there will be.</small>
         </div>
 
+        {# ── PHOTOGRAPHS OF WHAT YOU SELL ──────────────────────────────────
+           The same question as the textarea above, asked the other way: what is it,
+           and what does it look like. Two scorers read this without meeting the
+           applicant, and every other field on the form is a claim.
+
+           STAGED, NOT UPLOADED. The application does not exist until this form is
+           posted, so there is nothing to attach a photograph to yet — the files ride
+           along in the single POST that was already here. Leaving the step and coming
+           back does not lose them, because nothing left the page.
+
+           It does not block the submit. Blocking would lose applications from exactly
+           the people this is for: somebody photographing goods on a borrowed phone the
+           evening before the deadline. Three on file is what makes an application
+           COMPLETE, and completeness is the published tiebreak. #}
+        <div class="ap-photos">
+          <div class="ap-photos__h">
+            <p class="ap-photos__k" id="apPhotosK">Photos of what you sell</p>
+            <span class="ap-photos__n" data-ap-count aria-live="polite">0 OF {{ photo_max }} ADDED · MINIMUM {{ photo_min }}</span>
+          </div>
+          <p class="ap-photos__why">Two scorers read this application without meeting you,
+            and a photograph of the actual goods is the only thing on the form that shows
+            what a description claims. Photograph what you will bring — not a catalogue,
+            not somebody else's picture of the same product.</p>
+
+          <div class="ap-tiles" data-ap-tiles>
+            <button class="ap-add" type="button" data-ap-add>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              <span>Add photo</span>
+            </button>
+          </div>
+
+          <label class="ap-drop" data-ap-drop>
+            <span class="ap-drop__t">Drag photos here, or <strong>choose files</strong></span>
+            <span class="ap-drop__f">JPEG · PNG · WEBP · GIF · UP TO 10 MB EACH</span>
+            {# `photos[]`, alongside every field name that was already here. The single
+               POST is unchanged; this is one more part in it. #}
+            <input type="file" name="photos[]" multiple accept="{{ photo_accept }}"
+                   data-ap-files class="sr-only" aria-labelledby="apPhotosK">
+          </label>
+
+          <p class="ap-photos__err" data-ap-photo-err role="alert" hidden></p>
+
+          <ul class="ap-rules">
+            <li>The first photo is the cover. It is what appears beside your name on the
+              stand list <b>if you are offered a stand and accept</b> — nothing you upload is
+              published while the call is running.</li>
+            <li>No customers' faces, and no photographs you did not take. A borrowed photo is
+              the same problem as a borrowed registration number.</li>
+            <li>Short of time? Submit without them and add them from your dashboard — but the
+              application counts as complete only once three are on file, and completeness is
+              the tiebreak.</li>
+          </ul>
+        </div>
+
         <div class="ap-checks" style="margin-top:24px">
           <label class="ap-check">
             <input type="checkbox" name="needs_power" value="1"
@@ -569,5 +803,190 @@
         accept it.</p>
     </section>
   </form>
+  </div>
 </div>
+{% endblock %}
+
+{% block foot_scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  'use strict';
+
+  var MIN = {{ photo_min }}, MAX = {{ photo_max }}, MAX_BYTES = {{ photo_max_bytes }};
+
+  // ── THE RAIL FOLLOWS THE FORM ────────────────────────────────────────────
+  //
+  // Which section you are in, marked as you reach it. The first is marked in the
+  // markup, so a reader with no JavaScript sees a correct table of contents rather
+  // than four unmarked rows — this only ever moves the mark, it never creates it.
+  var steps = [].slice.call(document.querySelectorAll('#apSteps li'));
+  var secs  = [].slice.call(document.querySelectorAll('.ap-f .ap-sec'));
+
+  if (steps.length && secs.length && 'IntersectionObserver' in window) {
+    var mark = function (i) {
+      steps.forEach(function (li, n) { li.classList.toggle('is-on', n === i); });
+    };
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) mark(secs.indexOf(en.target));
+      });
+    }, { rootMargin: '-96px 0px -60% 0px', threshold: 0 });
+    secs.forEach(function (s) { io.observe(s); });
+  }
+
+  // ── AND CARRIES WHAT WAS PICKED ──────────────────────────────────────────
+  //
+  // Read off the chosen row rather than kept in a second copy of the offer: the row
+  // is already rendered from the same data, and a second copy is a second thing to
+  // get out of step with the prices.
+  var name  = document.querySelector('[data-ap-chosen-name]'),
+      meta  = document.querySelector('[data-ap-chosen-meta]'),
+      price = document.querySelector('[data-ap-chosen-price]'),
+      dep   = document.querySelector('[data-ap-chosen-dep]'),
+      none  = document.querySelector('[data-ap-chosen-none]');
+
+  var showChosen = function (label) {
+    if (!label || !name) return;
+    var txt = function (sel) { var e = label.querySelector(sel); return e ? e.textContent.trim() : ''; };
+    var depText = txt('.ap-stand__dep');
+    // The price cell holds the deposit note inside it; take the note off the end so
+    // the figure does not read as one long number.
+    var p = txt('.ap-stand__p');
+    if (depText) p = p.replace(depText, '').trim();
+
+    // Collapsed, all of them. These are read out of a template whose source wraps, so
+    // the raw text carries newlines and indentation into a 248px card.
+    var flat = function (v) { return v.replace(/\s+/g, ' ').trim(); };
+    name.textContent  = flat(txt('.ap-stand__n'));
+    meta.textContent  = flat(txt('.ap-stand__meta'));
+    price.textContent = flat(p);
+    dep.textContent   = flat(depText);
+
+    [name, meta, price].forEach(function (e) { e.hidden = false; });
+    dep.hidden = depText === '';
+    if (none) none.hidden = true;
+  };
+
+  [].slice.call(document.querySelectorAll('.ap-stand input[type=radio]')).forEach(function (r) {
+    r.addEventListener('change', function () { showChosen(r.closest('.ap-stand')); });
+    if (r.checked) showChosen(r.closest('.ap-stand'));
+  });
+
+  // ── THE PHOTOGRAPHS ──────────────────────────────────────────────────────
+  //
+  // Staged in the page and posted with everything else. A DataTransfer holds the real
+  // file list, so removing one tile removes the file the browser will send — rebuilding
+  // the input from an array is the only way to drop a file from a FileList.
+  var input = document.querySelector('[data-ap-files]'),
+      tiles = document.querySelector('[data-ap-tiles]'),
+      add   = document.querySelector('[data-ap-add]'),
+      drop  = document.querySelector('[data-ap-drop]'),
+      count = document.querySelector('[data-ap-count]'),
+      err   = document.querySelector('[data-ap-photo-err]');
+
+  if (!input || !tiles) return;
+
+  var picked = [];   // {file, url}
+
+  var say = function (msg) {
+    if (!err) return;
+    err.textContent = msg || '';
+    err.hidden = !msg;
+  };
+
+  var sync = function () {
+    var dt = new DataTransfer();
+    picked.forEach(function (p) { dt.items.add(p.file); });
+    input.files = dt.files;
+
+    if (count) {
+      count.textContent = picked.length + ' OF ' + MAX + ' ADDED · MINIMUM ' + MIN;
+      count.classList.toggle('is-met', picked.length >= MIN);
+    }
+    if (add) add.hidden = picked.length >= MAX;
+  };
+
+  var draw = function () {
+    [].slice.call(tiles.querySelectorAll('.ap-tile')).forEach(function (t) { t.remove(); });
+
+    picked.forEach(function (p, i) {
+      var fig = document.createElement('div');
+      fig.className = 'ap-tile';
+
+      var img = document.createElement('img');
+      img.src = p.url;
+      img.alt = 'Photograph ' + (i + 1) + ' of what you sell';
+      fig.appendChild(img);
+
+      if (i === 0) {
+        var chip = document.createElement('span');
+        chip.className = 'ap-tile__cover';
+        chip.textContent = 'COVER';
+        fig.appendChild(chip);
+      }
+
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'ap-tile__x';
+      x.setAttribute('aria-label', 'Remove photo ' + (i + 1));
+      x.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+                  + ' stroke-width="2.4" stroke-linecap="round" aria-hidden="true">'
+                  + '<path d="M18 6 6 18M6 6l12 12"></path></svg>';
+      x.addEventListener('click', function () {
+        URL.revokeObjectURL(p.url);
+        picked.splice(i, 1);
+        draw(); sync(); say('');
+      });
+      fig.appendChild(x);
+
+      tiles.insertBefore(fig, add || null);
+    });
+  };
+
+  var take = function (files) {
+    var refused = [];
+
+    [].slice.call(files).forEach(function (f) {
+      if (picked.length >= MAX) { refused.push(f.name + ' — that is ' + MAX + ' already'); return; }
+      if (!/^image\//.test(f.type)) { refused.push(f.name + ' — not an image'); return; }
+      if (f.size > MAX_BYTES) { refused.push(f.name + ' — over 10 MB'); return; }
+      picked.push({ file: f, url: URL.createObjectURL(f) });
+    });
+
+    draw(); sync();
+    // Names, not a count. "Two files were rejected" leaves the reader looking at six
+    // thumbnails trying to work out which two are missing.
+    say(refused.length ? 'Not added: ' + refused.join('; ') + '.' : '');
+  };
+
+  input.addEventListener('change', function () {
+    // COPY the list before clearing the control. `input.files` is live: clearing the
+    // value empties the very FileList you are holding, so reading it afterwards finds
+    // nothing and the tiles never appear.
+    //
+    // The clear itself is needed because the input is the transport and not the record
+    // — `sync()` rebuilds it from `picked`, and leaving the browser's own selection in
+    // it double-counts everything chosen in that go.
+    var f = [].slice.call(input.files);
+    input.value = '';
+    take(f);
+  });
+
+  if (add) add.addEventListener('click', function () { input.click(); });
+
+  if (drop) {
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('is-over'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('is-over'); });
+    });
+    drop.addEventListener('drop', function (e) {
+      if (e.dataTransfer && e.dataTransfer.files) take(e.dataTransfer.files);
+    });
+  }
+
+  sync();
+})();
+</script>
 {% endblock %}
