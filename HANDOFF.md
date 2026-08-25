@@ -16,6 +16,7 @@ already tried and found to be wrong; repeating them costs a day.
 | Thing | State |
 |---|---|
 | `composer install` | **Works, but takes ~15 min and appears to hang** (no output). Don't kill it. `vendor/` is gitignored except `.htaccess`. |
+| Measuring a phone width | **Headless Chromium clamps its window to 500 CSS px.** `--window-size=390,900 --screenshot` therefore lays the page out at **500** and crops the image to 390 — which looks exactly like a horizontal overflow and is not one. It cost a wrong entry in §13 before it was caught. To measure a real narrow viewport, load a same-origin page that iframes the target at `width=390` and read `documentElement.scrollWidth` inside the frame; an iframe gets a genuine viewport at any width. Screenshots below 500px are fine for *reading* a layout and worthless for *judging* its width. |
 | Running the app locally **poisons the suite twice** | A dev `.env` breaks ~14 AI tests (below), and running the dev server leaves `var/data/.gates-maintenance.lock` and `.maintenance_tick` behind, which makes `MaintenanceTest::test_tick_is_gated_by_the_setting_then_runs` fail with `skipped` — **in the full suite only**, because it passes in isolation. Both are invisible: the failures name code you did not touch. Before `phpunit`: move `.env` aside AND `rm -f var/data/.gates-maintenance.lock var/data/.maintenance_tick`. |
 | Local DB | SQLite. `php database/setup-sqlite.php` then `php bin/console db:migrate`. `.env` needs `DB_DRIVER=sqlite`, `APP_ENV=development`. |
 | Dev server | `cd public && php -S 127.0.0.1:PORT router.php` — **start it with `run_in_background: true`**, not `&`. A foreground `&` gets reaped and every curl returns `000`. |
@@ -602,10 +603,19 @@ first consumer** — it currently guesses from an HTTP code.
   asserting against the queue row. Use `aiRow()`.
 - The stamp printed a bare UTC datetime with **no zone**, to an audience an hour ahead of it.
   The test was asserting the raw stored string — i.e. asserting the bug.
-- A `flex:none` child whose min-content width is a 40-character timestamp sets how wide the
-  **whole document** is, so one bad cell reads as the entire page being clipped at 390px.
-- **A pre-existing horizontal overflow at 390px is site-wide** — `/help` clips identically.
-  Not from the status page and deliberately left alone; it wants its own pass.
+- Three mobile rules on the status page are worth keeping: releasing `max-width` as well as
+  `min-width` at the breakpoint (a cap that survives the media query keeps the state in a
+  narrow gutter and squeezes the component's name into four lines); stacking the history bar
+  and its uptime figure as blocks rather than wrapped flex items; and `min-width:0` on the
+  incident timestamp, without which `flex-shrink` never takes effect and the longest string
+  in the row keeps its max-content width. All three are right at 320–390px. **The reason I
+  went looking for them was not** — see the next entry.
+- ~~**A pre-existing horizontal overflow at 390px is site-wide.**~~ **Wrong — there is no
+  such overflow.** Measured, and every page reports
+  `documentElement.scrollWidth == clientWidth` at 390, 360 and 320 (`/`, `/help`, `/status`,
+  `/vote`, `/events`, `/registry`, `/leaderboard`). The claim came from a screenshot, and the
+  screenshot was lying. See §1's note on measuring a phone width — it is the whole reason
+  this entry exists.
 
 Tests: `StatusHistoryTest` (27), plus six in `SystemStatusTest`.
 

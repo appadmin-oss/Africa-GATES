@@ -139,10 +139,13 @@
   .stx-inc__mark{ flex:none; width:11px; height:11px; border-radius:2px; }
   .stx-inc__what{ flex:1 1 16rem; min-width:0; font-size:.9375rem; color:var(--ag-ink); }
   .stx-inc__what b{ font-weight:600; }
-  /* `flex:none` was wrong here and it was the page's widest mistake: the timestamp
-     is the longest string in the row ("21 Aug, 16:00 → 19:30 WAT · 3 hr 30 min"), and
-     an item that refuses to shrink sets a min-content width the phone column cannot
-     hold. Allowed to shrink and wrap, with `min-width:0` so it actually can. */
+  /* Shrinkable, because the timestamp is the longest string in the row
+     ("21 Aug, 16:00 → 19:30 WAT · 3 hr 30 min") and `flex:none` gives it its
+     max-content width unconditionally. The wrapping parent saves it at 390px; at 320
+     that width exceeds the column and an item that refuses to shrink overflows rather
+     than folding. `min-width:0` is what lets it actually shrink — without it the flex
+     default of `auto` floors the item at its min-content width and the `flex-shrink`
+     never takes effect. */
   .stx-inc__when{ flex:0 1 auto; min-width:0; font-family:var(--ag-font-mono); font-size:11.5px;
     color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
   .stx-inc__live{ font-family:var(--ag-font-mono); font-size:10.5px; letter-spacing:.08em;
