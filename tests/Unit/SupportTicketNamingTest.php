@@ -42,6 +42,39 @@ final class SupportTicketNamingTest extends TestCase
     ];
 
     /**
+     * The assistant's client-side copy, which renders on EVERY public page.
+     *
+     * These are the strings the first sweep missed, and the miss was structural: the
+     * visible-text scan below strips `<script>` blocks, and this file is not a template at
+     * all. Gee floats over an event page — where "your tickets" is the thing the reader
+     * just bought and is holding a code for — and told them it had "checked your tickets"
+     * meaning the support desk. Same label, opposite meaning, one line apart from the page
+     * content underneath it.
+     *
+     * @var array<string,string> file => the phrase that must carry the qualifier
+     */
+    private const SCRIPT_COPY = [
+        'public/assets/js/gee.js'                     => 'my_tickets:',
+        'templates/pages/support-assistant.twig'      => 'my_tickets:',
+    ];
+
+    public function test_the_assistants_own_labels_say_support_ticket(): void
+    {
+        $root = dirname(__DIR__, 2) . '/';
+
+        foreach (self::SCRIPT_COPY as $rel => $key) {
+            $src = (string) file_get_contents($root . $rel);
+
+            $this->assertMatchesRegularExpression(
+                "~" . preg_quote($key, "~") . "\\s*'[^']*support tickets?'~",
+                $src,
+                $rel . " tells a reader it checked their \"tickets\" — on an event page that is "
+                     . 'the thing they just bought'
+            );
+        }
+    }
+
+    /**
      * Everything a reader actually sees: comments, styles, scripts, Twig tags and
      * HTML markup removed, leaving the text nodes.
      */

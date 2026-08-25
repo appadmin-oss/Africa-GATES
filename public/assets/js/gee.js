@@ -205,7 +205,11 @@
     lookup_reference: 'looked up the reference',
     my_transactions: 'checked your payments',
     my_votes: 'checked your votes',
-    my_tickets: 'checked your tickets',
+    // SUPPORT tickets, and the word has to say so. Gee floats on every public page,
+    // including an event page where "your tickets" is the thing the reader just bought
+    // and is holding a code for. Same label, opposite meaning, one line apart from the
+    // page content.
+    my_tickets: 'checked your support tickets',
     my_nominations: 'checked your nominations',
     refund_status: 'checked the refund',
     help_article: 'read the help answer',
