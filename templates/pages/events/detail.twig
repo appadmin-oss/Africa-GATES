@@ -1,5 +1,18 @@
 {% extends "layout/gates.twig" %}
 
+{# ── IS THIS EVENT A FUNDRAISER? ───────────────────────────────────────────────
+   Derived from the live appeals already joined to the event rather than from a new
+   flag on the row. An event that is raising for something IS one with an open
+   appeal attached, and a second boolean beside it is a second thing to keep in
+   step — the first time somebody closes the appeal and forgets the flag, the page
+   asks for money for a campaign that has ended.
+
+   At TEMPLATE scope on purpose: a `{% set %}` inside a `{% block %}` is invisible
+   to every other block and renders as null with no error, which has taken out this
+   codebase's navigation once and a share link a second time. #}
+{% set is_fundraiser = appeals|default([]) is not empty %}
+{% set appeal_for = is_fundraiser ? (appeals|first).campaign.title : '' %}
+
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   body[data-page="events"]{ background:#eef0ec; color:var(--ag-ink); }
@@ -31,6 +44,12 @@
   .ed-rsvp{ background:var(--ag-surface); border:1px solid rgba(16,41,44,.08); border-radius:20px; padding:22px; box-shadow:0 12px 36px -20px rgba(16,41,44,.35); }
   .ed-rsvp__top{ display:flex; align-items:center; justify-content:space-between; }
   .ed-rsvp__eyebrow{ font-size:12px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--ag-green); }
+  /* The fundraiser line. Sits between the eyebrow and the tier list because it is the
+     thing that changes what the prices below MEAN, and a reader who meets it after the
+     prices has already decided. */
+  .ed-rsvp__fund{ margin:10px 0 0; font-size:13px; line-height:1.55; color:#3c4649;
+    padding-left:11px; border-left:2px solid rgba(243,180,22,.55); }
+  .ed-rsvp__fund strong{ font-weight:600; color:var(--ag-ink); }
   .ed-rsvp__count{ font:700 13px/1 var(--ag-font-mono); color:#5a6d6f; }
   .ed-rsvp h2{ margin:10px 0 0; font-family:var(--ag-font-display); font-weight:700; font-size:1.2rem; color:var(--ag-ink); }
   .ed-rsvp p.sub{ margin:7px 0 0; font-size:13px; line-height:1.5; color:#626a6e; }
@@ -441,10 +460,30 @@
       {% else %}
         <div class="ed-rsvp" id="ed-rsvp" x-data="evReg('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ reg_count }}, {{ tiers ? 'true' : 'false' }}, {{ access_code|default('')|json_encode }}, {{ waitlist_open|default(false) ? 'true' : 'false' }})">
           <div x-show="step==='form'">
+            {# ── THE PANEL NAMES WHAT KIND OF EVENT THIS IS ────────────────
+               "Tickets" alone is right for a summit and wrong for a fundraising
+               dinner, where the whole point of buying a place is what it pays for.
+               The eyebrow follows the event rather than the payment mechanism.
+
+               What it deliberately does NOT say is that the ticket is a donation.
+               It is not: the money moves through the ticket flow, with the ticket
+               flow's refund terms, and the appeal below is a separate transaction
+               with its own. Calling a ₦5,000 admission a gift would be the same
+               category error in the other direction — and the one that ends up in
+               a dispute. #}
             <div class="ed-rsvp__top">
-              <span class="ed-rsvp__eyebrow">{{ tiers ? 'Tickets' : 'Free registration' }}</span>
+              <span class="ed-rsvp__eyebrow">
+                {%- if is_fundraiser %}Fundraiser · {{ tiers ? 'tickets' : 'free registration' }}
+                {%- else %}{{ tiers ? 'Tickets' : 'Free registration' }}{% endif -%}
+              </span>
               <span class="ed-rsvp__count" x-text="count + ' registered'"></span>
             </div>
+            {% if is_fundraiser %}
+              <p class="ed-rsvp__fund">This event raises money.
+                {%- if appeal_for %} Your place helps fund <strong>{{ appeal_for }}</strong>.{% endif %}
+                Giving directly is separate and welcome on its own — the appeal is further down
+                this page.</p>
+            {% endif %}
             {% if pct_sold is not null %}
             <div style="margin-top:12px">
               <div class="ed-sold__top"><span>{{ pct_sold >= 80 ? 'Selling fast' : 'Filling up' }}</span><span>{{ pct_sold }}% full</span></div>

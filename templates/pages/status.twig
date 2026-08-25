@@ -11,8 +11,24 @@
   There are no defaults here on purpose. If the route stops passing a report the
   page says so instead of inventing one.
 
+  ── THE ANATOMY IS THE ONE PEOPLE ALREADY KNOW ────────────────────────────────
+
+  Overall verdict, then a component list where each row carries its state, its
+  live measurement and its recent history, then the incidents, then how to read
+  it. That order is what every status page a visitor has ever used looks like,
+  and a status page is not the place to be original: somebody arrives mid-problem
+  and has about ten seconds of patience.
+
+  What it does NOT copy from the genre:
+    · No invented uptime. A percentage is printed only where there are checks to
+      divide, and it is floored so a window containing a real outage can never
+      round up to a clean 100%.
+    · No "subscribe for updates" with nothing behind it.
+    · No green tick for anything that was not actually measured — `Not checked`
+      is a state on this page, not a rounding error.
+
   Colour is never the only carrier of state: every row prints the state in
-  words, and the mark beside it differs in FILL as well as hue so it survives
+  words, and every mark differs in FILL as well as hue so it survives
   monochrome, colour-blindness and a bad phone screen in daylight.
 #}
 
@@ -22,80 +38,156 @@
 <style nonce="{{ csp_nonce }}">
   body[data-page="status"]{ background:#f0f2f2; }
 
-  .stx{ max-width:820px; margin:0 auto; padding:clamp(2rem,5vw,3.25rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem); }
+  .stx{ max-width:860px; margin:0 auto; padding:clamp(2rem,5vw,3.25rem) var(--ag-gutter,32px) clamp(3rem,6vw,4rem);
+    /* A safety net, not a substitute for the rules below. One unbreakable token — a long
+       provider error, a component name nobody expected — widens the DOCUMENT, and then
+       every block on the page inherits the wider containing width, so a single overflow
+       reads as the whole page being clipped. */
+    overflow-wrap:break-word; }
 
   .stx-kick{ font-family:var(--ag-font-mono); font-size:var(--ag-fs-label); letter-spacing:var(--ag-tracking-label);
     text-transform:uppercase; color:var(--ag-ink-soft); margin:0 0 14px; }
 
   .stx-verdict{ font-family:var(--ag-font-display); font-weight:700; letter-spacing:-.015em;
     font-size:clamp(1.9rem,4.6vw,2.9rem); line-height:1.1; margin:0; color:var(--ag-ink); }
+  /* The highlight under the verdict carries the state. Gold under the words "not
+     working" reads as a warning about something that is past warning — and the state
+     is the one thing on this page that must not be ambiguous. Same four-colour set as
+     the marks, at wash strength. */
   .stx-verdict em{ font-style:normal; box-shadow:inset 0 -.34em 0 rgba(243,180,22,.34); }
+  .stx-verdict--operational em{ box-shadow:inset 0 -.34em 0 rgba(35,123,34,.24); }
+  .stx-verdict--down em{ box-shadow:inset 0 -.34em 0 rgba(163,43,28,.20); }
+  .stx-verdict--unknown em{ box-shadow:inset 0 -.34em 0 rgba(98,106,110,.20); }
 
   .stx-note{ margin:16px 0 0; font-size:1.0125rem; line-height:1.6; color:#3c4649; max-width:56ch; }
 
+  /* The stamp line. Every figure on it is measured, and the time carries its zone —
+     a deadline or a timestamp with no zone on it is the thing people get wrong by
+     exactly one hour, and this page is read across the continent. */
   .stx-stamp{ margin:22px 0 0; padding-top:16px; border-top:1px solid rgba(16,41,44,.12);
     font-family:var(--ag-font-mono); font-size:12px; color:var(--ag-ink-soft);
-    display:flex; flex-wrap:wrap; gap:6px 18px; }
+    display:flex; flex-wrap:wrap; gap:6px 18px; font-variant-numeric:tabular-nums; }
+  .stx-stamp b{ font-weight:600; color:var(--ag-ink); }
 
   .stx-h2{ margin:44px 0 0; padding-bottom:12px; border-bottom:1px solid rgba(16,41,44,.16);
     font-family:var(--ag-font-mono); font-size:var(--ag-fs-label); letter-spacing:var(--ag-tracking-label);
-    text-transform:uppercase; color:var(--ag-ink); }
+    text-transform:uppercase; color:var(--ag-ink); display:flex; justify-content:space-between;
+    align-items:baseline; gap:14px; }
+  .stx-h2 span{ font-weight:400; text-transform:none; letter-spacing:0; color:var(--ag-ink-soft); }
+
+  /* ── THE FOUR STATES, DEFINED ONCE ────────────────────────────────────────
+     One fill vocabulary shared by the row mark, the history cells and the legend,
+     so a square in the strip and the mark beside its name cannot drift apart.
+     Solid / half / hatched / dashed-outline, so the states are still four things
+     with no colour perception at all. */
+  .stx-f{ border:1.5px solid var(--ag-ink-soft); background:transparent; }
+  .stx-f--operational{ background:#237b22; border-color:#237b22; }
+  .stx-f--degraded{ border-color:#a4761a; background:linear-gradient(180deg,#f3b416 0 50%,transparent 50% 100%); }
+  .stx-f--down{ border-color:#a32b1c; background:repeating-linear-gradient(45deg,#a32b1c 0 2px,transparent 2px 4px); }
+  .stx-f--unknown{ border-style:dashed; border-color:#b3b9ba; }
 
   .stx-rows{ list-style:none; margin:0; padding:0; }
-  .stx-row{ display:flex; align-items:flex-start; gap:16px; padding:18px 2px;
-    border-bottom:1px solid rgba(16,41,44,.09); }
-
-  /* The mark differs in FILL, not only in colour, so the four states stay
-     distinguishable with no colour perception at all. */
-  .stx-mark{ flex:none; width:13px; height:13px; margin-top:4px; border-radius:3px;
-    border:1.5px solid var(--ag-ink-soft); background:transparent; }
-  .stx-mark--operational{ background:#237b22; border-color:#237b22; }
-  .stx-mark--degraded{ border-color:#a4761a; background:linear-gradient(180deg,#f3b416 0 50%,transparent 50% 100%); }
-  .stx-mark--down{ border-color:#a32b1c; background:repeating-linear-gradient(45deg,#a32b1c 0 2px,transparent 2px 4px); }
-  .stx-mark--unknown{ border-style:dashed; border-color:#8a9294; }
+  .stx-row{ padding:20px 2px; border-bottom:1px solid rgba(16,41,44,.09); }
+  .stx-row__top{ display:flex; align-items:flex-start; gap:16px; }
+  .stx-mark{ flex:none; width:13px; height:13px; margin-top:4px; border-radius:3px; }
 
   .stx-row__main{ flex:1; min-width:0; }
   .stx-row__name{ font-weight:600; font-size:1.0125rem; color:var(--ag-ink); }
   .stx-row__what{ margin-top:3px; font-size:.875rem; color:var(--ag-ink-soft); }
   .stx-row__detail{ margin:9px 0 0; font-size:.9125rem; line-height:1.55; color:#3c4649; max-width:54ch; }
 
-  .stx-row__state{ flex:none; text-align:right; min-width:8.5rem; }
+  /* Capped as well as floored. Some metrics are a phrase rather than a figure
+     ("nothing sent in the last six hours"), and without a ceiling one of those
+     takes the width the component's NAME needs. */
+  .stx-row__state{ flex:none; text-align:right; min-width:8.5rem; max-width:15rem; }
   .stx-state{ font-size:.9125rem; font-weight:600; color:#1a6118; }
   .stx-state--degraded{ color:#7a5600; }
   .stx-state--down{ color:#a32b1c; }
   .stx-state--unknown{ color:#5f676a; }
-  .stx-metric{ margin-top:4px; font-family:var(--ag-font-mono); font-size:11.5px; color:var(--ag-ink-soft); }
+  .stx-metric{ margin-top:4px; font-family:var(--ag-font-mono); font-size:11.5px;
+    color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
 
-  /* ── THE HISTORY STRIP ────────────────────────────────────────────────────
-     One square per day, worst-state-wins. Worst wins because a day with one broken hour is
-     not a good day, and an average would turn a real outage into a pale shade of green.
+  /* ── PER-COMPONENT HISTORY ────────────────────────────────────────────────
+     One cell per day, worst-state-wins. Worst wins because a day with one broken
+     hour is not a good day, and an average would turn a real outage into a pale
+     shade of green.
 
-     A day with no recorded snapshot is DASHED, not blank and not green: on this deployment
-     that usually means the scheduled task was not running, which is itself the outage. */
-  .stx-days{ display:flex; gap:5px; margin:16px 0 0; flex-wrap:wrap }
-  .stx-day{ flex:1 1 14px; min-width:14px; height:34px; border-radius:3px;
-    border:1.5px solid var(--ag-ink-soft,#8a9294); background:transparent }
-  .stx-day--operational{ background:#237b22; border-color:#237b22 }
-  .stx-day--degraded{ border-color:#a4761a; background:linear-gradient(180deg,#f3b416 0 50%,transparent 50% 100%) }
-  .stx-day--down{ border-color:#a32b1c; background:repeating-linear-gradient(45deg,#a32b1c 0 2px,transparent 2px 4px) }
-  .stx-day--unknown{ border-style:dashed; border-color:#b3b9ba }
-  .stx-daysfoot{ display:flex; justify-content:space-between; gap:12px; margin-top:8px;
-    font-family:var(--ag-font-mono); font-size:11px; color:var(--ag-ink-soft) }
-  .stx-daysnote{ margin:12px 0 0; font-size:.9125rem; line-height:1.6; color:#3c4649; max-width:58ch }
+     A day with no recorded snapshot is DASHED, not blank and not green: on this
+     deployment that usually means the scheduled task was not running, which is
+     itself the outage — and it is the one outage no self-report can cover,
+     because the thing that would report it is the thing that stopped.
 
-  .stx-scope{ margin:34px 0 0; padding:20px 22px; background:#fff;
+     Indented to the text column so the six bars share one axis and the platform
+     reads as a block rather than as six unrelated charts. */
+  .stx-bar{ display:flex; margin:13px 0 0 29px; align-items:center; }
+  .stx-cells{ display:flex; gap:3px; flex:1; min-width:0; }
+  .stx-cell{ flex:1 1 0; min-width:6px; height:12px; border-radius:2px; }
+  .stx-up{ flex:none; margin-left:14px; font-family:var(--ag-font-mono); font-size:11.5px;
+    color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  .stx-axis{ display:flex; justify-content:space-between; gap:12px; margin:10px 0 0 29px;
+    font-family:var(--ag-font-mono); font-size:11px; color:var(--ag-ink-soft); }
+  .stx-axisnote{ margin:14px 0 0; font-size:.9125rem; line-height:1.6; color:#3c4649; max-width:58ch; }
+
+  /* ── INCIDENTS ────────────────────────────────────────────────────────────
+     A bar answers "was there a bad day". Somebody here is usually asking
+     something narrower — "my payment failed at nine, was that you" — and a
+     square covering a whole day cannot answer it. */
+  .stx-inc{ list-style:none; margin:0; padding:0; }
+  .stx-inc li{ padding:15px 2px; border-bottom:1px solid rgba(16,41,44,.09);
+    display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  .stx-inc__mark{ flex:none; width:11px; height:11px; border-radius:2px; }
+  .stx-inc__what{ flex:1 1 16rem; min-width:0; font-size:.9375rem; color:var(--ag-ink); }
+  .stx-inc__what b{ font-weight:600; }
+  /* `flex:none` was wrong here and it was the page's widest mistake: the timestamp
+     is the longest string in the row ("21 Aug, 16:00 → 19:30 WAT · 3 hr 30 min"), and
+     an item that refuses to shrink sets a min-content width the phone column cannot
+     hold. Allowed to shrink and wrap, with `min-width:0` so it actually can. */
+  .stx-inc__when{ flex:0 1 auto; min-width:0; font-family:var(--ag-font-mono); font-size:11.5px;
+    color:var(--ag-ink-soft); font-variant-numeric:tabular-nums; }
+  .stx-inc__live{ font-family:var(--ag-font-mono); font-size:10.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:#a32b1c; }
+  .stx-clear{ margin:18px 0 0; font-size:.9375rem; line-height:1.6; color:#3c4649; }
+
+  /* ── LEGEND ───────────────────────────────────────────────────────────────
+     Four states with four fills is only self-explanatory to whoever chose them. */
+  .stx-key{ display:flex; flex-wrap:wrap; gap:10px 24px; margin:18px 0 0; padding:0; list-style:none; }
+  .stx-key li{ display:flex; align-items:center; gap:9px; font-size:.875rem; color:#3c4649; }
+  .stx-key i{ flex:none; width:12px; height:12px; border-radius:2px; }
+
+  .stx-scope{ margin:22px 0 0; padding:20px 22px; background:#fff;
     border:1px solid rgba(16,41,44,.1); border-radius:var(--ag-r-sm,10px); }
   .stx-scope p{ margin:0; font-size:.9125rem; line-height:1.65; color:#3c4649; }
   .stx-scope p + p{ margin-top:11px; }
   .stx-scope strong{ font-weight:600; color:var(--ag-ink); }
+  .stx-scope code{ font-family:var(--ag-font-mono); font-size:.85em;
+    background:#f0f2f2; padding:1px 5px; border-radius:4px; }
 
   .stx-broken{ margin:24px 0 0; padding:20px 22px; border:1px solid rgba(163,43,28,.28);
     border-radius:var(--ag-r-sm,10px); background:#fff; font-size:.9375rem; line-height:1.6; color:#3c4649; }
 
   @media (max-width:560px){
-    .stx-row{ flex-wrap:wrap; }
-    .stx-row__state{ width:100%; text-align:left; padding-left:29px; min-width:0; }
+    .stx-row__top{ flex-wrap:wrap; }
+    /* `max-width` has to be released as well as `min-width`. Capping the column at
+       15rem is right beside the name and wrong once it is a full-width row beneath
+       it — the cap won, so the state stayed in a narrow gutter and squeezed the
+       component's name into four lines. */
+    .stx-row__state{ width:100%; text-align:left; padding-left:29px;
+      min-width:0; max-width:none; }
     .stx-metric{ display:inline; margin-left:10px; }
+    /* The bar keeps its indent but the uptime figure drops beneath it — at this
+       width the two side by side leave the cells too narrow to read as days.
+       `display:block` rather than `flex-wrap`, so the two are simply stacked
+       blocks: a wrapped flex line with a zero-basis sibling is how the figure
+       ended up drawn across the cells instead of under them. */
+    .stx-bar{ display:block; }
+    .stx-cells{ width:100%; }
+    .stx-up{ display:block; margin:8px 0 0; white-space:normal; }
+    /* Stacked, for the same reason as the bar: two flex items on one line where one of
+       them is a 40-character timestamp is a row that decides how wide the page is. */
+    .stx-inc li{ display:block; }
+    .stx-inc__mark{ display:inline-block; margin-right:8px; vertical-align:middle; }
+    .stx-inc__when{ display:block; margin-top:5px; }
   }
 </style>
 {% endblock %}
@@ -118,33 +210,77 @@
                     : (v == 'down'      ? 'Something is <em>not working</em>'
                     :                     'Some things are <em>not checked</em>')) %}
 
-    <h1 class="stx-verdict">{{ headline|raw }}</h1>
+    <h1 class="stx-verdict stx-verdict--{{ v }}">{{ headline|raw }}</h1>
     {% if note is defined and note %}<p class="stx-note">{{ note }}</p>{% endif %}
 
     <div class="stx-stamp">
-      <span>Checked {{ checked_at }}</span>
-      <span>Measured on load, not cached</span>
-      <span>Reload to check again</span>
+      {# The zone is part of the fact. Without it this read as a bare UTC string on a
+         platform whose audience is an hour ahead of it. #}
+      <span>Checked <time datetime="{{ checked_at|date('c') }}"><b>{{ checked_at|when_zoned('j M Y, H:i') }}</b></time></span>
+      {% if uptime is defined and uptime.pct is not null %}
+        <span><b>{{ uptime.pct|number_format(2) }}%</b> of {{ uptime.samples|number_format }} checks over {{ uptime.days }} days</span>
+      {% endif %}
+      <span>Measured on load, never cached</span>
     </div>
 
-    <h2 class="stx-h2">What we checked</h2>
+    <h2 class="stx-h2">Current status <span>{{ components|length }} services</span></h2>
     <ul class="stx-rows">
       {% for c in components %}
         {% set s = c.status|default('unknown') %}
+        {% set h = component_history[c.name]|default(null) %}
         <li class="stx-row">
-          <span class="stx-mark stx-mark--{{ s }}" aria-hidden="true"></span>
-          <div class="stx-row__main">
-            <div class="stx-row__name">{{ c.name }}</div>
-            <div class="stx-row__what">{{ c.what }}</div>
-            {% if c.detail %}<p class="stx-row__detail">{{ c.detail }}</p>{% endif %}
+          <div class="stx-row__top">
+            <span class="stx-mark stx-f stx-f--{{ s }}" aria-hidden="true"></span>
+            <div class="stx-row__main">
+              <div class="stx-row__name">{{ c.name }}</div>
+              <div class="stx-row__what">{{ c.what }}</div>
+              {% if c.detail %}<p class="stx-row__detail">{{ c.detail }}</p>{% endif %}
+            </div>
+            <div class="stx-row__state">
+              <div class="stx-state stx-state--{{ s }}">{{ c.label }}</div>
+              {% if c.metric %}<div class="stx-metric">{{ c.metric }}</div>{% endif %}
+            </div>
           </div>
-          <div class="stx-row__state">
-            <div class="stx-state stx-state--{{ s }}">{{ c.label }}</div>
-            {% if c.metric %}<div class="stx-metric">{{ c.metric }}</div>{% endif %}
+
+          {# ── THIS COMPONENT'S RECENT HISTORY ─────────────────────────────
+             The per-component state of every snapshot has been recorded since the
+             log existed and only the overall figure was ever read — so the page
+             could say "something was wrong on the 14th" and not which thing,
+             while the answer sat in the next column.
+
+             The squares are aria-hidden and the group's accessible name carries
+             the summary in words: a screen reader reading out fourteen
+             indistinguishable cells conveys nothing, and the sentence conveys
+             the whole point. #}
+          {# A component with NO record still gets a bar, of dashed cells.
+             Skipping the row's bar entirely was tidier and wrong twice over: it breaks
+             the shared axis the six bars are read against, and an absent bar is a
+             silence where "we have never recorded this" is the fact. A newly added
+             service is exactly when somebody is most likely to be looking. #}
+          <div class="stx-bar">
+            <div class="stx-cells" role="img"
+                 aria-label="{{ c.name }} over the last {{ history_days|default(14) }} days: {{ h and h.uptime is not null ? h.uptime|number_format(2) ~ '% of ' ~ h.samples|number_format ~ ' checks came back working' : 'nothing recorded yet' }}">
+              {% for d in h ? h.days : (history|default([])) %}
+                <span class="stx-cell stx-f stx-f--{{ h ? d.status : 'unknown' }}" aria-hidden="true"
+                      title="{{ d.label }} — {{ h ? d.state_label : 'Not recorded' }}"></span>
+              {% endfor %}
+            </div>
+            <span class="stx-up">
+              {%- if h and h.uptime is not null %}{{ h.uptime|number_format(2) }}% · {{ h.samples|number_format }} checks
+              {%- else %}not recorded yet{% endif -%}
+            </span>
           </div>
         </li>
       {% endfor %}
     </ul>
+
+    {% if history is defined and history is not empty %}
+      <div class="stx-axis">
+        <span>{{ history|first.label }}</span>
+        <span>Today</span>
+      </div>
+      {% if history_note %}<p class="stx-axisnote">{{ history_note }}</p>{% endif %}
+    {% endif %}
 
   {% endif %}
 
@@ -153,30 +289,48 @@
      the two hours somebody could not check out. Without this, a supporter whose payment
      failed at nine and who loads a green page at noon concludes the fault was theirs.
 
-     Only rendered when there is a record. An empty strip of fourteen grey squares on a fresh
-     installation says "we have been broken for a fortnight", which is the opposite of true. #}
-  {% if history is defined and history is not empty %}
-    <h2 class="stx-h2">The last {{ history_days|default(14) }} days</h2>
-
-    <div class="stx-days" role="img"
-         aria-label="{{ history_note }}">
-      {% for d in history %}
-        <span class="stx-day stx-day--{{ d.status }}"
-              title="{{ d.label }} — {{ d.state_label }}"></span>
+     A gap in the record is deliberately NOT listed here. Cron missing a beat is not an
+     outage, and manufacturing incidents out of scheduling jitter would make the one list
+     on this page that names real faults worthless. The dashed cells above say where the
+     record has holes. #}
+  {% if report_ok %}
+  <h2 class="stx-h2">Recent problems
+    <span>{{ history_days|default(14) }} days</span></h2>
+  {% if incidents is defined and incidents is not empty %}
+    <ul class="stx-inc">
+      {% for i in incidents %}
+        <li>
+          <span class="stx-inc__mark stx-f stx-f--{{ i.status }}" aria-hidden="true"></span>
+          <span class="stx-inc__what">
+            <b>{{ i.name }}</b> — {{ status_labels[i.status]|default(i.status)|lower }}
+            {% if i.ongoing %}<span class="stx-inc__live">still</span>{% endif %}
+          </span>
+          <span class="stx-inc__when">
+            {# The zone is stated ONCE, on the start. "16:00 WAT → 19:30 WAT" repeats a fact
+               that cannot have changed between the two halves of one sentence. #}
+            <time datetime="{{ i.from|date('c') }}">{{ i.from|when('j M, H:i') }}</time>
+            {%- if i.minutes > 0 %} → <time datetime="{{ i.to|date('c') }}">{{ i.to|when('H:i') }}</time>{% endif %}
+            {{ tz_abbr() }} · {{ i.duration }}
+          </span>
+        </li>
       {% endfor %}
-    </div>
-    <div class="stx-daysfoot">
-      <span>{{ history|first.label }}</span>
-      <span>Today</span>
-    </div>
-    {% if history_note %}<p class="stx-daysnote">{{ history_note }}</p>{% endif %}
+    </ul>
+  {% else %}
+    <p class="stx-clear">Nothing was recorded as broken or slow in the last {{ history_days|default(14) }} days. If something went wrong for you in that time and it is not here, we did not catch it — please tell us.</p>
+  {% endif %}
   {% endif %}
 
-  <h2 class="stx-h2">What this page can and cannot tell you</h2>
+  <h2 class="stx-h2">How to read this</h2>
+  <ul class="stx-key">
+    {% for k, label in {'operational':'Working','degraded':'Slower than usual','down':'Not working','unknown':'Not checked'} %}
+      <li><i class="stx-f stx-f--{{ k }}" aria-hidden="true"></i>{{ label }}</li>
+    {% endfor %}
+  </ul>
   <div class="stx-scope">
     <p>Every line above is measured when you load the page — a real query, a real count, a real recent success rate. Nothing here is a setting somebody typed in, and nothing says <strong>Working</strong> because a key exists somewhere in a configuration file.</p>
-    <p><strong>Not checked</strong> means exactly that. It is not a quiet way of saying fine, and we would rather show it than round it up.</p>
+    <p><strong>Not checked</strong> means exactly that. It is not a quiet way of saying fine, and we would rather show it than round it up. The percentages count only checks whose result we actually know, and they are rounded <em>down</em> — a fortnight containing a real outage will never show as a clean 100%.</p>
     <p>This page reports the platform. It cannot see your network, your inbox provider or your bank — so if everything here reads as working and something is still wrong for you, that is worth telling us, not shrugging off.</p>
+    <p>Watching this from something that is not a browser? The same board is at <code>/status.json</code>, uncached.</p>
   </div>
 
   {# This page answers "is it me or is it them". It does not answer "so where is

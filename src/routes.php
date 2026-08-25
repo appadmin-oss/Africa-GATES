@@ -2568,20 +2568,51 @@ return function(App $app) {
         // records, and has an honest fourth state for the things it could not check.
         $g->get('/status', function($req,$res) use ($tv) {
             $st = SystemStatus::report();
-            // The history answers the question the live check cannot: "was it broken
+            // The record answers the question the live check cannot: "was it broken
             // earlier?" A supporter whose payment failed at nine and who loads a green page
             // at noon otherwise concludes the fault was theirs.
-            $history = SystemStatus::history();
+            //
+            // ONE call, four views. `timeline()` loads the snapshot log once and folds it
+            // into the per-day strip, the per-component bars, the incident list and the
+            // uptime figure — the alternative was four passes over ~1,340 rows on a page
+            // that is loaded precisely when people suspect the site is struggling.
+            $tl = SystemStatus::timeline();
             return $tv($req)->render($res,'pages/status.twig', $st + [
-                'history'          => $history,
-                'history_note'     => SystemStatus::historyNote($history),
+                'history'          => $tl['days'],
+                'history_note'     => SystemStatus::historyNote($tl['days']),
                 'history_days'     => SystemStatus::HISTORY_DAYS,
+                'component_history'=> $tl['components'],
+                'incidents'        => $tl['incidents'],
+                'uptime'           => $tl['uptime'],
                 'page_title'       => 'Is it working? — Africa GATES',
                 'meta_description' => 'A live check of Africa GATES: voting and profiles, scheduled work, messages going out, payments, email and the AI helpers.',
                 'gates_page'       => 'status',
                 'has_hero'         => false,
                 'status_labels'    => SystemStatus::LABELS,
             ]);
+        });
+
+        // ── THE SAME BOARD, FOR ANYTHING THAT IS NOT A PERSON ────────────────
+        //
+        // Every status page people are used to publishes one of these, and it is not
+        // decoration: an uptime monitor cannot scrape a Twig template without breaking the
+        // next time somebody moves a div, and with no shell on this host a machine-readable
+        // state is the only thing an external watcher can act on. The Cloudflare Worker that
+        // already drives /__cron/run is the obvious first consumer.
+        //
+        // `no-store`, like the page: a cached status board is the one artefact whose staleness
+        // is indistinguishable from the outage it is meant to report.
+        $g->get('/status.json', function($req,$res) {
+            $res->getBody()->write((string) json_encode(
+                SystemStatus::payload(),
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
+            ));
+            return $res
+                ->withHeader('Content-Type', 'application/json; charset=utf-8')
+                ->withHeader('Cache-Control', 'no-store')
+                // So a dashboard on somebody else's origin can read it. This is public
+                // information by definition — it is the page anyone can already load.
+                ->withHeader('Access-Control-Allow-Origin', '*');
         });
         // Support assistant. A SEPARATE path from /support, which is the appeals
         // hub above and stays exactly as it is — registering a second '/support'

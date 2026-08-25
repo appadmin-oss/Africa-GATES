@@ -534,7 +534,22 @@ final class SystemStatusTest extends TestCase
             $this->assertStringContainsString((string) $c['label'], $html,
                 'the state must be printed as a WORD, not carried by colour alone');
         }
-        $this->assertStringContainsString((string) $report['checked_at'], $html);
+        // ── THE STAMP CARRIES A ZONE, AND A MACHINE-READABLE INSTANT ────────
+        //
+        // This used to assert the raw stored string, which is exactly what the page was
+        // printing: a bare UTC datetime with no zone on it, to an audience an hour ahead of
+        // it. This codebase's own note on the subject is that a time with no zone is the
+        // thing people get wrong by exactly one hour — so the assertion now holds the
+        // property rather than the bug.
+        $this->assertStringContainsString('<time datetime=', $html,
+            'the instant must be machine-readable, not only prose');
+        $this->assertStringContainsString(
+            \AfricaGates\Support\DisplayTime::show($report['checked_at'], 'j M Y, H:i'), $html,
+            'and rendered in the display zone, not the storage zone');
+        $abbr = \AfricaGates\Support\DisplayTime::abbr();
+        if ($abbr !== '') {
+            $this->assertStringContainsString($abbr, $html, 'with the zone named');
+        }
 
         // The dead schedule is in this render. If the page can still say everything is
         // working, it is the old page with new markup.

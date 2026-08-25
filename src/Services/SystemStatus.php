@@ -170,6 +170,70 @@ final class SystemStatus
         }
     }
 
+    /**
+     * The board as data, for anything that is not a person.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A STATUS PAGE NEEDS AN ENDPOINT AND NOT JUST A PAGE
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Every status page people are used to publishes one — Statuspage at
+     * `/api/v2/status.json`, and the rest by convention. It is not decoration: an uptime
+     * monitor, a dashboard, or a person's phone cannot scrape a Twig template without
+     * breaking the next time somebody moves a `<div>`, and on this deployment there is no
+     * shell, so a machine-readable state is the only thing an external watcher can act on.
+     *
+     * The Cloudflare Worker that already drives `/__cron/run` is the obvious first consumer:
+     * it can read this and stop guessing from an HTTP code.
+     *
+     * ── IT CARRIES THE PROSE, DELIBERATELY ───────────────────────────────────
+     *
+     * `detail` is the sentence a human would read, and a monitor that pages somebody at 3am
+     * should be able to put it in the alert rather than making them open a browser to find
+     * out which of six things broke.
+     *
+     * ── AND NO SECRETS, BY CONSTRUCTION ──────────────────────────────────────
+     *
+     * This is the same report the public page renders, so there is nothing here a visitor
+     * could not already read. Nothing is added for the endpoint — a status API that exposes
+     * more than the status page is an information leak wearing a helpful hat.
+     *
+     * @return array<string,mixed>
+     */
+    public static function payload(): array
+    {
+        $report   = self::report();
+        $timeline = self::timeline();
+
+        return [
+            // `status`/`indicator` rather than only the label, so a consumer switches on a
+            // stable token and a human reads the words beside it. Renaming a LABEL must not
+            // break somebody's alerting.
+            'status'      => (string) $report['overall'],
+            'description' => (string) $report['overall_label'],
+            'note'        => (string) $report['note'],
+            'checked_at'  => Carbon::parse((string) $report['checked_at'])->toIso8601String(),
+            'components'  => array_map(static function (array $c) use ($timeline): array {
+                $h = $timeline['components'][$c['name']] ?? null;
+                return [
+                    'name'    => (string) $c['name'],
+                    'about'   => (string) $c['what'],
+                    'status'  => (string) $c['status'],
+                    'label'   => (string) $c['label'],
+                    'detail'  => (string) $c['detail'],
+                    'metric'  => (string) $c['metric'],
+                    // Null rather than 100 when there is nothing to divide. A consumer
+                    // alerting on `uptime < 99` must not be handed an invented number.
+                    'uptime'  => $h['uptime'] ?? null,
+                    'checks'  => (int) ($h['samples'] ?? 0),
+                ];
+            }, $report['components']),
+            'uptime'      => $timeline['uptime'],
+            'incidents'   => $timeline['incidents'],
+            'window_days' => self::HISTORY_DAYS,
+        ];
+    }
+
     /** Drop snapshots past {@see KEEP_DAYS}. */
     public static function prune(): int
     {
@@ -182,41 +246,322 @@ final class SystemStatus
         }
     }
 
-    /**
-     * The last {@see HISTORY_DAYS} days, one entry per day, worst-state-wins.
-     *
-     * Worst wins because a day with one broken hour is not a good day, and averaging would
-     * turn a real outage into a pale shade of green. A day with NO snapshots reports
-     * UNKNOWN — which is the truthful reading and, on a cPanel deployment, usually means the
-     * scheduled task was not running that day either.
-     *
-     * @return list<array{date:string, label:string, status:string, state_label:string, samples:int}>
-     */
-    public static function history(): array
-    {
-        $from = Carbon::now()->startOfDay()->subDays(self::HISTORY_DAYS - 1);
+    // ═══════════════════════════════════════════════════════════════════════
+    // THE RECORD, READ FOUR WAYS
+    // ═══════════════════════════════════════════════════════════════════════
 
-        $rows = [];
+    /**
+     * Every recorded snapshot in the window, decoded once.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * `components_json` WAS WRITTEN EVERY FIFTEEN MINUTES AND READ BY NOTHING
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * {@see record()} has stored the per-component state of every snapshot since the log
+     * existed. Only `overall` was ever read — so the page could say "something was wrong on
+     * the 14th" and not which thing, while the answer sat in the next column.
+     *
+     * That is the sixth instance of the pattern in `docs/CODEBASE-INDEX.md` §17, and the most
+     * visible: a per-component history bar is the single most recognisable element of a status
+     * page, and the data for it was already on disk.
+     *
+     * ── ONE LOAD, NOT FOUR ───────────────────────────────────────────────────
+     *
+     * The four views below (days, components, incidents, uptime) are all folds over the same
+     * rows. A window of fourteen days at a fifteen-minute cadence is ~1,340 rows, each with a
+     * small JSON payload, so decoding them four times on a public page that is hit whenever
+     * anybody wonders if the site is down is worth avoiding. {@see timeline()} loads once and
+     * hands the same pass to all of them.
+     *
+     * Deliberately NOT memoised in a static. The test harness builds a fresh database per
+     * test in one process, so a cached first answer would be served to every later test — a
+     * whole class of green tests asserting nothing.
+     *
+     * @return list<array{at:string, overall:string, parts:array<string,string>}>
+     */
+    private static function snapshots(): array
+    {
+        $from = Carbon::now()->startOfDay()->subDays(self::HISTORY_DAYS - 1)->toDateTimeString();
+
         try {
             $rows = DB::table('gates_status_log')
-                ->where('taken_at', '>=', $from->toDateTimeString())
+                ->where('taken_at', '>=', $from)
                 ->orderBy('taken_at')
-                ->get()->all();
+                ->get(['taken_at', 'overall', 'components_json']);
         } catch (\Throwable) {
             return [];
         }
 
-        $rank  = [self::OK => 0, self::UNKNOWN => 1, self::DEGRADED => 2, self::DOWN => 3];
-        $byDay = [];
-        foreach ($rows as $row) {
-            $day = substr((string) $row->taken_at, 0, 10);
-            $st  = (string) $row->overall;
-            if (!isset($rank[$st])) continue;
+        $out = [];
+        foreach ($rows as $r) {
+            $overall = (string) $r->overall;
+            if (!isset(self::RANK[$overall])) continue;
 
-            if (!isset($byDay[$day])) $byDay[$day] = ['status' => self::OK, 'n' => 0];
-            $byDay[$day]['n']++;
-            if ($rank[$st] > $rank[$byDay[$day]['status']]) $byDay[$day]['status'] = $st;
+            $parts   = [];
+            $decoded = json_decode((string) ($r->components_json ?? ''), true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $c) {
+                    $name = trim((string) ($c['name'] ?? ''));
+                    $st   = (string) ($c['status'] ?? '');
+                    // An unrecognised state is dropped rather than defaulted. A snapshot
+                    // written by a future version of this class must not be silently
+                    // counted as operational.
+                    if ($name !== '' && isset(self::RANK[$st])) $parts[$name] = $st;
+                }
+            }
+
+            $out[] = ['at' => (string) $r->taken_at, 'overall' => $overall, 'parts' => $parts];
         }
+
+        return $out;
+    }
+
+    /**
+     * Worst-wins ordering. A day with one broken hour is not a good day, and an average
+     * would turn a real outage into a pale shade of green.
+     *
+     * UNKNOWN sits ABOVE operational and BELOW degraded on purpose: "we could not check"
+     * is worse than a clean check and not as bad as a measured fault, and collapsing it
+     * either way is the lie this whole class exists to avoid.
+     */
+    private const RANK = [self::OK => 0, self::UNKNOWN => 1, self::DEGRADED => 2, self::DOWN => 3];
+
+    /**
+     * Everything the page and the JSON endpoint need from the record, from one pass.
+     *
+     * @return array{days:list<array<string,mixed>>, components:array<string,array<string,mixed>>,
+     *               incidents:list<array<string,mixed>>, uptime:array<string,mixed>}
+     */
+    public static function timeline(): array
+    {
+        $snaps = self::snapshots();
+
+        return [
+            'days'       => self::days($snaps),
+            'components' => self::componentHistory($snaps),
+            'incidents'  => self::incidents($snaps),
+            'uptime'      => self::uptime($snaps),
+        ];
+    }
+
+    /**
+     * Per-component daily history and uptime — the standard status-page bar.
+     *
+     * Keyed by the component NAME as it was recorded. A component renamed since a snapshot
+     * was taken therefore appears under its old key and no current row matches it, so it is
+     * simply not drawn. That is the right failure: attributing one component's history to
+     * another because the labels are adjacent would be worse than a missing bar.
+     *
+     * @param  list<array{at:string, overall:string, parts:array<string,string>}> $snaps
+     * @return array<string,array{days:list<array<string,mixed>>, uptime:?float, samples:int}>
+     */
+    private static function componentHistory(array $snaps): array
+    {
+        /** @var array<string,array<string,array{status:string,n:int}>> $byName */
+        $byName = [];
+        /** @var array<string,array{ok:int,known:int}> $tally */
+        $tally = [];
+
+        foreach ($snaps as $s) {
+            $day = substr($s['at'], 0, 10);
+            foreach ($s['parts'] as $name => $st) {
+                if (!isset($byName[$name][$day])) $byName[$name][$day] = ['status' => self::OK, 'n' => 0];
+                $byName[$name][$day]['n']++;
+                if (self::RANK[$st] > self::RANK[$byName[$name][$day]['status']]) {
+                    $byName[$name][$day]['status'] = $st;
+                }
+
+                $tally[$name] ??= ['ok' => 0, 'known' => 0];
+                if ($st !== self::UNKNOWN) {
+                    $tally[$name]['known']++;
+                    if ($st === self::OK) $tally[$name]['ok']++;
+                }
+            }
+        }
+
+        $out = [];
+        foreach ($byName as $name => $days) {
+            $out[$name] = [
+                'days'    => self::fill($days),
+                'uptime'  => self::pct($tally[$name]['ok'] ?? 0, $tally[$name]['known'] ?? 0),
+                'samples' => (int) ($tally[$name]['known'] ?? 0),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The share of checks that came back working, or null when there is nothing to divide.
+     *
+     * ── TWO RULES, BOTH ABOUT NOT LYING WITH A NUMBER ────────────────────────
+     *
+     * The denominator is checks whose state was KNOWN. Time we could not measure is not time
+     * we were up, and putting it in either half of the fraction would be an invention — the
+     * same discipline `SitemapService` applies to a `lastmod` it cannot vouch for.
+     *
+     * And the result is FLOORED, never rounded, so a window containing a real outage can
+     * never print `100.00%`. That specific rounding is the most common dishonesty on a status
+     * page: 1 failure in 20,000 checks is 99.995%, which rounds to a clean hundred and erases
+     * the outage somebody is on this page looking for.
+     */
+    private static function pct(int $ok, int $known): ?float
+    {
+        if ($known < 1) return null;
+        if ($ok >= $known) return 100.0;
+
+        return min(99.99, floor($ok * 10000 / $known) / 100);
+    }
+
+    /**
+     * Runs of consecutive checks where one component was not working, newest first.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS EXISTS ALONGSIDE THE BARS
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A bar answers "was there a bad day". Somebody on this page is usually asking something
+     * narrower and more urgent — "my payment failed at nine this morning, was that you" — and
+     * a square covering a whole day cannot answer it. An incident with a start, an end and a
+     * duration can.
+     *
+     * ── UNKNOWN IS NOT AN INCIDENT ───────────────────────────────────────────
+     *
+     * A gap in the record means the scheduled task missed a beat; it does not mean the
+     * platform was broken, and listing it as an outage would manufacture incidents out of
+     * cron jitter. So UNKNOWN neither opens a run nor extends one — it CLOSES it, because
+     * once we stopped being able to see the fault we can no longer claim it was still there.
+     *
+     * ── AND THE DURATION IS OBSERVED, NOT ESTIMATED ──────────────────────────
+     *
+     * `minutes` is the span between the first and last failing check, so a fault seen once is
+     * reported as one check rather than as fifteen minutes of downtime we did not witness.
+     * Rounding a single sample up to the sampling interval would inflate every blip.
+     *
+     * @param  list<array{at:string, overall:string, parts:array<string,string>}> $snaps
+     * @return list<array{name:string, status:string, from:string, to:string, minutes:int,
+     *                    checks:int, ongoing:bool}>
+     */
+    private static function incidents(array $snaps, int $limit = 8): array
+    {
+        /** @var array<string,array{status:string, from:string, to:string, checks:int}|null> $open */
+        $open   = [];
+        $closed = [];
+        $lastAt = $snaps === [] ? '' : (string) $snaps[count($snaps) - 1]['at'];
+
+        $shut = static function (string $name) use (&$open, &$closed): void {
+            if (($open[$name] ?? null) !== null) {
+                $closed[] = ['name' => $name] + $open[$name];
+                $open[$name] = null;
+            }
+        };
+
+        foreach ($snaps as $s) {
+            foreach ($s['parts'] as $name => $st) {
+                if ($st === self::DEGRADED || $st === self::DOWN) {
+                    if (($open[$name] ?? null) === null) {
+                        $open[$name] = ['status' => $st, 'from' => $s['at'],
+                                        'to' => $s['at'], 'checks' => 1];
+                        continue;
+                    }
+                    $open[$name]['to'] = $s['at'];
+                    $open[$name]['checks']++;
+                    // The worst state seen during the run is the one it is reported as: a
+                    // wobble that became an outage is an outage.
+                    if (self::RANK[$st] > self::RANK[$open[$name]['status']]) {
+                        $open[$name]['status'] = $st;
+                    }
+                    continue;
+                }
+                $shut($name);
+            }
+        }
+
+        foreach (array_keys($open) as $name) {
+            if (($open[$name] ?? null) === null) continue;
+            // Still open at the last check we have, so it has not been seen to recover.
+            $closed[] = ['name' => $name, 'ongoing' => $open[$name]['to'] === $lastAt] + $open[$name];
+        }
+
+        $out = [];
+        foreach ($closed as $i) {
+            // From the timestamps, not from `diffInMinutes()`. That method is SIGNED and its
+            // argument order changed meaning between Carbon major versions, so it silently
+            // returned a negative span here and every duration clamped to zero — every
+            // incident reported as "seen once". Subtracting epoch seconds cannot be got
+            // wrong by an upgrade.
+            $minutes = intdiv(max(0, Carbon::parse($i['to'])->getTimestamp()
+                                   - Carbon::parse($i['from'])->getTimestamp()), 60);
+            $checks  = (int) $i['checks'];
+            $out[] = [
+                'name'     => (string) $i['name'],
+                'status'   => (string) $i['status'],
+                'from'     => (string) $i['from'],
+                'to'       => (string) $i['to'],
+                'minutes'  => $minutes,
+                'checks'   => $checks,
+                'ongoing'  => (bool) ($i['ongoing'] ?? false),
+                // Formatted here rather than in Twig so the wording is testable and cannot
+                // differ between the page and the JSON endpoint.
+                'duration' => self::spanInWords($minutes, $checks),
+            ];
+        }
+
+        // Newest first: the thing somebody is on this page about happened recently.
+        usort($out, static fn (array $a, array $b): int => strcmp($b['from'], $a['from']));
+
+        return array_slice($out, 0, max(1, $limit));
+    }
+
+    /**
+     * How long a fault was observed for, in words.
+     *
+     * A single failing check reports as one check, NOT as fifteen minutes: we saw it once
+     * and cannot honestly claim the interval around it. Rounding every blip up to the
+     * sampling cadence is how a status page accumulates downtime it never witnessed.
+     */
+    private static function spanInWords(int $minutes, int $checks): string
+    {
+        if ($minutes < 1) {
+            return $checks > 1 ? $checks . ' checks' : 'seen once';
+        }
+        if ($minutes < 60) return $minutes . ' min';
+
+        $h = intdiv($minutes, 60);
+        $m = $minutes % 60;
+
+        return $m === 0
+            ? $h . ' hr'
+            : $h . ' hr ' . $m . ' min';
+    }
+
+    /**
+     * The window's overall uptime, and how much of it we can actually vouch for.
+     *
+     * @param  list<array{at:string, overall:string, parts:array<string,string>}> $snaps
+     * @return array{pct:?float, samples:int, days:int}
+     */
+    private static function uptime(array $snaps): array
+    {
+        $ok = $known = 0;
+        foreach ($snaps as $s) {
+            if ($s['overall'] === self::UNKNOWN) continue;
+            $known++;
+            if ($s['overall'] === self::OK) $ok++;
+        }
+
+        return ['pct' => self::pct($ok, $known), 'samples' => $known, 'days' => self::HISTORY_DAYS];
+    }
+
+    /**
+     * A day per slot across the whole window, so a gap renders as a gap.
+     *
+     * @param  array<string,array{status:string,n:int}> $byDay
+     * @return list<array{date:string, label:string, status:string, state_label:string, samples:int}>
+     */
+    private static function fill(array $byDay): array
+    {
+        $from = Carbon::now()->startOfDay()->subDays(self::HISTORY_DAYS - 1);
 
         $out = [];
         for ($i = 0; $i < self::HISTORY_DAYS; $i++) {
@@ -235,6 +580,46 @@ final class SystemStatus
         }
 
         return $out;
+    }
+
+    /**
+     * Overall per-day history, worst-state-wins.
+     *
+     * @param  list<array{at:string, overall:string, parts:array<string,string>}> $snaps
+     * @return list<array{date:string, label:string, status:string, state_label:string, samples:int}>
+     */
+    private static function days(array $snaps): array
+    {
+        $byDay = [];
+        foreach ($snaps as $s) {
+            $day = substr($s['at'], 0, 10);
+            if (!isset($byDay[$day])) $byDay[$day] = ['status' => self::OK, 'n' => 0];
+            $byDay[$day]['n']++;
+            if (self::RANK[$s['overall']] > self::RANK[$byDay[$day]['status']]) {
+                $byDay[$day]['status'] = $s['overall'];
+            }
+        }
+
+        return self::fill($byDay);
+    }
+
+    /**
+     * The last {@see HISTORY_DAYS} days, one entry per day, worst-state-wins.
+     *
+     * Worst wins because a day with one broken hour is not a good day, and averaging would
+     * turn a real outage into a pale shade of green. A day with NO snapshots reports
+     * UNKNOWN — which is the truthful reading and, on a cPanel deployment, usually means the
+     * scheduled task was not running that day either.
+     *
+     * Kept as its own entry point for the callers and tests that only want the overall
+     * strip; the page itself uses {@see timeline()}, which gets this and the three other
+     * views from a single pass over the same rows.
+     *
+     * @return list<array{date:string, label:string, status:string, state_label:string, samples:int}>
+     */
+    public static function history(): array
+    {
+        return self::days(self::snapshots());
     }
 
     /**

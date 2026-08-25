@@ -203,6 +203,88 @@ final class EventFundraisingTest extends TestCase
         $this->assertStringContainsString('A ticket is not a donation', $html);
     }
 
+    // ══ the panel says what kind of event this is ════════════════════════════
+
+    /**
+     * "Tickets" is right for a summit and wrong for a fundraising dinner.
+     *
+     * On a fundraiser the whole point of buying a place is what it pays for, and a panel
+     * headed only "Tickets" beside prices reads as an admission fee to an evening out. The
+     * eyebrow follows the EVENT, not the payment mechanism.
+     */
+    public function test_a_fundraising_event_reads_as_one_on_its_registration_panel(): void
+    {
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        $this->assertStringContainsString('is_fundraiser', $tpl);
+        $this->assertStringContainsString('Fundraiser ·', $tpl,
+            'the panel has to name the kind of event before it lists prices');
+        $this->assertStringContainsString('This event raises money', $tpl);
+    }
+
+    /**
+     * It is DERIVED from the live appeal, not stored a second time.
+     *
+     * A boolean on the event row beside the appeal is a second thing to keep in step, and
+     * the first time somebody closes the appeal and forgets the flag the page asks for money
+     * for a campaign that has ended. `forEvent()` already drops a closed or expired appeal
+     * without anybody touching the event, so the reading follows it for free.
+     */
+    public function test_the_fundraiser_reading_is_derived_from_the_appeal(): void
+    {
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        $this->assertStringContainsString("{% set is_fundraiser = appeals|default([]) is not empty %}", $tpl);
+        // No parallel column. If one is ever added, this is the test that should be
+        // deleted deliberately rather than the flag quietly winning.
+        $this->assertFalse(DB::schema()->hasColumn('gates_site_events', 'is_fundraiser'));
+    }
+
+    /**
+     * And the set is at TEMPLATE scope, not inside a block.
+     *
+     * A `{% set %}` inside a `{% block %}` is invisible to every other block and renders as
+     * null with no error — it has taken out this codebase's account navigation once and a
+     * vote page's share link a second time.
+     */
+    public function test_the_fundraiser_flag_is_hoisted_out_of_the_blocks(): void
+    {
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        $setAt = strpos($tpl, '{% set is_fundraiser');
+        // A NAMED block opening, not the literal '{% block' — the comment above that `set`
+        // explains the trap and therefore contains the words, which the first version of
+        // this assertion happily matched against itself.
+        $this->assertSame(1, preg_match('/\{%\s*block\s+\w+/', $tpl, $m, PREG_OFFSET_CAPTURE));
+
+        $this->assertIsInt($setAt);
+        $this->assertLessThan($m[0][1], $setAt,
+            'hoist anything used by more than one block to template scope');
+    }
+
+    /**
+     * The ticket is still not called a donation.
+     *
+     * The money moves through the ticket flow with the ticket flow's refund terms; the
+     * appeal is a separate transaction with its own. Naming a ₦5,000 admission a gift is
+     * the same category error as calling it a support ticket, pointed the other way — and
+     * it is the one that ends up in a dispute.
+     */
+    public function test_the_fundraiser_wording_does_not_turn_a_ticket_into_a_gift(): void
+    {
+        $tpl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/pages/events/detail.twig');
+
+        $this->assertStringContainsString('Giving directly is separate', $tpl);
+        $this->assertStringContainsString('A ticket is not a donation', $tpl);
+        foreach (['Donate to attend', 'Your donation includes'] as $wrong) {
+            $this->assertStringNotContainsString($wrong, $tpl);
+        }
+    }
+
     public function test_the_bar_carries_a_text_alternative(): void
     {
         // A progress bar that is only a coloured div tells a screen reader nothing, and the
