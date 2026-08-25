@@ -308,14 +308,34 @@ class StandSurfacesTest extends TestCase
         $this->assertStringContainsString('do not need to be a registered company', $html);
     }
 
-    /** A draft call is not a public fact — its terms are still being written. */
-    public function test_a_draft_call_is_not_published(): void
+    /**
+     * A draft call is not a public fact — its terms are still being written.
+     *
+     * The invariant is the TERMS, not the status code. This used to bounce to the event
+     * page, which reads as though you asked for something that was never there; the page
+     * now renders and says the terms are not published yet. So what is asserted is what
+     * actually matters: no price, no quota, no closing date reaches the reader, and the
+     * page still asks for the one thing worth having from them.
+     */
+    public function test_a_draft_call_publishes_none_of_its_terms(): void
     {
-        $event = $this->makeEvent();
-        StandCall::save((int) $event->id, ['closes_at' => date('Y-m-d H:i:s', strtotime('+9 days'))]);
+        $event  = $this->makeEvent();
+        $closes = date('Y-m-d H:i:s', strtotime('+9 days'));
+        StandCall::save((int) $event->id, ['closes_at' => $closes]);
 
-        $res = $this->publicCtrl()->call($this->get('/x'), new Response(), ['slug' => (string) $event->slug]);
-        $this->assertSame(302, $res->getStatusCode());
+        $res  = $this->publicCtrl()->call($this->get('/x'), new Response(), ['slug' => (string) $event->slug]);
+        $html = (string) $res->getBody();
+
+        $this->assertSame(200, $res->getStatusCode());
+        $this->assertStringContainsString('not published yet', $html);
+
+        $this->assertStringNotContainsString('Food pitch', $html, 'a draft quota was published');
+        $this->assertStringNotContainsString('50,000', $html, 'a draft price was published');
+        $this->assertStringNotContainsString(date('j F Y', strtotime($closes)), $html,
+            'a draft closing date was published');
+        $this->assertStringNotContainsString('still open', $html);
+
+        $this->assertStringContainsString('Email me when it opens', $html);
     }
 
     /** And a closed one still is, so a late applicant learns when it closed. */

@@ -71,19 +71,34 @@ final class StandApplyController
         if (!$event) return $this->redirect($res, '/events');
 
         $call = StandCall::forEvent((int) $event->id);
-        if (!$call || (string) $call->status === StandCall::STATUS_DRAFT) {
-            // A draft call is not a public fact. Its terms are still being written and
-            // publishing half of them is how a quota gets quoted before it is decided.
-            //
-            // But bouncing to the event page and saying NOTHING is how this was reported
-            // as "I cannot open the vendor application page": you follow a link, you land
-            // somewhere else, and nothing on the screen acknowledges that you asked for
-            // anything. The terms stay private; the fact that there is nothing to show
-            // yet does not.
-            $_SESSION['flash_notice'] = 'Stand applications for '
-                . (string) $event->title . ' have not been published yet. '
-                . 'The terms go up here before the call opens.';
-            return $this->redirect($res, '/events/' . (string) $event->slug);
+
+        // ── A DRAFT CALL RENDERS THE PAGE WITHOUT THE TERMS ─────────────────
+        //
+        // A draft call is not a public fact: its terms are still being written and
+        // publishing half of them is how a quota gets quoted before it is decided. That
+        // invariant is unchanged — nothing below reaches the template, and the template
+        // has no prices, quotas or dates to leak.
+        //
+        // What changed is the response. This used to bounce to the event page with a
+        // flash, which reads as though you asked for something that was never there. The
+        // page now says the terms are not published yet, says that arriving first gains
+        // nothing, and asks for an address — which is the one thing worth doing with the
+        // most motivated visitor this page will ever have.
+        $published = $call !== null && (string) $call->status !== StandCall::STATUS_DRAFT;
+
+        if (!$published) {
+            return $this->view->render($res, 'pages/stands/call.twig', [
+                'page_title' => 'Trade at ' . (string) $event->title,
+                'gates_page' => 'stands',
+                'has_hero'   => false,
+                'event'      => $event,
+                'published'  => false,
+                'accepting'  => false,
+                'capacity'   => [],
+                'categories' => [],
+                'signed_in'  => OrgAuth::user() !== null,
+                'offer_hours'=> StandApplication::OFFER_HOURS,
+            ]);
         }
 
         return $this->view->render($res, 'pages/stands/call.twig', [
@@ -92,12 +107,68 @@ final class StandApplyController
             'has_hero'   => false,
             'event'      => $event,
             'call'       => $call,
+            'published'  => true,
             'accepting'  => StandCall::isAccepting($call),
             'capacity'   => StandCall::capacity((int) $event->id),
             'categories' => StandType::categories(),
             'signed_in'  => OrgAuth::user() !== null,
             'offer_hours'=> StandApplication::OFFER_HOURS,
-        ]);
+        ] + $this->deadline($call));
+    }
+
+    /**
+     * How long is left, in the words the page uses.
+     *
+     * ── WHY THE CLOCK ONLY TICKS INSIDE 48 HOURS ────────────────────────────
+     *
+     * A live hrs/min/sec countdown against a fortnight is manufactured urgency, and on
+     * this page it would contradict the sentence directly beneath it: nothing is
+     * allocated first-come. Inside the platform's existing `closing_soon` window it is
+     * simply true — the deadline really is the thing to act on — so that is the only
+     * place it runs.
+     *
+     * ── AND WHY THE ZONE IS NAMED RATHER THAN ASSUMED ───────────────────────
+     *
+     * "WEST AFRICA TIME" is the design's string and it is correct for the platform's own
+     * timezone. It would be a lie on an installation whose display zone is somewhere
+     * else, so anywhere but Lagos it falls back to the abbreviation the rest of the
+     * platform prints.
+     *
+     * @return array{days_left:?int, hours_left:int, closing_soon:bool, closes_iso:string, zone_label:string}
+     */
+    private function deadline(object $call): array
+    {
+        $zone = \AfricaGates\Support\DisplayTime::zone();
+        $out  = [
+            'days_left'    => null,
+            'hours_left'   => 0,
+            'closing_soon' => false,
+            'closes_iso'   => '',
+            'zone_label'   => $zone === \AfricaGates\Support\DisplayTime::DEFAULT_ZONE
+                ? 'WEST AFRICA TIME'
+                : strtoupper(\AfricaGates\Support\DisplayTime::abbr()),
+        ];
+
+        $closes = trim((string) ($call->closes_at ?? ''));
+        if ($closes === '') return $out;
+
+        try {
+            $tz  = new \DateTimeZone($zone);
+            $end = new \DateTimeImmutable($closes, $tz);
+            $now = new \DateTimeImmutable('now', $tz);
+        } catch (\Throwable) {
+            return $out;
+        }
+
+        $seconds = $end->getTimestamp() - $now->getTimestamp();
+        if ($seconds <= 0) return $out;
+
+        $out['days_left']    = (int) ceil($seconds / 86400);
+        $out['hours_left']   = (int) ceil($seconds / 3600);
+        $out['closing_soon'] = $seconds <= \AfricaGates\Services\CyclePolicy::CLOSING_SOON_SECONDS;
+        $out['closes_iso']   = $end->format(\DateTimeInterface::ATOM);
+
+        return $out;
     }
 
     // ──────────────────────────────── the form ──────────────────────────────
