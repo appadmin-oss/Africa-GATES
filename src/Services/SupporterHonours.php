@@ -194,7 +194,18 @@ final class SupporterHonours
                . "that decides the winner — that is judged on free verified votes and an independent panel. "
                . "{$base}/integrity#money\n\n{$url}\n\n— Africa GATES";
 
-        $sent = self::send($email, $subject, $html, $plain, 'Supporters');
+        // ── AND THIS ONE IS NOT SUPPRESSED BY THE OPT-OUT LIST ──────────────────
+        //
+        // Deliberately, and it is the opposite call from {@see celebrate()}. This message
+        // exists because THIS PERSON paid for votes: it is the confirmation that what they
+        // bought is on the board, and when it is late it is the apology for that. The
+        // unsubscribe page's own wording — "anything you specifically asked for still
+        // reaches you" — covers exactly this and not a broadcast about somebody winning.
+        //
+        // The way out still travels with it, because a reader who thinks otherwise should
+        // not have to go looking for one.
+        $sent = self::send($email, $subject, $html, $plain, 'Supporters', '',
+                           EmailOptOut::url($base, $email));
         self::markDelivered('thanks', $nomineeId, $email, $sent, $late['band']);
 
         return ['ok' => true, 'code' => $sent ? 'THANKED' : 'THANKED_NOT_SENT', 'band' => $late['band']];
@@ -211,18 +222,41 @@ final class SupporterHonours
      * performs, and it happens inside the promotion path — so it is capped, claimed
      * per recipient before composing, and completely silent about its own failures.
      *
+     * ── AND IT IS AN ANNOUNCEMENT, SO THE OPT-OUT LIST DECIDES ───────────────
+     *
+     * This did not consult {@see EmailOptOut} and carried no way out, which made it the
+     * only bulk sender in the codebase that did neither — QuestionnaireInvites, StandNotice,
+     * NomineeBroadcast and the campaign screen all do both.
+     *
+     * That is not a style inconsistency. `pages/email-unsubscribe.twig` tells somebody who
+     * has just unsubscribed, in as many words, that only what they specifically asked for
+     * still reaches them: a receipt, a sign-in code, a support reply. "Someone you backed
+     * won" is none of those, it is the single largest send here, and it would have arrived
+     * from a platform that had promised in writing it would not.
+     *
      * @param  string $kind 'winner' | 'runner_up'
-     * @return array{ok:bool, code:string, sent:int, skipped:int}
+     * @return array{ok:bool, code:string, sent:int, skipped:int, unsubscribed:int}
      */
     public static function celebrate(int $nomineeId, string $kind = 'winner', int $limit = 2000): array
     {
-        $out = ['ok' => false, 'code' => 'NO_NOMINEE', 'sent' => 0, 'skipped' => 0];
+        $out = ['ok' => false, 'code' => 'NO_NOMINEE', 'sent' => 0, 'skipped' => 0, 'unsubscribed' => 0];
 
         $n = self::nominee($nomineeId);
         if (!$n) return $out;
 
         $recipients = self::reachableSupporters($nomineeId, $limit);
-        if ($recipients === []) return ['ok' => true, 'code' => 'NOBODY_REACHABLE', 'sent' => 0, 'skipped' => 0];
+        if ($recipients === []) {
+            return ['ok' => true, 'code' => 'NOBODY_REACHABLE', 'sent' => 0, 'skipped' => 0, 'unsubscribed' => 0];
+        }
+
+        // Read once, not once per recipient — this loop is up to $limit rows long.
+        // Failing OPEN would mail everybody who ever opted out, so a missing table or a
+        // broken read has to stop the fan-out rather than proceed without the list.
+        try {
+            $suppressed = EmailOptOut::suppressedHashes();
+        } catch (\Throwable) {
+            return ['ok' => false, 'code' => 'OPTOUT_UNREADABLE', 'sent' => 0, 'skipped' => 0, 'unsubscribed' => 0];
+        }
 
         $first   = self::firstName((string) $n->name);
         $base    = self::baseUrl();
@@ -232,8 +266,12 @@ final class SupporterHonours
         $verb    = $won ? 'won' : 'placed as runner-up in';
         $subject = $n->name . ($won ? ' won. You helped.' : ' placed. You helped.');
 
-        $sent = 0; $skipped = 0;
+        $sent = 0; $skipped = 0; $optedOut = 0;
         foreach ($recipients as $email => $name) {
+            // Before the claim, so an address that later resubscribes is still reachable:
+            // claiming first would burn the one-send-per-supporter mutex on a message that
+            // was never composed.
+            if (isset($suppressed[EmailOptOut::hash($email)])) { $optedOut++; continue; }
             if (!self::claim('victory', $nomineeId, $email, null)) { $skipped++; continue; }
 
             $e  = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
@@ -267,15 +305,21 @@ final class SupporterHonours
                    . "You were one of " . number_format($crowd) . " people who backed {$first} this cycle. "
                    . "That is not a footnote to the result — it is the result.\n\n"
                    . self::nomineeUrl($n) . "\n\n"
-                   . "Thank you for showing up for somebody.\n\n— Africa GATES";
+                   . "Thank you for showing up for somebody.\n\n— Africa GATES\n\n"
+                   // The plain part is a separate body, so the footer link the brand
+                   // wrapper adds to the HTML is not in it. A reader on a text-only client
+                   // gets the same way out or none at all.
+                   . "No more announcement emails: " . EmailOptOut::url($base, $email);
 
             $ok = self::send($email, $subject, $html, $plain, 'Results',
-                             $base . '/assets/img/illustrations/illo-trophy.jpg');
+                             $base . '/assets/img/illustrations/illo-trophy.jpg',
+                             EmailOptOut::url($base, $email));
             self::markDelivered('victory', $nomineeId, $email, $ok);
             if ($ok) $sent++;
         }
 
-        return ['ok' => true, 'code' => 'CELEBRATED', 'sent' => $sent, 'skipped' => $skipped];
+        return ['ok' => true, 'code' => 'CELEBRATED', 'sent' => $sent, 'skipped' => $skipped,
+                'unsubscribed' => $optedOut];
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -390,11 +434,11 @@ final class SupporterHonours
     }
 
     private static function send(string $to, string $subject, string $html, string $plain,
-                                 string $category, string $hero = ''): bool
+                                 string $category, string $hero = '', string $unsubscribeUrl = ''): bool
     {
         try {
             $m = self::$mailer ?? self::defaultMailer();
-            $r = $m->sendBranded($to, $subject, $html, $plain, $category, $hero);
+            $r = $m->sendBranded($to, $subject, $html, $plain, $category, $hero, $unsubscribeUrl);
             return (bool) ($r['success'] ?? false);
         } catch (\Throwable) {
             return false;

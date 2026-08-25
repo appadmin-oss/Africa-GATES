@@ -131,7 +131,15 @@ class OtpService
      * Send a fully-branded HTML email.
      * Falls back to plain text log when SMTP is unconfigured.
      */
-    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = ''): array
+    /**
+     * @param string $unsubscribeUrl absolute URL. Empty for one-to-one mail, which is what
+     *        this method was written for; set for anything a reader could reasonably call
+     *        an announcement. It adds the RFC 8058 one-click headers — see
+     *        {@see sendRawHtml} for why they are not optional on bulk — and puts a visible
+     *        link in the footer, because a header alone is a way out only for the clients
+     *        that render one.
+     */
+    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = ''): array
     {
         if (!$this->smtpConfigured()) {
             $this->devLog($to, $subject, $plainBody ?: strip_tags($htmlBody));
@@ -148,8 +156,12 @@ class OtpService
             $m = $this->mailer($to);
             $m->isHTML(true);
             $m->Subject = $subject;
-            $m->Body    = $this->brandWrap($subject, $htmlBody, $category, $hero);
+            $m->Body    = $this->brandWrap($subject, $htmlBody, $category, $hero, $unsubscribeUrl);
             $m->AltBody = $plainBody ?: strip_tags($htmlBody);
+            if ($unsubscribeUrl !== '') {
+                $m->addCustomHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
+                $m->addCustomHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
+            }
             $m->send();
             $this->log?->info('[mail] sent', ['to' => $to, 'subject' => $subject]);
             $this->mailLog($to, $subject, $category, 'sent');
@@ -473,7 +485,7 @@ HTML;
      * Uses <table> layout throughout for maximum email-client compatibility
      * (Outlook, Gmail app, Apple Mail, Yahoo Mail).
      */
-    private function brandWrap(string $subject, string $body, string $category = '', string $hero = ''): string
+    private function brandWrap(string $subject, string $body, string $category = '', string $hero = '', string $unsubscribeUrl = ''): string
     {
         $year    = date('Y');
         $base    = $this->base();
@@ -482,6 +494,13 @@ HTML;
             : '';
         $heroRow = $hero !== ''
             ? '<tr><td style="padding:0;font-size:0;line-height:0"><img src="' . htmlspecialchars($hero, ENT_QUOTES) . '" alt="" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>'
+            : '';
+        // A visible way out, next to the other two footer links. The List-Unsubscribe
+        // header is what Gmail reads; this is what a person reads, and only one of those
+        // two is a promise the platform made in writing.
+        $unsub = $unsubscribeUrl !== ''
+            ? ' · <a href="' . htmlspecialchars($unsubscribeUrl, ENT_QUOTES)
+              . '" style="color:rgba(255,255,255,0.8);text-decoration:underline">Unsubscribe</a>'
             : '';
         return <<<HTML
 <!DOCTYPE html>
@@ -535,7 +554,7 @@ HTML;
           <p style="margin:0;font-size:11.5px;line-height:1.7;color:rgba(255,255,255,0.55)">
             © $year Afrovanguard Initiative · Lagos, Nigeria · We hash every email — plain text is never stored.<br>
             <a href="{$base}/help" style="color:rgba(255,255,255,0.8);text-decoration:underline">Help Center</a> ·
-            <a href="{$base}/privacy" style="color:rgba(255,255,255,0.8);text-decoration:underline">Privacy</a>
+            <a href="{$base}/privacy" style="color:rgba(255,255,255,0.8);text-decoration:underline">Privacy</a>$unsub
           </p>
         </td></tr>
 

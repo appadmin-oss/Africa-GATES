@@ -31,7 +31,7 @@ use Illuminate\Support\Carbon;
  */
 final class SupporterHonoursTest extends TestCase
 {
-    /** @var list<array{to:string, subject:string, body:string}> */
+    /** @var list<array{to:string, subject:string, body:string, unsub:string}> */
     private array $sent = [];
 
     protected function setUp(): void
@@ -55,12 +55,13 @@ final class SupporterHonoursTest extends TestCase
         // was attempted.
         $this->sent = [];
         SupporterHonours::using(new class($this->sent) extends OtpService {
-            /** @param list<array{to:string,subject:string,body:string}> $sink */
+            /** @param list<array{to:string,subject:string,body:string,unsub:string}> $sink */
             public function __construct(private array &$sink) { parent::__construct([]); }
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
-                                        string $category = '', string $hero = ''): array
+                                        string $category = '', string $hero = '', string $unsubscribeUrl = ''): array
             {
-                $this->sink[] = ['to' => $to, 'subject' => $subject, 'body' => $htmlBody . ' ' . $plainBody];
+                $this->sink[] = ['to' => $to, 'subject' => $subject,
+                                 'body' => $htmlBody . ' ' . $plainBody, 'unsub' => $unsubscribeUrl];
                 return ['success' => true];
             }
         });
@@ -275,6 +276,107 @@ final class SupporterHonoursTest extends TestCase
         $this->assertSame(0, $again['sent']);
         $this->assertSame(2, $again['skipped']);
         $this->assertCount(2, $this->sent);
+    }
+
+    /**
+     * Somebody who unsubscribed is not congratulated.
+     *
+     * This was the only bulk sender in the codebase that consulted neither the opt-out
+     * list nor carried a way out — QuestionnaireInvites, StandNotice, NomineeBroadcast
+     * and the campaign screen all do both. And it is not a style inconsistency:
+     * `pages/email-unsubscribe.twig` tells somebody who has just unsubscribed, in as many
+     * words, that only what they specifically asked for still reaches them — a receipt, a
+     * sign-in code, a support reply. This is the largest send the platform performs and it
+     * is none of those.
+     */
+    public function test_an_unsubscribed_backer_is_not_congratulated(): void
+    {
+        $this->order('quiet@example.com');
+        $this->order('loud@example.com');
+        \AfricaGates\Services\EmailOptOut::record('quiet@example.com', 'test');
+
+        $r = SupporterHonours::celebrate(1, 'winner');
+
+        $this->assertSame(1, $r['sent']);
+        $this->assertSame(1, $r['unsubscribed'], 'the count has to say why somebody was left out');
+        $this->assertSame(['loud@example.com'], array_column($this->sent, 'to'));
+    }
+
+    /**
+     * And the claim is not spent on them, so resubscribing still reaches them.
+     *
+     * The suppression check runs BEFORE the claim deliberately: claiming first would burn
+     * the one-send-per-supporter mutex on a message that was never composed, and the
+     * person would then be permanently unreachable for this win.
+     */
+    public function test_the_send_is_still_available_if_they_come_back(): void
+    {
+        $this->order('back@example.com');
+        \AfricaGates\Services\EmailOptOut::record('back@example.com', 'test');
+        SupporterHonours::celebrate(1, 'winner');
+        $this->assertSame([], $this->sent);
+
+        DB::table('gates_email_optout')->delete();
+        $this->assertSame(1, SupporterHonours::celebrate(1, 'winner')['sent']);
+    }
+
+    /** Every congratulation carries a way out — the header one and the visible one. */
+    public function test_the_congratulation_carries_an_unsubscribe_link(): void
+    {
+        $this->order('one@example.com');
+        SupporterHonours::celebrate(1, 'winner');
+
+        $this->assertStringContainsString('/email/unsubscribe?e=', $this->sent[0]['unsub'],
+            'no List-Unsubscribe header URL was passed to the mailer');
+        $this->assertStringContainsString('/email/unsubscribe?e=', $this->sent[0]['body'],
+            'the plain-text part has no way out — the branded footer only covers the HTML');
+    }
+
+    /**
+     * An unreadable opt-out list stops the fan-out instead of proceeding without it.
+     *
+     * Fail-open here means mailing everybody who ever asked not to be mailed, in one
+     * burst, on the day of the results. Fail-closed means nobody is congratulated until
+     * somebody notices — recoverable, and the claim rows are not spent either.
+     */
+    public function test_an_unreadable_optout_list_stops_the_send(): void
+    {
+        $this->order('one@example.com');
+        DB::statement('ALTER TABLE gates_email_optout RENAME TO _optout_hidden');
+
+        try {
+            $r = SupporterHonours::celebrate(1, 'winner');
+
+            $this->assertFalse($r['ok']);
+            $this->assertSame('OPTOUT_UNREADABLE', $r['code']);
+            $this->assertSame([], $this->sent);
+        } finally {
+            DB::statement('ALTER TABLE _optout_hidden RENAME TO gates_email_optout');
+        }
+
+        $this->assertSame(1, SupporterHonours::celebrate(1, 'winner')['sent'],
+            'the claim was spent on a send that never happened');
+    }
+
+    /**
+     * A thank-you still reaches somebody who unsubscribed, and that is the opposite
+     * call on purpose.
+     *
+     * They paid for votes; this message is the confirmation that what they bought is on
+     * the board, and when it is late it is the apology for that. The unsubscribe page's
+     * own wording — "anything you specifically asked for still reaches you" — covers
+     * exactly this and not a broadcast about somebody else winning.
+     */
+    public function test_a_thank_you_still_reaches_someone_who_unsubscribed(): void
+    {
+        \AfricaGates\Services\EmailOptOut::record('paid@example.com', 'test');
+
+        $r = SupporterHonours::thank($this->order('paid@example.com', 4));
+
+        $this->assertTrue($r['ok']);
+        $this->assertCount(1, $this->sent);
+        $this->assertStringContainsString('/email/unsubscribe?e=', $this->sent[0]['unsub'],
+            'transactional or not, the reader should not have to go looking for the way out');
     }
 
     /** One person, several orders, one congratulations. */

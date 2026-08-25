@@ -42,7 +42,8 @@ final class CodeCatchingMailer extends \AfricaGates\Services\OtpService
     public function __construct() { parent::__construct(['username' => 'u', 'password' => 'p']); }
 
     public function sendBranded(string $to, string $subject, string $htmlBody,
-                                string $plainBody = '', string $category = '', string $hero = ''): array
+                                string $plainBody = '', string $category = '', string $hero = '',
+                                string $unsubscribeUrl = ''): array
     {
         $this->to[] = $to;
         if (preg_match('/\\b(\\d{6})\\b/', $plainBody . ' ' . $htmlBody, $m) === 1) {

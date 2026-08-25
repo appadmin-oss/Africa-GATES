@@ -70,7 +70,7 @@ final class StockAlertTest extends TestCase
             public function __construct() {}
             public function sendBranded(string $to, string $subject, string $htmlBody,
                                         string $plainBody = '', string $category = '',
-                                        string $hero = ''): array
+                                        string $hero = '', string $unsubscribeUrl = ''): array
             {
                 $this->sent[] = ['to' => $to, 'subject' => $subject, 'html' => $htmlBody];
                 return ['ok' => true];
