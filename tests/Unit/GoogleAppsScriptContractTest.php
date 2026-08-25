@@ -206,9 +206,14 @@ final class GoogleAppsScriptContractTest extends TestCase
         $svc = new GoogleMeetService('https://script.google.com/macros/s/x/exec', '');
 
         $this->assertFalse($svc->canSchedule());
-        $this->assertStringContainsString('GAS_SECRET is not set', $svc->why());
+        $this->assertStringContainsString('secret is not set', $svc->why());
+
+        // And the advice names a place the operator can actually reach. There is no SSH on
+        // production, so "set GAS_SECRET in .env" — which is what this used to say — was
+        // an instruction nobody could follow, and the integration stayed dead for it.
+        $this->assertStringContainsString('Settings', $svc->why());
 
         // And it says so rather than attempting the call.
-        $this->assertStringContainsString('GAS_SECRET', $svc->transcript('abc-mnop-xyz')['message']);
+        $this->assertStringContainsString('secret', $svc->transcript('abc-mnop-xyz')['message']);
     }
 }

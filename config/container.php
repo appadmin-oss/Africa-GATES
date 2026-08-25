@@ -133,7 +133,6 @@ return [
             'adsense_slot_2' => trim((string)($settings['adsense_slot_2'] ?? Env::get('ADSENSE_SLOT_2', ''))),
             // Canonical shop delivery regions — drives the checkout region selector.
             'shop_regions'   => \AfricaGates\Admin\Controllers\ProductsController::REGIONS,
-            'gas_url'           => Env::get('GAS_URL', ''),
             // The address printed on help, partner and support pages, quoted by
             // the assistant and used to deliver tickets. A global because it was
             // previously typed out in three templates, which is how a site ends
@@ -369,8 +368,10 @@ return [
     SpamService::class          => fn(ContainerInterface $c)=>new SpamService(AiService::boot('moderation')),
     CommunityService::class     => fn(ContainerInterface $c)=>new CommunityService($c->get(SpamService::class)),
     JudgeService::class         => fn()=>new JudgeService(),
-    GoogleSheetsService::class  => fn(ContainerInterface $c)=>new GoogleSheetsService(
-        (string) Env::get('GAS_URL', ''),
+    // boot() rather than Env::get: the /exec URL is settable from admin Settings now, and
+    // reading it here from .env only meant the sheet sync stayed off on a host where the
+    // operator had just configured it. One resolver, in GoogleMeetService::gasUrl().
+    GoogleSheetsService::class  => fn(ContainerInterface $c)=>GoogleSheetsService::boot(
         $c->has(\AfricaGates\Admin\Services\LogService::class) ? $c->get(\AfricaGates\Admin\Services\LogService::class) : null
     ),
     OtpService::class           => function(ContainerInterface $c) {

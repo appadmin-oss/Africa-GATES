@@ -110,6 +110,15 @@
            memory of where they were working — which is what grouping cost them. */
         const h = (location.hash || '').replace('#', '');
         if (this.names[h]) this.sec = h;
+        else if (h) {
+          /* An anchor INSIDE a group rather than a group id — both probes redirect back
+             as #ai-probe / #sync-probe. Without this the admin lands on the first tab
+             with the results they just asked for hidden, which reads as the probe having
+             done nothing. Resolved from the DOM so a new anchor needs no list kept in
+             step with it. */
+          const card = document.getElementById(h)?.closest('.ad-card[data-sec]');
+          if (card && this.names[card.dataset.sec]) this.sec = card.dataset.sec;
+        }
         window.addEventListener('beforeunload', (e) => {
           if (!this.anyDirty || this.saving) return;
           e.preventDefault(); e.returnValue = '';
@@ -700,7 +709,7 @@
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e2e7e8)"
            id="ai-probe">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <button class="ad-btn" type="submit" formaction="/admin/settings/probe-ai" formnovalidate>Test each provider separately</button>
+          <button class="ad-btn" type="submit" name="probe" value="ai" formnovalidate>Test each provider separately</button>
           <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">One live call per configured key, reported one by one — the only way to see that a <em>fallback</em> is broken while the primary is fine.</small>
         </div>
 
@@ -752,18 +761,57 @@
      Script serves the last DEPLOYED version, not the last saved one.
 
      So this asks the script itself, and every row carries the fix rather than a verdict. #}
-  <div class="ad-card" id="sync-probe"><div class="ad-card__head">
+  <div class="ad-card" id="sync-probe"
+       data-sec="ops"
+       data-keys="google calendar meet apps script gas url secret exec deployment interviews sync sheets"
+       x-show="show($el)"><div class="ad-card__head">
     <div class="ad-card__title">Google Calendar and Meet
-      <small>whether the Apps Script this platform books interviews through is really answering</small></div>
+      <small>the Apps Script this platform books interviews and syncs sheets through</small></div>
   </div><div class="ad-card__body">
 
-    <form method="post" action="/admin/settings/probe-sync">
-      <input type="hidden" name="_token" value="{{ csrf_token }}">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <button class="ad-btn" type="submit">Check the sync</button>
-        <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">Read-only. Nothing is written to your calendar and nobody is emailed.</small>
+    {# ── WHY THESE TWO FIELDS EXIST AT ALL ────────────────────────────────
+       They were read from .env and nowhere else, and there is no SSH on production. So
+       the only way to configure the calendar was to edit a file the operator cannot
+       reach — and every screen that depends on it said, correctly and uselessly, "set
+       GAS_SECRET in .env". `gates_settings` first, `.env` still honoured as the
+       fallback, so a host that has them in the file keeps working untouched. #}
+    <input type="hidden" name="google_settings" value="1">
+    <div class="ad-form">
+      <div>
+        <label for="f-gas_url">Apps Script web-app address</label>
+        <input type="url" name="gas_url" id="f-gas_url" value="{{ gas_url|default('') }}"
+               placeholder="https://script.google.com/macros/s/…/exec"
+               autocomplete="off" spellcheck="false">
+        {# Echoed on purpose. A stale /exec URL from a previous deployment is the
+           commonest way this integration half-works, and it is invisible if the field
+           is blanked for tidiness. #}
+        <small>Deploy → New deployment → Web app, <strong>Execute as: me</strong>,
+          <strong>Who has access: anyone</strong>. Paste the whole /exec link.
+          The sheet sync uses the same address.</small>
       </div>
-    </form>
+      <div>
+        <label for="f-gas_secret">Shared secret</label>
+        <input type="password" name="gas_secret" id="f-gas_secret" autocomplete="new-password"
+               placeholder="{% if gas_secret_set %}•••••••••• (leave blank to keep){% else %}not set — calendar actions are refused until it is{% endif %}">
+        <small>The same string as <code>SECRET</code> at the top of the script. Without it
+          the script refuses to create events or read transcripts, so that nobody holding
+          the /exec URL can book meetings in your calendar. Changing the constant in the
+          editor does nothing until you <strong>redeploy</strong>.
+          {% if gas_secret_set %}<label style="display:inline-flex;gap:6px;align-items:center;margin-top:6px;font-weight:600">
+            <input type="checkbox" name="google_clear[secret]" value="1"> Remove the stored secret
+          </label>{% endif %}</small>
+      </div>
+    </div>
+
+    {# `formaction` on the button, NOT a nested <form>. This was a nested form, and an
+       HTML parser DISCARDS a <form> start tag inside an open one — so the button kept
+       its markup, lost its action, and submitted to /admin/settings instead. Pressing
+       "Check the sync" saved the page and returned no rows, which reads exactly like a
+       broken integration. The AI probe above uses `formaction` for the same reason. #}
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;padding-top:14px;border-top:1px solid var(--ad-line,#e2e7e8)">
+      <button class="ad-btn" type="submit" name="probe" value="sync" formnovalidate>Check the sync</button>
+      <small style="font-size:11px;color:var(--ad-text-mute,#61728e)">Read-only. Nothing is written to your calendar and nobody is emailed. The page is saved first, so you can paste the address and the secret and press this straight away.</small>
+    </div>
 
     {% if sync_probe|default([]) %}
       <table class="ad-table" style="margin-top:12px">

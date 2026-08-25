@@ -137,7 +137,17 @@
               <div><label for="f-sort_order-{{ c.id }}">Sort order</label><input type="number" name="sort_order" id="f-sort_order-{{ c.id }}" value="{{ c.sort_order }}"></div>
               <div style="display:flex;gap:8px;align-items:flex-end">
                 <button class="ad-btn ad-btn--primary ad-btn--sm" type="submit">Update</button>
-                <form method="post" action="/admin/categories/{{ c.id }}/delete" style="display:inline"><input type="hidden" name="_token" value="{{ csrf_token }}"><button class="ad-btn ad-btn--danger ad-btn--sm" type="submit" data-confirm="Delete “{{ c.name }}” permanently? This cannot be undone.">Delete</button></form>
+                {# `formaction`, NOT a nested <form>. This WAS a nested form, and an HTML
+                   parser DISCARDS a <form> start tag inside an open one — so this button
+                   kept its markup, lost its action, and posted to the UPDATE route above
+                   it. Pressing Delete saved the category. `formnovalidate` because the
+                   title and slug fields beside it are `required` and a delete has no
+                   business being blocked by them. The confirm text says `title` because
+                   `c.name` does not exist on a category row, so it used to read
+                   “Delete “” permanently?”. #}
+                <button class="ad-btn ad-btn--danger ad-btn--sm" type="submit"
+                        formaction="/admin/categories/{{ c.id }}/delete" formnovalidate
+                        data-confirm="Delete the category “{{ c.title }}” permanently? Anything already nominated or judged in it points at it by id, so this cannot be undone.">Delete</button>
               </div>
             </div>
           </form>

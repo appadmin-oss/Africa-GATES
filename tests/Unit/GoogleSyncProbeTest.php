@@ -106,8 +106,13 @@ final class GoogleSyncProbeTest extends TestCase
         $t = (string) file_get_contents(dirname(__DIR__, 2) . '/templates/admin/settings.twig');
 
         $this->assertStringContainsString('id="sync-probe"', $t);
-        $this->assertStringContainsString('/admin/settings/probe-sync', $t);
         $this->assertStringContainsString('Check the sync', $t);
+        // The button posts to the main save route carrying `probe=sync`, which saves the
+        // page and then runs the check. It used to be a nested <form> pointing straight at
+        // /admin/settings/probe-sync — and an HTML parser discards a <form> opened inside
+        // an open one, so it reached neither: it posted to /admin/settings and returned no
+        // rows at all. See NestedFormTest.
+        $this->assertMatchesRegularExpression('/name="probe"\s+value="sync"/', $t);
         // Never colour alone, and the admin CSP has no 'unsafe-inline'.
         $this->assertStringContainsString('Not working', $t);
         $this->assertStringNotContainsString('onclick=', $t);

@@ -69,10 +69,53 @@ final class GoogleMeetService
 
     public static function boot(): self
     {
-        return new self(
-            (string) Env::get('GAS_URL', ''),
-            (string) Env::get('GAS_SECRET', ''),
-        );
+        return new self(self::gasUrl(), self::gasSecret());
+    }
+
+    /**
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHERE THE TWO GAS VALUES COME FROM — AND WHY IT IS NOT JUST .env
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Both of these used to be read from `.env` and nowhere else, and there is no SSH on
+     * this production host. So the only way to set them was to edit a file the operator
+     * cannot reach, which made every screen that depends on them permanently dead while
+     * telling the operator, in words, to "set GAS_SECRET in .env" — advice they could not
+     * follow. The symptom reported was "the site is not reading the GAS secret"; it was
+     * reading it correctly from the one place it could never be written.
+     *
+     * `gates_settings` first, `.env` as the fallback, which is the pattern every other
+     * credential on this platform already uses ({@see AiService::boot()}). A deployment
+     * that has the values in `.env` keeps working untouched; one that has neither can now
+     * be fixed from /admin/settings without a shell.
+     *
+     * Read live rather than cached, deliberately: an operator who has just pasted the
+     * secret presses "Check the sync" on the same page, and a cached miss would tell them
+     * it is still unset.
+     */
+    public static function gasUrl(): string
+    {
+        return self::resolve('gas_url', 'GAS_URL');
+    }
+
+    public static function gasSecret(): string
+    {
+        return self::resolve('gas_secret', 'GAS_SECRET');
+    }
+
+    /** Settings row, else env, else ''. Never throws — a missing table is "not set". */
+    private static function resolve(string $settingKey, string $envKey): string
+    {
+        $v = null;
+        try {
+            $v = \Illuminate\Database\Capsule\Manager::table('gates_settings')
+                ->where('key_name', $settingKey)->value('value');
+        } catch (\Throwable) {
+            // No database yet (installer, CLI before boot) is not an error here: the
+            // env fallback below is the whole point of having one.
+        }
+        $v = is_string($v) ? trim($v) : '';
+        return $v !== '' ? $v : trim((string) Env::get($envKey, ''));
     }
 
     /**
@@ -111,13 +154,16 @@ final class GoogleMeetService
     public function why(): string
     {
         if (!$this->isConfigured()) {
-            return 'GAS_URL is not set, so Meet links cannot be created automatically. '
-                 . 'Create the meeting in Google Calendar and paste its link here.';
+            return 'The Apps Script web-app URL is not set, so Meet links cannot be created '
+                 . 'automatically. Put the /exec URL in Settings → Google Calendar and Meet '
+                 . '(or GAS_URL in .env). Meanwhile, create the meeting in Google Calendar and '
+                 . 'paste its link here.';
         }
         if ($this->secret === '') {
-            return 'GAS_SECRET is not set. Creating calendar events needs a shared secret so that '
-                 . 'nobody holding the Apps Script URL can book meetings in your calendar. Set '
-                 . 'GAS_SECRET in .env and the matching SECRET in the Apps Script, then redeploy it. '
+            return 'The shared secret is not set. Creating calendar events needs one so that '
+                 . 'nobody holding the Apps Script URL can book meetings in your calendar. Set it '
+                 . 'in Settings → Google Calendar and Meet (or GAS_SECRET in .env) and put the '
+                 . 'same string in SECRET at the top of the Apps Script, then redeploy the script. '
                  . 'Until then, paste a Meet link in by hand.';
         }
         return '';
@@ -489,11 +535,12 @@ final class GoogleMeetService
             'ok'     => $this->isConfigured(),
             'tested' => true,
             'detail' => $this->isConfigured()
-                ? 'GAS_URL is set and is a URL.'
-                : 'GAS_URL is empty or is not a URL.',
+                ? 'The web-app URL is set and is a URL.'
+                : 'The web-app URL is empty or is not a URL.',
             'fix'    => $this->isConfigured() ? ''
                 : 'Deploy the Apps Script (Deploy → New deployment → Web app, Execute as: me, '
-                . 'Who has access: anyone) and put the /exec URL in GAS_URL.',
+                . 'Who has access: anyone) and paste the /exec URL into the box below — or set '
+                . 'GAS_URL in .env if you have shell access to this host.',
         ];
 
         $rows[] = [
@@ -502,11 +549,12 @@ final class GoogleMeetService
             'ok'     => $this->secret !== '',
             'tested' => true,
             'detail' => $this->secret !== ''
-                ? 'GAS_SECRET is set at this end.'
-                : 'GAS_SECRET is empty, so every privileged action is refused before it is sent.',
+                ? 'A shared secret is set at this end.'
+                : 'No shared secret is set, so every privileged action is refused before it is '
+                . 'sent — nothing reaches Google to fail.',
             'fix'    => $this->secret !== '' ? ''
-                : 'Set GAS_SECRET in .env and the matching SECRET at the top of the Apps Script, '
-                . 'then redeploy.',
+                : 'Paste a secret into the box below (or set GAS_SECRET in .env) and put the same '
+                . 'string in SECRET at the top of the Apps Script, then redeploy the script.',
         ];
 
         if (!$this->canSchedule()) {
@@ -554,7 +602,7 @@ final class GoogleMeetService
             'detail' => !$spoke ? 'Not reached.'
                 : ($badTok ? 'The script refused the token.' : 'The script accepted the token.'),
             'fix'    => ($spoke && $badTok)
-                ? 'GAS_SECRET here and SECRET at the top of the script are different strings. '
+                ? 'The secret here and SECRET at the top of the script are different strings. '
                 . 'Make them identical and redeploy — editing the constant alone changes nothing '
                 . 'until a new version is deployed.'
                 : '',

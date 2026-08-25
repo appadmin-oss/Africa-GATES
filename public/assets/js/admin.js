@@ -82,7 +82,18 @@
     const form = e.target;
     if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-confirm') || form.dataset.ok === '1') return;
     e.preventDefault();
-    agConfirm(form.getAttribute('data-confirm') || 'Are you sure?', () => { form.dataset.ok = '1'; form.submit(); });
+    // Captured now rather than read inside the callback: the confirm is answered a second
+    // or a minute later, and the event is long finished by then.
+    const by = e.submitter || undefined;
+    // requestSubmit(submitter), not submit(): form.submit() posts to the form's OWN
+    // action and drops the pressed button's formaction and its name/value. A confirmed
+    // "Delete" that shares a form with "Save" would then save. Falls back where
+    // requestSubmit is missing, which is the pre-2021 browser this admin does not target.
+    agConfirm(form.getAttribute('data-confirm') || 'Are you sure?', () => {
+      form.dataset.ok = '1';
+      if (typeof form.requestSubmit === 'function') form.requestSubmit(by);
+      else form.submit();
+    });
   }, true);
 
   // Standalone links / buttons with data-confirm (not inside a confirming form).
@@ -92,7 +103,13 @@
     e.preventDefault();
     agConfirm(el.getAttribute('data-confirm') || 'Are you sure?', () => {
       if (el.tagName === 'A' && el.href) location.href = el.href;
-      else if (el.form) { el.form.dataset.ok = '1'; el.form.submit(); }
+      else if (el.form) {
+        el.form.dataset.ok = '1';
+        // Same reason as above: this button may carry its own formaction, and it is
+        // exactly the destructive buttons that do — a delete sharing a form with a save.
+        if (typeof el.form.requestSubmit === 'function') el.form.requestSubmit(el);
+        else el.form.submit();
+      }
     });
   }, true);
 

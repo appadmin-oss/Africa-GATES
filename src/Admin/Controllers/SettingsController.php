@@ -102,6 +102,19 @@ class SettingsController
                 unset($_SESSION['ai_probe']);
                 return is_array($r) ? $r : [];
             })(),
+            // ── THE GOOGLE DOOR, NOW SETTABLE FROM HERE ─────────────────────
+            //
+            // Both values used to be readable only from .env, and there is no SSH on this
+            // production host — so the screen that told an operator to "set GAS_SECRET in
+            // .env" was describing a file they could not open, and the whole calendar and
+            // Meet integration stayed off with a correct-looking explanation beside it.
+            //
+            // The URL is ECHOED because an operator has to be able to see which deployment
+            // they are pointed at without pasting it again to find out; a stale /exec URL
+            // from a previous deployment is the commonest way this integration half-works.
+            // The secret is write-only, like every other credential on this page.
+            'gas_url'        => \AfricaGates\Services\GoogleMeetService::gasUrl(),
+            'gas_secret_set' => \AfricaGates\Services\GoogleMeetService::gasSecret() !== '',
             // Consumed once, for the same reason as the AI probe above: a verdict about a
             // deployment that has since been re-published is the one an operator would act on.
             'sync_probe' => (static function (): array {
@@ -428,6 +441,20 @@ class SettingsController
             }
         }
 
+        // ── GOOGLE CALENDAR / MEET / SHEETS: ONE APPS SCRIPT DEPLOYMENT ─────
+        //
+        // Marker-gated like every block above, so a save from another group cannot blank
+        // the integration.
+        //
+        // The URL is REFUSED rather than stored when it is not a URL. A malformed /exec
+        // address does not fail loudly: `curl` returns nothing, every action reports "the
+        // Apps Script did not answer", and the operator goes looking at Google — which is
+        // the wrong place, for weeks. Refusing to store it names the fault at the moment
+        // it is made.
+        if (($why = $this->saveGoogle($b, $adminId)) !== null) {
+            $_SESSION['flash_error'] = $why;
+        }
+
         // Messaging (SMS / WhatsApp) — Twilio + WhatsApp Business Cloud API.
         // Secrets are WRITE-ONLY (never rendered back); a blank field leaves the
         // stored value untouched, the matching "clear" box removes it. Master
@@ -528,6 +555,20 @@ class SettingsController
         $anchor  = in_array($section, ['site', 'mail', 'money', 'integrity', 'ai', 'ops'], true)
             ? '#' . $section
             : '';
+
+        // ── A PROBE BUTTON SAVES THE WHOLE PAGE FIRST ───────────────────────
+        //
+        // Both probe buttons used to post to their own route, which stored nothing. So
+        // pressing "Check the sync" after editing anything on this page discarded the edit
+        // silently — the redirect reloads, the unsaved-changes tracker resets with it, and
+        // there is no moment at which the operator is told. Worse, the verdict then
+        // described the configuration they had just replaced.
+        //
+        // Routed through here instead: everything saves, then the probe runs against what
+        // was saved. Allowlisted rather than dispatched from the posted string.
+        $probe = (string) ($b['probe'] ?? '');
+        if ($probe === 'sync') return $this->probeSync($req, $res);
+        if ($probe === 'ai')   return $this->probeAi($req, $res);
 
         return $res->withHeader('Location', '/admin/settings' . $anchor)->withStatus(302);
     }
@@ -730,6 +771,51 @@ class SettingsController
     }
 
     /**
+     * Store the two Apps Script values, from whichever button posted them.
+     *
+     * Shared with {@see probeSync()} deliberately. The probe button posts the same form, so
+     * pressing "Check the sync" straight after pasting a secret has to test the secret the
+     * operator is looking at — not the one that was stored before they typed. A probe that
+     * reports the previous state as though it were current is the verdict they would act on,
+     * and it is why there is no "save first" caveat on the button.
+     *
+     * @param array<string,mixed> $b
+     * @return string|null a message for the operator, or null when there was nothing to say
+     */
+    private function saveGoogle(array $b, int $adminId): ?string
+    {
+        if (!array_key_exists('google_settings', $b)) return null;
+
+        $why = null;
+
+        if (array_key_exists('gas_url', $b)) {
+            $url = trim((string) $b['gas_url']);
+            // REFUSED rather than stored when malformed. A bad /exec address does not fail
+            // loudly — curl returns nothing, every action reports "the Apps Script did not
+            // answer", and the operator goes looking at Google, which is the wrong place.
+            if ($url === '' || filter_var($url, FILTER_VALIDATE_URL) !== false) {
+                $this->settings->set('gas_url', $url, $adminId);
+            } else {
+                $why = 'The Apps Script address was not saved — “'
+                     . mb_substr($url, 0, 80) . '” is not a URL. It should be the whole '
+                     . '/exec link, starting https://script.google.com/. Everything else on '
+                     . 'this page was saved.';
+            }
+        }
+
+        // Write-only, and a blank field KEEPS the stored secret. An operator who opened this
+        // page to correct the URL must not lose the secret by not retyping it.
+        if (!empty($b['google_clear']['secret'])) {
+            $this->settings->set('gas_secret', '', $adminId);
+        } else {
+            $sec = trim((string) ($b['gas_secret'] ?? ''));
+            if ($sec !== '') $this->settings->set('gas_secret', $sec, $adminId);
+        }
+
+        return $why;
+    }
+
+    /**
      * Ask the Apps Script whether it is really there.
      *
      * Same shape as the AI probe above and for the same reason: every part of the Google
@@ -740,20 +826,28 @@ class SettingsController
     public function probeSync(Request $req, Response $res): Response
     {
         $adminId = (int) ($_SESSION['admin_id'] ?? 0);
-        $rows    = \AfricaGates\Services\GoogleMeetService::boot()->probeAll();
+
+        // Whatever is in the boxes right now, stored BEFORE asking. See saveGoogle().
+        $badUrl = $this->saveGoogle((array) $req->getParsedBody(), $adminId);
+
+        $rows = \AfricaGates\Services\GoogleMeetService::boot()->probeAll();
 
         $_SESSION['sync_probe'] = $rows;
 
         $tested = array_values(array_filter($rows, static fn (array $r): bool => (bool) $r['tested']));
         $failed = array_values(array_filter($tested, static fn (array $r): bool => !$r['ok']));
 
-        $_SESSION[$failed === [] ? 'flash_ok' : 'flash_error'] = $tested === []
+        // A refused URL is reported ahead of the probe's own verdict: the rows below
+        // describe the deployment that is still stored, and "nothing could be tested"
+        // would send the operator hunting for a cause they have already been told.
+        $_SESSION[$failed === [] && $badUrl === null ? 'flash_ok' : 'flash_error'] = $badUrl
+            ?? ($tested === []
             ? 'Nothing could be tested — the address and the secret have to be set first.'
             : ($failed === []
                 ? sprintf('All %d live check%s passed. Creating events is the one step that cannot be '
                           . 'tested without making one.', count($tested), count($tested) === 1 ? '' : 's')
                 : sprintf('%d of %d live check%s failed. Each row below says what to change.',
-                          count($failed), count($tested), count($tested) === 1 ? '' : 's'));
+                          count($failed), count($tested), count($tested) === 1 ? '' : 's')));
 
         try {
             $this->audit->record($adminId, 'settings.sync_probe', null, null, ['rows' => $rows]);

@@ -228,7 +228,10 @@ HTML;
 
         // Off the hot path: the (slow, external) Google Sheets sync is enqueued and
         // run by the cron worker, so a sluggish Sheets endpoint never delays a vote.
-        if (Env::has('GAS_URL')) {
+        // Resolved, not Env::has: the /exec URL is settable from admin Settings, and reading
+        // only .env here meant an operator who configured the sync from the admin got a
+        // spreadsheet that stayed empty with nothing saying why.
+        if (\AfricaGates\Services\GoogleMeetService::gasUrl() !== '') {
             (new \AfricaGates\Services\QueueService())->push('vote.sheets_push', ['award_id'=>$aId,'category_id'=>$nom->category_id??null,'nominee_id'=>$nId,'nominee_name'=>$nom->name??'','voter_email_hash'=>$emailHash,'country'=>$nom->country_code??'']);
         }
         $this->community?->recordActivity('vote','a community voter','nominee',$nId,$nom->name??'',['country'=>$nom->country_code??'']);

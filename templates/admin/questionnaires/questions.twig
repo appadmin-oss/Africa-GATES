@@ -491,11 +491,16 @@
         These are being <strong>derived from the questions above</strong>, so the interview works
         today without anybody designing one and aims at exactly the criteria the form aims at.
         Nothing is stored until you copy them in.
-        <form method="post" action="/admin/questionnaires/programme/{{ programme.id }}/outcomes/seed"
-              class="qb-row" style="margin-top:10px">
-          <input type="hidden" name="_token" value="{{ csrf_token }}">
-          <button class="qb-btn" type="submit">Copy them in so I can edit them</button>
-        </form>
+        {# `formaction`, NOT a nested <form>. This WAS one, and an HTML parser DISCARDS a
+           <form> start tag inside an open one: the button lost its action and posted to
+           /outcomes — the SAVE route — with none of the derived rows in the body. So the
+           one button whose whole job is "copy the derived outcomes in" submitted an empty
+           outcome list to the route that stores outcome lists, and the screen came back
+           saying there were still none. #}
+        <div class="qb-row" style="margin-top:10px">
+          <button class="qb-btn" type="submit" formnovalidate
+                  formaction="/admin/questionnaires/programme/{{ programme.id }}/outcomes/seed">Copy them in so I can edit them</button>
+        </div>
       </div>
     {% else %}
 
