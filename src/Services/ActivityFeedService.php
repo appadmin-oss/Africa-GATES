@@ -369,10 +369,13 @@ final class ActivityFeedService
     private function nominees(?string $q, int $limit): array
     {
         $rows = $this->filter(
-            DB::table('gates_nominees as n')
-                ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
-                ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
-                ->whereNull('n.merged_into'),
+            DemoSeeder::notSandbox(
+                DB::table('gates_nominees as n')
+                    ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                    ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
+                    ->whereNull('n.merged_into'),
+                'cy.programme_id'),
             $q,
             ['n.name', 'n.tagline', 'c.title'],
         )
@@ -393,10 +396,13 @@ final class ActivityFeedService
     private function results(?string $q, int $limit): array
     {
         $rows = $this->filter(
-            DB::table('gates_nominees as n')
-                ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
-                ->whereIn('n.status', ['winner', 'runner_up'])
-                ->whereNull('n.merged_into'),
+            DemoSeeder::notSandbox(
+                DB::table('gates_nominees as n')
+                    ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                    ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
+                    ->whereIn('n.status', ['winner', 'runner_up'])
+                    ->whereNull('n.merged_into'),
+                'cy.programme_id'),
             $q,
             ['n.name', 'c.title'],
         )
@@ -512,9 +518,11 @@ final class ActivityFeedService
     private function transitions(?string $q, int $limit): array
     {
         $rows = $this->filter(
-            DB::table('gates_cycle_transitions as t')
-                ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 't.cycle_id')
-                ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id'),
+            DemoSeeder::notSandbox(
+                DB::table('gates_cycle_transitions as t')
+                    ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 't.cycle_id')
+                    ->leftJoin('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id'),
+                'cy.programme_id'),
             $q,
             ['p.title', 't.to_status', 'cy.edition_label'],
         )

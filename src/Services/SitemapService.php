@@ -334,6 +334,10 @@ final class SitemapService
             ->join('gates_award_programmes as p', 'p.id', '=', 'cy.programme_id')
             ->whereIn('n.status', ['approved', 'winner', 'runner_up'])
             ->where(fn($w) => MergeService::notMerged($w, 'n.merged_into'))
+            // The sandbox is not for search engines. Its programme is `is_active = 0`, so
+            // the slug lookup a crawler would follow refuses — this was publishing
+            // /vote/demo-sandbox/… URLs that resolve to nothing.
+            ->where(fn($w) => \AfricaGates\Services\DemoSeeder::notSandbox($w, 'cy.programme_id'))
             ->orderByDesc('n.id')
             ->limit(self::PER_FILE * 10);
 

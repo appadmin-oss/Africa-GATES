@@ -17,6 +17,10 @@ use Illuminate\Support\Carbon;
  * nobody should receive congratulations about a competition that ended months
  * ago. {@see CycleMaterialiser::ANNOUNCE_GRACE_DAYS} decides; $announce=false
  * records the result and skips every outbound message.
+ *
+ * The sandbox takes the same door. A rehearsal result is still a result and is
+ * still written down; it is simply never published, never emailed, and never
+ * celebrated at the supporters who cast the demo votes.
  */
 final class CycleAnnouncer
 {
@@ -30,6 +34,24 @@ final class CycleAnnouncer
         $n = self::nominee($nomineeId);
         if (!$n) return;
 
+        // ── AND THE SANDBOX NEVER ANNOUNCES ──────────────────────────────────
+        //
+        // Containment holds for everything computed per category, and this is not that:
+        // the activity row is a GLOBAL broadcast, read by CommunityService::activityFeed()
+        // on nothing but `is_public = 1`. A rehearsal winner would appear in the public
+        // feed under a name beginning "DEMO —".
+        //
+        // It is reachable, not theoretical. The practice cycle exists so real judges can
+        // sit a practice ballot; two of them completing a scorecard on the same practice
+        // nominee meets the default quorum, and the cycle's own results_date then does the
+        // rest with nobody deciding anything.
+        //
+        // Suppressed through the EXISTING gate rather than a new one: the stale-backlog
+        // case already had to record a result without publishing it, and this is the same
+        // requirement arriving from a different direction.
+        $sandbox = self::isSandbox($n);
+        if ($sandbox) $announce = false;
+
         try {
             DB::table('gates_activity')->insert([
                 'kind'         => 'winner',
@@ -42,6 +64,9 @@ final class CycleAnnouncer
                     'category'  => $n->category,
                     'cycle'     => (int) ($n->cycle_year ?? 0),
                     'announced' => $announce,
+                    // Why this one is not public, for whoever reads the row later and
+                    // finds a result that never reached the feed.
+                    'sandbox'   => $sandbox,
                 ]),
                 // The suppression has to cover this row too. is_public = 1 drops the
                 // result straight into the site's activity feed
@@ -89,12 +114,25 @@ final class CycleAnnouncer
                 ->leftJoin('gates_award_cycles as cy', 'cy.id', '=', 'c.cycle_id')
                 ->where('n.id', $nomineeId)
                 ->select(['n.name', 'n.category_id', 'c.title as category',
-                          'cy.year as cycle_year', 'cy.edition_label',
+                          'cy.year as cycle_year', 'cy.edition_label', 'cy.programme_id',
                           'p.email as profile_email', 'p.display_name as profile_name'])
                 ->first();
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Whether this result belongs to the rehearsal programme.
+     *
+     * Reads the programme through the cycle rather than trusting the "DEMO — " name
+     * prefix, which is a display convention an operator can edit and a real nominee
+     * could coincidentally match.
+     */
+    private static function isSandbox(object $n): bool
+    {
+        $pid = (int) ($n->programme_id ?? 0);
+        return $pid > 0 && $pid === DemoSeeder::programmeId();
     }
 
     /** Branded congratulations mail. No DI available in the console context. */

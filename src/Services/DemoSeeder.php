@@ -826,13 +826,23 @@ final class DemoSeeder
      * Shaped like {@see MergeService::notMerged()} so it reads the same at the call site:
      * one line, next to the other things a query has to be honest about.
      *
+     * NULL-SAFE, and that is not defensive padding. Several of the callers reach the
+     * programme through a LEFT JOIN — a nominee whose category was deleted, a transition
+     * whose cycle was — and in SQL `NULL != 5` is NULL, not true. A plain `!=` would drop
+     * every one of those rows from a PUBLIC listing to exclude a sandbox they are not in,
+     * which is a worse bug than the one being fixed and an invisible one.
+     *
      * @param \Illuminate\Database\Query\Builder $q
      * @param string $programmeColumn the qualified column holding a programme id
      */
     public static function notSandbox(object $q, string $programmeColumn): object
     {
         $pid = self::programmeId();
-        if ($pid > 0) $q->where($programmeColumn, '!=', $pid);
+        if ($pid > 0) {
+            $q->where(static function ($w) use ($programmeColumn, $pid): void {
+                $w->whereNull($programmeColumn)->orWhere($programmeColumn, '!=', $pid);
+            });
+        }
         return $q;
     }
 
