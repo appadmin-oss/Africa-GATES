@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Africa GATES — Interview Assistant",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Shows the panel's question pack inside a Google Meet interview, and captures the live captions as the transcript.",
   "permissions": ["storage"],
   "host_permissions": ["https://afg.afrovanguard.org.ng/*"],

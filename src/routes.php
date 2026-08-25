@@ -3457,6 +3457,15 @@ return function(App $app) {
         // and it is idempotent. Everything that changes a decision is a POST.
         $a->group('/interviews', function (RouteCollectorProxy $s) {
             $s->get('',                          \AfricaGates\Admin\Controllers\InterviewsController::class.':index');
+            // BEFORE /{id}: the pattern is digits-only so they cannot collide, but the
+            // ordering convention in this file is worth keeping.
+            //
+            // The browser extension, packed with THIS deployment's host baked in. The
+            // screen used to say "load unpacked → the extension/ folder from the upload"
+            // and nothing served that folder: it sits outside the web root, deliberately,
+            // and there is no SSH on this host — so the extension could not be installed
+            // at all. See InterviewExtension for why the host has to be injected.
+            $s->get('/extension.zip',            \AfricaGates\Admin\Controllers\InterviewsController::class.':extension');
             $s->post('/new',                     \AfricaGates\Admin\Controllers\InterviewsController::class.':create');
             // BEFORE /{id}: "new" is not a number so they cannot collide, but the
             // ordering convention in this file is worth keeping.

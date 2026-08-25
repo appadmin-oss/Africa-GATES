@@ -29,19 +29,42 @@ one in. This is the third route and usually the easiest.
 
 ## Install (one laptop, two minutes)
 
-1. `chrome://extensions` → turn on **Developer mode** (top right).
-2. **Load unpacked** → choose this `extension/` folder.
-3. Click the extension icon. Paste:
-   - the **live key** for the interview, copied from the interview screen in the admin console
-   - the **site address** (`https://afg.afrovanguard.org.ng`)
-4. Join the Meet call and press **CC**.
+**Download it from the admin console**, not from here: the interview screen has a
+*"Download the extension"* button, and the zip it hands you has your own site's address
+already baked into every file that carries it. Then:
+
+1. Unzip it somewhere you will not delete by accident.
+2. `chrome://extensions` → turn on **Developer mode** (top right).
+3. **Load unpacked** → choose the unzipped folder, the one holding `manifest.json`.
+4. Click the extension icon and paste the **live key** for the interview, copied from the
+   interview screen. The site address is already filled in.
+5. Join the Meet call and press **CC**.
 
 One key per interview. Paste the next one before the next call.
+
+### If you load this folder straight from the repository
+
+It will work only on `https://afg.afrovanguard.org.ng`, because that address is hardcoded
+in `manifest.json`, `worker.js`, `popup.js` and `popup.html`. Typing a different site into
+the popup is **not enough**: `host_permissions` in the manifest is what makes the service
+worker's request a privileged extension request, and without your host in it every call to
+the platform is an ordinary cross-origin fetch that is blocked outright. The panel then says
+"Could not reach the platform" from inside a live interview, and nothing in Chrome points at
+the manifest as the reason. That is what the download exists to prevent.
 
 There is no Chrome Web Store listing, deliberately: a store review cycle between you and a
 fix is not worth it for an internal tool used by a handful of people. If you would rather
 have one, or want it force-installed for a Workspace domain, the same folder is what gets
 packed.
+
+## It has to survive being clicked into
+
+Meet is a single-page app, and a content script is injected once per page load. Somebody who
+opens `meet.google.com`, finds their meeting in the list and clicks it never loads a page —
+so the script had already run, at a moment when the URL had no meeting code in it. The first
+version returned immediately in that case and the panel never appeared, in exactly the tab
+it was needed in. It now reads the URL as it changes, mounts when the tab is in a call, and
+reconnects if you move from one call to another.
 
 ## When Google changes Meet
 

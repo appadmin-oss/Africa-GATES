@@ -39,8 +39,28 @@
 (() => {
   'use strict';
 
-  const CODE = (location.pathname.match(/([a-z]{3}-[a-z]{4}-[a-z]{3})/) || [])[1] || '';
-  if (!CODE) return;                       // the landing page, not a call
+  /**
+   * ── WHY THE MEETING CODE IS RE-READ AND NOT CAPTURED ONCE ────────────────
+   *
+   * This used to be `const CODE = …; if (!CODE) return;` — and that single early return
+   * is why the extension could not be triggered.
+   *
+   * A content script is injected ONCE per document load. Meet is a single-page app: the
+   * operator opens meet.google.com, sees their meeting in the list, and clicks it. That is
+   * a history navigation, not a page load, so the script had already run — at a moment
+   * when the path was `/` and there was no code in it. It returned, permanently, and no
+   * later event could bring it back. The panel never appeared, in the tab it was needed in,
+   * with nothing anywhere to say why. Pasting the key again did nothing; reinstalling did
+   * nothing. Only opening the call URL directly in a fresh tab worked, and nothing on any
+   * screen said that.
+   *
+   * So the code is read live, the panel is mounted when there is a call to mount it into,
+   * and a move from one call to another in the same tab reconnects rather than reporting
+   * the previous sitting's questions.
+   */
+  const codeInUrl = () => (location.pathname.match(/([a-z]{3}-[a-z]{4}-[a-z]{3})/) || [])[1] || '';
+
+  let CODE = codeInUrl();
 
   const SEND_EVERY_MS   = 4000;            // one request per few seconds, never per line
   const NO_CAPTION_WARN = 25000;           // how long before we call it broken
@@ -92,7 +112,23 @@
         <button class="agx__link" data-agx="finish">Finish &amp; save transcript</button>
       </div>
     </div>`;
-  document.documentElement.appendChild(el);
+  /**
+   * Attach the panel. Deferred until the tab is actually in a call: on the Meet landing
+   * page a floating "Connecting…" card over somebody's meeting list is an extension that
+   * looks broken before it has had anything to do.
+   */
+  let mounted = false;
+  function mount() {
+    if (mounted) return;
+    mounted = true;
+    document.documentElement.appendChild(el);
+    // AFTER the append: place() measures offsetWidth to keep the panel on screen, and a
+    // detached element measures zero — so restoring the remembered position before
+    // mounting used to park it against the right-hand edge.
+    chrome.storage.local.get(['pos']).then((p) => {
+      if (p.pos && typeof p.pos.x === 'number') place(p.pos.x, p.pos.y);
+    });
+  }
 
   const $ = (k) => el.querySelector(`[data-agx="${k}"]`);
   const on = (k, fn) => $(k).addEventListener('click', fn);
@@ -102,11 +138,6 @@
   // It began pinned bottom-left, which is exactly where Meet renders the captions — the one
   // thing on screen it exists to read. Rather than guess at a corner Google will not use
   // next year, the operator can move it, and where they put it is remembered.
-  (async () => {
-    const p = await chrome.storage.local.get(['pos']);
-    if (p.pos && typeof p.pos.x === 'number') place(p.pos.x, p.pos.y);
-  })();
-
   function place(x, y) {
     const maxX = Math.max(0, window.innerWidth - el.offsetWidth - 8);
     const maxY = Math.max(0, window.innerHeight - 60);
@@ -216,7 +247,7 @@
 
   // ── 1. connect ─────────────────────────────────────────────────────────────
 
-  (async () => {
+  async function connect() {
     const s = await chrome.storage.local.get(['selector']);
     state.customSelector = s.selector || '';
 
@@ -227,9 +258,12 @@
     state.questions = r.questions || [];
     state.nominee   = r.nominee || '';
     state.lines     = r.lines || 0;
+    state.i         = 0;
+    state.followup  = '';
+    state.notice    = '';
     paint();
     if (state.connected) hunt();
-  })();
+  }
 
   // ── 2. find the captions ───────────────────────────────────────────────────
 
@@ -269,20 +303,40 @@
     return null;
   }
 
-  /** Keep looking: captions do not exist in the DOM until somebody presses CC. */
+  /**
+   * Keep looking: captions do not exist in the DOM until somebody presses CC.
+   *
+   * Guarded because hunt() re-schedules itself and connect() may now run more than once
+   * — moving between calls in one tab would otherwise leave two loops racing to observe
+   * the same container, and every caption line would be queued twice.
+   */
+  let hunting = false;
   function hunt() {
+    if (hunting) return;
+    hunting = true;
+    tick();
+  }
+
+  function tick() {
     const c = findContainer();
     if (c && c !== watched) {
       watched = c;
       observe(c);
     }
     paint();
-    setTimeout(hunt, 3000);
+    setTimeout(tick, 3000);
   }
 
+  let observer = null;
+
   function observe(container) {
-    const obs = new MutationObserver(() => scrape(container));
-    obs.observe(container, { childList: true, subtree: true, characterData: true });
+    // The previous one is disconnected first. Meet replaces the caption container when
+    // captions are toggled, and now that a tab can move between calls this runs more than
+    // once per document — two live observers on one feed queue every line twice, and the
+    // duplicate arrives as a revision of a line that was already right.
+    if (observer) observer.disconnect();
+    observer = new MutationObserver(() => scrape(container));
+    observer.observe(container, { childList: true, subtree: true, characterData: true });
     scrape(container);
   }
 
@@ -451,4 +505,40 @@
     }
     return 'body > ' + parts.join(' > ');
   }
+
+  // ── 5. boot, and keep booting ───────────────────────────────────────────────
+  //
+  // The whole reason the extension could not be triggered. Meet is a single-page app and
+  // this script is injected once, at document_idle — which for anybody who reaches a call
+  // by clicking it in the Meet list is a moment when the URL has no meeting code in it.
+  //
+  // Polling rather than a history hook: Meet navigates with pushState, and patching
+  // History.prototype from a content script reaches only the isolated world's copy, so the
+  // page's own navigations would not fire it. `popstate` misses pushState entirely.
+  // A one-second string comparison is the version that actually works, and it costs
+  // nothing measurable next to a video call.
+  let lastCode = '';
+
+  function beat() {
+    const now = codeInUrl();
+    if (now === lastCode) return;
+    lastCode = now;
+
+    if (!now) return;             // left the call, or still on the landing page
+
+    // A different call in the same tab. Reconnecting rather than keeping the old sitting
+    // matters: the panel would otherwise show the previous nominee's questions, and the
+    // captions of this conversation would be filed against that interview.
+    CODE = now;
+    watched = null;
+    // Anything still buffered belongs to the call that was left. Sending it after the
+    // reconnect would file one conversation's captions against another interview.
+    pending.length = 0;
+    seen.clear();
+    mount();
+    connect();
+  }
+
+  beat();
+  setInterval(beat, 1000);
 })();

@@ -746,3 +746,117 @@ something else: a status page reporting flaky providers, a link that expired ear
 feature that "randomly" costs money. **When you add a field to a declaration here, grep for
 a reader before you believe it.** `AiModelDelegationTest` exists because the first row of
 that table shipped twice.
+
+---
+
+## 18. Three things that were configured correctly and did nothing (2026-08-25)
+
+§17's pattern is "a declared field with no reader". This section is its sibling: **a
+mechanism with no route in.** Each of these was complete, documented, and unreachable — and
+each reported itself accurately while being unreachable, which is what made all three
+survive.
+
+### 18.1 The Google secret could only be set in a file nobody can open
+
+`GoogleMeetService::boot()` read `GAS_URL` and `GAS_SECRET` from `.env` and nowhere else.
+There is no SSH on production (§16), so the only way to configure the calendar was to edit
+a file the operator cannot reach — and every screen said so *correctly*: the judging
+schedule said the calendar could not be checked, the interview screen offered a paste box,
+and Settings said "set `GAS_SECRET` in `.env`". All true, all unactionable. The integration
+read as a deliberate manual workflow rather than a dead one.
+
+Both values now resolve **`gates_settings` first, `.env` as the fallback** — the pattern
+`AiService::boot()` already used — via `GoogleMeetService::gasUrl()` / `::gasSecret()`.
+`GoogleSheetsService::boot()` uses the same resolver: Sheets and Calendar are two actions on
+**one** Apps Script deployment, and two resolvers for one value is how the two halves come
+to disagree about whether it is configured. `/admin/settings` has a field for each; the URL
+is echoed (a stale `/exec` address is the commonest way this half-works and is invisible if
+the field is blanked), the secret is write-only. A malformed URL is **refused and reported**
+rather than stored, because a bad `/exec` fails silently: curl returns nothing and every
+action says "the Apps Script did not answer".
+
+`GoogleSettingsSourceTest` covers the precedence, the blank-row fall-through, and that the
+on-screen advice names a place the operator can reach.
+
+### 18.2 `<form>` inside `<form>` — three buttons posting to the wrong route
+
+The HTML parser holds a *form element pointer*. A `<form>` start tag arriving while that
+pointer is set is **ignored** — not nested, not errored: dropped. Its children survive and
+are adopted by the outer form. So the markup renders, the button is styled and enabled and
+in the right place, and it posts to the **outer** form's action. No console warning, no
+validator in the pipeline, and the server sees a well-formed request to a route that exists.
+
+Three shipped:
+
+| Screen | Button | Where it actually posted |
+|---|---|---|
+| Settings | "Check the sync" | `/admin/settings` — saved the page, returned no probe rows, which is indistinguishable from a Google integration that cannot be reached |
+| Programme cycle | a category's "Delete" | the category **update** route — pressing Delete saved the category, after the confirm said yes |
+| Questionnaire | "Copy them in so I can edit them" | the outcomes **save** route, with none of the derived rows in the body |
+
+All three now use `formaction` on the submit button. `NestedFormTest` scans every template.
+
+**And the JS half:** `form.submit()` ignores the submitter, so a `data-confirm` button
+carrying a `formaction` would confirm and then post to the form's own action anyway — the
+same bug wearing a dialog. Both confirm handlers in `public/assets/js/admin.js` use
+`requestSubmit(submitter)`; the submitter is captured before the dialog opens, because the
+event is long finished by the time it is answered.
+
+### 18.3 The extension could not be obtained, and would not have worked if it had been
+
+Two independent blockers, either sufficient on its own.
+
+**No route served it.** The interview screen said "Load unpacked → the `extension/` folder
+from the upload". Nothing served that folder: it sits outside the web root — correctly, a
+browsable directory of extension source under `public/` is one anybody can enumerate — and
+there is no SSH. `GET /admin/interviews/extension.zip` now builds it
+(`InterviewExtension`), and the screen has a download button.
+
+**The host was hardcoded in four files.** `manifest.json`'s `host_permissions`, and
+`DEFAULT_BASE` in `worker.js`, `popup.js` and `popup.html`'s placeholder. The manifest one
+is the dangerous one: `host_permissions` is what makes the service worker's fetch a
+*privileged extension request*. Pointed at the wrong host, every call is an ordinary
+cross-origin fetch blocked outright — and **typing the right address into the popup does not
+help**, because the popup sets `DEFAULT_BASE`, not the permission. The panel then reports
+"Could not reach the platform" from inside a live interview and nothing in Chrome names the
+manifest. The host is injected at download time from the request's own URI, anchored to the
+`SOURCE_HOST` literal rather than a URL pattern so a file that stops containing it is
+reported rather than silently shipped. `README.md` is deliberately **not** rewritten: it
+names the committed host while warning what happens if you load the repo folder directly.
+
+**And the content script gave up before it started.** `content.js` opened with
+`if (!CODE) return;` — where `CODE` came from the URL. A content script is injected once per
+document load and Meet is a single-page app: the ordinary way into a call is to open
+`meet.google.com`, find the meeting in the list and click it, which is a history navigation.
+The script had already run, at a moment when the path was `/`, and it returned permanently.
+The panel never appeared in exactly the tab it was needed in. Pasting the key again did
+nothing; reinstalling did nothing; only opening the call URL in a fresh tab worked, and no
+screen said so.
+
+It now reads the URL on a 1s interval — polling rather than a history hook, because patching
+`History.prototype` from a content script reaches only the isolated world's copy and
+`popstate` misses `pushState` entirely — mounts the panel when the tab is in a call, and
+reconnects when the tab moves to a different one. That made `connect()` re-entrant, which
+broke three things written on the assumption it ran once: `hunt()` self-schedules (guarded),
+`observe()` never disconnected the previous `MutationObserver` (every caption line queued
+twice), and the pending buffer would carry one call's captions into another interview's
+transcript (cleared).
+
+### 18.4 The interview screen, grouped by phase
+
+`templates/admin/interviews/show.twig` was eleven sections, all open, six screens of
+scroll, ordered by the life of a sitting — so whichever moment you opened it in, most of it
+addressed a different one. Someone pasting a transcript scrolled past the panel picker, the
+invitation, the guest list, the question pack, the extension key and the recording bot;
+someone opening it an hour before the call scrolled past the transcript box and
+**"Close the sitting"**, which is not reversible and was last on the page.
+
+Three `<details>` groups now — before / during / after — and the one matching the sitting's
+state starts open. `<details>` and not a tab strip: the admin CSP has no `'unsafe-inline'`,
+a tab strip is unopenable without script, and it breaks find-in-page. A transcript beats a
+`live` status, because someone catching up after the call belongs in the last group. Each
+group's heading carries a fact about *this interview* ("no joining link yet", "3 caption
+lines captured", "in the judges' dossier") rather than a count of the sections inside it,
+which would be a fact about the template. `InterviewScreenPhaseTest` renders all three
+states, because `phase` is set at template scope and a Twig `set` that fell inside a block
+would render as `null` in all three tags with a clean 200.

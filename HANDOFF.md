@@ -688,3 +688,75 @@ It still does **not** call the ticket a donation. The money moves through the ti
 with the ticket flow's refund terms; the appeal is a separate transaction with its own.
 Naming a paid admission a gift is the same category error as calling it a support ticket,
 pointed the other way — and it is the one that ends up in a dispute.
+
+---
+
+## 15. The three things that could not be triggered (25 Aug 2026)
+
+Reported as: *"It is impossible to trigger the extension. Also, the site is not reading the
+GAS secret and the calendar. The interview is also currently not well-structured."*
+
+All three were real, and none of them was in the code that appeared to be at fault. Full
+account in `docs/CODEBASE-INDEX.md` §18. What matters when you next work here:
+
+### The GAS secret was read correctly, from the one place it can never be written
+
+`GoogleMeetService::boot()` read `.env` only. There is no SSH on production, so the secret
+could not be set at all — and every screen said "set `GAS_SECRET` in `.env`", which is true
+and useless. Both values resolve **`gates_settings` first, `.env` as fallback** now
+(`GoogleMeetService::gasUrl()` / `::gasSecret()`), and `/admin/settings` has a field for
+each. `GoogleSheetsService::boot()` shares the resolver — the two halves must not be able to
+disagree about whether the deployment is configured.
+
+**If you add another consumer of the Apps Script, call the resolver.** `Env::get('GAS_URL')`
+is now the wrong way to read it, and there is one such call left nowhere: the three that
+existed (`ApiController`, the container's `GoogleSheetsService` factory, and the dead
+`gas_url` Twig global, which had no reader at all) were all converted or removed.
+
+### A `<form>` inside a `<form>` is deleted, and the button posts to the outer one
+
+This is the finding worth carrying forward, because it had shipped **three** times and each
+instance looked like something else:
+
+- Settings' "Check the sync" saved the page and returned no rows — indistinguishable from a
+  Google integration that cannot be reached. This is most of "the site is not reading the
+  calendar".
+- A category's "Delete" ran the **update**. After the confirm dialog said yes.
+- The questionnaire's "Copy them in so I can edit them" posted an **empty** outcome list to
+  the route that stores outcome lists.
+
+`formaction` on the submit button is the fix. `NestedFormTest` scans every template for it
+now, and also holds `admin.js` to `requestSubmit(submitter)` — `form.submit()` drops the
+pressed button's `formaction`, which would make a confirmed delete run the save.
+
+### The extension: two blockers, either one sufficient
+
+**Nothing served the folder.** `GET /admin/interviews/extension.zip` builds it now, with
+this deployment's host injected into `manifest.json` and both `DEFAULT_BASE` constants. That
+injection is not a convenience: `host_permissions` is what makes the worker's fetch a
+privileged extension request, and typing the right address into the popup **cannot** fix a
+wrong manifest.
+
+**And `content.js` returned before it started.** `if (!CODE) return;` on line one, with
+`CODE` from the URL — and a content script is injected once per document load while Meet is
+an SPA. Anybody who reaches a call by clicking it in the Meet list had the script run at a
+moment when the path was `/`. The panel never appeared, and nothing anywhere said why.
+
+Three consequences of making `connect()` re-entrant, all now guarded and all worth knowing
+if you touch that file: `hunt()` self-schedules, `observe()` leaked a `MutationObserver` per
+container (double-queued every caption line), and the pending buffer would file one call's
+captions against another interview.
+
+### The interview screen is now three groups, not eleven sections
+
+Before / during / after, as `<details>`, with the group matching the sitting's state open.
+`phase` is set at **template scope** in `show.twig` — if it ever drifts inside a block it
+renders as `null` in all three tags and the page comes back 200 with everything collapsed,
+which reads as a design choice. `InterviewScreenPhaseTest` renders all three states for
+exactly that reason.
+
+**One trap hit writing that test, worth repeating:** PHP's `+` array union keeps the **left**
+operand for a duplicate key, so a fixture written `[...defaults] + $over` silently discards
+every override. Four tests asserted against the same unmodified row and looked like a
+template bug. And the transcript lives in `gates_nominee_interviews`, not a table named for
+transcripts — check the schema, not the fixture.

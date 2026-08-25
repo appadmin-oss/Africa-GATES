@@ -74,6 +74,70 @@ final class InterviewsController
         return $res->withHeader('Location', $to)->withStatus(302);
     }
 
+    // ══ the extension, packed for this deployment ════════════════════════════
+
+    /**
+     * Download the Chrome extension as a zip, wired to the host this admin is on.
+     *
+     * ── WHY THIS ROUTE HAD TO EXIST BEFORE THE EXTENSION COULD BE USED ───────
+     *
+     * The interview screen said "Load unpacked → the extension/ folder from the upload",
+     * and nothing served that folder. It lives outside the web root, which is right — a
+     * browsable directory of extension source under public/ is one anybody can enumerate —
+     * and this host has no SSH, so there was no way to obtain it. The instruction named a
+     * folder the operator could not reach, which is why the report was that triggering the
+     * extension was impossible.
+     *
+     * ── AND WHY IT IS BUILT PER REQUEST ─────────────────────────────────────
+     *
+     * The committed source hardcodes one hostname in three places, one of them
+     * `host_permissions` — which decides whether the service worker's fetch is a
+     * privileged extension request or an ordinary blocked cross-origin one. Pointed at the
+     * wrong host it fails from inside a live interview with nothing in Chrome naming the
+     * manifest. {@see InterviewExtension} injects the host from this request's own URI, so
+     * a staging install and a renamed domain both get a correct extension.
+     *
+     * A GET, and no id: the extension is per DEPLOYMENT, not per sitting. What is per
+     * sitting is the live key, and that is pasted separately and deliberately — one key
+     * baked into a download is a key that outlives the interview.
+     */
+    public function extension(Request $req, Response $res): Response
+    {
+        if ($b = $this->blocked($res, false)) return $b;
+
+        $uri  = $req->getUri();
+        $port = $uri->getPort();
+        // Rebuilt from the URI rather than read from a Host header or a setting: the whole
+        // failure this guards against is a baked address that disagrees with reality, and
+        // the address the operator is looking at cannot.
+        $base = $uri->getScheme() . '://' . $uri->getHost()
+              . ($port !== null && !in_array($port, [80, 443], true) ? ':' . $port : '');
+
+        try {
+            $pack = \AfricaGates\Services\InterviewExtension::pack($base);
+        } catch (\Throwable $e) {
+            // Reported on the screen they came from, in its own words. A 500 here reads as
+            // a broken console, and the two real causes — the folder was left out of the
+            // upload, or the host has no zip extension — have different fixes.
+            $_SESSION['flash_error'] = $e->getMessage();
+            return $this->back($res, '/admin/interviews');
+        }
+
+        $this->audit?->record((int) ($_SESSION['admin_id'] ?? 0), 'interview.extension_download',
+                              null, null, ['host' => $pack['host']]);
+
+        $res->getBody()->write($pack['bytes']);
+
+        return $res
+            ->withHeader('Content-Type', 'application/zip')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $pack['filename'] . '"')
+            ->withHeader('Content-Length', (string) strlen($pack['bytes']))
+            // Built from this request's host, so a proxy or a browser holding it would hand
+            // the next deployment somebody else's address.
+            ->withHeader('Cache-Control', 'no-store, private')
+            ->withHeader('X-Content-Type-Options', 'nosniff');
+    }
+
     // ══ the list ═════════════════════════════════════════════════════════════
 
     public function index(Request $req, Response $res): Response
@@ -142,6 +206,11 @@ final class InterviewsController
             'judges'     => $this->judges(),
             'auto_meet'  => $meet->canSchedule(),
             'meet_why'   => $meet->why(),
+            // Whether the extension download can be offered, and why not when it cannot.
+            // A button that leads to a 500 is worse than a sentence saying the folder was
+            // left out of the upload, which is one of the two real causes.
+            'ext_ready'  => \AfricaGates\Services\InterviewExtension::available(),
+            'ext_why'    => \AfricaGates\Services\InterviewExtension::why(),
         ]);
     }
 

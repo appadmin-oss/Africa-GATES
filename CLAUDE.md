@@ -39,6 +39,34 @@ So no `onclick=`, no inline `<script>` without a nonce. The convention is
 `data-ag-do="..."` with a delegated listener in `public/assets/js/admin.js`; `data-confirm`
 on a form routes it through `agConfirm`.
 
+## A `<form>` inside a `<form>` is silently deleted
+
+The HTML parser **ignores** a `<form>` start tag while a form is already open — not nested,
+not errored: dropped. Its children survive and are adopted by the outer form, so the button
+renders, is styled, is enabled, and posts to the **outer** action. No console warning, no
+validator, and the server sees a valid request to a route that exists.
+
+Three shipped: Settings' "Check the sync" saved the page instead of probing Google, a
+category's "Delete" ran the update, and the questionnaire's "copy the outcomes in" posted an
+empty list to the route that stores outcome lists. Use `formaction` on the submit button.
+`tests/Unit/NestedFormTest.php` scans every template now.
+
+The JS half matters too: `form.submit()` drops the pressed button's `formaction`, so a
+confirmed delete sharing a form with a save would run the save. Both `data-confirm` handlers
+use `requestSubmit(submitter)`.
+
+## Anything operational must be settable from `/admin/settings`
+
+There is no shell on production, so a credential read only from `.env` is a credential that
+cannot be set. `GAS_URL` and `GAS_SECRET` were exactly that: the whole Google Calendar and
+Meet integration was dead while every screen explained itself correctly and told the
+operator to edit a file they cannot open.
+
+The pattern is `gates_settings` first, `.env` as the fallback, resolved by one static per
+service — `AiService::boot()`, `GoogleMeetService::gasUrl()`. One resolver per value, never
+two: `GoogleSheetsService` shares the calendar's, because two readers of one setting is how
+the halves of an integration come to disagree about whether it is configured.
+
 ## Running the tests
 
 ```bash
@@ -98,6 +126,12 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   status page could say "something broke on the 14th" and not which thing). With no shell on
   production the symptom always looks like something else. **Grep for a reader before you
   believe a declaration.** Full account in `docs/CODEBASE-INDEX.md` §17.
+- **And its sibling: a mechanism with no route in.** The Chrome extension's install note
+  named a folder nothing served and no shell could fetch; the extension had also hardcoded
+  one hostname into `host_permissions`, which no popup setting can override. Its content
+  script returned on line one for anybody who reached a Meet call by clicking it rather than
+  opening its URL. Each part was complete and correct in isolation. `docs/CODEBASE-INDEX.md`
+  §18.
 
 ## House style
 

@@ -11,6 +11,36 @@
 
 {% set row = iv.row %}
 
+{#
+  ── WHICH PHASE THIS SITTING IS IN ────────────────────────────────────────────
+
+  Eleven sections, all open at once, in a page that scrolled for six screens. Every one of
+  them was addressed to a different moment: arranging the appointment, sitting in the call,
+  and dealing with what came out of it. An operator opening this to paste a transcript read
+  past the panel picker, the invitation, the guest list and the question pack to reach it,
+  and an operator opening it an hour before the call read past the transcript box and the
+  close-the-sitting button — which is the one that ends the sitting.
+
+  So the sections are grouped by when they are used, and the group matching the sitting's
+  actual state is the one that starts open.
+
+  `<details>`, not a tab strip: the admin CSP has no 'unsafe-inline', a tab strip needs
+  script to work at all, and a screen whose sections are unreachable without JavaScript is
+  worse than one that scrolls. Closed sections are still one press away and still findable
+  with the browser's own find-in-page, which a tab strip breaks.
+
+  Set HERE, at template scope, and not inside `{{ '{% block %}' }}` — a set inside one block
+  is invisible to every other one and renders as null, silently. That has taken out a whole
+  navigation and a share link on this platform already; `tests/Unit/TwigBlockScopeTest.php`
+  scans for it now.
+#}
+{% set is_over   = row.status in ['done', 'no_show', 'cancelled'] %}
+{% set is_live   = row.status == 'live' %}
+{# The transcript wins over the status. A sitting can be `live` in the database and already
+   have a transcript pasted in — that is somebody catching up after the call, and the work
+   they came here to do is in the last group, not the middle one. #}
+{% set phase     = (is_over or row.transcript_id) ? 'after' : (is_live ? 'during' : 'before') %}
+
 {% block head_styles %}
 <style nonce="{{ csp_nonce }}">
   .is-head{ display:flex; justify-content:space-between; align-items:baseline; gap:14px; flex-wrap:wrap }
@@ -54,6 +84,30 @@
   .is-fig--confirmed{ background:#f2faf2; border:1px solid #cbe6c9; color:#265825 }
   .is-fig--differs{ background:#fff8df; border:1px solid #ecd9a0; color:#6b5312 }
   .is-fig--unmentioned{ background:#f6f8f8; border:1px solid rgba(16,41,44,.09); color:#4a5256 }
+
+  /* ── the three phases of a sitting ──────────────────────────────────────
+     A <details> per phase. The marker is drawn by us because the native triangle
+     sits at a different size and colour in every browser, and this is a heading. */
+  .is-ph{ margin:0 0 16px }
+  .is-ph > summary{ list-style:none; cursor:pointer; display:flex; align-items:baseline;
+    gap:11px; padding:11px 4px 11px 0; border-bottom:1px solid rgba(16,41,44,.14) }
+  .is-ph > summary::-webkit-details-marker{ display:none }
+  .is-ph > summary:focus-visible{ outline:2px solid #f3b416; outline-offset:3px; border-radius:6px }
+  .is-ph__i{ font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.1em;
+    text-transform:uppercase; color:#8a9698; width:1.4em; flex:none }
+  .is-ph__t{ font:650 13.5px/1.3 inherit; color:#10292C }
+  .is-ph__w{ margin-left:auto; font-size:11.5px; color:#67797b; text-align:right }
+  /* The affordance. Without it a closed group reads as a heading with nothing under it,
+     which is how a collapsed screen loses sections rather than tidying them. */
+  .is-ph__c{ font:700 10px/1 var(--ag-font-mono,monospace); letter-spacing:.08em;
+    text-transform:uppercase; color:#8a9698; flex:none }
+  .is-ph[open] > summary .is-ph__c::after{ content:'hide' }
+  .is-ph:not([open]) > summary .is-ph__c::after{ content:'show' }
+  .is-ph[open] > summary{ margin-bottom:14px }
+  /* The phase this sitting is actually in. One gold hairline, so the eye lands on it
+     without the other two having to be greyed into looking disabled. */
+  .is-ph--now > summary{ border-bottom-color:#f3b416 }
+  .is-ph--now .is-ph__i{ color:#a8791a }
 </style>
 {% endblock %}
 
@@ -78,6 +132,23 @@
   {% if row.brief_source %}<span class="is-tag">questions: {{ row.brief_source }}</span>{% endif %}
   {% if row.review_source %}<span class="is-tag">transcript read: {{ row.review_source }}</span>{% endif %}
 </div>
+
+{# ══ BEFORE THE CALL ════════════════════════════════════════════════════════ #}
+<details class="is-ph{{ phase == 'before' ? ' is-ph--now' : '' }}"{{ phase == 'before' ? ' open' : '' }}>
+  <summary>
+    <span class="is-ph__i">1</span>
+    <span class="is-ph__t">Before the call</span>
+    <span class="is-ph__w">
+      {# What is outstanding, not what the group contains. A count of sections is a fact
+         about this template; "no time set yet" is a fact about the interview. #}
+      {%- if not row.scheduled_at %}no time set yet
+      {%- elseif not row.meet_url %}no joining link yet
+      {%- elseif iv.panel is empty %}nobody on the panel yet
+      {%- elseif not iv.consented %}awaiting permission to record
+      {%- else %}{{ iv.when_text }}{% endif %}
+    </span>
+    <span class="is-ph__c" aria-hidden="true"></span>
+  </summary>
 
 {# ── when, who, where ───────────────────────────────────────────────────── #}
 <form class="is-sec" method="post" action="/admin/interviews/{{ row.id }}/schedule">
@@ -273,6 +344,25 @@
   </form>
 </div>
 
+</details>
+
+{# ══ DURING THE CALL ═══════════════════════════════════════════════════════════
+   The two ways a conversation gets written down. Both are optional and both fail into
+   "type it in afterwards", which is why neither is in the group above: setting them up is
+   not part of arranging the appointment. #}
+<details class="is-ph{{ phase == 'during' ? ' is-ph--now' : '' }}"{{ phase == 'during' ? ' open' : '' }}>
+  <summary>
+    <span class="is-ph__i">2</span>
+    <span class="is-ph__t">During the call</span>
+    <span class="is-ph__w">
+      {%- if iv.live.lines %}{{ iv.live.lines }} caption line{{ iv.live.lines == 1 ? '' : 's' }} captured
+      {%- elseif iv.bot.state == 'joined' %}the recording bot is in the room
+      {%- elseif not iv.consented %}nothing is captured without permission
+      {%- else %}nothing captured yet{% endif %}
+    </span>
+    <span class="is-ph__c" aria-hidden="true"></span>
+  </summary>
+
 {# ── live capture from inside the call ──────────────────────────────────── #}
 <div class="is-sec">
   <h2>Capture the call as it happens (the browser extension)</h2>
@@ -333,9 +423,34 @@
         <button class="is-btn" type="submit">Save the captured captions as the transcript</button>
       </form>
     {% endif %}
-    <span style="font-size:12px; color:#67797b">Install: Chrome → Extensions → Developer mode →
-      Load unpacked → the <code>extension/</code> folder from the upload.</span>
+    {# ── A DOWNLOAD, NOT AN INSTRUCTION ─────────────────────────────────────
+       This used to read "Load unpacked → the extension/ folder from the upload", and
+       nothing served that folder. It sits outside the web root — correctly, a browsable
+       directory of extension source under public/ is one anybody can enumerate — and
+       there is no SSH on this host, so the operator had no way to obtain it. The
+       instruction named a folder they could not reach, which is why triggering the
+       extension was impossible.
+
+       The zip is built per request with THIS deployment's host injected into the manifest
+       and both DEFAULT_BASE constants. Typing the address into the popup is not enough:
+       host_permissions is what makes the service worker's fetch a privileged extension
+       request, and pointed at the wrong host every call is a blocked cross-origin one. #}
+    {% if ext_ready %}
+      <a class="is-btn is-btn--ghost" href="/admin/interviews/extension.zip"
+         download>Download the extension</a>
+    {% else %}
+      <span style="font-size:12px; color:#8a5b16">The extension download is unavailable — {{ ext_why }}</span>
+    {% endif %}
   </div>
+
+  <p style="font-size:12px;color:#67797b">
+    <strong>Install once per laptop.</strong> Unzip it, then <code>chrome://extensions</code> →
+    Developer mode → <em>Load unpacked</em> → the unzipped folder, the one holding
+    <code>manifest.json</code>. Click the extension icon, paste the key above; the site
+    address is already filled in. Then join the call and press <strong>CC</strong> —
+    Google needs a person to turn captions on, every call.
+    Full notes are in the <code>INSTALL.txt</code> inside the download.
+  </p>
 
   {% if L.lines %}
     <div class="is-f" style="margin-top:14px">
@@ -496,6 +611,26 @@
   {% endif %}
 </div>
 
+</details>
+
+{# ══ AFTER THE CALL ════════════════════════════════════════════════════════════
+   And the reason the grouping is worth doing at all: "Close the sitting" is the last
+   section on this page, and closing a sitting is not reversible. It used to sit two
+   screens below the panel picker with nothing between them but scroll. #}
+<details class="is-ph{{ phase == 'after' ? ' is-ph--now' : '' }}"{{ phase == 'after' ? ' open' : '' }}>
+  <summary>
+    <span class="is-ph__i">3</span>
+    <span class="is-ph__t">After the call</span>
+    <span class="is-ph__w">
+      {%- if row.status == 'cancelled' %}cancelled
+      {%- elseif row.status == 'no_show' %}nobody came
+      {%- elseif row.transcript_id %}in the judges' dossier
+      {%- elseif iv.transcript %}transcript saved, not published
+      {%- else %}no transcript yet{% endif %}
+    </span>
+    <span class="is-ph__c" aria-hidden="true"></span>
+  </summary>
+
 {# ── the transcript ─────────────────────────────────────────────────────── #}
 <form class="is-sec" method="post" action="/admin/interviews/{{ row.id }}/transcript">
   <input type="hidden" name="_token" value="{{ csrf_token }}">
@@ -638,4 +773,6 @@
     </form>
   </div>
 </div>
+</details>
+
 {% endblock %}
