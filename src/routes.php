@@ -2998,6 +2998,9 @@ return function(App $app) {
         // challenged, or is about to be published — and at that moment four screens is the
         // same as none.
         $a->get('/integrity', \AfricaGates\Admin\Controllers\IntegrityController::class.':index');
+        // Marking a flagged attempt as looked at. `gates_fraud_scores.reviewed` was read by
+        // the summary and written by nothing, so the queue could only ever grow.
+        $a->post('/integrity/fraud-reviewed', \AfricaGates\Admin\Controllers\IntegrityController::class.':reviewFraud');
 
         // ── WHAT VENDORS MUST SUPPLY, AND MAY SELL ──────────────────────────
         //

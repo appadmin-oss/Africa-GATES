@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace AfricaGates\Admin\Controllers;
 
+use AfricaGates\Admin\Support\Permissions;
 use AfricaGates\Services\CollusionService;
+use AfricaGates\Services\FraudService;
 use AfricaGates\Services\IntegrityBriefService;
 use AfricaGates\Services\JudgeAnomalyService;
 use AfricaGates\Services\JudgeBiasService;
@@ -67,6 +69,16 @@ final class IntegrityController
         } catch (\Throwable) {
         }
 
+        // The fourth signal, and the one this page's own docblock lists FIRST. Every vote
+        // has been scored and stamped since fraud detection shipped and none of it had a
+        // screen — FraudService::summary() was written for a panel nobody built, and was
+        // called from nowhere at all.
+        $fraud = [];
+        try {
+            $fraud = (new FraudService())->summary();
+        } catch (\Throwable) {
+        }
+
         return $this->view->render($res, 'admin/integrity.twig', [
             'page_title' => 'Integrity',
             'admin_page' => 'integrity',
@@ -75,6 +87,8 @@ final class IntegrityController
             'bias'       => $bias,
             'collusion'  => $collusion,
             'anomalies'  => $anomalies,
+            'fraud'      => $fraud,
+            'may_review' => Permissions::canManageIntegrity((string) ($_SESSION['admin_role'] ?? '')),
             // The narrative, but never instead of the tables. It is written from the same
             // numbers shown below it, so a reader who distrusts it can check every claim.
             'brief'      => IntegrityBriefService::brief(),
@@ -82,6 +96,41 @@ final class IntegrityController
             'min_obs'    => JudgeBiasService::MIN_OBSERVATIONS,
             'min_effect' => JudgeBiasService::MIN_EFFECT,
         ]);
+    }
+
+    /**
+     * Mark scored vote attempts as looked at.
+     *
+     * NOT a verdict on the votes. The flag stays, the risk score is unchanged, and the vote
+     * itself is untouched — this records that a person read the queue, which is the only
+     * thing an "unreviewed" count can honestly mean. Withdrawing a vote is a different act
+     * with its own trail.
+     *
+     * Without this the counter was monotonic: `reviewed` was read by the summary and
+     * written by nothing, so the number could only go up and the registry's Reviewed column
+     * was false on every row that had ever existed. A queue nobody can clear is a queue
+     * nobody works.
+     */
+    public function reviewFraud(Request $req, Response $res): Response
+    {
+        $back = $res->withHeader('Location', '/admin/integrity#fraud')->withStatus(302);
+
+        if (!Permissions::canManageIntegrity((string) ($_SESSION['admin_role'] ?? ''))) {
+            $_SESSION['flash_error'] = 'You do not have permission to work the integrity queue.';
+            return $back;
+        }
+
+        $ids = (array) (((array) $req->getParsedBody())['ids'] ?? []);
+        $n   = (new FraudService())->markReviewed(
+            array_map('intval', $ids),
+            (int) ($_SESSION['admin_id'] ?? 0)
+        );
+
+        $_SESSION['flash_ok'] = $n === 0
+            ? 'Nothing to mark — those were already reviewed.'
+            : $n . ' flagged attempt' . ($n === 1 ? '' : 's') . ' marked as reviewed. The flags stay on the record.';
+
+        return $back;
     }
 
     /**

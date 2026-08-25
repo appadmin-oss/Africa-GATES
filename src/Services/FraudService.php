@@ -189,7 +189,19 @@ class FraudService
     }
 
     /**
-     * Dashboard summary for the admin fraud panel.
+     * Everything the vote-fraud panel shows.
+     *
+     * ── THIS WAS DEAD CODE ───────────────────────────────────────────────────
+     *
+     * Written for an admin panel that was never built. Every vote on this platform has
+     * been scored and stamped since fraud detection shipped, and the only place an
+     * operator could see any of it was a raw table dump in the data registry. The class
+     * docblock above still promises that 60–79 is "recorded + surfaced in the admin review
+     * queue"; there was no queue.
+     *
+     * That is the gap, not the scoring. Collusion, judge anomalies and judge bias each have
+     * a panel on the integrity page. Vote fraud — the oldest of the four and the first one
+     * that page's own docblock lists — did not.
      */
     public function summary(): array
     {
@@ -206,13 +218,23 @@ class FraudService
                 'avg_score_24h'  => round((float)DB::table('gates_fraud_scores')
                     ->where('created_at', '>=', Carbon::now()->subDay())
                     ->avg('risk_score') ?? 0, 1),
+                // Scored addresses, not busy ones. Without the decision filter this was
+                // the five networks that voted most in a day — a university, an office,
+                // a phone carrier's NAT — presented under a fraud heading.
                 'top_ip_hashes'  => DB::table('gates_fraud_scores')
                     ->select('ip_hash', DB::raw('COUNT(*) as hits'))
                     ->where('created_at', '>=', Carbon::now()->subDay())
+                    ->whereIn('decision', ['monitor', 'flag', 'block'])
                     ->groupBy('ip_hash')->orderByDesc('hits')->limit(5)->get()->toArray(),
+                // LEFT JOIN, and it is the whole difference between this list being right
+                // and being a lie. A BLOCKED attempt is rejected BEFORE the vote is cast,
+                // so it has no vote row and `vote_id` is NULL — an inner join dropped every
+                // one of them. The panel would have counted blocks in one number and shown
+                // none of them in the list underneath, which reads as "we stopped five
+                // things and cannot tell you what".
                 'recent_flags'   => DB::table('gates_fraud_scores AS f')
-                    ->join('gates_votes AS v', 'v.id', '=', 'f.vote_id')
-                    ->join('gates_nominees AS n', 'n.id', '=', 'v.nominee_id')
+                    ->leftJoin('gates_votes AS v', 'v.id', '=', 'f.vote_id')
+                    ->leftJoin('gates_nominees AS n', 'n.id', '=', 'v.nominee_id')
                     ->select('f.*', 'n.name AS nominee_name', 'v.voted_at')
                     ->whereIn('f.decision', ['flag', 'block'])
                     ->orderByDesc('f.created_at')->limit(10)->get()->toArray(),
@@ -220,6 +242,51 @@ class FraudService
         } catch (\Throwable) {
             return [];
         }
+    }
+
+    /**
+     * Mark scored attempts as looked at.
+     *
+     * The missing write. `reviewed` was read in exactly one place — the `unreviewed`
+     * counter above — and set by nothing anywhere, so the queue could only ever grow and
+     * the registry's "Reviewed" column was false on every row that had ever existed.
+     *
+     * Marking is NOT a verdict on the vote. A reviewed flag stays flagged, its risk score
+     * is unchanged, and the vote it belongs to is untouched: this records that a person
+     * looked, which is the only thing an unreviewed count can honestly mean. Withdrawing
+     * a vote is a different act with a different audit trail
+     * ({@see \AfricaGates\Services\BonusVoteService::clawback()} for the shape of one).
+     *
+     * @param  list<int> $ids
+     * @return int how many rows this call actually changed
+     */
+    public function markReviewed(array $ids, int $adminId = 0): int
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids), static fn (int $i): bool => $i > 0)));
+        if ($ids === []) return 0;
+
+        try {
+            // `where reviewed = 0` so the count returned is what THIS call changed rather
+            // than how many rows were named — two operators clearing the same queue should
+            // not both be told they reviewed twelve things.
+            $n = DB::table('gates_fraud_scores')
+                ->whereIn('id', $ids)->where('reviewed', 0)
+                ->update(['reviewed' => 1]);
+        } catch (\Throwable $e) {
+            $this->log?->error('[fraud] mark reviewed failed: ' . $e->getMessage());
+            return 0;
+        }
+
+        if ($n > 0) {
+            try {
+                (new \AfricaGates\Admin\Services\AuditService())->record(
+                    $adminId, 'fraud.reviewed', 'fraud_score', $ids[0] ?? 0,
+                    ['ids' => $ids, 'marked' => $n]
+                );
+            } catch (\Throwable) { /* the review is recorded; the audit row is bookkeeping */ }
+        }
+
+        return (int) $n;
     }
 
     private function decide(int $score): string
