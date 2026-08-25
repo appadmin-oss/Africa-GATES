@@ -59,3 +59,8 @@ composer.phar
 /node_modules/
 package-lock.json
 var/cache/ticket-art/
+
+# Any local .env variant — a moved-aside copy of a real .env still carries the
+# real keys, and `git add -A` does not know the difference.
+.env.*
+!.env.example
