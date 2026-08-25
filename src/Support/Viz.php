@@ -312,6 +312,9 @@ final class Viz
             'floor_w' => $fw, 'floor_d' => $fd,
             'placed' => (int) ($plan['placed'] ?? 0), 'pitches' => (int) ($plan['pitches'] ?? 0),
             'marks' => $marks, 'legend' => $legend,
+            // Whether the figures are open when the page loads. A caller decides it,
+            // because the answer differs by surface rather than by taste.
+            'table_open' => (bool) ($opt['table_open'] ?? false),
             'table' => ['cols' => ['Category', 'Pitches', 'Floor', 'Share'], 'rows' => $rows],
             'empty' => (string) ($opt['empty'] ?? 'Set the hall size and the stand types to see the layout.'),
         ];

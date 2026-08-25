@@ -1,4 +1,5 @@
 {% extends "layout/gates.twig" %}
+{% import "partials/viz.twig" as vz %}
 
 {# ─────────────────────────────────────────────────────────────────────────────
    THE PUBLIC CALL FOR STANDS.
@@ -210,6 +211,15 @@
   .sc-chip{ display:inline-flex; align-items:center; height:20px; padding:0 8px;
     border-radius:var(--sc-r-sm); background:var(--sc-cream); color:var(--sc-full);
     letter-spacing:.12em; }
+
+  /* ── the hall ────────────────────────────────────────────────────────────
+     A white card on the paper ground, like every other panel on this page. The chart
+     inside it is the shared component and is not restyled — a page that repaints a
+     shared chart is how two chart systems start. */
+  .sc-hall{ margin-top:20px; border:1px solid var(--sc-line-2); border-radius:var(--sc-r);
+    background:var(--sc-card); padding:20px; }
+  .sc-hall__end{ margin:16px 0 0; padding-top:14px; border-top:1px solid var(--sc-line);
+    max-width:62ch; font-size:13.5px; line-height:1.65; color:var(--sc-ink-2); }
 
   /* ── how it is decided ─────────────────────────────────────────────────── */
   .sc-steps{ list-style:none; margin:20px 0 0; padding:0;
@@ -451,6 +461,28 @@
     </div>
   </section>
 
+  {# ── THE HALL ──────────────────────────────────────────────────────────────
+     Published on purpose. The organiser has had this picture all along, and it is
+     what turns "2 of 6 still open" from a number into a room somebody can picture
+     themselves standing in.
+
+     Rendered by the same component as every chart in the console, so it carries the
+     legend, the keyboard readout and the table of figures without a line of bespoke
+     SVG here. The caveat is the component's own and is not softened: a drawing that
+     LOOKS like a fire-safety document while knowing nothing about fire is worse than
+     no drawing, because somebody will forward it to the venue. #}
+  <section class="sc-sec">
+    <div class="sc-sec__h">
+      <span class="sc-kick">The hall</span>
+      <h2>Where the stands sit</h2>
+    </div>
+    <div class="sc-hall">
+      {{ vz.chart(hall) }}
+      <p class="sc-hall__end">The pitch you are allocated is assigned after selection, along
+        with your load-in slot. This drawing reserves nothing.</p>
+    </div>
+  </section>
+
   {# ── HOW IT IS DECIDED ─────────────────────────────────────────────────── #}
   <section class="sc-sec">
     <div class="sc-sec__h">
@@ -501,6 +533,9 @@
 {% endblock %}
 
 {% block foot_scripts %}
+{# The chart component's own CSS and behaviour — the legend filtering, the keyboard
+   readout, the table toggle. Once per page, and never reimplemented here. #}
+{{ vz.assets(csp_nonce) }}
 <script nonce="{{ csp_nonce }}">
 (function () {
   'use strict';

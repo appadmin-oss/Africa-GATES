@@ -3,14 +3,15 @@
 {# The vetting record. Everything a reviewer needs to decide, on one page, with every
    decision written down against the admin who took it. #}
 
+{# The layout draws the header. This page used to draw a second one underneath it. #}
+{% block topbar_eyebrow %}<small>Partner organisation</small>{% endblock %}
+{% block topbar_title %}{{ org.name }}{% endblock %}
+{% block topbar_actions %}
+  <a class="ad-btn ad-btn--sm" href="/admin/partner-orgs">← All partners</a>
+  {% if live %}<a class="ad-btn ad-btn--sm" href="/donate/{{ org.slug }}" target="_blank" rel="noopener">View appeal</a>{% endif %}
+{% endblock %}
+
 {% block content %}
-<div class="ad-topbar">
-  <div class="ad-h1"><small>Partner organisation</small>{{ org.name }}</div>
-  <div class="ad-actions">
-    <a class="ad-btn ad-btn--sm" href="/admin/partner-orgs">← All partners</a>
-    {% if live %}<a class="ad-btn ad-btn--sm" href="/donate/{{ org.slug }}" target="_blank" rel="noopener">View appeal</a>{% endif %}
-  </div>
-</div>
 
 {% set chip = {'approved':'green','pending':'gold','draft':'grey','suspended':'red','rejected':'red'}[org.status]|default('grey') %}
 

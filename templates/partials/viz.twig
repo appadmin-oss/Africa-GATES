@@ -43,7 +43,11 @@
       {% if v.sub %}<span class="viz__s">{{ v.sub }}</span>{% endif %}
     </div>
     {% if v.ok and v.table.rows|default([]) %}
-    <button type="button" class="viz__btn" data-viz-table aria-expanded="false"
+    {# `table_open` is a SPEC decision, not a preference. On the public floor plan the
+       figures are the point — a drawing captioned "indicative only" is worth less than
+       the numbers under it — so that surface opens the table and the admin's does not. #}
+    <button type="button" class="viz__btn" data-viz-table
+            aria-expanded="{{ v.table_open|default(false) ? 'true' : 'false' }}"
             aria-controls="{{ v.id }}-tbl">Table</button>
     {% endif %}
   </figcaption>
@@ -166,7 +170,7 @@
 
   {# ── the table twin ─────────────────────────────────────────────────── #}
   {% if v.table.rows|default([]) %}
-  <div class="viz__tw" id="{{ v.id }}-tbl" hidden>
+  <div class="viz__tw" id="{{ v.id }}-tbl"{% if not v.table_open|default(false) %} hidden{% endif %}>
     <table class="viz__table">
       <caption class="sr-only">{{ v.title }}</caption>
       <thead><tr>{% for c in v.table.cols %}<th scope="col"{% if not loop.first %} class="num"{% endif %}>{{ c }}</th>{% endfor %}</tr></thead>

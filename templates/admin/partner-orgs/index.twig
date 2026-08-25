@@ -1,9 +1,10 @@
 {% extends "admin/layout.twig" %}
 
+{# The layout draws the header. This page used to draw a second one underneath it. #}
+{% block topbar_eyebrow %}<small>Donations</small>{% endblock %}
+{% block topbar_title %}Partner organisations{% endblock %}
+
 {% block content %}
-<div class="ad-topbar">
-  <div class="ad-h1"><small>Donations</small>Partner organisations</div>
-</div>
 
 {# The two figures the public application page also shows. One source, so an organisation
    reading "12 applied" on the way in and an administrator reading a different number in here

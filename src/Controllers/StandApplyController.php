@@ -114,6 +114,27 @@ final class StandApplyController
             'categories' => StandType::categories(),
             'signed_in'  => OrgAuth::user() !== null,
             'offer_hours'=> StandApplication::OFFER_HOURS,
+            // ── THE HALL, PUBLISHED ─────────────────────────────────────────
+            //
+            // The organiser already has this picture. Publishing it is what makes "2 of 6
+            // still open" mean something to somebody deciding whether to spend an evening
+            // on the form — a quota is an abstraction until you can see how much room it
+            // is competing for.
+            //
+            // Through Viz like every other chart on this platform, which is what carries
+            // the legend, the keyboard readout and the table of figures beneath it. The
+            // table opens by default HERE and not in the console: on a public page the
+            // numbers are the point, and a drawing captioned "indicative only" is worth
+            // less than the figures under it.
+            'hall'       => \AfricaGates\Support\Viz::plan(
+                'vizHall',
+                'Where the stands sit',
+                \AfricaGates\Services\StandFloorPlan::forEvent((int) $event->id),
+                ['table_open' => true,
+                 'sub'   => 'To scale, from the hall as measured',
+                 'empty' => 'The hall for this event has not been measured yet, so there is no '
+                          . 'layout to show. The quotas above are the whole of the offer either way.']
+            ),
         ] + $this->deadline($call));
     }
 

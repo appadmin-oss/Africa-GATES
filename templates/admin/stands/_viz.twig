@@ -73,132 +73,20 @@
    whole comparison against a hard limit and a bar is the only form that shows the overshoot
    honestly. When it overshoots, the overspill is drawn PAST the 100% line rather than by
    rescaling the bar — rescaling would make an impossible plan look merely full. #}
-{% macro budget(plan) %}
-  {% set W = 720 %}{% set H = 30 %}
-  {% set over = not plan.fits %}
-  {% set scale = over ? (plan.usable_sqm + plan.over_sqm) : plan.usable_sqm %}
-  {% set usedW = scale > 0 ? (plan.committed_sqm / scale * W) : 0 %}
-  {% set limitX = scale > 0 ? (plan.usable_sqm / scale * W) : W %}
 
-  <svg class="viz-bar" viewBox="0 0 {{ W }} {{ H + 22 }}" width="100%" height="{{ H + 22 }}"
-       preserveAspectRatio="none" role="img"
-       aria-label="{{ plan.committed_sqm }} square metres of stands against {{ plan.usable_sqm }} square metres of sellable floor, {{ plan.used_pct }} per cent{% if over %}. Over by {{ plan.over_sqm }} square metres{% endif %}">
-    <title>{{ plan.committed_sqm }} m² committed of {{ plan.usable_sqm }} m² sellable — {{ plan.used_pct }}%</title>
+{# ── WHAT USED TO BE HERE ────────────────────────────────────────────────────
+   `budget`, `mix`, `floorplan` and `legend` — a second chart system, with its own
+   copy of the eight-colour palette hardcoded in `colour()` above.
 
-    <rect x="0" y="0" width="{{ W }}" height="{{ H }}" rx="4" fill="#f0efec"></rect>
-    {# The committed block, clipped at the limit, then the overspill in the critical status
-       colour — which ships with the word "over" beside it, never as colour alone. #}
-    <rect x="0" y="0" width="{{ min(usedW, limitX)|round }}" height="{{ H }}" rx="4" fill="#2a78d6"></rect>
-    {% if over %}
-      <rect x="{{ (limitX + 2)|round }}" y="0" width="{{ (usedW - limitX - 2)|round }}" height="{{ H }}"
-            rx="4" fill="#d03b3b"></rect>
-    {% endif %}
+   They are gone. Every chart on this screen now goes through
+   {@see AfricaGates\Support\Viz} and `partials/viz.twig`, which is the component
+   that owns the palette, the legend filtering, the keyboard readout and the table
+   twin — and none of those four had any of it.
 
-    {# The sellable-floor limit, drawn as a rule so "full" has a visible edge. #}
-    <line x1="{{ limitX|round }}" y1="-2" x2="{{ limitX|round }}" y2="{{ H + 4 }}"
-          stroke="#0b0b0b" stroke-width="2"></line>
-    <text x="{{ min(limitX + 6, W - 4)|round }}" y="{{ H + 18 }}" font-size="11" fill="#52514e"
-          text-anchor="{{ limitX > W - 120 ? 'end' : 'start' }}">
-      {{ plan.usable_sqm }} m² sellable</text>
-    <text x="2" y="{{ H + 18 }}" font-size="11" fill="#52514e">
-      {{ plan.committed_sqm }} m² committed</text>
-  </svg>
-{% endmacro %}
+   `swatch` stays, and is not a chart: it is one pitch drawn to scale beside its own
+   name, so an organiser can see that a 6 × 3 is twice a 3 × 3 without doing the
+   arithmetic. There is no Viz equivalent because there is no series in it.
 
-
-{# ── 3 · CATEGORY MIX ───────────────────────────────────────────────────────
-   One stacked bar of pitches by category, because the quota system exists to control the mix
-   and a table of seven numbers does not show a mix. Adjacent segments only, which is the
-   pairlist the palette order is validated against; a 2px surface gap between them; and each
-   segment wide enough to hold its own count is directly labelled. #}
-{% macro mix(plan) %}
-  {% import _self as viz %}
-  {% if plan.categories is not empty and plan.pitches > 0 %}
-  {% set W = 720 %}{% set H = 26 %}
-  <svg class="viz-bar" viewBox="0 0 {{ W }} {{ H }}" width="100%" height="{{ H }}"
-       preserveAspectRatio="none" role="img"
-       aria-label="Pitches by category: {% for c in plan.categories %}{{ c.label }} {{ c.quota }}{{ loop.last ? '' : ', ' }}{% endfor %}">
-    <title>{{ plan.pitches }} pitches across {{ plan.categories|length }} categories</title>
-    {% set x = 0 %}
-    {% for c in plan.categories %}
-      {% set w = c.quota / plan.pitches * W %}
-      <g>
-        <title>{{ c.label }} — {{ c.quota }} pitch(es), {{ c.pct }}% · {{ c.sqm }} m²</title>
-        <rect x="{{ x|round }}" y="0" width="{{ max(w - 2, 1)|round }}" height="{{ H }}" rx="4"
-              fill="{{ viz.colour(c.index) }}"></rect>
-        {% if w > 42 %}
-          <text x="{{ (x + w / 2 - 1)|round }}" y="{{ H / 2 + 4 }}" font-size="11.5" font-weight="700"
-                text-anchor="middle" fill="#ffffff">{{ c.quota }}</text>
-        {% endif %}
-      </g>
-      {% set x = x + w %}
-    {% endfor %}
-  </svg>
-  {% endif %}
-{% endmacro %}
-
-
-{# ── 4 · THE BLOCK LAYOUT ───────────────────────────────────────────────────
-   The hall as a rectangle with the pitches packed into it, to scale.
-
-   This is the one that has to be honest about what it is not. It packs equal rows into a
-   plain rectangle and knows nothing about fire exits, columns, power drops or the loading
-   door — so the caller prints that sentence next to it, every time. A diagram that LOOKS like
-   a site plan while knowing nothing about fire is worse than no diagram, because somebody
-   will forward it to the venue. #}
-{% macro floorplan(plan, px_per_m) %}
-  {% import _self as viz %}
-  {% if plan.measured %}
-  {% set W = (plan.floor_w_cm / 100) * px_per_m %}
-  {% set D = (plan.floor_d_cm / 100) * px_per_m %}
-  <svg class="viz-plan" viewBox="-4 -4 {{ (W + 8)|round }} {{ (D + 8)|round }}"
-       width="100%" height="auto" role="img"
-       aria-label="Indicative block layout: {{ plan.placed }} of {{ plan.pitches }} pitches placed in a hall {{ (plan.floor_w_cm / 100) }} by {{ (plan.floor_d_cm / 100) }} metres. Not a site plan.">
-    <title>{{ (plan.floor_w_cm / 100) }} × {{ (plan.floor_d_cm / 100) }} m hall — {{ plan.placed }} of {{ plan.pitches }} pitches placed</title>
-
-    <rect x="0" y="0" width="{{ W|round }}" height="{{ D|round }}"
-          fill="#fcfcfb" stroke="#c3c2b7" stroke-width="2"></rect>
-
-    {% for b in plan.blocks %}
-      {% set bx = (b.x / 100) * px_per_m %}
-      {% set by = (b.y / 100) * px_per_m %}
-      {% set bw = (b.w / 100) * px_per_m %}
-      {% set bd = (b.d / 100) * px_per_m %}
-      <g>
-        <title>{{ b.name }} — {{ b.label }} m</title>
-        {# 2px surface ring so neighbouring pitches never merge into one shape. #}
-        <rect x="{{ bx|round }}" y="{{ by|round }}" width="{{ bw|round }}" height="{{ bd|round }}"
-              rx="3" fill="{{ viz.colour(b.cat_index) }}" fill-opacity=".9"
-              stroke="#fcfcfb" stroke-width="2"></rect>
-        {# Measured against the ACTUAL string, not a fixed pixel floor. "1.8×0.75" needs three
-           times the room "3×3" does, and a width test that ignores that renders ".8×0.75"
-           spilling over its neighbour — which is worse than no label, because it reads as a
-           different number. Below the threshold the legend and the hover title carry it. #}
-        {% if bw > (b.label|length * 6.2) + 6 and bd > 15 %}
-          <text x="{{ (bx + bw / 2)|round }}" y="{{ (by + bd / 2 + 4)|round }}" font-size="10.5"
-                font-weight="600" text-anchor="middle" fill="#ffffff">{{ b.label }}</text>
-        {% endif %}
-      </g>
-    {% endfor %}
-
-    {# Dimension rules on two sides, so the rectangle is a measurement rather than a shape. #}
-    <text x="{{ (W / 2)|round }}" y="-8" font-size="11" fill="#52514e" text-anchor="middle">
-      {{ (plan.floor_w_cm / 100) }} m</text>
-    <text x="-8" y="{{ (D / 2)|round }}" font-size="11" fill="#52514e" text-anchor="middle"
-          transform="rotate(-90 -8 {{ (D / 2)|round }})">{{ (plan.floor_d_cm / 100) }} m</text>
-  </svg>
-  {% endif %}
-{% endmacro %}
-
-
-{# ── LEGEND ─────────────────────────────────────────────────────────────────
-   Present whenever two or more series are on screen, because identity must never be colour
-   alone — and the swatch beside the name is what lets the colour mean anything at all. #}
-{% macro legend(items) %}
-  {% import _self as viz %}
-  <ul class="viz-legend">
-    {% for it in items %}
-      <li><span class="viz-legend__dot" style="background:{{ viz.colour(it.index) }}"></span>{{ it.label }}{% if it.suffix is defined %} <em>{{ it.suffix }}</em>{% endif %}</li>
-    {% endfor %}
-  </ul>
-{% endmacro %}
+   `colour` stays because `swatch` reads it, and it agrees with Viz::PALETTE by
+   index — a swatch and a pitch on the floor plan for the same category have to be
+   the same colour or the two drawings are about different markets. #}
