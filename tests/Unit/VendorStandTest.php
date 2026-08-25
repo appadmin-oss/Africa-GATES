@@ -45,6 +45,25 @@ class VendorStandTest extends TestCase
         ]);
     }
 
+    /**
+     * The photographs an application needs before it is complete.
+     *
+     * Rows rather than uploads: what completeness counts is how many are on file, and
+     * driving real bytes through the re-encode here would test {@see StandPhotos} a
+     * second time instead of testing this.
+     */
+    private function photos(int $appId, int $orgId, int $n = 3): void
+    {
+        for ($i = 0; $i < $n; $i++) {
+            DB::table('gates_stand_application_photos')->insert([
+                'application_id' => $appId, 'org_id' => $orgId,
+                'path' => 'uploads/stand-photos/2026/10/p' . $i . '.jpg',
+                'width' => 900, 'height' => 700, 'bytes' => 1000,
+                'sort_order' => $i, 'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+    }
+
     /** An event with one stand type and an open call. */
     private function openCall(int $eventId, array $typeOver = []): array
     {
@@ -291,8 +310,11 @@ class VendorStandTest extends TestCase
         $this->doc($v, 'insurance', date('Y-m-d', strtotime('+300 days')));
 
         $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['id'];
+        $this->photos($a, $v);
+        $this->assertTrue(StandApplication::refreshCompleteness($a));
+
         $first = (string) StandApplication::find($a)->completed_at;
-        $this->assertNotSame('', $first, 'A complete application is stamped on submission.');
+        $this->assertNotSame('', $first);
 
         StandApplication::refreshCompleteness($a);
         $this->assertSame($first, (string) StandApplication::find($a)->completed_at);
@@ -310,8 +332,58 @@ class VendorStandTest extends TestCase
 
         $this->doc($v, 'cac');
         $this->doc($v, 'insurance', date('Y-m-d', strtotime('+300 days')));
+        $this->photos($a, $v);
         $this->assertTrue(StandApplication::refreshCompleteness($a));
         $this->assertNotNull(StandApplication::find($a)->completed_at);
+    }
+
+    /**
+     * Documents alone no longer complete an application — the photographs count too.
+     *
+     * The photographs are the only thing on a stand application that SHOWS what every
+     * other field claims, and completeness is the §5.4 tiebreak. Pinned here beside the
+     * document rules so the two are read as the one shelf they are.
+     */
+    public function test_an_application_with_every_document_and_no_photographs_is_not_complete(): void
+    {
+        $e = $this->makeEvent();
+        $s = $this->openCall($e);
+        $v = $this->makeVendor();
+        $this->doc($v, 'cac');
+        $this->doc($v, 'insurance', date('Y-m-d', strtotime('+300 days')));
+
+        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['id'];
+
+        $this->assertNull(StandApplication::find($a)->completed_at);
+        $this->assertArrayHasKey('stand_photos', StandApplication::missingForCompleteness($a));
+
+        // Two is not three, and the tiebreak does not round up.
+        $this->photos($a, $v, 2);
+        $this->assertFalse(StandApplication::refreshCompleteness($a));
+
+        $this->photos($a, $v, 1);
+        $this->assertTrue(StandApplication::refreshCompleteness($a));
+    }
+
+    /**
+     * …and it is still ELIGIBLE without them, which is the line that matters.
+     *
+     * A vendor with every certificate in order and no camera is eligible to trade. Making
+     * photographs a rule would refuse them outright, and a refusal is not something a
+     * missing photograph should ever produce.
+     */
+    public function test_an_application_with_no_photographs_is_still_eligible(): void
+    {
+        $e = $this->makeEvent();
+        $s = $this->openCall($e);
+        $v = $this->makeVendor();
+        $this->doc($v, 'cac');
+        $this->doc($v, 'insurance', date('Y-m-d', strtotime('+300 days')));
+
+        $a = StandApplication::submit($v, $s['type'], ['what_they_sell' => 'Jollof'])['id'];
+
+        $this->assertTrue(StandApplication::checkEligibility($a)['ok'],
+            'a missing photograph refused an application outright');
     }
 
     // ────────────────────────────── decisions ───────────────────────────────

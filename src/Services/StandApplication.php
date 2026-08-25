@@ -213,12 +213,51 @@ final class StandApplication
         if (!$app) return false;
         if (trim((string) ($app->completed_at ?? '')) !== '') return true;  // already stamped
 
-        $missing = self::missingDocuments((int) $app->org_id);
-        if ($missing !== []) return false;
+        if (self::missingForCompleteness($appId) !== []) return false;
 
         DB::table('gates_stand_applications')->where('id', $appId)
             ->update(['completed_at' => date('Y-m-d H:i:s')]);
         return true;
+    }
+
+    /**
+     * Everything an application is still waiting on before it counts as complete.
+     *
+     * ── WHY THIS IS NOT missingDocuments() WITH AN EXTRA ITEM ────────────────
+     *
+     * Because {@see checkEligibility()} reads missingDocuments(), and eligibility is a
+     * RULE — a gate with no judgement in it, which either passes or refuses the
+     * application outright. Photographs are deliberately not that. Putting them in that
+     * list would fail applications from exactly the people this platform exists for:
+     * somebody photographing their goods on a borrowed phone, from a market with no
+     * signal, the evening before the deadline.
+     *
+     * So they sit here instead, on the completeness shelf, which is the §5.4 tiebreak. An
+     * application without them is submitted, read, and can win. It is simply not complete
+     * until three are on file, and where two are otherwise equal the complete one goes
+     * first.
+     *
+     * The wording matches a missing certificate on purpose. To a vendor reading their
+     * dashboard these are the same kind of fact — a thing still to do before the
+     * application is finished — and giving one of them a softer voice would teach them it
+     * mattered less.
+     *
+     * @return array<string,string> slug => human label
+     */
+    public static function missingForCompleteness(int $appId): array
+    {
+        $app = self::find($appId);
+        if (!$app) return [];
+
+        $missing = self::missingDocuments((int) $app->org_id);
+
+        $photos = StandPhotos::count($appId);
+        if ($photos < StandPhotos::MIN) {
+            $missing['stand_photos'] = 'Photographs of what you sell ('
+                . $photos . ' of ' . StandPhotos::MIN . ')';
+        }
+
+        return $missing;
     }
 
     /**

@@ -2188,6 +2188,17 @@ return function(App $app) {
         // administrator — makes the eligibility check dishonest, because an application
         // marked incomplete may just be one whose insurance is sitting unread in an inbox.
         $g->post('/org/document', \AfricaGates\Controllers\OrgDashboardController::class.':uploadDocument');
+
+        // ── PHOTOGRAPHS OF WHAT A VENDOR SELLS ──────────────────────────────
+        //
+        // Three writes and no read. The form promises nothing is published while the call
+        // is running, and a photograph is a file on a web server — so there is no route
+        // that serves one. The vendor's dashboard and the admin screens already hold the
+        // rows; until an offer is accepted there is no public reader, and the way to have
+        // no public reader is to write none.
+        $g->post  ('/org/stands/{application:[0-9]+}/photos',                \AfricaGates\Controllers\StandPhotoController::class.':add');
+        $g->delete('/org/stands/{application:[0-9]+}/photos/{photo:[0-9]+}', \AfricaGates\Controllers\StandPhotoController::class.':remove');
+        $g->post  ('/org/stands/{application:[0-9]+}/photos/order',          \AfricaGates\Controllers\StandPhotoController::class.':order');
         // ── THE CATALOGUE ────────────────────────────────────────────────────
         //
         // What this vendor sells, as rows. The stand application's one free-text paragraph

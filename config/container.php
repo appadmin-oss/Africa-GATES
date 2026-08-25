@@ -441,6 +441,11 @@ return [
     ),
     \AfricaGates\Controllers\OrgDashboardController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\OrgDashboardController($c->get(Twig::class), $c->get(PaymentService::class), $c->get(RateLimitService::class), $c->get(UploadService::class)),
 
+    // A vendor's photographs of what they sell. UploadService because every byte goes
+    // through the one sniff-and-re-encode path; rate limiter because the cost being limited
+    // is disk and image decoding rather than requests.
+    \AfricaGates\Controllers\StandPhotoController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\StandPhotoController($c->get(UploadService::class), $c->get(RateLimitService::class)),
+
     // Vendors applying for stands. Rate limiter injected because the form CREATES ACCOUNTS
     // for people who are not signed in, which is the one public endpoint here worth abusing.
     \AfricaGates\Controllers\StandApplyController::class => fn(ContainerInterface $c)=>new \AfricaGates\Controllers\StandApplyController($c->get(Twig::class), $c->get(RateLimitService::class)),
