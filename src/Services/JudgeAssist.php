@@ -161,6 +161,47 @@ final class JudgeAssist
     }
 
     /**
+     * How long a dossier that failed is left alone before it is tried again.
+     *
+     * `store()` has written a `failed` row since the day this shipped and NOTHING READ ONE.
+     * So a dossier the model reliably chokes on — prose instead of JSON, a transcript that
+     * blows the token ceiling — cost a fresh call on every button press, from each of ten
+     * judges on the panel, and would cost another on every cron sweep for the rest of the
+     * round. The dossier itself is right there on the same screen and the feature is
+     * advisory, so nothing is lost by waiting; a bill and a rate limit are lost by not.
+     *
+     * Short enough that "try again shortly" is honest, long enough that a page refresh and a
+     * second judge arriving are not two more attempts.
+     */
+    public const RETRY_AFTER_MIN = 10;
+
+    /**
+     * Was this exact dossier attempted and failed recently?
+     *
+     * On the CONTENT HASH, not on the nominee: a nominee who has just added the evidence the
+     * last attempt choked on is a different dossier and deserves an immediate attempt.
+     */
+    private static function recentlyFailed(int $nomineeId, string $hash): bool
+    {
+        if ($hash === '') return false;
+
+        try {
+            return DB::table('gates_judge_orientation')
+                ->where('nominee_id', $nomineeId)
+                ->where('content_hash', $hash)
+                ->where('status', 'failed')
+                ->where('created_at', '>=',
+                        Carbon::now()->subMinutes(self::RETRY_AFTER_MIN)->toDateTimeString())
+                ->exists();
+        } catch (\Throwable) {
+            // No table, or an unreadable one. "I do not know" must mean TRY: failing closed
+            // here would make one database hiccup look like a feature that has been switched
+            // off for everybody.
+            return false;
+        }
+    }
+
+    /**
      * The map for a nominee, generating it if there is not one.
      *
      * @return array{ok:bool, map:array<string,mixed>|null, message:string}
@@ -181,6 +222,13 @@ final class JudgeAssist
         if (!$force) {
             $hit = self::cached($nomineeId, $dossier['hash']);
             if ($hit !== null) return ['ok' => true, 'map' => $hit, 'message' => ''];
+        }
+
+        if (!$force && self::recentlyFailed($nomineeId, $dossier['hash'])) {
+            return ['ok' => false, 'map' => null,
+                    'message' => 'This one was tried a few minutes ago and could not be '
+                               . 'mapped. It will be tried again shortly. The dossier below '
+                               . 'is unaffected — read it as you would have anyway.'];
         }
 
         if (!AiGateway::available(self::CAPABILITY)) {
@@ -221,7 +269,26 @@ final class JudgeAssist
      * Read-only on render, deliberately. A judge opening a ballot of forty must not start
      * forty model calls by scrolling, and a page that spends money on render spends it again
      * on every refresh. The ballot shows what is already there and offers a button for the
-     * rest.
+     * rest — and the cron sweep fills most of them in before anybody arrives.
+     * {@see sweep()}
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * IT NOW SAYS WHETHER EACH MAP STILL DESCRIBES THE ENTRY
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * {@see forNominee()} has always matched on the dossier's content hash, so the button
+     * never served a map of a superseded dossier. This method did not, and it is the one the
+     * ballot renders from — so once a nominee added evidence, ten judges went on reading a
+     * map of the entry as it stood BEFORE it, with nothing on the screen to say so. A map
+     * whose `gaps` said "no third-party confirmation of the figures" outlived the letter that
+     * confirmed them.
+     *
+     * That is the same fault as a silently truncated dossier, which this class already
+     * refuses to ship: the map is not wrong about what it read, it is wrong about what it is
+     * a map OF, and only the reader can be harmed by the difference. So `stale` is computed
+     * against the CURRENT hash and the ballot marks it, rather than quietly serving it or —
+     * worse — hiding it, which would throw away a map that is still mostly true and start a
+     * fresh model call on render.
      *
      * @param list<int> $nomineeIds
      * @return array<int,array<string,mixed>>
@@ -245,6 +312,20 @@ final class JudgeAssist
         $out = [];
         foreach ($rows as $r) $out[(int) $r->nominee_id] = self::hydrate($r);
 
+        if ($out === []) return [];
+
+        // Four queries for the whole ballot, and only for the nominees that HAVE a map —
+        // there is nothing to date-check for the rest, and the sweep will get to them.
+        $current = self::dossiers(array_keys($out));
+
+        foreach ($out as $id => $map) {
+            $hash = (string) ($current[$id]['hash'] ?? '');
+            // An unknown current hash (the dossier query failed) is NOT reported as stale.
+            // Marking every map on the ballot out of date because one query hiccuped would
+            // discard the panel's whole orientation over a transient fault.
+            $out[$id]['stale'] = $hash !== '' && $hash !== (string) ($map['hash'] ?? '');
+        }
+
         return $out;
     }
 
@@ -255,24 +336,104 @@ final class JudgeAssist
     /**
      * Everything written about one nominee, as one block of text plus its hash.
      *
+     * A thin wrapper on {@see dossiers()} so there is ONE assembly and one hash formula. It
+     * used to be the other way round and there was no batch at all, which is why the ballot
+     * could only ever show maps it happened to have rather than say whether they were current.
+     *
+     * @return array{text:string, hash:string, truncated:bool}
+     */
+    public static function dossier(int $nomineeId): array
+    {
+        return self::dossiers([$nomineeId])[$nomineeId]
+            ?? ['text' => '', 'hash' => '', 'truncated' => false];
+    }
+
+    /**
+     * The same thing for a whole ballot at once, keyed by nominee id.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THE BATCH EXISTS
+     * ══════════════════════════════════════════════════════════════════════════
+     *
      * Assembled here rather than reusing {@see EvidenceService::forJudge()} because that
      * shapes data for a SCREEN — file urls, provenance chips, colours — and what a model
      * needs is prose. Passing the screen's structure would spend tokens on `file_kind` and
      * `provenance_label` and teach the model that the platform's internals are part of the
      * entry.
      *
-     * @return array{text:string, hash:string, truncated:bool}
+     * Batched, four queries for any number of nominees, because two callers need every
+     * dossier on a ballot at once and neither could afford four queries per nominee: the
+     * cron sweep that fills the maps in before the judges arrive, and {@see forBallot()},
+     * which has to know each stored map's hash is still the CURRENT one. Looping the
+     * single-nominee version would have made both of those a query storm, which is how the
+     * ballot ended up serving maps without checking they still described the entry.
+     *
+     * @param  list<int> $nomineeIds
+     * @return array<int,array{text:string, hash:string, truncated:bool}>
      */
-    public static function dossier(int $nomineeId): array
+    public static function dossiers(array $nomineeIds): array
     {
-        $parts = [];
+        $ids = array_values(array_unique(array_filter(array_map('intval', $nomineeIds))));
+        if ($ids === []) return [];
 
         try {
-            $n = DB::table('gates_nominees')->where('id', $nomineeId)
-                ->first(['name', 'tagline', 'story', 'organisation']);
+            $nominees = DB::table('gates_nominees')->whereIn('id', $ids)
+                ->get(['id', 'name', 'tagline', 'story', 'organisation'])
+                ->keyBy('id');
         } catch (\Throwable) {
-            $n = null;
+            $nominees = collect([]);
         }
+
+        // `visible_to_judges` is honoured — an item withheld from the panel must not reach
+        // the panel through a summary of it.
+        try {
+            $evidence = DB::table('gates_nominee_evidence')
+                ->whereIn('nominee_id', $ids)->where('visible_to_judges', 1)
+                ->orderBy('sort_order')->orderBy('id')
+                ->get(['id', 'nominee_id', 'title', 'body', 'provenance', 'verified'])
+                ->groupBy('nominee_id');
+        } catch (\Throwable) {
+            $evidence = collect([]);
+        }
+
+        // Published transcripts only. A draft is an unreviewed machine output and a
+        // withdrawn one had consent taken back.
+        try {
+            $interviews = DB::table('gates_nominee_interviews')
+                ->whereIn('nominee_id', $ids)->where('status', 'published')
+                ->orderBy('id')->get(['nominee_id', 'transcript'])
+                ->groupBy('nominee_id');
+        } catch (\Throwable) {
+            $interviews = collect([]);
+        }
+
+        $analyses = EvidenceAnalysis::forNomineesMap($ids);
+
+        $out = [];
+        foreach ($ids as $id) {
+            $out[$id] = self::assemble(
+                $nominees[$id] ?? null,
+                $evidence[$id] ?? [],
+                $interviews[$id] ?? [],
+                $analyses[$id] ?? [],
+            );
+        }
+
+        return $out;
+    }
+
+    /**
+     * One nominee's rows turned into the prose a model is given.
+     *
+     * @param  iterable<object> $evidence
+     * @param  iterable<object> $interviews
+     * @param  array<int,array<string,mixed>> $analyses
+     * @return array{text:string, hash:string, truncated:bool}
+     */
+    private static function assemble(?object $n, iterable $evidence,
+                                     iterable $interviews, array $analyses): array
+    {
+        $parts = [];
 
         if ($n) {
             $parts[] = 'NOMINEE: ' . (string) $n->name
@@ -282,21 +443,7 @@ final class JudgeAssist
             if (trim((string) ($n->story ?? '')) !== '')   $parts[] = "THE CASE MADE FOR THEM:\n" . $n->story;
         }
 
-        // Evidence rows: title, body and the model's own reading of the file where one
-        // exists. `visible_to_judges` is honoured — an item withheld from the panel must not
-        // reach the panel through a summary of it.
-        try {
-            $ev = DB::table('gates_nominee_evidence')
-                ->where('nominee_id', $nomineeId)->where('visible_to_judges', 1)
-                ->orderBy('sort_order')->orderBy('id')
-                ->get(['id', 'title', 'body', 'provenance', 'verified']);
-        } catch (\Throwable) {
-            $ev = collect([]);
-        }
-
-        $analyses = EvidenceAnalysis::forNomineeMap($nomineeId);
-
-        foreach ($ev as $e) {
+        foreach ($evidence as $e) {
             $line = 'ATTACHED — ' . (string) $e->title
                   . ' [' . (string) $e->provenance . ((int) $e->verified === 1 ? ', verified' : '') . ']';
             if (trim((string) ($e->body ?? '')) !== '') $line .= "\n" . $e->body;
@@ -312,18 +459,10 @@ final class JudgeAssist
             $parts[] = $line;
         }
 
-        // Published interview transcripts only. A draft is an unreviewed machine output and
-        // a withdrawn one had consent taken back.
-        try {
-            $iv = DB::table('gates_nominee_interviews')
-                ->where('nominee_id', $nomineeId)->where('status', 'published')
-                ->orderBy('id')->get(['transcript']);
-            foreach ($iv as $r) {
-                if (trim((string) $r->transcript) !== '') {
-                    $parts[] = "INTERVIEW — THE NOMINEE'S OWN WORDS:\n" . $r->transcript;
-                }
+        foreach ($interviews as $r) {
+            if (trim((string) $r->transcript) !== '') {
+                $parts[] = "INTERVIEW — THE NOMINEE'S OWN WORDS:\n" . $r->transcript;
             }
-        } catch (\Throwable) {
         }
 
         $text  = trim(implode("\n\n", $parts));
@@ -348,6 +487,165 @@ final class JudgeAssist
             'hash'      => $full === '' ? '' : hash('sha256', $full),
             'truncated' => $trunc,
         ];
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // FILLING THEM IN BEFORE THE PANEL ARRIVES
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * How many maps one sweep will make.
+     *
+     * Bounded because this runs on a cPanel host with a `max_execution_time`, and each map is
+     * a 30-second budget against a 14,000-character dossier. Six is roughly three minutes at
+     * the worst case and finishes a category of forty inside a few hours of cron — long
+     * before a round opens, which is the only deadline that matters.
+     */
+    public const SWEEP_LIMIT = 6;
+
+    /**
+     * Make the maps for ballots that are open, ahead of the judges.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS THE FEATURE AND THE BUTTON IS THE FALLBACK
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * A judge opens a shortlist of forty. Every map is generated on demand, so the whole
+     * panel's orientation is forty button presses and forty waits of up to thirty seconds
+     * each — during which the judge has nothing to do but start reading, which is the moment
+     * the map existed to come before. The feature was built to save the first ten minutes of
+     * every dossier and, arriving late, saved none of them.
+     *
+     * Nothing about the design objects to doing this early. The map is cached PER NOMINEE and
+     * shared by the whole panel — deliberately, so orientation is not a variable between
+     * judges — so a map made at 04:00 by cron is byte-identical to the one the first judge
+     * would have paid to wait for, and it is made once instead of once per panel member who
+     * gets there first. The cost is identical; only the waiting moves.
+     *
+     * ── WHAT IT WILL NOT DO ──────────────────────────────────────────────────
+     *
+     *  · It never touches the sandbox. `DemoSeeder` builds real rows with real flags, and a
+     *    rehearsal category would otherwise consume a genuine round's budget every night.
+     *  · It only maps the SHORTLIST. That is what a ballot renders, and a map for a nominee
+     *    no panel will see is money spent on a page nobody opens.
+     *  · It stops the moment the capability is unavailable — budget spent, switch off, no
+     *    provider — rather than logging one refusal per nominee. A sweep that writes forty
+     *    BUDGET_CALLS rows makes the audit log unreadable on the day it matters.
+     *  · It does not retry a dossier that just failed. {@see RETRY_AFTER_MIN}
+     *
+     * @return int maps made; 0 means there was nothing to do
+     */
+    public static function sweep(int $limit = self::SWEEP_LIMIT): int
+    {
+        if (!AiGateway::available(self::CAPABILITY)) return 0;
+
+        $ids = self::awaitingJudgement();
+        if ($ids === []) return 0;
+
+        // The hashes for every candidate in four queries, so deciding WHICH need a map costs
+        // the same whether the shortlist is six or six hundred.
+        $dossiers = self::dossiers($ids);
+
+        try {
+            // Every map already held for these nominees, current or not — one query. Keyed
+            // hash-wise so a superseded map counts as absent, which is the whole point:
+            // a nominee who added evidence yesterday needs a new map, and the ballot is
+            // already marking the old one out of date. {@see forBallot()}
+            $held = DB::table('gates_judge_orientation')
+                ->whereIn('nominee_id', $ids)
+                ->where('status', 'ok')
+                ->where('prompt_version', self::PROMPT_VERSION)
+                ->pluck('content_hash', 'nominee_id');
+        } catch (\Throwable) {
+            return 0;
+        }
+
+        $made = 0;
+        foreach ($ids as $id) {
+            if ($made >= $limit) break;
+
+            $hash = (string) ($dossiers[$id]['hash'] ?? '');
+            if ($hash === '') continue;                              // nothing written yet
+            if ((string) ($held[$id] ?? '') === $hash) continue;     // current map in hand
+            if (self::recentlyFailed($id, $hash)) continue;
+
+            $r = self::forNominee($id);
+            if ($r['ok']) { $made++; continue; }
+
+            // A failure that is not about THIS dossier stops the sweep rather than walking
+            // the rest of the shortlist into the same wall. `available()` was true when we
+            // started; if it is false now, the budget ran out mid-sweep and every remaining
+            // nominee would only add a refusal row.
+            if (!AiGateway::available(self::CAPABILITY)) break;
+        }
+
+        return $made;
+    }
+
+    /**
+     * Nominees on a ballot that is open for judging right now.
+     *
+     * Phase is read through {@see CyclePolicy::phaseFor()} rather than from
+     * `cached_status`, for the reason `JudgeService::cycleToJudge()` gives: the platform
+     * itself documents that column as possibly stale, and a sweep driven by a stale phase
+     * either spends a round's budget early or misses the round entirely.
+     *
+     * @return list<int>
+     */
+    private static function awaitingJudgement(): array
+    {
+        try {
+            // The sandbox programme by slug, so its cycles can be dropped before anything
+            // else is asked about them.
+            $demo = DB::table('gates_award_programmes')
+                ->where('slug', DemoSeeder::PROGRAMME_SLUG)->value('id');
+
+            $cycles = DB::table('gates_award_cycles')
+                ->when($demo !== null, fn ($q) => $q->where('programme_id', '!=', (int) $demo))
+                ->orderByDesc('year')
+                ->get();
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($cycles as $c) {
+            try {
+                if (CyclePolicy::phaseFor($c) !== CyclePhase::Judging) continue;
+            } catch (\Throwable) {
+                // A row with unreadable windows is not a reason to sweep the wrong cycle.
+                continue;
+            }
+
+            try {
+                $catIds = DB::table('gates_award_categories')
+                    ->where('cycle_id', $c->id)->pluck('id')->all();
+                if ($catIds === []) continue;
+
+                $q = DB::table('gates_nominees')
+                    ->whereIn('category_id', $catIds)
+                    ->whereIn('status', ['approved', 'winner', 'runner_up']);
+                MergeService::notMerged($q);                 // tombstones are not on a ballot
+
+                $nominees = $q->pluck('id')->all();
+
+                // The published shortlist is what a ballot actually shows. An unpublished or
+                // absent one means no panel is reading anything yet, so there is nothing to
+                // prepare — and mapping the whole field on the chance a cut lands later is
+                // the money this bound exists to protect.
+                $shortlisted = ShortlistService::shortlistedIn((int) $c->id);
+                if ($shortlisted === []) continue;
+
+                foreach ($nominees as $id) {
+                    if (isset($shortlisted[(int) $id])) $out[] = (int) $id;
+                }
+            } catch (\Throwable $e) {
+                error_log('[judge-assist] sweep could not read cycle ' . $c->id . ': '
+                        . $e->getMessage());
+            }
+        }
+
+        return array_values(array_unique($out));
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -438,6 +736,13 @@ final class JudgeAssist
             'gaps'       => $list($r->gaps_json ?? null),
             'check'      => $list($r->check_json ?? null),
             'at'         => (string) ($r->created_at ?? ''),
+            // The dossier this was a map OF. Carried so {@see forBallot()} can say whether
+            // it still is one; the single-nominee path matches on it in the query instead.
+            'hash'       => (string) ($r->content_hash ?? ''),
+            // Only ever true where it has actually been checked against the current dossier.
+            // Absent would render as false in Twig anyway, so it is stated: a judge reading
+            // "up to date" must not be reading an unset key.
+            'stale'      => false,
         ];
     }
 

@@ -177,8 +177,30 @@
                 <button class="jc-map__go" type="button" @click="orient()">
                   Map this dossier</button>
               </template>
+              {# A map of a dossier that has since changed. The button is offered rather
+                 than the map being hidden or silently refreshed: hiding it throws away
+                 something still mostly true, and refreshing on render is the model call
+                 on scroll this panel exists not to make. #}
+              <template x-if="cur?.map?.stale && !mapBusy">
+                <button class="jc-map__go" type="button" @click="orient()">
+                  Read the dossier again</button>
+              </template>
               <span class="jc-map__wait" x-show="mapBusy">Reading the dossier…</span>
             </div>
+
+            {# ── SAID, NEVER IMPLIED ──────────────────────────────────────────
+               A map is not wrong about what it read; it is wrong about what it is a map
+               OF, and only the reader can be harmed by the difference. This entry gained
+               or changed something after the map was written, so a `gaps` line reading
+               "no third-party confirmation of the figures" may be describing paperwork
+               that has since arrived. Same principle as the truncation notice the model
+               is asked to put in `gaps` — partial coverage is stated, never silent. #}
+            <template x-if="cur?.map?.stale">
+              <p class="jc-cover">
+                This entry has changed since the map below was written, so parts of it may
+                describe an earlier version of the dossier. The dossier itself is current.
+              </p>
+            </template>
 
             <template x-if="!cur?.map && !mapBusy && !mapErr">
               <p class="jc-map__hint">
@@ -709,6 +731,9 @@ function ballotApp(initial){
         self.mapBusy = false;
         if(d && d.ok && d.map){
           // Written onto the queue entry, so switching away and back does not ask again.
+          // The new map replaces the old one whole, which clears `stale` with it: the
+          // reply is built from the dossier as it stands now, so a leftover flag would
+          // tell a judge their fresh map is out of date.
           var q = self.queue.filter(function(x){ return x.id === id; })[0];
           if(q) q.map = d.map;
         } else {

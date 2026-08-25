@@ -187,6 +187,22 @@ final class Maintenance
                 $ran[] = ['gwevents', $this->task('gwevents',
                     fn() => \AfricaGates\Services\GatewayEventLog::prune())];
                 $ran[] = ['triage-backfill', $this->task('triage-backfill', fn() => NominationTriageService::backfill(100))];
+                // Dossier maps for ballots that are open, made before the panel arrives.
+                //
+                // The map is cached per NOMINEE and shared by the whole panel, so one made
+                // here is byte-identical to the one the first judge to press the button
+                // would have waited up to thirty seconds for — and it is made once instead
+                // of once per judge who gets there first. The cost is the same; only the
+                // waiting moves, and a judge opening a shortlist of forty was otherwise
+                // looking at forty presses and forty waits.
+                //
+                // HOURLY rather than every tick, and capped per run: this is the only task
+                // here that spends money, and six maps is about three minutes of a cPanel
+                // host's execution time at the worst case. Six an hour finishes a large
+                // shortlist inside a day, which is well before a round opens — the only
+                // deadline this has. See JudgeAssist::sweep().
+                $ran[] = ['judgemaps', $this->task('judgemaps',
+                    fn() => \AfricaGates\Services\JudgeAssist::sweep())];
                 // Refused bot questions. Machine output, but generated FROM a nominee's
                 // recorded speech, so it expires like everything else here rather than
                 // being the one table kept forever.
@@ -242,6 +258,11 @@ final class Maintenance
                 'digest'    => $ran[] = ['digest', $this->task('digest', fn() => $this->recordDigest())],
                 'qdisqualify' => $ran[] = ['qdisqualify', $this->task('qdisqualify', fn() => $this->enforceQuestionnaireDeadlines())],
                 'chain'     => $ran[] = ['chain', $this->task('chain', fn() => $this->verifyChain())],
+                // Addressable by name because there is no SSH on this account: when a round
+                // opens sooner than the hourly sweep can fill it, `/__cron/run?task=judgemaps`
+                // is the only way anybody can ask for another batch.
+                'judgemaps' => $ran[] = ['judgemaps', $this->task('judgemaps',
+                    fn() => \AfricaGates\Services\JudgeAssist::sweep())],
                 'all'       => (function () use (&$ran) {
                     $ran[] = ['queue', $this->task('queue', fn() => $this->drainJobs())];
                     $ran[] = ['cycles', $this->task('cycles', fn() => $this->advanceCycles())];

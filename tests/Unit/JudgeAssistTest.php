@@ -239,6 +239,217 @@ final class JudgeAssistTest extends TestCase
             'the ballot must read maps, never make them');
     }
 
+    // ══ a map of a dossier that has since changed ════════════════════════════
+
+    /**
+     * THE BUG. The ballot served a map of a superseded dossier and said nothing.
+     *
+     * {@see JudgeAssist::forNominee()} has always matched on the content hash, so the BUTTON
+     * never served a stale map. `forBallot()` did not, and it is the one the ballot renders
+     * from — so once a nominee added evidence, every judge on the panel went on reading a map
+     * of the entry as it stood before it, with nothing on the screen to say so.
+     *
+     * A `gaps` line saying "no third-party confirmation of the figures" outliving the letter
+     * that confirmed them is the single most damaging thing this feature can do: it is a
+     * statement about a nominee, made by us, that was true when written and is not any more.
+     */
+    public function test_a_map_of_a_changed_dossier_is_marked_out_of_date(): void
+    {
+        $id = $this->nominee();
+
+        DB::table('gates_judge_orientation')->insert([
+            'nominee_id' => $id, 'content_hash' => JudgeAssist::dossier($id)['hash'],
+            'rests_on' => 'Nine boreholes, self-funded.', 'evidenced_json' => '[]',
+            'asserted_json' => '[]', 'gaps_json' => '["No third-party confirmation."]',
+            'check_json' => '[]', 'prompt_version' => JudgeAssist::PROMPT_VERSION,
+            'status' => 'ok',
+        ]);
+
+        $this->assertFalse(JudgeAssist::forBallot([$id])[$id]['stale'],
+            'nothing has changed yet');
+
+        DB::table('gates_nominee_evidence')->insert([
+            'nominee_id' => $id, 'kind' => 'note',
+            'title' => 'Letter from the state water board confirming the nine sites',
+            'provenance' => 'third_party', 'visible_to_judges' => 1, 'sort_order' => 1,
+        ]);
+
+        $after = JudgeAssist::forBallot([$id])[$id];
+        $this->assertTrue($after['stale'],
+            'the map now describes a dossier that no longer exists, and the panel must be told');
+        // Still served, not withheld. It is mostly true, and hiding it would either lose the
+        // panel's orientation or start a model call on render.
+        $this->assertSame('Nine boreholes, self-funded.', $after['rests_on']);
+    }
+
+    /**
+     * A dossier query that fails must not mark the whole ballot out of date.
+     *
+     * "I could not check" is not "this is stale". Painting forty maps as superseded because
+     * one query hiccuped would throw away a panel's whole orientation over a transient fault
+     * — the same mistake as a status page rounding UNKNOWN up to broken, pointed the other
+     * way.
+     */
+    public function test_a_nominee_with_nothing_written_is_not_reported_as_stale(): void
+    {
+        // A nominee row that no longer exists produces an empty dossier and so an empty
+        // hash, which is the "cannot know" case.
+        DB::table('gates_judge_orientation')->insert([
+            'nominee_id' => 987654, 'content_hash' => str_repeat('a', 64),
+            'rests_on' => 'A map with no nominee behind it.', 'evidenced_json' => '[]',
+            'asserted_json' => '[]', 'gaps_json' => '[]', 'check_json' => '[]',
+            'prompt_version' => JudgeAssist::PROMPT_VERSION, 'status' => 'ok',
+        ]);
+
+        $this->assertFalse(JudgeAssist::forBallot([987654])[987654]['stale']);
+    }
+
+    /**
+     * The batch and the single assembly must agree, byte for byte.
+     *
+     * They are the same formula and the hash is the cache key, so a divergence would not
+     * throw: it would quietly mean the ballot thought every map was stale and the sweep
+     * regenerated every one of them on every run, for ever.
+     */
+    public function test_the_batched_dossier_matches_the_single_one(): void
+    {
+        $a = $this->nominee();
+        $b = $this->nominee(['name' => 'Chinelo Umeh', 'story' => 'A different case entirely.']);
+
+        DB::table('gates_nominee_evidence')->insert([
+            'nominee_id' => $a, 'kind' => 'note', 'title' => 'Audited accounts',
+            'body' => 'Signed off for three years.', 'provenance' => 'third_party',
+            'visible_to_judges' => 1, 'sort_order' => 1,
+        ]);
+
+        $batch = JudgeAssist::dossiers([$a, $b]);
+
+        $this->assertSame(JudgeAssist::dossier($a), $batch[$a]);
+        $this->assertSame(JudgeAssist::dossier($b), $batch[$b]);
+        $this->assertNotSame($batch[$a]['hash'], $batch[$b]['hash']);
+    }
+
+    /** The batch honours the same withholding the single assembly does. */
+    public function test_the_batch_still_withholds_what_is_hidden_from_judges(): void
+    {
+        $id = $this->nominee();
+
+        DB::table('gates_nominee_evidence')->insert([
+            'nominee_id' => $id, 'kind' => 'note', 'title' => 'A withheld complaint',
+            'body' => 'Kept from the panel deliberately.', 'provenance' => 'staff',
+            'visible_to_judges' => 0, 'sort_order' => 1,
+        ]);
+
+        $text = JudgeAssist::dossiers([$id])[$id]['text'];
+        $this->assertStringNotContainsString('withheld complaint', $text,
+            'an item kept from the panel must not reach it through a summary of it');
+    }
+
+    // ══ a dossier that just failed is left alone ═════════════════════════════
+
+    /**
+     * `store()` wrote a `failed` row from the day this shipped and nothing ever read one.
+     *
+     * So a dossier the model reliably chokes on cost a fresh call on every button press, from
+     * each of ten judges on the panel — and would cost another on every cron sweep for the
+     * rest of the round. Nothing is lost by waiting: the dossier is on the same screen and
+     * the feature is declared advisory.
+     */
+    public function test_a_dossier_that_just_failed_is_not_immediately_retried(): void
+    {
+        $id   = $this->nominee();
+        $hash = JudgeAssist::dossier($id)['hash'];
+
+        DB::table('gates_judge_orientation')->insert([
+            'nominee_id' => $id, 'content_hash' => $hash, 'status' => 'failed',
+            'error' => 'The AI reply did not match the expected shape.',
+            'prompt_version' => JudgeAssist::PROMPT_VERSION,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $r = JudgeAssist::forNominee($id);
+
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('tried a few minutes ago', $r['message']);
+        // And it says the thing a judge can act on, which is that nothing else is affected.
+        $this->assertStringContainsString('dossier below is unaffected', $r['message']);
+    }
+
+    /**
+     * The cooldown is on the DOSSIER, not the nominee.
+     *
+     * A nominee who has just added the very evidence the last attempt choked on is a
+     * different dossier, and making them wait would be the cooldown holding back the fix.
+     */
+    public function test_a_changed_dossier_may_be_tried_again_at_once(): void
+    {
+        $id = $this->nominee();
+
+        DB::table('gates_judge_orientation')->insert([
+            'nominee_id' => $id, 'content_hash' => JudgeAssist::dossier($id)['hash'],
+            'status' => 'failed', 'prompt_version' => JudgeAssist::PROMPT_VERSION,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        DB::table('gates_nominee_evidence')->insert([
+            'nominee_id' => $id, 'kind' => 'note', 'title' => 'The missing certificate',
+            'provenance' => 'third_party', 'visible_to_judges' => 1, 'sort_order' => 1,
+        ]);
+
+        // No provider is configured in the suite, so the attempt is refused — but by the
+        // gateway rather than by the cooldown, which is exactly the distinction.
+        $r = JudgeAssist::forNominee($id);
+        $this->assertStringNotContainsString('tried a few minutes ago', $r['message']);
+    }
+
+    // ══ the maps are made before the panel arrives ═══════════════════════════
+
+    /**
+     * The sweep never touches the sandbox.
+     *
+     * `DemoSeeder` builds real rows with real flags — the sandbox exists to be walked through
+     * for real — so nothing that spends money may treat it as a live round. A rehearsal
+     * category would otherwise consume a genuine round's daily budget every night.
+     */
+    public function test_the_sweep_excludes_the_sandbox_programme(): void
+    {
+        $src = file_get_contents(dirname(__DIR__, 2) . '/src/Services/JudgeAssist.php');
+        $this->assertStringContainsString('DemoSeeder::PROGRAMME_SLUG', (string) $src,
+            'the sweep must exclude the sandbox by slug, like every other public reader');
+    }
+
+    /**
+     * Nothing is swept while the capability cannot run.
+     *
+     * A sweep that walks a shortlist of forty with the budget spent writes forty
+     * BUDGET_CALLS rows, which makes the audit log unreadable on the one day somebody needs
+     * to read it. The suite has no provider configured, so this is the real path.
+     */
+    public function test_the_sweep_spends_nothing_when_the_capability_is_unavailable(): void
+    {
+        $this->nominee();
+
+        $this->assertSame(0, JudgeAssist::sweep());
+        $this->assertSame(0, DB::table('gates_judge_orientation')->count(),
+            'not even a failure row: nothing was attempted');
+    }
+
+    /**
+     * And it is reachable by name, because there is no SSH on this account.
+     *
+     * When a round opens sooner than the hourly sweep can fill it, `/__cron/run?task=judgemaps`
+     * is the only way anybody can ask for another batch.
+     */
+    public function test_the_sweep_is_wired_into_scheduled_work_and_addressable(): void
+    {
+        $m = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Support/Maintenance.php');
+
+        $this->assertStringContainsString('JudgeAssist::sweep', $m,
+            'a sweep nobody calls is not a pre-warm, it is dead code');
+        $this->assertStringContainsString("'judgemaps' =>", $m,
+            'it must be runnable on its own from the token-gated endpoint');
+    }
+
     // ══ the answer is validated, never coerced ═══════════════════════════════
 
     public function test_a_well_formed_answer_is_kept(): void
