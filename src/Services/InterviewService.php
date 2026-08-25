@@ -5,6 +5,7 @@ namespace AfricaGates\Services;
 
 use AfricaGates\Services\GoogleMeetService;
 use AfricaGates\Support\Env;
+use AfricaGates\Support\Ics;
 use AfricaGates\Support\SiteUrl;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Support\Carbon;
@@ -324,12 +325,20 @@ final class InterviewService
                     // The judge's whole run, attached. Best-effort: a schedule that could
                     // not be built must not stop the invitation — the message is still true
                     // about the sitting it is announcing.
-                    $csv  = self::scheduleCsv((int) ($j['id'] ?? 0));
-                    $file = $csv === '' ? [] : [[
-                        'name' => 'africa-gates-interviews.csv',
-                        'mime' => 'text/csv',
-                        'body' => $csv,
-                    ]];
+                    //
+                    // ── TWO FILES, BECAUSE A CSV IS NOT "ADD TO CALENDAR" ────────
+                    //
+                    // The spreadsheet answers "what am I doing next week" and a judge can
+                    // read it on a laptop. It cannot be added to a calendar, so on the
+                    // morning of the call nothing reminds anybody and the link has to be
+                    // found again in a three-day-old email — which is the whole failure
+                    // `Support\Ics` was written for on the ticket side.
+                    //
+                    // One .ics with every sitting in it, not one per sitting: six
+                    // attachments is six chances to import five, and the UIDs are derived
+                    // from the sitting ids so a re-send after a reschedule UPDATES the
+                    // entries instead of doubling them.
+                    $file = self::panelAttachments((int) ($j['id'] ?? 0), $name);
 
                     $mailer->sendBranded($to,
                         'Interview: ' . $nominee->name . ' — ' . $when,
@@ -1195,6 +1204,44 @@ final class InterviewService
      * The panel is stored as a JSON array on each sitting, so this filters in PHP rather
      * than in SQL — a LIKE against a JSON column would match judge 1 inside judge 13.
      */
+    /**
+     * What a judge's invitation carries: their schedule to read, and their schedule to keep.
+     *
+     * Best-effort in both halves and independently — a calendar file that could not be
+     * built must not cost the spreadsheet, and neither must stop the invitation. The
+     * message is still true about the sitting it is announcing.
+     *
+     * @return list<array{name:string, mime:string, body:string}>
+     */
+    public static function panelAttachments(int $judgeId, string $judgeName = ''): array
+    {
+        $out = [];
+
+        try {
+            $csv = self::scheduleCsv($judgeId);
+            if ($csv !== '') {
+                $out[] = ['name' => 'africa-gates-interviews.csv', 'mime' => 'text/csv', 'body' => $csv];
+            }
+        } catch (\Throwable $e) {
+            error_log('[interview] schedule csv for judge ' . $judgeId . ': ' . $e->getMessage());
+        }
+
+        try {
+            $sittings = JudgeSchedule::forJudge($judgeId);
+            if ($sittings !== []) {
+                $ics = JudgeSchedule::icsFor($sittings, $judgeName);
+                if (trim($ics) !== '') {
+                    $out[] = ['name' => Ics::filename('africa-gates-judging'),
+                              'mime' => Ics::MIME, 'body' => $ics];
+                }
+            }
+        } catch (\Throwable $e) {
+            error_log('[interview] schedule ics for judge ' . $judgeId . ': ' . $e->getMessage());
+        }
+
+        return $out;
+    }
+
     public static function scheduleCsv(int $judgeId): string
     {
         $rows = [];

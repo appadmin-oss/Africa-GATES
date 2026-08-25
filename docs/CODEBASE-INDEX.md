@@ -728,7 +728,7 @@ Read the docblocks on `AiService::withTimeout()`, `AiService::httpPost()` and
 
 ### The pattern, which is the part worth generalising
 
-Five instances of the same shape are now known in this codebase, and every one of them
+Six instances of the same shape are now known in this codebase, and every one of them
 reached production:
 
 | Declared | Reader |
@@ -738,6 +738,7 @@ reached production:
 | `TicketLinkService::prune()` | **no caller** — every dead link was permanent |
 | `gates_ai_calls.error` | **none** — the admin console rendered a count and no cause |
 | `gates_judge_orientation.status = 'failed'` | **none** — a broken dossier was retried for ever |
+| `gates_status_log.components_json` | **none** — the page could say "something broke on the 14th" and not which thing |
 
 Each was written carefully, documented honestly, and inert. On a deployment with no shell
 this is the most expensive class of bug available, because the symptom always looks like

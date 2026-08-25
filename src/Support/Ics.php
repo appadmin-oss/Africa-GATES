@@ -79,6 +79,75 @@ final class Ics
      */
     public static function event(array $spec): ?string
     {
+        $body = self::vevent($spec);
+
+        return $body === null ? null : self::wrap([$body]);
+    }
+
+    /**
+     * Several entries in ONE calendar file.
+     *
+     * ── WHY THIS IS NOT A LOOP OVER event() ──────────────────────────────────
+     *
+     * `event()` returns a COMPLETE calendar — `BEGIN:VCALENDAR` and all — so concatenating
+     * six of them produces six calendars in one file. Some clients import the first and
+     * ignore the rest; some import all six as separate calendars; none of them does what
+     * the person pressing the button meant.
+     *
+     * A judge with six sittings should press one thing and get six entries, so the VEVENT
+     * building is extracted and both callers share it. An entry with no usable start is
+     * skipped rather than failing the whole file: five sittings in a calendar beats none
+     * because the sixth has not been scheduled yet.
+     *
+     * @param  list<array<string,mixed>> $specs
+     * @return string an empty calendar when nothing was usable, never null — the caller is
+     *                serving a download and an empty file is a clearer answer than a 500
+     */
+    public static function calendar(array $specs): string
+    {
+        $bodies = [];
+        foreach ($specs as $spec) {
+            $one = self::vevent((array) $spec);
+            if ($one !== null) $bodies[] = $one;
+        }
+
+        return self::wrap($bodies);
+    }
+
+    /**
+     * The VCALENDAR envelope around zero or more VEVENT blocks.
+     *
+     * @param list<string> $vevents each already folded, each ending in CRLF
+     */
+    public static function wrap(array $vevents): string
+    {
+        $head = [
+            'BEGIN:VCALENDAR',
+            'VERSION:2.0',
+            // Vendor identifier. Required, and it is what appears in a client's "imported
+            // from" line, so it names the platform rather than a library.
+            'PRODID:-//Africa GATES//Events//EN',
+            'CALSCALE:GREGORIAN',
+            // PUBLISH, not REQUEST: this is an entry somebody is adding to their own
+            // calendar, not an invitation. REQUEST makes clients offer to RSVP to us, and
+            // then send acceptances to an address that is not expecting them.
+            'METHOD:PUBLISH',
+        ];
+
+        $out = '';
+        foreach ($head as $line) $out .= self::fold($line) . self::CRLF;
+        foreach ($vevents as $block) $out .= $block;
+
+        return $out . self::fold('END:VCALENDAR') . self::CRLF;
+    }
+
+    /**
+     * One VEVENT block, folded, without the calendar envelope.
+     *
+     * @param array<string,mixed> $spec
+     */
+    private static function vevent(array $spec): ?string
+    {
         $start = trim((string) ($spec['starts_at'] ?? ''));
         if ($start === '') {
             return null;
@@ -109,16 +178,6 @@ final class Ics
         }
 
         $lines = [
-            'BEGIN:VCALENDAR',
-            'VERSION:2.0',
-            // Vendor identifier. Required, and it is what appears in a client's "imported
-            // from" line, so it names the platform rather than a library.
-            'PRODID:-//Africa GATES//Events//EN',
-            'CALSCALE:GREGORIAN',
-            // PUBLISH, not REQUEST: this is an entry somebody is adding to their own
-            // calendar, not an invitation. REQUEST makes clients offer to RSVP to us, and
-            // then send acceptances to an address that is not expecting them.
-            'METHOD:PUBLISH',
             'BEGIN:VEVENT',
             'UID:' . self::text((string) ($spec['uid'] ?? self::uid($start))),
             'DTSTAMP:' . self::utcStamp(new \DateTimeImmutable('now', new \DateTimeZone(Clock::timezone()))),
@@ -169,7 +228,6 @@ final class Ics
         }
 
         $lines[] = 'END:VEVENT';
-        $lines[] = 'END:VCALENDAR';
 
         $out = '';
         foreach ($lines as $line) {

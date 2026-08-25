@@ -89,6 +89,49 @@
   </div>
   {% endif %}
 
+  {# ── WHERE YOU ARE EXPECTED ─────────────────────────────────────────
+     Above the programmes, because a call at eleven tomorrow outranks a ballot with
+     three weeks on it.
+
+     The sittings were in the database with a time, a panel and a joining link, and
+     the only place any of it reached a judge was an email three days old — so on the
+     morning of a call the link had to be found again in an inbox. This is the same
+     information, on the page they are already signed in to, with one button that puts
+     all of it in their own calendar. #}
+  {% if sittings|default([]) %}
+  <div class="jdh-section">
+    <div class="jdh-section__head">
+      <h2 class="jdh-section__title">Your calls</h2>
+      {# GET, because it spends nothing and has to be reachable from a link in an
+         email. One file with every sitting in it — a judge on six presses once. #}
+      <a class="jdh-ics" href="/judge/schedule.ics">Add all to my calendar</a>
+    </div>
+    <ul class="jdh-calls">
+      {% for s in sittings %}
+      <li class="jdh-call">
+        <div class="jdh-call__when">
+          <time datetime="{{ s.when|date('c') }}">{{ s.when|when('D j M, H:i') }}</time>
+          <span>{{ tz_abbr() }} · {{ s.minutes }} min</span>
+        </div>
+        <div class="jdh-call__who">
+          <strong>{{ s.nominee }}</strong>
+          {% if s.category %}<span>{{ s.category }}</span>{% endif %}
+        </div>
+        {% if s.meet_url %}
+          <a class="jdh-call__go" href="{{ s.meet_url }}" rel="noopener">Join</a>
+        {% else %}
+          {# Said, not blank. A missing link is somebody's job, and a judge who sees an
+             empty space assumes the page is broken and does not mention it. #}
+          <span class="jdh-call__pending">Link to follow</span>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="jdh-calls__note">Read the dossier before the call. The map at the top of an
+      entry is a finding aid, not a judgement, and nobody has checked it.</p>
+  </div>
+  {% endif %}
+
   {# ── Programmes ────────────────────────────────────────────────── #}
   <div class="jdh-section">
     <div class="jdh-section__head"><h2 class="jdh-section__title">Your programmes</h2></div>

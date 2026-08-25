@@ -2984,6 +2984,33 @@ return function(App $app) {
         // the panel in place rather than reloading a page a judge has scrolled halfway down.
         $j->post('/orient/{nomineeId:[0-9]+}',
             \AfricaGates\Judge\Controllers\BallotController::class.':orient');
+
+        // ── A JUDGE'S OWN SITTINGS, FOR THEIR OWN CALENDAR ───────────────────
+        //
+        // GET, unlike the map above, because it spends nothing and a calendar file has to
+        // be reachable from a link in an email — the whole point is that it is one tap on a
+        // phone. Every sitting in one file, so a judge on six presses one thing.
+        //
+        // Served as an attachment with an .ics name: inline, iOS Mail and several Android
+        // clients render it as text instead of offering to add it. See Ics::filename().
+        $j->get('/schedule.ics', function ($req, $res) {
+            $judgeId = (int) ($_SESSION['judge_id'] ?? 0);
+            $judge   = \Illuminate\Database\Capsule\Manager::table('gates_judges')
+                ->where('id', $judgeId)->first(['name']);
+
+            $ics = \AfricaGates\Services\JudgeSchedule::icsFor(
+                \AfricaGates\Services\JudgeSchedule::forJudge($judgeId),
+                (string) ($judge->name ?? '')
+            );
+
+            $res->getBody()->write($ics);
+            return $res
+                ->withHeader('Content-Type', \AfricaGates\Support\Ics::MIME)
+                ->withHeader('Content-Disposition', 'attachment; filename="'
+                    . \AfricaGates\Support\Ics::filename('africa-gates-judging') . '"')
+                // A schedule changes. A cached copy of it is a judge in the wrong room.
+                ->withHeader('Cache-Control', 'no-store');
+        });
     })->add(new JudgeAuthMiddleware());
 
     // ═══ MEMBER ACCOUNTS ══════════════════════════════════════════════
@@ -3539,6 +3566,19 @@ return function(App $app) {
         // ── superadmin-only areas (RBAC, Task B6) ─────────────────────
         $a->group('/judges', function (RouteCollectorProxy $s) {
             $s->get('',                     AdminJudgesController::class.':index');
+            // ── THE ROUND, AS A SCHEDULE ─────────────────────────────────────
+            //
+            // BEFORE /{id}, because "schedule" is not a number and the ordering convention
+            // in this file is to put the word routes above the numeric ones anyway.
+            //
+            // Reads the sittings out of `gates_interviews` and says which judge is expected
+            // where. The Google check is a POST per sitting rather than part of the render:
+            // forty sittings is forty round trips to an Apps Script deployment, and a screen
+            // that spends the script's quota every time somebody glances at it is a screen
+            // that stops working during the round it exists for.
+            $s->get('/schedule',            AdminJudgesController::class.':schedule');
+            $s->post('/schedule/remind',    AdminJudgesController::class.':remind');
+            $s->post('/schedule/{id:[0-9]+}/verify', AdminJudgesController::class.':verify');
             $s->get('/new',                 AdminJudgesController::class.':form');
             $s->post('/new',                AdminJudgesController::class.':save');
             $s->get('/{id:[0-9]+}',         AdminJudgesController::class.':form');

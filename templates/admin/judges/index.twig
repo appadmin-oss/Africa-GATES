@@ -1,6 +1,7 @@
 {% extends "admin/layout.twig" %}
 {% block topbar_title %}Judges Panel{% endblock %}
-{% block topbar_actions %}<a class="ad-btn ad-btn--primary" href="/admin/judges/new">+ Invite Judge</a>{% endblock %}
+{% block topbar_actions %}<a class="ad-btn" href="/admin/judges/schedule">Schedule &amp; reminders</a>
+<a class="ad-btn ad-btn--primary" href="/admin/judges/new">+ Invite Judge</a>{% endblock %}
 {% block content %}
 
 {# Advisory judge-score anomaly scan — outliers vs. the panel. Never changes a

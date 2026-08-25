@@ -45,9 +45,19 @@ on a form routes it through `agConfirm`.
 ./vendor/bin/phpunit
 ```
 
-**Remove a local `.env` first.** A dev `.env` carrying `OPENAI_API_KEY` leaks into the
-suite and breaks ~14 questionnaire/interview tests that assert the no-provider path. `.env`
-is gitignored; move it aside and put it back.
+**Remove a local `.env` first, and clear `var/data/` of run state.** A dev `.env` carrying
+`OPENAI_API_KEY` leaks into the suite and breaks ~14 questionnaire/interview tests that
+assert the no-provider path. Running the dev server also leaves
+`var/data/.gates-maintenance.lock` and `.maintenance_tick` behind, and those make
+`MaintenanceTest` fail **in the full suite only** — it passes in isolation, so the failure
+looks like whatever ran before it.
+
+```bash
+mv .env /tmp/env.bak; rm -f var/data/.gates-maintenance.lock var/data/.maintenance_tick
+./vendor/bin/phpunit --no-coverage
+```
+
+Both traps name code you did not touch, which is what makes them expensive.
 
 The harness builds an in-memory SQLite database from the three schema files and then runs
 every dated migration, with `PRAGMA foreign_keys = OFF` so unit seeds can stay minimal.
@@ -78,12 +88,14 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   renders it with `JSON_UNESCAPED_SLASHES`, so `</script>` in a campaign title closes the
   script element. Everything in `src/Support/Schema.php` goes through `text()`.
 - **No secrets, no model identifiers, and no operator email addresses in commits.**
-- **A declared field with no reader is the most expensive bug available here.** Five have
+- **A declared field with no reader is the most expensive bug available here.** Six have
   shipped: `AiCapability::$model` (read into the log, never onto the wire),
   `AiCapability::$timeout` (nothing at all — every summary ran on a 6s default and the
   status page read "0% answering" for weeks), `TicketLinkService::prune()` (no caller, so
   every dead link was permanent), `gates_ai_calls.error` and the `failed` rows in
-  `gates_judge_orientation` (both written since day one, both unrendered). With no shell on
+  `gates_judge_orientation` (both written since day one, both unrendered), and
+  `gates_status_log.components_json` (stored every 15 minutes for the life of the log, so the
+  status page could say "something broke on the 14th" and not which thing). With no shell on
   production the symptom always looks like something else. **Grep for a reader before you
   believe a declaration.** Full account in `docs/CODEBASE-INDEX.md` §17.
 

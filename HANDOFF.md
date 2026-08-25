@@ -1,6 +1,6 @@
 # Handoff — Africa GATES
 
-**Written:** 21 August 2026 · **Last updated:** 25 August 2026 (§3 item 1, §12/§12a/§12b; index §17)
+**Written:** 21 August 2026 · **Last updated:** 25 August 2026 (§3 item 1, §12–§14; index §17)
 **Branch:** `claude/ai-assistance-judges-features-1ka4oz` (pushed, green)
 **Suite:** ~4,580 tests passing — `vendor/bin/phpunit --no-coverage` (~140s)
 **Live site:** `afg.afrovanguard.org.ng`
@@ -16,6 +16,7 @@ already tried and found to be wrong; repeating them costs a day.
 | Thing | State |
 |---|---|
 | `composer install` | **Works, but takes ~15 min and appears to hang** (no output). Don't kill it. `vendor/` is gitignored except `.htaccess`. |
+| Running the app locally **poisons the suite twice** | A dev `.env` breaks ~14 AI tests (below), and running the dev server leaves `var/data/.gates-maintenance.lock` and `.maintenance_tick` behind, which makes `MaintenanceTest::test_tick_is_gated_by_the_setting_then_runs` fail with `skipped` — **in the full suite only**, because it passes in isolation. Both are invisible: the failures name code you did not touch. Before `phpunit`: move `.env` aside AND `rm -f var/data/.gates-maintenance.lock var/data/.maintenance_tick`. |
 | Local DB | SQLite. `php database/setup-sqlite.php` then `php bin/console db:migrate`. `.env` needs `DB_DRIVER=sqlite`, `APP_ENV=development`. |
 | Dev server | `cd public && php -S 127.0.0.1:PORT router.php` — **start it with `run_in_background: true`**, not `&`. A foreground `&` gets reaped and every curl returns `000`. |
 | `~/.claude/plugins/` | **Empty.** The org's legal (`privacy-legal`, `ai-governance-legal`, `cocounsel-legal`, `regulatory-legal`) and SEO (`searchfit-seo`) plugins are enabled on the account but do NOT sync into a container created before they were added. A **new session** gets them. |
@@ -563,3 +564,117 @@ Ids are arbitrary to every assertion in the three files that did this, so the ra
 bought nothing and cost a test that fails for an unrelated reason. All three now count.
 The two that use a raw `insert()` would have thrown rather than gone quiet — still a test
 erroring about the wrong thing.
+
+---
+
+## 13. The status page, made standard (25 Aug 2026)
+
+`SystemStatus::record()` had stored the per-component state of every snapshot since the log
+existed and **only `overall` was ever read** — the sixth instance of §17's pattern, and the
+most visible, because a per-component history bar is the single most recognisable element
+of a status page and the data was already on disk.
+
+The page now has the anatomy people know: verdict → component list, each row with its
+state, its live measurement and its own 14-day bar on one shared axis → incidents → how to
+read it. What it refuses to copy from the genre is the dishonesty:
+
+- **The denominator is checks whose result is KNOWN.** Time we could not measure is not time
+  we were up. The sample count is printed so the denominator is visible.
+- **The figure is FLOORED, never rounded.** One failure in twenty thousand checks is 99.995%,
+  which rounds to a clean hundred and erases the outage the reader came about.
+- **A gap in the record is not an incident.** Cron missing a beat is not the platform
+  breaking; manufacturing outages out of scheduling jitter makes the one list that names
+  real faults worthless. UNKNOWN closes a run rather than extending it — once we stopped
+  being able to see the fault we cannot claim it was still there.
+- **A fault seen once reports as one check**, not as fifteen minutes nobody witnessed.
+
+`/status.json` is uncached and CORS-open. Every status page people are used to publishes
+one, an uptime monitor cannot scrape Twig, and with no shell here it is the only thing an
+external watcher can act on. The **Cloudflare Worker in `deploy/cloudflare/` is the obvious
+first consumer** — it currently guesses from an HTTP code.
+
+**Traps found while building it, worth not re-finding:**
+
+- `Carbon::diffInMinutes` is **signed** and its argument order changed meaning between major
+  versions. It silently returned a negative span, so every incident duration read "seen
+  once". Spans come from epoch seconds now.
+- `SystemStatusTest` matched `'AI'` as a substring of **'Messages waiting'** and was
+  asserting against the queue row. Use `aiRow()`.
+- The stamp printed a bare UTC datetime with **no zone**, to an audience an hour ahead of it.
+  The test was asserting the raw stored string — i.e. asserting the bug.
+- A `flex:none` child whose min-content width is a 40-character timestamp sets how wide the
+  **whole document** is, so one bad cell reads as the entire page being clipped at 390px.
+- **A pre-existing horizontal overflow at 390px is site-wide** — `/help` clips identically.
+  Not from the status page and deliberately left alone; it wants its own pass.
+
+Tests: `StatusHistoryTest` (27), plus six in `SystemStatusTest`.
+
+## 14. The judging schedule and its reminders (25 Aug 2026)
+
+`gates_interviews` holds a time, a panel, a joining link and a `calendar_event_id` per
+sitting. **Every screen that read any of it read one sitting** — `/admin/interviews/{id}`.
+So an operator running a panel of ten across forty entries had the whole round in the
+database and no way to answer "what is Tuesday", "does Dr Achebe know about Thursday", or
+"did the calendar actually take it". And a judge could see their ballots and not their
+calls: the only place a sitting reached them was an email three days old.
+
+`JudgeSchedule` + `/admin/judges/schedule` + a "Your calls" panel on the judge dashboard.
+
+**A CSV is not "add to calendar".** The panel invitation already attached the judge's whole
+run as a spreadsheet — which answers "what am I doing next week" and cannot remind anybody
+on the morning, so the link had to be found again in a three-day-old email. There is an
+`.ics` beside it now: **one VCALENDAR with many VEVENTs**, because concatenating
+single-event files gives a client several calendars in one attachment and none of them does
+anything useful with that. `Ics::calendar()` was added for it and `Ics::event()`'s output is
+byte-identical. UIDs derive from the sitting id, so a re-send after a reschedule **updates**
+the entries instead of doubling them.
+
+**Reminders are manual and scoped.** `InterviewService::invite()` is per-sitting and
+automatic, which covers none of the cases an organiser actually rings about: the round
+moved and everybody needs today's links; one judge says she never got it; a programme's
+panel is confirmed a week late. Three scopes — all / one programme / one judge — all
+reducing to a set of judge ids, so the send has one behaviour to test. **A judge with
+nothing scheduled is never mailed, even by "remind all"**: a reminder about no meetings is
+the fastest way to teach a panel to ignore us. Partial sends say so — "sent 4" on a panel
+of seven reads as all of them.
+
+**Drift is the case the calendar check exists for.** A missing event is loud; an event
+dragged to a new time in Google is silent — the invitations already went with the old time
+and our reminders keep sending it. `verify()` reports agree / DRIFTED / gone separately, and
+an unreachable script as **UNKNOWN and never as missing**: telling somebody forty sittings
+are absent because a deployment is misconfigured sends them to recreate forty events that
+already exist. Compared as instants, not strings: Google answers ISO-8601 with an offset and
+we store naive UTC, so the same moment fails any string test. Verified **on demand** — forty
+sittings is forty round trips to an Apps Script deployment, and a screen that spends the
+script's quota on every glance stops working during the round it exists for.
+
+**Four traps hit while building it, all caught by guards that already existed** — which is
+the best argument for each of them:
+
+- `name="csrf_token"` is the plausible, wrong field name. `CsrfMiddleware` reads **`_token`**
+  and nothing else, so all four forms were inert. `CsrfFieldNameTest` caught it — that guard
+  exists because three admin templates shipped this way once.
+- `AdminDestructiveConfirmTest` measures the **literal prose** of a `data-confirm`, Twig
+  stripped, and requires ≥40 characters. "Email all {{ n }} judges?" reads fine in the editor
+  and collapses to a shrug. The confirmations name the consequence now: an email cannot be
+  unsent, and each says how many inboxes it reaches.
+- `AdminClassCoverageTest` — `ad-input` and `ad-label` are plausible and do not exist.
+  `.ad-form` styles its labels and controls by **descendant selector**; an invented class
+  name yields an unstyled field that looks deliberate. That guard exists because two forms
+  once wrote `ad-form__row`.
+- The schedule screen said "Synced" for a sitting with an event id when the script could not
+  be reached. All that is known is an id was stored once; it says **"Event on file"** now.
+
+Tests: `JudgeScheduleTest` (28), plus two in `JudgeInterviewMailTest`.
+
+### And an event that is a fundraiser now says so
+
+The registration panel on `/events/{slug}` read "Tickets" above the prices whether the event
+was a summit or a fundraising dinner. It follows the event now — derived from the live
+appeal already joined to it via `OrgCampaign::forEvent()`, **not** a second flag on the row
+that goes stale the first time somebody closes the appeal and forgets it.
+
+It still does **not** call the ticket a donation. The money moves through the ticket flow
+with the ticket flow's refund terms; the appeal is a separate transaction with its own.
+Naming a paid admission a gift is the same category error as calling it a support ticket,
+pointed the other way — and it is the one that ends up in a dispute.

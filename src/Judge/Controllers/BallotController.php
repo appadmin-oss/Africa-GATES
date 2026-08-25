@@ -39,6 +39,13 @@ class BallotController
                 (array) ($data['programmes'] ?? []),
                 static fn (array $b): bool => !empty($b['is_practice'])
             ) !== [],
+            // ── WHERE THIS JUDGE IS EXPECTED ─────────────────────────────────
+            //
+            // A judge could see their ballots and not their calls. The sittings existed in
+            // `gates_interviews` with a time, a panel and a joining link, and the only
+            // place any of it reached them was an email three days old — so on the morning
+            // of a call the link had to be found again in an inbox.
+            'sittings'       => \AfricaGates\Services\JudgeSchedule::forJudge($judgeId),
         ]));
     }
 

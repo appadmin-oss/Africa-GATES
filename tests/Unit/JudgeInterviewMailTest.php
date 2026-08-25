@@ -126,11 +126,16 @@ final class JudgeInterviewMailTest extends TestCase
     {
         $m = $this->invite()[0];
 
-        $this->assertCount(1, $m['files']);
-        $this->assertSame('text/csv', $m['files'][0]['mime']);
-        $this->assertStringEndsWith('.csv', $m['files'][0]['name']);
+        // TWO files. The spreadsheet is the one a judge reads on a laptop; the calendar is
+        // the one that reminds them on the morning. See the test below for why the second
+        // is not optional.
+        $this->assertCount(2, $m['files']);
 
-        $csv = (string) $m['files'][0]['body'];
+        $csvFile = $this->fileOfMime($m, 'text/csv');
+        $this->assertNotNull($csvFile, 'the readable schedule is gone');
+        $this->assertStringEndsWith('.csv', (string) $csvFile['name']);
+
+        $csv = (string) $csvFile['body'];
         $this->assertStringContainsString('Ada Obi', $csv);
         $this->assertStringContainsString('Music', $csv);
         $this->assertStringContainsString('https://meet.google.com/abc-defg-hij', $csv);
@@ -138,6 +143,75 @@ final class JudgeInterviewMailTest extends TestCase
         // Excel on Windows is the commonest reader, and without a BOM it renders a
         // nominee's name in the wrong encoding.
         $this->assertStringStartsWith("\xEF\xBB\xBF", $csv);
+    }
+
+    /** @param array<string,mixed> $m @return array<string,mixed>|null */
+    private function fileOfMime(array $m, string $needle): ?array
+    {
+        foreach ((array) $m['files'] as $f) {
+            if (str_contains((string) $f['mime'], $needle)) return (array) $f;
+        }
+        return null;
+    }
+
+    /**
+     * A SPREADSHEET IS NOT "ADD TO CALENDAR".
+     *
+     * The CSV answers "what am I doing next week" and a judge can read it on a laptop. It
+     * cannot be added to a calendar — so on the morning of the call nothing reminds anybody
+     * and the joining link has to be found again in a three-day-old email. That is exactly
+     * the failure `Support\Ics` exists for on the ticket side: a seat that goes unused is
+     * usually not a change of mind, it is somebody who meant to put it in their calendar.
+     */
+    public function test_the_schedule_can_actually_be_added_to_a_calendar(): void
+    {
+        $m   = $this->invite()[0];
+        $cal = $this->fileOfMime($m, 'text/calendar');
+
+        $this->assertNotNull($cal, 'a judge was sent a spreadsheet and nothing a calendar can read');
+        $this->assertStringEndsWith('.ics', (string) $cal['name']);
+
+        $ics = (string) $cal['body'];
+        $this->assertStringContainsString('BEGIN:VCALENDAR', $ics);
+        $this->assertStringContainsString('Ada Obi', $ics);
+        // The joining link is the LOCATION, because that is what a calendar app turns into
+        // a tappable "join" at one minute to the hour.
+        $this->assertStringContainsString('meet.google.com/abc-defg-hij', $ics);
+        // Every line CRLF-terminated: every LF is part of a CRLF and there are no bare
+        // ones. Outlook rejects a file with bare LF outright, and the entry simply never
+        // appears — no error anybody sees.
+        $this->assertSame(substr_count($ics, "\n"), substr_count($ics, "\r\n"),
+            'a bare LF is a calendar file Outlook will not open');
+    }
+
+    /**
+     * ONE calendar, with the sittings inside it.
+     *
+     * Concatenating single-event files gives a client several calendars in one attachment,
+     * and none of them handles that as the person pressing the button meant. A judge on two
+     * sittings should import two entries from one file.
+     */
+    public function test_several_sittings_arrive_as_one_calendar(): void
+    {
+        DB::table('gates_nominees')->insert([
+            'id' => 2, 'category_id' => 1, 'name' => 'Chinelo Umeh', 'status' => 'approved',
+            'vote_count' => 0, 'organic_vote_count' => 0,
+        ]);
+        DB::table('gates_interviews')->insert([
+            'nominee_id'   => 2,
+            'scheduled_at' => date('Y-m-d H:i:s', strtotime('+5 days')),
+            'timezone'     => 'Africa/Lagos', 'status' => 'scheduled',
+            'meet_url'     => 'https://meet.google.com/zzz-yyyy-xxx',
+            'panel_json'   => json_encode([1, 2]),
+            'created_at'   => date('Y-m-d H:i:s'),
+        ]);
+
+        $ics = (string) $this->fileOfMime($this->invite()[0], 'text/calendar')['body'];
+
+        $this->assertSame(1, substr_count($ics, 'BEGIN:VCALENDAR'),
+            'several calendars in one file is not what any client does something useful with');
+        $this->assertSame(2, substr_count($ics, 'BEGIN:VEVENT'));
+        $this->assertStringContainsString('Chinelo Umeh', $ics);
     }
 
     /**

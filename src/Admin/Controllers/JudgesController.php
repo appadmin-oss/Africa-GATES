@@ -44,6 +44,125 @@ class JudgesController
         ]);
     }
 
+    /**
+     * The round, as a schedule — who is expected where, and whether the calendar agrees.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS SCREEN DID NOT EXIST AND HAD TO
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Every screen that reads a sitting reads ONE — `/admin/interviews/{id}`. So an operator
+     * running a panel of ten across forty entries had the whole round in the database and no
+     * way to answer "what is Tuesday", "does Dr Achebe know about Thursday", or "did the
+     * calendar actually take it". The information existed; the view did not.
+     *
+     * ── THE GOOGLE CHECK IS A BUTTON, NOT PART OF THE RENDER ─────────────────
+     *
+     * Forty sittings is forty round trips to an Apps Script deployment. Verifying on render
+     * would make this the slowest screen in the console and spend the script's quota every
+     * time somebody glanced at it. {@see JudgeSchedule::verify()} is per sitting, on demand,
+     * and the answer is flashed rather than stored — it is a fact about right now.
+     */
+    public function schedule(Request $req, Response $res): Response
+    {
+        $q    = (array) $req->getQueryParams();
+        $prog = (int) ($q['programme'] ?? 0) ?: null;
+
+        $sittings = \AfricaGates\Services\JudgeSchedule::upcoming($prog);
+
+        // Grouped by day here rather than in Twig: "which day is this" is a property of the
+        // data and a template that computes it re-derives it per row and gets the boundary
+        // wrong at midnight in the display zone.
+        $byDay = [];
+        foreach ($sittings as $s) {
+            $byDay[(string) $s['day']][] = $s;
+        }
+
+        return $this->view->render($res, 'admin/judges/schedule.twig', [
+            'page_title'  => 'Judging schedule — Admin',
+            'admin_page'  => 'judges',
+            'by_day'      => $byDay,
+            'sittings'    => $sittings,
+            'judges'      => \AfricaGates\Services\JudgeSchedule::judgesWithSittings($prog),
+            'programmes'  => \AfricaGates\Services\JudgeSchedule::programmes(),
+            'programme'   => $prog,
+            // Whether the Google side can be asked at all. Without this the screen offers a
+            // "check the calendar" button that can only ever report the same failure.
+            'meet'        => \AfricaGates\Services\GoogleMeetService::boot()->canSchedule(),
+            'meet_why'    => \AfricaGates\Services\GoogleMeetService::boot()->why(),
+        ]);
+    }
+
+    /** Ask Google what it holds for one sitting. Flashed, never stored — see schedule(). */
+    public function verify(Request $req, Response $res, array $args): Response
+    {
+        $id = (int) ($args['id'] ?? 0);
+        $r  = \AfricaGates\Services\JudgeSchedule::verify($id);
+
+        $_SESSION[$r['state'] === \AfricaGates\Services\JudgeSchedule::SYNC_OK
+            ? 'flash' : 'flash_error'] = 'Sitting #' . $id . ': ' . $r['message']
+            . ($r['calendar_at'] !== '' ? ' Calendar has it at ' . $r['calendar_at'] . '.' : '');
+
+        return $res->withHeader('Location', '/admin/judges/schedule')->withStatus(302);
+    }
+
+    /**
+     * Send the reminder, by hand, to whoever was chosen.
+     *
+     * Three scopes, all reducing to a set of judge ids: everybody with something scheduled,
+     * everybody on one programme, or one named judge. The choosing happens here and the
+     * sending has one behaviour — {@see JudgeSchedule::remind()}.
+     */
+    public function remind(Request $req, Response $res): Response
+    {
+        $b     = (array) $req->getParsedBody();
+        $scope = (string) ($b['scope'] ?? 'all');
+        $prog  = (int) ($b['programme'] ?? 0) ?: null;
+
+        // ── A NARROW SCOPE MUST NOT WIDEN WHEN ITS ARGUMENT IS MISSING ───────
+        //
+        // `judgesWithSittings(null)` means "everybody", which is the right default for the
+        // "all" button and exactly the wrong one here: a `scope=programme` post that
+        // arrives without a programme — a hand-edited form, a stale page, a double submit
+        // after somebody cleared the filter — would silently mail the entire panel. Refused
+        // rather than guessed, because the guess is unsendable-back.
+        if ($scope === 'programme' && $prog === null) {
+            $_SESSION['flash_error'] = 'No programme was chosen, so nothing was sent. '
+                                     . 'Pick one and try again — or use “remind all” if that is what you meant.';
+            return $res->withHeader('Location', '/admin/judges/schedule')->withStatus(302);
+        }
+
+        $ids = match ($scope) {
+            // One judge. Cast from the form rather than trusted as a list, so a hand-edited
+            // field cannot turn "remind her" into "remind everybody".
+            'judge'     => array_filter([(int) ($b['judge_id'] ?? 0)]),
+            // A programme's panel. `$prog` also narrows what each of them is TOLD, so a
+            // judge sitting on two programmes hears about the one this send is for.
+            'programme' => array_column(
+                \AfricaGates\Services\JudgeSchedule::judgesWithSittings($prog), 'id'),
+            default     => array_column(
+                \AfricaGates\Services\JudgeSchedule::judgesWithSittings(), 'id'),
+        };
+
+        $r = \AfricaGates\Services\JudgeSchedule::remind(
+            array_values($ids),
+            $scope === 'programme' ? $prog : null,
+            $this->mailer,
+        );
+
+        $_SESSION[$r['ok'] ? 'flash' : 'flash_error'] = $r['message'];
+
+        try {
+            $this->audit->record((int) ($_SESSION['admin_id'] ?? 0), 'judges.reminded', null, null, [
+                'scope' => $scope, 'programme' => $prog,
+                'sent' => $r['sent'], 'skipped' => $r['skipped'], 'failed' => $r['failed'],
+            ]);
+        } catch (\Throwable) {}
+
+        return $res->withHeader('Location',
+            '/admin/judges/schedule' . ($prog ? '?programme=' . $prog : ''))->withStatus(302);
+    }
+
     public function form(Request $req, Response $res, array $args = []): Response
     {
         $id = (int)($args['id'] ?? 0);
