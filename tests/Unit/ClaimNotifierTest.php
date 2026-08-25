@@ -26,7 +26,7 @@ final class ClaimMailerSpy extends OtpService
         $this->fail = $fail;
     }
 
-    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = ''): array
+    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = []): array
     {
         if ($this->fail) return ['success' => false, 'error' => 'connection refused'];
         $this->sent[] = ['to' => $to, 'subject' => $subject, 'html' => $htmlBody, 'text' => $plainBody];

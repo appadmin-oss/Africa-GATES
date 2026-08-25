@@ -43,7 +43,7 @@ final class CodeCatchingMailer extends \AfricaGates\Services\OtpService
 
     public function sendBranded(string $to, string $subject, string $htmlBody,
                                 string $plainBody = '', string $category = '', string $hero = '',
-                                string $unsubscribeUrl = ''): array
+                                string $unsubscribeUrl = '', array $attachments = []): array
     {
         $this->to[] = $to;
         if (preg_match('/\\b(\\d{6})\\b/', $plainBody . ' ' . $htmlBody, $m) === 1) {

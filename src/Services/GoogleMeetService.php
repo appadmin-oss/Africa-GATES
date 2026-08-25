@@ -452,6 +452,177 @@ final class GoogleMeetService
                 'message' => (string) ($res['message'] ?? '')];
     }
 
+    /**
+     * Prove the Apps Script is really there, one capability at a time.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THIS IS A LIVE ROUND TRIP AND NOT A CONFIG CHECK
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Everything about this integration can be set correctly and still not work, and every
+     * one of those failures looks identical from the .env file: the deployment was never
+     * published, it was published as "only me" instead of "anyone", the SECRET at the top
+     * of the script does not match GAS_SECRET, the Calendar ADVANCED service was never
+     * added under Services, or the operator edited the script and forgot that Apps Script
+     * serves the last DEPLOYED version rather than the last saved one.
+     *
+     * `isConfigured()` says yes to all five. So this asks the script itself, and each row
+     * carries the fix rather than a verdict.
+     *
+     * ── AND WHY THE WRITE PATH IS NOT PROBED ─────────────────────────────────
+     *
+     * `meet.create` puts a real event in a real calendar and mails real invitations to
+     * whoever is on it. A confidence check that leaves litter in the operator's diary is
+     * one they run once and then avoid, so the write row is REPORTED rather than run, and
+     * it says so. Everything it depends on — the deployment, the secret, the Calendar
+     * service — is proved by the read rows above it.
+     *
+     * @return list<array{key:string, label:string, ok:bool, tested:bool, detail:string, fix:string}>
+     */
+    public function probeAll(): array
+    {
+        $rows = [];
+
+        $rows[] = [
+            'key'    => 'url',
+            'label'  => 'The script has an address',
+            'ok'     => $this->isConfigured(),
+            'tested' => true,
+            'detail' => $this->isConfigured()
+                ? 'GAS_URL is set and is a URL.'
+                : 'GAS_URL is empty or is not a URL.',
+            'fix'    => $this->isConfigured() ? ''
+                : 'Deploy the Apps Script (Deploy → New deployment → Web app, Execute as: me, '
+                . 'Who has access: anyone) and put the /exec URL in GAS_URL.',
+        ];
+
+        $rows[] = [
+            'key'    => 'secret',
+            'label'  => 'A shared secret is set',
+            'ok'     => $this->secret !== '',
+            'tested' => true,
+            'detail' => $this->secret !== ''
+                ? 'GAS_SECRET is set at this end.'
+                : 'GAS_SECRET is empty, so every privileged action is refused before it is sent.',
+            'fix'    => $this->secret !== '' ? ''
+                : 'Set GAS_SECRET in .env and the matching SECRET at the top of the Apps Script, '
+                . 'then redeploy.',
+        ];
+
+        if (!$this->canSchedule()) {
+            // Nothing below can be attempted, and pretending otherwise would fill the screen
+            // with red rows whose real cause is the two above.
+            foreach ([['reach', 'The deployment answers'], ['auth', 'The secret is accepted'],
+                      ['calendar', 'The Calendar service is on'], ['freebusy', 'Free/busy reads']] as [$k, $l]) {
+                $rows[] = ['key' => $k, 'label' => $l, 'ok' => false, 'tested' => false,
+                           'detail' => 'Not attempted — fix the two rows above first.', 'fix' => ''];
+            }
+            $rows[] = self::writeRow();
+            return $rows;
+        }
+
+        // ── the deployment answers, and the secret is the right one ─────────
+        //
+        // One call proves both. A wrong secret comes back as a REPLY saying 'Bad token',
+        // which means the door opened; a dead deployment does not reply at all.
+        $auth = $this->call('calendar.freebusy', [
+            'fromIso' => gmdate('Y-m-d\TH:i:s\Z'),
+            'toIso'   => gmdate('Y-m-d\TH:i:s\Z', time() + 3600),
+            'calendarId' => 'primary',
+        ], self::TIMEOUT_CREATE);
+
+        $reply  = (string) ($auth['message'] ?? '');
+        $spoke  = $auth !== [] && (isset($auth['ok']) || $reply !== '');
+        $badTok = stripos($reply, 'bad token') !== false || stripos($reply, 'no SECRET') !== false;
+
+        $rows[] = [
+            'key'    => 'reach',
+            'label'  => 'The deployment answers',
+            'ok'     => $spoke,
+            'tested' => true,
+            'detail' => $spoke ? 'The script replied.' : ($reply !== '' ? $reply : 'No reply.'),
+            'fix'    => $spoke ? ''
+                : 'Apps Script serves the last DEPLOYED version, not the last saved one. Deploy → '
+                . 'Manage deployments → edit → New version, and check Who has access is "Anyone".',
+        ];
+
+        $rows[] = [
+            'key'    => 'auth',
+            'label'  => 'The secret is accepted',
+            'ok'     => $spoke && !$badTok,
+            'tested' => $spoke,
+            'detail' => !$spoke ? 'Not reached.'
+                : ($badTok ? 'The script refused the token.' : 'The script accepted the token.'),
+            'fix'    => ($spoke && $badTok)
+                ? 'GAS_SECRET here and SECRET at the top of the script are different strings. '
+                . 'Make them identical and redeploy — editing the constant alone changes nothing '
+                . 'until a new version is deployed.'
+                : '',
+        ];
+
+        // ── the Calendar advanced service ───────────────────────────────────
+        //
+        // Read an event that does not exist. A script with Calendar enabled answers "not
+        // found", which is a pass; one without it throws about an undefined `Calendar`,
+        // which is the single commonest setup miss on this integration.
+        $probeKey = 'ag-probe-' . substr(sha1((string) $this->secret), 0, 10);
+        $cal      = ($spoke && !$badTok)
+            ? $this->call('calendar.read', ['key' => $probeKey, 'calendarId' => 'primary'], self::TIMEOUT_CREATE)
+            : [];
+        $calMsg   = (string) ($cal['message'] ?? '');
+        $calBroke = stripos($calMsg, 'Calendar') !== false
+                 && (stripos($calMsg, 'not defined') !== false || stripos($calMsg, 'advanced') !== false
+                     || stripos($calMsg, 'enable') !== false);
+
+        $rows[] = [
+            'key'    => 'calendar',
+            'label'  => 'The Calendar service is on',
+            'ok'     => $cal !== [] && !$calBroke,
+            'tested' => $cal !== [],
+            'detail' => $cal === [] ? 'Not reached.'
+                : ($calBroke ? $calMsg
+                   : 'The script can read the calendar. A lookup for an event that does not exist '
+                   . 'came back cleanly, which is the answer that proves the service is there.'),
+            'fix'    => $calBroke
+                ? 'In the Apps Script editor: Services → + → Calendar API → Add. CalendarApp on its '
+                . 'own cannot attach a Meet conference, which is why this is required.'
+                : '',
+        ];
+
+        $rows[] = [
+            'key'    => 'freebusy',
+            'label'  => 'Free/busy reads',
+            'ok'     => (bool) ($auth['ok'] ?? false),
+            'tested' => $spoke,
+            'detail' => ($auth['ok'] ?? false)
+                ? 'The next hour of the calendar was read, which is what appointment booking needs.'
+                : ($reply !== '' ? $reply : 'Not reached.'),
+            'fix'    => ($spoke && !($auth['ok'] ?? false) && !$badTok)
+                ? 'The script answered but could not read the calendar. Run any function once in the '
+                . 'editor and accept the Google permissions prompt — a deployment that has never been '
+                . 'authorised cannot see a diary.'
+                : '',
+        ];
+
+        $rows[] = self::writeRow();
+        return $rows;
+    }
+
+    /** @return array{key:string, label:string, ok:bool, tested:bool, detail:string, fix:string} */
+    private static function writeRow(): array
+    {
+        return [
+            'key'    => 'create',
+            'label'  => 'Creating events and Meet links',
+            'ok'     => false,
+            'tested' => false,
+            'detail' => 'Not tested on purpose — a live check here would put a real event in your '
+                      . 'calendar and email everybody on it. Everything it needs is proved by the '
+                      . 'rows above; schedule one interview to confirm the last step.',
+            'fix'    => '',
+        ];
+    }
+
     /** @param array<mixed> $in @return list<string> the deliverable addresses in $in */
     private static function emails(array $in): array
     {

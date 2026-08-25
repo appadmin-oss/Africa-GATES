@@ -326,7 +326,7 @@ final class AutoRefundTest extends TestCase
             /** @var list<string> */
             public array $sent = [];
             public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '',
-                                        string $category = '', string $hero = '', string $unsubscribeUrl = ''): array
+                                        string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = []): array
             {
                 // Subject AND body. What an alert SAYS is the point of it — an
                 // email that arrives and explains the wrong thing is barely

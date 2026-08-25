@@ -35,7 +35,7 @@ class AdminTicketReplyTest extends TestCase
             public function __construct(array $cfg, private bool $throw) { parent::__construct($cfg); }
             public function sendBranded(string $to, string $subject, string $htmlBody,
                                         string $plainBody = '', string $category = '', string $hero = '',
-                                        string $unsubscribeUrl = ''): array
+                                        string $unsubscribeUrl = '', array $attachments = []): array
             {
                 if ($this->throw) throw new \RuntimeException('smtp refused');
                 $this->sent[] = ['to' => $to, 'subject' => $subject, 'plain' => $plainBody];

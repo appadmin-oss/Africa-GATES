@@ -319,8 +319,23 @@ final class InterviewService
             if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) continue;
             try {
                 if ($mailer) {
-                    $mailer->sendCustom($to, 'Interview: ' . $nominee->name . ' — ' . $when,
-                        self::panelInviteBody((string) ($j['name'] ?? ''), (string) $nominee->name, $when, $iv));
+                    $name = (string) ($j['name'] ?? '');
+
+                    // The judge's whole run, attached. Best-effort: a schedule that could
+                    // not be built must not stop the invitation — the message is still true
+                    // about the sitting it is announcing.
+                    $csv  = self::scheduleCsv((int) ($j['id'] ?? 0));
+                    $file = $csv === '' ? [] : [[
+                        'name' => 'africa-gates-interviews.csv',
+                        'mime' => 'text/csv',
+                        'body' => $csv,
+                    ]];
+
+                    $mailer->sendBranded($to,
+                        'Interview: ' . $nominee->name . ' — ' . $when,
+                        self::panelInviteHtml($name, (string) $nominee->name, $when, $iv),
+                        self::panelInviteBody($name, (string) $nominee->name, $when, $iv),
+                        'Judging', '', '', $file);
                     $sent[] = $to;
                 }
             } catch (\Throwable $e) {
@@ -1107,7 +1122,124 @@ final class InterviewService
              . rtrim(SiteUrl::base(), '/') . '/admin/interviews/' . (int) $iv->id . "/run\n\n"
              . "The questions are built from this nominee's own dossier and are mapped to the "
              . "scoring criteria, so you can see which part of the rubric each one is for. Nothing "
-             . "you capture there writes a score: scoring stays on your ballot, where it belongs.\n";
+             . "you capture there writes a score: scoring stays on your ballot, where it belongs.\n\n"
+             . "Attached is every sitting you are on, as a spreadsheet.\n";
+    }
+
+    /**
+     * The same invitation, as the branded HTML every other message on this platform uses.
+     *
+     * ── WHY THIS WAS WORTH DOING ─────────────────────────────────────────────
+     *
+     * The panel invitation went out through `sendCustom()` — plain text, no wrapper, no
+     * mark. Every other message this platform sends is branded, so the one that lands in a
+     * judge's inbox asking them to join a video call with a stranger was the one that
+     * looked least like it came from us. That is the exact shape of a message people do
+     * not click, and the thing they are being asked to click is a meeting link.
+     *
+     * The two bodies are built side by side rather than one derived from the other, because
+     * a plain-text part made by stripping tags reads like stripped HTML, and it is what a
+     * judge on a text-only client actually gets.
+     */
+    private static function panelInviteHtml(string $judge, string $nominee, string $when, object $iv): string
+    {
+        $e    = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+        $meet = trim((string) ($iv->meet_url ?? ''));
+        $run  = rtrim(SiteUrl::base(), '/') . '/admin/interviews/' . (int) $iv->id . '/run';
+
+        $html = '<p>Dear <strong>' . $e($judge !== '' ? $judge : 'Judge') . '</strong>,</p>'
+              . '<p style="font-size:17px;font-weight:700;color:#10292C">You are on the panel for an '
+              . 'interview with ' . $e($nominee) . '.</p>'
+              . '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:14px 0;'
+              . 'background:#f6f2e6;border-left:4px solid #c9a24b;border-radius:0 8px 8px 0;padding:14px 18px">'
+              . '<tr><td style="font-size:14px;color:#5b4a1f;line-height:1.8">'
+              . 'When: <strong>' . $e($when) . '</strong><br>Where: <strong>Google Meet</strong>'
+              . ($meet === '' ? ' — link to follow' : '')
+              . '</td></tr></table>';
+
+        // The meeting link is the whole point of the message, so it is a button and it is
+        // first. The console is the second action and reads as one.
+        if ($meet !== '') {
+            $html .= '<p style="text-align:center;margin:22px 0"><a href="' . $e($meet)
+                   . '" style="display:inline-block;padding:13px 30px;background:#12481d;color:#fff;'
+                   . 'border-radius:999px;font-weight:600;text-decoration:none;font-size:15px">'
+                   . 'Join the interview &rarr;</a></p>';
+        }
+
+        $html .= '<p style="font-size:15px;line-height:1.7">The interview console — the question pack, '
+               . 'what each question is testing, and the place to capture answers as you go — is '
+               . '<a href="' . $e($run) . '" style="color:#237b22">here</a>.</p>'
+               . '<p style="font-size:14px;line-height:1.7;color:#5a6d6f">The questions are built from this '
+               . "nominee's own dossier and are mapped to the scoring criteria, so you can see which part "
+               . 'of the rubric each one is for. <strong>Nothing you capture there writes a score</strong> — '
+               . 'scoring stays on your ballot, where it belongs.</p>'
+               . '<p style="font-size:13.5px;line-height:1.7;color:#5a6d6f">Attached is every sitting you '
+               . 'are on, as a spreadsheet — open it to see the whole run in one place.</p>';
+
+        return $html;
+    }
+
+    /**
+     * Every upcoming sitting a judge is on, as a spreadsheet.
+     *
+     * ── WHY A FILE AND NOT A LIST IN THE MESSAGE ─────────────────────────────
+     *
+     * A judge sitting six interviews gets six emails, each true about one of them and
+     * silent about the other five. The question they actually have — "what am I doing next
+     * week" — is answered by none of them, and the answer lives across an inbox.
+     *
+     * The attachment is the whole run: dates, nominee, category, the meeting link and the
+     * console link, one row each. It opens in a spreadsheet, it can be printed, and it can
+     * be read on a phone with no signal, which is where a judge often is the morning of.
+     *
+     * The panel is stored as a JSON array on each sitting, so this filters in PHP rather
+     * than in SQL — a LIKE against a JSON column would match judge 1 inside judge 13.
+     */
+    public static function scheduleCsv(int $judgeId): string
+    {
+        $rows = [];
+        try {
+            $sittings = DB::table('gates_interviews as iv')
+                ->leftJoin('gates_nominees as n', 'n.id', '=', 'iv.nominee_id')
+                ->leftJoin('gates_award_categories as c', 'c.id', '=', 'n.category_id')
+                ->whereNotIn('iv.status', ['cancelled', 'done'])
+                ->orderBy('iv.scheduled_at')
+                ->limit(200)
+                ->get(['iv.id', 'iv.scheduled_at', 'iv.timezone', 'iv.meet_url', 'iv.status',
+                       'iv.panel_json', 'n.name as nominee', 'c.title as category']);
+        } catch (\Throwable $e) {
+            error_log('[interview] schedule csv for judge ' . $judgeId . ': ' . $e->getMessage());
+            return '';
+        }
+
+        $base = rtrim(SiteUrl::base(), '/');
+        foreach ($sittings as $iv) {
+            $panel = json_decode((string) ($iv->panel_json ?? '[]'), true) ?: [];
+            if (!in_array($judgeId, array_map('intval', (array) $panel), true)) continue;
+
+            $rows[] = [
+                (string) ($iv->scheduled_at ?? ''),
+                (string) ($iv->timezone ?? ''),
+                (string) ($iv->nominee ?? ''),
+                (string) ($iv->category ?? ''),
+                (string) ($iv->status ?? ''),
+                (string) ($iv->meet_url ?? ''),
+                $base . '/admin/interviews/' . (int) $iv->id . '/run',
+            ];
+        }
+
+        $out = fopen('php://temp', 'r+');
+        // A BOM, because the commonest reader of this file is Excel on Windows and without
+        // one it renders a nominee's name in the wrong encoding — which is a worse first
+        // impression than no attachment at all.
+        fwrite($out, "\xEF\xBB\xBF");
+        fputcsv($out, ['When', 'Timezone', 'Nominee', 'Category', 'Status', 'Meeting link', 'Console'], ',', '"', '');
+        foreach ($rows as $r) fputcsv($out, $r, ',', '"', '');
+        rewind($out);
+        $csv = (string) stream_get_contents($out);
+        fclose($out);
+
+        return $csv;
     }
     // ═══════════════════════════════════════════════════════════════════════
     // GUESTS WHO ARE NOT ON THE PANEL

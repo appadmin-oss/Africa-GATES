@@ -139,7 +139,13 @@ class OtpService
      *        link in the footer, because a header alone is a way out only for the clients
      *        that render one.
      */
-    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = ''): array
+    /**
+     * @param list<array{name:string, mime:string, body:string}> $attachments files built in
+     *        memory and attached by value. Deliberately not paths: everything this platform
+     *        attaches is generated for the message (a schedule, a receipt), and accepting a
+     *        path would make it possible to attach a file somebody else's request named.
+     */
+    public function sendBranded(string $to, string $subject, string $htmlBody, string $plainBody = '', string $category = '', string $hero = '', string $unsubscribeUrl = '', array $attachments = []): array
     {
         if (!$this->smtpConfigured()) {
             $this->devLog($to, $subject, $plainBody ?: strip_tags($htmlBody));
@@ -161,6 +167,15 @@ class OtpService
             if ($unsubscribeUrl !== '') {
                 $m->addCustomHeader('List-Unsubscribe', '<' . $unsubscribeUrl . '>');
                 $m->addCustomHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
+            }
+            foreach ($attachments as $f) {
+                $name = trim((string) ($f['name'] ?? ''));
+                if ($name === '') continue;
+                // basename, because the filename travels into the reader's downloads folder
+                // and a name carrying a path separator is a name that can point elsewhere.
+                $m->addStringAttachment((string) ($f['body'] ?? ''), basename($name),
+                                        PHPMailer::ENCODING_BASE64,
+                                        (string) ($f['mime'] ?? 'application/octet-stream'));
             }
             $m->send();
             $this->log?->info('[mail] sent', ['to' => $to, 'subject' => $subject]);

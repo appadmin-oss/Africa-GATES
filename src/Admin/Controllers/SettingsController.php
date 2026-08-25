@@ -96,6 +96,13 @@ class SettingsController
                 unset($_SESSION['ai_probe']);
                 return is_array($r) ? $r : [];
             })(),
+            // Consumed once, for the same reason as the AI probe above: a verdict about a
+            // deployment that has since been re-published is the one an operator would act on.
+            'sync_probe' => (static function (): array {
+                $r = $_SESSION['sync_probe'] ?? [];
+                unset($_SESSION['sync_probe']);
+                return is_array($r) ? $r : [];
+            })(),
             // ElevenLabs — the voice on the nominee's questionnaire. Booleans and defaults
             // only; the key itself is write-only like every other provider key on this page.
             'voice_status'    => (static function (): array {
@@ -714,5 +721,38 @@ class SettingsController
         } catch (\Throwable) {}
 
         return $res->withHeader('Location', '/admin/settings#ai-probe')->withStatus(302);
+    }
+
+    /**
+     * Ask the Apps Script whether it is really there.
+     *
+     * Same shape as the AI probe above and for the same reason: every part of the Google
+     * integration can be configured correctly and still not work, and from the .env file
+     * all five failures look identical. The screen shows what was tried, what answered,
+     * and the fix for each row.
+     */
+    public function probeSync(Request $req, Response $res): Response
+    {
+        $adminId = (int) ($_SESSION['admin_id'] ?? 0);
+        $rows    = \AfricaGates\Services\GoogleMeetService::boot()->probeAll();
+
+        $_SESSION['sync_probe'] = $rows;
+
+        $tested = array_values(array_filter($rows, static fn (array $r): bool => (bool) $r['tested']));
+        $failed = array_values(array_filter($tested, static fn (array $r): bool => !$r['ok']));
+
+        $_SESSION[$failed === [] ? 'flash_ok' : 'flash_error'] = $tested === []
+            ? 'Nothing could be tested — the address and the secret have to be set first.'
+            : ($failed === []
+                ? sprintf('All %d live check%s passed. Creating events is the one step that cannot be '
+                          . 'tested without making one.', count($tested), count($tested) === 1 ? '' : 's')
+                : sprintf('%d of %d live check%s failed. Each row below says what to change.',
+                          count($failed), count($tested), count($tested) === 1 ? '' : 's'));
+
+        try {
+            $this->audit->record($adminId, 'settings.sync_probe', null, null, ['rows' => $rows]);
+        } catch (\Throwable) {}
+
+        return $res->withHeader('Location', '/admin/settings#sync-probe')->withStatus(302);
     }
 }
