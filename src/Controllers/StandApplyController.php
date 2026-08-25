@@ -95,6 +95,8 @@ final class StandApplyController
                 'event'      => $event,
                 'published'  => false,
                 'accepting'  => false,
+                // The exact string the opening notice looks the list up by.
+                'notify_source' => \AfricaGates\Services\StandCallNotice::source((string) $event->slug),
                 'capacity'   => [],
                 'categories' => [],
                 'signed_in'  => OrgAuth::user() !== null,

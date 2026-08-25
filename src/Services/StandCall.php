@@ -334,8 +334,32 @@ final class StandCall
             'updated_at'    => date('Y-m-d H:i:s'),
         ]);
 
-        return ['ok' => true, 'message' => 'Open. The criteria, quotas, prices and closing date '
-                                         . 'are now locked and cannot be edited.'];
+        // ── AND THE PEOPLE WHO ASKED TO BE TOLD ─────────────────────────────
+        //
+        // The call page for an unpublished event asks for an address. This is the moment
+        // that promise falls due — and it is QUEUED rather than sent, because opening a
+        // call is one press of one button and the press must not become as slow as the
+        // list is long.
+        //
+        // Best-effort by construction: a call is open the moment the row above is written,
+        // and a mail queue having a bad afternoon must not undo that or report it as a
+        // failure to the operator who just pressed the button.
+        $told = ['queued' => 0, 'skipped' => 0, 'unsubscribed' => 0];
+        try {
+            $told = StandCallNotice::queueForCall($callId);
+        } catch (\Throwable $e) {
+            error_log('[stand-call] could not queue the opening notice for ' . $callId
+                    . ': ' . $e->getMessage());
+        }
+
+        $msg = 'Open. The criteria, quotas, prices and closing date are now locked and cannot '
+             . 'be edited.';
+        if ($told['queued'] > 0) {
+            $msg .= ' ' . $told['queued'] . ' vendor' . ($told['queued'] === 1 ? '' : 's')
+                  . ' asked to be told and will hear on the next maintenance run.';
+        }
+
+        return ['ok' => true, 'message' => $msg, 'told' => $told];
     }
 
     public static function close(int $callId): array

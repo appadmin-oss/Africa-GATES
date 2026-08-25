@@ -292,7 +292,10 @@
       <form class="sc-notify" method="post" action="/api/v1/newsletter/subscribe"
             data-ag-notify="{{ event.slug }}">
         <input type="hidden" name="_token" value="{{ csrf_token }}">
-        <input type="hidden" name="source" value="stands:{{ event.slug }}">
+        {# Built by StandCallNotice, not typed here. The opening notice looks the list up
+           by this exact string, and a second copy of it in a template is a list that goes
+           quiet the day somebody edits one of them. #}
+        <input type="hidden" name="source" value="{{ notify_source }}">
         <label class="sr-only" for="scNotify">Your email address</label>
         <input id="scNotify" type="email" name="email" required autocomplete="email"
                placeholder="you@example.com">

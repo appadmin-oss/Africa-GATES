@@ -895,6 +895,13 @@ final class Maintenance
             $q->on(\AfricaGates\Services\StandNotice::JOB_NOTICE, function (array $p) use ($mailer) {
                 \AfricaGates\Services\StandNotice::deliver($p, $mailer);
             });
+            // "Email me when it opens", falling due. deliver() re-reads the call, so a
+            // message queued for a call that has since been closed again is dropped rather
+            // than sent — announcing an open call to somebody who then follows the link to
+            // a closed one is worse than silence.
+            $q->on(\AfricaGates\Services\StandCallNotice::JOB_NOTICE, function (array $p) use ($mailer) {
+                \AfricaGates\Services\StandCallNotice::deliver($p, $mailer);
+            });
             // ── the register, asked away from the form ─────────────────────────
             //
             // A vendor's submit creates an account AND an application in one request, on a
