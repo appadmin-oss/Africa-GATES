@@ -397,7 +397,13 @@ class PhaseSurfaceRenderTest extends TestCase
         );
 
         $this->assertStringContainsString('Voting open', $body);
-        $this->assertStringContainsString('Closes <time', $body, 'machine-readable, absolute date');
+        // The static line this asserted became the shared countdown partial, which is the
+        // same contract in different markup: a `time` element carrying the machine-readable
+        // instant, and the absolute date rendered beside it. Asserted on the properties
+        // rather than the old literal, so the next presentation change does not fail a test
+        // that is about the date being present and unambiguous.
+        $this->assertStringContainsString('<time datetime=', $body, 'machine-readable instant');
+        $this->assertStringContainsString('Voting closes', $body, 'and the words a reader needs');
 
         // ── THE DATE IS EXPECTED IN THE DISPLAY ZONE, NOT THE SERVER'S ───────
         //

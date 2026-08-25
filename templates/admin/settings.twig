@@ -520,11 +520,61 @@
         </tbody>
       </table>
     </div>
+    {# ── WHY THE FAILURES ABOVE HAPPENED ─────────────────────────────────────
+       The column to the left counts them. That count was the end of the trail on a
+       host with no shell: "3" in a gold chip, with the provider's own refusal sitting
+       unread in `gates_ai_calls.error` since the log was built. A rejected key, a
+       decommissioned model, an egress block and a summary that ran out of time all
+       rendered as the same chip, and each of those is a different fix.
+
+       Refusals are deliberately absent — a spent budget or a switched-off capability
+       is not a fault and has no provider error behind it, and listing them would bury
+       the four rows worth reading under forty that are not. See
+       AiGateway::recentFailures(). #}
+    {% if ai_failures is defined and ai_failures %}
+    <div class="ad-table-wrap">
+      <table class="ad-table">
+        <caption style="text-align:left;padding:12px 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+          The last {{ ai_failures|length }} failure{{ ai_failures|length == 1 ? '' : 's' }} in 24 hours —
+          what the provider actually said, and the one thing to change.
+        </caption>
+        <thead><tr>
+          <th scope="col">When</th><th scope="col">Feature</th><th scope="col">Outcome</th>
+          <th scope="col">Tried</th><th scope="col">What came back</th>
+        </tr></thead>
+        <tbody>
+          {% for f in ai_failures %}
+          <tr>
+            <td style="white-space:nowrap">{{ f.at|when_zoned('j M, H:i') }}
+              {% if f.latency_ms > 0 %}<div style="font-size:11px;color:var(--ad-text-mute,#61728e)">{{ (f.latency_ms / 1000)|number_format(1) }}s</div>{% endif %}</td>
+            <td><strong style="font-size:12.5px">{{ f.capability }}</strong></td>
+            <td><span class="ad-chip ad-chip--gold">{{ f.outcome }}</span></td>
+            <td><code style="font-size:11px">{{ f.provider|default('—') }}{% if f.model %} / {{ f.model }}{% endif %}</code></td>
+            <td>
+              {# The provider's own words FIRST, then the interpretation — never only the
+                 interpretation. A guess that displaces the evidence is how somebody
+                 rotates a working key while the real fault is an egress block. #}
+              <code style="font-size:11px;word-break:break-word">{{ f.error|default('no detail recorded') }}</code>
+              {% if f.cause %}<div style="margin-top:5px;font-size:12px;color:var(--ad-text-mute,#5a6d6f)">{{ f.cause }}</div>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
     <div class="ad-card__body">
       <p style="margin:0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
         Every AI call is recorded in <code>gates_ai_calls</code>; the prompt itself is not stored, only a hash.
         Switch everything off with <code>ai_enabled = 0</code>, or one feature with
         <code>ai_cap_disabled_&lt;feature&gt;</code> (dots become underscores).
+      </p>
+      <p style="margin:8px 0 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
+        <strong>Reading a timeout:</strong> <code>TIMEOUT after Ns</code> means the provider
+        connected and was answering — the job simply needed longer than the feature allows.
+        Nothing is wrong with the key or the network; raise that capability's timeout, or ask
+        it for a shorter answer. <code>HTTP 0</code> is the different fault: the request never
+        left this server.
       </p>
       <p style="margin:8px 0 0;font-size:12.5px;color:var(--ad-text-mute,#5a6d6f)">
         <strong>Reading agreement:</strong> a LOW rate is the clear signal — the suggestion is not earning its

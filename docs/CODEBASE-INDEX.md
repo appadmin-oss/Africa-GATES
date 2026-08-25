@@ -695,3 +695,53 @@ down refresh. The consequence worth knowing: **a gap in `gates_status_log` is th
 that scheduled work stopped**, which is the one outage no self-report can cover, because
 the thing that would report it is the thing that stopped. `templates/pages/status.twig`
 therefore renders a missing day as a DASHED square, not a blank one and not a green one.
+
+---
+
+## 17. The AI time budget, and the pattern behind it (2026-08-25)
+
+`/status` read `AI assistance · Slower than usual · 0% answering` for weeks. The cause was
+that **`AiCapability::$timeout` was read by nothing.** Every capability declares one — 4s
+for the classifier on the nomination submit, 20s for a thread summary, 30s for a judge's
+dossier map, 120s for the document reader — and `AiGateway` never put it on the wire, so
+every call ran on `AiService`'s 6s constructor default. The fourteen capabilities declaring
+more than six seconds were cut off mid-generation on every request; the chain then paid six
+more seconds a hop for two more hops.
+
+Read the docblocks on `AiService::withTimeout()`, `AiService::httpPost()` and
+`ProviderBreaker::isUnreachable()` before touching any of them. In brief:
+
+- The budget is a **per-call override, consumed and restored**, not a `complete()`
+  parameter: the gateway's own test double overrides `complete()` by signature, and a
+  subclass with fewer parameters than its parent is a PHP fatal error. `boot()` results are
+  reused inside a request, so a 120s budget left set would be inherited by a classifier on a
+  form POST.
+- **`HTTP 0` and `TIMEOUT after Ns` are different faults.** cURL reports code 0 for both a
+  read timeout and a connection that never opened, and `ProviderBreaker` sidelines a
+  provider for five minutes on that text. `CURLINFO_CONNECT_TIME` is the discriminator:
+  non-zero means the handshake completed, which proves the network path. `HTTP 0` is the
+  fault this host actually has (egress); a timeout means the job needs longer or a shorter
+  answer.
+- `CURLOPT_CONNECTTIMEOUT` is bounded **separately and tightly** (`CONNECT_TIMEOUT`).
+  Without it, a capability that legitimately needs 120s to answer would also wait 120s to
+  discover a blocked outbound port.
+
+### The pattern, which is the part worth generalising
+
+Five instances of the same shape are now known in this codebase, and every one of them
+reached production:
+
+| Declared | Reader |
+|---|---|
+| `AiCapability::$model` | read into the audit log only, until `route()` was passed |
+| `AiCapability::$timeout` | **none** |
+| `TicketLinkService::prune()` | **no caller** — every dead link was permanent |
+| `gates_ai_calls.error` | **none** — the admin console rendered a count and no cause |
+| `gates_judge_orientation.status = 'failed'` | **none** — a broken dossier was retried for ever |
+
+Each was written carefully, documented honestly, and inert. On a deployment with no shell
+this is the most expensive class of bug available, because the symptom always looks like
+something else: a status page reporting flaky providers, a link that expired early, a
+feature that "randomly" costs money. **When you add a field to a declaration here, grep for
+a reader before you believe it.** `AiModelDelegationTest` exists because the first row of
+that table shipped twice.

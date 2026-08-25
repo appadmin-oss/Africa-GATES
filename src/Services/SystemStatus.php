@@ -545,20 +545,6 @@ final class SystemStatus
             self::OK, '', $n . ' sent recently');
     }
 
-    /**
-     * Outcome words {@see AiGateway} writes when it never asked a provider anything.
-     *
-     * The distinction this list draws is the whole point of the check below. A refusal is a
-     * DECISION the platform made — the switch is off, the day's budget is spent, no key is
-     * configured — and it is not evidence about whether the providers are answering. Counting
-     * refusals as failed answers is what produced "0% answering" on a deployment where the
-     * providers were fine and one setting was not.
-     */
-    private const AI_REFUSALS = [
-        'UNDECLARED', 'DISABLED_GLOBAL', 'DISABLED_CAPABILITY',
-        'BUDGET_CALLS', 'BUDGET_TOKENS', 'NO_PROVIDER',
-    ];
-
     /** Share of ATTEMPTED calls that may fail before it is worth saying so. */
     private const AI_FAIL_PCT = 40;
 
@@ -582,8 +568,10 @@ final class SystemStatus
      * `gates_ai_calls` holds a row for every REFUSAL too, by design: a call the gateway
      * stopped is exactly as auditable as one it made. But a refusal never asked a provider
      * anything, so it cannot be evidence that providers are unreliable. Three of the six
-     * refusal words are ordinary configuration — no key, a capability switched off, the day's
-     * budget spent — and each of them, alone, drove the single ratio to zero.
+     * words in {@see AiGateway::REFUSALS} are ordinary configuration — no key, a capability
+     * switched off, the day's budget spent — and each of them, alone, drove the ratio to
+     * zero. The list lives beside the code that WRITES those words, so this check and the
+     * admin console's failure list cannot drift into disagreeing about what a failure is.
      *
      * So: refusals are separated from ATTEMPTS, the percentage is over attempts, and where a
      * refusal is the dominant story the row says which one and what clears it. An operator
@@ -624,7 +612,7 @@ final class SystemStatus
             if ($outcome === 'OK') {
                 $ok  += $n;
                 $okMs = (float) $r->ms;
-            } elseif (in_array($outcome, self::AI_REFUSALS, true)) {
+            } elseif (in_array($outcome, AiGateway::REFUSALS, true)) {
                 $refused[$outcome] = ($refused[$outcome] ?? 0) + $n;
             } else {
                 // PROVIDER_ERROR, EMPTY, SCHEMA_REJECTED, FAILED, and anything a future

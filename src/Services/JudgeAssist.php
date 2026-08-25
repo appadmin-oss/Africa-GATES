@@ -539,36 +539,14 @@ final class JudgeAssist
     {
         if (!AiGateway::available(self::CAPABILITY)) return 0;
 
-        $ids = self::awaitingJudgement();
-        if ($ids === []) return 0;
-
-        // The hashes for every candidate in four queries, so deciding WHICH need a map costs
-        // the same whether the shortlist is six or six hundred.
-        $dossiers = self::dossiers($ids);
-
-        try {
-            // Every map already held for these nominees, current or not — one query. Keyed
-            // hash-wise so a superseded map counts as absent, which is the whole point:
-            // a nominee who added evidence yesterday needs a new map, and the ballot is
-            // already marking the old one out of date. {@see forBallot()}
-            $held = DB::table('gates_judge_orientation')
-                ->whereIn('nominee_id', $ids)
-                ->where('status', 'ok')
-                ->where('prompt_version', self::PROMPT_VERSION)
-                ->pluck('content_hash', 'nominee_id');
-        } catch (\Throwable) {
-            return 0;
-        }
-
         $made = 0;
-        foreach ($ids as $id) {
-            if ($made >= $limit) break;
-
-            $hash = (string) ($dossiers[$id]['hash'] ?? '');
-            if ($hash === '') continue;                              // nothing written yet
-            if ((string) ($held[$id] ?? '') === $hash) continue;     // current map in hand
-            if (self::recentlyFailed($id, $hash)) continue;
-
+        foreach (self::pending($limit) as $id) {
+            // `forNominee()` reads the dossier again rather than being handed {@see
+            // pending()}'s copy. Four extra queries per map on a background task is nothing,
+            // and the alternative — a parameter only the sweep passes — is how the stored
+            // hash and the text it was computed from drift apart. It also means a dossier
+            // that changed since the selection is mapped as it stands NOW, with the
+            // matching hash.
             $r = self::forNominee($id);
             if ($r['ok']) { $made++; continue; }
 
@@ -580,6 +558,76 @@ final class JudgeAssist
         }
 
         return $made;
+    }
+
+    /**
+     * Which nominees need a map right now, in the order the sweep should make them.
+     *
+     * ── SEPARATE FROM sweep() BECAUSE THIS IS THE PART THAT COSTS MONEY ──────
+     *
+     * `sweep()` is a loop around one model call; every decision about WHETHER to make that
+     * call is here. Keeping them together would have made the interesting half testable only
+     * by configuring a provider key and letting a test suite spend real tokens — so the
+     * selection would have gone untested, which for the one scheduled task on this platform
+     * that spends money is the wrong thing to leave uncovered.
+     *
+     * Four rules, each of which is a bill if it goes wrong:
+     *
+     *  · Only cycles genuinely IN the judging phase, read through {@see CyclePolicy} rather
+     *    than from `cached_status` — the platform documents that column as possibly stale,
+     *    and a sweep driven by a stale phase spends a round's budget early or misses the
+     *    round entirely.
+     *  · Only the published SHORTLIST, which is what a ballot renders. A map for a nominee
+     *    no panel will see is money spent on a page nobody opens.
+     *  · Never the sandbox. `DemoSeeder` builds real rows with real flags, so a rehearsal
+     *    category would otherwise consume a genuine round's budget every night.
+     *  · Never a dossier whose CURRENT hash already has a map, and never one that failed in
+     *    the last {@see RETRY_AFTER_MIN} minutes.
+     *
+     * @return list<int>
+     */
+    public static function pending(int $limit = self::SWEEP_LIMIT): array
+    {
+        $ids = self::awaitingJudgement();
+        if ($ids === []) return [];
+
+        // The hashes for every candidate in four queries, so deciding WHICH need a map costs
+        // the same whether the shortlist is six or six hundred.
+        $dossiers = self::dossiers($ids);
+
+        try {
+            // Every map already held for these nominees — one query. Compared BY HASH, so a
+            // superseded map counts as absent: a nominee who added evidence yesterday needs
+            // a new one, and the ballot is already marking the old one out of date.
+            // {@see forBallot()}
+            $held = DB::table('gates_judge_orientation')
+                ->whereIn('nominee_id', $ids)
+                ->where('status', 'ok')
+                ->where('prompt_version', self::PROMPT_VERSION)
+                // A nominee re-read after a change has SEVERAL ok rows, and `pluck` keeps
+                // whichever arrives last. Without an order that is undefined, and picking
+                // the older row would report a current map as superseded — so the sweep
+                // would regenerate it, at cost, on every single tick for the rest of the
+                // round. `forBallot()` orders for the same reason.
+                ->orderBy('id')
+                ->pluck('content_hash', 'nominee_id');
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($ids as $id) {
+            if (count($out) >= max(1, $limit)) break;
+
+            $hash = (string) ($dossiers[$id]['hash'] ?? '');
+            if ($hash === '') continue;                              // nothing written yet
+            if ((string) ($held[$id] ?? '') === $hash) continue;     // current map in hand
+            if (self::recentlyFailed($id, $hash)) continue;
+
+            $out[] = $id;
+        }
+
+        return $out;
     }
 
     /**

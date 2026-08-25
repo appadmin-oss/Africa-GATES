@@ -404,18 +404,199 @@ final class JudgeAssistTest extends TestCase
 
     // ══ the maps are made before the panel arrives ═══════════════════════════
 
+    /** Put this cycle's nominee on a published shortlist, which is what a ballot renders. */
+    private function shortlist(array $nomineeIds): void
+    {
+        $sid = (int) DB::table('gates_shortlists')->insertGetId([
+            'cycle_id' => $this->cycleId, 'category_id' => $this->categoryId,
+            // `published_at`, not `created_at` — this table has no created_at. Checked
+            // against 2026_08_23_shortlists.php rather than guessed: CLAUDE.md's rule about
+            // reading the schema and not the fixture, and it caught this on the first run.
+            'status' => 'published', 'published_at' => date('Y-m-d H:i:s'),
+        ]);
+        foreach ($nomineeIds as $i => $id) {
+            DB::table('gates_shortlist_entries')->insert([
+                'shortlist_id' => $sid, 'nominee_id' => $id, 'rank_no' => $i + 1,
+            ]);
+        }
+    }
+
+    /** A cycle whose windows put it genuinely in the judging phase. */
+    private function intoJudging(): void
+    {
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update([
+            'nominations_open'  => date('Y-m-d H:i:s', strtotime('-60 days')),
+            'nominations_close' => date('Y-m-d H:i:s', strtotime('-30 days')),
+            'voting_open'       => date('Y-m-d H:i:s', strtotime('-20 days')),
+            'voting_close'      => date('Y-m-d H:i:s', strtotime('-2 days')),
+            'results_date'      => date('Y-m-d H:i:s', strtotime('+10 days')),
+        ]);
+    }
+
+    /**
+     * The selection is the part that costs money, so it is tested without spending any.
+     *
+     * `sweep()` is a loop around one model call; every decision about WHETHER to make that
+     * call is in `pending()`. Together they would have been testable only by configuring a
+     * provider key and letting the suite spend real tokens — so the interesting half would
+     * have gone uncovered, on the one scheduled task on this platform that spends money.
+     */
+    public function test_a_shortlisted_nominee_with_no_map_is_pending(): void
+    {
+        $id = $this->nominee();
+        $this->intoJudging();
+        $this->shortlist([$id]);
+
+        $this->assertSame([$id], JudgeAssist::pending());
+    }
+
+    /** A nominee nobody will see on a ballot is money spent on a page nobody opens. */
+    public function test_a_nominee_off_the_shortlist_is_not_pending(): void
+    {
+        $on  = $this->nominee();
+        $off = $this->nominee(['name' => 'Not Shortlisted']);
+        $this->intoJudging();
+        $this->shortlist([$on]);
+
+        $this->assertSame([$on], JudgeAssist::pending());
+        $this->assertNotContains($off, JudgeAssist::pending());
+    }
+
+    /** No published shortlist means no panel is reading anything yet. */
+    public function test_nothing_is_pending_before_a_shortlist_is_published(): void
+    {
+        $this->nominee();
+        $this->intoJudging();
+
+        $this->assertSame([], JudgeAssist::pending(),
+            'mapping the whole field on the chance a cut lands later is the bill this avoids');
+    }
+
+    /** And nothing while the cycle is not being judged. */
+    public function test_nothing_is_pending_outside_the_judging_phase(): void
+    {
+        $id = $this->nominee();
+        // Voting still open: no panel has started.
+        DB::table('gates_award_cycles')->where('id', $this->cycleId)->update([
+            'nominations_open'  => date('Y-m-d H:i:s', strtotime('-30 days')),
+            'nominations_close' => date('Y-m-d H:i:s', strtotime('-10 days')),
+            'voting_open'       => date('Y-m-d H:i:s', strtotime('-5 days')),
+            'voting_close'      => date('Y-m-d H:i:s', strtotime('+5 days')),
+            'results_date'      => date('Y-m-d H:i:s', strtotime('+20 days')),
+        ]);
+        $this->shortlist([$id]);
+
+        $this->assertSame([], JudgeAssist::pending());
+    }
+
+    /** A map that still describes the entry is not remade. */
+    public function test_a_nominee_with_a_current_map_is_not_pending(): void
+    {
+        $id = $this->nominee();
+        $this->intoJudging();
+        $this->shortlist([$id]);
+
+        DB::table('gates_judge_orientation')->insert([
+            'nominee_id' => $id, 'content_hash' => JudgeAssist::dossier($id)['hash'],
+            'rests_on' => 'Already mapped.', 'evidenced_json' => '[]', 'asserted_json' => '[]',
+            'gaps_json' => '[]', 'check_json' => '[]',
+            'prompt_version' => JudgeAssist::PROMPT_VERSION, 'status' => 'ok',
+        ]);
+
+        $this->assertSame([], JudgeAssist::pending());
+    }
+
+    /** A map that no longer does IS remade — that is the whole point of hashing it. */
+    public function test_a_nominee_whose_dossier_changed_is_pending_again(): void
+    {
+        $id = $this->nominee();
+        $this->intoJudging();
+        $this->shortlist([$id]);
+
+        DB::table('gates_judge_orientation')->insert([
+            'nominee_id' => $id, 'content_hash' => JudgeAssist::dossier($id)['hash'],
+            'rests_on' => 'Mapped before the letter arrived.', 'evidenced_json' => '[]',
+            'asserted_json' => '[]', 'gaps_json' => '[]', 'check_json' => '[]',
+            'prompt_version' => JudgeAssist::PROMPT_VERSION, 'status' => 'ok',
+        ]);
+        $this->assertSame([], JudgeAssist::pending());
+
+        DB::table('gates_nominee_evidence')->insert([
+            'nominee_id' => $id, 'kind' => 'note', 'title' => 'The confirming letter',
+            'provenance' => 'third_party', 'visible_to_judges' => 1, 'sort_order' => 1,
+        ]);
+
+        $this->assertSame([$id], JudgeAssist::pending());
+    }
+
+    /** A dossier that failed minutes ago is not walked into the same wall every cron tick. */
+    public function test_a_recently_failed_dossier_is_not_pending(): void
+    {
+        $id = $this->nominee();
+        $this->intoJudging();
+        $this->shortlist([$id]);
+
+        DB::table('gates_judge_orientation')->insert([
+            'nominee_id' => $id, 'content_hash' => JudgeAssist::dossier($id)['hash'],
+            'status' => 'failed', 'prompt_version' => JudgeAssist::PROMPT_VERSION,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $this->assertSame([], JudgeAssist::pending());
+    }
+
+    /** The cap is real: a shortlist of forty must not become forty model calls in one tick. */
+    public function test_the_selection_is_capped(): void
+    {
+        $ids = [];
+        for ($i = 0; $i < 5; $i++) $ids[] = $this->nominee(['name' => 'Nominee ' . $i]);
+        $this->intoJudging();
+        $this->shortlist($ids);
+
+        $this->assertCount(2, JudgeAssist::pending(2));
+    }
+
     /**
      * The sweep never touches the sandbox.
      *
      * `DemoSeeder` builds real rows with real flags — the sandbox exists to be walked through
      * for real — so nothing that spends money may treat it as a live round. A rehearsal
      * category would otherwise consume a genuine round's daily budget every night.
+     *
+     * Given the WHOLE sandbox shape — demo programme, cycle in judging, published shortlist,
+     * approved nominee — so it is skipped for being the sandbox and not for being incomplete.
      */
-    public function test_the_sweep_excludes_the_sandbox_programme(): void
+    public function test_the_sandbox_is_never_swept(): void
     {
-        $src = file_get_contents(dirname(__DIR__, 2) . '/src/Services/JudgeAssist.php');
-        $this->assertStringContainsString('DemoSeeder::PROGRAMME_SLUG', (string) $src,
-            'the sweep must exclude the sandbox by slug, like every other public reader');
+        $progId = (int) DB::table('gates_award_programmes')->insertGetId([
+            'title' => 'Sandbox', 'slug' => \AfricaGates\Services\DemoSeeder::PROGRAMME_SLUG,
+            'is_active' => 0, 'sort_order' => 99,
+        ]);
+        $cycleId = (int) DB::table('gates_award_cycles')->insertGetId([
+            'programme_id' => $progId, 'year' => 2026, 'status' => 'judging',
+            'nominations_open'  => date('Y-m-d H:i:s', strtotime('-60 days')),
+            'nominations_close' => date('Y-m-d H:i:s', strtotime('-30 days')),
+            'voting_open'       => date('Y-m-d H:i:s', strtotime('-20 days')),
+            'voting_close'      => date('Y-m-d H:i:s', strtotime('-2 days')),
+            'results_date'      => date('Y-m-d H:i:s', strtotime('+10 days')),
+        ]);
+        $catId = (int) DB::table('gates_award_categories')->insertGetId([
+            'cycle_id' => $cycleId, 'title' => 'Rehearsal', 'slug' => 'rehearsal-x',
+        ]);
+        $demo = (int) DB::table('gates_nominees')->insertGetId([
+            'category_id' => $catId, 'name' => 'Demo Nominee', 'story' => 'A rehearsal entry.',
+            'country_code' => 'NG', 'status' => 'approved',
+        ]);
+        $sid = (int) DB::table('gates_shortlists')->insertGetId([
+            'cycle_id' => $cycleId, 'category_id' => $catId, 'status' => 'published',
+            'published_at' => date('Y-m-d H:i:s'),
+        ]);
+        DB::table('gates_shortlist_entries')->insert([
+            'shortlist_id' => $sid, 'nominee_id' => $demo, 'rank_no' => 1,
+        ]);
+
+        $this->assertNotContains($demo, JudgeAssist::pending(),
+            'the sandbox must never spend a real round\'s budget');
     }
 
     /**

@@ -619,13 +619,26 @@
           <div class="vn-ballot__orb" aria-hidden="true"></div>
           <p class="vn-ballot__k">{{ phase.label|default(voting_open ? 'Voting open' : 'Voting') }}</p>
           <p class="vn-ballot__h">Back {{ firstName }}</p>
-          {% if voting_open and phase and phase.closes_at %}
-          {# Absolute date as the accessible primary — no ticking element, so
-             there is nothing to re-announce to assistive tech. `time` carries the
-             machine-readable value. #}
-          <p style="position:relative;margin:7px 0 0;font-size:12.5px;color:{{ phase.closing_soon ? '#fbc329' : 'rgba(255,255,255,.72)' }}">
-            {% if phase.closing_soon %}<strong>Closing soon</strong> · {% endif %}Closes <time datetime="{{ phase.closes_at|date('c') }}">{{ phase.closes_at|when_zoned('j M Y, H:i') }}</time>
-          </p>
+          {# ── THE DEADLINE, TICKING IN THE LAST HOURS ──────────────────────
+             This was a static date, on the reasoning that a ticking element has
+             nothing to re-announce to assistive tech. The concern was right and
+             the conclusion was one step too far: the shared partial already
+             resolves it — the digits are aria-hidden and the group's accessible
+             label is the absolute deadline, so a screen reader gets the fixed
+             date and nothing that changes every second.
+
+             So this page — the one where the vote is actually cast, and the one
+             a "closing soon" share link lands on — gets the same escalation the
+             /vote hub already had: a quiet line while the deadline is far off, a
+             live clock inside the 48 hours `closing_soon` marks server-side.
+
+             The remaining seconds come from the SERVER. A phone with a wrong
+             clock, common on cheap Android after a flat battery, would otherwise
+             be shown a confident wrong answer about when its vote stops
+             counting — on the page where that answer decides whether somebody
+             bothers. See partials/vote-countdown.twig. #}
+          {% if voting_open %}
+            {% include 'partials/vote-countdown.twig' with { phase: phase, variant: 'dark' } only %}
           {% endif %}
         </div>
         <div class="vn-ballot__in">

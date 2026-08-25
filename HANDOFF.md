@@ -1,8 +1,8 @@
 # Handoff — Africa GATES
 
-**Written:** 21 August 2026 · **Last commit at handoff:** `8da9e6a` (19 commits on the branch)
-**Branch:** `claude/codebase-audit-v7o5tw` (pushed, green)
-**Suite:** 3646 tests / 19603 assertions passing (as of 21 Aug 2026) — `vendor/bin/phpunit --no-coverage` (~95s)
+**Written:** 21 August 2026 · **Last updated:** 25 August 2026 (§3 item 1, §12/§12a/§12b; index §17)
+**Branch:** `claude/ai-assistance-judges-features-1ka4oz` (pushed, green)
+**Suite:** ~4,580 tests passing — `vendor/bin/phpunit --no-coverage` (~140s)
 **Live site:** `afg.afrovanguard.org.ng`
 **Not merged to master yet.** No PR opened — the user hasn't asked for one.
 
@@ -49,9 +49,23 @@ Nine audit severities fixed (the audit is in the session history, not a file), p
 
 The user's list, unstarted. Each is a real feature, not a tweak.
 
-1. **Live countdown in the last hours of the vote (on-site).** Smallest.
-   `CountdownGif` and `DisplayTime` already do the hard part; this is a JS ticker
-   on the vote/nominee pages driven by the cycle's `voting_close`.
+1. ~~**Live countdown in the last hours of the vote (on-site).**~~ **Done — 25 Aug 2026.**
+   `partials/vote-countdown.twig` plus the ticker in `main.js`. Two things about it
+   worth not rediscovering: the remaining seconds come from the **server** and the
+   browser only decrements them, because parsing `closes_at` and subtracting
+   `Date.now()` makes the number a function of the visitor's system clock — a phone
+   an hour or a year out (ordinary on cheap Android after a flat battery) then shows
+   a confident wrong answer about when its vote stops counting. And it **escalates**:
+   one quiet line until `closing_soon` (48h, drawn server-side so it cannot disagree
+   with the phase gate), a live clock inside it.
+
+   The hub at `/vote` had it and the nominee ballot did not — which is the page a
+   "closing soon" share link lands on, and the only one where the deadline changes
+   what somebody does in the next minute. It has it now, via `variant: 'dark'` on the
+   same partial rather than a second copy: the digits are `aria-hidden` and the
+   group's accessible name is the absolute deadline, and that reasoning is not
+   obvious from reading the markup, so a copy would lose it within one edit.
+   `VoteCountdownTest` (12) holds both halves.
 2. **Leaderboard v2 design + roll the new logo site-wide.** One visual pass.
    `ux-review` skill is the reference for thresholds. **Do not roll the logo until
    the user confirms the green** — see §4.
@@ -395,3 +409,157 @@ Two things to know before editing any of it:
 Tests: `SeoSitemapTest` (14), `SeoCanonicalTest` (14), `SeoStructuredDataTest` (5).
 Each was mutation-checked — the service was broken four ways and each break failed
 exactly the one test that names it.
+
+---
+
+## 12. The AI outage — one unread field, and what it hid
+
+**25 Aug 2026.** The public status page had read
+`AI assistance · Slower than usual · 0% answering` for weeks. Both halves of that
+sentence were true and both were misleading, and the reason is worth keeping because
+it is not the first instance of its shape here — `docs/CODEBASE-INDEX.md` §17 tabulates
+the other four.
+
+**`AiCapability::$timeout` was read by nothing.** Every capability declares one — 4s
+for the classifier on the nomination submit, 20s for a thread summary, 30s for a
+judge's dossier map, 120s for the document reader that uploads files before it
+reasons — and `AiGateway` never passed it. Every call ran on `AiService`'s **6s**
+constructor default, so the fourteen capabilities declaring more than six seconds
+were cut off mid-generation on every single request, after which the chain paid six
+more seconds a hop for two more hops. Slow, and never an answer.
+
+That is exactly the fault `AiCapability::$model` had before `route()` was passed to
+`complete()`, and the one `TicketLinkService::prune()` had with no caller: declared as
+data, documented, faithfully recorded in the audit log, absent from the wire. **When
+you add a field to a declaration in this codebase, grep for a reader before you
+believe it.**
+
+It is a per-call override (`AiService::withTimeout()`) rather than a `complete()`
+parameter, and that is not stylistic: `AiGatewayTest`'s double overrides `complete()`
+by signature, and a subclass with *fewer* parameters than its parent is a PHP fatal
+error, not a failing test. The override is consumed and restored per call, because
+`AiService::boot()` results are reused inside one request and a 120-second budget
+left behind would be inherited by a classifier on a form POST.
+
+Three things fell out of fixing it:
+
+- **A read timeout was being filed as "unreachable".** cURL reports HTTP code `0` for
+  a timeout as well as for a connection that never opened, and `ProviderBreaker`
+  sidelines a provider for five minutes on the strength of that text — its whole
+  justification being that unreachability is a fact that stays true. So every
+  cut-off generation also blacklisted a healthy, answering provider, which is the
+  outcome the breaker's own docblock forbids. `CURLINFO_CONNECT_TIME` settles it
+  without guessing at cURL's wording: non-zero means the handshake completed, which
+  proves the network path. `httpPost()` now writes `TIMEOUT after Ns` for that case
+  and `HTTP 0` only for the real one, so `isUnreachable()` finally means what it says.
+- **`CURLOPT_CONNECTTIMEOUT` was unset.** Harmless at a flat 6s; with budgets now
+  running to 120s, discovering a blocked outbound port — *this deployment's actual
+  fault* — would have cost the whole budget. Connecting is not the slow part of a
+  model call, so it has its own short ceiling (`AiService::CONNECT_TIMEOUT`).
+- **The interview's own accounting wrote `outcome = 'ok'`.** Both readers of
+  `gates_ai_calls` ask for `'OK'`. MySQL's collation matched it and SQLite's `=` did
+  not, so a successful interview turn counted as a success on production and a
+  failure in every test and dev database — the MySQL/SQLite divergence CLAUDE.md
+  warns about, arriving as a status page that is honest in one environment only.
+  `AiGateway::record()` normalises at the door now.
+
+**And the status row itself was measuring the wrong thing.** `gates_ai_calls` holds a
+row for every REFUSAL as well as every call, by design — a call the gateway stopped is
+as auditable as one it made. But a refusal never asked a provider anything, so
+counting refusals as failed answers is what produced 0%: three of the six refusal
+words are ordinary configuration (no key, capability switched off, budget spent) and
+each of them alone drove the ratio to zero. The percentage is now over calls that
+*reached* a provider, and where a refusal is the story the row names which one and
+what clears it — "no provider configured", "today's allowance is spent, it resets at
+midnight". Latency had been recorded since the log existed and never read; the row
+whose label is literally "Slower than usual" now says how slow.
+
+**And the admin console could not answer "why" either.** The capability table showed
+{@see AiGateway::spendReport()}'s failure COUNT — "3" in a gold chip — while
+`gates_ai_calls.error` had held up to 300 characters of the provider's own refusal
+since the log was built, unread. On a host with no shell that count was the end of the
+trail: a rejected key, a decommissioned model, an egress block and a summary that ran
+out of time all rendered as the same chip. `AiGateway::recentFailures()` now lists the
+last few, with the provider's words first and `likelyCause()`'s one-thing-to-change
+after — never only the interpretation, because a guess that displaces the evidence is
+how somebody rotates a working key while the real fault is an egress block. Refusals
+are excluded for the same reason the status ratio excludes them.
+
+`AiGateway::REFUSALS` is the single definition of "the gateway declined before asking
+anybody", shared by that list and the status check, and it lives beside the code that
+writes those words.
+
+While there: `SystemStatusTest`'s AI assertions matched `'AI'` as a **substring of
+'Messages waiting'** and were testing the queue row. The one asserting that the AI row
+never reports a full outage passed for as long as the queue was empty. Use
+`aiRow()`, not `componentSaying(…, 'AI')`.
+
+Tests: `AiTimeBudgetTest` (12), plus six in `SystemStatusTest`. Mutation-checked —
+removing the timeout plumbing fails three, collapsing the refusal split fails three.
+
+### 12a. The judges' side of it
+
+Three faults, all the same shape as the above — built carefully, with the part that
+makes it useful left out.
+
+- **The ballot served maps of dossiers that no longer existed.** `forNominee()` has
+  always matched on the content hash, so the *button* never served a stale map.
+  `forBallot()` did not, and it is the one the ballot renders from — so once a nominee
+  added evidence, every judge on the panel went on reading a map of the entry as it
+  stood before it, silently. A `gaps` line reading "no third-party confirmation of the
+  figures" outlived the letter that confirmed them. Same fault as a silently truncated
+  dossier, which the class already refuses to ship: the map is not wrong about what it
+  read, it is wrong about what it is a map **of**. Marked and offered for re-reading —
+  not hidden (throws away something still mostly true) and not refreshed on render
+  (the model call on scroll the panel exists not to make).
+- **The maps arrived too late to be maps.** All generated on demand, so a shortlist of
+  forty was forty button presses and forty waits of up to thirty seconds — during
+  which the judge has nothing to do but start reading, which is the moment the map
+  existed to come before. Nothing in the design objected to doing it early: the map is
+  cached *per nominee* and shared by the whole panel, deliberately, so orientation is
+  not a variable between judges. One made at 04:00 by cron is byte-identical to the
+  one the first judge would have waited for, and is made once instead of once per
+  judge who gets there first. `JudgeAssist::sweep()`, hourly, capped at
+  `SWEEP_LIMIT`; shortlist only; never the sandbox; stops the moment the capability is
+  unavailable rather than writing forty `BUDGET_CALLS` rows into the log on the day
+  somebody needs to read it. Addressable as `/__cron/run?task=judgemaps` because there
+  is no SSH here.
+- **A failed dossier was retried for ever.** `store()` has written a `failed` row since
+  the day it shipped and nothing ever read one, so a dossier the model chokes on cost
+  a fresh call on every button press from each judge on the panel, and would have cost
+  another on every sweep for the rest of the round. `RETRY_AFTER_MIN` is keyed on the
+  **dossier**, not the nominee: somebody who has just added the evidence the last
+  attempt choked on deserves an immediate attempt.
+
+Assembly is batched (`JudgeAssist::dossiers()`, four queries for a whole ballot) to
+make the first two affordable, with the single-nominee call now a wrapper on it. A
+divergence between the two would not throw — it would quietly mean every map read as
+stale and the sweep regenerated all of them for ever, which is what
+`test_the_batched_dossier_matches_the_single_one` is for.
+
+`JudgeAssist::pending()` is deliberately separate from `sweep()`: the sweep is a loop
+around one model call and every decision about WHETHER to make it is in `pending()`.
+Together they would have been testable only by configuring a provider key and letting the
+suite spend real tokens — so the selection would have gone uncovered, on the one scheduled
+task on this platform that spends money. Its four rules (judging phase only, published
+shortlist only, never the sandbox, never a current map or a recent failure) are each held
+by one test and each mutation-checked.
+
+Tests: `JudgeAssistTest` grew from 19 to 36.
+
+### 12b. A flaky fixture, found while running all this
+
+`ReferralSettingsTest::test_switching_off_does_not_erase_what_is_already_owed` failed once
+in five full suite runs, asserting `0 > 0`. Not a race and not the switch it names:
+`gates_referral_credits` has `UNIQUE(source_type, source_id)` and that uniqueness IS the
+idempotency guarantee — confirmation is reachable three ways and they race, so
+`creditSale()` swallows the duplicate-key throw by design. The fixture drew
+`random_int(1, 1_000_000)` for the id, and the test makes **exactly** `THRESHOLD` (10)
+credits, so one repeated draw silently leaves nine, which is below the threshold, so
+nothing is payable and the assertion is correct about a state the test never meant to
+create.
+
+Ids are arbitrary to every assertion in the three files that did this, so the randomness
+bought nothing and cost a test that fails for an unrelated reason. All three now count.
+The two that use a raw `insert()` would have thrown rather than gone quiet — still a test
+erroring about the wrong thing.

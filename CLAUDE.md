@@ -78,6 +78,14 @@ Full account in `docs/CODEBASE-INDEX.md` §16.
   renders it with `JSON_UNESCAPED_SLASHES`, so `</script>` in a campaign title closes the
   script element. Everything in `src/Support/Schema.php` goes through `text()`.
 - **No secrets, no model identifiers, and no operator email addresses in commits.**
+- **A declared field with no reader is the most expensive bug available here.** Five have
+  shipped: `AiCapability::$model` (read into the log, never onto the wire),
+  `AiCapability::$timeout` (nothing at all — every summary ran on a 6s default and the
+  status page read "0% answering" for weeks), `TicketLinkService::prune()` (no caller, so
+  every dead link was permanent), `gates_ai_calls.error` and the `failed` rows in
+  `gates_judge_orientation` (both written since day one, both unrendered). With no shell on
+  production the symptom always looks like something else. **Grep for a reader before you
+  believe a declaration.** Full account in `docs/CODEBASE-INDEX.md` §17.
 
 ## House style
 

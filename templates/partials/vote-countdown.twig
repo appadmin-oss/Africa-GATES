@@ -19,11 +19,19 @@
    Absolute time via |when_zoned, so it reads in the operator's configured zone
    (WAT) with the abbreviation attached — a deadline with no zone on it is the
    thing people get wrong by exactly one hour.
+
+   ── ONE PARTIAL, TWO GROUNDS ──────────────────────────────────────────────
+   `variant: 'dark'` drops the card chrome and inverts the palette, for the
+   nominee ballot's dark header. A second copy of this markup was the obvious
+   alternative and the wrong one: the reason the digits are aria-hidden and the
+   group carries the absolute deadline as its label is not obvious from reading
+   it, so a copy would lose that within one edit.
 #}
 {% if phase is defined and phase and phase.closes_at and phase.seconds_left is not null and phase.seconds_left > 0 %}
   {% set _soon = phase.closing_soon|default(false) %}
+  {% set _dark = (variant|default('')) == 'dark' %}
 
-  <div class="vc {{ _soon ? 'vc--soon' : '' }}"
+  <div class="vc {{ _soon ? 'vc--soon' : '' }} {{ _dark ? 'vc--dark' : '' }}"
        data-vc
        data-vc-left="{{ phase.seconds_left }}"
        role="group"
@@ -47,6 +55,10 @@
       </div>
     {% endif %}
 
-    <p class="vc__abs">{{ phase.closes_at|when_zoned }}</p>
+    {# `time` carries the machine-readable instant. The digits above are decoration to
+       a parser and to a screen reader alike; this is the value. It was on the nominee
+       ballot's static line before this partial replaced it, and dropping it would have
+       been a quiet regression — nothing on the page looks different without it. #}
+    <p class="vc__abs"><time datetime="{{ phase.closes_at|date('c') }}">{{ phase.closes_at|when_zoned }}</time></p>
   </div>
 {% endif %}

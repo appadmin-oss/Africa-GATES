@@ -232,4 +232,72 @@ final class AiTimeBudgetTest extends TestCase
         $this->assertSame(0, $report[0]['failures'] ?? -1,
             'a working interview turn was being reported as a failed one');
     }
+
+    // ══ the operator can find out WHY ════════════════════════════════════════
+
+    /**
+     * `gates_ai_calls.error` held the provider's own refusal and nothing rendered one.
+     *
+     * The admin console showed a failure COUNT — "3" in a gold chip — and there is no shell
+     * on this account, so that number was the end of the trail. A rejected key, a
+     * decommissioned model, an egress block and a summary that ran out of time all looked
+     * identical, and each is a different fix.
+     */
+    public function test_a_failure_can_be_read_back_with_the_providers_own_words(): void
+    {
+        DB::table('gates_ai_calls')->delete();
+
+        AiGateway::record('community.thread_summary', 'PROVIDER_ERROR', [
+            'provider' => 'groq', 'model' => 'llama-3.3-70b-versatile', 'latency_ms' => 20031,
+            'error' => 'TIMEOUT after 20s (connected, but no reply in time)',
+        ]);
+
+        $rows = AiGateway::recentFailures();
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('community.thread_summary', $rows[0]['capability']);
+        $this->assertStringContainsString('TIMEOUT after 20s', $rows[0]['error'],
+            'the evidence, verbatim — an interpretation that displaces it is how somebody '
+            . 'rotates a working key');
+        $this->assertStringContainsString('timeout', strtolower((string) $rows[0]['cause']),
+            'and the one thing to go and change');
+    }
+
+    /**
+     * Refusals are not failures and must not bury the rows that are.
+     *
+     * A spent budget has no provider error behind it. Listing forty of them would hide the
+     * four worth reading — the same mistake the status page was making with its one ratio,
+     * one screen along.
+     */
+    public function test_the_failure_list_excludes_calls_no_provider_ever_saw(): void
+    {
+        DB::table('gates_ai_calls')->delete();
+
+        AiGateway::record('community.polish', 'BUDGET_CALLS');
+        AiGateway::record('community.polish', 'NO_PROVIDER');
+        AiGateway::record('community.polish', 'DISABLED_CAPABILITY');
+        AiGateway::record('community.polish', 'OK', ['tokens_in' => 4]);
+        AiGateway::record('community.polish', 'EMPTY', ['error' => 'HTTP 200 with no content']);
+
+        $rows = AiGateway::recentFailures();
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('EMPTY', $rows[0]['outcome']);
+    }
+
+    /** And it reaches the one screen an operator without a shell can open. */
+    public function test_the_failure_list_reaches_the_admin_console(): void
+    {
+        $ctrl = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/src/Admin/Controllers/SettingsController.php');
+        $tpl  = (string) file_get_contents(
+            dirname(__DIR__, 2) . '/templates/admin/settings.twig');
+
+        $this->assertStringContainsString('recentFailures()', $ctrl);
+        $this->assertStringContainsString('ai_failures', $tpl,
+            'a reader that renders nothing is the column being unread all over again');
+        $this->assertStringContainsString('f.error', $tpl,
+            'the provider\'s own words have to be the thing on screen');
+    }
 }

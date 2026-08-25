@@ -22,12 +22,17 @@ use Tests\TestCase;
  */
 final class ReferralLiabilityTest extends TestCase
 {
+    private int $nextRegId = 1;
+
     private function credit(int $userId, int $paid, int $commission, ?string $paidOut = null): void
     {
         // `source_type`/`source_id` carry the idempotency guarantee since credits stopped
         // being event-only — the unique index moved onto the pair. Set to match what
         // ReferralService actually writes, so the fixture is the shape production is.
-        $reg = random_int(1, 1_000_000);
+        //
+        // Counted, not random: a repeated draw throws on that index and errors the test for
+        // a reason unrelated to liability. Same change as its two siblings.
+        $reg = $this->nextRegId++;
         DB::table('gates_referral_credits')->insert([
             'code_id' => 1, 'user_id' => $userId, 'registration_id' => $reg,
             'source_type' => 'registration', 'source_id' => $reg,

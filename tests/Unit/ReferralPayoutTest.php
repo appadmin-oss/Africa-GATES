@@ -28,6 +28,8 @@ final class ReferralPayoutTest extends TestCase
 {
     private const USER = 5;
 
+    private int $nextRegId = 1;
+
     private function credits(int $count, int $paid = 10000, int $userId = self::USER): void
     {
         DB::table('gates_referral_codes')->insertOrIgnore([
@@ -36,7 +38,13 @@ final class ReferralPayoutTest extends TestCase
         for ($i = 0; $i < $count; $i++) {
             // The unique index is on (source_type, source_id) since credits stopped being
             // event-only; a fixture that omits them collides on the default 0.
-            $reg = random_int(1, 1_000_000);
+            //
+            // Counted, not random. A repeated draw throws on the unique index and errors the
+            // test for a reason that has nothing to do with payouts — and the ids are
+            // arbitrary to every assertion here, so the randomness bought nothing. Its
+            // sibling in ReferralSettingsTest failed exactly this way, silently, because
+            // creditSale() swallows the duplicate by design.
+            $reg = $this->nextRegId++;
             DB::table('gates_referral_credits')->insert([
                 'code_id' => 1, 'user_id' => $userId, 'registration_id' => $reg,
                 'source_type' => 'registration', 'source_id' => $reg,

@@ -67,6 +67,12 @@ class SettingsController
             // a reviewer agreed with a suggestion.
             'ai_enabled_flag' => \AfricaGates\Services\AiGateway::globallyEnabled(),
             'ai_spend'        => \AfricaGates\Services\AiGateway::spendReport(),
+            // WHY the failures in that report happened. The count beside each capability was
+            // the end of the trail on a host with no shell: "3 failures", with the provider's
+            // own refusal sitting unread in a column since the log was built. A rejected key,
+            // a decommissioned model, an egress block and a summary that ran out of time all
+            // showed as the same gold chip, and each is a different fix.
+            'ai_failures'     => \AfricaGates\Services\AiGateway::recentFailures(),
             'ai_agreement'    => \AfricaGates\Services\AiDecisionLog::agreement(30),
             'ai_capabilities' => array_map(
                 static fn (\AfricaGates\Services\AiCapability $c) => [

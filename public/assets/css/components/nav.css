@@ -147,6 +147,26 @@ html.ag-menu-open{ overflow:hidden; }
   .vc__cell b{ font-size:22px; }
   .vc__clock{ gap:7px; }
 }
+/* ── ON A DARK GROUND (the nominee ballot's header) ──────────────────────────
+   Chrome removed rather than recoloured: inside a panel that is already a card,
+   a second bordered box reads as a nested widget. `position:relative` because
+   that header has an absolutely-positioned orb behind its content.
+
+   Urgency is GOLD here, not the green the light variant uses. Green is already
+   the resting accent on this panel (`.vn-ballot__k`), so it cannot also be the
+   signal that something is about to end — and gold is the brand's one accent,
+   which is what the static line this replaced already used. */
+.vc--dark{ position:relative; border:0; padding:0; background:transparent; margin-top:8px; }
+.vc--dark .vc__k{ color:#7FC87C; }
+.vc--dark .vc__abs{ margin-top:8px; font-size:12.5px; color:rgba(255,255,255,.72); }
+.vc--dark.vc--soon .vc__k{ color:#fbc329; }
+.vc--dark .vc__dot{ background:#7FC87C; }
+.vc--dark.vc--soon .vc__dot{ background:#fbc329; }
+.vc--dark .vc__cell{ background:rgba(255,255,255,.07); border-color:rgba(255,255,255,.15); }
+.vc--dark .vc__cell b{ color:#fff; }
+.vc--dark .vc__cell i{ color:rgba(255,255,255,.6); }
+.vc--dark .vc__cell--s b{ color:#fbc329; }
+
 /* The pulse is decoration; the numbers are the information. */
 @media (prefers-reduced-motion: reduce){
   .vc__dot{ animation:none; }

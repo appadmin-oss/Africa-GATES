@@ -30,9 +30,31 @@ final class ReferralSettingsTest extends TestCase
         DB::table('gates_settings')->updateOrInsert(['key_name' => $key], ['value' => $value]);
     }
 
+    /**
+     * A monotonic id counter, replacing `random_int(1, 1_000_000)`.
+     *
+     * ── WHY THIS WAS A FLAKE AND NOT A COIN-FLIP WORTH LIVING WITH ───────────
+     *
+     * `gates_referral_credits` has `UNIQUE(source_type, source_id)`, and that uniqueness IS
+     * the idempotency guarantee — confirmation is reachable three ways and they race, so
+     * `creditSale()` swallows the duplicate-key throw and returns false. Correct in
+     * production, invisible in a fixture: two identical draws mean one credit silently does
+     * not exist.
+     *
+     * `test_switching_off_does_not_erase_what_is_already_owed` then makes EXACTLY
+     * `THRESHOLD` (10) credits and asserts something is owed. One dropped insert puts it at
+     * nine, below the threshold, so `payable_naira` is legitimately 0 and the assertion
+     * fails — having tested nothing about the switch it names. Observed once in five full
+     * suite runs.
+     *
+     * The ids are arbitrary to every assertion in this file, so the randomness bought
+     * nothing and cost a test that fails for a reason unrelated to its subject.
+     */
+    private int $nextRegId = 1;
+
     private function reg(int $paid, ?int $eventId = 1, string $code = 'AGTEST1'): object
     {
-        return (object) ['id' => random_int(1, 1_000_000), 'referral_code' => $code,
+        return (object) ['id' => $this->nextRegId++, 'referral_code' => $code,
                          'amount_naira' => $paid, 'event_id' => $eventId];
     }
 

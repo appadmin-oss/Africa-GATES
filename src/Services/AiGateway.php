@@ -48,6 +48,19 @@ final class AiGateway
     public const FENCE_OPEN  = '<<<UNTRUSTED_USER_CONTENT';
     public const FENCE_CLOSE = 'END_UNTRUSTED_USER_CONTENT>>>';
 
+    /**
+     * Outcome words that mean this gateway declined BEFORE any provider was asked.
+     *
+     * Not failures, and the distinction is load-bearing in two places: {@see
+     * recentFailures()} would otherwise bury real provider errors under budget ceilings, and
+     * `SystemStatus::ai()` spent weeks reporting "0% answering" because it counted these as
+     * unanswered calls. Held here, beside the code that writes them.
+     */
+    public const REFUSALS = [
+        'UNDECLARED', 'DISABLED_GLOBAL', 'DISABLED_CAPABILITY',
+        'BUDGET_CALLS', 'BUDGET_TOKENS', 'NO_PROVIDER',
+    ];
+
     public function __construct(private readonly ?AiService $ai = null) {}
 
     /**
@@ -379,6 +392,85 @@ final class AiGateway
         } catch (\Throwable) {
             return [];
         }
+    }
+
+    /**
+     * The most recent calls that FAILED, with the provider's own words.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY A COUNT WAS NOT ENOUGH
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `gates_ai_calls.error` has held up to 300 characters of the provider's own refusal
+     * since the day this log existed, and nothing rendered a single one of them. The admin
+     * console showed {@see spendReport()}'s failure COUNT — "3" in a gold chip — and there
+     * is no shell on this account, so that number was the end of the trail. Three failures,
+     * no way to find out whether that was a rejected key, a decommissioned model, an egress
+     * block or a summary that ran out of time; and each of those is a different fix.
+     *
+     * That is the same pattern as `AiCapability::$timeout` and the `failed` rows in
+     * `gates_judge_orientation`: written carefully, documented, never read. On a deployment
+     * whose only diagnostic surface is a web page, an unread error column is not a record.
+     *
+     * ── REFUSALS ARE EXCLUDED ────────────────────────────────────────────────
+     *
+     * A budget ceiling or a switched-off capability is not a fault and has no provider error
+     * behind it. Listing them here would bury the four rows that need reading under forty
+     * that do not — which is the same mistake the status page was making with its one ratio.
+     *
+     * The text is the provider's, verbatim, and is shown to a superadmin only. It is no wider
+     * an audience than the audit trail, which already records every hop's error for the
+     * "Test AI now" button.
+     *
+     * @return list<array{capability:string, outcome:string, provider:?string, model:?string,
+     *                    error:string, cause:?string, latency_ms:int, at:string}>
+     */
+    public static function recentFailures(int $limit = 8, int $hours = 24): array
+    {
+        $since = Carbon::now()->subHours(max(1, $hours))->toDateTimeString();
+
+        try {
+            $rows = DB::table('gates_ai_calls')
+                ->where('created_at', '>=', $since)
+                ->whereNotIn('outcome', array_merge(['OK'], self::REFUSALS))
+                ->orderByDesc('id')
+                ->limit(max(1, $limit))
+                ->get(['capability', 'outcome', 'provider', 'model', 'error', 'latency_ms', 'created_at']);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($rows as $r) {
+            // The SQL filter above is exact-match, and SQLite's `NOT IN` is case-sensitive.
+            // Rows written before `record()` normalised its outcome word carry a lower-cased
+            // one, so they survive that filter and would be listed as faults. Checked again
+            // here rather than in the query, because folding case across both drivers in SQL
+            // is a portability problem and this is one comparison.
+            $outcome = strtoupper(trim((string) $r->outcome));
+            if ($outcome === 'OK' || in_array($outcome, self::REFUSALS, true)) continue;
+
+            $error = (string) ($r->error ?? '');
+            $out[] = [
+                'capability' => (string) $r->capability,
+                'outcome'    => $outcome,
+                'provider'   => $r->provider !== null ? (string) $r->provider : null,
+                'model'      => $r->model !== null ? (string) $r->model : null,
+                'error'      => $error,
+                // The ONE thing to go and change, from the same mapping the health-check
+                // button uses — so an operator reading either surface is reading the same
+                // advice rather than two accounts to reconcile.
+                'cause'      => $error === '' ? null : AiService::likelyCause([[
+                    'provider' => (string) ($r->provider ?? '?'),
+                    'model'    => (string) ($r->model ?? '?'),
+                    'error'    => $error,
+                ]]),
+                'latency_ms' => (int) ($r->latency_ms ?? 0),
+                'at'         => (string) ($r->created_at ?? ''),
+            ];
+        }
+
+        return $out;
     }
 
     private static function setting(string $key): ?string
