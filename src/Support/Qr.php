@@ -100,6 +100,189 @@ final class Qr
         return $best;
     }
 
+    // ══ 1b. BYTE MODE, VERSIONS 1–6 ══════════════════════════════════════════
+
+    /**
+     * A QR holding arbitrary bytes — a URL, in practice.
+     *
+     * ── WHY THIS IS SEPARATE FROM encode() ───────────────────────────────────
+     *
+     * {@see encode()} is for a TICKET CODE and folds case, because a ticket code is
+     * case-insensitive and somebody reading one off a screen may type it either way. A URL is
+     * not: `/r/Ab12` and `/r/AB12` are two different paths, and uppercasing one produces a
+     * code that scans perfectly as a link to nothing. Two payloads with genuinely different
+     * rules, so two entry points, each refusing what it cannot carry.
+     *
+     * It also does not share encode()'s 16-character ceiling. Byte mode at version 6 level Q
+     * holds {@see MAX_BYTES} bytes, which is every URL this platform mints with room over.
+     *
+     * ── AND WHY IT STOPS AT VERSION 6 ────────────────────────────────────────
+     *
+     * Version 7 adds the version-information area — eighteen BCH-coded bits in two more
+     * places a scanner reads BEFORE the data. The class note explains why this file was
+     * version-1 only to begin with: block interleaving and version information are the two
+     * places a subtle bug produces a symbol that scans as the WRONG string rather than not
+     * scanning at all. Interleaving is now implemented, because a URL cannot fit without it
+     * and it is verified by cross-check. Version information buys capacity nothing here needs,
+     * so it is not implemented, and asking for more than version 6 returns null.
+     *
+     * @return list<list<bool>>|null true = dark
+     */
+    public static function encodeBytes(string $text): ?array
+    {
+        $text = trim($text);
+        $len  = strlen($text);
+        if ($len === 0 || $len > self::MAX_BYTES) return null;
+
+        $version = self::versionForBytes($len);
+        if ($version === null) return null;
+
+        $spec = self::SPEC[$version];
+        $size = 17 + 4 * $version;
+
+        // ── the bit stream ──────────────────────────────────────────────────
+        $bits = [];
+        // Mode indicator: 0100 = byte.
+        self::push($bits, 0b0100, 4);
+        // Character count. Eight bits for byte mode at versions 1–9 — the width depends on
+        // BOTH the mode and the version, and getting it wrong shifts every following bit.
+        self::push($bits, $len, 8);
+        for ($i = 0; $i < $len; $i++) self::push($bits, ord($text[$i]), 8);
+
+        $capacity = $spec['data'] * 8;
+        if (count($bits) > $capacity) return null;
+
+        // Terminator, then pad to a byte boundary, then the specified pad codewords.
+        for ($i = 0; $i < 4 && count($bits) < $capacity; $i++) $bits[] = 0;
+        while (count($bits) % 8 !== 0) $bits[] = 0;
+
+        $bytes = [];
+        for ($i = 0, $n = count($bits); $i < $n; $i += 8) {
+            $byte = 0;
+            for ($b = 0; $b < 8; $b++) $byte = ($byte << 1) | $bits[$i + $b];
+            $bytes[] = $byte;
+        }
+        $pad = [0xEC, 0x11];
+        $k = 0;
+        while (count($bytes) < $spec['data']) $bytes[] = $pad[$k++ % 2];
+
+        // ── blocks, and the interleave ──────────────────────────────────────
+        //
+        // THE part this class avoided until now. Data is split into blocks of two possible
+        // sizes, each gets its own error correction, and then the codewords are woven
+        // together: every block's first data codeword, then every block's second, and so on,
+        // followed by the same pass over the error-correction codewords. A short block
+        // contributes nothing to the final data round, which is the step that is easy to get
+        // wrong and produces a symbol that decodes as shifted rubbish.
+        $blocks = [];
+        $at = 0;
+        foreach ($spec['blocks'] as [$count, $perBlock]) {
+            for ($b = 0; $b < $count; $b++) {
+                $blocks[] = array_slice($bytes, $at, $perBlock);
+                $at += $perBlock;
+            }
+        }
+
+        $ecBlocks = [];
+        foreach ($blocks as $block) $ecBlocks[] = self::ecFor($block, $spec['ec']);
+
+        $stream = [];
+        $longest = 0;
+        foreach ($blocks as $b) $longest = max($longest, count($b));
+        for ($i = 0; $i < $longest; $i++) {
+            foreach ($blocks as $b) {
+                if (isset($b[$i])) self::push($stream, $b[$i], 8);
+            }
+        }
+        // Every EC block is the same length, so this pass needs no such guard.
+        for ($i = 0; $i < $spec['ec']; $i++) {
+            foreach ($ecBlocks as $b) self::push($stream, $b[$i], 8);
+        }
+
+        // Remainder bits: seven at versions 2–6, none at version 1. The symbol has that many
+        // data modules more than the codewords fill, and they are left zero. Omitting them
+        // does not shift anything — the zigzag simply runs out — but they are stated here so
+        // the arithmetic is checkable against the table.
+        for ($i = 0; $i < $spec['remainder']; $i++) $stream[] = 0;
+
+        $best = null; $bestScore = PHP_INT_MAX;
+        for ($mask = 0; $mask < 8; $mask++) {
+            $m = self::draw($stream, $mask, $size);
+            $score = self::penalty($m);
+            if ($score < $bestScore) { $bestScore = $score; $best = $m; }
+        }
+
+        return $best;
+    }
+
+    /**
+     * Versions 1–6 at level Q: how the codewords are grouped.
+     *
+     * `data` is the total data codewords; `blocks` is [count, codewords each] pairs in the
+     * specified order; `ec` is error-correction codewords PER BLOCK; `remainder` is the
+     * trailing zero bits. Every row satisfies `sum(count × each) === data` and
+     * `data + blocks × ec === total`, which {@see \Tests\Unit\QrBytesTest} asserts rather
+     * than trusting that the table was typed correctly.
+     */
+    private const SPEC = [
+        1 => ['data' => 13,  'blocks' => [[1, 13]],           'ec' => 13, 'remainder' => 0, 'bytes' => 11],
+        2 => ['data' => 22,  'blocks' => [[1, 22]],           'ec' => 22, 'remainder' => 7, 'bytes' => 20],
+        3 => ['data' => 34,  'blocks' => [[2, 17]],           'ec' => 18, 'remainder' => 7, 'bytes' => 32],
+        4 => ['data' => 48,  'blocks' => [[2, 24]],           'ec' => 26, 'remainder' => 7, 'bytes' => 46],
+        5 => ['data' => 62,  'blocks' => [[2, 15], [2, 16]],  'ec' => 18, 'remainder' => 7, 'bytes' => 60],
+        6 => ['data' => 76,  'blocks' => [[4, 19]],           'ec' => 24, 'remainder' => 7, 'bytes' => 74],
+    ];
+
+    /** The most bytes a version-6 level-Q symbol holds in byte mode. */
+    public const MAX_BYTES = 74;
+
+    /** The smallest version that holds $len bytes, or null. */
+    private static function versionForBytes(int $len): ?int
+    {
+        foreach (self::SPEC as $version => $spec) {
+            if ($len <= $spec['bytes']) return $version;
+        }
+        return null;
+    }
+
+    /**
+     * Error correction for one block of any length.
+     *
+     * {@see ecCodewords()} is the version-1 form and is left exactly as it was: it is covered
+     * by golden vectors that a real decoder verified, and re-pointing it at this would be a
+     * behaviour change to the ticket QR in exchange for nothing.
+     *
+     * @param list<int> $data
+     * @return list<int>
+     */
+    private static function ecFor(array $data, int $count): array
+    {
+        $gen = self::generator($count);
+        $rem = array_fill(0, $count, 0);
+
+        foreach ($data as $byte) {
+            $factor = $byte ^ $rem[0];
+            array_shift($rem);
+            $rem[] = 0;
+            for ($i = 0; $i < $count; $i++) $rem[$i] ^= self::mul($gen[$i], $factor);
+        }
+
+        return $rem;
+    }
+
+    /**
+     * An SVG for arbitrary bytes. {@see svg()} with {@see encodeBytes()} behind it.
+     *
+     * The quiet zone is four modules on every side, as specified — and it is the measurement
+     * the flier handoff singled out, because an undersized quiet zone still LOOKS correct and
+     * stops scanning once a messaging app has recompressed the image.
+     */
+    public static function svgBytes(string $text, int $scale = 6, string $label = ''): ?string
+    {
+        $m = self::encodeBytes($text);
+        return $m === null ? null : self::render($m, $scale, $label);
+    }
+
     // ══ 1. the data bits ═════════════════════════════════════════════════════
 
     /** @return list<int>|null the encoded bit sequence, before padding */
@@ -248,9 +431,8 @@ final class Qr
      * @param list<int> $stream
      * @return list<list<bool>>
      */
-    private static function draw(array $stream, int $mask): array
+    private static function draw(array $stream, int $mask, int $size = self::SIZE): array
     {
-        $size = self::SIZE;
         $m    = array_fill(0, $size, array_fill(0, $size, false));
         // Which modules are function patterns and must not receive data.
         $fixed = array_fill(0, $size, array_fill(0, $size, false));
@@ -270,10 +452,32 @@ final class Qr
             }
         }
 
+        // ── alignment pattern, versions 2 and up ─────────────────────────────
+        //
+        // Versions 2–6 have exactly ONE, at (size-7, size-7): the specified centres for those
+        // versions are [6, size-7], and three of the four combinations land on a finder and
+        // are skipped. That is the whole reason this class stops at version 6 — version 7
+        // introduces a third centre AND the version-information area, which is the second of
+        // the two hard parts the class note describes.
+        if ($size > self::SIZE) {
+            $ac = $size - 7;
+            for ($r = -2; $r <= 2; $r++) {
+                for ($c = -2; $c <= 2; $c++) {
+                    $m[$ac + $r][$ac + $c] = max(abs($r), abs($c)) !== 1;
+                    $fixed[$ac + $r][$ac + $c] = true;
+                }
+            }
+        }
+
         // ── timing patterns: row 6 and column 6, alternating from the origin ─
+        //
+        // AFTER the alignment pattern, and it matters: the alignment pattern at (size-7,size-7)
+        // sits on neither timing line at these versions, but writing timing first and letting
+        // alignment overwrite it would be correct only by coincidence. Written second, timing
+        // skips what is already fixed.
         for ($i = 8; $i < $size - 8; $i++) {
-            $m[6][$i] = $i % 2 === 0;  $fixed[6][$i] = true;
-            $m[$i][6] = $i % 2 === 0;  $fixed[$i][6] = true;
+            if (!$fixed[6][$i]) { $m[6][$i] = $i % 2 === 0;  $fixed[6][$i] = true; }
+            if (!$fixed[$i][6]) { $m[$i][6] = $i % 2 === 0;  $fixed[$i][6] = true; }
         }
 
         // ── the format-information area, reserved before data is placed ──────
@@ -309,7 +513,7 @@ final class Qr
             $up = !$up;
         }
 
-        self::writeFormat($m, $mask);
+        self::writeFormat($m, $mask, $size);
 
         return $m;
     }
@@ -338,7 +542,7 @@ final class Qr
      *
      * @param list<list<bool>> $m
      */
-    private static function writeFormat(array &$m, int $mask): void
+    private static function writeFormat(array &$m, int $mask, int $size = self::SIZE): void
     {
         // Level Q is 0b11. Five bits: two of level, three of mask.
         $data = (0b11 << 3) | $mask;
@@ -348,8 +552,6 @@ final class Qr
             if ($bch & (1 << ($i + 10))) $bch ^= 0x537 << $i;
         }
         $format = (($data << 10) | $bch) ^ 0x5412;
-
-        $size = self::SIZE;
 
         // ── THE ORDER IS MOST-SIGNIFICANT-BIT FIRST ──────────────────────────
         //
@@ -395,7 +597,10 @@ final class Qr
      */
     private static function penalty(array $m): int
     {
-        $size = self::SIZE;
+        // From the matrix, not a constant: this is scored for versions 2–6 as well now, and a
+        // hardcoded 21 would read rows that are not there and score every larger symbol the
+        // same — silently choosing an arbitrary mask rather than the most readable one.
+        $size = count($m);
         $score = 0;
 
         // Rule 1 — runs of five or more of one colour, in rows then columns.
@@ -478,10 +683,23 @@ final class Qr
     public static function svg(string $text, int $scale = 6, string $label = ''): ?string
     {
         $m = self::encode($text);
-        if ($m === null) return null;
+        return $m === null ? null : self::render($m, $scale, $label);
+    }
 
+    /**
+     * One matrix, one SVG. Shared by {@see svg()} and {@see svgBytes()}.
+     *
+     * The side comes from the matrix and not from {@see SIZE}: byte mode reaches version 6,
+     * where the symbol is 41 modules across, and a hardcoded 21 would draw a 41-module code
+     * into a 21-module box — every module clipped or overlapping, and nothing about the output
+     * announcing which.
+     *
+     * @param list<list<bool>> $m
+     */
+    private static function render(array $m, int $scale, string $label): string
+    {
         $quiet = 4;
-        $side  = (self::SIZE + $quiet * 2) * $scale;
+        $side  = (count($m) + $quiet * 2) * $scale;
 
         // One path for every dark module rather than a rectangle each: a fifth of the bytes,
         // and one paint operation instead of two hundred.
