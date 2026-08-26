@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use AfricaGates\Controllers\EventsController;
-use AfricaGates\Services\{EventFlier, EventFlierLayout, EventFlierToken};
+use AfricaGates\Services\{EventFlier, EventFlierLayout, EventFlierToken, ReferralService};
 use AfricaGates\Support\Qr;
 use DI\ContainerBuilder;
 use Illuminate\Database\Capsule\Manager as DB;
@@ -137,7 +137,7 @@ final class EventFlierTest extends TestCase
 
     // ══ the two states ═══════════════════════════════════════════════════════
 
-    public function test_a_confirmed_ticket_earns_the_mark_and_the_referral_qr(): void
+    public function test_a_confirmed_ticket_earns_the_mark_and_an_attributable_qr(): void
     {
         $reg = $this->registration();
         $f = EventFlier::forToken(
@@ -820,6 +820,108 @@ final class EventFlierTest extends TestCase
         $rows = \AfricaGates\Services\MemberActivityService::ticketsFor('held@example.test', 10);
         $this->assertNotEmpty($rows);
         $this->assertSame('', (string) ($rows[0]['flier'] ?? 'missing'));
+    }
+
+    // ══ the referral path, which is what makes the flier pay anybody ═════════
+
+    /** A member with an account and a referral code, matched to a registration by email. */
+    private function sharer(string $email = 'ada@example.test'): string
+    {
+        $uid = (int) DB::table('gates_users')->insertGetId([
+            'name' => 'Ada Nwosu', 'email' => $email, 'status' => 'active',
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        return (string) ReferralService::codeFor($uid);
+    }
+
+    public function test_a_confirmed_sharer_gets_their_own_referral_link(): void
+    {
+        // Until this test existed the referral branch of forToken() had no coverage at all:
+        // every other case reaches it with no matching user, so `?ref=` never appeared and
+        // the whole reason the feature exists went unexercised. That is the shape this
+        // codebase names as its most expensive bug — a declaration with no reader.
+        $code = $this->sharer();
+        $reg  = $this->registration();
+
+        $f = EventFlier::forToken(
+            EventFlierToken::mint($this->eventId, 'Ada Nwosu', $reg), 'https://afg.example.org');
+
+        $this->assertNotNull($f);
+        $this->assertStringContainsString('ref=' . $code, $f['qr']);
+        $this->assertStringContainsString('c=flier', $f['qr']);
+    }
+
+    public function test_the_referral_url_comes_from_the_one_minter(): void
+    {
+        // ONE construction of a referral URL on this platform. The first version of the flier
+        // built `?ref=` by hand, which made it a second minter — agreeing today, disagreeing
+        // the first time somebody renames the parameter or adds a path segment. So this
+        // asserts against ReferralService::link() itself rather than against a literal: a
+        // change to the minter must move the flier with it or fail here.
+        $code = $this->sharer();
+        $reg  = $this->registration();
+
+        $f = EventFlier::forToken(
+            EventFlierToken::mint($this->eventId, 'Ada Nwosu', $reg), 'https://afg.example.org');
+
+        $expected = ReferralService::link('https://afg.example.org', $code, $this->slug);
+        $this->assertSame($expected . '&c=flier', $f['qr']);
+    }
+
+    public function test_the_printed_address_is_the_qr_minus_the_channel_tag(): void
+    {
+        // The line under the code and the code itself must land the same person in the same
+        // place and credit the same sharer. They differ by exactly `c=flier`, whose only job
+        // is to tell a scan apart from a typed visit — and those genuinely are different
+        // channels. Anything else differing would be a flier whose two halves disagree, and
+        // nothing about that is visible from looking at it.
+        $this->sharer();
+        $reg = $this->registration();
+
+        $f = EventFlier::forToken(
+            EventFlierToken::mint($this->eventId, 'Ada Nwosu', $reg), 'https://afg.example.org');
+
+        $this->assertSame(
+            preg_replace('~^https?://~', '', str_replace('&c=flier', '', $f['qr'])),
+            $f['host']);
+        $this->assertStringNotContainsString('c=flier', $f['host']);
+    }
+
+    public function test_an_event_that_does_not_share_its_gate_prints_no_referral(): void
+    {
+        // An organiser can turn sharing off for one evening. ReferralService then refuses the
+        // code twice — usable() tells the buyer it is not in use, credit() declines the money
+        // — so a flier still printing `?ref=` promises a commission that will never arrive.
+        // The sharer does the work and finds out nothing; the buyer is told the code is dead.
+        $code = $this->sharer();
+        $reg  = $this->registration();
+        DB::table('gates_site_events')->where('id', $this->eventId)
+            ->update(['referrals_enabled' => 0]);
+
+        $f = EventFlier::forToken(
+            EventFlierToken::mint($this->eventId, 'Ada Nwosu', $reg), 'https://afg.example.org');
+
+        $this->assertNotNull($f);
+        $this->assertTrue($f['confirmed'], 'the ticket is still real; only the sharing is off');
+        $this->assertStringNotContainsString('ref=' . $code, $f['qr']);
+        $this->assertStringNotContainsString('ref=', $f['qr']);
+    }
+
+    public function test_a_referral_link_still_fits_the_symbol(): void
+    {
+        // encodeBytes() REFUSES rather than truncates, so a referral URL over MAX_BYTES would
+        // throw where the fallback is supposed to catch it. This is the real shape of the
+        // longest thing the flier encodes: host + /events/ + slug + ?ref=AGXXXXXX + &c=flier.
+        $this->sharer();
+        $reg = $this->registration();
+
+        $f = EventFlier::forToken(
+            EventFlierToken::mint($this->eventId, 'Ada Nwosu', $reg),
+            'https://afg.afrovanguard.org.ng');
+
+        $this->assertLessThanOrEqual(Qr::MAX_BYTES, strlen($f['qr']));
+        $this->assertNotEmpty(Qr::encodeBytes($f['qr']));
     }
 
     public function test_the_printed_address_is_typeable_and_has_no_scheme(): void

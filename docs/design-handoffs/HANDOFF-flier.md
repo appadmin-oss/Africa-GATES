@@ -279,7 +279,7 @@ The caption is prefilled with event name, date and link, and **the first line is
 ## 10. Open decisions
 
 1. **Should the open flier be rate-limited?** Right now anyone can generate one with any name. A signed token per session limits abuse, but adds friction to the ungated path that is the whole point. My call: allow it, watch it, add friction only if abused.
-2. **Short URL as text beside the QR.** Recommended for accessibility and for anyone screenshotting the flier off a screen. Needs a short-link service decision.
+2. **Short URL as text beside the QR.** Recommended for accessibility and for anyone screenshotting the flier off a screen. Needs a short-link service decision. — *answered in §11.2: no shortener; the referral code is already print-shaped and the platform already has one minter for the URL.*
 3. **Whether a free-tier registration counts as “confirmed”.** I have assumed yes — they have a real ticket. Worth confirming, because it decides whether the mark means *paid* or *ticketed*.
 
 ---
@@ -297,19 +297,44 @@ characters, and never stored. There is no row created, nothing to enumerate afte
 image is `no-store`. The abuse case is somebody generating a flier with a name that is not
 theirs, which they could also do in any image editor in less time.
 
-### 11.2 · The short URL beside the QR — half-built, and the half that needs no decision
+### 11.2 · The short URL beside the QR — decided: no shortener, and the platform decided it
 
 A QR is unreachable to a screen reader and unusable to anyone who cannot scan, and you
-recommended printing a short URL beside it. That needs a shortener, and choosing one is a
-decision I have left alone.
+recommended printing a short URL beside it. That reads as needing a shortener. It does not, and
+the reason is that this platform already answered the question the shortener would answer.
 
-What shipped is the honest half: the **bare host** is printed as text beside the code, in the
-platform's own metadata style. It does not replace the scan and it does not pretend to — what it
-does is tell somebody looking at a screenshot where the thing came from, which is most of what
-the accessibility half of your note was about. The full link with the referral parameter is
-deliberately not printed: an address without it is a link that does not credit the sharer.
+**What is printed** is the full referral address with the scheme dropped, because nobody types
+one — `afg.afrovanguard.org.ng/events/{slug}?ref=AGXXXXXX`. It is derived from the same string
+the code encodes rather than assembled again, so the two cannot drift, and typing it credits the
+sharer exactly as scanning does. An address without the referral parameter would have been a
+link that does not credit the sharer, which is the whole point of the flier.
 
-**Still open:** the shortener, and whether the short URL replaces the host line or joins it.
+**Why that is already short enough.** A referral code is `AG` plus six characters from an
+alphabet with no `O`/`0`, no `I`/`1`/`L` and no vowels. `ReferralService::mint()` explains the
+vowels in its own note: the generator cannot produce a real word by accident, *"which on a code
+somebody prints is worth more than the entropy it costs"*. That sentence was written for exactly
+this surface. And `ReferralCaptureMiddleware` already accepts `r` as well as `ref` — *"short
+links get shortened again by the people sharing them, and a referrer who typed the short form
+should not silently lose the commission for it"*. The code was designed to be printed and the
+capture was designed to survive being shortened by somebody else.
+
+**Why building one would cost more than it returns.** A shortener is a new table, a new public
+route, a redirect nobody can audit from a flier, and a second construction of a referral URL. The
+last of those is the expensive part: this codebase's own worked example of drift is two readers
+of one setting disagreeing about whether an integration is configured. `ReferralService::link()`
+is the single minter, and the flier now calls it — the first pass of this feature assembled
+`?ref=` by hand and was a second minter, agreeing today and disagreeing the first time somebody
+renames the parameter. `tests/Unit/EventFlierTest.php` asserts against `link()` itself rather
+than a literal, so a change to the minter must move the flier with it or fail.
+
+**Where the address is *not* printed:** an event whose organiser turned sharing off. Sharing is
+per-event — `ReferralService::enabledForEvent()` — and when it is off, `usable()` tells the buyer
+the code is not in use and `credit()` declines the money. A flier still printing `?ref=` there
+would promise a commission that will never arrive: the sharer does the work and finds out
+nothing, the buyer is told the code is dead, and neither can see why. The flier falls back to the
+plain event URL, same as the open state.
+
+**Nothing still open here.**
 
 ### 11.3 · Does a free-tier registration count as confirmed — yes
 

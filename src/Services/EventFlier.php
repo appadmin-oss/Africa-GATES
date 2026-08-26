@@ -119,24 +119,52 @@ final class EventFlier
             }
         }
 
-        // ── where the QR points ─────────────────────────────────────────────
+        // ══ WHERE THE QR POINTS, AND WHAT IS PRINTED UNDER IT ═══════════════
         //
         // Confirmed: the sharer's own referral link, which is what makes the flier pay them.
-        // Open: the plain event URL. Both carry the campaign tag.
-        $eventUrl = rtrim($base, '/') . '/events/' . $slug;
-        $target   = $eventUrl . '?c=' . self::CAMPAIGN;
+        // Open: the plain event URL.
+        //
+        // ── MINTED BY ReferralService::link(), NOT BUILT HERE ────────────────
+        //
+        // The first version of this assembled `?ref=` by hand, which made the flier a SECOND
+        // minter of referral URLs on a platform that already has one. That is the same drift
+        // this codebase warns about for tier colours and for the Apps Script secret: two
+        // constructions of one value, agreeing today, disagreeing the first time somebody
+        // changes the parameter name or adds a path segment. `link()` is the minter.
+        //
+        // ── AND WHY THE PRINTED LINE IS NOT byte-for-byte THE QR ─────────────
+        //
+        // The printed address is the referral link. The QR is the referral link PLUS the
+        // campaign tag. They differ by exactly the parameter whose purpose is to tell
+        // channels apart — and a scan and a typed visit genuinely are different channels, so
+        // them differing is the point rather than a mismatch. Everything that decides where
+        // somebody LANDS, and who gets paid for it, is identical.
+        // rawurlencode on the slug because ReferralService::link() does, and the fallback
+        // below swaps one of these strings for the other.
+        $eventUrl = rtrim($base, '/') . '/events/' . rawurlencode($slug);
+        $reference = $eventUrl;
 
-        if ($confirmed) {
+        // ── AND ONLY IF *THIS* EVENT SHARES ITS GATE ─────────────────────────
+        //
+        // `enabledForEvent()`, not just the global switch. An organiser can turn sharing off
+        // for one evening whose margin is already committed, and ReferralService refuses such
+        // a code twice over: `usable()` tells the buyer "referral links are not being used for
+        // this event", and `credit()` refuses again at the moment money would be earned. A
+        // flier printing `?ref=` there would promise a commission the platform will decline —
+        // the sharer does the work, the buyer is told the code is dead, and nobody involved
+        // can see why. The event page asks the same question before it offers the link at all.
+        if ($confirmed && ReferralService::enabledForEvent((int) ($event->id ?? 0))) {
             $ref = self::referralFor($t['registration']);
-            if ($ref !== '') {
-                $target = $eventUrl . '?ref=' . rawurlencode($ref) . '&c=' . self::CAMPAIGN;
-            }
+            if ($ref !== '') $reference = ReferralService::link($base, $ref, $slug);
         }
+
+        $target = $reference . (str_contains($reference, '?') ? '&' : '?') . 'c=' . self::CAMPAIGN;
 
         // Refused rather than truncated if it will not fit — see Qr::encodeBytes(). A URL
         // silently shortened scans perfectly and goes somewhere else.
         if (strlen($target) > Qr::MAX_BYTES) {
-            $target = $eventUrl;
+            $target    = $eventUrl;
+            $reference = $eventUrl;
         }
 
         return [
@@ -161,19 +189,16 @@ final class EventFlier
             // `city` column — that guess cost a test run.
             // ── PRINTED AS TEXT BESIDE THE CODE ──────────────────────────────
             //
-            // A QR is unreachable to a screen reader and unusable to anybody who cannot
-            // scan, so the handoff asks for the address in words as well. This is the whole
-            // typeable path — host and slug, scheme dropped because nobody types one — which
-            // works when somebody reads it off a screenshot and cannot scan the code.
+            // A QR is unreachable to a screen reader and unusable to anybody who cannot scan,
+            // so the address goes in words as well. Derived from the SAME string the code
+            // encodes, with the scheme dropped because nobody types one — so the two cannot
+            // drift, and typing it credits the sharer exactly as scanning does.
             //
-            // It is NOT the QR's exact target on a confirmed flier: that carries a referral
-            // parameter, and a printed address is going to be typed by somebody else, on
-            // whose phone the parameter would have to survive being read off an image and
-            // retyped. Printing the plain path is the honest version of what a person can
-            // actually use; scanning remains what credits the sharer, and the label above it
-            // says which one is which.
-            'host'      => rtrim(preg_replace('~^https?://~', '', $base) ?? '', '/')
-                         . '/events/' . $slug,
+            // A referral code is `AG` plus six characters from an alphabet with no O/0, no
+            // I/1/L and no vowels — chosen, per its own note in ReferralService, because that
+            // matters on a code somebody prints. So this is typeable by design and needed no
+            // shortener: see §11.2 of the handoff for why one was not built.
+            'host'      => rtrim(preg_replace('~^https?://~', '', $reference) ?? '', '/'),
             'venue'     => trim((string) ($event->location ?? '')) !== ''
                 ? trim((string) ($event->location ?? ''))
                 : trim((string) ($event->venue ?? '')),
