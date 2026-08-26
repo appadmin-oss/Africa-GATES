@@ -63,11 +63,115 @@ trait FlierRaster
         }
     }
 
-    /** Advance width of a string at a size, from FreeType's own metrics. */
-    protected function width(string $s, int $size, string $font): float
+    /**
+     * Advance width of a string at a size, from FreeType's own metrics.
+     *
+     * ── AND IT HAS TO KNOW ABOUT TRACKING ────────────────────────────────────
+     *
+     * `text()` draws a tracked string CHARACTER BY CHARACTER, advancing by each glyph's own
+     * width plus the tracking, because GD has no letter-spacing. So the width of a tracked
+     * line is not the width of the untracked one, and it is not the untracked width plus
+     * n×tracking either — the per-character advance FreeType reports for an isolated glyph is
+     * not the advance it uses inside a run.
+     *
+     * Measuring one way and drawing another is how a line that measured as fitting ran off
+     * the right edge of a flier. So when tracking is asked for, this sums exactly what
+     * `text()` will advance by. Untracked callers take the same path they always did.
+     */
+    protected function width(string $s, int $size, string $font, float $tracking = 0.0): float
     {
-        $b = imagettfbbox($size, 0, $font, $s);
-        return $b === false ? 0.0 : (float) ($b[2] - $b[0]);
+        if ($tracking <= 0) {
+            $b = imagettfbbox($size, 0, $font, $s);
+            return $b === false ? 0.0 : (float) ($b[2] - $b[0]);
+        }
+
+        $chars = preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($chars === []) return 0.0;
+
+        $w = 0.0;
+        foreach ($chars as $ch) $w += $this->width($ch, $size, $font) + $tracking;
+
+        // One tracking too many: the gap after the last glyph is not part of the line.
+        return $w - $tracking;
+    }
+
+    /**
+     * Wrap a string that may contain no spaces at all — a URL — across at most $maxLines.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY wrapMeasured() CANNOT DO THIS
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * It splits on whitespace, and where a single token is wider than the line it keeps it
+     * anyway (`|| $cur === ''`) — correct for a name, which must not be cut mid-word if
+     * anything can be done about it, and wrong for an address, which has no spaces in it at
+     * all. A printed URL therefore ran straight off the right edge of the flier, and
+     * off-canvas text does not throw: it is simply not there.
+     *
+     * That shipped the moment the printed address grew a `?ref=` on it, which is the moment
+     * it became the thing that pays the sharer. It looked correct in every render before that
+     * because the short form happened to fit.
+     *
+     * ── AND IT BREAKS WHERE A URL WANTS TO BREAK ─────────────────────────────
+     *
+     * After a `/`, `?`, `&`, `.`, `-` or `_` first — the same places a browser's
+     * `overflow-wrap` prefers, and the places a reader's eye already expects a seam. A hard
+     * mid-token break is the last resort, not the first move: `afg.afrovanguard.o` / `rg.ng`
+     * is readable but it reads as damage.
+     *
+     * The last line is elided if what remains still will not fit, so nothing ever crosses the
+     * margin.
+     *
+     * @return list<string>
+     */
+    protected function wrapUrl(string $text, float $maxW, int $size, string $font,
+                               int $maxLines = 2, float $tracking = 0.0): array
+    {
+        $text = trim($text);
+        if ($text === '' || $maxW <= 0) return [];
+
+        $chars = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $lines = [];
+        $cur   = '';
+        // Where in $cur the last natural seam is, so a break can be rewound to it rather
+        // than taken wherever the width happened to run out.
+        $seam  = 0;
+
+        foreach ($chars as $ch) {
+            $try = $cur . $ch;
+
+            if ($this->width($try, $size, $font, $tracking) <= $maxW) {
+                $cur = $try;
+                // The seam sits AFTER the separator, so the line keeps the slash it broke on
+                // — a URL split before its slash reads as a missing character.
+                if (str_contains('/?&.-_ ', $ch)) $seam = mb_strlen($cur);
+                continue;
+            }
+
+            if (count($lines) + 1 >= $maxLines) {
+                // Last line: elide, measured, so the ellipsis itself fits too.
+                while ($cur !== '' && $this->width($cur . '…', $size, $font, $tracking) > $maxW) {
+                    $cur = mb_substr($cur, 0, -1);
+                }
+                $lines[] = rtrim($cur) . '…';
+                return $lines;
+            }
+
+            // Rewind to the seam when there is one and it is not so far back that the line
+            // becomes a stub — half an empty line is worse than a break one character early.
+            if ($seam > 0 && $seam >= (int) (mb_strlen($cur) * 0.55)) {
+                $lines[] = mb_substr($cur, 0, $seam);
+                $cur = mb_substr($cur, $seam) . $ch;
+            } else {
+                $lines[] = $cur;
+                $cur = $ch;
+            }
+            $seam = 0;
+        }
+
+        if ($cur !== '') $lines[] = $cur;
+
+        return $lines;
     }
 
     /**

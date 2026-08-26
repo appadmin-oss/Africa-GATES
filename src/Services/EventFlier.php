@@ -297,13 +297,19 @@ final class EventFlier
             // and if it does, `plain` is again the answer rather than an empty slot.
             if ($img === null) return $this->png($f, 'plain');
 
-            // The REFRAME. A cover-crop has one degree of freedom in each axis, and the
-            // handoff is blunt that reframing is not optional polish: a mis-cropped selfie is
-            // the main reason a generated flier gets binned, and the type sits below the
-            // lower third. `null` keeps FlierRaster's default anchor, which is what every
-            // other graphic on the platform uses.
+            // The REFRAME, or the face. A cover-crop has one degree of freedom in each axis,
+            // and the handoff is blunt that reframing is not optional polish: a mis-cropped
+            // selfie is the main reason a generated flier gets binned, and the type sits
+            // below the lower third.
+            //
+            // Resolved through focus() rather than used raw, so the detected default and the
+            // dragged value come out of ONE function. Called here as well as in the
+            // controller because a caller that reaches png() directly must get the same
+            // framing as one that came through the route — a photo whose face is found on one
+            // path and not the other is the drift this codebase keeps paying for.
+            $fp = self::focus($img, $focusX, $focusY);
             $this->cover($im, $img, $slot['x'], $slot['y'], $slot['w'], $slot['h'],
-                         $focusX, $focusY);
+                         $fp['x'], $fp['y']);
             if ($photoIm === null) imagedestroy($img);
             // A scrim over the lower band of the photo, so type below it stays legible
             // whatever somebody uploaded. A gradient rather than a flat wash, because a hard
@@ -356,7 +362,13 @@ final class EventFlier
                + $whenSize + $L::GAP_META_LINE
                + $titleLinesN * (int) round($metaSize * 1.3)
                + $L::GAP_STATE + $nameSize
-               + (($f['confirmed'] ?? false) ? self::CHIP_H + $L::GAP_CHIP : 0)
+               // The name is drawn in BOTH states, and in both there is one line above it:
+               // the chip row when confirmed, the gold invitation when not. Measuring only
+               // the confirmed one is how the open stack came out a line short and the claim
+               // sat closer to the invitation than to its own rule.
+               + (($f['confirmed'] ?? false)
+                   ? self::CHIP_H + $L::GAP_CHIP
+                   : $nameSize + $L::GAP_INVITE)
                + $L::GAP_CLAIM
                + $claimLinesN * (int) round($claimSz * $L::CLAIM_LINE)
                + $L::GAP_RULE + $L::RULE_H
@@ -418,15 +430,29 @@ final class EventFlier
         // flier nobody sends.
         $stateBottom = $titleY - $metaSize - $L::GAP_STATE;
 
-        if ($f['confirmed'] ?? false) {
-            $this->text($im, (string) $f['name'], $nameSize,
-                FlierService::fontPath('semibold'), $ink, $pad, $stateBottom);
+        // ── THE NAME IS DRAWN IN BOTH STATES ────────────────────────────────
+        //
+        // It was drawn only when confirmed, which meant the OPEN flier — the ungated path,
+        // the common one, the entire reason the feature exists — carried no name at all. The
+        // generator asks for one, requires it, caps it at 60 characters, strips control
+        // characters from it and signs it into a token, and then nothing read it. That is the
+        // shape §17 of the codebase index is about, on the majority path, and it is visible
+        // only by rendering the open state and looking for the name.
+        //
+        // The handoff's own first line is "their name, the event, and a QR". Its state table
+        // lists what the SECOND line is — the mark and chips when confirmed, the gold
+        // invitation when not — and that is the line above the name, not instead of it. One
+        // template, one boolean: the name is the constant and the state decides what sits
+        // over it.
+        $this->text($im, (string) $f['name'], $nameSize,
+            FlierService::fontPath('semibold'), $ink, $pad, $stateBottom);
 
-            // `text()` takes a BASELINE and `chip()` draws a box DOWNWARD from its y, so a
-            // chip placed one name-height above the name's baseline lands on top of the
-            // name's ascenders. The first render put "Ticket confirmed" straight through
-            // "Ada Nwosu" — legible enough to look deliberate, which is what made it worth
-            // a comment. The chip's own height has to come off as well.
+        // `text()` takes a BASELINE and `chip()` draws a box DOWNWARD from its y, so a chip
+        // placed one name-height above the name's baseline lands on top of the name's
+        // ascenders. The first render put "Ticket confirmed" straight through "Ada Nwosu" —
+        // legible enough to look deliberate, which is what made it worth a comment. The
+        // chip's own height has to come off as well.
+        if ($f['confirmed'] ?? false) {
             $chipY = $stateBottom - $nameSize - self::CHIP_H - $L::GAP_CHIP;
             $this->chip($im, $L::MARK, $pad, $chipY, $gold, $c($L::C_ON_GOLD));
 
@@ -438,10 +464,13 @@ final class EventFlier
             $claimBottom = $chipY - $L::GAP_CLAIM;
             unset($w);
         } else {
-            // Gold, and an invitation rather than a statement about a ticket.
+            // Gold, and an invitation rather than a statement about a ticket. A BASELINE, so
+            // one name-height up rather than a box height — the chip above needs its own
+            // height taken off and a line of type does not.
+            $inviteY = $stateBottom - $nameSize - $L::GAP_INVITE;
             $this->text($im, $L::INVITE, $nameSize,
-                FlierService::fontPath('semibold'), $gold, $pad, $stateBottom);
-            $claimBottom = $stateBottom - $nameSize - $L::GAP_CLAIM;
+                FlierService::fontPath('semibold'), $gold, $pad, $inviteY);
+            $claimBottom = $inviteY - $nameSize - $L::GAP_CLAIM;
         }
 
         // ── the claim, filling what is left ─────────────────────────────────
@@ -494,6 +523,123 @@ final class EventFlier
 
     /** And the largest dimensions, for the same reason: 8000×8000 is 256MB decoded. */
     public const PHOTO_MAX_SIDE = 6000;
+
+    /**
+     * Where the crop is centred: what somebody dragged, or where the face is.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * ONE RESOLVER, TWO CALLERS, AND THAT IS THE POINT
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * `png()` needs it to draw. The route needs it to tell the browser where the frame
+     * ended up, so the reframe step opens with its handle already on the face instead of in
+     * the middle of the picture — a reframe screen that starts somewhere the render did not
+     * is a preview that lies about the image it is previewing.
+     *
+     * Two places needing the same answer is exactly how this codebase has repeatedly grown
+     * two answers. So there is one function, and both call it.
+     *
+     * ── A DRAG ALWAYS WINS ───────────────────────────────────────────────────
+     *
+     * If either axis was supplied, detection does not run. Somebody who has moved the frame
+     * has told us where they want it, and a detector that overrules them is a control that
+     * does not work. Note this is `!== null` on EITHER axis, not both: the reframe posts the
+     * pair together, and a partial pair means a hand-built request, which gets the axis it
+     * gave and the anchor for the one it did not.
+     *
+     * @param \GdImage|resource|null $photoIm
+     * @return array{x:float|null,y:float|null}
+     */
+    public static function focus(mixed $photoIm, ?float $fx = null, ?float $fy = null): array
+    {
+        if ($fx !== null || $fy !== null) {
+            return [
+                'x' => $fx === null ? null : max(0.0, min(1.0, $fx)),
+                'y' => $fy === null ? null : max(0.0, min(1.0, $fy)),
+            ];
+        }
+
+        $face = FaceFinder::focus($photoIm);
+
+        // Null on both axes when nothing was found, which keeps FlierRaster's own anchor —
+        // the behaviour that shipped before FaceFinder existed. It can improve on that or
+        // tie it; it cannot do worse, and that is what makes running it by default safe.
+        return $face === null
+            ? ['x' => null, 'y' => null]
+            : ['x' => $face['x'], 'y' => $face['y']];
+    }
+
+    /**
+     * The same photo, arriving as base64 instead of as a file part.
+     *
+     * ══════════════════════════════════════════════════════════════════════════
+     * WHY THERE IS A SECOND WAY IN
+     * ══════════════════════════════════════════════════════════════════════════
+     *
+     * Not a second decoder — it writes the bytes to a temp file and hands them to
+     * {@see decodeUpload()}, so every guard (byte cap, real type from the bytes, pixel cap)
+     * is enforced in exactly one place. Only the transport differs.
+     *
+     * It exists because the multipart transport is not reliably available. Production is a
+     * shared host, and this platform's flier POST came back **406 Not Acceptable** there — a
+     * status this application never returns, from any route, for any reason. A 406 on a POST
+     * that carries an image is a request filter in front of PHP: cPanel ships mod_security
+     * with `status:406` as its default deny, and its multipart body rules are the ones that
+     * fire on an image upload. With no shell on this host, that filter cannot be inspected,
+     * tuned, or switched off.
+     *
+     * So the browser has a second transport to fall back to, and this is its landing point.
+     * A urlencoded field is a different shape to a filter than a multipart part is, which is
+     * the entire reason it is worth trying. It is a fallback and not the default because
+     * base64 is a third larger on the wire and buffers the whole image in memory as a string.
+     *
+     * @return \GdImage|resource|null
+     */
+    public static function decodeBase64(string $raw): mixed
+    {
+        $raw = trim($raw);
+        if ($raw === '') return null;
+
+        // A canvas or a FileReader hands over `data:image/jpeg;base64,…`. Accept it and also
+        // accept the bare payload, because which one arrives depends on how the browser was
+        // asked and neither is wrong.
+        if (str_starts_with($raw, 'data:')) {
+            $comma = strpos($raw, ',');
+            if ($comma === false) return null;
+            $raw = substr($raw, $comma + 1);
+        }
+
+        // Refuse before decoding, not after. base64 is 4 bytes per 3, so this bounds the
+        // decoded size without first materialising a decoded string that a caller could use
+        // to exhaust memory — the cap has to hold against a hostile body, not a friendly one.
+        if (strlen($raw) > (int) ceil(self::PHOTO_MAX_BYTES * 4 / 3) + 1024) return null;
+
+        // Strict, so a body with junk in it fails here rather than decoding to bytes that
+        // happen to start with a JPEG marker.
+        $bin = base64_decode(strtr($raw, '-_', '+/'), true);
+        if ($bin === false || $bin === '' || strlen($bin) > self::PHOTO_MAX_BYTES) return null;
+
+        // ── AND IT GOES THROUGH A TEMP FILE, ON PURPOSE ──────────────────────
+        //
+        // The privacy promise is that the photo is drawn and DISCARDED, verified "at the
+        // storage layer, not by reading the code". PHP's own upload temp gives that for free
+        // on the multipart path. Here the file is created and unlinked inside this function,
+        // in a `finally`, so the window is a few milliseconds and no later bug can widen it.
+        $tmp = @tempnam(sys_get_temp_dir(), 'agflier');
+        if ($tmp === false) return null;
+
+        try {
+            if (@file_put_contents($tmp, $bin) === false) return null;
+
+            return self::decodeUpload([
+                'tmp_name' => $tmp,
+                'size'     => strlen($bin),
+                'error'    => UPLOAD_ERR_OK,
+            ]);
+        } finally {
+            @unlink($tmp);
+        }
+    }
 
     /**
      * A photo the visitor just uploaded, decoded — and NEVER written anywhere.
@@ -642,11 +788,10 @@ final class EventFlier
         // does, and where it goes. The instruction alone left a wide gap to the right of the
         // plate with nothing in it, which is the loosest part of the whole composition.
         //
-        // The host is printed as TEXT on purpose. A QR is unreachable to a screen reader and
-        // unusable to anybody who cannot scan — the handoff asks for a short URL beside it,
-        // and until there is a shortener to mint one this is the honest half of that: it does
-        // not replace the scan, and it does tell somebody looking at a screenshot where the
-        // thing came from.
+        // The host is printed as TEXT on purpose, and the address it prints is the one the
+        // code encodes — see forToken(). A QR is unreachable to a screen reader and unusable
+        // to anybody who cannot scan, and a referral link that can only be scanned pays
+        // nobody who reads it off a screenshot.
         $tx = $x0 + $side + 34;
         $ty = $y0 + intdiv($side, 2);
 
@@ -655,16 +800,29 @@ final class EventFlier
                 FlierService::fontPath('bold'), $ink, $tx, $ty, 2.0);
         }
         if ($host !== '') {
-            // Measured against the real face and the room actually left, not counted in
-            // characters: a long slug would otherwise run off the right edge, and off-canvas
-            // text does not throw — it is simply not there.
-            $room = imagesx($im) - $tx - EventFlierLayout::PAD;
-            $line = $this->wrapMeasured($host, (float) $room, EventFlierLayout::HOST_SIZE,
-                                        FlierService::fontPath('regular'), 1)[0] ?? $host;
+            // ── WRAPPED ACROSS TWO LINES, NOT CUT ────────────────────────────
+            //
+            // This used wrapMeasured(), which splits on whitespace — and an address has none,
+            // so it kept the whole token and drew it off the right edge of the canvas.
+            // Off-canvas text does not throw; it is simply not there, and the fault showed up
+            // as an address ending mid-code. It only became visible when the printed line
+            // grew a `?ref=` on it, which is the change that made it the thing that pays the
+            // sharer: every render before that happened to fit.
+            //
+            // Two lines rather than an ellipsis, because the last characters are the referral
+            // CODE. Truncating the tail of this string is truncating somebody's commission.
+            $room  = imagesx($im) - $tx - EventFlierLayout::PAD;
+            $lines = $this->wrapUrl($host, (float) $room, EventFlierLayout::HOST_SIZE,
+                                    FlierService::fontPath('regular'), 2,
+                                    EventFlierLayout::HOST_TRACK);
 
-            $this->text($im, $line, EventFlierLayout::HOST_SIZE,
-                FlierService::fontPath('regular'), $mute,
-                $tx, $ty + EventFlierLayout::QRLABEL_SIZE + 18, EventFlierLayout::HOST_TRACK);
+            $hy = $ty + EventFlierLayout::QRLABEL_SIZE + 18;
+            foreach ($lines as $line) {
+                $this->text($im, $line, EventFlierLayout::HOST_SIZE,
+                    FlierService::fontPath('regular'), $mute,
+                    $tx, $hy, EventFlierLayout::HOST_TRACK);
+                $hy += EventFlierLayout::HOST_SIZE + 8;
+            }
         }
     }
 }

@@ -1976,6 +1976,21 @@ return function(App $app) {
         $g->get('/events/{slug}/flier.png', EventsController::class.':flier');
         // The generator. A POST that returns the PNG in the same request the photo arrives
         // in, so the upload is never written to this disk — see flierMake().
+        //
+        // ── AND IT IS THE EXTENSIONLESS PATH THE BROWSER POSTS TO ────────────
+        //
+        // Production answered `POST /events/{slug}/flier.png` with **406 Not Acceptable** —
+        // a status no route in this application returns, for any input, which puts it in
+        // front of PHP rather than inside it. Two things in that request line are shapes a
+        // shared host rejects: a POST body on a path a static handler claims by extension,
+        // and a multipart image, which is what cPanel's mod_security (default deny
+        // `status:406`) has rules for. There is no shell here to read the filter or relax it.
+        //
+        // So the address the generator posts to has no `.png` on it, which removes the whole
+        // static-handler class of refusal. The `.png` POST below stays as an alias: it costs
+        // one line, and it is what keeps a page already cached in somebody's browser working
+        // on a host that never had the filter.
+        $g->post('/events/{slug}/flier',     EventsController::class.':flierMake');
         $g->post('/events/{slug}/flier.png', EventsController::class.':flierMake');
         $g->get('/events/{slug}/calendar.ics', EventsController::class.':calendar');
         // ── TRADING AT AN EVENT ───────────────────────────────────────

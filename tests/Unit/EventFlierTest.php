@@ -822,6 +822,196 @@ final class EventFlierTest extends TestCase
         $this->assertSame('', (string) ($rows[0]['flier'] ?? 'missing'));
     }
 
+    // ══ the name, which the open flier used not to print ═════════════════════
+
+    public function test_the_open_flier_prints_the_name_it_asked_for(): void
+    {
+        // ══ THE BUG THIS ASSERTS AGAINST ═════════════════════════════════════
+        //
+        // The name was drawn only in the CONFIRMED branch, so the open flier — the ungated
+        // path, the common one, the entire reason the feature exists — carried no name at
+        // all. The generator requires one, caps it at 60 characters, strips control
+        // characters from it and signs it into a token, and nothing read it: the §17 shape,
+        // on the majority path, visible only by rendering the open state and looking.
+        //
+        // Asserted by DIFFERENCE rather than by OCR, which is the only honest option against
+        // a raster: two names must draw two images. A test that only checked "an image came
+        // back" passed throughout the whole time this was broken.
+        $a = EventFlier::forToken(EventFlierToken::mint($this->eventId, 'Ada Nwosu'), $this->base());
+        $b = EventFlier::forToken(EventFlierToken::mint($this->eventId, 'Chidiebere Okonkwo'), $this->base());
+
+        $this->assertFalse($a['confirmed']);
+        $this->assertFalse($b['confirmed']);
+
+        foreach (['plain', 'story', 'square'] as $fmt) {
+            $pa = (new EventFlier())->png($a, $fmt);
+            $pb = (new EventFlier())->png($b, $fmt);
+            $this->assertNotNull($pa, $fmt);
+            $this->assertNotSame($pa, $pb,
+                $fmt . ': two different names must produce two different fliers');
+        }
+    }
+
+    public function test_the_name_is_drawn_in_both_states_and_the_state_sits_above_it(): void
+    {
+        // One template, one boolean. The name is the constant; what sits over it is the mark
+        // and the chips when confirmed, the gold invitation when not — which is what the
+        // handoff's state table is describing when it names the "second line".
+        $open = EventFlier::forToken(
+            EventFlierToken::mint($this->eventId, 'Ada Nwosu'), $this->base());
+        $conf = EventFlier::forToken(
+            EventFlierToken::mint($this->eventId, 'Ada Nwosu', $this->registration()), $this->base());
+
+        $this->assertFalse($open['confirmed']);
+        $this->assertTrue($conf['confirmed']);
+
+        // Same name, different state: the images differ because of the row above the name,
+        // not because one of them is missing it.
+        $this->assertNotSame(
+            (new EventFlier())->png($open, 'plain'),
+            (new EventFlier())->png($conf, 'plain'));
+    }
+
+    public function test_the_invitation_has_its_own_gap_and_not_the_chip_row_s(): void
+    {
+        // A chip carries vertical padding inside a filled box, so 22px below it reads as a
+        // comfortable gap. 22px between two BASELINES of 38px type is 16px of ink-to-ink, and
+        // the invitation closed up into one block with the name under it. The same number
+        // meaning two different amounts of space is the trap, and it is only visible with
+        // both states rendered side by side.
+        $this->assertGreaterThan(EventFlierLayout::GAP_CHIP, EventFlierLayout::GAP_INVITE);
+    }
+
+    // ══ the face, and the two ways a photo can arrive ════════════════════════
+
+    /**
+     * A tall photo with a skin-coloured oval high in the frame.
+     *
+     * Synthetic, because a repository is the wrong place for photographs of people. It is
+     * enough to prove the pipeline is WIRED — the detector's own behaviour is covered in
+     * FaceFinderTest, and whether it lands on real faces is a question for real photos.
+     */
+    private function portrait(): string
+    {
+        $path = sys_get_temp_dir() . '/ag-face-' . bin2hex(random_bytes(4)) . '.jpg';
+        $im = imagecreatetruecolor(800, 1200);
+        imagefill($im, 0, 0, (int) imagecolorallocate($im, 18, 52, 44));
+        imagefilledellipse($im, 400, 300, 300, 360,
+            (int) imagecolorallocate($im, 152, 104, 78));
+        imagejpeg($im, $path, 92);
+        imagedestroy($im);
+        return $path;
+    }
+
+    public function test_the_route_reports_where_it_put_the_frame(): void
+    {
+        // ── A HEADER, BECAUSE THE BROWSER NEEDS THE ANSWER ───────────────────
+        //
+        // The reframe screen opens on the frame the render used. Without this it would open
+        // on a value this page guessed, over an image drawn from a value the server found —
+        // a preview of a different picture, and nothing about that is visible from either
+        // side. See EventFlier::focus(), which is the one resolver both halves call.
+        $res = $this->post(['name' => 'Ada', 'fmt' => 'story'], $this->portrait());
+
+        $this->assertSame(200, $res->getStatusCode());
+        $focus = $res->getHeaderLine('X-Flier-Focus');
+        $this->assertMatchesRegularExpression('~^[0-9.]+,[0-9.]+$~', $focus,
+            'the route must report the pair it used');
+
+        [$fx, $fy] = array_map('floatval', explode(',', $focus));
+        $this->assertGreaterThan(0.3, $fx);
+        $this->assertLessThan(0.7, $fx);
+        $this->assertLessThan(0.45, $fy,
+            'the oval is in the upper third, so the frame must be above the middle');
+    }
+
+    public function test_the_face_actually_moves_the_crop(): void
+    {
+        // The header could be right and the render could ignore it. So: the same photo drawn
+        // with the detected frame and with a frame at the bottom must not produce the same
+        // bytes. This is the assertion that fails if focus() is resolved and then dropped —
+        // which is the shape of half the bugs named in this codebase's own index.
+        $auto = $this->post(['name' => 'Ada', 'fmt' => 'story'], $this->portrait());
+        $low  = $this->post(['name' => 'Ada', 'fmt' => 'story', 'focus_x' => '0.5',
+                             'focus_y' => '0.95'], $this->portrait());
+
+        $this->assertSame(200, $auto->getStatusCode());
+        $this->assertSame(200, $low->getStatusCode());
+        $this->assertNotSame((string) $auto->getBody(), (string) $low->getBody(),
+            'the detected frame and a frame at the bottom must draw different images');
+    }
+
+    public function test_a_dragged_frame_is_echoed_back_unchanged(): void
+    {
+        // Echoed even though the browser sent it, so the client never has to work out whether
+        // the server honoured what it asked for.
+        $res = $this->post(['name' => 'Ada', 'fmt' => 'story', 'focus_x' => '0.25',
+                            'focus_y' => '0.75'], $this->portrait());
+
+        $this->assertSame('0.25,0.75', $res->getHeaderLine('X-Flier-Focus'));
+    }
+
+    public function test_a_photo_sent_as_base64_draws_the_same_flier_as_a_file_part(): void
+    {
+        // ══ THE TRANSPORT FALLBACK, AND WHY IT IS ONE DECODER ════════════════
+        //
+        // Production answered this route 406 — a status this application returns from no
+        // route, so a request filter in front of PHP. The browser therefore has a second
+        // transport for the photo, and the thing that must be true of it is that it is only
+        // a transport: same guards, same decode, same image.
+        //
+        // Byte-for-byte, because GD is deterministic and the focus is detected from the same
+        // pixels. Anything less than identical would mean two decode paths, which is the
+        // drift this codebase keeps paying for.
+        $path = $this->portrait();
+
+        $viaFile = $this->post(['name' => 'Ada', 'fmt' => 'story'], $path);
+        $viaB64  = $this->post([
+            'name' => 'Ada', 'fmt' => 'story',
+            'photo_b64' => 'data:image/jpeg;base64,'
+                . base64_encode((string) file_get_contents($path)),
+        ]);
+
+        $this->assertSame(200, $viaFile->getStatusCode());
+        $this->assertSame(200, $viaB64->getStatusCode());
+        $this->assertSame((string) $viaFile->getBody(), (string) $viaB64->getBody());
+        $this->assertSame($viaFile->getHeaderLine('X-Flier-Focus'),
+                          $viaB64->getHeaderLine('X-Flier-Focus'));
+    }
+
+    public function test_a_bare_base64_payload_with_no_data_prefix_also_works(): void
+    {
+        // Which prefix arrives depends on how the browser was asked, and neither is wrong.
+        $res = $this->post([
+            'name' => 'Ada', 'fmt' => 'story',
+            'photo_b64' => base64_encode((string) file_get_contents($this->portrait())),
+        ]);
+
+        $this->assertSame(200, $res->getStatusCode());
+        $this->assertSame('image/png', $res->getHeaderLine('Content-Type'));
+    }
+
+    public function test_junk_in_the_base64_field_is_refused_not_drawn(): void
+    {
+        // Refused as a PHOTO, not as a request: no photo means `plain`, which is the design
+        // for that case rather than an error. A flier with a name on it beats a 500.
+        foreach (['not base64 at all!!', 'data:image/png;base64,####', 'data:'] as $junk) {
+            $res = $this->post(['name' => 'Ada', 'fmt' => 'story', 'photo_b64' => $junk]);
+            $this->assertSame(200, $res->getStatusCode(), 'junk: ' . $junk);
+            $this->assertSame('image/png', $res->getHeaderLine('Content-Type'));
+        }
+    }
+
+    public function test_an_oversized_base64_body_is_refused_before_it_is_decoded(): void
+    {
+        // The cap has to hold against a hostile body, so it is checked on the ENCODED length:
+        // materialising the decoded string first to measure it is the memory exhaustion the
+        // cap exists to prevent.
+        $huge = str_repeat('QUJD', (int) ceil(EventFlier::PHOTO_MAX_BYTES / 3) + 4000);
+        $this->assertNull(EventFlier::decodeBase64($huge));
+        $this->assertNull(EventFlier::decodeBase64('data:image/jpeg;base64,' . $huge));
+    }
+
     // ══ the referral path, which is what makes the flier pay anybody ═════════
 
     /** A member with an account and a referral code, matched to a registration by email. */
@@ -933,6 +1123,123 @@ final class EventFlierTest extends TestCase
 
         $this->assertSame('afg.example.org/events/' . $this->slug, $f['host']);
         $this->assertStringNotContainsString('https://', $f['host']);
+    }
+
+    public function test_the_printed_address_is_never_cut_short_of_its_code(): void
+    {
+        // ══ THE BUG THIS ASSERTS AGAINST ═════════════════════════════════════
+        //
+        // The line was drawn with wrapMeasured(), which splits on WHITESPACE — and an address
+        // has none. Where a single token was wider than the line it kept it anyway, so the
+        // address ran straight off the right edge of the canvas. Off-canvas text does not
+        // throw: it is simply not there, and the flier read as an address ending mid-code.
+        //
+        // It only became reachable when the printed line grew a `?ref=` on it, which is the
+        // change that made it the thing that pays the sharer. Every render before that
+        // happened to fit.
+        //
+        // So: the whole address, across as many lines as it needs, with the CODE intact.
+        // Truncating the tail of this string is truncating somebody's commission.
+        $this->sharer();
+        $reg = $this->registration();
+        $f = EventFlier::forToken(
+            EventFlierToken::mint($this->eventId, 'Ada Nwosu', $reg),
+            'https://afg.afrovanguard.org.ng');
+
+        foreach (['story', 'square', 'plain'] as $fmt) {
+            $im = imagecreatefromstring((string) (new EventFlier())->png($f, $fmt));
+            $this->assertNotFalse($im, $fmt);
+
+            // Nothing in the right-hand margin, on any row.
+            $w = imagesx($im);
+            for ($y = 0; $y < imagesy($im); $y += 2) {
+                $this->assertFalse($this->hasInkRight($im, $y, $w),
+                    $fmt . ': the address ran into the right margin at y=' . $y);
+            }
+            imagedestroy($im);
+        }
+    }
+
+    public function test_the_wrapper_keeps_every_character_of_an_address(): void
+    {
+        // Two lines rather than an ellipsis, and the assertion is on the CHARACTERS rather
+        // than on where the seam falls: which line a break lands on is a property of the face
+        // and the room, and asserting it would be asserting the metrics of AGSans.
+        $r = new class { use \AfricaGates\Services\FlierRaster;
+            public function wrap(string $s, float $w): array {
+                return $this->wrapUrl($s, $w, 19,
+                    \AfricaGates\Services\FlierService::fontPath('regular'), 2, 0.8);
+            }
+        };
+
+        $url = 'afg.afrovanguard.org.ng/events/ogidi-omo?ref=AGKT4WQZ';
+        $out = $r->wrap($url, 540.0);
+
+        $this->assertGreaterThanOrEqual(1, count($out));
+        $this->assertLessThanOrEqual(2, count($out));
+        $this->assertSame($url, implode('', $out), 'no character may be lost');
+        $this->assertStringNotContainsString('…', implode('', $out));
+    }
+
+    public function test_the_wrapper_breaks_where_a_url_wants_to_break(): void
+    {
+        // After a separator, not before it: a URL split before its slash reads as a missing
+        // character rather than as a line break.
+        $r = new class { use \AfricaGates\Services\FlierRaster;
+            public function wrap(string $s, float $w): array {
+                return $this->wrapUrl($s, $w, 19,
+                    \AfricaGates\Services\FlierService::fontPath('regular'), 2, 0.8);
+            }
+        };
+
+        $out = $r->wrap('afg.afrovanguard.org.ng/events/ogidi-omo?ref=AGKT4WQZ', 340.0);
+        $this->assertCount(2, $out);
+        $this->assertMatchesRegularExpression('~[/?&.\-_]$~', $out[0],
+            'the first line must end on a separator it kept');
+    }
+
+    public function test_the_wrapper_elides_rather_than_overflowing_when_two_lines_are_not_enough(): void
+    {
+        // A tiny column is still a column. Nothing may cross the margin, so the last line is
+        // elided — measured with the ellipsis included, because an ellipsis that itself does
+        // not fit is the same bug one character further right.
+        $r = new class { use \AfricaGates\Services\FlierRaster;
+            public function wrap(string $s, float $w): array {
+                return $this->wrapUrl($s, $w, 19,
+                    \AfricaGates\Services\FlierService::fontPath('regular'), 2, 0.8);
+            }
+            public function w(string $s): float {
+                return $this->width($s, 19,
+                    \AfricaGates\Services\FlierService::fontPath('regular'), 0.8);
+            }
+        };
+
+        $out = $r->wrap('afg.afrovanguard.org.ng/events/a-very-long-slug?ref=AGKT4WQZ', 90.0);
+        $this->assertLessThanOrEqual(2, count($out));
+        $this->assertStringEndsWith('…', end($out));
+        foreach ($out as $line) $this->assertLessThanOrEqual(90.0, $r->w($line));
+    }
+
+    public function test_a_tracked_line_is_measured_the_way_it_is_drawn(): void
+    {
+        // text() draws a tracked string character by character, advancing by each glyph's own
+        // width plus the tracking. Measuring the untracked string and drawing the tracked one
+        // is how a line that measured as fitting ran off the edge — so width() has to know.
+        $r = new class { use \AfricaGates\Services\FlierRaster;
+            public function w(string $s, float $t): float {
+                return $this->width($s, 19,
+                    \AfricaGates\Services\FlierService::fontPath('regular'), $t);
+            }
+        };
+
+        $s = 'afg.afrovanguard.org.ng';
+        $this->assertGreaterThan($r->w($s, 0.0), $r->w($s, 0.8),
+            'tracking widens a line, and the measurer must say so');
+
+        // Zero tracking must take the original path unchanged — every other caller relies on
+        // it, and a measurer that answers differently for the same input is worse than one
+        // that ignores tracking.
+        $this->assertSame($r->w($s, 0.0), $r->w($s, 0.0));
     }
 
     public function test_a_long_address_is_truncated_by_measurement_and_stays_on_the_canvas(): void

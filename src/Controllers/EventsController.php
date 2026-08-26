@@ -1065,12 +1065,43 @@ class EventsController
             ]);
         }
 
+        // ── OR AS BASE64, WHEN THE HOST WOULD NOT TAKE THE FILE PART ─────────
+        //
+        // Production answered this route **406** — a status this application returns from no
+        // route, for any input, which makes it a request filter in front of PHP rather than
+        // anything here. cPanel ships mod_security with `status:406` as its default deny and
+        // its multipart rules are the ones an image upload trips. There is no shell on this
+        // host, so that filter cannot be read or relaxed.
+        //
+        // The browser therefore has a second transport and this is where it lands. Both go
+        // through the SAME decoder — see decodeBase64(), which writes a temp file and calls
+        // decodeUpload() — so there is one set of guards, not two.
+        if ($photo === null) {
+            $b64 = (string) ($b['photo_b64'] ?? '');
+            if ($b64 !== '') {
+                $photo = \AfricaGates\Services\EventFlier::decodeBase64($b64);
+            }
+        }
+
         // Where the frame sits, 0..1 in each axis, from the reframe step. Absent means the
         // platform's own anchor, which is centred across and biased upward.
         $fx = array_key_exists('focus_x', $b) ? (float) $b['focus_x'] : null;
         $fy = array_key_exists('focus_y', $b) ? (float) $b['focus_y'] : null;
 
-        $png = (new \AfricaGates\Services\EventFlier())->png($f, $fmt, null, $photo, $fx, $fy);
+        // ── AND WHERE THE FACE IS, WHEN NOBODY DRAGGED ───────────────────────
+        //
+        // Resolved here as well as inside png() because the browser needs the answer: the
+        // reframe screen opens with its handle on whatever the render used, so somebody who
+        // presses "reposition" sees the frame they are looking at rather than a control that
+        // has jumped to the middle of their photo.
+        //
+        // It is ONE function doing it in both places ({@see EventFlier::focus()}). Two
+        // computations of where a crop sits is precisely how a preview comes to disagree with
+        // the image it previews, and neither half looks wrong on its own.
+        $fp = \AfricaGates\Services\EventFlier::focus($photo, $fx, $fy);
+
+        $png = (new \AfricaGates\Services\EventFlier())
+            ->png($f, $fmt, null, $photo, $fp['x'], $fp['y']);
         if ($photo !== null) imagedestroy($photo);
 
         if ($png === null) {
@@ -1087,7 +1118,13 @@ class EventsController
             ->withHeader('X-Robots-Tag', 'noindex, nofollow')
             // The token the browser needs to re-share this as a LINK rather than a file, and
             // to regenerate in another format without retyping the name.
-            ->withHeader('X-Flier-Token', $token);
+            ->withHeader('X-Flier-Token', $token)
+            // Where the crop actually landed, so the reframe control can open on it. Sent
+            // even when it came from the browser in the first place: echoing it back means
+            // the client never has to decide whether the server honoured what it sent.
+            ->withHeader('X-Flier-Focus',
+                ($fp['x'] === null ? '' : round($fp['x'], 4))
+                . ',' . ($fp['y'] === null ? '' : round($fp['y'], 4)));
     }
 
     public function calendar(Request $req, Response $res, array $args): Response

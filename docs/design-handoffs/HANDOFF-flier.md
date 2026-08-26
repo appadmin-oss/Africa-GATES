@@ -380,3 +380,72 @@ alphanumeric, sixteen characters — right for a ticket code, and a referral lin
 containing `?` and `=`, which are not in that alphabet at all. Byte mode and versions 2–6 with
 real interleaving had to be built before any of §4's QR requirements could be met at all. It is
 verified by decoding rather than by matching another encoder; see the commit.
+
+### 11.6 · What the first shipped version got wrong, found by using it
+
+Six faults, five of which no test in this suite could have caught because they are about what
+an image looks like or where a fixed element lands. They are recorded because each one names a
+class of mistake, not because the list is interesting.
+
+**The POST answered 406 on production.** A status this application returns from no route, for
+any input — so a request filter in front of PHP, and cPanel ships mod_security with
+`status:406` as its default deny. Two things in that request line are shapes a shared host
+rejects: a POST body on a path a static handler claims by extension (`/flier.png`), and a
+multipart image, which is what the multipart rules are for. There is no shell on that host, so
+the filter cannot be read or relaxed. The address the browser posts to now has no extension,
+and the photo has a **transport ladder**: multipart, then base64 in a urlencoded body, then no
+photo at all with a sentence saying so. Only statuses this application never emits count as
+"filtered" — 405, 406, 415, 501; **403 is deliberately excluded**, because `CsrfMiddleware`
+answers 403 and retrying a rejected token in three transports is three failures and a
+confusing message.
+
+**The crop cut the face off.** §4 asks for a "face-centre crop" and the first build had no
+face detection — the photo was cover-cropped around a fixed anchor, which centres the middle
+of the frame, and almost nobody's face is in the middle of a photo they took of themselves.
+`FaceFinder` finds it: skin **chrominance**, not RGB, because skin varies enormously in luma
+and very little in chrominance, and an RGB threshold is a brightness rule wearing a colour
+rule's clothes that fails on dark skin first. On this platform's audience that is not a
+partial feature. It returns null rather than a guess whenever what it found is not head-shaped,
+and null is the anchor that shipped before — so it can improve on the old behaviour or tie it,
+never do worse.
+
+Its first version put the point on the **chin**: skin is contiguous from forehead to
+collarbone, so a face, a neck and a bare shoulder flood-fill into one region and 0.42 down
+*that* box is not the eye line. The head's height is estimated from its **width** now, measured
+in the top band of the region, which shoulders cannot inflate.
+
+**The generator was in the rail.** 320px and `position:sticky` — so the drag-to-reframe canvas
+was a thumbnail with a sticky ancestor, on the one screen whose entire job is showing somebody
+their own face. It is a dialog over the page now: bottom sheet on a phone, centred from 721px,
+the event still visible behind it. **Opening pushes a history entry**, so the back gesture
+closes the sheet instead of leaving the page — the interaction people try first. Focus moves
+in, is trapped, and is given back; the root's overflow is locked and restored.
+
+Its z-index was 70, which is exactly the Gee assistant's, so DOM order decided and Gee won: its
+launcher sat on top of a field inside a modal. 1100 now, chosen by enumerating every fixed and
+sticky element's computed z-index in a browser rather than by adding ten to the last one anybody
+remembered.
+
+**The reframe step came before the render.** It therefore had to guess where the crop would
+land, and it guessed the middle while the renderer used the face — a preview that disagrees
+with the image it previews. The render comes first now and reframing is a correction to
+something visible; the route reports the focal point it used in `X-Flier-Focus`, resolved by
+the one function `png()` also calls.
+
+**The printed address ran off the canvas.** It was drawn with `wrapMeasured()`, which splits on
+whitespace and keeps an over-wide single token anyway — correct for a name, wrong for an
+address, which has no spaces in it. Off-canvas text does not throw; it is simply not there, and
+the flier read as an address ending mid-code. It became reachable the moment the printed line
+grew a `?ref=` on it, which is the moment it became the thing that pays the sharer. It wraps
+across two lines now, breaking after a separator, because the last characters are the referral
+**code** and truncating them truncates somebody's commission. `width()` also learned about
+tracking: `text()` draws a tracked line character by character, so measuring the untracked
+string and drawing the tracked one is its own off-by-a-line-width.
+
+**The open flier printed no name.** The name was drawn only in the confirmed branch, so the
+ungated path — the common one, the whole reason the feature exists — carried none, while the
+generator required one, capped it, cleaned it and signed it into a token. §1's own first line
+is "their name, the event, and a QR"; §2's table is describing the line **above** the name, not
+a replacement for it. One template, one boolean: the name is the constant, and the state decides
+what sits over it. The invitation then needed its own gap constant, because 22px below a chip's
+padded box reads as space and 22px between two 38px baselines does not.

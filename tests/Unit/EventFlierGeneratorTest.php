@@ -167,9 +167,17 @@ final class EventFlierGeneratorTest extends TestCase
         $picker = (string) preg_replace('~\s+~', ' ',
             $this->between($b, 'id="flPhoto"', 'id="flCap"'));
 
-        $this->assertStringContainsString('discarded', $picker);
+        $this->assertStringContainsString('throw the photo away', $picker);
         $this->assertStringContainsString('never saved on our server', $picker);
         $this->assertStringContainsString('optional', strtolower($picker));
+
+        // ── AND IT SAYS THE FACE IS LOOKED AT ────────────────────────────────
+        //
+        // FaceFinder reads the picture to decide the crop. Software that looks at a face is
+        // software somebody is entitled to be told about, and the place to tell them is the
+        // same place the discard promise is made — at the moment of asking, not in a policy
+        // page nobody opens.
+        $this->assertStringContainsString('find the face', $picker);
     }
 
     public function test_the_reframe_shows_what_the_type_will_cover(): void
@@ -185,13 +193,36 @@ final class EventFlierGeneratorTest extends TestCase
         $this->assertStringContainsString('type="range"', $b);
     }
 
-    public function test_a_photo_format_with_no_photo_skips_the_reframe(): void
+    public function test_the_reframe_comes_after_the_first_render_not_before_it(): void
     {
-        // A reframe screen over a picture nobody supplied is a screen with one thing to do
-        // and no way to do it.
+        // It used to run BEFORE the render, which meant the reframe screen had to guess where
+        // the crop would land — and it guessed the middle of the picture while the renderer
+        // used FaceFinder's answer. A preview that disagrees with the image it previews.
+        //
+        // So start() goes straight to render() with no branch to 'frame', and the way back to
+        // reframing is a control on the READY screen, over an image that exists.
+        $b = $this->body();
+        $start = $this->between($b, 'start(){', 'grab(e){');
+
+        $this->assertStringNotContainsString("'frame'", $start,
+            'start() must not route to the reframe screen — the render comes first now');
+        $this->assertStringContainsString('this.render();', $start);
         $this->assertMatchesRegularExpression(
-            "~if \(this\.fmt !== 'plain' && this\.file\) \{ this\.stage = 'frame'; return; \}~",
-            $this->body());
+            '~stage = \'frame\'">Move the photo~', $b,
+            'the ready screen is the only way into the reframe');
+    }
+
+    public function test_the_move_the_photo_control_is_hidden_when_there_is_no_photo(): void
+    {
+        // A "move the photo" button on a design with no photo in it is a control that cannot
+        // do anything — the same fault the old pre-render reframe screen had, just relocated.
+        // The whole <button> element, so the guard has to be ON the control rather than
+        // somewhere in the same region.
+        $b   = $this->body();
+        $btn = $this->between($b, '<button type="button" class="fl__btn" x-show="file', 'Move the photo');
+
+        $this->assertStringContainsString("fmt !== 'plain'", $btn);
+        $this->assertStringContainsString("stage = 'frame'", $btn);
     }
 
     public function test_the_no_photo_design_is_offered_first(): void
@@ -303,5 +334,193 @@ final class EventFlierGeneratorTest extends TestCase
         if ($a === false) return '';
         $b = strpos($hay, $to, $a);
         return $b === false ? substr($hay, $a) : substr($hay, $a, $b - $a);
+    }
+
+    // ══ it is a dialog over the page, not a card in the rail ══════════════════
+
+    public function test_the_generator_is_not_inside_the_rail(): void
+    {
+        // It shipped inside `<aside class="ed-rail">`, which is where this page puts its
+        // asides — and a five-screen flow with a file picker and a drag-to-reframe canvas is
+        // not an aside. The rail is 320px and `position:sticky`, so the reframe control was a
+        // thumbnail with a sticky ancestor, on the one screen whose whole job is showing
+        // somebody their own face.
+        //
+        // Asserted by POSITION, because `position:fixed` hides the mistake: an overlay nested
+        // in the rail looks correct until its containing block or its width matters.
+        $b = $this->body();
+
+        $railStart = strpos($b, '<aside class="ed-rail">');
+        $railEnd   = strpos($b, '</aside>', (int) $railStart);
+        $dialog    = strpos($b, 'aria-modal="true"');
+
+        $this->assertNotFalse($railStart);
+        $this->assertNotFalse($railEnd);
+        $this->assertNotFalse($dialog, 'the generator must be a dialog');
+        $this->assertGreaterThan($railEnd, $dialog,
+            'the generator must live outside the rail, not merely be positioned out of it');
+    }
+
+    public function test_the_dialog_carries_the_semantics_that_make_it_one(): void
+    {
+        $b = $this->body();
+
+        // `role` and `aria-modal` are what tell a screen reader the rest of the page is
+        // inert; without them this is a div that happens to cover things.
+        $this->assertStringContainsString('role="dialog"', $b);
+        $this->assertStringContainsString('aria-modal="true"', $b);
+        $this->assertStringContainsString('aria-labelledby="flTitle"', $b);
+        $this->assertStringContainsString('id="flTitle"', $b);
+
+        // Three ways out, because people reach for different ones: the X, the ground, Escape.
+        $this->assertStringContainsString('aria-label="Close"', $b);
+        $this->assertStringContainsString('class="flo__scrim" @click="close()"', $b);
+        $this->assertStringContainsString('@keydown.escape.window="close()"', $b);
+    }
+
+    public function test_the_back_gesture_closes_the_sheet_instead_of_leaving_the_page(): void
+    {
+        // The interaction people try first on a phone and the one overlays get wrong most
+        // often. Opening pushes a history entry and popstate closes — so back dismisses the
+        // sheet rather than navigating away from the event.
+        $b = $this->body();
+
+        $this->assertStringContainsString("history.pushState({ agFlier: 1 }, '', '#flier')", $b);
+        $this->assertMatchesRegularExpression(
+            "~addEventListener\('popstate'[\s\S]{0,220}this\.shut\(\)~", $b);
+
+        // And close() must not go back unconditionally: a sheet somebody opened BY pressing
+        // back would then walk them off the page. `pushed` is what makes it conditional.
+        $close = $this->between($b, 'close(){', 'trap(e){');
+        $this->assertStringContainsString('if (this.pushed)', $close);
+    }
+
+    public function test_focus_is_moved_in_trapped_and_given_back(): void
+    {
+        $b = $this->body();
+
+        // `aria-modal` says the page behind is inert; it does nothing about Tab. Without a
+        // trap, tabbing off the last control lands on the event page behind a dark scrim,
+        // which is where a keyboard user gets lost and stays lost.
+        $this->assertStringContainsString('@keydown.tab="trap($event)"', $b);
+        $this->assertStringContainsString('trap(e){', $b);
+        $this->assertStringContainsString('e.shiftKey', $b);
+
+        // In on open, and back where it came from on close.
+        $this->assertStringContainsString('this.lastFocus = document.activeElement', $b);
+        $this->assertStringContainsString('this.lastFocus.focus()', $b);
+    }
+
+    public function test_the_page_behind_does_not_scroll_and_gets_its_scrolling_back(): void
+    {
+        $b = $this->body();
+
+        // `overflow` on the root rather than `position:fixed` on the body: the fixed trick
+        // also loses the scroll position, so closing the sheet would dump somebody at the top
+        // of the event page.
+        $this->assertStringContainsString("document.documentElement.style.overflow = 'hidden'", $b);
+        $this->assertStringContainsString("document.documentElement.style.overflow = ''", $b);
+    }
+
+    public function test_both_doors_open_it_and_neither_reaches_into_the_component(): void
+    {
+        $b = $this->body();
+
+        // The rail card and the register card's success state are both OUTSIDE this component,
+        // so they publish an event rather than touching its state — the same way the register
+        // card already hands over its token.
+        $this->assertSame(2, substr_count($b, "new CustomEvent('ag:flier-open'"),
+            'the rail card and the post-registration nudge');
+        $this->assertStringContainsString("addEventListener('ag:flier-open'", $b);
+
+        // And the old fragment link is gone. `href="#flier"` used to scroll to a card; the
+        // generator is a dialog now, so a fragment jump would land on a hidden element and
+        // appear to do nothing at all.
+        $this->assertStringNotContainsString('href="#flier"', $b);
+    }
+
+    public function test_a_bookmarked_fragment_still_opens_it(): void
+    {
+        // `#flier` was this thing's address before it became a dialog, and links to it exist —
+        // in the account area's ticket rows among other places.
+        $b = $this->body();
+        $this->assertStringContainsString("(location.hash || '') === '#flier'", $b);
+        $this->assertStringContainsString('flier=([^&]+)', $b);
+    }
+
+    // ══ the transport ladder, which is what the 406 cost ═════════════════════
+
+    public function test_the_photo_has_a_second_transport_and_a_last_resort(): void
+    {
+        // Production answered the flier POST **406 Not Acceptable** — a status this
+        // application returns from no route, for any input, which puts it in front of PHP.
+        // With no shell on that host the filter cannot be read or relaxed, so the browser
+        // tries shapes until one gets through.
+        $b = $this->body();
+
+        $this->assertStringContainsString("['multipart', 'b64', 'none']", $b);
+        $this->assertStringContainsString('photo_b64', $b);
+
+        // And the last rung still produces a flier — a real one, with the name and a working
+        // code on it, which is worth far more than nothing.
+        $this->assertStringContainsString('this.dropped = true', $b);
+        $this->assertStringContainsString('would not accept the photo', $b);
+    }
+
+    public function test_only_statuses_this_application_never_returns_count_as_filtered(): void
+    {
+        // 403 is deliberately absent: CsrfMiddleware answers 403, and retrying a rejected
+        // token in three transports is three failures and a misleading message.
+        $b = $this->body();
+        $fn = $this->between($b, 'filtered(code){', '},');
+
+        foreach ([405, 406, 415, 501] as $code) {
+            $this->assertStringContainsString((string) $code, $fn);
+        }
+        $this->assertStringNotContainsString('403', $fn,
+            'a rejected CSRF token must not be retried as if it were a filter');
+    }
+
+    public function test_the_posts_go_to_the_extensionless_path(): void
+    {
+        // A POST body on a path a static handler claims by extension is one of the two shapes
+        // a shared host rejects here. The `.png` POST route still exists as an alias for a
+        // page already cached in somebody's browser, but nothing new aims at it.
+        $b = $this->body();
+        $this->assertStringContainsString("'/events/' + slug + '/flier'", $b);
+        $this->assertStringNotContainsString("+ '/flier.png'", $b);
+    }
+
+    // ══ the face, as the generator presents it ═══════════════════════════════
+
+    public function test_the_reframe_opens_on_the_frame_the_render_used(): void
+    {
+        // Adopted from `X-Flier-Focus`, so the control starts where the image is framed. A
+        // reframe screen that opens anywhere else is a preview of a different picture.
+        $b = $this->body();
+        $this->assertStringContainsString("r.headers.get('X-Flier-Focus')", $b);
+
+        // Null until the server answers or somebody drags — and null is what MEANS "nobody
+        // has decided", which is what lets the server detect. A 0.5/0.22 default here would
+        // have overruled the face on every first render.
+        $this->assertStringContainsString('fx: null, fy: null', $b);
+    }
+
+    public function test_a_new_photo_discards_the_old_framing(): void
+    {
+        // The old pair was measured against a different picture, so keeping it would frame
+        // photo B on where a face was in photo A.
+        $pick = $this->between($this->body(), 'pick(){', 'start(){');
+        $this->assertStringContainsString('this.fx = null; this.fy = null', $pick);
+    }
+
+    public function test_the_face_claim_is_only_made_when_a_face_was_found(): void
+    {
+        // "We framed this on the face we found" over a crop that fell back to the fixed
+        // anchor is a claim somebody can see is false. `faced` is what makes the sentence
+        // conditional, and the route sends an empty pair when it found nothing.
+        $b = $this->body();
+        $this->assertStringContainsString('faced: false', $b);
+        $this->assertStringContainsString('x-text="faced', $b);
     }
 }

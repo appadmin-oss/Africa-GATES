@@ -108,6 +108,22 @@ final class EventFlierLayout
     public const GAP_CHIP      = 22;
 
     /**
+     * Baseline-to-baseline between the gold invitation and the name below it, on the open
+     * flier.
+     *
+     * NOT `GAP_CHIP`, which is what separates the confirmed flier's chip ROW from the name.
+     * A chip carries its own vertical padding inside a filled box, so 22px of clear space
+     * below it reads as a comfortable gap; 22px between two BASELINES of 38px type is 16px
+     * of ink-to-ink and the two lines close up into one block. Rendered side by side, the
+     * open flier's "Come with me." and the name below it read as a single two-line
+     * paragraph while the confirmed flier's chip and name read as two things.
+     *
+     * The same number in two places meaning two different amounts of space is the trap here,
+     * and it is only visible with both states open next to each other.
+     */
+    public const GAP_INVITE    = 40;
+
+    /**
      * The hairline under the claim.
      *
      * ── WHY A RULE AND NOT MORE SPACING ─────────────────────────────────────

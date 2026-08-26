@@ -433,6 +433,80 @@
   @media (prefers-reduced-motion: reduce){
     .fl__bar span{ animation:none; width:100% }
   }
+  /* ══ THE GENERATOR IS A DIALOG, NOT A CARD IN THE RAIL ═══════════════════════
+     It shipped inside `.ed-rail`, which is where this page puts its asides — and a
+     five-screen flow is not an aside. The rail is 320px and `position:sticky`, so the
+     reframe canvas was ~300px tall and scrolled with a sticky ancestor: a face-cropping
+     control the size of a business card, on the one screen whose entire job is showing
+     somebody their own face.
+
+     So it is over the page instead. The event stays visible behind it, because the flier is
+     about THIS event and losing sight of it while making one is a navigation somebody has
+     to undo. Bottom sheet on a phone, centred dialog from 721px — the same breakpoint the
+     rail collapses at, so there is one place where the page changes shape rather than two.
+
+     HISTORY IS PART OF THE DESIGN. Opening pushes a state, so the phone's back gesture
+     closes the sheet instead of leaving the page — the interaction people try first and the
+     one overlays get wrong most often. See evFlier's open()/close(). */
+  /* ── THE STACKING SLOT, PICKED BY MEASUREMENT ────────────────────────────
+     70 put it level with the Gee assistant, which is also fixed and also 70 — so DOM order
+     decided, and Gee won: its launcher sat on top of the caption field, covering a control
+     inside a modal. The site's fixed chrome measures 50 (nav), 60 (mobile nav and admin
+     rail), 68 (the two FABs), 70–91 (Gee and its panel) and 150 (the scroll progress bar);
+     the app-level modals sit at 1200 (search) and above (join).
+
+     1100 is the gap between those two groups: over every piece of page chrome, under the two
+     dialogs that should win if one of them somehow opens on top. Measured in a browser with
+     getComputedStyle over every fixed and sticky element, not guessed — a z-index chosen by
+     adding ten to the last one somebody remembers is how this collision happened. */
+  .flo{ position:fixed; inset:0; z-index:1100; display:flex; align-items:flex-end; justify-content:center }
+  @media (min-width:721px){ .flo{ align-items:center; padding:24px } }
+  .flo__scrim{ position:absolute; inset:0; background:rgba(9,26,24,.62) }
+  /* `min()` against both, so a tall phone gets a tall sheet and a short laptop window does
+     not get a panel taller than its viewport with the Share button below the fold. */
+  .flo__panel{ position:relative; display:flex; flex-direction:column; width:100%; max-width:560px;
+    max-height:min(94vh, 920px); background:var(--ag-surface,#fff);
+    border-radius:20px 20px 0 0; box-shadow:0 -10px 44px rgba(9,26,24,.3); overflow:hidden }
+  @media (min-width:721px){
+    .flo__panel{ border-radius:20px; box-shadow:0 24px 72px rgba(9,26,24,.34) }
+    .flo__grab{ display:none }
+  }
+  .flo__grab{ display:block; width:40px; height:4px; border-radius:3px; margin:9px auto 0;
+    background:rgba(16,41,44,.18) }
+  .flo__bar{ display:flex; align-items:flex-start; gap:12px; padding:14px 18px 12px;
+    border-bottom:1px solid rgba(16,41,44,.09) }
+  .flo__bar > div{ flex:1 1 auto; min-width:0 }
+  .flo__x{ flex:0 0 auto; width:44px; height:44px; border-radius:999px; border:1px solid rgba(16,41,44,.14);
+    background:#fff; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    color:var(--ag-ink,#10292c) }
+  .flo__x:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px }
+  /* The panel does not scroll; this does. A scrolling panel takes the title bar and the
+     close button with it, and a dialog whose only escape scrolls off screen is a trap. */
+  .flo__scroll{ flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain; padding:14px 18px 22px;
+    /* The home indicator on a modern phone sits over the last ~20px of the viewport, and a
+       bottom sheet's primary button lands exactly there. `max()` so a browser without the
+       inset keeps the designed padding rather than losing it to a zero. */
+    padding-bottom:max(22px, env(safe-area-inset-bottom, 0px)) }
+  /* Room the rail never had: the reframe frame and the finished preview are the two things
+     somebody is actually looking at, and in a 320px column both were thumbnails. */
+  /* Height-capped, so the frame keeps the format's aspect ratio rather than the column's —
+     and therefore narrower than the sheet on a tall phone. Centred for that reason: left-
+     aligned it sat against one edge with a third of the row empty, which reads as a layout
+     that ran out rather than as a frame the shape of the thing being made. */
+  .flo .fl__frame{ max-height:min(58vh, 460px); margin-left:auto; margin-right:auto }
+  /* Capped on HEIGHT, not only width. A story flier is 1080×1920, so at 380px wide it is
+     675px tall — taller than the sheet — and "Share it" was below the fold on the one screen
+     whose entire purpose is pressing it. `width:auto` so the aspect ratio does the rest, and
+     the tall and square formats both land inside the panel. */
+  .flo .fl__prev{ max-width:min(100%, 380px); max-height:52vh; width:auto }
+  /* The one control on this sheet the browser paints itself. Left alone it is the UA's blue,
+     which is the only off-brand pixel in the flow — and `accent-color` is the whole fix, on
+     every engine that has shipped a range in the last three years. */
+  .flo input[type="range"]{ accent-color:var(--ag-green,#237b22); min-height:44px }
+  @media (prefers-reduced-motion: reduce){
+    .flo, .flo__panel{ transition:none !important }
+  }
   /* share / calendar */
   .ed-share{ display:flex; gap:9px; margin-top:4px; }
   .ed-share button{ flex:1; cursor:pointer; border:1px solid rgba(16,41,44,.14); background:#fff; color:#10292C; font-family:inherit; font-size:13px; font-weight:600; padding:10px; border-radius:11px; display:flex; align-items:center; justify-content:center; gap:7px; }
@@ -960,14 +1034,18 @@
             {# The flier, right where somebody has just registered. The card itself is
                further down the page and already knows it is confirmed by then — this is the
                nudge to it, not a second copy of it. #}
-            <a class="ed-ext" href="#flier" style="margin-top:14px">Make your “I will be there” flier →</a>
+            {# Opens the generator rather than scrolling to it. It used to be `href="#flier"`,
+               which jumped the page to a card in the rail — and the flier is now a dialog, so
+               a fragment jump would land on a hidden element and appear to do nothing. #}
+            <button type="button" class="ed-ext" style="margin-top:14px;background:none;border:0;width:100%;cursor:pointer;font:inherit;font-weight:600"
+                    @click="window.dispatchEvent(new CustomEvent('ag:flier-open', {detail:{name:name}}))">Make your “I will be there” flier →</button>
             <a class="ed-ext" href="/events" style="margin-top:10px">Back to all events →</a>
           </div>
         </div>
       {% endif %}
 
 {# ══════════════════════════════════════════════════════════════════════════════
-   THE "I WILL BE THERE" FLIER
+   THE "I WILL BE THERE" FLIER — THE DOOR TO IT
    ══════════════════════════════════════════════════════════════════════════════
 
    A shareable image an attendee makes for THEMSELVES. Not an organiser's promo asset:
@@ -978,165 +1056,38 @@
    already on this page — as a read-only field behind a sign-in, which is precisely why
    nobody used it. This is the same link in a form people already share unprompted.
 
-   Rendered on the SERVER. These layouts depend on Playfair Display at 900, and a
-   client-side canvas export inherits whatever the device has and substitutes silently.
-   The POST returns the PNG in the same request the photo arrives in, so the upload is
-   never written to this disk — which is what makes the discard promise below true rather
-   than a retention policy. #}
-{% if not is_past and (event.status|default('published')) != 'cancelled' %}
-<div class="fl" id="flier" x-data="evFlier('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ referral and referral.pct ? referral.pct : 0 }})">
+   ── THE GENERATOR IS NOT HERE ─────────────────────────────────────────────────
 
+   This card is the invitation. The generator itself is an overlay at the end of this
+   document, because it is a five-screen flow with a file picker, a drag-to-reframe canvas
+   and a full-bleed preview — and a 320px rail is the wrong shape for every one of them.
+   The rail is where a page puts its asides; a flow is not an aside. #}
+{% if not is_past and (event.status|default('published')) != 'cancelled' %}
+<div class="fl">
   <div class="fl__head">
     <span class="fl__eyebrow">Tell people</span>
     <h2 class="fl__h">Make an “I will be there” flier</h2>
   </div>
-
   <div class="fl__body">
-
-    {# ── 1 · ENTRY ────────────────────────────────────────────────────────
-       One field. No account, no ticket — and it says so, because the ungated path is the
-       whole point and a form that looks like it needs a login is a form nobody starts. #}
-    <div x-show="stage === 'entry'" x-cloak>
-      <p class="fl__p" x-show="!token" x-cloak>
-        No ticket needed — put your name on it and share it. If you register, the code on
-        your flier becomes your referral link, and you earn
-        <strong x-text="pct ? pct + '%' : 'a share'"></strong> of every ticket bought through it.
-      </p>
-      <p class="fl__p" x-show="token" x-cloak>
-        Your ticket is confirmed, so your flier carries the mark — and its code is your own
-        referral link.
-      </p>
-
-      <label class="fl__lab" for="flName">Your name</label>
-      <input class="fl__in" id="flName" x-model="name" maxlength="60" autocomplete="name"
-             placeholder="Ada Nwosu" @keydown.enter.prevent="start()">
-
-      <span class="fl__lab" id="flFmtLab">Shape</span>
-      <div class="fl__fmts" role="radiogroup" aria-labelledby="flFmtLab"
-           @keydown.arrow-right.prevent="stepFmt(1)" @keydown.arrow-down.prevent="stepFmt(1)"
-           @keydown.arrow-left.prevent="stepFmt(-1)" @keydown.arrow-up.prevent="stepFmt(-1)">
-        {# `plain` FIRST, because it is the most common case by far: most people upload no
-           photo, and it is a design for that rather than a degraded version of the others. #}
-        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
-                :aria-checked="fmt === 'plain' ? 'true' : 'false'"
-                :tabindex="fmt === 'plain' ? 0 : -1" @click="fmt = 'plain'">
-          No photo<small>Square · post or profile</small></button>
-        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
-                :aria-checked="fmt === 'story' ? 'true' : 'false'"
-                :tabindex="fmt === 'story' ? 0 : -1" @click="fmt = 'story'">
-          With a photo<small>Tall · status and stories</small></button>
-        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
-                :aria-checked="fmt === 'square' ? 'true' : 'false'"
-                :tabindex="fmt === 'square' ? 0 : -1" @click="fmt = 'square'">
-          With a photo<small>Square · display picture</small></button>
-      </div>
-
-      {# ── 2 · THE PHOTO PICKER ──────────────────────────────────────────
-         Optional everywhere, and the reason to trust it is stated HERE rather than in a
-         policy page. Asking somebody to upload a photo of their face to an events site
-         needs a stated reason, at the moment of asking. #}
-      <div x-show="fmt !== 'plain'" x-cloak>
-        <label class="fl__lab" for="flPhoto">Your photo <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
-        <input class="fl__in" id="flPhoto" type="file" accept="image/*" x-ref="photo" @change="pick()">
-        <p class="fl__note">
-          Cropped to the shape and used to draw the flier, then discarded — it is never saved
-          on our server. Leave it empty and you get the “No photo” design instead.
-        </p>
-      </div>
-
-      {# ── 3 · THE CAPTION ────────────────────────────────────────────────
-         It goes in the SHARE MESSAGE, not on the image. The first line is left blank on
-         purpose: a fully prefilled caption gets sent verbatim and reads like an ad, and an
-         empty one gets sent with no context. #}
-      <label class="fl__lab" for="flCap">Caption <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional — goes with the message, not on the image)</span></label>
-      <textarea class="fl__in" id="flCap" rows="4" x-model="caption" style="font-size:14px;line-height:1.6"></textarea>
-
-      <div class="fl__row">
-        <button type="button" class="fl__btn fl__btn--go" @click="start()"
-                :disabled="!name.trim()" x-text="fmt === 'plain' ? 'Make my flier' : 'Next — position the photo'"></button>
-      </div>
-      <p class="fl__err" x-show="error" x-cloak x-text="error"></p>
-    </div>
-
-    {# ── 4 · REFRAME ──────────────────────────────────────────────────────
-       Drag to move the frame. The type line is drawn over the preview, because showing
-       what gets covered is the entire point — a mis-cropped selfie is the main reason a
-       generated flier gets binned, and the type sits over the lower third. #}
-    <div x-show="stage === 'frame'" x-cloak>
-      <p class="fl__p">Drag the picture to choose what shows. The shaded part is where the
-        words go.</p>
-      <div class="fl__frame" :class="fmt === 'square' ? 'fl__frame--sq' : ''"
-           x-ref="frame" @pointerdown="grab($event)" role="group" aria-label="Position your photo">
-        <img :src="photoUrl" alt="" :style="'object-position:' + (fx*100) + '% ' + (fy*100) + '%'">
-        <span class="fl__typeline"><span>Your name and the event go here</span></span>
-      </div>
-      <label class="fl__lab" for="flZoomY">How high in the frame</label>
-      {# A range as well as the drag: dragging is the good interaction and a slider is the
-         one that works with a keyboard and a screen reader. #}
-      <input id="flZoomY" type="range" min="0" max="100" step="1" style="width:100%"
-             :value="Math.round(fy*100)" @input="fy = $event.target.value/100"
-             aria-label="Move the photo up or down in the frame">
-      <div class="fl__row">
-        <button type="button" class="fl__btn fl__btn--go" @click="render()">Make my flier</button>
-        <button type="button" class="fl__btn" @click="stage = 'entry'">Back</button>
-      </div>
-    </div>
-
-    {# ── 5 · GENERATING ───────────────────────────────────────────────────
-       Its own screen, with NOTHING pressable but Cancel. A progress bar above an enabled
-       "Save the image" is an interface offering an action it cannot perform. #}
-    <div x-show="stage === 'busy'" x-cloak>
-      <p class="fl__p" role="status">Drawing your flier…</p>
-      <div class="fl__bar" role="progressbar" aria-label="Making your flier"><span></span></div>
-      <div class="fl__row">
-        <button type="button" class="fl__btn" @click="cancel()">Cancel</button>
-      </div>
-    </div>
-
-    {# ── 6 · READY ────────────────────────────────────────────────────────
-       Two shapes, decided by feature detection and not by user agent. Where the device can
-       share a FILE there is one button and it opens the share sheet with the image and the
-       caption. Where it cannot, Save is primary, the caption is copied, and one sentence
-       says why there are two steps — never a silent fall back to wa.me, which cannot attach
-       an image and produces a link with no flier. #}
-    <div x-show="stage === 'ready'" x-cloak>
-      <img class="fl__prev" :src="pngUrl" :alt="'Your flier for ' + title">
-
-      <div class="fl__row" x-show="canShareFile" x-cloak>
-        <button type="button" class="fl__btn fl__btn--go" @click="share()">Share it</button>
-        <button type="button" class="fl__btn" @click="save()">Save the image</button>
-      </div>
-
-      <div x-show="!canShareFile" x-cloak>
-        <div class="fl__row">
-          <button type="button" class="fl__btn fl__btn--go" @click="save()">Save the image</button>
-          <button type="button" class="fl__btn" @click="copy()" x-text="copied ? 'Caption copied' : 'Copy the caption'"></button>
-        </div>
-        <p class="fl__note">This browser cannot hand an image straight to WhatsApp, so it is
-          two steps: save the picture, then attach it and paste the caption.</p>
-      </div>
-
-      <div class="fl__row">
-        <button type="button" class="fl__btn" @click="stage = 'entry'">Change something</button>
-      </div>
-      <p class="fl__err" x-show="error" x-cloak x-text="error"></p>
-    </div>
-
-    {# ── 7 · FAILED ───────────────────────────────────────────────────────
-       Retry, and the name is still in the box behind this — `stage` is the only thing that
-       changed, so nothing typed is lost. #}
-    <div x-show="stage === 'failed'" x-cloak>
-      <p class="fl__err" x-text="error || 'The flier could not be made just now.'"></p>
-      <p class="fl__p">Nothing you typed has been lost.</p>
-      <div class="fl__row">
-        <button type="button" class="fl__btn fl__btn--go" @click="render()">Try again</button>
-        <button type="button" class="fl__btn" @click="stage = 'entry'">Change something</button>
-      </div>
+    {# The offer, printed from live values rather than written into the copy. An admin can
+       change the rate, and a page promising 10% after a change to 8% is a promise the
+       ledger will not honour. #}
+    <p class="fl__p">Your name, this event, and a code people can scan. No account and no
+      ticket needed{% if referral and referral.pct %} — and once you register, that code
+      becomes your referral link and earns you <strong>{{ referral.pct }}%</strong> of every
+      ticket bought through it{% endif %}.</p>
+    <div class="fl__row">
+      {# `x-data` with nothing in it, because Alpine only processes directives inside a
+         component and this button is outside every one on the page. The overlay listens on
+         `window` rather than being an ancestor — two components that do not reach into each
+         other, which is how the register card already hands over its token. #}
+      <button type="button" class="fl__btn fl__btn--go" x-data
+              @click="window.dispatchEvent(new CustomEvent('ag:flier-open'))">Make my flier</button>
     </div>
   </div>
 </div>
 {% else %}
-{# ── 8 · PAST OR CANCELLED ────────────────────────────────────────────────
+{# ── PAST OR CANCELLED ────────────────────────────────────────────────────────
    Explained, with somewhere to go. A live code on a finished evening is worse than no
    flier: somebody scans it, finds nothing, and concludes the platform is broken — which is
    why the route answers 410 as well, rather than trusting this branch alone. #}
@@ -1260,6 +1211,224 @@
     </aside>
   </div>
 </div>
+
+{# ══════════════════════════════════════════════════════════════════════════════
+   THE FLIER GENERATOR — A DIALOG OVER THIS PAGE
+   ══════════════════════════════════════════════════════════════════════════════
+
+   Outside the grid on purpose. It is `position:fixed`, so its DOM position only decides
+   what it can be nested inside — and inside `.ed-rail` it inherited the rail's `sticky`
+   containing block and its width, which is what put a face-cropping canvas in a 320px
+   column.
+
+   ── EVERY ONE OF THE HANDOFF'S STATES IS STILL HERE ───────────────────────────
+
+   Entry, photo picker, reframe, generating, ready-with-share, ready-without-share, failed,
+   past/cancelled. What changed is the ORDER: reframe now comes AFTER the first render
+   rather than before it, and the reason is that the server now finds the face
+   ({@see \AfricaGates\Services\FaceFinder}). A reframe screen shown BEFORE any render has
+   to guess where the crop will land, and it guessed the middle of the picture while the
+   render used the face — a preview that disagrees with the image it previews. Rendering
+   first means the first thing somebody sees is their own face in the frame, and reframing
+   is a correction to a real image rather than a step to get through before seeing one.
+
+   Rendered only for a live event: a past or cancelled one has no generator at all, and the
+   route answers 410 independently so this branch is not the only guard. #}
+{% if not is_past and (event.status|default('published')) != 'cancelled' %}
+<div class="flo" id="flier" x-cloak x-show="open" x-transition.opacity.duration.140ms
+     x-data="evFlier('{{ event.slug|e('js') }}', '{{ csrf_token|e('js') }}', {{ referral and referral.pct ? referral.pct : 0 }})"
+     @keydown.escape.window="close()" role="dialog" aria-modal="true" aria-labelledby="flTitle">
+
+  {# Clicking the ground closes it. Standard for a sheet, and the gesture people try before
+     they look for an X. #}
+  <div class="flo__scrim" @click="close()"></div>
+
+  <div class="flo__panel" x-ref="panel" @keydown.tab="trap($event)">
+    {# The grabber. A sheet that can be dismissed should look dismissible before anybody
+       tries — on a phone this is the affordance people reach for first. Decorative, so it is
+       hidden from the accessibility tree; the X below is the real control. #}
+    <span class="flo__grab" aria-hidden="true"></span>
+
+    <div class="flo__bar">
+      <div>
+        <span class="fl__eyebrow">Tell people</span>
+        <h2 class="fl__h" id="flTitle">Make an “I will be there” flier</h2>
+      </div>
+      <button type="button" class="flo__x" @click="close()" x-ref="closer" aria-label="Close">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <div class="flo__scroll">
+
+    {# ── 1 · ENTRY ────────────────────────────────────────────────────────
+       One required field. No account, no ticket — and it says so, because the ungated path
+       is the whole point and a form that looks like it needs a login is a form nobody
+       starts. #}
+    <div x-show="stage === 'entry'" x-cloak>
+      <p class="fl__p" x-show="!token" x-cloak>
+        No ticket needed — put your name on it and share it. If you register, the code on
+        your flier becomes your referral link, and you earn
+        <strong x-text="pct ? pct + '%' : 'a share'"></strong> of every ticket bought through it.
+      </p>
+      <p class="fl__p" x-show="token" x-cloak>
+        Your ticket is confirmed, so your flier carries the mark — and its code is your own
+        referral link.
+      </p>
+
+      <label class="fl__lab" for="flName">Your name</label>
+      <input class="fl__in" id="flName" x-ref="name" x-model="name" maxlength="60" autocomplete="name"
+             placeholder="Ada Nwosu" @keydown.enter.prevent="start()">
+
+      <span class="fl__lab" id="flFmtLab">Shape</span>
+      <div class="fl__fmts" role="radiogroup" aria-labelledby="flFmtLab"
+           @keydown.arrow-right.prevent="stepFmt(1)" @keydown.arrow-down.prevent="stepFmt(1)"
+           @keydown.arrow-left.prevent="stepFmt(-1)" @keydown.arrow-up.prevent="stepFmt(-1)">
+        {# `plain` FIRST, because it is the most common case by far: most people upload no
+           photo, and it is a design for that rather than a degraded version of the others. #}
+        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
+                :aria-checked="fmt === 'plain' ? 'true' : 'false'"
+                :tabindex="fmt === 'plain' ? 0 : -1" @click="fmt = 'plain'">
+          No photo<small>Square · post or profile</small></button>
+        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
+                :aria-checked="fmt === 'story' ? 'true' : 'false'"
+                :tabindex="fmt === 'story' ? 0 : -1" @click="fmt = 'story'">
+          With a photo<small>Tall · status and stories</small></button>
+        <button type="button" class="fl__fmt" role="radio" data-fl-fmt
+                :aria-checked="fmt === 'square' ? 'true' : 'false'"
+                :tabindex="fmt === 'square' ? 0 : -1" @click="fmt = 'square'">
+          With a photo<small>Square · display picture</small></button>
+      </div>
+
+      {# ── 2 · THE PHOTO PICKER ──────────────────────────────────────────
+         Optional everywhere, and the reason to trust it is stated HERE rather than in a
+         policy page. Asking somebody to upload a photo of their face to an events site
+         needs a stated reason, at the moment of asking.
+
+         The face-finding is stated too. Software that looks at a face is software people are
+         entitled to know about, and the honest version of the sentence is short: it happens
+         on the server, in the same request that draws the image, and nothing about the face
+         is kept — because the photo itself is not kept. #}
+      <div x-show="fmt !== 'plain'" x-cloak>
+        <label class="fl__lab" for="flPhoto">Your photo <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <input class="fl__in" id="flPhoto" type="file" accept="image/*" x-ref="photo" @change="pick()">
+        <p class="fl__note">
+          We find the face and frame the picture around it, then draw the flier and throw the
+          photo away — it is never saved on our server, and you can move the frame yourself
+          afterwards. Leave it empty and you get the “No photo” design instead.
+        </p>
+      </div>
+
+      {# ── 3 · THE CAPTION ────────────────────────────────────────────────
+         It goes in the SHARE MESSAGE, not on the image. The first line is left blank on
+         purpose: a fully prefilled caption gets sent verbatim and reads like an ad, and an
+         empty one gets sent with no context. #}
+      <label class="fl__lab" for="flCap">Caption <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional — goes with the message, not on the image)</span></label>
+      <textarea class="fl__in" id="flCap" rows="4" x-model="caption" style="font-size:14px;line-height:1.6"></textarea>
+
+      <div class="fl__row">
+        <button type="button" class="fl__btn fl__btn--go" @click="start()"
+                :disabled="!name.trim()">Make my flier</button>
+      </div>
+      <p class="fl__err" x-show="error" x-cloak x-text="error"></p>
+    </div>
+
+    {# ── 4 · REFRAME ──────────────────────────────────────────────────────
+       Reached from the preview, not before it. The frame opens where the render actually
+       put it — the server echoes the focal point it used in `X-Flier-Focus` — so this is a
+       correction to something visible rather than a guess.
+
+       The type line is drawn over the preview, because showing what gets covered is the
+       entire point: a mis-cropped selfie is the main reason a generated flier gets binned,
+       and the type sits over the lower third. #}
+    <div x-show="stage === 'frame'" x-cloak>
+      <p class="fl__p" x-text="faced
+        ? 'We framed this on the face we found. Drag it if you would rather show something else.'
+        : 'Drag the picture to choose what shows.'"></p>
+      <div class="fl__frame" :class="fmt === 'square' ? 'fl__frame--sq' : ''"
+           x-ref="frame" @pointerdown="grab($event)" role="group" aria-label="Position your photo">
+        <img :src="photoUrl" alt="" :style="'object-position:' + (fx*100) + '% ' + (fy*100) + '%'">
+        <span class="fl__typeline"><span>Your name and the event go here</span></span>
+      </div>
+      <label class="fl__lab" for="flZoomY">How high in the frame</label>
+      {# A range as well as the drag: dragging is the good interaction and a slider is the
+         one that works with a keyboard and a screen reader. #}
+      <input id="flZoomY" type="range" min="0" max="100" step="1" style="width:100%"
+             :value="Math.round(fy*100)" @input="fy = $event.target.value/100"
+             aria-label="Move the photo up or down in the frame">
+      <div class="fl__row">
+        <button type="button" class="fl__btn fl__btn--go" @click="render()">Use this framing</button>
+        <button type="button" class="fl__btn" @click="stage = pngUrl ? 'ready' : 'entry'">Back</button>
+      </div>
+    </div>
+
+    {# ── 5 · GENERATING ───────────────────────────────────────────────────
+       Its own screen, with NOTHING pressable but Cancel. A progress bar above an enabled
+       "Save the image" is an interface offering an action it cannot perform. #}
+    <div x-show="stage === 'busy'" x-cloak>
+      <p class="fl__p" role="status">Drawing your flier…</p>
+      <div class="fl__bar" role="progressbar" aria-label="Making your flier"><span></span></div>
+      <div class="fl__row">
+        <button type="button" class="fl__btn" @click="cancel()">Cancel</button>
+      </div>
+    </div>
+
+    {# ── 6 · READY ────────────────────────────────────────────────────────
+       Two shapes, decided by feature detection and not by user agent. Where the device can
+       share a FILE there is one button and it opens the share sheet with the image and the
+       caption. Where it cannot, Save is primary, the caption is copied, and one sentence
+       says why there are two steps — never a silent fall back to wa.me, which cannot attach
+       an image and produces a link with no flier. #}
+    <div x-show="stage === 'ready'" x-cloak>
+      <img class="fl__prev" :src="pngUrl" :alt="'Your flier for ' + title">
+
+      <div class="fl__row" x-show="canShareFile" x-cloak>
+        <button type="button" class="fl__btn fl__btn--go" @click="share()">Share it</button>
+        <button type="button" class="fl__btn" @click="save()">Save the image</button>
+      </div>
+
+      <div x-show="!canShareFile" x-cloak>
+        <div class="fl__row">
+          <button type="button" class="fl__btn fl__btn--go" @click="save()">Save the image</button>
+          <button type="button" class="fl__btn" @click="copy()" x-text="copied ? 'Caption copied' : 'Copy the caption'"></button>
+        </div>
+        <p class="fl__note">This browser cannot hand an image straight to WhatsApp, so it is
+          two steps: save the picture, then attach it and paste the caption.</p>
+      </div>
+
+      <div class="fl__row">
+        {# Only where there is something to reframe. A "move the photo" button on a design
+           with no photo in it is a control that cannot do anything. #}
+        <button type="button" class="fl__btn" x-show="file && fmt !== 'plain'" x-cloak
+                @click="stage = 'frame'">Move the photo</button>
+        <button type="button" class="fl__btn" @click="stage = 'entry'">Change something</button>
+      </div>
+      {# The photo could not be sent, but a flier was still made. Said plainly, because the
+         alternative is somebody seeing the "No photo" design and thinking we ignored them.
+         See render()'s transport ladder for what this is reporting. #}
+      <p class="fl__note" x-show="dropped" x-cloak style="color:#8a6d1f">
+        Your host would not accept the photo, so this is the no-photo design. Everything
+        else on it is yours.
+      </p>
+      <p class="fl__err" x-show="error" x-cloak x-text="error"></p>
+    </div>
+
+    {# ── 7 · FAILED ───────────────────────────────────────────────────────
+       Retry, and the name is still in the box behind this — `stage` is the only thing that
+       changed, so nothing typed is lost. #}
+    <div x-show="stage === 'failed'" x-cloak>
+      <p class="fl__err" x-text="error || 'The flier could not be made just now.'"></p>
+      <p class="fl__p">Nothing you typed has been lost.</p>
+      <div class="fl__row">
+        <button type="button" class="fl__btn fl__btn--go" @click="render()">Try again</button>
+        <button type="button" class="fl__btn" @click="stage = 'entry'">Change something</button>
+      </div>
+    </div>
+
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <script nonce="{{ csp_nonce }}">
   function evReg(slug, csrf, count, hasTiers, code, wlOpen){
@@ -1541,6 +1710,17 @@
    */
   function evFlier(slug, csrf, pct){
     return {
+      /* ── THE SHEET ──────────────────────────────────────────────────────────
+         Closed on load. It is a dialog now, not a card, so its own visibility is state and
+         `open` is the only thing that decides it — no CSS class toggling from two places. */
+      open: false,
+      /* Whether WE pushed the history entry that is currently on top. Tracked rather than
+         assumed, because close() must only go back when there is something of ours to go
+         back to: an unconditional history.back() from a sheet somebody opened by pressing
+         back would walk them off the page. */
+      pushed: false,
+      lastFocus: null,
+
       /* entry · frame · busy · ready · failed. Generating and Ready are deliberately
          separate: a progress bar above an enabled "Save the image" offers an action the
          page cannot perform yet. */
@@ -1555,7 +1735,19 @@
       /* The photo never leaves this page except as the body of one POST. `photoUrl` is an
          object URL for the reframe preview only. */
       file: null, photoUrl: '',
-      fx: 0.5, fy: 0.22,
+      /* Where the crop is centred, 0..1. Null until either the server reports where it put
+         the frame (`X-Flier-Focus`, from FaceFinder) or somebody drags it — and null is what
+         MEANS "nobody has decided yet", which is what lets the server detect rather than
+         being handed a guess this page made. A literal 0.5/0.22 default here would have been
+         exactly that guess, and it would have overruled the face on every first render. */
+      fx: null, fy: null,
+      /* True when the server said it found a face. Only used to word one sentence honestly:
+         claiming "we framed this on the face" over a crop that fell back to the fixed anchor
+         is a claim somebody can see is false. */
+      faced: false,
+      /* The photo could not be sent at all and a no-photo flier was made instead. Surfaced,
+         never silent — see the transport ladder in render(). */
+      dropped: false,
       pngUrl: '', blob: null,
       canShareFile: false,
       ctrl: null,
@@ -1582,6 +1774,22 @@
           if (e.detail && e.detail.name) this.name = e.detail.name;
         });
 
+        /* The door. Dispatched by the rail card and by the register card's success state,
+           both of which are outside this component. */
+        window.addEventListener('ag:flier-open', (e) => {
+          if (e.detail && e.detail.name && !this.name) this.name = e.detail.name;
+          this.openIt();
+        });
+
+        /* ── BACK CLOSES THE SHEET ───────────────────────────────────────────
+           The whole reason opening pushes a state. Without this the back gesture on a phone
+           leaves the event page entirely, which is not what anybody means by it while a
+           sheet is over the page. */
+        window.addEventListener('popstate', () => {
+          this.pushed = false;
+          if (this.open) this.shut();
+        });
+
         /* ── ARRIVING FROM THE ACCOUNT AREA ──────────────────────────────────
            The third entry point hands the credential over in the URL FRAGMENT, which is
            never sent to a server — so it is not in an access log, not in a Referer header,
@@ -1593,9 +1801,79 @@
         var m = (location.hash || '').match(/flier=([^&]+)/);
         if (m) {
           this.token = decodeURIComponent(m[1]);
-          try { history.replaceState(null, '', location.pathname + location.search + '#flier'); }
+          try { history.replaceState(null, '', location.pathname + location.search); }
           catch (e) {}
+          this.openIt();
+        } else if ((location.hash || '') === '#flier') {
+          /* A shared or bookmarked #flier still opens it — the fragment was the address of
+             this thing before it became a dialog, and links to it exist. */
+          this.openIt();
         }
+      },
+
+      /* ── OPEN ───────────────────────────────────────────────────────────────
+         Named openIt() and not open() because `open` is the state above and a method of the
+         same name would shadow it on the Alpine proxy — one of those collisions that fails
+         by rendering nothing rather than by throwing. */
+      openIt(){
+        if (this.open) return;
+        this.lastFocus = document.activeElement;
+        this.open = true;
+
+        /* The page must not scroll under a fixed sheet. `position:fixed` on the body would
+           also work and would lose the scroll position, so it is `overflow` on the root. */
+        document.documentElement.style.overflow = 'hidden';
+
+        try {
+          history.pushState({ agFlier: 1 }, '', '#flier');
+          this.pushed = true;
+        } catch (e) { this.pushed = false; }
+
+        /* Focus moves INTO the dialog, or a keyboard user is still on the page behind it and
+           tabbing through content they cannot see. The name field when that is the screen,
+           because it is the one thing to do; the close button otherwise. */
+        this.$nextTick(() => {
+          var el = (this.stage === 'entry' && this.$refs.name) ? this.$refs.name : this.$refs.closer;
+          if (el) el.focus();
+        });
+      },
+
+      /* The visible half of closing, with no history side effect — so popstate can call it
+         without pushing or popping anything further. */
+      shut(){
+        this.open = false;
+        document.documentElement.style.overflow = '';
+        if (this.ctrl) { this.ctrl.abort(); this.ctrl = null; }
+        /* Focus goes back where it came from. A dialog that closes and leaves focus on
+           <body> drops a keyboard user at the top of the document. */
+        if (this.lastFocus && this.lastFocus.focus) { try { this.lastFocus.focus(); } catch (e) {} }
+      },
+
+      close(){
+        if (!this.open) return;
+        if (this.pushed) {
+          /* Let popstate do the closing, so the address bar and the sheet cannot disagree. */
+          this.pushed = false;
+          try { history.back(); return; } catch (e) {}
+        }
+        try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+        this.shut();
+      },
+
+      /* ── THE FOCUS TRAP ─────────────────────────────────────────────────────
+         `aria-modal` tells a screen reader the rest of the page is inert; it does nothing
+         about Tab. Without this, tabbing out of the last control lands on the event page
+         behind a dark scrim, which is where a keyboard user gets lost and stays lost. */
+      trap(e){
+        var f = this.$refs.panel.querySelectorAll(
+          'a[href], button:not([disabled]), input:not([disabled]), textarea, select, [tabindex]:not([tabindex="-1"])');
+        f = Array.prototype.filter.call(f, function(el){
+          return el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement;
+        });
+        if (!f.length) return;
+        var first = f[0], last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
       },
 
       stepFmt(dir){
@@ -1612,15 +1890,18 @@
         if (this.photoUrl) URL.revokeObjectURL(this.photoUrl);
         this.file = f || null;
         this.photoUrl = f ? URL.createObjectURL(f) : '';
+        /* A NEW photo means the old framing is meaningless — it was measured against a
+           different picture. Back to null so the server finds the face in this one. */
+        this.fx = null; this.fy = null; this.faced = false;
         this.error = '';
       },
 
       start(){
         this.error = '';
         if (!this.name.trim()) { this.error = 'Add your name first.'; return; }
-        /* Straight to the render when there is nothing to reframe. A reframe step over a
-           picture nobody supplied is a screen with one thing to do and no way to do it. */
-        if (this.fmt !== 'plain' && this.file) { this.stage = 'frame'; return; }
+        /* Straight to the render, always. The reframe used to come first and had to guess
+           where the crop would land; the server finds the face now, so the first thing
+           somebody sees is the real image and reframing is a correction to it. */
         this.render();
       },
 
@@ -1641,39 +1922,128 @@
         window.addEventListener('pointerup', up);
       },
 
+      /* The fields every attempt carries, whatever the transport. */
+      fields(){
+        var o = { _token: csrf, fmt: this.fmt };
+        if (this.token) o.t = this.token; else o.name = this.name.trim();
+        if (this.fx !== null) o.focus_x = String(this.fx);
+        if (this.fy !== null) o.focus_y = String(this.fy);
+        return o;
+      },
+
+      /* ══ THE TRANSPORT LADDER ═══════════════════════════════════════════════
+
+         Production answered this route **406 Not Acceptable** — a status this application
+         returns from no route, for any input. That makes it a request filter in front of PHP:
+         cPanel ships mod_security with `status:406` as its default deny, and its multipart
+         rules are the ones an image upload trips. There is no shell on that host, so the
+         filter cannot be read, tuned or switched off from our side.
+
+         So the browser tries the shapes in order of preference and stops at the first one
+         that gets through:
+
+           1. multipart with the file        — cheapest on the wire, and what a browser does
+           2. urlencoded with the photo as base64 — a different shape to a filter, ~33% larger
+           3. urlencoded with no photo at all — a real flier, and it SAYS the photo was dropped
+
+         Only statuses this application never emits count as "filtered": 405, 406, 415, 501.
+         403 is deliberately NOT among them — CsrfMiddleware answers 403, and retrying a
+         rejected CSRF token in three transports is three failures and a confusing message.
+         413 skips step 2, because base64 makes the body bigger and retrying a too-large body
+         with a larger one is a round trip nobody needs.
+
+         Step 3 is the one that matters: a flier with somebody's name and a working code is
+         worth far more than no flier, and the sentence on the ready screen means they are
+         never left guessing why their photo is missing. */
+      filtered(code){ return code === 405 || code === 406 || code === 415 || code === 501; },
+
+      async post(kind){
+        var url = '/events/' + slug + '/flier';
+        var f = this.fields();
+
+        if (kind === 'multipart') {
+          var fd = new FormData();
+          Object.keys(f).forEach(function(k){ fd.append(k, f[k]); });
+          if (this.file) fd.append('photo', this.file);
+          return fetch(url, { method: 'POST', body: fd, signal: this.ctrl.signal });
+        }
+
+        var body = new URLSearchParams();
+        Object.keys(f).forEach(function(k){ body.append(k, f[k]); });
+        if (kind === 'b64' && this.file) body.append('photo_b64', await this.b64(this.file));
+
+        return fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+          body: body.toString(),
+          signal: this.ctrl.signal
+        });
+      },
+
+      b64(file){
+        return new Promise(function(res, rej){
+          var r = new FileReader();
+          r.onload = function(){ res(String(r.result || '')); };
+          r.onerror = function(){ rej(r.error); };
+          /* A data: URL, not an ArrayBuffer walked byte by byte — btoa over a 4MB photo in a
+             loop blocks the main thread for long enough to be visible. The server accepts
+             the data: prefix and strips it. */
+          r.readAsDataURL(file);
+        });
+      },
+
       async render(){
         this.error = '';
+        this.dropped = false;
         this.stage = 'busy';
         /* An AbortController, because Cancel has to actually cancel. A Cancel button that
            only changes the screen leaves the request running and the next one racing it. */
         this.ctrl = new AbortController();
 
-        var body = new FormData();
-        body.append('_token', csrf);
-        body.append('fmt', this.fmt);
-        if (this.token) body.append('t', this.token);
-        else body.append('name', this.name.trim());
-        if (this.fmt !== 'plain' && this.file) {
-          body.append('photo', this.file);
-          body.append('focus_x', String(this.fx));
-          body.append('focus_y', String(this.fy));
-        }
+        var wantsPhoto = this.fmt !== 'plain' && !!this.file;
 
         try {
-          var r = await fetch('/events/' + slug + '/flier.png',
-                              { method: 'POST', body: body, signal: this.ctrl.signal });
+          var plan = wantsPhoto ? ['multipart', 'b64', 'none'] : ['urlencoded'];
+          var r = null;
+
+          for (var i = 0; i < plan.length; i++) {
+            r = await this.post(plan[i] === 'none' ? 'urlencoded' : plan[i]);
+            if (r.ok) { if (plan[i] === 'none') this.dropped = true; break; }
+            if (!this.filtered(r.status) && r.status !== 413) break;
+            /* 413 means too big, so skip the bigger body and go straight to no photo. */
+            if (r.status === 413 && plan[i] === 'multipart') i++;
+          }
+
           if (!r.ok) {
             var d = await r.json().catch(function(){ return {}; });
-            this.error = d.message || 'The flier could not be made just now.';
+            this.error = d.message
+              || (this.filtered(r.status)
+                  ? 'This connection would not carry the request. Try again on another network.'
+                  : 'The flier could not be made just now.');
             this.stage = 'failed';
             return;
           }
+
           if (this.pngUrl) URL.revokeObjectURL(this.pngUrl);
           this.blob = await r.blob();
           this.pngUrl = URL.createObjectURL(this.blob);
           /* The token the server used, so "share as a link" and a later format change need
              no retyping — and so the confirmed state survives a regenerate. */
           this.token = r.headers.get('X-Flier-Token') || this.token;
+
+          /* ── WHERE THE CROP ACTUALLY LANDED ─────────────────────────────────
+             Sent back by the route, from the one resolver both halves use
+             (EventFlier::focus). Adopted here so the reframe control opens on the frame in
+             the image somebody is looking at — a reframe screen that starts anywhere else is
+             a preview of a different picture. A pair with an empty axis means the server used
+             its own anchor and found no face, which is what `faced` reports. */
+          var fp = (r.headers.get('X-Flier-Focus') || '').split(',');
+          if (fp.length === 2 && fp[0] !== '' && fp[1] !== '') {
+            var hadOwn = this.fx !== null || this.fy !== null;
+            this.fx = parseFloat(fp[0]); this.fy = parseFloat(fp[1]);
+            this.faced = !hadOwn;
+          } else { this.faced = false; }
+
           this.stage = 'ready';
         } catch (e) {
           if (e && e.name === 'AbortError') { this.stage = 'entry'; return; }
