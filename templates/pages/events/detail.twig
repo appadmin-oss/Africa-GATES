@@ -406,6 +406,29 @@
     flex-direction:column; align-items:flex-start; justify-content:center; gap:2px; text-align:left }
   .fl__fmt[aria-checked="true"]{ border-color:var(--ag-green,#237b22); background:#f6fcf5 }
   .fl__fmt small{ font-weight:400; font-size:10.5px; color:var(--ag-ink-soft,#626a6e) }
+  /* The style picker. A radiogroup like the shape and the tier list, for the same reason:
+     one choice from a set, and people arrive knowing arrow keys move inside one. */
+  /* `grid-auto-rows:1fr` so the chips are the same height whatever their note does. Without
+     it the row's height came from the tallest note and only that chip filled it, which reads
+     as one option being more important than the others. */
+  .fl__sts{ display:grid; grid-template-columns:repeat(auto-fit, minmax(118px, 1fr));
+    grid-auto-rows:1fr; gap:8px; margin-top:10px }
+  .fl__st{ min-height:44px; padding:8px 9px 9px; border-radius:12px; border:1.5px solid rgba(16,41,44,.14);
+    background:#fff; cursor:pointer; display:flex; flex-direction:column; align-items:flex-start; gap:4px;
+    text-align:left; font:inherit; color:var(--ag-ink,#10292c) }
+  .fl__st[aria-checked="true"]{ border-color:var(--ag-green,#237b22); box-shadow:0 0 0 1px var(--ag-green,#237b22) inset }
+  .fl__st:focus-visible{ outline:2px solid var(--ag-green,#237b22); outline-offset:2px }
+  .fl__st__n{ font:600 12.5px/1 inherit }
+  .fl__st small{ font-weight:400; font-size:10.5px; line-height:1.35; color:var(--ag-ink-soft,#626a6e) }
+  /* A MINIATURE OF THE FLIER, not a colour blob. Two type lines and the accent bar, in the
+     same order they appear on the graphic — so the chip answers "which design" rather than
+     "which colour", which is the question being asked. */
+  .fl__st__sw{ display:block; width:100%; aspect-ratio:16/10; border-radius:7px; overflow:hidden;
+    position:relative; border:1px solid rgba(16,41,44,.12) }
+  .fl__st__sw i{ position:absolute; left:10%; height:8%; width:78%; border-radius:2px; opacity:.92 }
+  .fl__st__sw i:nth-of-type(1){ top:34% }
+  .fl__st__sw i:nth-of-type(2){ top:50% }
+  .fl__st__sw b{ position:absolute; left:10%; top:22%; width:26%; height:5%; border-radius:2px }
   .fl__lab{ display:block; font:700 10.5px/1 inherit; letter-spacing:.08em; text-transform:uppercase;
     color:var(--ag-ink-soft,#626a6e); margin:14px 0 6px }
   .fl__in{ width:100%; box-sizing:border-box; border:1px solid rgba(16,41,44,.16); border-radius:11px;
@@ -1288,16 +1311,49 @@
            photo, and it is a design for that rather than a degraded version of the others. #}
         <button type="button" class="fl__fmt" role="radio" data-fl-fmt
                 :aria-checked="fmt === 'plain' ? 'true' : 'false'"
-                :tabindex="fmt === 'plain' ? 0 : -1" @click="fmt = 'plain'">
+                :tabindex="fmt === 'plain' ? 0 : -1" @click="setFmt('plain')">
           No photo<small>Square · post or profile</small></button>
         <button type="button" class="fl__fmt" role="radio" data-fl-fmt
                 :aria-checked="fmt === 'story' ? 'true' : 'false'"
-                :tabindex="fmt === 'story' ? 0 : -1" @click="fmt = 'story'">
+                :tabindex="fmt === 'story' ? 0 : -1" @click="setFmt('story')">
           With a photo<small>Tall · status and stories</small></button>
         <button type="button" class="fl__fmt" role="radio" data-fl-fmt
                 :aria-checked="fmt === 'square' ? 'true' : 'false'"
-                :tabindex="fmt === 'square' ? 0 : -1" @click="fmt = 'square'">
+                :tabindex="fmt === 'square' ? 0 : -1" @click="setFmt('square')">
           With a photo<small>Square · display picture</small></button>
+      </div>
+
+      {# ── 1b · THE STYLE ────────────────────────────────────────────────
+         Four treatments, drawn in THIS event's colours. The swatch is a miniature of the
+         composition — ground, a line of type, the accent bar — rather than an abstract
+         colour blob, because what somebody is choosing between is four designs and a
+         circle of colour does not tell them which.
+
+         The colours come from the server ({@see \AfricaGates\Services\EventFlierTheme}),
+         not from anything written here. A picker showing a generic dark-green chip beside
+         a flier that comes out teal is a control that lies about its own outcome, and
+         taking the organiser's colour is the whole point of this. #}
+      <span class="fl__lab" id="flStyleLab">Style</span>
+      <div class="fl__sts" role="radiogroup" aria-labelledby="flStyleLab"
+           @keydown.arrow-right.prevent="stepStyle(1)" @keydown.arrow-down.prevent="stepStyle(1)"
+           @keydown.arrow-left.prevent="stepStyle(-1)" @keydown.arrow-up.prevent="stepStyle(-1)">
+        <template x-for="s in styles()" :key="s.key">
+          <button type="button" class="fl__st" role="radio" data-fl-style
+                  :aria-checked="style === s.key ? 'true' : 'false'"
+                  :tabindex="style === s.key ? 0 : -1"
+                  @click="style = s.key">
+            {# `aria-hidden`, because the label and the note carry the meaning. A colour is
+               never the only signal — WCAG 1.4.1 — and a screen reader hearing three hex
+               values would be worse off than one hearing nothing. #}
+            <span class="fl__st__sw" aria-hidden="true" :style="'background:' + s.ground">
+              <i :style="'background:' + s.ink"></i>
+              <i :style="'background:' + s.ink + ';width:60%'"></i>
+              <b :style="'background:' + s.accent"></b>
+            </span>
+            <span class="fl__st__n" x-text="s.label"></span>
+            <small x-text="s.note"></small>
+          </button>
+        </template>
       </div>
 
       {# ── 2 · THE PHOTO PICKER ──────────────────────────────────────────
@@ -1708,7 +1764,21 @@
    * wrong answer is falling back to a wa.me link — which cannot attach an image and produces
    * a message with no flier in it.
    */
+  /* ── THE STYLE DATA LIVES HERE, NOT IN AN `x-data` ATTRIBUTE ────────────────
+     It was passed as two JSON arguments inside `x-data="evFlier(…, {…}, {…})"`, and the HTML
+     parser destroyed it: the first `"` inside the JSON closed the attribute, and everything
+     after it was re-read as a list of attribute names. The element came out with `in=""`,
+     `the=""`, `full=""` on it and Alpine never saw a component at all — no error in the
+     console, no failed request, just a dialog that did nothing.
+
+     `|e('html_attr')` would also work, at the cost of a 4KB wall of `&#x7b;` in the markup.
+     A script block is where JSON belongs, and this file already hands the title over this way
+     for the same reason. */
+  var AG_FLIER_STYLES   = {{ flier_styles|default({})|json_encode|raw }};
+  var AG_FLIER_DEFAULTS = {{ flier_style_default|default({})|json_encode|raw }};
+
   function evFlier(slug, csrf, pct){
+    var styleSets = AG_FLIER_STYLES, styleDefaults = AG_FLIER_DEFAULTS;
     return {
       /* ── THE SHEET ──────────────────────────────────────────────────────────
          Closed on load. It is a dialog now, not a card, so its own visibility is state and
@@ -1727,6 +1797,10 @@
       stage: 'entry',
       name: '', fmt: 'plain', caption: '', error: '', copied: false,
       pct: pct || 0,
+      /* The chosen treatment. Not stored anywhere and not a colour — a KEY, resolved to hexes
+         on the server from the event's own accent, the same way a tier stores a slot rather
+         than a hex. See EventFlierTheme. */
+      style: (styleDefaults && styleDefaults.plain) || 'paper',
       /* The confirmed credential, when there is one. Minted server-side by the register
          response — a browser cannot assert a registration, which is the whole point of
          EventFlierToken. Empty here means the ungated path, which is the common one. */
@@ -1756,6 +1830,8 @@
         /* Prefilled, so the caption is one edit rather than one composition — and the FIRST
            LINE IS LEFT BLANK on purpose. A fully prefilled caption gets sent verbatim and
            reads like an ad; an empty one gets sent with no context. */
+        this.style = (styleDefaults && styleDefaults[this.fmt]) || this.style;
+
         this.caption = '\n' + this.title + '\n'
           + {{ (event.event_date|default(''))|json_encode|raw }}.slice(0, 10) + '\n'
           + location.origin + '/events/' + slug;
@@ -1880,8 +1956,35 @@
         var els = Array.prototype.slice.call(this.$root.querySelectorAll('[data-fl-fmt]'));
         var order = ['plain', 'story', 'square'];
         var at = order.indexOf(this.fmt);
-        this.fmt = order[((at + dir) + order.length) % order.length];
+        this.setFmt(order[((at + dir) + order.length) % order.length]);
         var el = els[order.indexOf(this.fmt)];
+        if (el) el.focus();
+      },
+
+      /* ── THE SHAPE AND THE STYLE ARE NOT INDEPENDENT ─────────────────────────
+         `tint` re-colours a photograph, so the no-photo design cannot draw it. Changing the
+         shape therefore has to re-check the style, or the picker keeps a selected chip that
+         is no longer in the list and the render silently uses something else. Going through
+         one setter is what makes that impossible to forget at a call site. */
+      setFmt(next){
+        this.fmt = next;
+        var ok = this.styles().some((s) => s.key === this.style);
+        if (!ok) this.style = (styleDefaults && styleDefaults[next]) || 'paper';
+      },
+
+      /* The styles this shape can offer, with THIS event's colours in them. Server-computed;
+         nothing here invents a hex. */
+      styles(){
+        return (styleSets && styleSets[this.fmt]) || [];
+      },
+
+      stepStyle(dir){
+        var list = this.styles();
+        if (!list.length) return;
+        var at = list.findIndex((s) => s.key === this.style);
+        this.style = list[((at < 0 ? 0 : at) + dir + list.length) % list.length].key;
+        var els = Array.prototype.slice.call(this.$root.querySelectorAll('[data-fl-style]'));
+        var el = els[list.findIndex((s) => s.key === this.style)];
         if (el) el.focus();
       },
 
@@ -1924,7 +2027,7 @@
 
       /* The fields every attempt carries, whatever the transport. */
       fields(){
-        var o = { _token: csrf, fmt: this.fmt };
+        var o = { _token: csrf, fmt: this.fmt, style: this.style };
         if (this.token) o.t = this.token; else o.name = this.name.trim();
         if (this.fx !== null) o.focus_x = String(this.fx);
         if (this.fy !== null) o.focus_y = String(this.fy);
@@ -2037,6 +2140,14 @@
              the image somebody is looking at — a reframe screen that starts anywhere else is
              a preview of a different picture. A pair with an empty axis means the server used
              its own anchor and found no face, which is what `faced` reports. */
+          /* ── AND THE STYLE IT ACTUALLY DREW ─────────────────────────────────
+             A requested style is normalised against the format that ends up being DRAWN, and
+             those differ when a photo does not arrive: `tint` on a photo format with no photo
+             becomes `paper` on `plain`. A picker still showing `tint` would be describing an
+             image that is not on screen. */
+          var st = r.headers.get('X-Flier-Style');
+          if (st) this.style = st;
+
           var fp = (r.headers.get('X-Flier-Focus') || '').split(',');
           if (fp.length === 2 && fp[0] !== '' && fp[1] !== '') {
             var hadOwn = this.fx !== null || this.fy !== null;

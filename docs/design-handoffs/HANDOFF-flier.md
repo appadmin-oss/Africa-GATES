@@ -449,3 +449,78 @@ is "their name, the event, and a QR"; §2's table is describing the line **above
 a replacement for it. One template, one boolean: the name is the constant, and the state decides
 what sits over it. The invitation then needed its own gap constant, because 22px below a chip's
 padded box reads as space and 22px between two 38px baselines does not.
+
+### 11.7 · The flier takes the event's colour, and there are four of them
+
+The layout was authored with eleven hard-coded hexes — a dark green plate, a warm paper, one
+gold — so every flier for every event came out the same colour. On a platform where
+`EventTierPalette` already moves the tier chips, the registration card's selection light and
+the printed ticket to the organiser's accent, that meant an organiser could set their event
+teal, watch three surfaces follow, and then find the graphic their attendees actually post to
+WhatsApp was still green.
+
+**`EventFlierTheme` computes the whole palette from the event's accent.** Nothing is stored and
+nothing is picked: a style is a KEY and every hex is derived on every read, which is the same
+reason a tier stores a slot rather than a colour. Change the accent and every flier already
+shared keeps working while every new one moves.
+
+It composes `EventTierPalette` rather than repeating it — its HSL conversion, its `ink()`
+guarantee, its `contrast()`, its 152° `bold` rotation. Not one line of colour maths is written
+twice, because two derivations of one accent is exactly how two surfaces come to disagree about
+what the event's colour is.
+
+**Four styles, and each is a treatment rather than a hue** — the hue already comes from the
+event:
+
+| key | ground | what it is for |
+|---|---|---|
+| `deep` | the accent taken down to a dark field | the default behind a photograph |
+| `paper` | a warm light ground carrying a whisper of the hue | the default with no photo |
+| `bold` | the accent itself, full chroma | a poster |
+| `tint` | `deep`, with the photograph desaturated and re-coloured into the accent | photo formats only |
+
+`tint` is offered only where there is a photo slot: an option that changes nothing when chosen
+is worse than one that is absent, because the person presses it and concludes the flier is
+broken. The picker draws each style as a **miniature of the composition** — ground, two type
+lines, the accent bar — in this event's real colours, resolved server-side. A picker showing a
+generic chip beside a flier that comes out teal is a control that lies about its own outcome.
+
+**The format no longer decides whether the flier is light.** It was `$paper = $fmt === 'plain'`,
+so there was no such thing as a dark no-photo flier or a light one with a photograph in it, and
+neither of those is a bad idea. The style decides the ground; the format decides the shape.
+
+**Every pair is measured, and sampling the accent space is what caught the faults.** The floors
+are 4.5:1 for anything that carries words (WCAG 1.4.3 — the meta line is 26px in a 1080px image,
+which is small on the phone a flier is actually looked at on) and 3:1 for the hairline rule and
+the chip fill (1.4.11). `EventFlierThemeTest` walks the hue wheel at two saturations and three
+lightnesses, plus the greys and the primaries, and asserts the floors rather than the values.
+Three faults it found, none of which any example-based test would have:
+
+- **`bold` collapsed to one colour** on a mid-lightness saturated hue — `#237b22`, `#1d6fa5`,
+  `#ff0000`. Nothing but near-white clears 4.5:1 on that ground, so the name, the title and the
+  date all came out white. The lightness is banded out of the middle now, and the band is chosen
+  by MEASURING which ink is more legible rather than by comparing HSL lightness: pure `#0000ff`
+  has an `$l` of exactly 0.50 and went into the light band, where its best available ink managed
+  3.5:1.
+- **A gold event's `paper` flier came out olive.** One accent value was doing duty as both a
+  graphic and a line of text, and the text floor darkened it past recognition. There are two now
+  — `accent` at 3:1 for the rule and the chip fill, `accent_text` at 4.5:1 for the kicker and
+  the invitation. That split is this codebase's own `fill` vs `edge` distinction, inverted:
+  here the graphics want the identity and the text wants whatever reads.
+- **A navy event and a plum event got the same near-black `deep` ground** — 29 redmean units
+  apart. The event's colour survived only in the highlight, so the ground of the graphic people
+  actually post was effectively black for everybody. Eight points of lightness fixed it, and
+  white ink is still above 13:1.
+
+**Two pixels do not follow the event, and the theme declares them so a reader exists.** The QR
+plate is white and its modules are black in every style: a symbol needs dark modules on a light
+field, that is the specification rather than a preference, and a code that scans is worth more
+than a code that matches. They are passed into the renderer rather than left as two literals
+because a value the theme declares and nothing reads is the most expensive shape of bug here.
+
+**And one bug found only by driving the page.** The swatch data was handed to Alpine as JSON
+arguments inside `x-data="evFlier(…, {…}, {…})"`. The HTML parser destroyed it: the first `"`
+inside the JSON closed the attribute and everything after it was re-read as a list of attribute
+names, so the element came out carrying `in=""`, `the=""`, `full=""` and Alpine never saw a
+component at all. No console error, no failed request — a dialog that did nothing when pressed.
+JSON goes in the script block now, the way this template already hands over the event title.

@@ -231,9 +231,17 @@ final class EventFlierGeneratorTest extends TestCase
 
         // "plain — no photo — the most common case. Offer this first." So it is the first
         // radio and the default.
-        $this->assertLessThan(strpos($b, "fmt = 'story'"), strpos($b, "fmt = 'plain'"),
+        //
+        // Asserted against setFmt() rather than a bare assignment: the shape and the style are
+        // not independent — `tint` re-colours a photograph, so the no-photo design cannot draw
+        // it — and every shape button goes through one setter for that reason. A test written
+        // against `fmt = '…'` would pass again the moment somebody reintroduced a direct
+        // assignment that skips the style re-check.
+        $this->assertLessThan(strpos($b, "setFmt('story')"), strpos($b, "setFmt('plain')"),
             'the no-photo shape must be the first option');
         $this->assertMatchesRegularExpression("~fmt: 'plain'~", $b, 'and the default');
+        $this->assertStringNotContainsString("@click=\"fmt = '", $b,
+            'a shape button that assigns fmt directly skips the style re-check');
     }
 
     // ══ cancel, and not losing what somebody typed ═══════════════════════════
@@ -522,5 +530,85 @@ final class EventFlierGeneratorTest extends TestCase
         $b = $this->body();
         $this->assertStringContainsString('faced: false', $b);
         $this->assertStringContainsString('x-text="faced', $b);
+    }
+
+    // ══ the style picker ═════════════════════════════════════════════════════
+
+    public function test_the_style_picker_is_a_radiogroup_with_real_swatches(): void
+    {
+        $b = $this->body();
+
+        // A radiogroup like the shape and the tier list, for the same reason: one choice from
+        // a set, and people arrive knowing arrow keys move inside one.
+        $this->assertStringContainsString('aria-labelledby="flStyleLab"', $b);
+        $this->assertStringContainsString('data-fl-style', $b);
+        $this->assertStringContainsString('stepStyle(1)', $b);
+        $this->assertStringContainsString('stepStyle(-1)', $b);
+
+        // The chips are painted from the server's own resolved palette. A picker that wrote
+        // its colours into the template as approximations would show a generic chip beside a
+        // flier that comes out teal — a control lying about its own outcome, on the feature
+        // whose entire point is taking the organiser's colour.
+        $this->assertStringContainsString("'background:' + s.ground", $b);
+        $this->assertStringContainsString("'background:' + s.accent", $b);
+        // No literal hex anywhere in the picker's markup: every colour it paints has to come
+        // from the server's resolved palette, or it is an approximation that will drift.
+        $picker = $this->between($b, 'id="flStyleLab"', '</div>');
+        $this->assertDoesNotMatchRegularExpression('~#[0-9a-fA-F]{3,8}~', $picker,
+            'the style chips must carry no colours of their own');
+
+        // Colour is never the only signal (WCAG 1.4.1): the swatch is aria-hidden and the
+        // label and note carry the meaning, because a screen reader reading three hex values
+        // is worse off than one reading none.
+        $this->assertStringContainsString('class="fl__st__sw" aria-hidden="true"', $b);
+        $this->assertStringContainsString('x-text="s.label"', $b);
+        $this->assertStringContainsString('x-text="s.note"', $b);
+    }
+
+    public function test_changing_the_shape_rechecks_the_style(): void
+    {
+        // `tint` re-colours a photograph, so the no-photo design cannot draw it. Without the
+        // re-check the picker keeps a selected chip that is no longer in its own list and the
+        // render silently uses something else — the control and the image disagreeing, which
+        // is the fault class this whole feature kept producing.
+        $set = $this->between($this->body(), 'setFmt(next){', 'styles(){');
+
+        $this->assertStringContainsString('this.fmt = next', $set);
+        $this->assertStringContainsString('this.styles().some(', $set);
+        $this->assertStringContainsString('styleDefaults[next]', $set);
+    }
+
+    public function test_the_style_rides_on_the_request_and_the_answer_is_adopted(): void
+    {
+        $b = $this->body();
+
+        // Sent with every attempt, whichever transport carries it.
+        $this->assertMatchesRegularExpression('~style: this\.style~', $b);
+
+        // And corrected from the response, because a requested style is normalised against the
+        // format that is actually DRAWN: `tint` on a photo format with no photo comes back
+        // `paper` on `plain`.
+        $this->assertStringContainsString("r.headers.get('X-Flier-Style')", $b);
+    }
+
+    public function test_the_style_data_is_not_passed_through_an_attribute(): void
+    {
+        // ── THE BUG THIS ASSERTS AGAINST ─────────────────────────────────────
+        //
+        // The swatches were handed over as JSON arguments inside
+        // `x-data="evFlier(…, {…}, {…})"`, and the HTML parser destroyed it: the first `"`
+        // inside the JSON closed the attribute and everything after it was re-read as a list
+        // of attribute names. The element came out carrying `in=""`, `the=""`, `full=""`, and
+        // Alpine never saw a component — no console error, no failed request, just a dialog
+        // that did nothing when pressed.
+        //
+        // Found by driving the page in a browser. Nothing in this suite could have caught it,
+        // which is why the assertion is on the SHAPE of the handover rather than on behaviour.
+        $tpl = $this->tpl();
+
+        $this->assertMatchesRegularExpression('~var AG_FLIER_STYLES\s*=~', $tpl);
+        $this->assertStringNotContainsString("x-data=\"evFlier('{{ event.slug|e('js') }}', "
+            . "'{{ csrf_token|e('js') }}', {{ referral and referral.pct ? referral.pct : 0 }},", $tpl,
+            'JSON must not be passed through an HTML attribute');
     }
 }

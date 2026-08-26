@@ -224,6 +224,35 @@ final class EventFlier
     }
 
     /**
+     * The format that will actually be drawn, given whether a photo arrived.
+     *
+     * ── NO PHOTO MEANS `plain`, WHATEVER WAS ASKED FOR ───────────────────────
+     *
+     * `story` and `square` are the photo formats: they are built around a face in the upper
+     * slot. Rendered without one, `story` is 1120px of flat ground above the type — precisely
+     * the "dark layout with a hole" the handoff has on its verify list, and what the first
+     * build produced.
+     *
+     * `plain` is not a degraded version of them, it is the design for this case, and the
+     * handoff says to offer it first because most people upload nothing.
+     *
+     * ── AND IT IS A NAMED RESOLVER BECAUSE THE ROUTE NEEDS THE ANSWER TOO ────
+     *
+     * The fallback lived inside png(). Then the STYLE became a thing, and the styles a format
+     * can draw differ by format — `tint` re-colours a photo, so `plain` cannot offer it. The
+     * route has to normalise the requested style against the format that will be drawn, not
+     * the one that was asked for, or the `X-Flier-Style` header it sends back describes an
+     * image that is not the one in the body. Two computations of that fallback is how the two
+     * would come to disagree, so there is one and both call it.
+     */
+    public static function format(string $fmt, bool $hasPhoto): string
+    {
+        if (!EventFlierLayout::valid($fmt)) return 'plain';
+
+        return (!$hasPhoto && isset(EventFlierLayout::PHOTO[$fmt])) ? 'plain' : $fmt;
+    }
+
+    /**
      * The flier as a PNG, or null when it cannot be drawn.
      *
      * Null rather than a broken image: without GD or without the bundled faces this would
@@ -233,7 +262,8 @@ final class EventFlier
      * @param array<string,mixed> $f from {@see forToken()}
      */
     public function png(array $f, string $fmt = 'plain', ?string $photo = null,
-                       mixed $photoIm = null, ?float $focusX = null, ?float $focusY = null): ?string
+                       mixed $photoIm = null, ?float $focusX = null, ?float $focusY = null,
+                       mixed $style = null): ?string
     {
         if (!EventFlierLayout::valid($fmt)) return null;
         if (!function_exists('imagecreatetruecolor')) return null;
@@ -250,10 +280,19 @@ final class EventFlier
         // handoff says to offer it first because most people upload nothing. So the fallback
         // is here rather than only in the generator: a format cannot be talked into drawing
         // the hole by a hand-written URL.
-        $hasPhoto = $photoIm !== null || ($photo !== null && trim($photo) !== '');
-        if (!$hasPhoto && isset(EventFlierLayout::PHOTO[$fmt])) {
-            $fmt = 'plain';
-        }
+        $fmt = self::format($fmt, $photoIm !== null || ($photo !== null && trim($photo) !== ''));
+
+        // ── THE PALETTE, FROM THE EVENT'S OWN ACCENT ─────────────────────────
+        //
+        // Resolved AFTER the format fallback above, because `stylesFor()` differs by format:
+        // `tint` re-colours a photo, so on `plain` it is a style that would change nothing.
+        // Resolving before the fallback would let a photo-less `story` request keep a style
+        // its final format cannot draw.
+        //
+        // Every hex below comes from here. Eleven were hard-coded, which meant every flier
+        // for every event came out the same colour on a platform where the tier chips, the
+        // selection light and the printed ticket all already follow the organiser's accent.
+        $th = EventFlierTheme::forEvent($f['event'] ?? null, $style, $fmt);
 
         [$W, $H] = EventFlierLayout::size($fmt);
         $L = EventFlierLayout::class;
@@ -266,12 +305,16 @@ final class EventFlier
             return (int) imagecolorallocate($im, $r, $g, $b);
         };
 
-        $paper = $fmt === 'plain';
+        // `paper` was `$fmt === 'plain'` — the format decided whether the flier was light or
+        // dark, so there was no such thing as a dark no-photo flier or a light one with a
+        // photo, and neither of those is a bad idea. The STYLE decides the ground now; the
+        // format decides the shape and whether there is a photo slot.
+        $paper = !$th['dark'];
 
-        $ink   = $c($paper ? $L::C_PAPER_INK : $L::C_WHITE);
-        $mute  = $c($paper ? $L::C_PAPER_MUTE : $L::C_MUTED);
-        $gold  = $c($L::C_GOLD);
-        $white = $c($L::C_WHITE);
+        $ink   = $c($th['ink']);
+        $mute  = $c($th['mute']);
+        $gold  = $c($th['accent']);
+        $white = $c($th['chip_fill']);
 
         // ── the ground ──────────────────────────────────────────────────────
         //
@@ -285,8 +328,8 @@ final class EventFlier
         $groundY = $slot !== null ? $slot['y'] + $slot['h'] : 0;
 
         $this->vGradient($im, 0, $groundY, $W, $H - $groundY,
-            EventFlierLayout::rgb($paper ? $L::C_PAPER_TOP : $L::C_PLATE_TOP),
-            EventFlierLayout::rgb($paper ? $L::C_PAPER_BOT : $L::C_PLATE_BOT));
+            EventFlierLayout::rgb($th['ground_top']),
+            EventFlierLayout::rgb($th['ground_bot']));
 
         // ── the photo, where the format has one ─────────────────────────────
         if ($slot !== null) {
@@ -295,7 +338,11 @@ final class EventFlier
             $img = $photoIm ?? $this->loadPhoto((string) $photo);
             // Guaranteed present by the fallback above, but a remote fetch can still fail —
             // and if it does, `plain` is again the answer rather than an empty slot.
-            if ($img === null) return $this->png($f, 'plain');
+            // The style travels with it. Without that a `tint` request whose remote photo
+            // failed would fall back to `plain` AND lose the style, so the colour would change
+            // for a reason nobody could see — `style()` is what turns `tint` into `paper`
+            // there, deliberately and in one place.
+            if ($img === null) return $this->png($f, 'plain', null, null, null, null, $style);
 
             // The REFRAME, or the face. A cover-crop has one degree of freedom in each axis,
             // and the handoff is blunt that reframing is not optional polish: a mis-cropped
@@ -311,6 +358,23 @@ final class EventFlier
             $this->cover($im, $img, $slot['x'], $slot['y'], $slot['w'], $slot['h'],
                          $fp['x'], $fp['y']);
             if ($photoIm === null) imagedestroy($img);
+
+            // ── THE `tint` STYLE, APPLIED TO THE SLOT AND NOT THE CANVAS ─────
+            //
+            // After the cover-crop, so the tint is applied to the pixels that survived it
+            // rather than to a copy of the source — and to the SLOT only, by a temporary
+            // sub-image, because GD's filters take a whole image and the type below is not
+            // supposed to turn the event's colour.
+            //
+            // Grayscale then colorize: two C-speed calls. A true duotone needs a per-pixel
+            // lookup, which in PHP over a 1080×1120 slot is a million `imagesetpixel` calls
+            // and several seconds inside a request somebody is waiting on. This is the same
+            // recipe at a thousandth of the cost, and what it produces — a photograph living
+            // in one colour — is the effect that was wanted.
+            if ($th['photo_tint'] !== null) {
+                $this->tintRegion($im, $slot['x'], $slot['y'], $slot['w'], $slot['h'],
+                                  (string) $th['photo_tint']);
+            }
             // A scrim over the lower band of the photo, so type below it stays legible
             // whatever somebody uploaded. A gradient rather than a flat wash, because a hard
             // edge across a face reads as a rendering fault.
@@ -320,7 +384,7 @@ final class EventFlier
             // TOP colour, which is the value immediately below the slot, so the scrim and the
             // plate meet at one number and there is no seam.
             $this->scrim($im, $slot['x'], $slot['y'] + $slot['h'] - 320, $slot['w'], 320,
-                         EventFlierLayout::rgb($L::C_PLATE_TOP));
+                         EventFlierLayout::rgb($th['plate']));
         }
 
         // ══ THE STACK IS BOTTOM-ANCHORED ════════════════════════════════════
@@ -390,7 +454,8 @@ final class EventFlier
         $centred = $regionTop + (int) round((($regionBot - $regionTop) + $usedH) / 2) - $qrSide;
         $qrY = (int) min($regionBot - $qrSide, max($pad + $usedH - $qrSide, $centred));
         $this->qr($im, (string) ($f['qr'] ?? ''), (string) ($f['qr_label'] ?? ''),
-                  (string) ($f['host'] ?? ''), $fmt, $mute, $ink, $pad, $qrY);
+                  (string) ($f['host'] ?? ''), $fmt,
+                  $th['qr_plate'], $th['qr_ink'], $mute, $ink, $pad, $qrY);
 
         // ── the event, in words, just above it ───────────────────────────────
         $ev = (array) ($f['event'] ?? []);
@@ -454,12 +519,16 @@ final class EventFlier
         // chip's own height has to come off as well.
         if ($f['confirmed'] ?? false) {
             $chipY = $stateBottom - $nameSize - self::CHIP_H - $L::GAP_CHIP;
-            $this->chip($im, $L::MARK, $pad, $chipY, $gold, $c($L::C_ON_GOLD));
+            $this->chip($im, $L::MARK, $pad, $chipY, $gold, $c($th['on_accent']));
 
             if (!empty($f['chip']) && trim((string) ($f['tier'] ?? '')) !== '') {
                 $w = $this->width($L::MARK, $L::CHIP_SIZE, FlierService::fontPath('bold'));
+                // The second chip is the tier, and it reads as a quieter object than the
+                // mark: the chip fill and whichever ink the theme guarantees on it. Both come
+                // from the theme, so a `bold` flier's chips sit on the ground's own family
+                // rather than on a white rectangle the accent never asked for.
                 $this->chip($im, (string) $f['tier'], (int) ($pad + $w + 66), $chipY,
-                    $paper ? $ink : $white, $paper ? $c($L::C_PAPER_TOP) : $c($L::C_INK));
+                    $white, $c($th['chip_ink']));
             }
             $claimBottom = $chipY - $L::GAP_CLAIM;
             unset($w);
@@ -468,8 +537,11 @@ final class EventFlier
             // one name-height up rather than a box height — the chip above needs its own
             // height taken off and a line of type does not.
             $inviteY = $stateBottom - $nameSize - $L::GAP_INVITE;
+            // `accent_text`, not the identity: this is a line of words, and on a cream ground
+            // the identity clears 3:1 rather than 4.5:1. The rule and the chip below keep the
+            // identity because they are graphics — see EventFlierTheme's note on the split.
             $this->text($im, $L::INVITE, $nameSize,
-                FlierService::fontPath('semibold'), $gold, $pad, $inviteY);
+                FlierService::fontPath('semibold'), $c($th['accent_text']), $pad, $inviteY);
             $claimBottom = $inviteY - $nameSize - $L::GAP_CLAIM;
         }
 
@@ -499,10 +571,15 @@ final class EventFlier
         // more whitespace cannot.
         $ruleY = $claimTop - $L::GAP_RULE;
         imagefilledrectangle($im, $pad, $ruleY, $pad + $L::RULE_W - 1,
-                             $ruleY + $L::RULE_H - 1, $gold);
+                             $ruleY + $L::RULE_H - 1, $c($th['rule']));
 
         $this->text($im, 'AFRICA GATES', $L::KICKER_SIZE, FlierService::fontPath('mono'),
-            $paper ? $mute : $gold, $pad, $ruleY - $L::GAP_KICKER, $L::KICKER_TRACK);
+            // The accent, on both grounds. It used to be the muted colour on paper, because
+            // the house gold does not clear 4.5:1 on cream and the kicker is the smallest
+            // type on the flier — the theme now guarantees the accent against the ground it
+            // actually sits on, so the kicker can be the accent in every style and the
+            // platform's name is set in the event's colour rather than in its metadata grey.
+            $c($th['accent_text']), $pad, $ruleY - $L::GAP_KICKER, $L::KICKER_TRACK);
 
         ob_start();
         imagepng($im, null, 6);
@@ -685,6 +762,51 @@ final class EventFlier
     }
 
     /**
+     * Desaturate one rectangle of the canvas and re-colour it into a single hue.
+     *
+     * ── WHY A SUB-IMAGE AND NOT `imagefilter` ON THE CANVAS ──────────────────
+     *
+     * GD's filters have no region argument: they take the whole image. Filtering the canvas
+     * would grey and tint the type, the chips and the QR plate along with the photograph —
+     * and the QR plate turning the event's colour is a code that stops scanning. So the
+     * region is copied out, filtered, and copied back.
+     *
+     * ── AND WHY COLORIZE'S OFFSETS ARE SIGNED FROM MID-GREY ──────────────────
+     *
+     * `IMG_FILTER_COLORIZE` ADDS its arguments to each channel, clamped. After a grayscale
+     * pass every channel holds the luma, so an offset of `target - 128` maps mid-grey exactly
+     * onto the target and compresses toward white and black at the ends — which is what makes
+     * the result read as one colour with light and shade in it rather than as a flat wash.
+     * Passing the target's channels raw instead adds up to 255 to a mid-grey and blows the
+     * whole region out.
+     *
+     * The caller passes a mid-lightness member of the accent's family for the same reason —
+     * see EventFlierTheme's `photo_tint`. A near-black accent's raw offsets would take the
+     * photograph to near-black.
+     */
+    private function tintRegion($im, int $x, int $y, int $w, int $h, string $hex): void
+    {
+        if ($w < 1 || $h < 1) return;
+        if (!function_exists('imagefilter')) return;
+
+        $cut = imagecreatetruecolor($w, $h);
+        if ($cut === false) return;
+
+        imagecopy($cut, $im, 0, 0, $x, $y, $w, $h);
+
+        // Grayscale can fail on an unusual build; without it colorize would add a colour cast
+        // to a full-colour photograph, which looks like a bug rather than a style. So the
+        // second call only runs if the first one did.
+        if (@imagefilter($cut, IMG_FILTER_GRAYSCALE)) {
+            [$r, $g, $b] = EventFlierLayout::rgb($hex);
+            @imagefilter($cut, IMG_FILTER_COLORIZE, $r - 128, $g - 128, $b - 128);
+            imagecopy($im, $cut, $x, $y, 0, 0, $w, $h);
+        }
+
+        imagedestroy($cut);
+    }
+
+    /**
      * A vertical fade from transparent to one opaque colour.
      *
      * Type sits below the photo, not on it, so this is not about legibility over a face — it
@@ -752,6 +874,7 @@ final class EventFlier
      * EventFlierLayout's note.
      */
     private function qr($im, string $target, string $label, string $host, string $fmt,
+                       string $plateHex, string $inkHex,
                         int $mute, int $ink, int $x0, int $y0): void
     {
         if ($target === '') return;
@@ -764,8 +887,22 @@ final class EventFlier
         $pad  = (int) $spec['pad'];
         $side = count($m) * $mod + $pad * 2;
 
-        $white = (int) imagecolorallocate($im, 255, 255, 255);
-        $black = (int) imagecolorallocate($im, 0, 0, 0);
+        // ── PASSED IN, THOUGH THEY ARE ALWAYS WHITE AND BLACK ────────────────
+        //
+        // They came from two literals here. The theme publishes them instead — same values,
+        // deliberately unthemed — because a value the theme DECLARES and nothing reads is the
+        // most expensive shape of bug in this codebase, and a reader is what makes the
+        // decision inspectable and testable rather than a comment somebody has to find.
+        //
+        // Why they do not follow the event: a symbol needs dark modules on a light field. That
+        // is the specification, not a preference, and a reader that copes with a low-contrast
+        // or inverted symbol is a reader somebody happens to have. Every other pixel on this
+        // flier follows the organiser's accent; a code that scans is worth more than a code
+        // that matches.
+        [$pr, $pg, $pb] = EventFlierLayout::rgb($plateHex);
+        [$ir, $ig, $ib] = EventFlierLayout::rgb($inkHex);
+        $white = (int) imagecolorallocate($im, $pr, $pg, $pb);
+        $black = (int) imagecolorallocate($im, $ir, $ig, $ib);
 
         // `$side - 1`, not `$side`. imagefilledrectangle() is INCLUSIVE of both corners, so
         // filling to $side draws a plate one pixel taller and wider than the geometry the

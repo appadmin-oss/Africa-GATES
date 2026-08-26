@@ -217,22 +217,26 @@ final class EventFlierLayout
 
     // ── colour ──────────────────────────────────────────────────────────────
     //
-    // The dark formats share the platform's own deep green ground; `plain` is the warm one.
-
-    public const C_INK        = '#10292c';
-    public const C_WHITE      = '#ffffff';
-    public const C_GOLD       = '#f3b416';
-    public const C_ON_GOLD    = '#2a1e02';
-    public const C_GREEN      = '#237b22';
-    public const C_PLATE_TOP  = '#0d2f26';
-    public const C_PLATE_BOT  = '#071d18';
-    public const C_MIST       = '#e8f2ec';
-    public const C_MUTED      = '#a9c7bd';
-    /** `plain`'s ground: paper, warm, and legibly not a dark layout with the photo missing. */
-    public const C_PAPER_TOP  = '#f4efe4';
-    public const C_PAPER_BOT  = '#e7dfcd';
-    public const C_PAPER_INK  = '#20180a';
-    public const C_PAPER_MUTE = '#6b5f45';
+    // ══ THERE USED TO BE THIRTEEN OF THESE ═══════════════════════════════════
+    //
+    // A deep green plate, a warm paper, an ink, a mute, a mist, a green — one fixed palette,
+    // which meant every flier for every event came out the same colour on a platform where
+    // the tier chips, the registration card's selection light and the printed ticket already
+    // follow the organiser's accent.
+    //
+    // {@see EventFlierTheme} derives the whole palette from that accent now, in one of four
+    // styles, so twelve of the thirteen had no reader left. They are deleted rather than kept
+    // "in case": a constant nothing reads is the most expensive shape of bug in this codebase
+    // — §17 of the index lists six that shipped — and a palette left lying beside a renderer
+    // that no longer uses it is the next person's afternoon.
+    //
+    // ── AND WHY THIS ONE STAYS ───────────────────────────────────────────────
+    //
+    // The house gold, and it is not a flier colour: it is the platform's accent, the one in
+    // the design system. The theme reads it for the case an event's own accent has NO HUE to
+    // build a highlight from — black, white, charcoal — where a grey highlight on a grey
+    // ground is not a highlight but the ink again, one step darker. See EventFlierTheme::HOUSE.
+    public const C_GOLD = '#f3b416';
 
     /** @return array{0:int,1:int} */
     public static function size(string $fmt): array

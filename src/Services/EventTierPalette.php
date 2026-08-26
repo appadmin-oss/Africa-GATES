@@ -281,7 +281,7 @@ final class EventTierPalette
      * fill in the space still clears 4.58:1 against black — while keeping the brand ink on
      * the overwhelming majority of swatches.
      */
-    private static function ink(string $fill): string
+    public static function ink(string $fill): string
     {
         $best = self::contrast(EventTicketDesign::DEFAULT_ACCENT, $fill)
               >= self::contrast('#FFFFFF', $fill)
@@ -298,7 +298,7 @@ final class EventTierPalette
      * in steps until it clears 3:1, rather than a fixed grey, so the outline still belongs to
      * the same colour as the fill.
      */
-    private static function edge(string $fill): string
+    public static function edge(string $fill): string
     {
         [$h, $s, $l] = self::toHsl($fill);
         for ($i = 0; $i < 12; $i++) {
@@ -347,8 +347,18 @@ final class EventTierPalette
 
     // ══ colour space ═════════════════════════════════════════════════════════════════
 
-    /** @return array{float,float,float} h in degrees, s and l in 0–1 */
-    private static function toHsl(string $hex): array
+    /**
+     * @return array{float,float,float} h in degrees, s and l in 0–1
+     *
+     * ── PUBLIC, BECAUSE A SECOND HSL CONVERTER IS THE DRIFT ──────────────────
+     *
+     * {@see EventFlierTheme} builds a whole flier palette out of the same accent this class
+     * builds the tier ladder out of, and it needs the same colour space to do it. Two
+     * conversions of one hex is how two surfaces derived from one accent come to disagree
+     * about what the event's colour is — the exact failure this class's own docblock opens
+     * with, one level down.
+     */
+    public static function toHsl(string $hex): array
     {
         [$r, $g, $b] = EventTicketDesign::channels($hex);
         $r /= 255; $g /= 255; $b /= 255;
@@ -368,7 +378,8 @@ final class EventTierPalette
         return [$h * 60, $s, $l];
     }
 
-    private static function fromHsl(float $h, float $s, float $l): string
+    /** The inverse of {@see toHsl()}, and public for the same reason. */
+    public static function fromHsl(float $h, float $s, float $l): string
     {
         $h = self::hue($h) / 360;
         $s = max(0.0, min(1.0, $s));
@@ -396,7 +407,7 @@ final class EventTierPalette
     }
 
     /** Wrap a hue into 0–360 — the rotations above deliberately run off both ends. */
-    private static function hue(float $h): float
+    public static function hue(float $h): float
     {
         $h = fmod($h, 360);
         return $h < 0 ? $h + 360 : $h;

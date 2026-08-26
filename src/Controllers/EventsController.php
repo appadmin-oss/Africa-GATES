@@ -253,6 +253,24 @@ class EventsController
                 }
                 return $c;
             }, []),
+            // ── THE FLIER'S STYLE PICKER, WITH THIS EVENT'S REAL COLOURS ─────
+            //
+            // Every style resolved against the event's own accent, so the chips in the picker
+            // are the palette the render will use rather than approximations written into the
+            // template. A picker showing a generic dark-green chip beside a flier that comes
+            // out teal is a control that lies about its own outcome, and taking the
+            // organiser's colour is the entire point of the feature.
+            //
+            // Keyed by format, because the styles a format can offer differ: `tint` re-colours
+            // a photograph, so the no-photo design cannot draw it and must not offer it. The
+            // generator swaps lists when the shape changes.
+            'flier_styles'     => array_reduce(
+                \AfricaGates\Services\EventFlierLayout::FORMATS,
+                static function (array $c, string $fmt) use ($event): array {
+                    $c[$fmt] = \AfricaGates\Services\EventFlierTheme::swatches($event, $fmt);
+                    return $c;
+                }, []),
+            'flier_style_default' => \AfricaGates\Services\EventFlierTheme::DEFAULTS,
             'event_sold'       => $seatsTaken,
             // The waitlist is offered per TIER, because a tier is what sells out — somebody
             // priced out of the ₦380,000 table is not waiting for it, they are waiting for a
@@ -948,6 +966,13 @@ class EventsController
 
         if (!\AfricaGates\Services\EventFlierLayout::valid($fmt)) $fmt = 'plain';
 
+        // Against the format that will actually be DRAWN, which for this route is always the
+        // no-photo one — a GET carries no upload. Normalised rather than rejected: a
+        // hand-written URL asking for a style this format cannot draw gets the format's
+        // default, which is a flier rather than an error. See EventFlierTheme::style().
+        $fmt   = \AfricaGates\Services\EventFlier::format($fmt, false);
+        $style = \AfricaGates\Services\EventFlierTheme::style($q['style'] ?? null, $fmt);
+
         $f = \AfricaGates\Services\EventFlier::forToken(
             $token, \AfricaGates\Support\SiteUrl::base($req)
         );
@@ -968,7 +993,8 @@ class EventsController
             return $res->withStatus(410)->withHeader('Content-Type', 'text/plain; charset=utf-8');
         }
 
-        $png = (new \AfricaGates\Services\EventFlier())->png($f, $fmt);
+        $png = (new \AfricaGates\Services\EventFlier())
+            ->png($f, $fmt, null, null, null, null, $style);
         if ($png === null) {
             // Nothing drawn rather than a broken graphic: without GD or the bundled faces this
             // would render in GD's built-in bitmap font, which is not a degraded flier but a
@@ -982,9 +1008,10 @@ class EventsController
         return $res
             ->withHeader('Content-Type', 'image/png')
             ->withHeader('Content-Length', (string) strlen($png))
-            // Cached per token and format, and the token carries its own expiry — so a flier
-            // that upgrades from open to confirmed gets a NEW token and therefore a new URL,
-            // rather than being served a stale image from before the payment landed.
+            // Cached per token, format AND style — all three are in the query string, so two
+            // styles cannot collide in a cache. The token carries its own expiry, so a flier
+            // that upgrades from open to confirmed gets a NEW token and therefore a new URL
+            // rather than a stale image from before the payment landed.
             ->withHeader('Cache-Control', 'private, max-age=900')
             ->withHeader('X-Robots-Tag', 'noindex, nofollow');
     }
@@ -1100,8 +1127,21 @@ class EventsController
         // the image it previews, and neither half looks wrong on its own.
         $fp = \AfricaGates\Services\EventFlier::focus($photo, $fx, $fy);
 
+        // ── THE STYLE, AGAINST THE FORMAT THAT WILL BE DRAWN ─────────────────
+        //
+        // Resolved here, AFTER the photo is decoded, because the format falls back to `plain`
+        // when no usable photo arrived and the styles a format can offer differ: `tint`
+        // re-colours a photograph, so `plain` cannot draw it. Normalising against the
+        // REQUESTED format would send back `X-Flier-Style: tint` on a `paper` image, and the
+        // picker would then be describing something that is not on screen.
+        //
+        // Both calls go through EventFlier::format(), which is also what png() uses, so the
+        // header and the pixels cannot disagree.
+        $drawn = \AfricaGates\Services\EventFlier::format($fmt, $photo !== null);
+        $style = \AfricaGates\Services\EventFlierTheme::style($b['style'] ?? null, $drawn);
+
         $png = (new \AfricaGates\Services\EventFlier())
-            ->png($f, $fmt, null, $photo, $fp['x'], $fp['y']);
+            ->png($f, $fmt, null, $photo, $fp['x'], $fp['y'], $style);
         if ($photo !== null) imagedestroy($photo);
 
         if ($png === null) {
@@ -1122,6 +1162,11 @@ class EventsController
             // Where the crop actually landed, so the reframe control can open on it. Sent
             // even when it came from the browser in the first place: echoing it back means
             // the client never has to decide whether the server honoured what it sent.
+            // The style the render actually used, so the picker can correct itself when a
+            // requested one was not available for the final format — a `tint` request whose
+            // photo did not arrive comes back `paper`, and a control still showing `tint`
+            // would be describing an image that is not on screen.
+            ->withHeader('X-Flier-Style', $style)
             ->withHeader('X-Flier-Focus',
                 ($fp['x'] === null ? '' : round($fp['x'], 4))
                 . ',' . ($fp['y'] === null ? '' : round($fp['y'], 4)));

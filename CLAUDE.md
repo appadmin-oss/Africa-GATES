@@ -147,6 +147,18 @@ darker variant, and it is only for things that owe 3:1 against white (WCAG 1.4.1
 border, a ring, a hairline that holds. Painting the light with `edge` shows the organiser a
 colour they did not choose; drawing a border with a pale `fill` shows them nothing at all.
 
+**The same split runs through `EventFlierTheme`, inverted.** The flier's whole palette is
+derived from that one accent too — nothing stored, nothing picked, a style is a key — and it
+publishes `accent` at 3:1 for the rule and the chip fill and `accent_text` at 4.5:1 for the
+kicker and the invitation. One value for both made a gold event's flier come out olive.
+
+And the reason to trust any of it: `EventFlierThemeTest` **samples the accent space** — the hue
+wheel at two saturations and three lightnesses, plus the greys and the primaries — and asserts
+the contrast floors rather than the colours. Every fault it has caught was on an accent nobody
+would have written down: `bold` collapsing the name, the title and the date to one white on a
+mid-lightness saturated hue, and pure `#0000ff` landing in the light band because HSL lightness
+says 0.50 and the eye does not. Do not add a colour path here without extending that sweep.
+
 **Tiers are ordered by `sort_order`, not by price.** So `loop.last` is whichever row the
 organiser dragged to the bottom, and rank is a price question answered in `EventTierTone`.
 A design handoff asked for `loop.index0` here; it would have made the cheapest tier sweep
