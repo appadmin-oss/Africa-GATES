@@ -876,10 +876,32 @@ Prefer a **structural** bound over a character count when asserting that somethi
 a branch. `EventTierSelectionTest`'s win-burst assertion used `[\s\S]{0,900}` and had to be
 widened twice; it now slices between `if(d.success){` and its `} else {`.
 
+### A claim I made and withdrew
+
+I first reported that a simulation confirmed the handoff's quiet-zone warning: render the
+symbol, downscale-and-JPEG it twice, and watch a 2-module quiet zone fail on the second pass
+while 4 modules survived. It matched the warning, so it read as a confirmation.
+
+**It was an artefact.** Shifting the plate by one pixel flips pass to fail, and at some
+offsets the 2-module zone decodes where the 4-module one does not. The harness measures how
+`cv2.resize` and JPEG's blocks land on the module grid against one detector's thresholding.
+A real scanner samples continuously through a camera with adaptive thresholding, and none of
+that is modelled.
+
+The four modules stand on the **specification** — the quiet zone is part of the symbol, not a
+margin around it — which was always the sufficient reason and does not need a measurement.
+`tests/Support/qr-recompression-check.py` is kept as a smoke check, reports across several
+plate offsets so one coin toss cannot read as a result, and states its own limits at the top.
+
+The lesson worth keeping: a simulation that agrees with the thing you already believed is the
+one to probe hardest. This one was only found because the payload grew and the "confirmed"
+result inverted.
+
 ### What is still open
 
-**Scanning a real phone after a real WhatsApp round trip.** Simulated — downscale, recompress
-twice, decode with OpenCV — and that is not the same thing. It needs a person and a handset.
+**Scanning a real phone after a real WhatsApp round trip.** Still open, and now the only way
+to answer it at all — the simulation cannot stand in for a handset.
 
-**The short URL beside the QR** needs a shortener decision. The bare host ships as text in the
-meantime, which covers the screenshot case and not the cannot-scan case.
+**The short URL beside the QR** needs a shortener decision. The full typeable event address
+ships as text in the meantime, which covers the screenshot and cannot-scan cases for the open
+flier; a confirmed flier's referral parameter is still only carried by the code.

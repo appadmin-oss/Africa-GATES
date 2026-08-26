@@ -159,10 +159,21 @@ final class EventFlier
             // `location` is the city-ish line and `venue` is the room; the flier has space for
             // one and the city is what tells somebody whether they can be there. There is no
             // `city` column — that guess cost a test run.
-            // Printed as text beside the code. The bare host, not the whole link: the link
-            // carries a referral parameter and printing it without one would be an address
-            // that does not credit the sharer.
-            'host'      => (string) (parse_url($base, PHP_URL_HOST) ?: ''),
+            // ── PRINTED AS TEXT BESIDE THE CODE ──────────────────────────────
+            //
+            // A QR is unreachable to a screen reader and unusable to anybody who cannot
+            // scan, so the handoff asks for the address in words as well. This is the whole
+            // typeable path — host and slug, scheme dropped because nobody types one — which
+            // works when somebody reads it off a screenshot and cannot scan the code.
+            //
+            // It is NOT the QR's exact target on a confirmed flier: that carries a referral
+            // parameter, and a printed address is going to be typed by somebody else, on
+            // whose phone the parameter would have to survive being read off an image and
+            // retyped. Printing the plain path is the honest version of what a person can
+            // actually use; scanning remains what credits the sharer, and the label above it
+            // says which one is which.
+            'host'      => rtrim(preg_replace('~^https?://~', '', $base) ?? '', '/')
+                         . '/events/' . $slug,
             'venue'     => trim((string) ($event->location ?? '')) !== ''
                 ? trim((string) ($event->location ?? ''))
                 : trim((string) ($event->venue ?? '')),
@@ -619,7 +630,14 @@ final class EventFlier
                 FlierService::fontPath('bold'), $ink, $tx, $ty, 2.0);
         }
         if ($host !== '') {
-            $this->text($im, $host, EventFlierLayout::HOST_SIZE,
+            // Measured against the real face and the room actually left, not counted in
+            // characters: a long slug would otherwise run off the right edge, and off-canvas
+            // text does not throw — it is simply not there.
+            $room = imagesx($im) - $tx - EventFlierLayout::PAD;
+            $line = $this->wrapMeasured($host, (float) $room, EventFlierLayout::HOST_SIZE,
+                                        FlierService::fontPath('regular'), 1)[0] ?? $host;
+
+            $this->text($im, $line, EventFlierLayout::HOST_SIZE,
                 FlierService::fontPath('regular'), $mute,
                 $tx, $ty + EventFlierLayout::QRLABEL_SIZE + 18, EventFlierLayout::HOST_TRACK);
         }

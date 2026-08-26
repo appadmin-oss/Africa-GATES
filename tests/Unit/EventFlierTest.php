@@ -504,10 +504,10 @@ final class EventFlierTest extends TestCase
 
     public function test_the_quiet_zone_is_four_modules_on_every_format(): void
     {
-        // The geometry a measurement justified: the same symbol at its real module size, on a
-        // 1080-wide ground, downscaled to 75% and JPEG'd at quality 50 twice, for "sent" then
-        // "forwarded". At four modules every format decoded after both passes; at two, the
-        // square and plain codes decoded when sent and FAILED when forwarded.
+        // Four because the specification says four. An attempt to justify it by simulating a
+        // messaging app's recompression is kept at tests/Support/qr-recompression-check.py
+        // and explicitly does NOT support a threshold: a one-pixel shift of the plate flips
+        // the result. See EventFlierLayout's note.
         foreach (EventFlierLayout::QR as $fmt => $spec) {
             $this->assertGreaterThanOrEqual((int) $spec['module'] * 4, (int) $spec['pad'],
                 $fmt . ': the quiet zone is under four modules');
@@ -783,6 +783,93 @@ final class EventFlierTest extends TestCase
 
         $this->assertStringContainsString('no-store', $res->getHeaderLine('Cache-Control'));
         $this->assertStringContainsString('noindex', $res->getHeaderLine('X-Robots-Tag'));
+    }
+
+    // ══ the third entry point, and the printed address ═══════════════════════
+
+    public function test_a_confirmed_ticket_carries_a_flier_link_in_the_account_area(): void
+    {
+        // The handoff's third entry point: regenerate, switch format, re-share. It links at
+        // the event page's own generator with the credential in hand, rather than a second
+        // smaller generator living in the account area.
+        $this->registration(['email' => 'ada@example.test', 'name' => 'Ada Nwosu']);
+
+        $rows = \AfricaGates\Services\MemberActivityService::ticketsFor('ada@example.test', 10);
+        $this->assertNotEmpty($rows);
+
+        $link = (string) ($rows[0]['flier'] ?? '');
+        $this->assertStringContainsString('/events/' . $this->slug, $link);
+        // The token rides in the FRAGMENT, which is never sent to a server — so it is not in
+        // an access log, a Referer header, or anything an intermediary keeps.
+        $this->assertStringContainsString('#flier=', $link);
+        $this->assertStringNotContainsString('?flier=', $link);
+
+        // And it is a real token for this event and this registration.
+        $t = EventFlierToken::read(rawurldecode(explode('#flier=', $link)[1]));
+        $this->assertNotNull($t);
+        $this->assertSame($this->eventId, $t['event']);
+        $this->assertSame('Ada Nwosu', $t['name']);
+    }
+
+    public function test_an_unconfirmed_ticket_carries_no_flier_link(): void
+    {
+        // A held seat is not a ticket, and a flier reading "Ticket confirmed" over a payment
+        // that has not landed is a claim the door would refuse.
+        $this->registration(['email' => 'held@example.test', 'status' => 'pending']);
+
+        $rows = \AfricaGates\Services\MemberActivityService::ticketsFor('held@example.test', 10);
+        $this->assertNotEmpty($rows);
+        $this->assertSame('', (string) ($rows[0]['flier'] ?? 'missing'));
+    }
+
+    public function test_the_printed_address_is_typeable_and_has_no_scheme(): void
+    {
+        // A QR is unreachable to a screen reader and unusable to anybody who cannot scan, so
+        // the address is printed in words too. The scheme is dropped because nobody types one.
+        $f = EventFlier::forToken(
+            EventFlierToken::mint($this->eventId, 'Ada'), 'https://afg.example.org');
+
+        $this->assertSame('afg.example.org/events/' . $this->slug, $f['host']);
+        $this->assertStringNotContainsString('https://', $f['host']);
+    }
+
+    public function test_a_long_address_is_truncated_by_measurement_and_stays_on_the_canvas(): void
+    {
+        // Off-canvas text does not throw — it is simply not there. So the line is wrapped
+        // against the real face and the room actually left, and this is the case that proves
+        // the wrapping is wired up rather than the string just happening to fit.
+        $long = 'continental-recognition-gala-and-awards-evening-2026-lagos';
+        DB::table('gates_site_events')->where('id', $this->eventId)->update(['slug' => $long]);
+        $this->slug = $long;
+
+        $f = EventFlier::forToken(
+            EventFlierToken::mint($this->eventId, 'Ada'), 'https://afg.afrovanguard.org.ng');
+        $this->assertNotNull($f);
+        $this->assertGreaterThan(60, strlen($f['host']), 'the fixture is not actually long');
+
+        $im = imagecreatefromstring((string) (new EventFlier())->png($f, 'plain'));
+        $this->assertNotFalse($im);
+
+        // Nothing in the right-hand margin.
+        $w = imagesx($im);
+        for ($y = 0; $y < imagesy($im); $y += 3) {
+            $this->assertFalse($this->hasInkRight($im, $y, $w),
+                'the address ran into the right margin at y=' . $y);
+        }
+        imagedestroy($im);
+    }
+
+    /** Is there ink in the right-hand margin on this row? */
+    private function hasInkRight($im, int $y, int $w): bool
+    {
+        $bg = imagecolorsforindex($im, imagecolorat($im, 4, $y));
+        for ($x = $w - 40; $x < $w - 2; $x += 2) {
+            $c = imagecolorsforindex($im, imagecolorat($im, $x, $y));
+            $d = abs($c['red'] - $bg['red']) + abs($c['green'] - $bg['green'])
+               + abs($c['blue'] - $bg['blue']);
+            if ($d > 90) return true;
+        }
+        return false;
     }
 
     public function test_the_route_serves_a_png_for_a_good_token(): void

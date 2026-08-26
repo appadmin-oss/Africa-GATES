@@ -183,6 +183,31 @@ class MemberActivityService
                              : ($offered ? 'offered' : 'unpaid')),
                 'expires'   => (string) ($r->offer_expires_at ?? ''),
                 'reference' => (string) ($r->reference ?? ''),
+                // ── THE FLIER, FROM THE ACCOUNT AREA ────────────────────────
+                //
+                // The handoff's third entry point: regenerate, switch format, re-share. It
+                // links at the event page's own generator rather than a second copy of one —
+                // "switch format" and "re-share" are exactly what that component does, and
+                // building a smaller version of it here would be two generators to keep in
+                // step.
+                //
+                // Confirmed only. A held or waitlisted seat is not a ticket, and a flier
+                // reading "Ticket confirmed" over a payment that has not landed is a claim
+                // the door would refuse.
+                //
+                // The token rides in the FRAGMENT, not the query string. A fragment is never
+                // sent to a server, so it stays out of access logs, out of the Referer header
+                // and out of anything an intermediary keeps — which for a credential that
+                // renders somebody's name onto an image is worth the one line of JavaScript
+                // it costs to read.
+                'flier'     => $status === 'confirmed' && trim((string) ($r->event_slug ?? '')) !== ''
+                    ? '/events/' . rawurlencode((string) $r->event_slug) . '#flier='
+                      . rawurlencode(\AfricaGates\Services\EventFlierToken::mint(
+                          (int) ($r->event_id ?? 0),
+                          (string) ($r->name ?? ''),
+                          (int) ($r->id ?? 0)
+                      ))
+                    : '',
                 // A waitlisted row has no reference to link to, so it points at the event.
                 'url'       => trim((string) ($r->reference ?? '')) !== ''
                     ? '/events/ticket/' . rawurlencode((string) $r->reference)

@@ -273,9 +273,10 @@ final class Qr
     /**
      * An SVG for arbitrary bytes. {@see svg()} with {@see encodeBytes()} behind it.
      *
-     * The quiet zone is four modules on every side, as specified — and it is the measurement
-     * the flier handoff singled out, because an undersized quiet zone still LOOKS correct and
-     * stops scanning once a messaging app has recompressed the image.
+     * The quiet zone is four modules on every side, as specified. A decoder locates the
+     * symbol by its edge, so the zone is part of the symbol and not a margin around it — and
+     * an undersized one still LOOKS completely correct, which is what makes trimming it
+     * tempting.
      */
     public static function svgBytes(string $text, int $scale = 6, string $label = ''): ?string
     {

@@ -1129,6 +1129,19 @@
                   <span class="me-code" style="margin:0">{{ t.code }}</span>{{ gi.ui('copy', 14) }}
                 </button>
                 {% endif %}
+                {# ── THE FLIER ─────────────────────────────────────────────
+                   Entry point three. It opens the event page's own generator with this
+                   ticket's credential already in hand, so "switch format" and "re-share"
+                   are the generator's own controls rather than a second, smaller copy of
+                   them living here.
+
+                   Confirmed rows only, because `flier` is empty for the others — a held
+                   seat is not a ticket. #}
+                {% if t.flier|default('') %}
+                <a class="me-btn" href="{{ t.flier }}"
+                   style="margin-top:7px;min-height:36px;padding:0 12px;display:inline-flex;align-items:center;gap:6px">
+                  Make an “I will be there” flier</a>
+                {% endif %}
                 {% if t.state == 'offered' and t.expires %}
                 <div class="me-row__m" style="color:var(--me-bad);font-weight:700;margin-top:6px">
                   Take it by {{ t.expires|date('j M, H:i') }} or it goes to the next person waiting.

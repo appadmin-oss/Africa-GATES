@@ -118,20 +118,27 @@ GET /events/{slug}/flier.png?fmt=story|square|plain&t={token}
 - **Quiet zone is 4 modules of white on every side.** At these sizes that is **26–28px**, not the 14px a comfortable-looking inset gives you. This was a real defect in the first pass: an undersized quiet zone still *looks* correct and stops scanning once WhatsApp recompresses the image. Measured in the design: 7.04px module / 28px pad on story and open, 5.76/26 on square, 6.16/27 on plain.
 - The pattern never sits directly on the dark ground — it always has its own white plate.
 
-> **⟶ BUILT, and the quiet zone is now a measurement rather than a rule.**
+> **⟶ BUILT at four modules — and a correction about why.**
 >
-> The warning here is exact and it reproduces. The symbol at its real module size was put on a
-> 1080-wide ground and through what a messaging app does — downscale to 75%, JPEG quality 50 —
-> twice, for "sent" then "forwarded":
+> The measurements here (7.04/28, 5.76/26, 6.16/27) are implemented as 7/28, 6/26 and 6/27, and
+> the plate is verified white on all four sides by sampling the rendered raster rather than
+> trusted from the constants.
 >
-> | quiet zone | sent | forwarded |
-> |---|---|---|
-> | 4 modules (spec) | every format decoded | every format decoded |
-> | 2 modules | every format decoded | **`square` and `plain` failed** |
+> I first reported that a simulation confirmed your warning: render the symbol, put it through
+> downscale-and-JPEG twice, and watch the 2-module version fail on the second pass. **That was
+> wrong and I have withdrawn it.** Probing further, shifting the plate by ONE PIXEL flips pass
+> to fail, and the 2-module zone sometimes decodes where the 4-module one does not. The harness
+> measures how `cv2.resize` and JPEG happen to land on the module grid against OpenCV's
+> detector — not robustness. A real scanner samples continuously through a camera and
+> thresholds adaptively, and none of that is modelled.
 >
-> Which is the defect described: correct on screen, dead after a forward. The four modules are
-> asserted for that reason, and the plate is verified white on all four sides in the rendered
-> raster rather than trusted from the constants.
+> So the four modules stand on the **specification**, which is the right reason and was always
+> sufficient: the quiet zone is part of the symbol, not a margin around it. The script is kept
+> at `tests/Support/qr-recompression-check.py` as a smoke check that a rendered flier's code
+> decodes at all, with its own limits written at the top.
+>
+> Your underlying point is untouched and is why the number is not negotiable: an undersized
+> quiet zone still looks completely correct on screen.
 
 ### The photo
 
@@ -263,9 +270,9 @@ The caption is prefilled with event name, date and link, and **the first line is
 > - [x] **Fallback path tested on a browser without file share.** Headless Chrome is one.
 > - [x] **Photo upload is not persisted — confirmed at the storage layer.** Every directory the
 >       platform writes to is listed before and after a real upload.
-> - [ ] **Scan every format's QR after sending it through WhatsApp, on a real phone.** Simulated
->       — downscale and recompress twice, decoded with OpenCV — and that is not the same thing.
->       This is the one item that needs a person and a handset.
+> - [ ] **Scan every format's QR after sending it through WhatsApp, on a real phone.** Still
+>       open, and now the ONLY way to answer it: the simulation turned out to be too noisy to
+>       stand in for a handset — see the correction under §4's quiet-zone note.
 > - [x] **Paying upgrades an already-generated open flier to confirmed.** The register response
 >       mints the token and the generator picks it up, so the next render carries the mark.
 

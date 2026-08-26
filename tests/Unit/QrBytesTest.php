@@ -138,7 +138,7 @@ final class QrBytesTest extends TestCase
     public function test_the_smallest_version_that_fits_is_chosen(): void
     {
         // A larger-than-needed symbol has smaller modules at a fixed pixel size, which is
-        // exactly what stops scanning after a messaging app recompresses it.
+        // exactly what a scanner has least of to work with once an image has been resized.
         foreach ([[11, 21], [12, 25], [20, 25], [21, 29], [32, 29], [33, 33],
                   [46, 33], [47, 37], [60, 37], [61, 41], [74, 41]] as [$len, $side]) {
             $m = Qr::encodeBytes(str_repeat('A', $len));
@@ -220,18 +220,17 @@ final class QrBytesTest extends TestCase
         $this->assertStringContainsString('viewBox="0 0 ' . $side . ' ' . $side . '"', $svg);
     }
 
-    public function test_the_quiet_zone_is_four_modules_and_that_is_load_bearing(): void
+    public function test_the_quiet_zone_is_four_modules(): void
     {
-        // Measured, not assumed: the same symbol at the flier's own module size was pasted
-        // onto a 1080-wide ground and put through what a messaging app does — downscale to
-        // 75% and JPEG at quality 50, twice, for "sent" then "forwarded".
+        // Four because the QR specification says four: a decoder finds the symbol by its
+        // edge, so the zone is part of the symbol rather than a margin around it.
         //
-        //   4-module quiet zone: every format decoded after both passes.
-        //   2-module quiet zone: `square` and `plain` decoded when sent and FAILED when
-        //   forwarded — which is exactly the defect the handoff described, a quiet zone that
-        //   still looks correct and stops scanning after recompression.
-        //
-        // So this asserts the geometry the measurement justified.
+        // NOT because a simulation proved it. That was attempted — render the code, put it
+        // through what a messaging app does, show a smaller zone failing — and the harness
+        // cannot resolve the question: moving the plate ONE PIXEL flips pass to fail, and the
+        // 2-module zone sometimes decodes where the 4-module one does not. It measures how
+        // the resampler lands on the module grid. `tests/Support/qr-recompression-check.py`
+        // keeps it as a smoke check and says so.
         $scale = 7;
         $svg = Qr::svgBytes('https://x.ng/r/aB12', $scale);
         $m   = Qr::encodeBytes('https://x.ng/r/aB12');

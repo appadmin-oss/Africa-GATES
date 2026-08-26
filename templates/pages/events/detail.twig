@@ -1581,6 +1581,21 @@
           this.token = (e.detail && e.detail.token) || '';
           if (e.detail && e.detail.name) this.name = e.detail.name;
         });
+
+        /* ── ARRIVING FROM THE ACCOUNT AREA ──────────────────────────────────
+           The third entry point hands the credential over in the URL FRAGMENT, which is
+           never sent to a server — so it is not in an access log, not in a Referer header,
+           and not in anything an intermediary keeps. That is worth one line of parsing for
+           a token that renders somebody's name onto an image.
+
+           Consumed and then removed from the address bar, so a copied URL does not carry
+           somebody else's credential and a reload does not silently reuse it. */
+        var m = (location.hash || '').match(/flier=([^&]+)/);
+        if (m) {
+          this.token = decodeURIComponent(m[1]);
+          try { history.replaceState(null, '', location.pathname + location.search + '#flier'); }
+          catch (e) {}
+        }
       },
 
       stepFmt(dir){

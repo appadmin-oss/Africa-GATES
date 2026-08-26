@@ -179,8 +179,15 @@ a code that scans perfectly and goes nowhere.
 never by diffing another encoder: the pad region after the terminator is not uniquely
 determined, so two correct encoders disagree byte-for-byte.
 
-The 4-module quiet zone is a measurement, not a margin. At 2 modules the square and plain
-fliers decode when sent and fail when forwarded.
+The 4-module quiet zone is **the specification**, and it is the reason to keep it. Do not
+trim it for a tidier inset.
+
+Do not try to justify it by simulating recompression either — that was tried here and the
+harness cannot resolve it. `tests/Support/qr-recompression-check.py` decodes a rendered
+symbol after downscale-and-JPEG, and shifting the plate by **one pixel** flips pass to fail,
+with the 2-module zone sometimes surviving where the 4-module one does not. It measures
+alignment artefacts of the resampler against OpenCV's detector, not robustness. It is a
+smoke check that a symbol decodes at all; the threshold question needs a camera.
 
 ## House style
 

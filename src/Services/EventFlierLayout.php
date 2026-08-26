@@ -31,10 +31,23 @@ namespace AfricaGates\Services;
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * Four modules of white on every side, which at these module sizes is 26–28px and not the
- * ~14px a comfortable-looking inset gives you. This was checked by doing what a messaging
- * app does — downscale to 75%, JPEG at quality 50, twice — and at two modules the `square`
- * and `plain` codes decoded when sent and FAILED when forwarded. An undersized quiet zone
- * still looks completely correct on screen, which is what makes it expensive.
+ * ~14px a comfortable-looking inset gives you. It is four because the QR specification says
+ * four: a decoder locates the symbol by its edge, and the quiet zone is part of the symbol
+ * rather than a margin around it.
+ *
+ * ── AND IT CANNOT BE JUSTIFIED BY SIMULATION ─────────────────────────────────
+ *
+ * The obvious way to defend the number is to render the code, put it through what a
+ * messaging app does, and show that a smaller zone fails. That was built
+ * (`tests/Support/qr-recompression-check.py`) and it does not support the conclusion:
+ * moving the plate by ONE PIXEL flips pass to fail, and the 2-module zone sometimes decodes
+ * where the 4-module one does not. What it measures is how `cv2.resize` and JPEG happen to
+ * land on the module grid, not robustness — a real scanner samples continuously through a
+ * camera and thresholds adaptively.
+ *
+ * So: four because it is specified, and the script stays as a smoke check that a rendered
+ * symbol decodes at all. An undersized quiet zone still looks completely correct on screen,
+ * which is what makes trimming it tempting and expensive.
  *
  * The pattern also never sits on the dark ground: it always gets its own white plate.
  */
@@ -66,7 +79,7 @@ final class EventFlierLayout
 
     /**
      * QR module size and its quiet zone, per format. The pad is four modules, rounded up —
-     * see the class note for the recompression measurement that decided it.
+     * see the class note for why four, and for why not to try to prove it by simulation.
      *
      * ── NO x/y HERE, DELIBERATELY ────────────────────────────────────────────
      *
@@ -109,7 +122,7 @@ final class EventFlierLayout
      * because the accent is already gold and a second colour would be a second decision.
      *
      * 2px, not 1: this image is recompressed by a messaging app and viewed as a thumbnail, and
-     * a one-pixel line does not survive either.
+     * a one-pixel line has nothing to lose before it is gone.
      */
     public const RULE_H     = 2;
     public const RULE_W     = 132;
@@ -129,7 +142,14 @@ final class EventFlierLayout
      * and a wide-set mono word is exactly the effect wanted there.
      */
     public const MONO_TRACK = 2.2;
-    public const HOST_SIZE  = 22;
+    /**
+     * The typeable address under the QR's label.
+     *
+     * Smaller than the label above it, and it has to be: it is the whole path now, not a
+     * bare host, so on a long slug it is the longest string on the flier. Truncated by
+     * measurement rather than by character count — see EventFlier::qr().
+     */
+    public const HOST_SIZE  = 19;
     public const HOST_TRACK = 0.8;
 
     // ── type ────────────────────────────────────────────────────────────────
